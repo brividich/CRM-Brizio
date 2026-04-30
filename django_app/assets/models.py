@@ -23,7 +23,9 @@ class Asset(models.Model):
     TYPE_HW = "HW"
     TYPE_CNC = "CNC"
     TYPE_WORK_MACHINE = "WORK_MACHINE"
+    TYPE_CARROPONTE = "CARROPONTE"
     TYPE_CCTV = "CCTV"
+    TYPE_FONIA = "FONIA"
     TYPE_OTHER = "OTHER"
 
     TYPE_CHOICES = [
@@ -34,8 +36,10 @@ class Asset(models.Model):
         (TYPE_FIREWALL, "Firewall"),
         (TYPE_STAMPANTE, "Stampante"),
         (TYPE_HW, "Dispositivo"),
+        (TYPE_FONIA, "Fonia"),
         (TYPE_CNC, "CNC"),
         (TYPE_WORK_MACHINE, "Macchina di lavoro"),
+        (TYPE_CARROPONTE, "Carroponte"),
         (TYPE_CCTV, "Videosorveglianza"),
         (TYPE_OTHER, "Altro"),
     ]
@@ -104,12 +108,15 @@ class Asset(models.Model):
             self.TYPE_FIREWALL,
             self.TYPE_STAMPANTE,
             self.TYPE_HW,
+            self.TYPE_FONIA,
         }:
             return "IT"
         if self.asset_type == self.TYPE_CNC:
             return "CNC"
         if self.asset_type == self.TYPE_WORK_MACHINE:
             return "ML"
+        if self.asset_type == self.TYPE_CARROPONTE:
+            return "CP"
         if self.asset_type == self.TYPE_CCTV:
             return "CCTV"
         return "AST"
@@ -1088,6 +1095,7 @@ class WorkMachine(models.Model):
     accuracy_from = models.CharField(max_length=120, blank=True, default="")
     next_maintenance_date = models.DateField(null=True, blank=True, db_index=True)
     maintenance_reminder_days = models.PositiveIntegerField(default=30)
+    photo = models.ImageField(upload_to="assets/work_machines/photos/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

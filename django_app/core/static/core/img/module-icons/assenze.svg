@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Assenze">
+  <path d="M30 18h49l11 11" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square"/>
+  <path d="M96 18h15l13 13" fill="none" stroke="#ff6b00" stroke-width="6" stroke-linecap="square"/>
+  <path d="M111 38v50l-18 18H31L14 89V38z" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M91 107h22V88" fill="none" stroke="#6f94b5" stroke-width="10" stroke-linecap="square"/>
+  <rect x="35" y="44" width="60" height="54" rx="5" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <path d="M47 35v18M83 35v18M35 60h60" fill="none" stroke="#002b5c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M47 72h10M65 72h10M83 72h10M47 88h10M65 88h10" fill="none" stroke="#002b5c" stroke-width="8" stroke-linecap="square"/>
+  <circle cx="93" cy="95" r="20" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <circle cx="93" cy="88" r="7" fill="#002b5c"/>
+  <path d="M80 108a15 15 0 0 1 26 0" fill="#002b5c"/>
+</svg>

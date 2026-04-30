@@ -15,7 +15,11 @@
       font-family: "Outfit", sans-serif;
       font-size: var(--fs-base);
       line-height: var(--lh-base);
-      background: #f8fafc;
+      background: var(--bg);
+      background:
+        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
+        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
       color: #1e293b;
     }
 
@@ -422,7 +426,7 @@
     }
   </style>
 </head>
-<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
   <div class="action-bar">
     <div class="action-title">Report Documento OP</div>
     <a href="javascript:history.back()" class="action-btn">&#8592; Indietro</a>

@@ -106,25 +106,21 @@
 #eb-root.edit-mode .eb-widget-hide  { display: inline-flex; }
 #eb-root.edit-mode .eb-widget { box-shadow: 0 2px 10px rgba(59,130,246,.1); }
 
-/* ── Stat boxes ────────────────────────────────────────────────────────── */
-.eb-stats-row {
+/* ── Blueprint stats grid ──────────────────────────────────────────────── */
+.dash-bp-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
-.eb-stat-box {
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 12px 8px;
-  text-align: center;
-  border: 1px solid #e2e8f0;
+@media (max-width: 700px) { .dash-bp-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── Industrial ticker grid ────────────────────────────────────────────── */
+.dash-ind-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
-.eb-stat-val { font-size: 24px; font-weight: 800; line-height: 1.1; color: #0f172a; }
-.eb-stat-val.blue   { color: #2563eb; }
-.eb-stat-val.yellow { color: #ca8a04; }
-.eb-stat-val.green  { color: #16a34a; }
-.eb-stat-val.red    { color: #dc2626; }
-.eb-stat-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+@media (max-width: 700px) { .dash-ind-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ── List items (richieste, assenze) ───────────────────────────────────── */
 .eb-list { list-style: none; padding: 0; margin: 0; }
@@ -518,14 +514,13 @@ body.theme-dark .dash-footer strong { color:var(--text); }
 {{ dashboard_layout|json_script:"dash-layout" }}
 {% if is_admin %}{{ admin_all_modules|json_script:"dash-all-modules" }}{% endif %}
 
-<div id="eb-root">
+<div id="eb-root" class="hub-dashboard-pilot">
 
   <!-- Header -->
   <div class="eb-header">
-    <div>
-      <div class="page-h">Benvenuto, {{ display_name }}</div>
-      <div class="page-sub" id="dash-date-label">Dashboard — Hub Operativo</div>
-    </div>
+    {% with page_title="Benvenuto, "|add:display_name %}
+      {% include "core/components/page_header.html" with title=page_title subtitle="Dashboard - Hub Operativo" subtitle_id="dash-date-label" status_label="NOVICROM HUB" status_tone="info" compact=True only %}
+    {% endwith %}
     <div class="eb-header-actions">
       {% if is_admin %}
         <a class="eb-btn secondary" href="{% url 'admin_portale:wizard_pulsante' %}">&#43; Nuova app</a>
@@ -535,7 +530,7 @@ body.theme-dark .dash-footer strong { color:var(--text); }
   </div>
 
   <!-- Edit bar (visible in edit mode) -->
-  <div id="eb-edit-bar" style="display:none;">
+  <div id="eb-edit-bar" class="hub-toolbar" style="display:none;">
     <span>Modalit&agrave; modifica &mdash; trascina widget e app, cambia dimensioni, nascondi sezioni.</span>
     <span id="eb-edit-bar-status"></span>
     <button class="eb-btn success"   id="eb-save-btn">&#10003;&nbsp;Salva</button>
@@ -608,7 +603,13 @@ body.theme-dark .dash-footer strong { color:var(--text); }
                 <div class="eb-list-sub">{{ ur.inizio }} &rarr; {{ ur.fine }}</div>
               </div>
               <div class="eb-list-meta">
-                <span class="eb-tag {% if ur.stato == 'Approvato' %}approvato{% elif ur.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ ur.stato }}</span>
+                {% if ur.stato == 'Approvato' %}
+                  {% include "core/components/status_badge.html" with label=ur.stato tone="success" only %}
+                {% elif ur.stato == 'Rifiutato' %}
+                  {% include "core/components/status_badge.html" with label=ur.stato tone="danger" only %}
+                {% else %}
+                  {% include "core/components/status_badge.html" with label=ur.stato tone="warning" only %}
+                {% endif %}
               </div>
             </li>
           </ul>
@@ -624,21 +625,74 @@ body.theme-dark .dash-footer strong { color:var(--text); }
       <div class="eb-widget-head">
         <div class="eb-widget-title">
           <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
-          <span>&#128202;</span> Statistiche
+          <span>&#128202;</span> Statistiche assenze
         </div>
         <div class="eb-widget-actions">
           <button type="button" class="eb-widget-hide" data-wid="stats" title="Nascondi sezione">&#10005;</button>
         </div>
       </div>
       <div class="eb-widget-body">
-        <div class="eb-stats-row">
+        <div class="dash-bp-grid">
           {% for stat in stats_cards %}
-          <div class="eb-stat-box">
-            <div class="eb-stat-val {{ stat.icon_class|default:'blue' }}">{{ stat.value }}</div>
-            <div class="eb-stat-label">{{ stat.label }}</div>
+          {% if stat.icon_class == 'green' %}
+            {% include "core/components/kpi_card.html" with label=stat.label value=stat.value tone="success" meta="Assenze" only %}
+          {% elif stat.icon_class == 'yellow' %}
+            {% include "core/components/kpi_card.html" with label=stat.label value=stat.value tone="warning" meta="Assenze" only %}
+          {% elif stat.icon_class == 'red' %}
+            {% include "core/components/kpi_card.html" with label=stat.label value=stat.value tone="danger" meta="Assenze" only %}
+          {% else %}
+            {% include "core/components/kpi_card.html" with label=stat.label value=stat.value tone="info" meta="Assenze" only %}
+          {% endif %}
+          {% empty %}
+          {% include "core/components/empty_state.html" with title="Nessun dato disponibile" text="I KPI saranno visibili appena ci sono dati utili." icon="KPI" only %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Widget: KPI Operativi (Industrial ticker) ── -->
+    <div class="eb-widget full-width" data-wid="kpi">
+      <div class="eb-widget-head">
+        <div class="eb-widget-title">
+          <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
+          <span>&#128200;</span> KPI Operativi
+        </div>
+        <div class="eb-widget-actions">
+          <button type="button" class="eb-widget-hide" data-wid="kpi" title="Nascondi sezione">&#10005;</button>
+        </div>
+      </div>
+      <div class="eb-widget-body">
+        <div class="dash-ind-grid">
+          {% for stat in stats_cards %}
+          <div class="card-ind{% if stat.icon_class == 'blue' %} card-ind--cyan{% elif stat.icon_class == 'red' or stat.icon_class == 'yellow' %}{% else %} card-ind--navy{% endif %}">
+            <div class="card-ind-bar"></div>
+            <div class="card-ind-body">
+              <div class="card-ind-top">
+                <div>
+                  <div class="card-ind-num">{{ stat.value }}</div>
+                  <div class="card-ind-lbl">{{ stat.label }}</div>
+                </div>
+                <div class="card-ind-sig">
+                  <span style="height:40%"></span><span style="height:65%"></span>
+                  <span style="height:50%"></span><span style="height:85%"></span>
+                  <span style="height:70%"></span><span style="height:55%"></span>
+                </div>
+              </div>
+              <div class="card-ind-meta">
+                {% if stat.icon_class == 'green' %}
+                  <span class="card-ind-chip live">OK</span>
+                {% elif stat.icon_class == 'yellow' %}
+                  <span class="card-ind-chip">In attesa</span>
+                {% elif stat.icon_class == 'red' %}
+                  <span class="card-ind-chip">Verificare</span>
+                {% else %}
+                  <span class="card-ind-chip live">Live</span>
+                {% endif %}
+              </div>
+            </div>
           </div>
           {% empty %}
-          <div class="eb-empty" style="grid-column:1/-1;">Nessun dato disponibile.</div>
+          {% include "core/components/empty_state.html" with title="Nessun dato disponibile" text="I dati operativi saranno visibili appena disponibili." icon="KPI" only %}
           {% endfor %}
         </div>
       </div>
@@ -667,13 +721,19 @@ body.theme-dark .dash-footer strong { color:var(--text); }
               <div class="eb-list-sub">{{ r.inizio }}{% if r.fine %} &rarr; {{ r.fine }}{% endif %}</div>
             </div>
             <div class="eb-list-meta">
-              <span class="eb-tag {% if r.stato == 'Approvato' %}approvato{% elif r.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ r.stato }}</span>
+              {% if r.stato == 'Approvato' %}
+                {% include "core/components/status_badge.html" with label=r.stato tone="success" only %}
+              {% elif r.stato == 'Rifiutato' %}
+                {% include "core/components/status_badge.html" with label=r.stato tone="danger" only %}
+              {% else %}
+                {% include "core/components/status_badge.html" with label=r.stato tone="warning" only %}
+              {% endif %}
             </div>
           </li>
           {% endfor %}
         </ul>
         {% else %}
-        <div class="eb-empty">Nessuna richiesta recente.</div>
+        {% include "core/components/empty_state.html" with title="Nessuna richiesta recente" text="Le ultime richieste appariranno qui." icon="0" only %}
         {% endif %}
       </div>
     </div>
@@ -717,7 +777,7 @@ body.theme-dark .dash-footer strong { color:var(--text); }
             </div>
           </div>
           {% empty %}
-          <div class="eb-empty" id="dash-empty-msg">Nessuna applicazione disponibile.</div>
+          {% include "core/components/empty_state.html" with title="Nessuna applicazione disponibile" text="Le applicazioni abilitate per il tuo profilo appariranno qui." icon="APP" element_id="dash-empty-msg" only %}
           {% endfor %}
         </div>
       </div>
@@ -816,7 +876,8 @@ body.theme-dark .dash-footer strong { color:var(--text); }
   // Widget labels for restore panel
   const WIDGET_LABELS = {
     assenze:   "Assenze / Approvazioni",
-    stats:     "Statistiche",
+    stats:     "Statistiche assenze",
+    kpi:       "KPI Operativi",
     richieste: "Assenze recenti",
     launcher:  "Applicazioni",
   };

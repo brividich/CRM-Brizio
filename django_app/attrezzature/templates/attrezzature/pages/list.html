@@ -1,0 +1,99 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Attrezzature{% endblock %}
+{% block page_actions %}
+<a class="btn" href="{% url 'attrezzature:create' %}">Nuova attrezzatura</a>
+<a class="btn secondary" href="{% url 'attrezzature:import' %}">Import Excel</a>
+{% endblock %}
+{% block attrezzature_content %}
+{% include "attrezzature/components/counters.html" %}
+<section class="at-card">
+  <div class="at-card-h">
+    <strong>Filtri</strong>
+    {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo %}
+    <span class="badge info">Filtri attivi</span>
+    {% endif %}
+  </div>
+  <div class="at-card-b">
+    <form class="at-filter" method="get">
+      <label>Stato
+        <select class="input" name="stato">
+          <option value="">Tutti</option>
+          {% for value,label in stato_choices %}<option value="{{ value }}" {% if request.GET.stato == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Disponibilita
+        <select class="input" name="disponibilita_stato">
+          <option value="">Tutte</option>
+          {% for value,label in disponibilita_choices %}<option value="{{ value }}" {% if request.GET.disponibilita_stato == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>P/N
+        <input class="input" name="part_number" value="{{ request.GET.part_number }}" placeholder="Part number">
+      </label>
+      <label>Codice
+        <input class="input" name="codice" value="{{ request.GET.codice }}" placeholder="Codice attrezzo">
+      </label>
+      <label class="at-field">
+        <span>Ritardo</span>
+        <span><input type="checkbox" name="in_ritardo" value="1" {% if request.GET.in_ritardo %}checked{% endif %}> Solo in ritardo</span>
+      </label>
+      <button class="btn" type="submit">Filtra</button>
+      {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo %}
+      <a class="btn secondary" href="{% url 'attrezzature:list' %}">Reset</a>
+      {% endif %}
+    </form>
+  </div>
+</section>
+{% if can_delete_attrezzature %}
+<form method="post" action="{% url 'attrezzature:bulk_delete' %}" onsubmit="return confirm('Eliminare definitivamente le attrezzature selezionate? Operazione non reversibile.');">
+  {% csrf_token %}
+  <div class="at-bulk-bar">
+    <strong>Azioni admin</strong>
+    <button class="btn danger" type="submit">Elimina selezionate</button>
+  </div>
+{% endif %}
+<div class="at-table-wrap">
+  <table class="at-table">
+    <thead>
+      <tr>{% if can_delete_attrezzature %}<th class="at-check-col"><input class="at-row-check" type="checkbox" data-at-check-all aria-label="Seleziona tutte"></th>{% endif %}<th>Codice</th><th>Descrizione</th><th>P/N</th><th>Stato</th><th>Disponibilita</th><th>Consegna</th><th>Task</th></tr>
+    </thead>
+    <tbody>
+      {% for item in page.object_list %}
+      <tr>
+        {% if can_delete_attrezzature %}<td><input class="at-row-check" type="checkbox" name="selected_ids" value="{{ item.pk }}" aria-label="Seleziona {{ item.codice|default:item.pk }}"></td>{% endif %}
+        <td><a href="{% url 'attrezzature:detail' item.pk %}">{{ item.codice|default:"-" }}</a></td>
+        <td>{{ item.descrizione|default:"-" }}</td>
+        <td>{{ item.display_part_number }}</td>
+        <td><span class="badge{% if item.is_finita or item.is_pronta_produzione %} ok{% elif item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
+        <td>{{ item.get_disponibilita_stato_display }}</td>
+        <td>{{ item.data_consegna_prevista|date:"d/m/Y"|default:"-" }}</td>
+        <td>{{ item.task_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if can_delete_attrezzature %}8{% else %}7{% endif %}"><div class="at-empty">Nessuna attrezzatura trovata.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}
+  <div class="at-pagination">
+    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Prec</a>{% endif %}
+    <span class="current">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Succ</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% if can_delete_attrezzature %}
+</form>
+<script>
+(function() {
+  const all = document.querySelector('[data-at-check-all]');
+  if (!all) return;
+  all.addEventListener('change', function() {
+    document.querySelectorAll('input[name="selected_ids"]').forEach(function(cb) {
+      cb.checked = all.checked;
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -2,43 +2,107 @@
 
 {% block tasks_shell_head %}
 <style>
-  /* ── Portfolio card grid ── */
+  /* ══ Portfolio grid ══════════════════════════════════════════ */
   .pf-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 14px;
   }
 
   .pf-card {
     border: 1px solid var(--ts-border);
-    border-radius: var(--ts-radius-lg);
+    border-radius: 20px;
     background: #fff;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 8px rgba(15,23,42,.04);
-    transition: box-shadow .15s ease, transform .15s ease;
+    box-shadow: 0 2px 12px rgba(15,23,42,.05);
+    transition: box-shadow .18s ease, transform .18s ease;
   }
 
   .pf-card:hover {
-    box-shadow: 0 8px 28px rgba(15,23,42,.1);
-    transform: translateY(-2px);
+    box-shadow: 0 12px 36px rgba(15,23,42,.12);
+    transform: translateY(-3px);
   }
 
-  /* top accent strip - color by VRF status */
-  .pf-card-strip {
-    height: 3px;
-    background: linear-gradient(90deg, var(--ts-primary) 0%, var(--ts-primary-mid) 100%);
+  /* ── Cover header — replaces thin strip ── */
+  .pf-card-cover {
+    height: 82px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 14px 18px 12px;
   }
 
-  .pf-card-strip.ok      { background: linear-gradient(90deg, #22c55e, #16a34a); }
-  .pf-card-strip.warn    { background: linear-gradient(90deg, #f59e0b, #d97706); }
-  .pf-card-strip.blocked { background: linear-gradient(90deg, #f87171, #dc2626); }
-  .pf-card-strip.na      { background: linear-gradient(90deg, #94a3b8, #64748b); }
-  .pf-card-strip.pending { background: linear-gradient(90deg, var(--ts-primary), var(--ts-primary-mid)); }
+  /* Gradient backgrounds per VRF status */
+  .pf-card-cover.ok {
+    background: linear-gradient(135deg, #064e3b 0%, #065f46 40%, #059669 100%);
+  }
+  .pf-card-cover.warn {
+    background: linear-gradient(135deg, #78350f 0%, #92400e 40%, #d97706 100%);
+  }
+  .pf-card-cover.blocked {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 40%, #dc2626 100%);
+  }
+  .pf-card-cover.na {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 40%, #475569 100%);
+  }
+  .pf-card-cover.pending {
+    background:
+      radial-gradient(ellipse at 80% -20%, rgba(249,115,22,.4) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
+  }
 
+  /* Noise overlay for texture */
+  .pf-card-cover::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 0% 100%, rgba(255,255,255,.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .pf-cover-content {
+    position: relative; z-index: 1;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    width: 100%; gap: 10px;
+  }
+
+  .pf-name-link {
+    font-size: 15px;
+    font-weight: 900;
+    color: #fff;
+    text-decoration: none;
+    line-height: 1.25;
+    letter-spacing: -.01em;
+    text-shadow: 0 1px 4px rgba(0,0,0,.3);
+    flex: 1;
+  }
+  .pf-name-link:hover { color: rgba(255,255,255,.85); }
+
+  .pf-ko-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.18);
+    border: 1px solid rgba(255,255,255,.28);
+    color: rgba(255,255,255,.9);
+    font-size: 9.5px;
+    font-weight: 900;
+    letter-spacing: .07em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── Card body ── */
   .pf-card-body {
-    padding: 16px;
+    padding: 16px 18px;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -49,37 +113,10 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .pf-name-link {
-    font-size: 16px;
-    font-weight: 900;
-    color: #0f172a;
-    text-decoration: none;
-    line-height: 1.2;
-    letter-spacing: -.02em;
-  }
-
-  .pf-name-link:hover { color: #1d4ed8; }
-
-  .pf-ko-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    height: 22px;
-    padding: 0 6px;
-    border-radius: 6px;
-    background: rgba(45,82,130,.08);
-    color: var(--ts-primary-mid);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .06em;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
+  /* ── Identity chips ── */
   .pf-chips {
     display: flex;
     gap: 5px;
@@ -90,7 +127,7 @@
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 999px;
     font-size: 10px;
     font-weight: 700;
@@ -101,21 +138,18 @@
   .pf-chip .lbl {
     font-weight: 900;
     font-size: 9px;
-    letter-spacing: .07em;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    opacity: .7;
+    opacity: .65;
   }
 
-  .pf-chip.pn      { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
-  .pf-chip.rev     { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-  .pf-chip.ver     { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
-  .pf-chip.client  { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
+  .pf-chip.pn     { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+  .pf-chip.rev    { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .pf-chip.ver    { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+  .pf-chip.client { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
 
   /* ── Progress bar ── */
-  .pf-progress {
-    display: grid;
-    gap: 5px;
-  }
+  .pf-progress { display: grid; gap: 6px; }
 
   .pf-progress-header {
     display: flex;
@@ -126,8 +160,14 @@
     font-weight: 700;
   }
 
+  .pf-progress-pct {
+    font-weight: 900;
+    color: #0f172a;
+    font-size: 12px;
+  }
+
   .pf-progress-bar {
-    height: 6px;
+    height: 7px;
     border-radius: 999px;
     background: #e2e8f0;
     overflow: hidden;
@@ -136,13 +176,13 @@
   .pf-progress-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #22c55e, #16a34a);
-    transition: width .4s ease;
+    background: linear-gradient(90deg, #34d399 0%, #3b82f6 100%);
+    transition: width .5s cubic-bezier(.22,1,.36,1);
   }
 
   .pf-task-counts {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
   }
 
@@ -152,6 +192,7 @@
     gap: 4px;
     font-size: 11px;
     font-weight: 700;
+    color: #475569;
   }
 
   .pf-count-dot {
@@ -165,49 +206,71 @@
   .pf-count-dot.open  { background: #3b82f6; }
   .pf-count-dot.done  { background: #22c55e; }
 
-  /* ── VRF ── */
+  /* ── VRF row ── */
   .pf-vrf-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 8px 10px;
-    border-radius: 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
     border: 1px solid var(--ts-border);
     background: #f8fafc;
     font-size: 11px;
     font-weight: 700;
   }
 
-  .pf-vrf-label { color: #64748b; }
+  .pf-vrf-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+  }
+
+  .pf-vrf-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .pf-vrf-dot.ok      { background: #22c55e; }
+  .pf-vrf-dot.warn    { background: #f59e0b; }
+  .pf-vrf-dot.blocked { background: #ef4444; }
+  .pf-vrf-dot.na      { background: #94a3b8; }
+  .pf-vrf-dot.pending { background: #94a3b8; }
 
   /* ── Card footer ── */
   .pf-card-footer {
-    padding: 10px 16px;
+    padding: 12px 20px;
     border-top: 1px solid var(--ts-border);
     background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
     display: flex;
-    gap: 6px;
+    gap: 7px;
     flex-wrap: wrap;
     align-items: center;
   }
 
+  .pf-card-footer .btn { font-size: 11px; }
+
+  /* ── Responsive ── */
   @media (max-width: 860px) {
     .pf-grid { grid-template-columns: 1fr; }
   }
 
-  body.theme-dark .pf-card { background:var(--surface); border-color:var(--border); }
-  body.theme-dark .pf-card:hover { box-shadow:0 8px 28px rgba(0,0,0,.3); }
-  body.theme-dark .pf-name-link { color:var(--text); }
-  body.theme-dark .pf-chip.pn { background:rgba(55,48,163,.2); border-color:rgba(199,210,254,.2); color:#a5b4fc; }
-  body.theme-dark .pf-chip.rev { background:rgba(22,101,52,.2); border-color:rgba(187,247,208,.2); color:#86efac; }
-  body.theme-dark .pf-chip.ver { background:rgba(154,52,18,.2); border-color:rgba(254,215,170,.2); color:#fdba74; }
-  body.theme-dark .pf-chip.client { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
-  body.theme-dark .pf-progress-header { color:var(--text-light); }
-  body.theme-dark .pf-progress-bar { background:var(--border); }
-  body.theme-dark .pf-vrf-row { background:var(--surface-alt); border-color:var(--border); }
-  body.theme-dark .pf-vrf-label { color:var(--text-light); }
-  body.theme-dark .pf-card-footer { background:var(--surface-alt); border-color:var(--border); }
+  /* ── Dark mode ── */
+  body.theme-dark .pf-card                { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .pf-card:hover          { box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+  body.theme-dark .pf-chip.pn             { background: rgba(55,48,163,.2);  border-color: rgba(199,210,254,.2); color: #a5b4fc; }
+  body.theme-dark .pf-chip.rev            { background: rgba(22,101,52,.2);  border-color: rgba(187,247,208,.2); color: #86efac; }
+  body.theme-dark .pf-chip.ver            { background: rgba(154,52,18,.2);  border-color: rgba(254,215,170,.2); color: #fdba74; }
+  body.theme-dark .pf-chip.client         { background: var(--surface-alt); border-color: var(--border); color: var(--text-light); }
+  body.theme-dark .pf-progress-header     { color: var(--text-light); }
+  body.theme-dark .pf-progress-pct        { color: var(--text); }
+  body.theme-dark .pf-progress-bar        { background: var(--border); }
+  body.theme-dark .pf-count               { color: var(--text-mid); }
+  body.theme-dark .pf-vrf-row             { background: var(--surface-alt); border-color: var(--border); }
+  body.theme-dark .pf-vrf-label           { color: var(--text-light); }
+  body.theme-dark .pf-card-footer         { background: var(--surface-alt); border-color: var(--border); }
 </style>
 {% endblock %}
 
@@ -252,16 +315,18 @@
         {% for project in projects %}
           {% with d=project.vrf_detail %}
           <div class="pf-card">
-            <div class="pf-card-strip {{ d.status|default:'pending' }}"></div>
-            <div class="pf-card-body">
-
-              <div class="pf-card-top">
+            <!-- Cover header con gradiente per stato VRF -->
+            <div class="pf-card-cover {{ d.status|default:'pending' }}">
+              <div class="pf-cover-content">
                 <a class="pf-name-link" href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
                 {% if project.kickoff_number %}
                   <span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>
                 {% endif %}
               </div>
+            </div>
+            <div class="pf-card-body">
 
+              <!-- Identity chips -->
               <div class="pf-chips">
                 {% if project.client_name %}
                   <span class="pf-chip client">{{ project.client_name }}</span>
@@ -277,15 +342,12 @@
                 {% endif %}
               </div>
 
+              <!-- Avanzamento -->
               <div class="pf-progress">
                 <div class="pf-progress-header">
                   <span>Avanzamento attivita</span>
-                  <span>
-                    {% if project.task_total > 0 %}
-                      {% widthratio project.task_done project.task_total 100 %}%
-                    {% else %}
-                      —
-                    {% endif %}
+                  <span class="pf-progress-pct">
+                    {% if project.task_total > 0 %}{% widthratio project.task_done project.task_total 100 %}%{% else %}—{% endif %}
                   </span>
                 </div>
                 <div class="pf-progress-bar">
@@ -302,8 +364,12 @@
                 </div>
               </div>
 
+              <!-- VRF status row -->
               <div class="pf-vrf-row">
-                <span class="pf-vrf-label">Documento VRF</span>
+                <span class="pf-vrf-label">
+                  <span class="pf-vrf-dot {{ d.status|default:'pending' }}"></span>
+                  Documento VRF
+                </span>
                 {% if d.status == 'ok' %}
                   <span class="ts-chip ok" style="font-size:10px;">Caricato</span>
                 {% elif d.status == 'na' %}
@@ -317,10 +383,12 @@
                 {% endif %}
               </div>
 
-            </div>
+            </div><!-- /.pf-card-body -->
+
             <div class="pf-card-footer">
               <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
               <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_meetings' project.id %}">Incontri</a>
               {% if tasks_shell_can_create and project.can_manage %}
                 <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}" style="margin:0;">
                   {% csrf_token %}
@@ -332,10 +400,10 @@
                 </form>
               {% endif %}
             </div>
-          </div>
+          </div><!-- /.pf-card -->
           {% endwith %}
         {% endfor %}
-      </div>
+      </div><!-- /.pf-grid -->
     {% else %}
       <div class="ts-empty">
         <strong>Nessun kickoff disponibile nel tuo scope.</strong>

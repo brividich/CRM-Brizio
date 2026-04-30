@@ -3201,7 +3201,14 @@ def calendario(request):
                 "fine_label": _dt_label(event.get("end")),
             }
         )
-    return render(request, "assenze/pages/calendario.html", {"eventi_preview": eventi_preview, **_template_perm_context(request)})
+    from .htmx_views import _month_nav_ctx, _parse_mese
+    from datetime import date
+    mese_date = _parse_mese(request.GET.get("mese", date.today().strftime("%Y-%m")))
+    return render(request, "assenze/pages/calendario.html", {
+        "eventi_preview": eventi_preview,
+        **_month_nav_ctx(mese_date),
+        **_template_perm_context(request),
+    })
 
 
 @login_required

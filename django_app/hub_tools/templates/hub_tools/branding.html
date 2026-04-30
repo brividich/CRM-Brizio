@@ -1,0 +1,310 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Branding Hub Preview{% endblock %}
+
+{% block content %}
+<style>
+.br-wrap{max-width:900px;margin:0 auto;padding:24px 20px}
+.br-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.br-title{font-size:1.35rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.br-subtitle{font-size:.83rem;color:#64748b;margin-top:3px}
+.br-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.br-card-title{font-size:.9rem;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.br-row{margin-bottom:14px}
+.br-label{display:block;font-size:.78rem;font-weight:700;color:#374151;margin-bottom:5px}
+.br-input{width:100%;padding:8px 10px;border:1.5px solid #d1d9e6;border-radius:7px;font-size:.84rem;color:#1e293b;transition:border-color .2s;box-sizing:border-box}
+.br-input:focus{outline:none;border-color:#1a6fc4}
+.br-input-color{width:48px;height:34px;padding:2px 4px;border:1.5px solid #d1d9e6;border-radius:7px;cursor:pointer}
+.br-color-row{display:flex;align-items:center;gap:10px}
+.br-color-hex{width:100px;padding:8px 10px;border:1.5px solid #d1d9e6;border-radius:7px;font-size:.84rem;font-family:monospace;color:#1e293b;box-sizing:border-box}
+.br-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.br-btn{padding:8px 18px;border-radius:8px;font-size:.84rem;font-weight:700;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .2s}
+.br-btn-primary{background:#1a6fc4;color:#fff}
+.br-btn-primary:hover{background:#1560ae}
+.br-btn-outline{background:#fff;color:#1a6fc4;border:1.5px solid #1a6fc4}
+.br-btn-outline:hover{background:#eff6ff}
+.br-btn-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+.br-btn-danger:hover{background:#fecaca}
+
+/* Logo upload */
+.br-logo-area{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.br-logo-preview-wrap{width:80px;height:80px;border-radius:10px;background:#f1f5f9;border:1.5px dashed #d1d9e6;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.br-logo-preview-wrap img{width:100%;height:100%;object-fit:contain;padding:4px}
+.br-logo-placeholder-icon{font-size:28px;opacity:.4}
+.br-logo-actions{display:flex;flex-direction:column;gap:8px}
+
+/* Homepage toggle */
+.br-homepage-card{background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #bfdbfe}
+.br-homepage-card .br-card-title{color:#1d4ed8}
+.br-homepage-toggle-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.br-homepage-desc{font-size:.82rem;color:#475569;max-width:480px;line-height:1.5}
+.br-toggle-big{position:relative;display:inline-block;width:56px;height:30px;flex-shrink:0}
+.br-toggle-big input{opacity:0;width:0;height:0}
+.br-toggle-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:30px;cursor:pointer;transition:.3s}
+.br-toggle-slider:before{content:'';position:absolute;width:22px;height:22px;left:4px;bottom:4px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+input:checked + .br-toggle-slider{background:#1a6fc4}
+input:checked + .br-toggle-slider:before{transform:translateX(26px)}
+.br-status-row{margin-top:10px;font-size:.82rem;color:#475569}
+.br-status-row span{font-weight:700}
+
+/* Preview hero strip */
+.br-preview-strip{border-radius:10px;padding:18px 22px;margin-top:14px;display:flex;align-items:center;gap:14px;overflow:hidden;position:relative;transition:background .3s}
+.br-preview-strip-title{font-size:16px;font-weight:800;color:#fff;margin-bottom:4px}
+.br-preview-strip-sub{font-size:12px;color:rgba(255,255,255,.75)}
+.br-preview-logo{width:42px;height:42px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,.15);padding:4px;flex-shrink:0}
+
+.br-toast{position:fixed;bottom:24px;right:24px;z-index:2000;padding:10px 18px;border-radius:8px;font-size:.84rem;font-weight:600;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,.15);display:none}
+.br-toast-ok{background:#15803d}
+.br-toast-err{background:#b91c1c}
+
+/* Dark mode */
+body.theme-dark .br-card{background:var(--surface);border-color:var(--border)}
+body.theme-dark .br-card-title{color:var(--text)}
+body.theme-dark .br-label{color:var(--text-light)}
+body.theme-dark .br-input{background:var(--surface-alt);border-color:var(--border);color:var(--text)}
+body.theme-dark .br-color-hex{background:var(--surface-alt);border-color:var(--border);color:var(--text)}
+body.theme-dark .br-logo-preview-wrap{background:var(--surface-alt);border-color:var(--border)}
+body.theme-dark .br-subtitle{color:var(--text-light)}
+body.theme-dark .br-homepage-desc{color:var(--text-light)}
+body.theme-dark .br-status-row{color:var(--text-light)}
+body.theme-dark .br-btn-outline{background:var(--surface-alt);border-color:var(--border);color:var(--text-light)}
+</style>
+
+<div class="br-wrap">
+  <div class="br-header">
+    <div>
+      <div class="br-title">🎨 Branding Hub Preview</div>
+      <div class="br-subtitle">Personalizza logo, colori e testi della pagina hub-preview.</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <a href="{% url 'hub_tools:hub_pulsanti_manager' %}" class="br-btn br-btn-outline">🔲 Pulsanti</a>
+      <a href="{% url 'dashboard_hub_preview' %}" target="_blank" class="br-btn br-btn-outline">👁 Anteprima</a>
+      <a href="{% url 'hub_tools:hub_index' %}" class="br-btn br-btn-outline" style="color:#64748b;border-color:#d1d9e6">← Hub Tools</a>
+    </div>
+  </div>
+
+  {# ── Dashboard principale ─────────────────────────────────────────────── #}
+  <div class="br-card br-homepage-card">
+    <div class="br-card-title">🏠 Dashboard principale</div>
+    <div class="br-homepage-toggle-row">
+      <div>
+        <div class="br-homepage-desc">
+          Quando attivo, tutti gli utenti (non amministratori) vengono indirizzati alla Hub Preview dopo il login, invece della dashboard standard.
+        </div>
+        <div class="br-status-row" id="homepageStatus">
+          Stato attuale: <span id="homepageStatusLabel">{% if is_homepage %}✅ Hub Preview è la dashboard principale{% else %}⬜ Dashboard standard (hub non attiva){% endif %}</span>
+        </div>
+      </div>
+      <label class="br-toggle-big">
+        <input type="checkbox" id="homepageToggle" {% if is_homepage %}checked{% endif %} onchange="setHomepage(this.checked)">
+        <span class="br-toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  {# ── Logo ─────────────────────────────────────────────────────────────── #}
+  <div class="br-card">
+    <div class="br-card-title">🖼 Logo hub</div>
+    <div class="br-logo-area">
+      <div class="br-logo-preview-wrap" id="logoPreviewWrap">
+        {% if branding.hub_logo_url %}
+        <img src="{{ branding.hub_logo_url }}" id="logoPreviewImg" alt="Logo hub">
+        {% else %}
+        <span class="br-logo-placeholder-icon" id="logoPlaceholder">🏢</span>
+        {% endif %}
+      </div>
+      <div class="br-logo-actions">
+        <label class="br-btn br-btn-primary" style="cursor:pointer">
+          📤 Carica logo
+          <input type="file" accept=".png,.jpg,.jpeg,.webp,.svg" id="logoFileInput" style="display:none" onchange="uploadLogo(this)">
+        </label>
+        {% if branding.hub_logo_url %}
+        <button class="br-btn br-btn-danger" onclick="removeLogo()">✕ Rimuovi</button>
+        {% endif %}
+      </div>
+      <div style="font-size:.78rem;color:#94a3b8">PNG, SVG, JPG, WebP — max 2 MB</div>
+    </div>
+  </div>
+
+  {# ── Testi ────────────────────────────────────────────────────────────── #}
+  <div class="br-card">
+    <div class="br-card-title">✏️ Testi hero</div>
+    <div class="br-row">
+      <label class="br-label" for="fHeroTitle">Titolo principale</label>
+      <input class="br-input" id="fHeroTitle" value="{{ branding.hub_hero_title }}" placeholder="Centro operativo Novicrom">
+    </div>
+    <div class="br-row">
+      <label class="br-label" for="fHeroSub">Sottotitolo</label>
+      <input class="br-input" id="fHeroSub" value="{{ branding.hub_hero_sub }}" placeholder="Panoramica attività...">
+    </div>
+  </div>
+
+  {# ── Colori ───────────────────────────────────────────────────────────── #}
+  <div class="br-card">
+    <div class="br-card-title">🎨 Colori</div>
+    <div class="br-grid-2">
+      <div class="br-row">
+        <label class="br-label">Sfondo pagina</label>
+        <div class="br-color-row">
+          <input type="color" class="br-input-color" id="fBgColor" value="{{ branding.hub_bg_color|default:'#f4f7fb' }}" oninput="syncHex('fBgColor','fBgHex');updatePreview()">
+          <input class="br-color-hex" id="fBgHex" value="{{ branding.hub_bg_color|default:'#f4f7fb' }}" oninput="syncColor('fBgHex','fBgColor');updatePreview()">
+        </div>
+      </div>
+      <div class="br-row">
+        <label class="br-label">Hero — colore 1 (gradiente)</label>
+        <div class="br-color-row">
+          <input type="color" class="br-input-color" id="fHero1" value="{{ branding.hub_hero_color_1|default:'#12395f' }}" oninput="syncHex('fHero1','fHero1Hex');updatePreview()">
+          <input class="br-color-hex" id="fHero1Hex" value="{{ branding.hub_hero_color_1|default:'#12395f' }}" oninput="syncColor('fHero1Hex','fHero1');updatePreview()">
+        </div>
+      </div>
+      <div class="br-row">
+        <label class="br-label">Hero — colore 2 (gradiente)</label>
+        <div class="br-color-row">
+          <input type="color" class="br-input-color" id="fHero2" value="{{ branding.hub_hero_color_2|default:'#1f5c91' }}" oninput="syncHex('fHero2','fHero2Hex');updatePreview()">
+          <input class="br-color-hex" id="fHero2Hex" value="{{ branding.hub_hero_color_2|default:'#1f5c91' }}" oninput="syncColor('fHero2Hex','fHero2');updatePreview()">
+        </div>
+      </div>
+    </div>
+
+    {# Preview strip #}
+    <div class="br-preview-strip" id="previewStrip" style="background:linear-gradient(135deg, {{ branding.hub_hero_color_1|default:'#12395f' }}, {{ branding.hub_hero_color_2|default:'#1f5c91' }})">
+      {% if branding.hub_logo_url %}
+      <img src="{{ branding.hub_logo_url }}" class="br-preview-logo" id="previewLogo">
+      {% else %}
+      <div class="br-preview-logo" id="previewLogo" style="display:flex;align-items:center;justify-content:center;font-size:20px">🏢</div>
+      {% endif %}
+      <div>
+        <div class="br-preview-strip-title" id="previewTitle">{{ branding.hub_hero_title|default:"Centro operativo Novicrom" }}</div>
+        <div class="br-preview-strip-sub" id="previewSub">{{ branding.hub_hero_sub|default:"Panoramica attività, richieste, anomalie e stato dei moduli aziendali." }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px">
+    <button class="br-btn br-btn-outline" onclick="resetDefaults()">Ripristina default</button>
+    <button class="br-btn br-btn-primary" onclick="saveBranding()">💾 Salva branding</button>
+  </div>
+</div>
+
+<div class="br-toast" id="brToast"></div>
+
+<script>
+const SAVE_URL        = "{% url 'hub_tools:hub_branding_save' %}";
+const LOGO_URL        = "{% url 'hub_tools:hub_branding_logo' %}";
+const LOGO_REMOVE_URL = "{% url 'hub_tools:hub_branding_logo_remove' %}";
+const HOMEPAGE_URL    = "{% url 'hub_tools:hub_set_homepage' %}";
+const CSRF = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+
+function toast(msg, ok=true) {
+  const el = document.getElementById("brToast");
+  el.textContent = msg;
+  el.className = "br-toast " + (ok ? "br-toast-ok" : "br-toast-err");
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 3200);
+}
+
+function syncHex(colorId, hexId) {
+  document.getElementById(hexId).value = document.getElementById(colorId).value;
+}
+function syncColor(hexId, colorId) {
+  const v = document.getElementById(hexId).value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById(colorId).value = v;
+}
+function updatePreview() {
+  const c1 = document.getElementById("fHero1").value;
+  const c2 = document.getElementById("fHero2").value;
+  document.getElementById("previewStrip").style.background = `linear-gradient(135deg, ${c1}, ${c2})`;
+  document.getElementById("previewTitle").textContent = document.getElementById("fHeroTitle").value || "Centro operativo Novicrom";
+  document.getElementById("previewSub").textContent = document.getElementById("fHeroSub").value || "";
+}
+
+["fHeroTitle","fHeroSub"].forEach(id => document.getElementById(id)?.addEventListener("input", updatePreview));
+
+async function saveBranding() {
+  const data = {
+    hub_hero_title: document.getElementById("fHeroTitle").value.trim(),
+    hub_hero_sub: document.getElementById("fHeroSub").value.trim(),
+    hub_bg_color: document.getElementById("fBgColor").value,
+    hub_hero_color_1: document.getElementById("fHero1").value,
+    hub_hero_color_2: document.getElementById("fHero2").value,
+  };
+  const r = await fetch(SAVE_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF()},
+    body: JSON.stringify(data),
+  });
+  const j = await r.json();
+  toast(j.ok ? j.message : (j.error || "Errore"), j.ok);
+}
+
+async function uploadLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("logo", file);
+  const r = await fetch(LOGO_URL, {
+    method: "POST",
+    headers: {"X-CSRFToken": CSRF()},
+    body: fd,
+  });
+  const j = await r.json();
+  if (j.ok) {
+    const wrap = document.getElementById("logoPreviewWrap");
+    wrap.innerHTML = `<img src="${j.logo_url}" id="logoPreviewImg" alt="Logo hub" style="width:100%;height:100%;object-fit:contain;padding:4px">`;
+    const pl = document.getElementById("previewLogo");
+    if (pl) {
+      pl.outerHTML = `<img src="${j.logo_url}" class="br-preview-logo" id="previewLogo">`;
+    }
+    toast("Logo caricato");
+  } else {
+    toast(j.error || "Errore upload", false);
+  }
+}
+
+async function removeLogo() {
+  if (!confirm("Rimuovere il logo hub?")) return;
+  const r = await fetch(LOGO_REMOVE_URL, {
+    method: "POST",
+    headers: {"X-CSRFToken": CSRF()},
+  });
+  const j = await r.json();
+  if (j.ok) {
+    document.getElementById("logoPreviewWrap").innerHTML = '<span class="br-logo-placeholder-icon">🏢</span>';
+    toast("Logo rimosso");
+  } else {
+    toast(j.error || "Errore", false);
+  }
+}
+
+async function setHomepage(active) {
+  const r = await fetch(HOMEPAGE_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF()},
+    body: JSON.stringify({active}),
+  });
+  const j = await r.json();
+  if (j.ok) {
+    const lbl = document.getElementById("homepageStatusLabel");
+    if (lbl) lbl.textContent = active ? "✅ Hub Preview è la dashboard principale" : "⬜ Dashboard standard (hub non attiva)";
+    toast(j.message);
+  } else {
+    document.getElementById("homepageToggle").checked = !active;
+    toast(j.error || "Errore", false);
+  }
+}
+
+function resetDefaults() {
+  if (!confirm("Ripristinare i colori e testi di default?")) return;
+  document.getElementById("fHeroTitle").value = "Centro operativo Novicrom";
+  document.getElementById("fHeroSub").value = "Panoramica attività, richieste, anomalie e stato dei moduli aziendali.";
+  document.getElementById("fBgColor").value = "#f4f7fb";
+  document.getElementById("fBgHex").value = "#f4f7fb";
+  document.getElementById("fHero1").value = "#12395f";
+  document.getElementById("fHero1Hex").value = "#12395f";
+  document.getElementById("fHero2").value = "#1f5c91";
+  document.getElementById("fHero2Hex").value = "#1f5c91";
+  updatePreview();
+}
+</script>
+{% endblock %}

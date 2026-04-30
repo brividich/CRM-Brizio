@@ -1,0 +1,39 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}{{ task.titolo }}{% endblock %}
+{% block page_actions %}<a class="btn secondary" href="{% url 'attrezzature:task_list' %}">Torna ai task</a>{% endblock %}
+{% block attrezzature_content %}
+<section class="at-grid-2">
+  <div class="at-card">
+    <div class="at-card-h"><strong>Task</strong></div>
+    <div class="at-card-b">
+      <div class="at-detail-list">
+        <div class="at-detail-item"><span>Tipo</span>{{ task.get_tipo_display }}</div>
+        <div class="at-detail-item"><span>Stato</span><span class="badge{% if task.is_completed %} ok{% elif task.is_overdue %} danger{% endif %}">{{ task.get_stato_display }}</span></div>
+        <div class="at-detail-item"><span>Priorita</span>{{ task.get_priorita_display }}</div>
+        <div class="at-detail-item"><span>P/N</span>{{ task.part_number|default:"-" }}</div>
+        <div class="at-detail-item"><span>Scadenza</span>{{ task.scadenza|date:"d/m/Y"|default:"-" }}</div>
+        <div class="at-detail-item"><span>Origine</span>{{ task.get_origine_display }}</div>
+      </div>
+      <div class="at-detail-item"><span>Kickoff refs</span>{{ task.external_kickoff_id|default:"-" }} / {{ task.external_kickoff_activity_id|default:"-" }}</div>
+      {% if task.attrezzatura %}<div class="at-detail-item"><span>Attrezzatura</span><a href="{% url 'attrezzature:detail' task.attrezzatura.pk %}">{{ task.attrezzatura }}</a></div>{% endif %}
+      {% if task.descrizione %}<p>{{ task.descrizione }}</p>{% endif %}
+      {% if task.blocked_reason %}<div class="badge danger">{{ task.blocked_reason }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="at-card">
+    <div class="at-card-h"><strong>Azioni</strong></div>
+    <div class="at-card-b">
+      <form method="post" action="{% url 'attrezzature:task_complete' task.pk %}" class="at-form">
+        {% csrf_token %}
+        <div class="at-form-grid">{{ complete_form.as_p }}</div>
+        <button class="btn" type="submit">Completa</button>
+      </form>
+      <form method="post" action="{% url 'attrezzature:task_block' task.pk %}" class="at-form">
+        {% csrf_token %}
+        <div class="at-form-grid">{{ block_form.as_p }}</div>
+        <button class="btn danger" type="submit">Blocca</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

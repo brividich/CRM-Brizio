@@ -1,0 +1,338 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Gestione Pulsanti{% endblock %}
+
+{% block content %}
+<style>
+.pm-wrap{max-width:1200px;margin:0 auto;padding:24px 20px}
+.pm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.pm-title{font-size:1.35rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.pm-subtitle{font-size:.83rem;color:#64748b;margin-top:3px}
+.pm-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pm-btn{padding:7px 16px;border-radius:8px;font-size:.83rem;font-weight:700;border:none;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:background .2s,opacity .2s}
+.pm-btn-primary{background:#1a6fc4;color:#fff}
+.pm-btn-primary:hover{background:#1560ae}
+.pm-btn-outline{background:#fff;color:#1a6fc4;border:1.5px solid #1a6fc4}
+.pm-btn-outline:hover{background:#eff6ff}
+.pm-btn-sm{padding:4px 10px;font-size:.76rem;border-radius:6px}
+.pm-btn-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+.pm-btn-danger:hover{background:#fecaca}
+.pm-btn-success{background:#dcfce7;color:#15803d;border:1px solid #86efac}
+.pm-btn-success:hover{background:#bbf7d0}
+.pm-table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.pm-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.pm-table th{background:#f8fafc;padding:10px 14px;font-weight:700;font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:#475569;text-align:left;border-bottom:1px solid #e2e8f0}
+.pm-table td{padding:10px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.pm-table tr:last-child td{border-bottom:none}
+.pm-table tr:hover td{background:#f8fafc}
+.pm-logo-thumb{width:36px;height:36px;border-radius:7px;object-fit:contain;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px}
+.pm-logo-placeholder{width:36px;height:36px;border-radius:7px;background:#f1f5f9;border:1px solid #e2e8f0;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#94a3b8}
+.pm-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:.72rem;font-weight:700}
+.pm-badge-on{background:#dcfce7;color:#15803d}
+.pm-badge-off{background:#f1f5f9;color:#94a3b8}
+.pm-badge-padre{background:#dbeafe;color:#1d4ed8}
+.pm-cell-url{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:.76rem}
+.pm-cell-actions{display:flex;gap:6px;flex-wrap:wrap}
+.pm-count-bar{font-size:.82rem;color:#64748b;margin-bottom:14px}
+
+/* Modal */
+.pm-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center}
+.pm-modal-overlay.open{display:flex}
+.pm-modal{background:#fff;border-radius:14px;width:100%;max-width:540px;box-shadow:0 20px 60px rgba(0,0,0,.2);overflow:hidden;animation:pm-slide-in .2s ease}
+@keyframes pm-slide-in{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.pm-modal-head{padding:18px 22px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}
+.pm-modal-title{font-size:1rem;font-weight:800}
+.pm-modal-close{background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8;padding:4px;border-radius:4px}
+.pm-modal-close:hover{color:#475569}
+.pm-modal-body{padding:20px 22px}
+.pm-form-row{margin-bottom:14px}
+.pm-form-label{display:block;font-size:.78rem;font-weight:700;color:#374151;margin-bottom:5px}
+.pm-form-input{width:100%;padding:8px 10px;border:1.5px solid #d1d9e6;border-radius:7px;font-size:.84rem;color:#1e293b;transition:border-color .2s;box-sizing:border-box}
+.pm-form-input:focus{outline:none;border-color:#1a6fc4}
+.pm-form-check-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pm-form-check-row input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+.pm-modal-footer{padding:12px 22px 18px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #f1f5f9}
+
+/* Logo upload inline */
+.pm-logo-upload-area{display:flex;align-items:center;gap:12px}
+.pm-logo-file-input{display:none}
+.pm-logo-preview{width:48px;height:48px;border-radius:8px;object-fit:contain;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px}
+.pm-toast{position:fixed;bottom:24px;right:24px;z-index:2000;padding:10px 18px;border-radius:8px;font-size:.84rem;font-weight:600;color:#fff;box-shadow:0 4px 20px rgba(0,0,0,.15);display:none;animation:pm-toast-in .2s ease}
+@keyframes pm-toast-in{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.pm-toast-ok{background:#15803d}
+.pm-toast-err{background:#b91c1c}
+
+/* Dark mode */
+body.theme-dark .pm-table-wrap{background:var(--surface);border-color:var(--border)}
+body.theme-dark .pm-table th{background:var(--surface-alt);color:var(--text-light);border-color:var(--border)}
+body.theme-dark .pm-table td{border-color:var(--border)}
+body.theme-dark .pm-table tr:hover td{background:var(--surface-alt)}
+body.theme-dark .pm-logo-placeholder{background:var(--surface-alt);border-color:var(--border)}
+body.theme-dark .pm-modal{background:var(--surface);color:var(--text)}
+body.theme-dark .pm-modal-head{border-color:var(--border)}
+body.theme-dark .pm-form-input{background:var(--surface-alt);border-color:var(--border);color:var(--text)}
+body.theme-dark .pm-modal-footer{border-color:var(--border)}
+body.theme-dark .pm-subtitle{color:var(--text-light)}
+body.theme-dark .pm-count-bar{color:var(--text-light)}
+</style>
+
+<div class="pm-wrap">
+  <div class="pm-header">
+    <div>
+      <div class="pm-title">🔲 Gestione Pulsanti Hub</div>
+      <div class="pm-subtitle">Aggiungi, modifica o disabilita i pulsanti visibili nella hub-preview. I pulsanti "padre" appaiono direttamente nella griglia.</div>
+    </div>
+    <div class="pm-actions">
+      <button class="pm-btn pm-btn-primary" onclick="openModal()">+ Aggiungi pulsante</button>
+      <a href="{% url 'hub_tools:hub_branding' %}" class="pm-btn pm-btn-outline">🎨 Branding</a>
+      <a href="{% url 'dashboard_hub_preview' %}" target="_blank" class="pm-btn pm-btn-outline">👁 Anteprima Hub</a>
+      <a href="{% url 'hub_tools:hub_index' %}" class="pm-btn pm-btn-outline" style="color:#64748b;border-color:#d1d9e6">← Hub Tools</a>
+    </div>
+  </div>
+
+  <div class="pm-count-bar">{{ pulsanti_count }} pulsant{{ pulsanti_count|pluralize:"e,i" }} totali</div>
+
+  <div class="pm-table-wrap">
+    <table class="pm-table">
+      <thead>
+        <tr>
+          <th>Logo</th>
+          <th>Nome</th>
+          <th>Modulo</th>
+          <th>URL</th>
+          <th>Ordine</th>
+          <th>Tipo</th>
+          <th>Stato</th>
+          <th>Azioni</th>
+        </tr>
+      </thead>
+      <tbody id="pulsantiTbody">
+        {% for p in pulsanti %}
+        <tr id="row-{{ p.id }}">
+          <td>
+            {% if p.image_url %}
+            <img src="{{ p.image_url }}" class="pm-logo-thumb" alt="">
+            {% else %}
+            <div class="pm-logo-placeholder">{{ p.label|slice:":1"|upper }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-weight:600">{{ p.label }}</div>
+            <div style="font-size:.73rem;color:#94a3b8">{{ p.codice }}</div>
+          </td>
+          <td style="color:#475569">{{ p.modulo|default:"—" }}</td>
+          <td><div class="pm-cell-url" title="{{ p.url }}">{{ p.url|default:"—" }}</div></td>
+          <td style="color:#64748b;font-size:.8rem">{{ p.ui_order|default:"—" }}</td>
+          <td>
+            {% if p.is_padre %}<span class="pm-badge pm-badge-padre">Padre</span>
+            {% else %}<span class="pm-badge" style="background:#f1f5f9;color:#64748b">Figlio</span>{% endif %}
+          </td>
+          <td>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" onchange="toggleEnabled({{ p.id }}, this.checked)" {% if p.enabled %}checked{% endif %}>
+              <span class="pm-badge {% if p.enabled %}pm-badge-on{% else %}pm-badge-off{% endif %}" id="badge-{{ p.id }}">
+                {% if p.enabled %}Attivo{% else %}Off{% endif %}
+              </span>
+            </label>
+          </td>
+          <td>
+            <div class="pm-cell-actions">
+              <button class="pm-btn pm-btn-sm pm-btn-outline"
+                onclick='openModal({{ p.id }}, "{{ p.label|escapejs }}", "{{ p.codice|escapejs }}", "{{ p.modulo|escapejs }}", "{{ p.url|escapejs }}", "{{ p.descrizione|escapejs }}", {{ p.ui_order|default:"null" }}, {{ p.is_padre|yesno:"true,false" }}, {{ p.enabled|yesno:"true,false" }})'>
+                ✏️ Modifica
+              </button>
+              <label class="pm-btn pm-btn-sm pm-btn-outline" style="cursor:pointer;margin:0" title="Carica logo">
+                🖼 Logo
+                <input type="file" accept=".png,.jpg,.jpeg,.webp,.svg" style="display:none" onchange="uploadLogo({{ p.id }}, this)">
+              </label>
+              <button class="pm-btn pm-btn-sm pm-btn-danger" onclick="deletePulsante({{ p.id }}, '{{ p.label|escapejs }}')">
+                🗑 Elimina
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" style="text-align:center;padding:32px;color:#94a3b8">Nessun pulsante configurato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal aggiungi/modifica -->
+<div class="pm-modal-overlay" id="pulsanteModal">
+  <div class="pm-modal">
+    <div class="pm-modal-head">
+      <div class="pm-modal-title" id="modalTitle">Aggiungi pulsante</div>
+      <button class="pm-modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="pm-modal-body">
+      <input type="hidden" id="editId">
+      <div class="pm-form-row">
+        <label class="pm-form-label">Nome *</label>
+        <input class="pm-form-input" id="fLabel" placeholder="Es. Gestione Assenze">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="pm-form-row">
+          <label class="pm-form-label">Codice</label>
+          <input class="pm-form-input" id="fCodice" placeholder="Es. assenze">
+        </div>
+        <div class="pm-form-row">
+          <label class="pm-form-label">Modulo</label>
+          <input class="pm-form-input" id="fModulo" placeholder="Es. Assenze">
+        </div>
+      </div>
+      <div class="pm-form-row">
+        <label class="pm-form-label">URL *</label>
+        <input class="pm-form-input" id="fUrl" placeholder="Es. /assenze/">
+      </div>
+      <div class="pm-form-row">
+        <label class="pm-form-label">Descrizione</label>
+        <input class="pm-form-input" id="fDescrizione" placeholder="(opzionale)">
+      </div>
+      <div class="pm-form-row">
+        <label class="pm-form-label">Ordine visualizzazione</label>
+        <input class="pm-form-input" id="fOrder" type="number" placeholder="Es. 10">
+      </div>
+      <div class="pm-form-check-row">
+        <input type="checkbox" id="fIsPadre" checked>
+        <label for="fIsPadre" style="font-size:.83rem;cursor:pointer">Pulsante padre (visibile nella griglia principale)</label>
+      </div>
+      <div class="pm-form-check-row">
+        <input type="checkbox" id="fEnabled" checked>
+        <label for="fEnabled" style="font-size:.83rem;cursor:pointer">Abilitato</label>
+      </div>
+    </div>
+    <div class="pm-modal-footer">
+      <button class="pm-btn pm-btn-outline" onclick="closeModal()">Annulla</button>
+      <button class="pm-btn pm-btn-primary" onclick="savePulsante()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<div class="pm-toast" id="pmToast"></div>
+
+<script>
+const SAVE_URL   = "{% url 'hub_tools:hub_pulsante_save' %}";
+const TOGGLE_URL = id => `/admin-portale/hub/pulsanti/api/${id}/toggle/`;
+const LOGO_URL   = id => `/admin-portale/hub/pulsanti/api/${id}/logo/`;
+const DELETE_URL = id => `/admin-portale/hub/pulsanti/api/${id}/delete/`;
+const CSRF = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+
+function toast(msg, ok=true) {
+  const el = document.getElementById("pmToast");
+  el.textContent = msg;
+  el.className = "pm-toast " + (ok ? "pm-toast-ok" : "pm-toast-err");
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 3000);
+}
+
+function openModal(id=null, label="", codice="", modulo="", url="", desc="", order=null, isPadre=true, enabled=true) {
+  document.getElementById("modalTitle").textContent = id ? "Modifica pulsante" : "Aggiungi pulsante";
+  document.getElementById("editId").value = id || "";
+  document.getElementById("fLabel").value = label;
+  document.getElementById("fCodice").value = codice;
+  document.getElementById("fModulo").value = modulo;
+  document.getElementById("fUrl").value = url;
+  document.getElementById("fDescrizione").value = desc;
+  document.getElementById("fOrder").value = order ?? "";
+  document.getElementById("fIsPadre").checked = isPadre;
+  document.getElementById("fEnabled").checked = enabled;
+  document.getElementById("pulsanteModal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("pulsanteModal").classList.remove("open");
+}
+
+document.getElementById("pulsanteModal").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+async function savePulsante() {
+  const id = document.getElementById("editId").value;
+  const data = {
+    id: id || null,
+    label: document.getElementById("fLabel").value.trim(),
+    codice: document.getElementById("fCodice").value.trim(),
+    modulo: document.getElementById("fModulo").value.trim(),
+    url: document.getElementById("fUrl").value.trim(),
+    descrizione: document.getElementById("fDescrizione").value.trim(),
+    ui_order: document.getElementById("fOrder").value || null,
+    is_padre: document.getElementById("fIsPadre").checked,
+    enabled: document.getElementById("fEnabled").checked,
+  };
+  const r = await fetch(SAVE_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF()},
+    body: JSON.stringify(data),
+  });
+  const j = await r.json();
+  if (j.ok) {
+    toast(j.message);
+    closeModal();
+    setTimeout(() => location.reload(), 800);
+  } else {
+    toast(j.error || "Errore", false);
+  }
+}
+
+async function toggleEnabled(pid, enabled) {
+  const r = await fetch(TOGGLE_URL(pid), {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF()},
+    body: JSON.stringify({enabled}),
+  });
+  const j = await r.json();
+  if (j.ok) {
+    const badge = document.getElementById("badge-" + pid);
+    if (badge) {
+      badge.textContent = enabled ? "Attivo" : "Off";
+      badge.className = "pm-badge " + (enabled ? "pm-badge-on" : "pm-badge-off");
+    }
+    toast(enabled ? "Pulsante abilitato" : "Pulsante disabilitato");
+  } else {
+    toast(j.error || "Errore", false);
+  }
+}
+
+async function uploadLogo(pid, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append("logo", file);
+  const r = await fetch(LOGO_URL(pid), {
+    method: "POST",
+    headers: {"X-CSRFToken": CSRF()},
+    body: fd,
+  });
+  const j = await r.json();
+  if (j.ok) {
+    const row = document.getElementById("row-" + pid);
+    if (row) {
+      const cell = row.querySelector("td:first-child");
+      cell.innerHTML = `<img src="${j.image_url}" class="pm-logo-thumb" alt="">`;
+    }
+    toast("Logo aggiornato");
+  } else {
+    toast(j.error || "Errore upload", false);
+  }
+}
+
+async function deletePulsante(pid, label) {
+  if (!confirm(`Eliminare definitivamente il pulsante "${label}"?`)) return;
+  const r = await fetch(DELETE_URL(pid), {
+    method: "POST",
+    headers: {"X-CSRFToken": CSRF()},
+  });
+  const j = await r.json();
+  if (j.ok) {
+    document.getElementById("row-" + pid)?.remove();
+    toast("Pulsante eliminato");
+  } else {
+    toast(j.error || "Errore", false);
+  }
+}
+</script>
+{% endblock %}

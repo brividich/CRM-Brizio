@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Notizie">
+  <path d="M30 18h49l11 11" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square"/>
+  <path d="M96 18h15l13 13" fill="none" stroke="#ff6b00" stroke-width="6" stroke-linecap="square"/>
+  <path d="M111 38v50l-18 18H31L14 89V38z" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M91 107h22V88" fill="none" stroke="#6f94b5" stroke-width="10" stroke-linecap="square"/>
+  <rect x="36" y="37" width="58" height="52" rx="5" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <path d="M94 49h11a5 5 0 0 1 5 5v35a10 10 0 0 1-10 10h-6z" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <rect x="45" y="48" width="15" height="15" rx="2" fill="#002b5c"/>
+  <path d="M68 50h17M68 62h17M45 76h39M45 88h31" fill="none" stroke="#002b5c" stroke-width="5" stroke-linecap="round"/>
+</svg>

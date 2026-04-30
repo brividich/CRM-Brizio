@@ -31,10 +31,12 @@ urlpatterns = [
     path("assets/manutenzione/prossime/", views.maintenance_schedule, name="maintenance_schedule"),
     path("assets/manutenzione/contratti/", views.assistance_contract_list, name="assistance_contract_list"),
     path("assets/licenze/", views.software_license_list, name="software_license_list"),
+    path("assets/dispositivi/", views.device_list, name="device_list"),
     path("assets/work-machines/", views.work_machine_list, name="work_machine_list"),
     path("assets/work-machines/dashboard/", views.work_machine_dashboard, name="work_machine_dashboard"),
     path("assets/work-machines/map/", views.plant_layout_map, name="plant_layout_map"),
     path("assets/work-machines/map/editor/", views.plant_layout_editor, name="plant_layout_editor"),
+    path("assets/work-machines/export/", views.work_machine_export_excel, name="work_machine_export_excel"),
     path("assets/work-machines/new/", views.work_machine_create, name="work_machine_create"),
     path("assets/work-machines/edit/<int:id>/", views.work_machine_edit, name="work_machine_edit"),
     path("assets/view/", views.asset_detail, name="asset_view"),
@@ -93,4 +95,8 @@ urlpatterns = [
     path("assets/bulk-update/", views.asset_bulk_update, name="asset_bulk_update"),
     path("assets/dashboard/", RedirectView.as_view(pattern_name="assets:asset_dashboard", permanent=False)),
     path("api/assets/dashboard/config/", views.api_asset_dashboard_save_config, name="api_dashboard_save_config"),
+    # Calendario asset
+    path("assets/calendario/", views.calendario_asset, name="calendario_asset"),
+    path("api/assets/calendario/json/", views.calendario_asset_json, name="calendario_asset_json"),
+    path("api/assets/view/<int:id>/calendario/json/", views.asset_calendar_json, name="asset_calendar_json"),
 ]

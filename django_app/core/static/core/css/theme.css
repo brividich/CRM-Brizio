@@ -21,6 +21,7 @@ body.theme-dark{
   --card-head-bg:#0f1b2d;--section-head-bg:#0f1b2d;
 }
 /* ── Dark mode overrides: classi globali theme.css con colori hardcoded ── */
+body.theme-dark .main-wrap{background:var(--bg);background:radial-gradient(circle at 16% 0%,color-mix(in srgb,var(--primary-mid) 14%,transparent),transparent 34%),radial-gradient(circle at 92% 7%,color-mix(in srgb,var(--accent) 8%,transparent),transparent 28%),linear-gradient(180deg,var(--surface-alt) 0%,var(--bg) 280px,var(--bg) 100%)}
 body.theme-dark .nav-dropdown-item:hover{background:rgba(255,255,255,.07);color:#60a5fa}
 body.theme-dark .nav-dropdown-item.active{background:rgba(26,111,196,.25);color:#60a5fa}
 body.theme-dark .btn-back:hover{background:rgba(255,255,255,.07);color:var(--text)}
@@ -58,7 +59,7 @@ input,select,textarea{min-height:var(--control-h);border:1px solid var(--border)
 table{font-size:var(--fs-table)}
 th{font-size:var(--fs-sm)}
 td{font-size:var(--fs-base)}
-.main-wrap{min-height:100vh;min-width:0;display:flex;flex:1;flex-direction:column}
+.main-wrap{min-height:100vh;min-width:0;display:flex;flex:1;flex-direction:column;background:var(--bg);background:radial-gradient(circle at 16% 0%,color-mix(in srgb,var(--primary-mid) 11%,transparent),transparent 34%),radial-gradient(circle at 92% 7%,color-mix(in srgb,var(--accent) 9%,transparent),transparent 28%),linear-gradient(180deg,var(--surface) 0%,var(--bg) 280px,var(--bg) 100%)}
 .content{width:min(100%,1680px);margin:0 auto;padding:var(--content-pad-y) var(--content-pad-x);flex:1;display:flex;flex-direction:column;align-items:stretch;min-height:0;container-type:inline-size}
 .content>*{min-width:0}
 .content>.portal-fill,.content>.as-shell,.content>.abs-shell,.content>.ts-shell,.content>.dash,.content>#eb-root{flex:1 1 auto;min-height:100%}
@@ -320,3 +321,109 @@ body.fs-xl{--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-base:17px;--fs-md:18px;-
 body.sb-collapsed .sb-search-wrap{padding-left:8px;padding-right:8px}
 body.sb-collapsed .sb-search-spot{justify-content:center;min-height:44px;padding:6px}
 body.sb-collapsed .sb-search-copy,body.sb-collapsed .sb-search-shortcut{display:none}
+
+/* ══════════════════════════════════════════════════════════════════
+   CARD VARIANTS — Novicrom HUB design system
+   1·Blueprint  2·Slashed  3·Industrial  4·Duotone
+   5·Stamp  6·Emergency  7·Key-Value  8·Ghost
+   ══════════════════════════════════════════════════════════════════ */
+.card-group-label{font-size:var(--fs-2xs);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:6px 0}
+
+/* 1 · Blueprint — sfondo schematico scuro */
+.card-bp{position:relative;background:var(--primary);color:#fff;border-radius:10px;padding:16px 18px;overflow:hidden;background-image:radial-gradient(rgba(31,135,205,.22) 1px,transparent 1.4px),linear-gradient(135deg,#08142d 0%,var(--primary) 50%,#1a3a66 100%);background-size:14px 14px,auto}
+.card-bp::before{content:"";position:absolute;top:10px;right:10px;width:60px;height:60px;border-top:1.5px solid rgba(31,135,205,.55);border-right:1.5px solid rgba(31,135,205,.55);border-radius:0 8px 0 0;pointer-events:none}
+.card-bp::after{content:"";position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(255,107,0,.7)}
+.card-bp-eye{font-size:var(--fs-2xs);font-weight:700;color:#1f87cd;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.card-bp-num{font-size:32px;font-weight:800;line-height:1;margin:6px 0 4px}
+.card-bp-sub{font-size:var(--fs-xs);color:rgba(255,255,255,.62);line-height:var(--lh-base)}
+.card-bp-footer{margin-top:12px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-xs);color:rgba(255,255,255,.62)}
+.card-bp-footer b{color:var(--accent);font-weight:700}
+
+/* 2 · Slashed — corner industriale + slash arancio */
+.card-sl{position:relative;background:var(--surface);border:1.5px solid var(--primary);border-radius:10px;padding:16px 18px 14px;overflow:hidden}
+.card-sl::before{content:"";position:absolute;top:-2px;left:14px;width:38px;height:6px;background:var(--accent);transform:skewX(-30deg)}
+.card-sl::after{content:"";position:absolute;top:0;right:0;width:18px;height:18px;background:var(--primary);clip-path:polygon(100% 0,0 0,100% 100%)}
+.card-sl-meta{font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-2xs);color:var(--text-light);font-weight:700;margin-bottom:6px}
+.card-sl h3{margin:0 0 4px;font-size:var(--fs-md);font-weight:800;color:var(--primary)}
+.card-sl p{margin:0;font-size:var(--fs-xs);color:var(--text-mid);line-height:var(--lh-base)}
+.card-sl-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:var(--fs-xs)}
+.card-sl-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:#fff3e6;color:#c2410c;font-weight:700;font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.04em}
+.card-sl-tag.danger{background:var(--danger-bg);color:var(--danger)}
+.card-sl-tag.warning{background:var(--warning-bg);color:var(--warning)}
+
+/* 3 · Industrial ticker — barra hazard a sinistra */
+.card-ind{background:var(--surface);border-radius:8px;border:1px solid var(--border);display:grid;grid-template-columns:6px 1fr;overflow:hidden}
+.card-ind-bar{background:repeating-linear-gradient(180deg,var(--accent) 0,var(--accent) 8px,rgba(255,107,0,.28) 8px,rgba(255,107,0,.28) 14px)}
+.card-ind--cyan .card-ind-bar{background:repeating-linear-gradient(180deg,#1f87cd 0,#1f87cd 8px,rgba(31,135,205,.28) 8px,rgba(31,135,205,.28) 14px)}
+.card-ind--navy .card-ind-bar{background:repeating-linear-gradient(180deg,var(--primary) 0,var(--primary) 8px,var(--primary-mid) 8px,var(--primary-mid) 14px)}
+.card-ind-body{padding:14px 16px}
+.card-ind-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.card-ind-num{font-size:24px;font-weight:800;line-height:1;color:var(--text)}
+.card-ind-lbl{font-size:var(--fs-2xs);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.card-ind-sig{width:54px;height:18px;display:flex;align-items:flex-end;gap:2px}
+.card-ind-sig span{flex:1;background:var(--text);border-radius:1px;opacity:.85}
+.card-ind--cyan .card-ind-sig span{background:#1f87cd}
+.card-ind--navy .card-ind-sig span{background:var(--primary)}
+.card-ind-meta{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:var(--fs-xs);color:var(--text-mid)}
+.card-ind-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;background:var(--bg);border-radius:4px;color:var(--text-mid);font-weight:600;font-size:var(--fs-2xs)}
+.card-ind-chip.live{background:var(--success-bg);color:var(--success)}
+.card-ind-chip.live::before{content:"";width:6px;height:6px;border-radius:999px;background:var(--success)}
+
+/* 4 · Duotone — header decorativo geometrico */
+.card-duo{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.card-duo-hd{height:84px;position:relative;background:linear-gradient(135deg,rgba(0,43,92,.9) 0%,rgba(31,135,205,.6) 100%),conic-gradient(from 0deg at 30% 50%,#6b8bb0,var(--primary),#1f87cd,#6b8bb0);background-blend-mode:multiply,normal}
+.card-duo-hd::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0,transparent 12px,rgba(255,255,255,.06) 12px,rgba(255,255,255,.06) 13px),repeating-linear-gradient(0deg,transparent 0,transparent 12px,rgba(255,255,255,.06) 12px,rgba(255,255,255,.06) 13px)}
+.card-duo-corner{position:absolute;left:14px;top:14px;font-size:var(--fs-2xs);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;z-index:2}
+.card-duo-body{padding:14px 16px}
+.card-duo h3{margin:0 0 4px;font-size:var(--fs-md);font-weight:800;color:var(--text)}
+.card-duo p{margin:0 0 10px;font-size:var(--fs-xs);color:var(--text-mid);line-height:var(--lh-base)}
+.card-duo-cta{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;color:#1f87cd;background:transparent;border:none;cursor:pointer;padding:0;transition:color .15s}
+.card-duo-cta:hover{color:var(--primary)}
+
+/* 5 · Stamp — tipografica, solo contorno */
+.card-stamp{background:transparent;border:2px solid var(--primary);border-radius:10px;padding:16px 18px;color:var(--text);position:relative}
+.card-stamp::before{content:"";position:absolute;left:14px;top:-7px;background:var(--bg);padding:0 6px;width:12px;height:12px}
+.card-stamp-num{font-size:42px;font-weight:800;line-height:1;letter-spacing:-.02em;color:var(--text)}
+.card-stamp-num small{font-size:var(--fs-md);color:var(--text-light);font-weight:600;letter-spacing:0;margin-left:4px}
+.card-stamp-lbl{font-size:var(--fs-2xs);font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.08em;margin-top:8px;border-top:2px solid var(--accent);padding-top:6px}
+
+/* 6 · Emergency — solid arancio */
+.card-em{background:var(--accent);color:#fff;border-radius:10px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 4px 14px rgba(255,107,0,.3)}
+.card-em::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;background:repeating-linear-gradient(45deg,var(--primary) 0,var(--primary) 8px,transparent 8px,transparent 16px)}
+.card-em-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:4px;background:rgba(0,43,92,.2);color:#fff;font-size:var(--fs-2xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.card-em h3{margin:8px 0 2px;font-size:var(--fs-lg);font-weight:800}
+.card-em p{margin:0 0 10px;font-size:var(--fs-xs);line-height:var(--lh-base);color:rgba(255,255,255,.92)}
+.card-em-row{display:flex;align-items:center;gap:8px}
+.card-em-btn-primary{flex:1;background:#fff;color:#c2410c;border:none;font:inherit;font-size:var(--fs-xs);font-weight:700;height:30px;border-radius:6px;cursor:pointer;transition:opacity .15s}
+.card-em-btn-primary:hover{opacity:.9}
+.card-em-btn-secondary{flex:0 0 auto;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);font:inherit;font-size:var(--fs-xs);font-weight:700;height:30px;border-radius:6px;cursor:pointer;padding:0 10px;transition:border-color .15s}
+.card-em-btn-secondary:hover{border-color:rgba(255,255,255,.8)}
+
+/* 7 · Key/Value grid */
+.card-kv{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.card-kv-head{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-kv-head h3{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.card-kv-pip{font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-2xs);color:var(--text-light);font-weight:700}
+.card-kv-rows{display:grid;grid-template-columns:1fr 1fr}
+.card-kv-rows>div{padding:10px 14px;border-top:1px solid var(--bg);border-right:1px solid var(--bg)}
+.card-kv-rows>div:nth-child(2n){border-right:none}
+.card-kv-k{font-size:9px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em}
+.card-kv-v{font-size:var(--fs-base);font-weight:700;color:var(--text);margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+
+/* 8 · Ghost — placeholder / empty state */
+.card-ghost{background:transparent;border:1px dashed var(--border);border-radius:10px;padding:14px 16px;color:var(--text-mid)}
+.card-ghost h3{margin:0 0 3px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+.card-ghost p{margin:0;font-size:var(--fs-xs);color:var(--text-light)}
+
+/* dark-mode card variant overrides */
+body.theme-dark .card-sl{border-color:rgba(255,255,255,.14)}
+body.theme-dark .card-sl::after{background:rgba(255,255,255,.1)}
+body.theme-dark .card-sl h3{color:var(--text)}
+body.theme-dark .card-sl-tag{background:rgba(255,107,0,.14);color:#fb923c}
+body.theme-dark .card-sl-tag.danger{background:var(--danger-bg);color:#fc8181}
+body.theme-dark .card-sl-tag.warning{background:var(--warning-bg);color:#f6e05e}
+body.theme-dark .card-kv-rows>div{border-color:rgba(255,255,255,.04)}
+body.theme-dark .card-ind-chip{background:var(--surface-alt)}
+body.theme-dark .card-stamp{border-color:rgba(255,255,255,.18)}
+body.theme-dark .card-stamp::before{background:var(--bg)}
+body.theme-dark .card-ghost{border-color:rgba(255,255,255,.12)}

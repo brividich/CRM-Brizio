@@ -23,6 +23,10 @@
       --brand-sidebar-logo-scale: {{ portal_branding.brand_sidebar_logo_scale }};
     }
   </style>
+  <link rel="stylesheet" href="{% static 'core/css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/layout.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/components.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/hub.css' %}">
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
@@ -319,5 +323,17 @@ window.portalReadJsonResponse = async function (response, opts) {
 })();
 </script>
 {% endif %}
+{% load django_htmx %}
+{% htmx_script %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+<script>
+/* HTMX: inietta CSRF su ogni richiesta non-GET */
+document.addEventListener("htmx:configRequest", function(evt) {
+  if (evt.detail.verb !== "get") {
+    var meta = document.querySelector("meta[name='csrf-token']");
+    if (meta) evt.detail.headers["X-CSRFToken"] = meta.getAttribute("content");
+  }
+});
+</script>
 </body>
 </html>

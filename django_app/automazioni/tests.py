@@ -4403,6 +4403,7 @@ class AutomationExtendedActionExecutorTests(TestCase):
 
 class AutomationDatabaseExecutorTests(TestCase):
     def setUp(self):
+        self.user = User.objects.create_user(username="db-executor-user", password="pass12345")
         self.payload = {
             "id": 42,
             "capo_reparto_id": 7,
@@ -4451,6 +4452,17 @@ class AutomationDatabaseExecutorTests(TestCase):
         with patch("automazioni.services.connection.cursor", return_value=context_manager), patch(
             "automazioni.services.transaction.atomic",
             return_value=atomic_manager,
+        ), patch(
+            "automazioni.services.get_action_table_whitelist",
+            return_value={
+                AutomationActionType.INSERT_RECORD: {
+                    "core_notifica": {
+                        "fields": {"legacy_user_id", "tipo", "messaggio", "url_azione"},
+                        "where_fields": set(),
+                    }
+                },
+                AutomationActionType.UPDATE_RECORD: {},
+            },
         ):
             result = execute_safe_insert(
                 "core_notifica",
@@ -4485,6 +4497,33 @@ class AutomationDatabaseExecutorTests(TestCase):
         self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
         self.assertIn("Tabella target non whitelistata", result["result_message"])
 
+    def test_update_record_allowed_on_whitelisted_table_and_field(self):
+        task = Task.objects.create(
+            title="Safety allowed task",
+            status="TODO",
+            priority="MEDIUM",
+            next_step_text="Prima",
+            created_by=self.user,
+        )
+        action = SimpleNamespace(
+            action_type=AutomationActionType.UPDATE_RECORD,
+            config_json={
+                "target_table": "tasks_task",
+                "where_field": "id",
+                "where_value_template": "{task_id}",
+                "update_fields": {"status": "DONE", "next_step_text": "Aggiornato {id}"},
+            },
+            pk=None,
+            rule=None,
+        )
+
+        result = execute_action(action, {"id": 42, "task_id": task.id}, run_log=None)
+        task.refresh_from_db()
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertEqual(task.status, "DONE")
+        self.assertEqual(task.next_step_text, "Aggiornato 42")
+
     def test_update_record_rejects_non_whitelisted_where_field(self):
         action = SimpleNamespace(
             action_type=AutomationActionType.UPDATE_RECORD,
@@ -4501,6 +4540,23 @@ class AutomationDatabaseExecutorTests(TestCase):
 
         self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
         self.assertIn("Campo where non whitelistato", result["result_message"])
+
+    def test_update_record_rejects_non_whitelisted_update_field(self):
+        action = SimpleNamespace(
+            action_type=AutomationActionType.UPDATE_RECORD,
+            config_json={
+                "target_table": "tasks_task",
+                "where_field": "id",
+                "where_value_template": "{id}",
+                "update_fields": {"title": "Non consentito"},
+            },
+        )
+
+        with patch("automazioni.services._create_action_log", return_value=None):
+            result = execute_action(action, self.payload, run_log=None)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
+        self.assertIn("Colonne non whitelistate", result["result_message"])
 
     def test_update_record_rejects_missing_where_value(self):
         action = SimpleNamespace(
@@ -4544,15 +4600,26 @@ class AutomationDatabaseExecutorTests(TestCase):
         with patch("automazioni.services.connection.cursor", return_value=context_manager), patch(
             "automazioni.services.transaction.atomic",
             return_value=atomic_manager,
+        ), patch(
+            "automazioni.services.get_action_table_whitelist",
+            return_value={
+                AutomationActionType.INSERT_RECORD: {},
+                AutomationActionType.UPDATE_RECORD: {
+                    "tasks_task": {
+                        "fields": {"status", "next_step_text"},
+                        "where_fields": {"id"},
+                    }
+                },
+            },
         ):
             result = execute_safe_update(
                 "tasks_task",
                 {
                     "status": "DONE",
-                    "next_step_text": "Aggiornato da automazione #42",
+                    "next_step_text": "Aggiornato da automazione #42'; DROP TABLE tasks_task; --",
                 },
                 "id",
-                "14",
+                "14 OR 1=1",
             )
 
         self.assertEqual(result["rowcount"], 2)
@@ -4560,7 +4627,45 @@ class AutomationDatabaseExecutorTests(TestCase):
         self.assertIn("UPDATE", sql)
         self.assertIn("WHERE", sql)
         self.assertIn("%s", sql)
-        self.assertEqual(params, ["DONE", "Aggiornato da automazione #42", "14"])
+        self.assertNotIn("DROP TABLE", sql)
+        self.assertNotIn("14 OR 1=1", sql)
+        self.assertEqual(params, ["DONE", "Aggiornato da automazione #42'; DROP TABLE tasks_task; --", "14 OR 1=1"])
+
+    def test_safety_error_is_recorded_as_action_log(self):
+        rule = AutomationRule.objects.create(
+            code="safety-log-rule",
+            name="Safety log rule",
+            source_code="tasks",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+        action = AutomationAction.objects.create(
+            rule=rule,
+            order=1,
+            action_type=AutomationActionType.UPDATE_RECORD,
+            config_json={
+                "target_table": "tasks_task",
+                "where_field": "id",
+                "where_value_template": "{task_id}",
+                "update_fields": {"title": "Bloccato"},
+            },
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule,
+            source_code="tasks",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            status=AutomationRunLogStatus.SUCCESS,
+            payload_json={"task_id": 1},
+        )
+
+        with self.assertLogs("automazioni.services", level="WARNING") as logs:
+            result = execute_action(action, {"task_id": 1}, run_log=run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
+        action_log = run_log.action_logs.get()
+        self.assertEqual(action_log.status, AutomationActionLogStatus.ERROR)
+        self.assertIn("Safety guardrail", action_log.result_message)
+        self.assertIn(f"action_id={action.id}", "\n".join(logs.output))
 
 
 class AutomationRunRuleExecutorIntegrationTests(TestCase):
@@ -4927,6 +5032,80 @@ class AutomationQueueProcessorTests(TestCase):
         self.assertEqual(summary["error"], 1)
         self.assertEqual(summary["rule_runs"], 1)
 
+    @patch("automazioni.services.execute_safe_update")
+    @patch("automazioni.services.fetch_pending_queue_event_snapshots")
+    def test_dry_run_previews_update_record_without_writing(self, mock_fetch_snapshots, mock_execute_update):
+        user = User.objects.create_user(username="dry-run-queue-user", password="pass12345")
+        task = Task.objects.create(
+            title="Dry run task",
+            status="TODO",
+            priority="MEDIUM",
+            next_step_text="Prima",
+            created_by=user,
+        )
+        AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.UPDATE_RECORD,
+            config_json={
+                "target_table": "tasks_task",
+                "where_field": "id",
+                "where_value_template": "{task_id}",
+                "update_fields": {"status": "DONE", "next_step_text": "Dry {id}"},
+            },
+        )
+        mock_fetch_snapshots.return_value = [
+            {
+                "id": 88,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": json.dumps({"id": 42, "task_id": task.id}),
+                "old_payload_json": json.dumps({"id": 42, "task_id": task.id}),
+            }
+        ]
+
+        summary = process_pending_queue_events(limit=1, dry_run=True)
+        task.refresh_from_db()
+
+        self.assertEqual(task.status, "TODO")
+        mock_execute_update.assert_not_called()
+        self.assertEqual(summary["fetched"], 1)
+        self.assertEqual(summary["rule_runs"], 1)
+        action_previews = summary["events"][0]["rule_previews"][0]["actions"]
+        self.assertEqual(action_previews[0]["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertIn("DRY-RUN update_record", action_previews[0]["message"])
+        self.assertIn("status=DONE", action_previews[0]["message"])
+
+    @patch("automazioni.services.fetch_pending_queue_event_snapshots")
+    def test_dry_run_reports_safety_blocked_action(self, mock_fetch_snapshots):
+        AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.UPDATE_RECORD,
+            config_json={
+                "target_table": "tasks_task",
+                "where_field": "id",
+                "where_value_template": "{task_id}",
+                "update_fields": {"title": "Non consentito"},
+            },
+        )
+        mock_fetch_snapshots.return_value = [
+            {
+                "id": 89,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": json.dumps({"id": 42, "task_id": 1}),
+                "old_payload_json": json.dumps({"id": 42, "task_id": 1}),
+            }
+        ]
+
+        summary = process_pending_queue_events(limit=1, dry_run=True)
+
+        self.assertEqual(summary["error"], 1)
+        action_preview = summary["events"][0]["rule_previews"][0]["actions"][0]
+        self.assertEqual(action_preview["status"], AutomationActionLogStatus.ERROR)
+        self.assertIn("safety blocked", action_preview["message"])
+
 
 class AutomationQueueCommandTests(SimpleTestCase):
     @patch("automazioni.management.commands.process_automation_queue.process_pending_queue_events")
@@ -4960,6 +5139,42 @@ class AutomationQueueCommandTests(SimpleTestCase):
 
         mock_process.assert_called_once_with(limit=50, source_code=None, dry_run=True)
         self.assertIn("candidate_rules=rule-a", stdout.getvalue())
+
+    @patch("automazioni.management.commands.process_automation_queue.process_pending_queue_events")
+    def test_process_automation_queue_command_prints_dry_run_action_previews(self, mock_process):
+        mock_process.return_value = {
+            "fetched": 1,
+            "done": 0,
+            "error": 0,
+            "rule_runs": 1,
+            "events": [
+                {
+                    "queue_id": 7,
+                    "status": "dry-run",
+                    "candidate_rule_codes": ["rule-a"],
+                    "rule_previews": [
+                        {
+                            "message": "DRY-RUN regola rule-a: azioni valutate=1, errori=0.",
+                            "actions": [
+                                {
+                                    "action_id": 12,
+                                    "action_type": "update_record",
+                                    "status": "success",
+                                    "message": "DRY-RUN update_record: aggiornerebbe tasks_task.",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        stdout = io.StringIO()
+
+        call_command("process_automation_queue", "--dry-run", "--no-monitoring", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("DRY-RUN regola rule-a", output)
+        self.assertIn("action_id=12 type=update_record status=success", output)
 
 
 class AutomationQueueDisplayDateTests(SimpleTestCase):

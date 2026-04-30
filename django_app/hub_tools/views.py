@@ -687,15 +687,20 @@ def api_set_login_redirect(request):
 
     key = (data.get("key") or "").strip()
 
+    _SPECIAL_REDIRECT_TARGETS = {"hub-preview": "/hub-preview/"}
+
     # key vuota = disabilita redirect
-    if key and key not in OPTIONAL_KEYS:
+    if key and key not in OPTIONAL_KEYS and key not in _SPECIAL_REDIRECT_TARGETS:
         return JsonResponse({"ok": False, "error": f"Modulo '{key}' non trovato o non modificabile"})
 
     try:
         _set_login_redirect_target(key)
         if key:
-            module = next((m for m in MODULE_DEFS if m["key"] == key), None)
-            url = module["home_url"] if module else f"/{key}/"
+            if key in _SPECIAL_REDIRECT_TARGETS:
+                url = _SPECIAL_REDIRECT_TARGETS[key]
+            else:
+                module = next((m for m in MODULE_DEFS if m["key"] == key), None)
+                url = module["home_url"] if module else f"/{key}/"
             return JsonResponse({"ok": True, "target": key, "url": url, "message": f"Redirect post-login impostato su '{key}'."})
         return JsonResponse({"ok": True, "target": "", "url": "", "message": "Redirect post-login disabilitato."})
     except Exception:
@@ -1793,6 +1798,578 @@ def api_notifica_elimina(request, notifica_id: int):
     from core.models import Notifica
     deleted, _ = Notifica.objects.filter(pk=notifica_id).delete()
     return JsonResponse({"ok": bool(deleted)})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hub Index
+# ══════════════════════════════════════════════════════════════════════════
+
+_HUB_KPI_DEFS = [
+    {"key": "assenze",   "default_label": "Richieste in attesa",   "default_icon": "ASS", "default_color": "yellow"},
+    {"key": "anomalie",  "default_label": "Anomalie aperte",        "default_icon": "ANO", "default_color": "red"},
+    {"key": "ticket",    "default_label": "Ticket aperti",          "default_icon": "TKT", "default_color": "blue"},
+    {"key": "asset",     "default_label": "Asset monitorati",       "default_icon": "AST", "default_color": "green"},
+    {"key": "task",      "default_label": "Task attivi",            "default_icon": "TSK", "default_color": "blue"},
+    {"key": "dpi",       "default_label": "DPI in attesa",          "default_icon": "DPI", "default_color": "yellow"},
+    {"key": "scadenze",  "default_label": "Scadenze imminenti",     "default_icon": "SCA", "default_color": "red"},
+    {"key": "diario",    "default_label": "Diario preposto",        "default_icon": "DRP", "default_color": "blue"},
+    {"key": "incidenti", "default_label": "Incidenti rilevati",     "default_icon": "INC", "default_color": "red"},
+    {"key": "notizie",   "default_label": "Notizie da leggere",     "default_icon": "NOT", "default_color": "yellow"},
+    {"key": "procedure", "default_label": "Procedure da confermare","default_icon": "PRF", "default_color": "yellow"},
+]
+
+_HUB_TOOLS = [
+    {
+        "key": "kpi",
+        "title": "KPI Cards",
+        "icon": "📊",
+        "desc": "Personalizza etichette, colori, icone e visibilità di ogni card KPI nella dashboard.",
+        "url_name": "hub_tools:hub_kpi_manager",
+        "color": "#0891b2",
+    },
+    {
+        "key": "pulsanti",
+        "title": "Pulsanti Hub",
+        "icon": "🔲",
+        "desc": "Aggiungi, modifica, riordina e assegna loghi ai pulsanti della hub-preview.",
+        "url_name": "hub_tools:hub_pulsanti_manager",
+        "color": "#1a6fc4",
+    },
+    {
+        "key": "branding",
+        "title": "Branding & Homepage",
+        "icon": "🎨",
+        "desc": "Logo, colori, testi hero e impostazione hub-preview come dashboard principale.",
+        "url_name": "hub_tools:hub_branding",
+        "color": "#7c3aed",
+    },
+    {
+        "key": "moduli",
+        "title": "Moduli",
+        "icon": "🧩",
+        "desc": "Attiva o disattiva i moduli del portale e configura il redirect post-login.",
+        "url_name": "hub_tools:hub_moduli",
+        "color": "#059669",
+    },
+    {
+        "key": "categorie",
+        "title": "Categorie & Navigazione",
+        "icon": "🏷️",
+        "desc": "Categorie topbar, colori per sezione e voci di navigazione.",
+        "url_name": "hub_tools:hub_categorie",
+        "color": "#d97706",
+    },
+    {
+        "key": "notifiche",
+        "title": "Notifiche",
+        "icon": "🔔",
+        "desc": "Invia notifiche, gestisci la coda e monitora lo stato per utente.",
+        "url_name": "hub_tools:hub_notifiche",
+        "color": "#dc2626",
+    },
+    {
+        "key": "database",
+        "title": "Database",
+        "icon": "🗄️",
+        "desc": "Statistiche, backup, ottimizzazione, ripristino e schema del database.",
+        "url_name": "hub_tools:hub_database",
+        "color": "#0284c7",
+    },
+    {
+        "key": "setup-wizard",
+        "title": "Setup Wizard",
+        "icon": "⚙️",
+        "desc": "Riconfigura il portale: database, LDAP, SMTP, moduli e variabili d'ambiente.",
+        "url_name": "hub_tools:hub_setup_wizard",
+        "color": "#475569",
+    },
+    {
+        "key": "guide",
+        "title": "Guide & Manuali",
+        "icon": "📖",
+        "desc": "Documentazione, manuali operativi e guide tecniche del portale.",
+        "url_name": "hub_tools:hub_guide_list",
+        "color": "#475569",
+    },
+]
+
+
+@_staff_required
+def hub_index(request):
+    """Pagina indice Hub Tools — raccoglie tutti gli strumenti di gestione."""
+    from django.urls import reverse
+    tools = []
+    for t in _HUB_TOOLS:
+        try:
+            url = reverse(t["url_name"])
+        except Exception:
+            url = "#"
+        tools.append({**t, "url": url})
+    return render(request, "hub_tools/hub_index.html", {"tools": tools})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hub — KPI Manager
+# ══════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def hub_kpi_manager(request):
+    """Gestione visiva delle KPI card: etichette, colori, icone, visibilità."""
+    from core.models import SiteConfig
+    cfg = {}
+    try:
+        for row in SiteConfig.objects.filter(key__startswith="hub_kpi_").values("key", "value"):
+            cfg[row["key"]] = row["value"] or ""
+    except Exception:
+        pass
+
+    kpis = []
+    for d in _HUB_KPI_DEFS:
+        key = d["key"]
+        kpis.append({
+            "key": key,
+            "default_label": d["default_label"],
+            "default_icon": d["default_icon"],
+            "default_color": d["default_color"],
+            "label": cfg.get(f"hub_kpi_{key}_label", ""),
+            "icon": cfg.get(f"hub_kpi_{key}_icon", ""),
+            "bg_color": cfg.get(f"hub_kpi_{key}_bg_color", ""),
+            "fg_color": cfg.get(f"hub_kpi_{key}_fg_color", ""),
+            "disabled": cfg.get(f"hub_kpi_{key}_disabled", "") == "1",
+        })
+
+    return render(request, "hub_tools/kpi_manager.html", {"kpis": kpis})
+
+
+@_staff_required
+@require_POST
+def api_hub_kpi_save(request):
+    """Salva la configurazione di una o tutte le KPI card."""
+    from core.models import SiteConfig
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    valid_keys = {d["key"] for d in _HUB_KPI_DEFS}
+    items = data.get("kpis") if isinstance(data.get("kpis"), list) else [data]
+
+    try:
+        for item in items:
+            key = (item.get("key") or "").strip()
+            if key not in valid_keys:
+                continue
+            fields = {
+                f"hub_kpi_{key}_label":    str(item.get("label", "") or "").strip(),
+                f"hub_kpi_{key}_icon":     str(item.get("icon", "") or "").strip()[:6],
+                f"hub_kpi_{key}_bg_color": str(item.get("bg_color", "") or "").strip(),
+                f"hub_kpi_{key}_fg_color": str(item.get("fg_color", "") or "").strip(),
+                f"hub_kpi_{key}_disabled": "1" if item.get("disabled") else "",
+            }
+            for cfg_key, val in fields.items():
+                SiteConfig.objects.update_or_create(key=cfg_key, defaults={"value": val})
+        return JsonResponse({"ok": True, "message": "KPI aggiornate."})
+    except Exception:
+        return _json_internal_error("api_hub_kpi_save")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hub — Pulsanti Manager
+# ══════════════════════════════════════════════════════════════════════════
+
+_HUB_PULSANTI_LOGO_DIR = "hub_pulsanti_logos"
+_HUB_PULSANTI_LOGO_MAX_BYTES = 2 * 1024 * 1024
+_HUB_PULSANTI_LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
+_HUB_PULSANTI_LOGO_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp", "image/svg+xml"}
+
+_HUB_BRANDING_DIR = "hub_branding"
+_HUB_BRANDING_MAX_BYTES = 2 * 1024 * 1024
+_HUB_BRANDING_DEFAULTS = {
+    "hub_hero_title": "Centro operativo Novicrom",
+    "hub_hero_sub": "Panoramica attività, richieste, anomalie e stato dei moduli aziendali.",
+    "hub_bg_color": "",
+    "hub_hero_color_1": "#12395f",
+    "hub_hero_color_2": "#1f5c91",
+    "hub_logo_url": "",
+}
+
+
+def _resolve_media_url(value: str) -> str:
+    """Risolve una card_image a URL pubblico (replica leggera di _card_image_public_url)."""
+    from django.conf import settings as _s
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    lower = raw.lower()
+    if lower.startswith(("http://", "https://", "data:")):
+        return raw
+    if lower.startswith("static:"):
+        from django.templatetags.static import static as _static
+        return _static(raw.split(":", 1)[1].lstrip("/"))
+    media_url = str(getattr(_s, "MEDIA_URL", "/media/") or "/media/")
+    if not media_url.endswith("/"):
+        media_url += "/"
+    if lower.startswith("media:"):
+        return media_url + raw.split(":", 1)[1].lstrip("/")
+    if raw.startswith("/"):
+        return raw
+    return media_url + raw.lstrip("/")
+
+
+def _get_hub_branding() -> dict:
+    from core.models import SiteConfig
+    result = dict(_HUB_BRANDING_DEFAULTS)
+    try:
+        for row in SiteConfig.objects.filter(key__in=list(_HUB_BRANDING_DEFAULTS)).values("key", "value"):
+            if row["key"] in result:
+                result[row["key"]] = row["value"] or ""
+    except Exception:
+        pass
+    return result
+
+
+def _load_ui_pulsanti_meta_hub() -> dict:
+    """Carica la tabella ui_pulsanti_meta come dizionario pid -> meta."""
+    result = {}
+    try:
+        from django.db import connections as _conns
+        with _conns["default"].cursor() as cur:
+            try:
+                cur.execute("SELECT pulsante_id, enabled, ui_order, card_image, is_padre FROM ui_pulsanti_meta")
+                ncols = 5
+            except Exception:
+                try:
+                    cur.execute("SELECT pulsante_id, enabled, ui_order, card_image FROM ui_pulsanti_meta")
+                    ncols = 4
+                except Exception:
+                    cur.execute("SELECT pulsante_id, enabled, ui_order FROM ui_pulsanti_meta")
+                    ncols = 3
+            for row in cur.fetchall():
+                pid = int(row[0])
+                result[pid] = {
+                    "enabled": bool(row[1]) if row[1] is not None else True,
+                    "ui_order": int(row[2]) if row[2] is not None else None,
+                    "card_image": str(row[3] or "").strip() if ncols >= 4 else "",
+                    "is_padre": bool(row[4]) if ncols >= 5 and row[4] is not None else False,
+                }
+    except Exception:
+        pass
+    return result
+
+
+def _upsert_ui_pulsanti_meta(pulsante_id: int, *, enabled: bool, ui_order, card_image: str, is_padre: bool) -> None:
+    """INSERT-or-UPDATE su ui_pulsanti_meta, compatibile con SQLite e SQL Server."""
+    from django.db import connections as _conns
+    order_val = int(ui_order) if ui_order is not None and str(ui_order).strip() != "" else None
+    with _conns["default"].cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM ui_pulsanti_meta WHERE pulsante_id=%s", [pulsante_id])
+        exists = bool(cur.fetchone()[0])
+        if exists:
+            try:
+                cur.execute(
+                    "UPDATE ui_pulsanti_meta SET enabled=%s, ui_order=%s, card_image=%s, is_padre=%s WHERE pulsante_id=%s",
+                    [1 if enabled else 0, order_val, card_image, 1 if is_padre else 0, pulsante_id],
+                )
+            except Exception:
+                cur.execute(
+                    "UPDATE ui_pulsanti_meta SET enabled=%s, ui_order=%s, card_image=%s WHERE pulsante_id=%s",
+                    [1 if enabled else 0, order_val, card_image, pulsante_id],
+                )
+        else:
+            try:
+                cur.execute(
+                    "INSERT INTO ui_pulsanti_meta (pulsante_id, enabled, ui_order, card_image, is_padre) VALUES (%s, %s, %s, %s, %s)",
+                    [pulsante_id, 1 if enabled else 0, order_val, card_image, 1 if is_padre else 0],
+                )
+            except Exception:
+                cur.execute(
+                    "INSERT INTO ui_pulsanti_meta (pulsante_id, enabled, ui_order, card_image) VALUES (%s, %s, %s, %s)",
+                    [pulsante_id, 1 if enabled else 0, order_val, card_image],
+                )
+
+
+def _update_card_image_only(pulsante_id: int, card_image: str) -> None:
+    """Aggiorna solo il campo card_image in ui_pulsanti_meta (o inserisce la riga se manca)."""
+    from django.db import connections as _conns
+    with _conns["default"].cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM ui_pulsanti_meta WHERE pulsante_id=%s", [pulsante_id])
+        if bool(cur.fetchone()[0]):
+            cur.execute(
+                "UPDATE ui_pulsanti_meta SET card_image=%s WHERE pulsante_id=%s",
+                [card_image, pulsante_id],
+            )
+        else:
+            try:
+                cur.execute(
+                    "INSERT INTO ui_pulsanti_meta (pulsante_id, enabled, ui_order, card_image, is_padre) VALUES (%s, 1, NULL, %s, 0)",
+                    [pulsante_id, card_image],
+                )
+            except Exception:
+                cur.execute(
+                    "INSERT INTO ui_pulsanti_meta (pulsante_id, enabled, ui_order, card_image) VALUES (%s, 1, NULL, %s)",
+                    [pulsante_id, card_image],
+                )
+
+
+@_staff_required
+def hub_pulsanti_manager(request):
+    """Lista e gestione pulsanti hub (nome, modulo, URL, logo, stato)."""
+    from core.legacy_models import Pulsante
+    ui_meta = _load_ui_pulsanti_meta_hub()
+    pulsanti = []
+    try:
+        for p in Pulsante.objects.all().order_by("modulo", "id"):
+            pid = int(p.id)
+            meta = ui_meta.get(pid, {})
+            card_img = meta.get("card_image", "")
+            pulsanti.append({
+                "id": pid,
+                "codice": p.codice or "",
+                "label": p.label,
+                "modulo": p.modulo or "",
+                "url": p.url or "",
+                "descrizione": (p.descrizione or "").strip(),
+                "enabled": meta.get("enabled", True),
+                "ui_order": meta.get("ui_order"),
+                "card_image": card_img,
+                "image_url": _resolve_media_url(card_img),
+                "is_padre": meta.get("is_padre", False),
+            })
+    except Exception:
+        pass
+    return render(request, "hub_tools/pulsanti_manager.html", {
+        "pulsanti": pulsanti,
+        "pulsanti_count": len(pulsanti),
+    })
+
+
+@_staff_required
+@require_POST
+def api_pulsante_save(request):
+    """Crea o aggiorna un pulsante (campi base + ui_meta)."""
+    from core.legacy_models import Pulsante
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    pid_raw = data.get("id")
+    label = (data.get("label") or "").strip()
+    codice = (data.get("codice") or "").strip()
+    modulo = (data.get("modulo") or "").strip()
+    url_val = (data.get("url") or "").strip()
+    descrizione = (data.get("descrizione") or "").strip()
+    ui_order = data.get("ui_order")
+    is_padre = bool(data.get("is_padre", True))
+    enabled = bool(data.get("enabled", True))
+
+    if not label:
+        return JsonResponse({"ok": False, "error": "Il nome pulsante è obbligatorio"}, status=400)
+    if not url_val:
+        return JsonResponse({"ok": False, "error": "L'URL è obbligatorio"}, status=400)
+
+    try:
+        if pid_raw:
+            pid = int(pid_raw)
+            p = Pulsante.objects.get(pk=pid)
+            p.nome_visibile = label
+            p.codice = codice or p.codice
+            p.modulo = modulo
+            p.url = url_val
+            p.descrizione = descrizione
+            p.save()
+        else:
+            p = Pulsante(
+                nome_visibile=label,
+                codice=codice or label.lower().replace(" ", "_"),
+                modulo=modulo,
+                url=url_val,
+                descrizione=descrizione,
+            )
+            p.save()
+            pid = int(p.pk)
+
+        existing_meta = _load_ui_pulsanti_meta_hub().get(pid, {})
+        _upsert_ui_pulsanti_meta(
+            pid,
+            enabled=enabled,
+            ui_order=ui_order,
+            card_image=existing_meta.get("card_image", ""),
+            is_padre=is_padre,
+        )
+        return JsonResponse({"ok": True, "id": pid, "message": "Pulsante salvato."})
+    except Pulsante.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Pulsante non trovato"}, status=404)
+    except Exception:
+        return _json_internal_error("api_pulsante_save")
+
+
+@_staff_required
+@require_POST
+def api_pulsante_logo_upload(request, pid: int):
+    """Carica o sostituisce il logo di un pulsante."""
+    uploaded = request.FILES.get("logo")
+    if not uploaded:
+        return JsonResponse({"ok": False, "error": "Nessun file ricevuto"}, status=400)
+    try:
+        validate_extension_and_mime(
+            uploaded,
+            allowed_extensions=_HUB_PULSANTI_LOGO_ALLOWED_EXT,
+            allowed_mimes=_HUB_PULSANTI_LOGO_ALLOWED_MIME,
+            max_bytes=_HUB_PULSANTI_LOGO_MAX_BYTES,
+            label="Logo pulsante",
+        )
+    except UploadMimeValidationError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+    try:
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        safe_name = f"pulsante_{pid}{ext}"
+        path = f"{_HUB_PULSANTI_LOGO_DIR}/{safe_name}"
+        if default_storage.exists(path):
+            default_storage.delete(path)
+        saved_path = default_storage.save(path, uploaded)
+        card_image = saved_path
+        _update_card_image_only(pid, card_image)
+        return JsonResponse({"ok": True, "image_url": default_storage.url(saved_path), "card_image": card_image})
+    except Exception:
+        return _json_internal_error("api_pulsante_logo_upload")
+
+
+@_staff_required
+@require_POST
+def api_pulsante_toggle(request, pid: int):
+    """Abilita o disabilita un pulsante (enabled in ui_pulsanti_meta)."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+    enabled = bool(data.get("enabled", True))
+    try:
+        meta = _load_ui_pulsanti_meta_hub().get(pid, {})
+        _upsert_ui_pulsanti_meta(
+            pid,
+            enabled=enabled,
+            ui_order=meta.get("ui_order"),
+            card_image=meta.get("card_image", ""),
+            is_padre=meta.get("is_padre", False),
+        )
+        return JsonResponse({"ok": True, "enabled": enabled})
+    except Exception:
+        return _json_internal_error("api_pulsante_toggle")
+
+
+@_staff_required
+@require_POST
+def api_pulsante_delete(request, pid: int):
+    """Elimina un pulsante (rimuove da pulsanti + ui_pulsanti_meta)."""
+    from core.legacy_models import Pulsante
+    try:
+        from django.db import connections as _conns
+        Pulsante.objects.filter(pk=pid).delete()
+        with _conns["default"].cursor() as cur:
+            cur.execute("DELETE FROM ui_pulsanti_meta WHERE pulsante_id=%s", [pid])
+        return JsonResponse({"ok": True, "message": "Pulsante eliminato."})
+    except Exception:
+        return _json_internal_error("api_pulsante_delete")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Hub — Branding pagina hub-preview
+# ══════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def hub_branding(request):
+    """Personalizzazione grafica della pagina hub-preview."""
+    branding = _get_hub_branding()
+    is_homepage = _get_login_redirect_target() == "hub-preview"
+    return render(request, "hub_tools/branding.html", {
+        "branding": branding,
+        "is_homepage": is_homepage,
+    })
+
+
+@_staff_required
+@require_POST
+def api_hub_branding_save(request):
+    """Salva le impostazioni di branding hub (testo + colori)."""
+    from core.models import SiteConfig
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    allowed_keys = set(_HUB_BRANDING_DEFAULTS.keys()) - {"hub_logo_url"}
+    try:
+        for key in allowed_keys:
+            if key in data:
+                SiteConfig.objects.update_or_create(
+                    key=key,
+                    defaults={"value": str(data[key] or "").strip()},
+                )
+        return JsonResponse({"ok": True, "message": "Branding salvato."})
+    except Exception:
+        return _json_internal_error("api_hub_branding_save")
+
+
+@_staff_required
+@require_POST
+def api_hub_branding_logo_upload(request):
+    """Carica il logo da mostrare nell'hero della hub-preview."""
+    from core.models import SiteConfig
+    uploaded = request.FILES.get("logo")
+    if not uploaded:
+        return JsonResponse({"ok": False, "error": "Nessun file ricevuto"}, status=400)
+    try:
+        validate_extension_and_mime(
+            uploaded,
+            allowed_extensions=_HUB_PULSANTI_LOGO_ALLOWED_EXT,
+            allowed_mimes=_HUB_PULSANTI_LOGO_ALLOWED_MIME,
+            max_bytes=_HUB_BRANDING_MAX_BYTES,
+            label="Logo hub",
+        )
+    except UploadMimeValidationError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    try:
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        path = f"{_HUB_BRANDING_DIR}/hub_logo{ext}"
+        if default_storage.exists(path):
+            default_storage.delete(path)
+        saved_path = default_storage.save(path, uploaded)
+        url = default_storage.url(saved_path)
+        SiteConfig.objects.update_or_create(key="hub_logo_url", defaults={"value": url})
+        return JsonResponse({"ok": True, "logo_url": url})
+    except Exception:
+        return _json_internal_error("api_hub_branding_logo_upload")
+
+
+@_staff_required
+@require_POST
+def api_hub_branding_logo_remove(request):
+    """Rimuove il logo hub."""
+    from core.models import SiteConfig
+    try:
+        SiteConfig.objects.filter(key="hub_logo_url").update(value="")
+        return JsonResponse({"ok": True})
+    except Exception:
+        return _json_internal_error("api_hub_branding_logo_remove")
+
+
+@_staff_required
+@require_POST
+def api_set_hub_as_homepage(request):
+    """Imposta hub-preview come dashboard principale post-login (non si applica agli admin)."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = {}
+    active = bool(data.get("active", True))
+    try:
+        _set_login_redirect_target("hub-preview" if active else "")
+        msg = "Hub Preview impostato come dashboard principale." if active else "Redirect disabilitato."
+        return JsonResponse({"ok": True, "active": active, "message": msg})
+    except Exception:
+        return _json_internal_error("api_set_hub_as_homepage")
 
 
 @_staff_required

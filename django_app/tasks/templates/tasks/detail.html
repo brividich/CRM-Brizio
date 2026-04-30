@@ -2,12 +2,14 @@
 
 {% block tasks_shell_head %}
 <style>
+  /* ── Layout ── */
   .task-detail-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(300px, .95fr);
     gap: 14px;
   }
 
+  /* ── Meta grid ── */
   .task-detail-meta {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -17,108 +19,195 @@
   .task-detail-meta-item {
     border: 1px solid #dbe5ef;
     border-radius: 12px;
-    background: #fff;
-    padding: 12px;
+    background: linear-gradient(180deg, #fff 0%, #f9fbfd 100%);
+    padding: 12px 14px;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+
+  .task-detail-meta-item:hover {
+    border-color: #bcd2e8;
+    box-shadow: 0 2px 8px rgba(15,23,42,.05);
   }
 
   .task-detail-meta-item strong {
     display: block;
-    margin-bottom: 4px;
-    color: #475569;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .09em;
     text-transform: uppercase;
   }
 
+  /* ── Description body ── */
   .task-detail-body {
     color: #0f172a;
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 1.65;
     white-space: pre-wrap;
   }
 
+  /* ── Quick inline form ── */
   .task-inline-form {
     display: flex;
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
-    margin-top: 6px;
+    margin-top: 8px;
   }
 
-  .task-inline-form .input {
-    min-width: 160px;
-  }
+  .task-inline-form .input { min-width: 160px; }
 
+  /* ── List cards (commenti, eventi, allegati) ── */
   .task-list-clean {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 8px;
+    gap: 9px;
   }
 
   .task-list-card {
-    border: 1px solid #dbe5ef;
-    border-radius: 12px;
-    background: #fff;
-    padding: 10px 12px;
+    border: 1px solid #dde8f2;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+    padding: 12px 14px;
+    transition: border-color .12s ease, box-shadow .12s ease;
   }
 
-  .task-table-mini {
-    width: 100%;
-    border-collapse: collapse;
+  .task-list-card:hover {
+    border-color: #bcd2e8;
+    box-shadow: 0 2px 10px rgba(15,23,42,.06);
   }
+
+  /* Comment card — left accent */
+  .task-comment-card {
+    border-left: 3px solid #818cf8;
+  }
+
+  /* Event card — left accent */
+  .task-event-card {
+    border-left: 3px solid #e2e8f0;
+  }
+
+  /* Attachment card — left accent */
+  .task-attach-card {
+    border-left: 3px solid #14b8a6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .task-attach-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: #f0fdfb; border: 1px solid #99f6e4;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #0f766e;
+  }
+
+  .task-attach-body { flex: 1; min-width: 0; }
+
+  /* ── Subtask mini-table ── */
+  .task-table-mini { width: 100%; border-collapse: collapse; }
 
   .task-table-mini th,
   .task-table-mini td {
     border-bottom: 1px solid #eef2f7;
-    padding: 8px 6px;
+    padding: 9px 8px;
     text-align: left;
-    vertical-align: top;
+    vertical-align: middle;
     font-size: 13px;
   }
 
   .task-table-mini th {
-    color: #64748b;
-    font-size: 11px;
+    background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
+    color: #475569;
+    font-size: 10px;
     font-weight: 800;
-    letter-spacing: 0.08em;
+    letter-spacing: .08em;
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
-  .task-table-mini tr:last-child td {
-    border-bottom: none;
-  }
+  .task-table-mini tr:last-child td { border-bottom: none; }
 
-  .task-attachment-link {
-    color: #0f172a;
-    text-decoration: none;
-    font-weight: 700;
+  /* Subtask toggle */
+  .st-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 7px; cursor: pointer;
+    border: 1.5px solid #e2e8f0; background: transparent; color: #94a3b8;
+    transition: all .15s; flex-shrink: 0;
   }
-
-  .task-attachment-link:hover {
-    color: #1d4ed8;
+  .st-toggle:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+  .st-toggle.done { border-color: #16a34a; background: #dcfce7; color: #16a34a; }
+  .st-toggle svg { width: 13px; height: 13px; stroke: currentColor; }
+  .st-status-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    white-space: nowrap;
   }
+  .st-status-badge.todo     { background: #e0e7ff; color: #3730a3; }
+  .st-status-badge.in_progress { background: #fef3c7; color: #92400e; }
+  .st-status-badge.done     { background: #dcfce7; color: #15803d; }
+  .st-status-badge.canceled { background: #f1f5f9; color: #64748b; }
+  .st-row.done-row td:first-child { opacity: .55; }
+  .st-row.done-row .st-title { text-decoration: line-through; color: #94a3b8; }
 
+  body.theme-dark .st-toggle { border-color: #334155; color: #64748b; }
+  body.theme-dark .st-toggle:hover { border-color: #16a34a; background: rgba(22,163,74,.1); }
+  body.theme-dark .st-toggle.done { border-color: #16a34a; background: rgba(22,163,74,.2); }
+
+  /* ── Attachment link ── */
+  .task-attachment-link { color: #0f172a; text-decoration: none; font-weight: 700; font-size: 13px; }
+  .task-attachment-link:hover { color: #1d4ed8; }
+
+  .at-embedded-panel { background:#fff; border:1px solid #dbe5ef; border-radius:8px; box-shadow:0 2px 8px rgba(15,23,42,.05); overflow:hidden; }
+  .at-card-h { padding:12px 14px; border-bottom:1px solid #e5ecf6; display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .at-card-b { padding:14px; display:grid; gap:12px; }
+  .at-grid-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .at-action-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; align-items:start; }
+  .at-mini-form,.at-inline-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0; }
+  .at-row-actions { display:grid; gap:8px; min-width:320px; }
+  .at-table-wrap { overflow:auto; }
+  .at-table { width:100%; border-collapse:collapse; min-width:860px; }
+  .at-table th,.at-table td { padding:8px 10px; border-bottom:1px solid #e5ecf6; text-align:left; vertical-align:top; font-size:13px; }
+  .at-table th { color:#64748b; text-transform:uppercase; font-size:11px; letter-spacing:.04em; background:#fbfdff; }
+  .at-muted { color:#64748b; font-size:12px; }
+  .at-compact-input { width:86px; }
+  .at-compact-select { min-width:150px; }
+  .badge.ok { background:#dcfce7; color:#15803d; }
+  .badge.warn { background:#fef3c7; color:#92400e; }
+  .badge.danger { background:#fee2e2; color:#b91c1c; }
+  .btn.danger { border-color:#b91c1c; background:#b91c1c; color:#fff; }
+
+  /* ── Responsive ── */
   @media (max-width: 1180px) {
-    .task-detail-layout {
-      grid-template-columns: 1fr;
-    }
+    .task-detail-layout { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 760px) {
-    .task-detail-meta {
-      grid-template-columns: 1fr;
-    }
+    .task-detail-meta { grid-template-columns: 1fr; }
+    .at-grid-3 { grid-template-columns: 1fr; }
+    .at-row-actions { min-width:0; }
   }
 
-  body.theme-dark .task-detail-meta-item { background:var(--surface); border-color:var(--border); }
-  body.theme-dark .task-detail-meta-item strong { color:var(--text-light); }
-  body.theme-dark .task-detail-body { color:var(--text); }
-  body.theme-dark .task-table-mini th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
-  body.theme-dark .task-table-mini td { border-color:var(--border); color:var(--text); }
-  body.theme-dark .task-attachment-link { color:var(--text); }
+  /* ── Dark mode ── */
+  body.theme-dark .task-detail-meta-item  { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .task-detail-meta-item:hover { border-color: var(--border); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  body.theme-dark .task-detail-meta-item strong { color: var(--text-light); }
+  body.theme-dark .task-detail-body       { color: var(--text); }
+  body.theme-dark .task-list-card         { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .task-list-card:hover   { border-color: var(--border); box-shadow: 0 2px 10px rgba(0,0,0,.2); }
+  body.theme-dark .task-attach-icon       { background: rgba(20,184,166,.1); border-color: rgba(153,246,228,.15); }
+  body.theme-dark .task-table-mini th     { background: var(--thead-bg); border-color: var(--border); color: var(--text-mid); }
+  body.theme-dark .task-table-mini td     { border-color: var(--border); color: var(--text); }
+  body.theme-dark .task-attachment-link   { color: var(--text); }
+  body.theme-dark .at-embedded-panel       { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .at-card-h,
+  body.theme-dark .at-table th,
+  body.theme-dark .at-table td            { border-color: var(--border); }
+  body.theme-dark .at-table th            { background: var(--thead-bg); color: var(--text-mid); }
+  body.theme-dark .at-muted               { color: var(--text-light); }
 </style>
 {% endblock %}
 
@@ -307,22 +396,27 @@
       </div>
     </article>
 
-    <article class="ts-panel">
+    {% if attrezzatura_embedded_context %}
+      {% include "attrezzature/components/embedded_panel.html" with embedded_context=attrezzatura_embedded_context %}
+    {% endif %}
+
+    <article class="ts-panel" id="subtask-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Subtask</h2>
           <p class="ts-panel-subtitle">Sequenza di lavorazioni collegate all'attivita principale.</p>
         </div>
         <div class="ts-panel-meta">
-          <span class="ts-chip soft">{{ task.subtasks.all|length }} elementi</span>
+          <span class="ts-chip soft" id="subtask-progress-label">{{ task.subtasks.all|length }} elementi</span>
         </div>
       </div>
       <div class="ts-panel-body">
         {% if task.subtasks.all %}
           <div class="ts-table-wrap">
-            <table class="task-table-mini">
+            <table class="task-table-mini" id="subtask-table">
               <thead>
                 <tr>
+                  {% if can_edit %}<th style="width:36px;"></th>{% endif %}
                   <th>Titolo</th>
                   <th>Assegnata a</th>
                   <th>Fine</th>
@@ -331,8 +425,22 @@
               </thead>
               <tbody>
                 {% for subtask in task.subtasks.all %}
-                  <tr>
-                    <td>{{ subtask.title }}</td>
+                  <tr class="st-row{% if subtask.status == 'DONE' %} done-row{% endif %}" id="st-row-{{ subtask.id }}" data-status="{{ subtask.status }}">
+                    {% if can_edit %}
+                    <td style="padding:6px 4px 6px 8px;">
+                      <button type="button"
+                              class="st-toggle{% if subtask.status == 'DONE' %} done{% endif %}"
+                              id="st-toggle-{{ subtask.id }}"
+                              onclick="toggleSubtask({{ subtask.id }})"
+                              title="{% if subtask.status == 'DONE' %}Segna come Da fare{% else %}Segna come Fatto{% endif %}"
+                              data-toggle-url="{% url 'tasks:subtask_toggle' task.id subtask.id %}">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                        </svg>
+                      </button>
+                    </td>
+                    {% endif %}
+                    <td class="st-title">{{ subtask.title }}</td>
                     <td>
                       {% if subtask.assigned_to %}
                         {{ subtask.assigned_to.get_full_name|default:subtask.assigned_to.username }}
@@ -342,18 +450,19 @@
                     </td>
                     <td>{% if subtask.due_date %}{{ subtask.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
                     <td>
+                      <span class="st-status-badge {{ subtask.status|lower }}" id="st-badge-{{ subtask.id }}">
+                        {{ subtask.get_status_display }}
+                      </span>
                       {% if can_edit %}
-                        <form method="post" action="{% url 'tasks:edit_subtask_status' task.id subtask.id %}" class="task-inline-form" style="margin-top:0;">
+                        <form method="post" action="{% url 'tasks:edit_subtask_status' task.id subtask.id %}" class="task-inline-form" style="margin-top:6px;">
                           {% csrf_token %}
-                          <select name="status" class="input" style="min-width:140px;">
+                          <select name="status" class="input" style="min-width:130px;font-size:12px;">
                             {% for value, label in subtask_status_choices %}
                               <option value="{{ value }}" {% if subtask.status == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                           </select>
                           <button type="submit" class="btn btn-sm">Salva</button>
                         </form>
-                      {% else %}
-                        <span class="ts-badge ts-badge--{{ subtask.status|lower }}">{{ subtask.get_status_display }}</span>
                       {% endif %}
                     </td>
                   </tr>
@@ -401,14 +510,14 @@
         {% if task.comments.all %}
           <ul class="task-list-clean">
             {% for comment in task.comments.all %}
-              <li class="task-list-card">
-                <div class="ts-card-meta" style="margin-bottom:6px;">
-                  <span>{{ comment.author.get_full_name|default:comment.author.username }}</span>
-                  <span>{{ comment.created_at|date:"d/m/Y H:i" }}</span>
+              <li class="task-list-card task-comment-card">
+                <div class="ts-card-meta" style="margin-bottom:8px;">
+                  <span style="font-weight:800;color:#0f172a;">{{ comment.author.get_full_name|default:comment.author.username }}</span>
+                  <span style="color:#94a3b8;">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
                 </div>
                 <div class="task-detail-body" style="font-size:13px;">{{ comment.body }}</div>
                 {% if comment.target_user %}
-                  <div class="ts-card-text" style="margin-top:8px;">Notifica inviata a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>
+                  <div class="ts-card-text" style="margin-top:8px;font-size:11px;">Notifica inviata a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>
                 {% endif %}
               </li>
             {% endfor %}
@@ -455,13 +564,16 @@
             {% if task.attachments.all %}
               <ul class="task-list-clean">
                 {% for attachment in task.attachments.all %}
-                  <li class="task-list-card">
-                    <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
-                    <div class="ts-card-text" style="margin-top:6px;">
-                      {{ attachment.created_at|date:"d/m/Y H:i" }}
-                      {% if attachment.uploaded_by %}
-                        - {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}
-                      {% endif %}
+                  <li class="task-list-card task-attach-card">
+                    <div class="task-attach-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="task-attach-body">
+                      <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
+                      <div class="ts-card-text" style="margin-top:3px;font-size:11px;">
+                        {{ attachment.created_at|date:"d/m/Y H:i" }}
+                        {% if attachment.uploaded_by %} &middot; {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}
+                      </div>
                     </div>
                   </li>
                 {% endfor %}
@@ -552,20 +664,16 @@
         {% if task.events.all %}
           <ul class="task-list-clean">
             {% for event in task.events.all %}
-              <li class="task-list-card">
-                <div class="ts-card-meta" style="margin-bottom:8px;">
-                  <span>{{ event.created_at|date:"d/m/Y H:i" }}</span>
-                  <span>
-                    {% if event.actor %}
-                      {{ event.actor.get_full_name|default:event.actor.username }}
-                    {% else %}
-                      System
-                    {% endif %}
+              <li class="task-list-card task-event-card">
+                <div class="ts-card-meta" style="margin-bottom:6px;">
+                  <span style="color:#94a3b8;font-size:11px;">{{ event.created_at|date:"d/m/Y H:i" }}</span>
+                  <span style="font-size:11px;font-weight:700;">
+                    {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}System{% endif %}
                   </span>
                 </div>
-                <div class="ts-card-title" style="font-size:14px;">{{ event.get_type_display }}</div>
+                <div class="ts-card-title" style="font-size:13px;">{{ event.get_type_display }}</div>
                 {% if event.payload %}
-                  <pre style="margin:8px 0 0;font-size:11px;white-space:pre-wrap;color:#64748b;">{{ event.payload }}</pre>
+                  <pre style="margin:8px 0 0;font-size:11px;white-space:pre-wrap;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;">{{ event.payload }}</pre>
                 {% endif %}
               </li>
             {% endfor %}
@@ -580,4 +688,69 @@
     </article>
   </div>
 </section>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+{% if can_edit %}
+<script>
+(function () {
+  'use strict';
+
+  function getCsrf() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  }
+
+  function updateSubtaskCounter() {
+    const label = document.getElementById('subtask-progress-label');
+    if (!label) return;
+    const rows  = document.querySelectorAll('#subtask-table tbody .st-row');
+    const done  = document.querySelectorAll('#subtask-table tbody .st-row.done-row');
+    if (rows.length === 0) return;
+    label.textContent = done.length === 0
+      ? `${rows.length} element${rows.length === 1 ? 'o' : 'i'}`
+      : `${done.length}/${rows.length} completat${done.length === 1 ? 'a' : 'e'}`;
+  }
+
+  window.toggleSubtask = function (subtaskId) {
+    const btn = document.getElementById('st-toggle-' + subtaskId);
+    const row = document.getElementById('st-row-' + subtaskId);
+    const badge = document.getElementById('st-badge-' + subtaskId);
+    if (!btn || !row) return;
+
+    const url = btn.dataset.toggleUrl;
+    btn.disabled = true;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) { btn.disabled = false; return; }
+
+      const isDone = data.status === 'DONE';
+      row.dataset.status = data.status;
+      row.classList.toggle('done-row', isDone);
+      btn.classList.toggle('done', isDone);
+      btn.title = isDone ? 'Segna come Da fare' : 'Segna come Fatto';
+
+      if (badge) {
+        badge.textContent = data.status_display;
+        badge.className = 'st-status-badge ' + data.status.toLowerCase();
+      }
+
+      // Sync the <select> in the inline form to match
+      const sel = row.querySelector('select[name="status"]');
+      if (sel) sel.value = data.status;
+
+      updateSubtaskCounter();
+      btn.disabled = false;
+    })
+    .catch(() => { btn.disabled = false; });
+  };
+
+  updateSubtaskCounter();
+})();
+</script>
+{% endif %}
 {% endblock %}

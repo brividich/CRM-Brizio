@@ -115,6 +115,8 @@ class LegacyLoginView(LoginView):
                         key="module_login_redirect_target"
                     ).values_list("value", flat=True).first()
                     if redirect_target:
+                        if redirect_target == "hub-preview":
+                            return reverse("dashboard_hub_preview")
                         from hub_tools.views import MODULE_DEFS
                         module = next((m for m in MODULE_DEFS if m["key"] == redirect_target), None)
                         if module and module.get("home_url"):

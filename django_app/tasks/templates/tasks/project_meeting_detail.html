@@ -1,0 +1,775 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_head %}
+<style>
+.md-hero {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 60%, #3b82f6 100%);
+  border-radius: 16px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  color: #fff;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+.md-hero-num {
+  min-width: 60px; height: 60px;
+  background: rgba(255,255,255,.18);
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 900;
+}
+.md-hero-body { flex: 1; }
+.md-hero-body h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 8px; }
+.md-hero-body .md-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: .875rem; opacity: .85; }
+.md-meta-item { display: flex; align-items: center; gap: 6px; }
+.md-meta-item svg { width: 15px; height: 15px; stroke: currentColor; }
+.md-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.md-btn {
+  padding: 8px 18px; border-radius: 8px; font-size: .875rem; font-weight: 600;
+  text-decoration: none; border: none; cursor: pointer; display: inline-block;
+}
+.md-btn.white { background: #fff; color: #1e3a5f; }
+.md-btn.white:hover { background: #f0f7ff; }
+.md-btn.ghost { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+.md-btn.ghost:hover { background: rgba(255,255,255,.25); }
+.md-btn.danger-ghost { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+.md-btn.danger-ghost:hover { background: rgba(239,68,68,.25); }
+
+.md-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) { .md-grid { grid-template-columns: 1fr; } }
+.md-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.md-card.full { grid-column: 1 / -1; }
+.md-card-head {
+  background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
+  padding: 12px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; gap: 8px;
+}
+.md-card-head svg { width: 16px; height: 16px; stroke: #64748b; }
+.md-card-head span { font-size: .8125rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
+.md-card-body { padding: 16px 18px; }
+.md-card-body p { margin: 0; white-space: pre-wrap; font-size: .9125rem; line-height: 1.65; color: #334155; }
+.md-card-body .empty { color: #94a3b8; font-style: italic; }
+.md-problems { border-left-color: #ef4444 !important; }
+.md-problems .md-card-head { background: #fef2f2; border-bottom-color: #fecaca; }
+.md-problems .md-card-head svg { stroke: #ef4444; }
+.md-problems .md-card-head span { color: #b91c1c; }
+.md-nextsteps { border-left-color: #22c55e !important; }
+.md-nextsteps .md-card-head { background: #f0fdf4; border-bottom-color: #bbf7d0; }
+.md-nextsteps .md-card-head svg { stroke: #16a34a; }
+.md-nextsteps .md-card-head span { color: #15803d; }
+.md-card { border-left: 4px solid #2563eb; }
+
+/* Agenda items */
+.md-agenda-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid #f1f5f9;
+  transition: opacity .2s;
+}
+.md-agenda-item:last-child { border-bottom: none; padding-bottom: 0; }
+.md-agenda-item:first-child { padding-top: 0; }
+.md-agenda-item.done-item { opacity: .55; }
+.md-agenda-num {
+  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0; margin-top: 1px;
+  background: #2563eb; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; font-weight: 800;
+}
+.md-agenda-item.done-item .md-agenda-num { background: #16a34a; }
+.md-agenda-body { flex: 1; min-width: 0; }
+.md-agenda-title { font-size: .9rem; font-weight: 600; color: #1e293b; word-break: break-word; }
+.md-agenda-item.done-item .md-agenda-title { text-decoration: line-through; color: #64748b; }
+.md-agenda-nota { font-size: .8125rem; color: #64748b; margin-top: 4px; white-space: pre-wrap; }
+.md-agenda-extra-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 6px; margin-top: 8px;
+}
+.md-agenda-extra-field {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 7px 9px; min-width: 0;
+}
+.md-agenda-extra-field dt {
+  margin: 0 0 2px; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: #64748b; font-weight: 700;
+}
+.md-agenda-extra-field dd {
+  margin: 0; font-size: .8rem; color: #1e293b; font-weight: 600;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.md-agenda-task {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 99px;
+  padding: 1px 8px; font-size: .75rem; color: #15803d; font-weight: 500;
+  margin-left: 8px;
+}
+.md-agenda-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex-shrink: 0; margin-top: 0; cursor: pointer;
+  border: 1.5px solid #e2e8f0; border-radius: 8px; background: transparent;
+  color: #94a3b8; transition: all .15s;
+}
+.md-agenda-toggle:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+.md-agenda-toggle.done { border-color: #16a34a; background: #dcfce7; color: #16a34a; }
+.md-agenda-toggle svg { width: 14px; height: 14px; stroke: currentColor; }
+.md-agenda-done-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .75rem; color: #16a34a; font-weight: 600; margin-top: 4px;
+}
+
+/* Next steps con CTA task */
+.md-step-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+}
+.md-step-row:last-child { border-bottom: none; padding-bottom: 0; }
+.md-step-row:first-child { padding-top: 0; }
+.md-step-dot { width: 7px; height: 7px; border-radius: 50%; background: #16a34a; flex-shrink: 0; margin-top: 6px; }
+.md-step-text { flex: 1; font-size: .9rem; color: #334155; line-height: 1.55; word-break: break-word; }
+.md-step-cta {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  padding: 5px 11px; border-radius: 7px; font-size: .8rem; font-weight: 600;
+  border: 1px solid #bfdbfe; background: #eff6ff; color: #2563eb; cursor: pointer;
+  white-space: nowrap; transition: background .15s, border-color .15s;
+}
+.md-step-cta:hover { background: #dbeafe; border-color: #93c5fd; }
+.md-step-cta svg { width: 13px; height: 13px; stroke: currentColor; }
+.md-step-cta.created { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; pointer-events: none; }
+
+/* Problemi tracciati */
+.md-issue-list { display: grid; gap: 10px; }
+.md-issue {
+  border: 1px solid #fecaca; background: #fff7f7; border-radius: 10px;
+  padding: 12px 14px; display: grid; gap: 8px;
+}
+.md-issue.resolved { border-color: #bbf7d0; background: #f0fdf4; }
+.md-issue-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.md-issue-title { font-size: .92rem; font-weight: 800; color: #991b1b; overflow-wrap: anywhere; }
+.md-issue.resolved .md-issue-title { color: #166534; text-decoration: line-through; }
+.md-issue-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.md-issue-chip {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
+  padding: 2px 8px; font-size: .72rem; font-weight: 700;
+  background: #fff; border: 1px solid #fecaca; color: #b91c1c; text-decoration: none;
+}
+.md-issue.resolved .md-issue-chip { border-color: #bbf7d0; color: #15803d; }
+.md-issue-desc, .md-issue-resolution-note { margin: 0; white-space: pre-wrap; font-size: .83rem; color: #475569; line-height: 1.5; }
+.md-issue-resolution-note { color: #15803d; }
+.md-issue-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: 1px solid rgba(15,23,42,.08); padding-top: 8px; }
+.md-issue-form .input { flex: 1 1 220px; min-width: 180px; }
+.md-issue-btn {
+  padding: 7px 12px; border-radius: 7px; border: 1px solid #bbf7d0;
+  background: #f0fdf4; color: #15803d; font-size: .8rem; font-weight: 800; cursor: pointer;
+}
+.md-issue-btn.reopen { border-color: #fecaca; background: #fff7f7; color: #b91c1c; }
+
+/* Modal creazione task */
+.ctm-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.ctm-panel {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 520px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden;
+}
+.ctm-head {
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  padding: 18px 22px; color: #fff;
+  display: flex; align-items: center; gap: 10px;
+}
+.ctm-head svg { width: 20px; height: 20px; stroke: #fff; flex-shrink: 0; }
+.ctm-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+.ctm-body { padding: 20px 22px; }
+.ctm-step-preview {
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+  padding: 10px 14px; font-size: .875rem; color: #15803d; margin-bottom: 16px;
+  line-height: 1.5; word-break: break-word;
+}
+.ctm-step-label { font-size: .7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.ctm-field { margin-bottom: 14px; }
+.ctm-field:last-of-type { margin-bottom: 0; }
+.ctm-field label { display: block; font-size: .8125rem; font-weight: 600; color: #475569; margin-bottom: 5px; }
+.ctm-field .input { width: 100%; box-sizing: border-box; }
+.ctm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .ctm-row { grid-template-columns: 1fr; } }
+.ctm-actions { display: flex; gap: 8px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.ctm-btn {
+  padding: 10px 22px; border-radius: 8px; font-size: .875rem; font-weight: 700;
+  border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.ctm-btn svg { width: 15px; height: 15px; stroke: currentColor; }
+.ctm-btn.primary { background: #2563eb; color: #fff; }
+.ctm-btn.primary:hover { background: #1d4ed8; }
+.ctm-btn.ghost { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.ctm-btn.ghost:hover { background: #e2e8f0; }
+.ctm-error { font-size: .8rem; color: #dc2626; margin-top: 8px; display: none; }
+
+body.theme-dark .md-agenda-item { border-bottom-color: #334155; }
+body.theme-dark .md-agenda-title { color: #e2e8f0; }
+body.theme-dark .md-agenda-item.done-item .md-agenda-title { color: #64748b; }
+body.theme-dark .md-agenda-nota { color: #94a3b8; }
+body.theme-dark .md-agenda-extra-field { background: #111827; border-color: #334155; }
+body.theme-dark .md-agenda-extra-field dt { color: #94a3b8; }
+body.theme-dark .md-agenda-extra-field dd { color: #e2e8f0; }
+body.theme-dark .md-agenda-num { background: #1d4ed8; }
+body.theme-dark .md-agenda-item.done-item .md-agenda-num { background: #15803d; }
+body.theme-dark .md-agenda-toggle { border-color: #334155; color: #64748b; }
+body.theme-dark .md-agenda-toggle:hover { border-color: #16a34a; background: rgba(22,163,74,.1); }
+body.theme-dark .md-agenda-toggle.done { border-color: #16a34a; background: rgba(22,163,74,.2); }
+body.theme-dark .md-step-row { border-bottom-color: #334155; }
+body.theme-dark .md-step-text { color: #e2e8f0; }
+body.theme-dark .md-step-cta { background: rgba(37,99,235,.12); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .md-step-cta:hover { background: rgba(37,99,235,.22); }
+body.theme-dark .md-issue { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
+body.theme-dark .md-issue.resolved { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); }
+body.theme-dark .md-issue-title { color: #fca5a5; }
+body.theme-dark .md-issue.resolved .md-issue-title { color: #86efac; }
+body.theme-dark .md-issue-chip { background: #0f172a; border-color: rgba(239,68,68,.35); color: #fca5a5; }
+body.theme-dark .md-issue.resolved .md-issue-chip { border-color: rgba(22,163,74,.35); color: #86efac; }
+body.theme-dark .md-issue-desc { color: #cbd5e1; }
+body.theme-dark .md-issue-form { border-top-color: #334155; }
+body.theme-dark .ctm-panel { background: #1e293b; }
+body.theme-dark .ctm-step-preview { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); color: #86efac; }
+body.theme-dark .ctm-field label { color: #94a3b8; }
+body.theme-dark .ctm-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
+
+.md-nav { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+.md-nav a { font-size: .875rem; color: #2563eb; text-decoration: none; }
+.md-nav a:hover { text-decoration: underline; }
+.md-nav .sep { color: #cbd5e1; }
+
+/* Dark mode */
+body.theme-dark .md-card { background: #1e293b; border-color: #334155; }
+body.theme-dark .md-card-head { background: #0f172a; border-bottom-color: #334155; }
+body.theme-dark .md-card-head span { color: #94a3b8; }
+body.theme-dark .md-card-body p { color: #e2e8f0; }
+body.theme-dark .md-problems { border-left-color: #ef4444 !important; }
+body.theme-dark .md-problems .md-card-head { background: rgba(239,68,68,.1); border-bottom-color: rgba(239,68,68,.3); }
+body.theme-dark .md-nextsteps { border-left-color: #22c55e !important; }
+body.theme-dark .md-nextsteps .md-card-head { background: rgba(34,197,94,.1); border-bottom-color: rgba(34,197,94,.3); }
+body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
+body.theme-dark .md-card-body [style*="background:#eff6ff"] { background: rgba(37,99,235,.15) !important; border-color: rgba(37,99,235,.35) !important; color: #93c5fd !important; }
+body.theme-dark .md-card-body [style*="background:#f0fdf4"] { background: rgba(22,163,74,.15) !important; border-color: rgba(22,163,74,.35) !important; color: #86efac !important; }
+body.theme-dark .md-card-body [style*="border-top:1px solid #e2e8f0"] { border-top-color: #334155 !important; }
+</style>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div style="padding: 0 4px;">
+  <div class="md-nav">
+    <a href="{% url 'tasks:project_meetings' project.id %}">&larr; Tutti gli incontri</a>
+    <span class="sep">|</span>
+    <a href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+  </div>
+
+  <div class="md-hero">
+    <div class="md-hero-num">{{ meeting.numero }}</div>
+    <div class="md-hero-body">
+      <h2>{% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}</h2>
+      <div class="md-meta">
+        <span class="md-meta-item">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+          {{ meeting.data|date:"d/m/Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}
+        </span>
+        {% if meeting.luogo %}
+          <span class="md-meta-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+            {{ meeting.luogo }}
+          </span>
+        {% endif %}
+        {% if meeting.created_by %}
+          <span class="md-meta-item">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+            {{ meeting.created_by.get_full_name|default:meeting.created_by.username }}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    {% if can_manage %}
+      <div class="md-actions">
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Modifica</a>
+        <form method="post" action="{% url 'tasks:project_meeting_delete' project.id meeting.id %}" style="display:inline;"
+              onsubmit="return confirm('Eliminare definitivamente questo incontro?')">
+          {% csrf_token %}
+          <button type="submit" class="md-btn danger-ghost">Elimina</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="md-grid">
+    {% with portal_users=meeting.partecipanti_utenti.all %}
+    {% if portal_users or meeting.partecipanti_email_extra or meeting.partecipanti_testo or meeting.outlook_event_id %}
+      <div class="md-card">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
+          <span>Partecipanti</span>
+        </div>
+        <div class="md-card-body" style="padding-top:12px;padding-bottom:14px;">
+          {% if portal_users %}
+            <div style="margin-bottom:10px;">
+              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Utenti portale</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                {% for u in portal_users %}
+                  <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:#1d4ed8;">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+                    {{ u.get_full_name|default:u.username }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+          {% if meeting.partecipanti_email_extra %}
+            <div style="margin-bottom:10px;">
+              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Email aggiuntive</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                {% for line in meeting.partecipanti_email_extra.splitlines %}
+                  {% if line %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;padding:3px 10px 3px 6px;font-size:.8125rem;color:#15803d;">
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+                      {{ line|lower }}
+                    </span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+          {% if meeting.partecipanti_testo %}
+            <div>
+              <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Note partecipanti</div>
+              <p style="margin:0;white-space:pre-wrap;font-size:.875rem;color:#475569;">{{ meeting.partecipanti_testo }}</p>
+            </div>
+          {% endif %}
+          {% if meeting.outlook_event_id %}
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#2563eb"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                <span style="font-size:.8125rem;color:#64748b;">Evento Outlook sincronizzato</span>
+                {% if meeting.outlook_event_web_link %}
+                  <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener"
+                     style="font-size:.8125rem;color:#2563eb;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                    Apri in Outlook
+                    <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+    {% endwith %}
+
+    {% if meeting.agenda_items %}
+      {% with agenda_done_count=0 %}
+      <div class="md-card full" id="agenda-card">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+          <span>Ordine del giorno</span>
+          <span id="agenda-progress-label" style="margin-left:auto;font-size:.75rem;color:#94a3b8;font-weight:400;">
+            {{ meeting.agenda_items|length }} punt{% if meeting.agenda_items|length == 1 %}o{% else %}i{% endif %}
+          </span>
+        </div>
+        <div class="md-card-body">
+          {% for item in meeting.agenda_items %}
+            <div class="md-agenda-item{% if item.done %} done-item{% endif %}" id="agenda-item-{{ item.id }}" data-item-id="{{ item.id }}" data-done="{{ item.done|yesno:'true,false' }}">
+              <div class="md-agenda-num">{{ forloop.counter }}</div>
+              <div class="md-agenda-body">
+                <div class="md-agenda-title">
+                  {{ item.titolo }}
+                  {% if item.task_label %}<span class="md-agenda-task">{{ item.task_label }}</span>{% endif %}
+                </div>
+                {% if item.nota %}<div class="md-agenda-nota">{{ item.nota }}</div>{% endif %}
+                {% if item.custom_fields %}
+                  <dl class="md-agenda-extra-fields">
+                    {% for field in item.custom_fields %}
+                      {% if field.label and field.value %}
+                        <div class="md-agenda-extra-field">
+                          <dt>{{ field.label }}</dt>
+                          <dd>{{ field.value }}</dd>
+                        </div>
+                      {% endif %}
+                    {% endfor %}
+                  </dl>
+                {% endif %}
+                {% if item.done %}
+                  <div class="md-agenda-done-badge">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    Trattato
+                  </div>
+                {% endif %}
+              </div>
+              {% if can_manage %}
+              <button type="button"
+                      class="md-agenda-toggle{% if item.done %} done{% endif %}"
+                      id="toggle-btn-{{ item.id }}"
+                      onclick="toggleAgendaItem('{{ item.id }}')"
+                      title="{% if item.done %}Segna come non trattato{% else %}Segna come trattato{% endif %}">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5">
+                  {% if item.done %}
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                  {% else %}
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                  {% endif %}
+                </svg>
+              </button>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endwith %}
+    {% elif meeting.ordine_del_giorno %}
+      <div class="md-card">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+          <span>Ordine del giorno</span>
+        </div>
+        <div class="md-card-body"><p>{{ meeting.ordine_del_giorno }}</p></div>
+      </div>
+    {% endif %}
+
+    {% if meeting_issues %}
+      <div class="md-card md-problems full">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+          <span>Problemi tracciati</span>
+        </div>
+        <div class="md-card-body">
+          <div class="md-issue-list">
+            {% for issue in meeting_issues %}
+              <div class="md-issue{% if issue.is_resolved %} resolved{% endif %}">
+                <div class="md-issue-head">
+                  <div>
+                    <div class="md-issue-title">{{ issue.title }}</div>
+                    <div class="md-issue-meta">
+                      <span class="md-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
+                      {% if issue.source_meeting %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
+                      {% if issue.resolution_meeting %}<span class="md-issue-chip">Chiuso in incontro {{ issue.resolution_meeting.numero }}</span>{% endif %}
+                      {% if issue.assigned_to %}<span class="md-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
+                      {% if issue.due_date %}<span class="md-issue-chip">Scad. {{ issue.due_date|date:"d/m/Y" }}</span>{% endif %}
+                      {% if issue.linked_task %}<a class="md-issue-chip" href="{% url 'tasks:detail' issue.linked_task.id %}">Task: {{ issue.linked_task.title }}</a>{% endif %}
+                    </div>
+                  </div>
+                </div>
+                {% if issue.description %}<p class="md-issue-desc">{{ issue.description }}</p>{% endif %}
+                {% if issue.resolution_note %}<p class="md-issue-resolution-note"><strong>Risoluzione:</strong> {{ issue.resolution_note }}</p>{% endif %}
+                {% if can_manage %}
+                  <form method="post" action="{% url 'tasks:project_meeting_issue_status' project.id meeting.id issue.id %}" class="md-issue-form">
+                    {% csrf_token %}
+                    {% if issue.is_resolved %}
+                      <input type="hidden" name="action" value="reopen">
+                      <button type="submit" class="md-issue-btn reopen">Riapri problema</button>
+                    {% else %}
+                      <input type="hidden" name="action" value="resolve">
+                      <input class="input" type="text" name="resolution_note" placeholder="Nota risoluzione (opzionale)">
+                      <button type="submit" class="md-issue-btn">Segna risolto</button>
+                    {% endif %}
+                  </form>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if meeting.note %}
+      <div class="md-card full">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+          <span>Verbale / Note</span>
+        </div>
+        <div class="md-card-body"><p>{{ meeting.note }}</p></div>
+      </div>
+    {% endif %}
+
+    {% if meeting.problemi_aperti %}
+      <div class="md-card md-problems">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+          <span>Problemi aperti</span>
+        </div>
+        <div class="md-card-body"><p>{{ meeting.problemi_aperti }}</p></div>
+      </div>
+    {% endif %}
+
+    {% if meeting.next_steps %}
+      <div class="md-card md-nextsteps{% if next_steps_lines and can_manage %} full{% endif %}">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          <span>Next steps</span>
+          {% if next_steps_lines and can_manage %}
+            <span style="margin-left:auto;font-size:.75rem;color:#15803d;font-weight:500;opacity:.8;">{{ next_steps_lines|length }} rig{% if next_steps_lines|length == 1 %}a{% else %}he{% endif %} · clicca per creare task</span>
+          {% endif %}
+        </div>
+        <div class="md-card-body">
+          {% if next_steps_lines and can_manage %}
+            {% for line in next_steps_lines %}
+              <div class="md-step-row">
+                <div class="md-step-dot"></div>
+                <div class="md-step-text">{{ line }}</div>
+                <button type="button" class="md-step-cta" id="step-btn-{{ forloop.counter }}"
+                        onclick="openCreateTaskModal('{{ line|escapejs }}', {{ forloop.counter }})">
+                  <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Crea task
+                </button>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p>{{ meeting.next_steps }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    {% with partecipanti_utenti=meeting.partecipanti_utenti.all %}
+    {% if not partecipanti_utenti and not meeting.partecipanti_email_extra and not meeting.partecipanti_testo and not meeting.agenda_items and not meeting.ordine_del_giorno and not meeting.note and not meeting_issues and not meeting.problemi_aperti and not meeting.next_steps and not meeting.outlook_event_id %}
+      <div class="md-card full">
+        <div class="md-card-body" style="text-align:center;padding:32px 18px;">
+          <p class="empty">Nessun contenuto registrato per questo incontro.
+            {% if can_manage %}<a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}" style="color:#2563eb;">Compila ora</a>{% endif %}
+          </p>
+        </div>
+      </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>
+
+{# ── Modal: crea task da next step ─────────────────────────────────── #}
+{% if can_manage %}
+<div class="ctm-overlay" id="ctm-overlay" style="display:none" onclick="closeCreateTaskModalOutside(event)">
+  <div class="ctm-panel" role="dialog" aria-modal="true">
+    <div class="ctm-head">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <h3>Crea task dal next step</h3>
+    </div>
+    <div class="ctm-body">
+      <div class="ctm-step-label">Next step di riferimento</div>
+      <div class="ctm-step-preview" id="ctm-step-preview"></div>
+
+      <form id="ctm-form" onsubmit="submitCreateTask(event)">
+        {% csrf_token %}
+        <div class="ctm-field">
+          <label for="ctm-title">Titolo task <span style="color:#ef4444">*</span></label>
+          <input type="text" id="ctm-title" name="title" class="input" maxlength="200" required>
+        </div>
+        <div class="ctm-row">
+          <div class="ctm-field">
+            <label for="ctm-assignee">Assegna a</label>
+            <select id="ctm-assignee" name="assigned_to" class="input">
+              <option value="">— non assegnato —</option>
+              {% for u in active_users %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ctm-field">
+            <label for="ctm-due">Scadenza</label>
+            <input type="date" id="ctm-due" name="due_date" class="input">
+          </div>
+        </div>
+        <div class="ctm-field">
+          <label for="ctm-priority">Priorità</label>
+          <select id="ctm-priority" name="priority" class="input">
+            <option value="LOW">Bassa</option>
+            <option value="MEDIUM" selected>Media</option>
+            <option value="HIGH">Alta</option>
+          </select>
+        </div>
+        <p class="ctm-error" id="ctm-error"></p>
+        <div class="ctm-actions">
+          <button type="submit" class="ctm-btn primary" id="ctm-submit">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            Crea task
+          </button>
+          <button type="button" class="ctm-btn ghost" onclick="closeCreateTaskModal()">Annulla</button>
+          <a id="ctm-view-link" href="#" target="_blank" style="display:none;font-size:.875rem;color:#2563eb;text-decoration:none;margin-left:auto;">
+            Apri task creato →
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+(function () {
+  'use strict';
+
+  const TOGGLE_BASE  = "{{ agenda_toggle_url_base }}";
+  const STEP_URL     = "{{ task_from_step_url }}";
+  const CAN_MANAGE   = {{ can_manage|yesno:"true,false" }};
+
+  /* ── CSRF ──────────────────────────────────────────────────────────── */
+  function getCsrf() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+  }
+
+  /* ── Agenda toggle ─────────────────────────────────────────────────── */
+  window.toggleAgendaItem = function(itemId) {
+    const row = document.getElementById('agenda-item-' + itemId);
+    const btn = document.getElementById('toggle-btn-' + itemId);
+    if (!row || !btn) return;
+
+    btn.disabled = true;
+
+    fetch(TOGGLE_BASE + itemId + '/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json' },
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) { btn.disabled = false; return; }
+
+      const isDone = data.done;
+      row.dataset.done = isDone ? 'true' : 'false';
+      row.classList.toggle('done-item', isDone);
+      btn.classList.toggle('done', isDone);
+      btn.title = isDone ? 'Segna come non trattato' : 'Segna come trattato';
+
+      // Aggiorna badge "Trattato" nel body
+      const body = row.querySelector('.md-agenda-body');
+      let badge = body.querySelector('.md-agenda-done-badge');
+      if (isDone && !badge) {
+        badge = document.createElement('div');
+        badge.className = 'md-agenda-done-badge';
+        badge.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" style="width:13px;height:13px;stroke:currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>Trattato';
+        body.appendChild(badge);
+      } else if (!isDone && badge) {
+        badge.remove();
+      }
+
+      // Aggiorna counter nell'header
+      updateAgendaCounter();
+      btn.disabled = false;
+    })
+    .catch(() => { btn.disabled = false; });
+  };
+
+  function updateAgendaCounter() {
+    const label = document.getElementById('agenda-progress-label');
+    if (!label) return;
+    const items = document.querySelectorAll('[id^="agenda-item-"]');
+    const done  = document.querySelectorAll('[id^="agenda-item-"].done-item');
+    if (items.length === 0) return;
+    label.textContent = done.length === 0
+      ? `${items.length} punt${items.length === 1 ? 'o' : 'i'}`
+      : `${done.length}/${items.length} trattati`;
+  }
+
+  updateAgendaCounter();
+
+  /* ── Modal crea task da step ───────────────────────────────────────── */
+  let activeStepIndex = null;
+
+  window.openCreateTaskModal = function(stepText, stepIndex) {
+    activeStepIndex = stepIndex;
+    const overlay  = document.getElementById('ctm-overlay');
+    const preview  = document.getElementById('ctm-step-preview');
+    const titleEl  = document.getElementById('ctm-title');
+    const errEl    = document.getElementById('ctm-error');
+    const viewLink = document.getElementById('ctm-view-link');
+    const submitBtn = document.getElementById('ctm-submit');
+
+    if (!overlay) return;
+    preview.textContent = stepText;
+    titleEl.value = stepText;
+    if (errEl)    { errEl.textContent = ''; errEl.style.display = 'none'; }
+    if (viewLink) { viewLink.style.display = 'none'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Crea task'; }
+
+    overlay.style.display = 'flex';
+    setTimeout(() => titleEl.focus(), 80);
+  };
+
+  window.closeCreateTaskModal = function() {
+    const overlay = document.getElementById('ctm-overlay');
+    if (overlay) overlay.style.display = 'none';
+    activeStepIndex = null;
+  };
+
+  window.closeCreateTaskModalOutside = function(e) {
+    if (e.target === document.getElementById('ctm-overlay')) closeCreateTaskModal();
+  };
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCreateTaskModal();
+  });
+
+  window.submitCreateTask = function(e) {
+    e.preventDefault();
+    const form     = document.getElementById('ctm-form');
+    const errEl    = document.getElementById('ctm-error');
+    const viewLink = document.getElementById('ctm-view-link');
+    const submitBtn = document.getElementById('ctm-submit');
+    const titleEl  = document.getElementById('ctm-title');
+
+    if (!titleEl.value.trim()) { titleEl.focus(); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creazione…';
+    if (errEl) { errEl.style.display = 'none'; }
+
+    const body = new URLSearchParams(new FormData(form));
+
+    fetch(STEP_URL, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+      body: body,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) {
+        if (errEl) { errEl.textContent = data.reason || 'Errore durante la creazione.'; errEl.style.display = ''; }
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Crea task';
+        return;
+      }
+      // Successo
+      if (viewLink) {
+        viewLink.href = data.task_url;
+        viewLink.style.display = '';
+        viewLink.textContent = `Apri "${data.title}" →`;
+      }
+      submitBtn.textContent = '✓ Creato';
+
+      // Aggiorna il pulsante della riga
+      if (activeStepIndex !== null) {
+        const btn = document.getElementById('step-btn-' + activeStepIndex);
+        if (btn) {
+          btn.classList.add('created');
+          btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" style="width:13px;height:13px;stroke:currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg> Creato';
+        }
+      }
+
+      // Chiude dopo 1.6s
+      setTimeout(closeCreateTaskModal, 1600);
+    })
+    .catch(() => {
+      if (errEl) { errEl.textContent = 'Errore di rete. Riprova.'; errEl.style.display = ''; }
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Crea task';
+    });
+  };
+
+})();
+</script>
+{% endblock %}

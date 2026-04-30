@@ -55,6 +55,7 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
 _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     "/api/onboarding/",
     "/api/gestione-reparto/",
+    "/api/employee-board/widget/",
     "/gestione_utenti/modifica/",
 )
 

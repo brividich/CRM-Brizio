@@ -12,7 +12,8 @@ from uuid import uuid4
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import TestCase, override_settings
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from admin_portale.forms import PulsanteForm, UtenteCreateForm
@@ -1448,6 +1449,197 @@ class AdminPortaleReleaseOpsTests(TestCase):
         self.assertTrue(payload["fallback_used"])
         self.assertEqual(payload["restart_mode"], "django_process")
         mocked_restart.assert_called_once()
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+    ADMIN_PORTALE_SENSITIVE_ALLOWED_ROLE_NAMES=(),
+    ADMIN_PORTALE_SENSITIVE_ALLOWED_ROLE_IDS=(),
+)
+class AdminPortaleSensitiveOperationSecurityTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username="sensitive-admin",
+            email="sensitive-admin@example.com",
+            password="secret123",
+        )
+        self.normal_user = User.objects.create_user(
+            username="sensitive-user",
+            email="sensitive-user@example.com",
+            password="secret123",
+        )
+        UserOnboarding.objects.create(user=self.normal_user, skipped=True)
+        self.legacy_admin = SimpleNamespace(id=99000, ruolo="admin", ruolo_id=1)
+
+    def _json_request(self, user, *, legacy_user=None):
+        request = RequestFactory().post(
+            "/admin-portale/crea-release/api/terminal/",
+            data=json.dumps({"environment": "test", "command": "manage.py shell --secret-token"}),
+            content_type="application/json",
+        )
+        request.user = user
+        if legacy_user is not None:
+            request.legacy_user = legacy_user
+        return request
+
+    def _protected_probe(self, request):
+        from admin_portale.security import sensitive_admin_operation_required
+
+        called = False
+
+        @sensitive_admin_operation_required("release_terminal_command")
+        def protected_view(request):
+            nonlocal called
+            called = True
+            return HttpResponse("ok")
+
+        response = protected_view(request)
+        return response, called
+
+    def test_superuser_can_run_protected_restart_and_audit_is_allowed(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin_user)
+        url = reverse("admin_portale:api_release_restart_service")
+        with patch(
+            "admin_portale.views.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout="Task restart IIS avviato", stderr=""),
+        ):
+            response = self.client.post(
+                url,
+                data=json.dumps({"environment": "test"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        audit = AuditLog.objects.filter(
+            azione="admin_sensitive_operation_attempt",
+            dettaglio__operation="release_restart_service",
+        ).latest("created_at")
+        self.assertEqual(audit.dettaglio["outcome"], "allowed")
+        self.assertEqual(audit.dettaglio["reason"], "superuser")
+
+    def test_normal_user_is_denied_with_safe_response_and_audit(self):
+        from core.models import AuditLog
+
+        request = self._json_request(self.normal_user)
+
+        with self.assertLogs(
+            "admin_portale.security",
+            level="INFO",
+        ) as logs:
+            response, called = self._protected_probe(request)
+
+        self.assertEqual(response.status_code, 403)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["reason"], "forbidden")
+        self.assertNotIn("secret-token", response.content.decode("utf-8"))
+        self.assertFalse(called)
+        self.assertTrue(any('"outcome": "denied"' in line for line in logs.output))
+
+        audit = AuditLog.objects.filter(
+            azione="admin_sensitive_operation_attempt",
+            dettaglio__operation="release_terminal_command",
+        ).latest("created_at")
+        self.assertEqual(audit.dettaglio["outcome"], "denied")
+        self.assertEqual(audit.dettaglio["reason"], "not_authorized")
+        self.assertNotIn("command", audit.dettaglio)
+
+    def test_api_denied_returns_consistent_json(self):
+        self.client.force_login(self.normal_user)
+        url = reverse("admin_portale:api_release_terminal_command")
+
+        response = self.client.post(
+            url,
+            data=json.dumps({"environment": "test", "command": "manage.py check"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response["Content-Type"], "application/json")
+        payload = response.json()
+        self.assertEqual(
+            payload,
+            {
+                "ok": False,
+                "error": "Operazione non autorizzata.",
+                "reason": "forbidden",
+            },
+        )
+        self.assertNotIn("manage.py check", response.content.decode("utf-8"))
+
+    def test_legacy_admin_is_denied_when_sensitive_settings_are_not_configured(self):
+        from core.models import AuditLog
+
+        request = self._json_request(self.normal_user, legacy_user=self.legacy_admin)
+
+        with self.assertLogs("admin_portale.security", level="INFO"):
+            response, called = self._protected_probe(request)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(called)
+        audit = AuditLog.objects.filter(
+            azione="admin_sensitive_operation_attempt",
+            dettaglio__operation="release_terminal_command",
+        ).latest("created_at")
+        self.assertEqual(audit.dettaglio["outcome"], "denied")
+        self.assertEqual(audit.dettaglio["reason"], "not_authorized")
+        self.assertIn("admin", audit.dettaglio["role_names"])
+
+    @override_settings(ADMIN_PORTALE_SENSITIVE_ALLOWED_ROLE_NAMES=("admin",))
+    def test_legacy_admin_is_allowed_only_when_role_name_is_configured(self):
+        from core.models import AuditLog
+
+        request = self._json_request(self.normal_user, legacy_user=self.legacy_admin)
+
+        response, called = self._protected_probe(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(called)
+        audit = AuditLog.objects.filter(
+            azione="admin_sensitive_operation_attempt",
+            dettaglio__operation="release_terminal_command",
+        ).latest("created_at")
+        self.assertEqual(audit.dettaglio["outcome"], "allowed")
+        self.assertEqual(audit.dettaglio["reason"], "technical_role")
+        self.assertEqual(audit.dettaglio["matched_role_names"], ["admin"])
+
+    @override_settings(ADMIN_PORTALE_SENSITIVE_ALLOWED_ROLE_NAMES=("tecnico",))
+    def test_configured_technical_profile_role_is_allowed(self):
+        from admin_portale.security import sensitive_admin_operation_required
+
+        Profile.objects.create(
+            user=self.normal_user,
+            legacy_user_id=99001,
+            legacy_ruolo_id=77,
+            legacy_ruolo="tecnico",
+        )
+        request = RequestFactory().get("/admin-portale/probe/")
+        request.user = self.normal_user
+
+        @sensitive_admin_operation_required("probe_get")
+        def probe_view(request):
+            return HttpResponse("ok")
+
+        response = probe_view(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")
+
+    def test_decorator_does_not_break_simple_get_view_for_superuser(self):
+        from admin_portale.security import sensitive_admin_operation_required
+
+        request = RequestFactory().get("/admin-portale/probe/")
+        request.user = self.admin_user
+
+        @sensitive_admin_operation_required("probe_get")
+        def probe_view(request):
+            return HttpResponse("ok")
+
+        response = probe_view(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

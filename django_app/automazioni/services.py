@@ -39,10 +39,16 @@ from .source_registry import get_action_mapping_fields, get_source_definition, g
 
 _UNCASTABLE = object()
 _PLACEHOLDER_PATTERN = re.compile(r"\{([^{}]+)\}")
+_SAFE_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _TRUTHY_VALUES = {"1", "true", "yes", "on"}
 _FALSY_VALUES = {"0", "false", "no", "off"}
 _QUEUE_ERROR_MESSAGE_LIMIT = 1900
 MAX_QUEUE_EVENT_RETRY_COUNT = 5
+_SENSITIVE_KEY_PARTS = ("password", "passwd", "secret", "token", "api_key", "apikey", "webhook", "url")
+
+
+class AutomationSafetyError(ValueError):
+    """Errore bloccante generato dai guardrail runtime delle automazioni."""
 
 
 class QueueEventStatus:
@@ -61,6 +67,45 @@ _MODULE_APPS = {
     "notizie", "timbri", "rentri", "dpi", "procedure_refresh",
     "diario_preposto", "rilevazione_incidenti", "automazioni", "core",
 }
+
+
+_FALLBACK_ACTION_TABLE_WHITELIST: dict[str, dict[str, dict[str, set[str]]]] = {
+    AutomationActionType.INSERT_RECORD: {
+        "core_notifica": {
+            "fields": {"legacy_user_id", "tipo", "messaggio", "url_azione", "letta"},
+            "where_fields": set(),
+        },
+    },
+    AutomationActionType.UPDATE_RECORD: {
+        "core_notifica": {
+            "fields": {"tipo", "messaggio", "url_azione", "letta"},
+            "where_fields": {"id", "legacy_user_id", "tipo"},
+        },
+        "tasks_task": {
+            "fields": {"status", "priority", "next_step_text", "next_step_due", "due_date", "assigned_to_id"},
+            "where_fields": {"id", "project_id", "assigned_to_id"},
+        },
+    },
+}
+
+
+def _normalize_identifier_list(raw_values: Any) -> set[str]:
+    if not isinstance(raw_values, (list, tuple, set)):
+        return set()
+    return {str(value).strip() for value in raw_values if str(value).strip()}
+
+
+def _clone_table_whitelist(source: dict[str, dict[str, dict[str, set[str]]]]) -> dict[str, dict[str, dict[str, set[str]]]]:
+    return {
+        str(action_type): {
+            str(table_name): {
+                "fields": set(table_config.get("fields", set())),
+                "where_fields": set(table_config.get("where_fields", set())),
+            }
+            for table_name, table_config in tables.items()
+        }
+        for action_type, tables in source.items()
+    }
 
 
 def discover_module_tables() -> dict[str, dict[str, list[str]]]:
@@ -114,23 +159,19 @@ def get_action_table_whitelist() -> dict[str, dict[str, dict[str, set[str]]]]:
 
     for entry in db_entries:
         row: dict[str, set[str]] = {
-            "fields": set(entry.allowed_fields or []),
-            "where_fields": set(entry.where_fields or []),
+            "fields": _normalize_identifier_list(entry.allowed_fields),
+            "where_fields": _normalize_identifier_list(entry.where_fields),
         }
         if entry.action_type == AutomationActionType.INSERT_RECORD:
-            insert_tables[entry.table_name] = row
+            insert_tables[str(entry.table_name or "").strip()] = row
         elif entry.action_type == AutomationActionType.UPDATE_RECORD:
-            update_tables[entry.table_name] = row
+            update_tables[str(entry.table_name or "").strip()] = row
 
-    # Fallback hardcoded se il DB Ã¨ ancora vuoto
+    # Fallback hardcoded se il DB e' ancora vuoto
     if not insert_tables and not update_tables:
-        insert_tables = {
-            "core_notifica": {"fields": {"legacy_user_id", "tipo", "messaggio", "url_azione", "letta"}, "where_fields": set()},
-        }
-        update_tables = {
-            "core_notifica": {"fields": {"tipo", "messaggio", "url_azione", "letta"}, "where_fields": {"id", "legacy_user_id", "tipo"}},
-            "tasks_task": {"fields": {"status", "priority", "next_step_text", "next_step_due", "due_date", "assigned_to_id"}, "where_fields": {"id", "project_id", "assigned_to_id"}},
-        }
+        fallback = _clone_table_whitelist(_FALLBACK_ACTION_TABLE_WHITELIST)
+        insert_tables = fallback[AutomationActionType.INSERT_RECORD]
+        update_tables = fallback[AutomationActionType.UPDATE_RECORD]
 
     return {
         AutomationActionType.INSERT_RECORD: insert_tables,
@@ -1184,6 +1225,51 @@ def _create_action_log(
     )
 
 
+def _action_identity(action: Any, run_log: AutomationRunLog | None = None) -> dict[str, Any]:
+    rule = getattr(action, "rule", None) or getattr(run_log, "rule", None)
+    return {
+        "rule_id": getattr(rule, "pk", None) or getattr(run_log, "rule_id", None),
+        "rule_code": getattr(rule, "code", "") or "",
+        "action_id": getattr(action, "pk", None),
+        "action_type": getattr(action, "action_type", "") or "",
+    }
+
+
+def _format_action_identity(action: Any, run_log: AutomationRunLog | None = None) -> str:
+    identity = _action_identity(action, run_log)
+    parts = []
+    if identity["rule_id"] is not None:
+        parts.append(f"rule_id={identity['rule_id']}")
+    if identity["rule_code"]:
+        parts.append(f"rule={identity['rule_code']}")
+    if identity["action_id"] is not None:
+        parts.append(f"action_id={identity['action_id']}")
+    if identity["action_type"]:
+        parts.append(f"type={identity['action_type']}")
+    return " ".join(parts) or "action=sconosciuta"
+
+
+def _redact_preview_value(field_name: str, value: Any) -> str:
+    normalized_field = str(field_name or "").lower()
+    if any(part in normalized_field for part in _SENSITIVE_KEY_PARTS):
+        return "<redacted>"
+    if value is None:
+        return "NULL"
+    text = str(value)
+    if len(text) > 80:
+        return f"{text[:77]}..."
+    return text
+
+
+def _format_dry_run_values(values: dict[str, Any]) -> str:
+    if not values:
+        return "-"
+    return ", ".join(
+        f"{field}={_redact_preview_value(field, value)}"
+        for field, value in values.items()
+    )
+
+
 def _render_action_value(raw_value: Any, payload: Any) -> Any:
     if raw_value is None:
         return None
@@ -1873,24 +1959,38 @@ def validate_target_table_and_fields(
     where_field: str | None = None,
 ) -> dict[str, set[str]]:
     table_name = str(target_table or "").strip()
+    if not table_name:
+        raise AutomationSafetyError(f"Tabella target mancante per {action_type}.")
+
     whitelist = get_action_table_whitelist().get(action_type, {})
     table_rules = whitelist.get(table_name)
     if table_rules is None:
-        raise ValueError(f"Tabella target non whitelistata per {action_type}: {table_name or '<vuota>'}.")
+        raise AutomationSafetyError(f"Tabella target non whitelistata per {action_type}: {table_name}.")
+    if not _SAFE_IDENTIFIER_PATTERN.match(table_name):
+        raise AutomationSafetyError(f"Tabella target non ammessa per {action_type}: {table_name}.")
 
     requested_fields = {str(field).strip() for field in data_fields if str(field).strip()}
+    if not requested_fields:
+        raise AutomationSafetyError(f"{action_type} richiede almeno una colonna valida.")
+    invalid_identifier_fields = sorted(field for field in requested_fields if not _SAFE_IDENTIFIER_PATTERN.match(field))
+    if invalid_identifier_fields:
+        invalid_list = ", ".join(invalid_identifier_fields)
+        raise AutomationSafetyError(f"Colonne con nome non ammesso per {table_name}: {invalid_list}.")
+
     invalid_fields = requested_fields - set(table_rules.get("fields", set()))
     if invalid_fields:
         invalid_list = ", ".join(sorted(invalid_fields))
-        raise ValueError(f"Colonne non whitelistate per {table_name}: {invalid_list}.")
+        raise AutomationSafetyError(f"Colonne non whitelistate per {table_name}: {invalid_list}.")
 
     if where_field is not None:
         normalized_where_field = str(where_field).strip()
         if not normalized_where_field:
-            raise ValueError("where_field e' obbligatorio.")
+            raise AutomationSafetyError("where_field e' obbligatorio.")
+        if not _SAFE_IDENTIFIER_PATTERN.match(normalized_where_field):
+            raise AutomationSafetyError(f"Campo where con nome non ammesso per {table_name}: {normalized_where_field}.")
         allowed_where_fields = set(table_rules.get("where_fields", set()))
         if normalized_where_field not in allowed_where_fields:
-            raise ValueError(f"Campo where non whitelistato per {table_name}: {normalized_where_field}.")
+            raise AutomationSafetyError(f"Campo where non whitelistato per {table_name}: {normalized_where_field}.")
 
     return {
         "fields": set(table_rules.get("fields", set())),
@@ -1902,13 +2002,14 @@ def execute_safe_insert(target_table: str, field_values: dict[str, Any]) -> dict
     if not field_values:
         raise ValueError("field_mappings non puo' essere vuoto.")
 
-    validate_target_table_and_fields(AutomationActionType.INSERT_RECORD, target_table, list(field_values.keys()))
+    normalized_values = {str(field).strip(): value for field, value in field_values.items() if str(field).strip()}
+    validate_target_table_and_fields(AutomationActionType.INSERT_RECORD, target_table, list(normalized_values.keys()))
 
-    columns = list(field_values.keys())
+    columns = list(normalized_values.keys())
     quoted_table = connection.ops.quote_name(target_table)
     quoted_columns = ", ".join(connection.ops.quote_name(column) for column in columns)
     placeholders = ", ".join(["%s"] * len(columns))
-    params = [field_values[column] for column in columns]
+    params = [normalized_values[column] for column in columns]
     sql = f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
 
     with transaction.atomic():
@@ -1933,18 +2034,24 @@ def execute_safe_update(
     if where_value is None or where_value == "":
         raise ValueError("where_value_template non produce un valore valido.")
 
+    normalized_update_fields = {
+        str(field).strip(): value
+        for field, value in update_fields.items()
+        if str(field).strip()
+    }
+    normalized_where_field = str(where_field or "").strip()
     validate_target_table_and_fields(
         AutomationActionType.UPDATE_RECORD,
         target_table,
-        list(update_fields.keys()),
-        where_field=where_field,
+        list(normalized_update_fields.keys()),
+        where_field=normalized_where_field,
     )
 
-    columns = list(update_fields.keys())
+    columns = list(normalized_update_fields.keys())
     quoted_table = connection.ops.quote_name(target_table)
     assignments = ", ".join(f"{connection.ops.quote_name(column)} = %s" for column in columns)
-    quoted_where_field = connection.ops.quote_name(where_field)
-    params = [update_fields[column] for column in columns] + [where_value]
+    quoted_where_field = connection.ops.quote_name(normalized_where_field)
+    params = [normalized_update_fields[column] for column in columns] + [where_value]
     sql = f"UPDATE {quoted_table} SET {assignments} WHERE {quoted_where_field} = %s"
 
     with transaction.atomic():
@@ -2058,6 +2165,205 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _preview_action_for_dry_run(
+    action: AutomationAction,
+    payload: Any,
+    old_payload: Any = None,
+    queue_event: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    config = action.config_json if isinstance(action.config_json, dict) else {}
+    payload_context = payload if isinstance(payload, dict) else {}
+    source_code = (
+        str((queue_event or {}).get("source_code") or "").strip()
+        or str(getattr(getattr(action, "rule", None), "source_code", "") or "").strip()
+    )
+
+    try:
+        should_run, run_if_description = _resolve_action_run_if(config, payload_context, old_payload=old_payload)
+        if not should_run:
+            message = (
+                f"DRY-RUN: action saltata ({run_if_description})."
+                if run_if_description
+                else "DRY-RUN: action saltata."
+            )
+            return {
+                "status": AutomationActionLogStatus.SKIPPED,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": message,
+            }
+
+        if action.action_type == AutomationActionType.INSERT_RECORD:
+            target_table = str(config.get("target_table") or "").strip()
+            field_mappings = config.get("field_mappings")
+            if not isinstance(field_mappings, dict) or not field_mappings:
+                raise ValueError("insert_record richiede field_mappings non vuoto.")
+            rendered_fields = {
+                str(field_name).strip(): _render_action_value(raw_value, payload_context)
+                for field_name, raw_value in field_mappings.items()
+                if str(field_name).strip()
+            }
+            validate_target_table_and_fields(AutomationActionType.INSERT_RECORD, target_table, rendered_fields.keys())
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": (
+                    f"DRY-RUN insert_record: scriverebbe su {target_table} "
+                    f"[{_format_dry_run_values(rendered_fields)}]."
+                ),
+            }
+
+        if action.action_type == AutomationActionType.UPDATE_RECORD:
+            target_table = str(config.get("target_table") or "").strip()
+            where_field = str(config.get("where_field") or "").strip()
+            where_value = _render_action_value(config.get("where_value_template"), payload_context)
+            if isinstance(where_value, str) and _PLACEHOLDER_PATTERN.search(where_value):
+                raise ValueError("where_value_template non produce un valore valido.")
+            update_fields = config.get("update_fields")
+            if not isinstance(update_fields, dict) or not update_fields:
+                raise ValueError("update_record richiede update_fields non vuoto.")
+            rendered_update_fields = {
+                str(field_name).strip(): _render_action_value(raw_value, payload_context)
+                for field_name, raw_value in update_fields.items()
+                if str(field_name).strip()
+            }
+            validate_target_table_and_fields(
+                AutomationActionType.UPDATE_RECORD,
+                target_table,
+                rendered_update_fields.keys(),
+                where_field=where_field,
+            )
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": (
+                    f"DRY-RUN update_record: aggiornerebbe {target_table} "
+                    f"where {where_field}={_redact_preview_value(where_field, where_value)} "
+                    f"set [{_format_dry_run_values(rendered_update_fields)}]."
+                ),
+            }
+
+        if action.action_type == AutomationActionType.UPDATE_TRIGGER_RECORD:
+            update_fields = config.get("update_fields")
+            update_fields = update_fields if isinstance(update_fields, dict) else {}
+            source_definition, field_map = _validate_source_update_fields(source_code, update_fields)
+            source_pk = _resolve_source_pk_for_action(
+                source_definition=source_definition,
+                payload=payload_context,
+                queue_event=queue_event,
+            )
+            if source_pk in {None, ""}:
+                raise ValueError("Impossibile determinare la PK del record triggerante.")
+            rendered_update_fields = {
+                str(field_name).strip(): _render_action_value(raw_value, payload_context)
+                for field_name, raw_value in update_fields.items()
+                if str(field_name).strip()
+            }
+            columns = {
+                str(field_map[field_name]["db_column"]): value
+                for field_name, value in rendered_update_fields.items()
+            }
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": (
+                    f"DRY-RUN update_trigger_record: aggiornerebbe {source_code}#{source_pk} "
+                    f"set [{_format_dry_run_values(columns)}]."
+                ),
+            }
+
+        if action.action_type == AutomationActionType.UPDATE_DASHBOARD_METRIC:
+            metric_code = str(config.get("metric_code") or "").strip()
+            operation = str(config.get("operation") or "").strip().lower()
+            rendered_value = render_template_string(config.get("value_template"), payload_context).strip()
+            if not metric_code:
+                raise ValueError("update_dashboard_metric richiede metric_code.")
+            if operation not in {"set", "increment", "decrement"}:
+                raise ValueError("update_dashboard_metric richiede operation valida: set, increment o decrement.")
+            if not rendered_value:
+                raise ValueError("update_dashboard_metric richiede value_template valorizzato.")
+            Decimal(rendered_value)
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": (
+                    f"DRY-RUN update_dashboard_metric: aggiornerebbe metric={metric_code} "
+                    f"operation={operation} value={rendered_value}."
+                ),
+            }
+
+        if action.action_type == AutomationActionType.DELAY_SCHEDULE:
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": "DRY-RUN delay_schedule: schedulerebbe un nuovo evento queue.",
+            }
+
+        return {
+            "status": AutomationActionLogStatus.SUCCESS,
+            "action_id": action.pk,
+            "action_type": action.action_type,
+            "message": f"DRY-RUN {action.action_type}: validazione queue eseguita, azione runtime non invocata.",
+        }
+    except Exception as exc:
+        if isinstance(exc, AutomationSafetyError):
+            logger.warning(
+                "automation safety guardrail blocked dry-run %s: %s",
+                _format_action_identity(action),
+                exc,
+            )
+            message = f"DRY-RUN safety blocked {action.action_type}: {exc}"
+        else:
+            message = f"DRY-RUN errore {action.action_type}: {exc}"
+        return {
+            "status": AutomationActionLogStatus.ERROR,
+            "action_id": getattr(action, "pk", None),
+            "action_type": getattr(action, "action_type", ""),
+            "message": message,
+        }
+
+
+def _preview_rule_for_dry_run(
+    rule: AutomationRule,
+    payload: Any,
+    old_payload: Any = None,
+    queue_event: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    condition_messages: list[str] = []
+    for condition in rule.conditions.filter(is_enabled=True).order_by("order", "id"):
+        if not evaluate_condition(condition, payload, old_payload=old_payload):
+            return {
+                "rule_id": rule.pk,
+                "rule_code": rule.code,
+                "status": AutomationRunLogStatus.SKIPPED,
+                "message": f"DRY-RUN regola saltata: condizione non soddisfatta ({condition.field_name}).",
+                "actions": [],
+            }
+        condition_messages.append(f"{condition.field_name}:{condition.operator}")
+
+    action_previews = [
+        _preview_action_for_dry_run(action, payload, old_payload=old_payload, queue_event=queue_event)
+        for action in rule.actions.filter(is_enabled=True).order_by("order", "id")
+    ]
+    action_errors = sum(1 for preview in action_previews if preview.get("status") == AutomationActionLogStatus.ERROR)
+    return {
+        "rule_id": rule.pk,
+        "rule_code": rule.code,
+        "status": AutomationRunLogStatus.ERROR if action_errors else AutomationRunLogStatus.SUCCESS,
+        "message": (
+            f"DRY-RUN regola {rule.code}: azioni valutate={len(action_previews)}, "
+            f"errori={action_errors}."
+        ),
+        "conditions": condition_messages,
+        "actions": action_previews,
+    }
+
+
 def process_single_queue_event_by_id(queue_id: int) -> dict[str, Any]:
     queue_event = claim_queue_event_by_id(
         queue_id,
@@ -2131,11 +2437,32 @@ def process_pending_queue_events(
                     "old_payload": old_payload,
                 }
                 rules = find_matching_rules(event_context)
+                rule_previews = [
+                    _preview_rule_for_dry_run(
+                        rule,
+                        payload,
+                        old_payload=old_payload,
+                        queue_event=event_context,
+                    )
+                    for rule in rules
+                ]
+                preview_errors = sum(
+                    1
+                    for rule_preview in rule_previews
+                    for action_preview in rule_preview.get("actions", [])
+                    if action_preview.get("status") == AutomationActionLogStatus.ERROR
+                )
+                summary["rule_runs"] += len(rules)
+                summary["error"] += preview_errors
                 summary["events"].append(
                     {
                         "queue_id": int(queue_event["id"]),
                         "status": "dry-run",
                         "candidate_rule_codes": [rule.code for rule in rules],
+                        "rule_previews": rule_previews,
+                        "message": (
+                            f"Dry-run: regole candidate={len(rules)}, safety/errori azione={preview_errors}."
+                        ),
                     }
                 )
             except Exception as exc:
@@ -3065,11 +3392,26 @@ def execute_action(
             return {"status": final_status, "result_message": result_message, "action_log": action_log}
 
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
+    except AutomationSafetyError as exc:
+        action_identity = _format_action_identity(action, run_log)
+        logger.warning("automation safety guardrail blocked %s: %s", action_identity, exc)
+        error_trace = traceback.format_exc()
+        result_message = f"Safety guardrail: {exc}"
+        action_log = _create_action_log(
+            run_log=run_log,
+            action=action,
+            status=AutomationActionLogStatus.ERROR,
+            result_message=result_message,
+            error_trace=error_trace,
+        )
+        return {"status": AutomationActionLogStatus.ERROR, "result_message": result_message, "action_log": action_log}
     except Exception as exc:
         logger.warning(
-            "execute_action: errore nel tipo=%s run_log=%s: %s",
+            "execute_action: errore nel tipo=%s run_log=%s rule_id=%s action_id=%s: %s",
             getattr(action, "action_type", "?"),
             getattr(run_log, "pk", None),
+            getattr(getattr(action, "rule", None), "pk", None) or getattr(run_log, "rule_id", None),
+            getattr(action, "pk", None),
             exc,
             exc_info=True,
         )

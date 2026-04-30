@@ -176,6 +176,14 @@ Il release guard blocca il package se trova:
 - riferimenti docs incoerenti su `config.settings.dev` / `config.settings.test` / `config.settings.prod` o su `django-environ`
 - fallback versione non allineati
 - `SetupWizard.exe` obsoleto
+- secret ad alta confidenza nei file Git (`secret_hygiene_check`)
+- regressione della copertura ACL oltre la baseline `acl_coverage_report --max-missing 216`
+- FAIL in `validate_deployment`; i WARN restano ammessi salvo esecuzione con `-FailOnDeploymentWarn`
+
+Il guard salva `django_app\acl_report_latest.json` e
+`django_app\deployment_validation_latest.json`. La baseline ACL va alzata solo
+con decisione esplicita; finche esistono missing storici non rendere
+`--fail-on-missing` obbligatorio.
 
 ## Monitoring e controlli secondari
 
@@ -195,4 +203,3 @@ Controlla periodicamente anche:
 - [`../doc/ACL_V2_UAT_CHECKLIST.md`](../doc/ACL_V2_UAT_CHECKLIST.md)
 
 Fine manuale - NOVICROM HUB Admin (v0.9.15)
-

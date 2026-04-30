@@ -90,10 +90,17 @@ __pypackages__/
 !.env.example
 .envrc
 config.ini
+config.local.ini
 *.local
 local_settings.py
 .python-version
 .pypirc
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
 
 # Django / Flask local data
 db.sqlite3
@@ -108,6 +115,8 @@ instance/
 .webassets-cache
 media/
 django_app/media/
+media_private/
+django_app/media_private/
 django_app/logs/
 celerybeat-schedule
 celerybeat.pid
@@ -151,9 +160,14 @@ doc/REPORT_*.doc
 doc/REPORT_*.html
 doc/REPORT_*.md
 doc/Relazione_Modifiche_*.doc
+Powerautomate/*.zip
 Logo_Vettoriale_Novicrom*.png
 Project_Documentation.pdf
 Automation_Designer_Guide.pdf
+topbar_dev.json
+django_app/topbar_dev.json
+django_app/acl_report*.json
+django_app/deployment_validation*.json
 
 # OS / misc
 Thumbs.db

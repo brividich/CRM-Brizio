@@ -69,6 +69,9 @@ from .forms import (
     PlantLayoutForm,
     SoftwareLicenseForm,
     WorkMachineAssetForm,
+    DeviceFilterForm,
+    IT_DEVICE_TYPES,
+    PRODUCTION_ASSET_TYPES,
     WorkMachineFilterForm,
     WorkOrderCloseForm,
     WorkOrderForm,
@@ -885,8 +888,11 @@ def _work_machine_maintenance_month_pdf_url(*, month_code: str, reparto_filter: 
     return f'{reverse("assets:work_machine_maintenance_month_pdf")}?{"&".join(params)}'
 
 
-def _periodic_verifications_page_url(*, asset_id: int = 0, edit_id: int = 0) -> str:
+def _periodic_verifications_page_url(*, asset_id: int = 0, edit_id: int = 0, scope: str = "") -> str:
     params: list[str] = []
+    scope_value = _normalize_reports_scope(scope) if scope else ""
+    if scope_value:
+        params.append(f"scope={quote(scope_value)}")
     if asset_id:
         params.append(f"asset={int(asset_id)}")
     if edit_id:
@@ -1431,7 +1437,7 @@ def _build_work_machine_maintenance_month_dataset(
 
     queryset = (
         Asset.objects.filter(
-            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_type__in=PRODUCTION_ASSET_TYPES,
             work_machine__next_maintenance_date__gte=month_start,
             work_machine__next_maintenance_date__lte=month_end,
         )
@@ -2976,6 +2982,7 @@ def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
     return _periodic_verifications_page_url(
         asset_id=_as_int(request.POST.get("filter_asset"), default=0),
         edit_id=_as_int(request.POST.get("filter_edit"), default=0),
+        scope=_clean_string(request.POST.get("filter_scope") or request.POST.get("scope")),
     )
 
 
@@ -4451,6 +4458,49 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
     return True
 
 
+def _normalize_reports_scope(value: str | None) -> str:
+    normalized = _clean_string(value).casefold()
+    if normalized in {"it", "device", "devices", "dispositivi", "dispositivi_it"}:
+        return "it"
+    return "production"
+
+
+def _reports_scope_context(scope: str) -> dict[str, object]:
+    if scope == "it":
+        return {
+            "scope": "it",
+            "title": "Report dispositivi IT",
+            "subtitle": "KPI e interventi filtrati su PC, server, rete, fonia, TVCC e dispositivi IT.",
+            "asset_types": IT_DEVICE_TYPES,
+            "maintenance_month_enabled": False,
+            "empty_month_message": "Il piano mese e il PDF mensile sono disponibili nei report asset produzione.",
+        }
+    return {
+        "scope": "production",
+        "title": "Report asset produzione",
+        "subtitle": "KPI e interventi filtrati su CNC, macchine utensili e carroponti.",
+        "asset_types": PRODUCTION_ASSET_TYPES,
+        "maintenance_month_enabled": True,
+        "empty_month_message": "",
+    }
+
+
+def _periodic_scope_context(scope: str) -> dict[str, object]:
+    if scope == "it":
+        return {
+            "scope": "it",
+            "title": "Manutenzione periodica dispositivi IT",
+            "subtitle": "Piani ricorrenti filtrati su PC, server, rete, fonia, TVCC e dispositivi IT.",
+            "asset_types": IT_DEVICE_TYPES,
+        }
+    return {
+        "scope": "production",
+        "title": "Manutenzione periodica asset produzione",
+        "subtitle": "Piani ricorrenti filtrati su CNC, macchine utensili e carroponti.",
+        "asset_types": PRODUCTION_ASSET_TYPES,
+    }
+
+
 def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]:
     base_list = reverse("assets:asset_list")
     asset_dashboard = reverse("assets:asset_dashboard")
@@ -4463,12 +4513,17 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     software_licenses = reverse("assets:software_license_list")
     work_machine_list = reverse("assets:work_machine_list")
     work_machine_dashboard = reverse("assets:work_machine_dashboard")
-    periodic_verifications = reverse("assets:periodic_verifications")
+    it_periodic_verifications = f"{reverse('assets:periodic_verifications')}?scope=it"
+    production_periodic_verifications = f"{reverse('assets:periodic_verifications')}?scope=production"
     plant_layout_map = reverse("assets:plant_layout_map")
     reports = reverse("assets:reports")
+    it_reports = f"{reports}?scope=it"
+    production_reports = f"{reports}?scope=production"
     wo_list = reverse("assets:wo_list")
     current_type = _clean_string(request.GET.get("asset_type"))
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
+    current_report_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "reports" else ""
+    current_periodic_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "periodic_verifications" else ""
     return [
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -4534,8 +4589,6 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "active": current_route in {
                 "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
                 "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
-                "periodic_verifications",
-                "reports",
             },
         },
         {
@@ -4554,17 +4607,17 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Manutenzione periodica",
-            "url": periodic_verifications,
+            "label": "Manutenzione periodica IT",
+            "url": it_periodic_verifications,
             "is_subitem": True,
-            "active": current_route == "periodic_verifications",
+            "active": current_route == "periodic_verifications" and current_periodic_scope == "it",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Report manutenzione",
-            "url": reports,
+            "label": "Report dispositivi IT",
+            "url": it_reports,
             "is_subitem": True,
-            "active": current_route == "reports",
+            "active": current_route == "reports" and current_report_scope == "it",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -4586,6 +4639,20 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": plant_layout_map,
             "is_subitem": True,
             "active": current_route in {"plant_layout_map", "plant_layout_editor"},
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Manutenzione periodica produzione",
+            "url": production_periodic_verifications,
+            "is_subitem": True,
+            "active": current_route == "periodic_verifications" and current_periodic_scope == "production",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Report asset produzione",
+            "url": production_reports,
+            "is_subitem": True,
+            "active": current_route == "reports" and current_report_scope == "production",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -4707,9 +4774,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "periodic_verifications",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Manutenzione periodica",
-            "target_url": "django:assets:periodic_verifications",
-            "active_match": "/assets/manutenzione/verifiche/",
+            "label": "Manutenzione periodica produzione",
+            "target_url": "django:assets:periodic_verifications?scope=production",
+            "active_match": "",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
             "sort_order": 57,
@@ -4817,9 +4884,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "lifecycle_tracking",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Report manutenzione",
-            "target_url": "django:assets:reports",
-            "active_match": "/assets/reports/",
+            "label": "Report asset produzione",
+            "target_url": "django:assets:reports?scope=production",
+            "active_match": "",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
             "sort_order": 58,
@@ -4867,13 +4934,15 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("django:assets:maintenance_rule_list", "Regole manutenzione"),
         ("django:assets:work_machine_list", "Macchine di lavoro"),
         ("django:assets:work_machine_dashboard", "Dashboard officina"),
-        ("django:assets:periodic_verifications", "Manutenzione periodica"),
+        ("django:assets:periodic_verifications?scope=it", "Manutenzione periodica dispositivi IT"),
+        ("django:assets:periodic_verifications?scope=production", "Manutenzione periodica asset produzione"),
         ("django:assets:plant_layout_map", "Mappa officina"),
         ("django:assets:wo_list", "Interventi / Work order"),
         ("django:assets:software_license_list", "Licenze software"),
         ("django:assets:maintenance_schedule", "Prossime manutenzioni"),
         ("django:assets:assistance_contract_list", "Contratti assistenza"),
-        ("django:assets:reports", "Report manutenzione"),
+        ("django:assets:reports?scope=it", "Report dispositivi IT"),
+        ("django:assets:reports?scope=production", "Report asset produzione"),
         ("django:assets:gestione_admin", "Impostazioni assets"),
     ]
     for value, label in route_targets:
@@ -4900,7 +4969,7 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("assets:software_license_list", "Licenze software"),
         ("assets:maintenance_schedule", "Prossime manutenzioni"),
         ("assets:assistance_contract_list", "Contratti assistenza"),
-        ("assets:reports", "Report manutenzione"),
+        ("assets:reports", "Report asset"),
         ("assets:gestione_admin", "Impostazioni assets"),
     ]
     for route_name, label in route_active_matches:
@@ -4914,6 +4983,8 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("reparto=", "Filtro reparto"),
         ("vlan=", "Filtro VLAN"),
         ("ip=", "Filtro IP"),
+        ("scope=it", "Report dispositivi IT"),
+        ("scope=production", "Report asset produzione"),
         ("rows={rows}", "Placeholder righe per pagina"),
     ]:
         add_active_match(value, label)
@@ -5285,7 +5356,7 @@ def _plant_layout_editor_marker_rows(layout: PlantLayout | None) -> list[dict[st
 
 def _plant_layout_machine_catalog() -> list[dict[str, object]]:
     machines = (
-        Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE)
+        Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
         .select_related("work_machine")
         .order_by("reparto", "name", "asset_tag", "id")
     )
@@ -7088,7 +7159,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         status=WorkOrder.STATUS_OPEN,
         opened_at__lt=timezone.now() - timedelta(days=21),
     ).count()
-    work_machine_total = Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE).count()
+    work_machine_total = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
 
     health_percent = 0.0
     in_use_percent = 0.0
@@ -8051,7 +8122,7 @@ def asset_label_designer(request: HttpRequest) -> HttpResponse:
         )
     if preview_asset is None:
         preview_asset = (
-            Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE)
+            Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
             .select_related("work_machine")
             .order_by("name", "asset_tag")
             .first()
@@ -10379,9 +10450,164 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def device_list(request: HttpRequest) -> HttpResponse:
+    """Lista dispositivi IT (PC, portatili, server, ecc.) con card layout."""
+    form = DeviceFilterForm(request.GET or None)
+    devices_qs = (
+        Asset.objects
+        .filter(asset_type__in=IT_DEVICE_TYPES)
+        .select_related("asset_category")
+        .order_by("asset_type", "reparto", "name", "asset_tag")
+    )
+
+    if form.is_valid():
+        q = _clean_string(form.cleaned_data.get("q"))
+        asset_type = _clean_string(form.cleaned_data.get("asset_type"))
+        status = _clean_string(form.cleaned_data.get("status"))
+        reparto = _clean_string(form.cleaned_data.get("reparto"))
+
+        if q:
+            devices_qs = devices_qs.filter(
+                Q(asset_tag__icontains=q)
+                | Q(name__icontains=q)
+                | Q(reparto__icontains=q)
+                | Q(manufacturer__icontains=q)
+                | Q(model__icontains=q)
+                | Q(serial_number__icontains=q)
+                | Q(assignment_to__icontains=q)
+            )
+        if asset_type:
+            devices_qs = devices_qs.filter(asset_type=asset_type)
+        if status:
+            devices_qs = devices_qs.filter(status=status)
+        if reparto:
+            devices_qs = devices_qs.filter(
+                Q(reparto__icontains=reparto) | Q(assignment_reparto__icontains=reparto)
+            )
+
+    device_base_qs = Asset.objects.filter(asset_type__in=IT_DEVICE_TYPES)
+    total = device_base_qs.count()
+    in_use_total = device_base_qs.filter(status=Asset.STATUS_IN_USE).count()
+    in_stock_total = device_base_qs.filter(status=Asset.STATUS_IN_STOCK).count()
+    in_repair_total = device_base_qs.filter(status=Asset.STATUS_IN_REPAIR).count()
+
+    type_totals = list(
+        device_base_qs
+        .values("asset_type")
+        .annotate(total=Count("id"))
+        .order_by("asset_type")
+    )
+    type_label_map = dict(Asset.TYPE_CHOICES)
+    for row in type_totals:
+        row["label"] = type_label_map.get(row["asset_type"], row["asset_type"])
+
+    visible_count = devices_qs.count()
+
+    allowed_rows = [12, 24, 48, 96]
+    rows = _as_int(request.GET.get("rows"), default=24)
+    if rows not in allowed_rows:
+        rows = 24
+    paginator = Paginator(devices_qs, rows)
+    page_number = _as_int(request.GET.get("page"), default=1)
+    page_obj = paginator.get_page(page_number)
+    devices = page_obj.object_list
+    page_start = ((page_obj.number - 1) * rows + 1) if visible_count else 0
+    page_end = (page_start + len(devices) - 1) if visible_count else 0
+
+    rows_options = [
+        {"value": v, "active": v == rows, "url": _query_url(request, rows=v, page=1)}
+        for v in allowed_rows
+    ]
+    page_links = []
+    if paginator.num_pages > 0:
+        start_page = max(1, page_obj.number - 2)
+        end_page = min(paginator.num_pages, page_obj.number + 2)
+        for number in range(start_page, end_page + 1):
+            page_links.append({
+                "number": number,
+                "active": number == page_obj.number,
+                "url": _query_url(request, page=number, rows=rows),
+            })
+    prev_page_url = _query_url(request, page=page_obj.previous_page_number(), rows=rows) if page_obj.has_previous() else ""
+    next_page_url = _query_url(request, page=page_obj.next_page_number(), rows=rows) if page_obj.has_next() else ""
+
+    return render(request, "assets/pages/device_list.html", {
+        "page_title": "Dispositivi IT",
+        "filters_form": form,
+        "devices": devices,
+        "visible_count": visible_count,
+        "total": total,
+        "in_use_total": in_use_total,
+        "in_stock_total": in_stock_total,
+        "in_repair_total": in_repair_total,
+        "type_totals": type_totals,
+        "rows": rows,
+        "rows_options": rows_options,
+        "page_links": page_links,
+        "prev_page_url": prev_page_url,
+        "next_page_url": next_page_url,
+        "page_start": page_start,
+        "page_end": page_end,
+        **_assets_shell_context(
+            request,
+            rows=rows,
+            search_action=reverse("assets:device_list"),
+            new_url=reverse("assets:asset_create"),
+            new_label="+ Nuovo dispositivo",
+            search_placeholder="Ricerca per tag, nome, utente, reparto o seriale",
+        ),
+    })
+
+
+def _machine_availability_map(asset_ids: list[int]) -> dict[int, str]:
+    """Ritorna un dict {asset_id: stato} per le macchine richieste.
+
+    Stati: 'occupata' | 'manutenzione' | 'libera'
+    """
+    if not asset_ids:
+        return {}
+    today = timezone.localdate()
+    result = {aid: "libera" for aid in asset_ids}
+
+    # Macchine in manutenzione (OdL aperto)
+    maint_ids = set(
+        WorkOrder.objects
+        .filter(asset_id__in=asset_ids, status=WorkOrder.STATUS_OPEN)
+        .values_list("asset_id", flat=True)
+    )
+    for aid in maint_ids:
+        result[aid] = "manutenzione"
+
+    # Macchine occupate da task lavoro macchina attivi oggi
+    try:
+        from tasks.models import TaskExtraRef, TaskStatus
+        occupied_ids = set(
+            TaskExtraRef.objects
+            .filter(
+                asset_id__in=asset_ids,
+                task__category__is_machine_work=True,
+                task__status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS],
+                task__next_step_due__lte=today,
+                task__due_date__gte=today,
+            )
+            .values_list("asset_id", flat=True)
+        )
+        for aid in occupied_ids:
+            result[aid] = "occupata"
+    except Exception:
+        pass
+
+    return result
+
+
+@login_required
 def work_machine_list(request: HttpRequest) -> HttpResponse:
     form = WorkMachineFilterForm(request.GET or None)
-    machines_qs = Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE).select_related("work_machine")
+    asset_type_filter = _clean_string(request.GET.get("asset_type"))
+    if asset_type_filter in PRODUCTION_ASSET_TYPES:
+        machines_qs = Asset.objects.filter(asset_type=asset_type_filter).select_related("work_machine")
+    else:
+        machines_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
 
     if form.is_valid():
         q = _clean_string(form.cleaned_data.get("q"))
@@ -10451,7 +10677,10 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
     prev_page_url = _query_url(request, page=page_obj.previous_page_number(), rows=rows) if page_obj.has_previous() else ""
     next_page_url = _query_url(request, page=page_obj.next_page_number(), rows=rows) if page_obj.has_next() else ""
 
-    machine_base_qs = Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE).select_related("work_machine")
+    if asset_type_filter in PRODUCTION_ASSET_TYPES:
+        machine_base_qs = Asset.objects.filter(asset_type=asset_type_filter).select_related("work_machine")
+    else:
+        machine_base_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
     machine_total = machine_base_qs.count()
     reparto_totals = list(
         machine_base_qs.exclude(reparto="")
@@ -10472,13 +10701,18 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
     )
     plant_layout_payload = _plant_layout_public_payload(active_layout)
 
+    machine_ids = [m.pk for m in machines]
+    availability_map = _machine_availability_map(machine_ids)
+
     return render(
         request,
         "assets/pages/work_machine_list.html",
         {
-            "page_title": "Macchine di lavoro",
+            "page_title": "Asset produzione",
             "filters_form": form,
+            "selected_asset_type": asset_type_filter,
             "machines": machines,
+            "availability_map": availability_map,
             "visible_count": visible_count,
             "machine_total": machine_total,
             "cnc_total": cnc_total,
@@ -10510,6 +10744,115 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
+    """Esporta la lista macchine filtrata in formato Excel (.xlsx)."""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    form = WorkMachineFilterForm(request.GET or None)
+    machines_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+
+    if form.is_valid():
+        q = _clean_string(form.cleaned_data.get("q"))
+        reparto = _clean_string(form.cleaned_data.get("reparto"))
+        status = _clean_string(form.cleaned_data.get("status"))
+        cnc_only = bool(form.cleaned_data.get("cnc_only"))
+        five_axes_only = bool(form.cleaned_data.get("five_axes_only"))
+        tcr_only = bool(form.cleaned_data.get("tcr_only"))
+
+        if q:
+            machines_qs = machines_qs.filter(
+                Q(asset_tag__icontains=q)
+                | Q(name__icontains=q)
+                | Q(reparto__icontains=q)
+                | Q(manufacturer__icontains=q)
+                | Q(model__icontains=q)
+                | Q(serial_number__icontains=q)
+            )
+        if reparto:
+            machines_qs = machines_qs.filter(reparto__icontains=reparto)
+        if status:
+            machines_qs = machines_qs.filter(status=status)
+        if cnc_only:
+            machines_qs = machines_qs.filter(work_machine__cnc_controlled=True)
+        if five_axes_only:
+            machines_qs = machines_qs.filter(work_machine__five_axes=True)
+        if tcr_only:
+            machines_qs = machines_qs.filter(work_machine__tcr_enabled=True)
+
+    machines = list(machines_qs.order_by("reparto", "name", "asset_tag"))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Macchine officina"
+
+    headers = [
+        "Tag", "Nome macchina", "Reparto", "Stato asset",
+        "Produttore", "Modello", "N. seriale",
+        "Anno", "TMC (mesi)", "Prossima manutenzione",
+        "CNC", "5 assi", "TCR",
+        "Cursa X (mm)", "Corsa Y (mm)", "Corsa Z (mm)",
+        "Diametro (mm)", "Mandrino (mm)", "Pressione (bar)", "Accuracy",
+    ]
+
+    header_fill = PatternFill(fill_type="solid", fgColor="2563EB")
+    header_font = Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.row_dimensions[1].height = 20
+
+    for row_idx, asset in enumerate(machines, 2):
+        wm = getattr(asset, "work_machine", None)
+        values = [
+            asset.asset_tag,
+            asset.name,
+            asset.reparto or "",
+            asset.get_status_display(),
+            asset.manufacturer or "",
+            asset.model or "",
+            asset.serial_number or "",
+            wm.year if wm and wm.year else "",
+            wm.tmc if wm and wm.tmc else "",
+            wm.next_maintenance_date.strftime("%d/%m/%Y") if wm and wm.next_maintenance_date else "",
+            "Sì" if wm and wm.cnc_controlled else "No",
+            "Sì" if wm and wm.five_axes else "No",
+            "Sì" if wm and wm.tcr_enabled else "No",
+            wm.x_mm if wm and wm.x_mm else "",
+            wm.y_mm if wm and wm.y_mm else "",
+            wm.z_mm if wm and wm.z_mm else "",
+            wm.diameter_mm if wm and wm.diameter_mm else "",
+            wm.spindle_mm if wm and wm.spindle_mm else "",
+            str(wm.pressure_bar) if wm and wm.pressure_bar else "",
+            wm.accuracy_from if wm and wm.accuracy_from else "",
+        ]
+        for col_idx, val in enumerate(values, 1):
+            ws.cell(row=row_idx, column=col_idx, value=val)
+
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=0)
+        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 3, 10), 45)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    today_str = timezone.localdate().strftime("%Y%m%d")
+    filename = f"macchine_officina_{today_str}.xlsx"
+    response = HttpResponse(
+        buf.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
 def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
     now = timezone.now()
     today = timezone.localdate()
@@ -10521,11 +10864,11 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         today=today,
     )
 
-    machine_base_qs = Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE).select_related("work_machine").prefetch_related("documents")
+    machine_base_qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine").prefetch_related("documents")
     if reparto_filter:
         machine_base_qs = machine_base_qs.filter(reparto=reparto_filter)
 
-    workorders_base = WorkOrder.objects.select_related("asset").filter(asset__asset_type=Asset.TYPE_WORK_MACHINE)
+    workorders_base = WorkOrder.objects.select_related("asset").filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
     if reparto_filter:
         workorders_base = workorders_base.filter(asset__reparto=reparto_filter)
 
@@ -10575,7 +10918,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
 
     total_machines = len(machine_rows)
     reparto_totals = list(
-        Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE)
+        Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
         .exclude(reparto="")
         .values("reparto")
         .annotate(total=Count("id"))
@@ -10641,7 +10984,28 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)
     selected_asset = None
     if selected_asset_id:
-        selected_asset = Asset.objects.filter(pk=selected_asset_id).only("id", "asset_tag", "name", "reparto").first()
+        selected_asset = Asset.objects.filter(pk=selected_asset_id).only("id", "asset_tag", "name", "reparto", "asset_type").first()
+
+    raw_scope = request.POST.get("scope") or request.GET.get("scope")
+    if raw_scope:
+        periodic_scope = _normalize_reports_scope(raw_scope)
+    elif selected_asset is not None and selected_asset.asset_type in IT_DEVICE_TYPES:
+        periodic_scope = "it"
+    else:
+        periodic_scope = "production"
+    periodic_context = _periodic_scope_context(periodic_scope)
+    periodic_asset_types = list(periodic_context["asset_types"])
+    scope_asset_queryset = Asset.objects.filter(asset_type__in=periodic_asset_types)
+
+    if "scope" not in request.GET and request.method == "GET":
+        query = request.GET.copy()
+        query["scope"] = periodic_scope
+        return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
+
+    if selected_asset is not None and selected_asset.asset_type not in periodic_asset_types:
+        query = request.GET.copy()
+        query["scope"] = "it" if selected_asset.asset_type in IT_DEVICE_TYPES else "production"
+        return redirect(f"{reverse('assets:periodic_verifications')}?{query.urlencode()}")
 
     edit_id = _as_int(request.POST.get("edit_id") or request.GET.get("edit"), default=0)
     edit_verification = None
@@ -10657,6 +11021,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         instance=edit_verification,
         actor=request.user,
         preselected_asset_id=selected_asset.id if selected_asset else 0,
+        asset_queryset=scope_asset_queryset,
     )
 
     if request.method == "POST":
@@ -10733,18 +11098,19 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
 
         if action in {"create_periodic_verification", "update_periodic_verification", "delete_periodic_verification"} and not can_manage_periodic_verifications:
             messages.error(request, "Solo admin puo gestire la manutenzione periodica.")
-            return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
+            return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
 
         if action in {"create_periodic_verification", "update_periodic_verification"}:
             instance = edit_verification if action == "update_periodic_verification" else None
             if action == "update_periodic_verification" and instance is None:
                 messages.error(request, "Piano di manutenzione periodica non trovato.")
-                return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
+                return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
             form = PeriodicVerificationForm(
                 request.POST,
                 instance=instance,
                 actor=request.user,
                 preselected_asset_id=selected_asset.id if selected_asset else 0,
+                asset_queryset=scope_asset_queryset,
             )
             if form.is_valid():
                 verification = form.save()
@@ -10754,7 +11120,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     else "Manutenzione periodica creata."
                 )
                 messages.success(request, message)
-                return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
+                return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
         elif action == "delete_periodic_verification":
             verification_id = _as_int(request.POST.get("verification_id"), default=0)
             verification = PeriodicVerification.objects.filter(pk=verification_id).first()
@@ -10764,7 +11130,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                 verification_name = verification.name
                 verification.delete()
                 messages.success(request, f'Manutenzione periodica "{verification_name}" eliminata.')
-            return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
+            return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
 
     verification_rows: list[dict[str, object]] = []
     verification_event_map: dict[int, list[AssetCalendarEvent]] = defaultdict(list)
@@ -10789,9 +11155,11 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     for verification in (
         PeriodicVerification.objects.select_related("supplier", "created_by")
         .prefetch_related("assets")
+        .filter(assets__asset_type__in=periodic_asset_types)
+        .distinct()
         .order_by("-is_active", "next_verification_date", "name", "id")
     ):
-        linked_assets = list(verification.assets.all())
+        linked_assets = [asset for asset in verification.assets.all() if asset.asset_type in periodic_asset_types]
         is_selected_asset_linked = bool(selected_asset and any(asset.id == selected_asset.id for asset in linked_assets))
         verification_rows.append(
             {
@@ -10810,6 +11178,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                 "edit_url": _periodic_verifications_page_url(
                     asset_id=selected_asset.id if selected_asset else 0,
                     edit_id=verification.id,
+                    scope=periodic_scope,
                 ),
             }
         )
@@ -10824,7 +11193,11 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/periodic_verification_list.html",
         {
-            "page_title": "Manutenzione periodica",
+            "page_title": periodic_context["title"],
+            "periodic_scope": periodic_context["scope"],
+            "periodic_page_title": periodic_context["title"],
+            "periodic_page_subtitle": periodic_context["subtitle"],
+            "periodic_base_url": _periodic_verifications_page_url(scope=periodic_scope),
             "form": form,
             "verification_rows": verification_rows,
             "verification_total": len(verification_rows),
@@ -11113,7 +11486,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
     asset = get_object_or_404(
         Asset.objects.select_related("work_machine").prefetch_related("documents"),
         pk=id,
-        asset_type=Asset.TYPE_WORK_MACHINE,
+        asset_type__in=PRODUCTION_ASSET_TYPES,
     )
     list_suggestions = _build_asset_list_suggestions()
 
@@ -11129,6 +11502,16 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
         )
         if form.is_valid() and not upload_errors:
             asset = form.save()
+            wm = getattr(asset, "work_machine", None)
+            if wm:
+                if request.POST.get("clear_photo") == "1":
+                    if wm.photo:
+                        wm.photo.delete(save=False)
+                    wm.photo = None
+                    wm.save(update_fields=["photo"])
+                elif "photo" in request.FILES:
+                    wm.photo = request.FILES["photo"]
+                    wm.save(update_fields=["photo"])
             sharepoint_warnings = _ensure_asset_sharepoint_folder(asset)
             sharepoint_warnings.extend(
                 _apply_asset_document_changes(asset, uploads=uploads, remove_ids=remove_ids, actor=request.user)
@@ -11585,12 +11968,24 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
 
 @login_required
 def reports_dashboard(request: HttpRequest) -> HttpResponse:
+    if "scope" not in request.GET:
+        query = request.GET.copy()
+        query["scope"] = "production"
+        return redirect(f"{reverse('assets:reports')}?{query.urlencode()}")
+
     now = timezone.now()
     today = timezone.localdate()
     period_start = now - timedelta(days=90)
-    schedule_rows = build_day_based_maintenance_schedule_rows(today=today)
+    reports_scope = _normalize_reports_scope(request.GET.get("scope"))
+    reports_context = _reports_scope_context(reports_scope)
+    report_asset_types = list(reports_context["asset_types"])
+    scoped_asset_qs = Asset.objects.filter(asset_type__in=report_asset_types).select_related("asset_category")
+    schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=scoped_asset_qs, today=today)
 
-    open_workorders = WorkOrder.objects.select_related("asset", "supplier").filter(status=WorkOrder.STATUS_OPEN)
+    open_workorders = WorkOrder.objects.select_related("asset", "supplier").filter(
+        status=WorkOrder.STATUS_OPEN,
+        asset__asset_type__in=report_asset_types,
+    )
     late_open_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=30)).order_by("opened_at")
     open_workorder_rows: list[dict[str, object]] = []
     for workorder in open_workorders.order_by("opened_at", "id")[:12]:
@@ -11612,12 +12007,27 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "assistance_contract",
         )
         .filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
+        .filter(asset__asset_type__in=report_asset_types)
         .order_by("-closed_at", "-id")
     )
-    maintenance_month_dataset = _build_work_machine_maintenance_month_dataset(
-        month_value=request.GET.get("month"),
-        today=today,
-    )
+    if reports_context["maintenance_month_enabled"]:
+        maintenance_month_dataset = _build_work_machine_maintenance_month_dataset(
+            month_value=request.GET.get("month"),
+            today=today,
+        )
+    else:
+        month_start = _month_start_from_value(request.GET.get("month"), today=today)
+        month_end = _month_end(month_start)
+        maintenance_month_dataset = {
+            "rows": [],
+            "total_count": 0,
+            "overdue_count": 0,
+            "warning_count": 0,
+            "ok_count": 0,
+            "month_code": month_start.strftime("%Y-%m"),
+            "month_label": _month_label(month_start),
+            "period_label": f'{month_start.strftime("%d/%m/%Y")} - {month_end.strftime("%d/%m/%Y")}',
+        }
     done_rows = list(recent_done_workorders)
     total_cost = sum((workorder.resolved_total_cost_eur or Decimal("0")) for workorder in done_rows)
     duration_values = [
@@ -11627,7 +12037,11 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
     ]
     avg_duration_minutes = round(sum(duration_values) / len(duration_values), 1) if duration_values else None
     avg_downtime_minutes = (
-        WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
+        WorkOrder.objects.filter(
+            status=WorkOrder.STATUS_DONE,
+            closed_at__gte=period_start,
+            asset__asset_type__in=report_asset_types,
+        )
         .aggregate(value=Avg("downtime_minutes"))
         .get("value")
     )
@@ -11703,7 +12117,12 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/reports_dashboard.html",
         {
-            "page_title": "Report manutenzione",
+            "page_title": reports_context["title"],
+            "reports_scope": reports_context["scope"],
+            "reports_page_title": reports_context["title"],
+            "reports_page_subtitle": reports_context["subtitle"],
+            "maintenance_month_enabled": reports_context["maintenance_month_enabled"],
+            "maintenance_month_empty_message": reports_context["empty_month_message"],
             "open_workorders": open_workorders.order_by("opened_at", "id")[:8],
             "open_workorder_rows": open_workorder_rows,
             "late_open_workorders": late_open_workorders[:8],
@@ -12580,3 +12999,147 @@ def api_asset_dashboard_save_config(request: HttpRequest) -> JsonResponse:
     cfg.enabled_widgets = clean
     cfg.save(update_fields=["enabled_widgets", "updated_at"])
     return JsonResponse({"ok": True, "saved": len(clean)})
+
+
+# ---------------------------------------------------------------------------
+# Calendario Asset (lavori macchina + manutenzioni)
+# ---------------------------------------------------------------------------
+
+def _asset_calendar_events(asset_id: int) -> list[dict]:
+    """Ritorna tutti gli eventi (lavori + manutenzioni) per un singolo asset."""
+    events: list[dict] = []
+    today = timezone.localdate()
+
+    # -- Lavori macchina (Task con categoria is_machine_work=True) --
+    try:
+        from tasks.models import TaskExtraRef, TaskStatus
+        refs = (
+            TaskExtraRef.objects
+            .filter(asset_id=asset_id, task__category__is_machine_work=True)
+            .exclude(task__status__in=[TaskStatus.DONE, TaskStatus.CANCELED])
+            .select_related("task__category", "task__assigned_to", "task__project")
+        )
+        for ref in refs:
+            t = ref.task
+            start = t.next_step_due or t.due_date
+            end = t.due_date or t.next_step_due
+            if not start:
+                continue
+            assignee = ""
+            if t.assigned_to_id:
+                assignee = t.assigned_to.get_full_name() or t.assigned_to.get_username()
+            events.append({
+                "id": f"task-{t.pk}",
+                "title": t.title,
+                "start": str(start),
+                "end": str(end) if end else str(start),
+                "kind": "lavoro",
+                "status": t.status,
+                "assignee": assignee,
+                "project": t.project.name if t.project_id else "",
+                "url": f"/tasks/detail/{t.pk}/",
+                "color": "#2563eb" if t.status == TaskStatus.IN_PROGRESS else "#93c5fd",
+                "textColor": "#fff",
+            })
+    except Exception:
+        pass
+
+    # -- Manutenzioni (WorkOrder aperti) --
+    try:
+        wos = (
+            WorkOrder.objects
+            .filter(asset_id=asset_id, status=WorkOrder.STATUS_OPEN)
+            .select_related("asset")
+        )
+        for wo in wos:
+            opened = wo.opened_at.date() if wo.opened_at else today
+            events.append({
+                "id": f"wo-{wo.pk}",
+                "title": f"OdL: {wo.title}",
+                "start": str(opened),
+                "end": str(opened),
+                "kind": "manutenzione",
+                "status": wo.status,
+                "assignee": "",
+                "project": "",
+                "url": f"/assets/workorders/view/{wo.pk}/",
+                "color": "#f59e0b",
+                "textColor": "#fff",
+            })
+    except Exception:
+        pass
+
+    # -- Verifiche periodiche pianificate --
+    try:
+        verifications = (
+            AssetCalendarEvent.objects
+            .filter(asset_id=asset_id, due_date__gte=today)
+            .order_by("due_date")
+        )
+        for v in verifications:
+            events.append({
+                "id": f"ace-{v.pk}",
+                "title": v.source_object_label or v.subject or "Scadenza",
+                "start": str(v.due_date),
+                "end": str(v.due_date),
+                "kind": "scadenza",
+                "status": "",
+                "assignee": v.target_display_name,
+                "project": "",
+                "url": "",
+                "color": "#10b981",
+                "textColor": "#fff",
+            })
+    except Exception:
+        pass
+
+    return events
+
+
+@login_required
+def asset_calendar_json(request: HttpRequest, id: int) -> JsonResponse:
+    """JSON eventi calendario per un singolo asset (usato da FullCalendar)."""
+    asset = get_object_or_404(Asset, pk=id)
+    events = _asset_calendar_events(asset.pk)
+    return JsonResponse({"ok": True, "asset_id": asset.pk, "events": events})
+
+
+@login_required
+def calendario_asset(request: HttpRequest) -> HttpResponse:
+    """Pagina globale Calendario Asset: vista a calendario o a Gantt."""
+    machines = list(
+        Asset.objects
+        .filter(asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC])
+        .order_by("reparto", "name", "asset_tag")
+    )
+    reparti = sorted({m.reparto for m in machines if m.reparto})
+    return render(request, "assets/pages/calendario_asset.html", {
+        "machines": machines,
+        "reparti": reparti,
+        "page_title": "Calendario Asset",
+        **_assets_shell_context(request),
+    })
+
+
+@login_required
+def calendario_asset_json(request: HttpRequest) -> JsonResponse:
+    """JSON eventi per tutte le macchine (usato dalla pagina calendario globale)."""
+    machines = Asset.objects.filter(
+        asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC]
+    ).values_list("pk", "asset_tag", "name", "reparto")
+
+    all_events: list[dict] = []
+    resources: list[dict] = []
+    for pk, tag, name, reparto in machines:
+        resources.append({
+            "id": str(pk),
+            "title": f"{tag} – {name}",
+            "tag": tag,
+            "name": name,
+            "reparto": reparto or "",
+        })
+        for ev in _asset_calendar_events(pk):
+            ev["resourceId"] = str(pk)
+            all_events.append(ev)
+
+    return JsonResponse({"ok": True, "resources": resources, "events": all_events})

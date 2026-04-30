@@ -5,6 +5,7 @@ from .base import BASE_DIR, default_dev_allowed_hosts
 _TEST_DB_DIR = BASE_DIR / ".tmp_tests"
 _TEST_DB_DIR.mkdir(parents=True, exist_ok=True)
 
+SECRET_KEY = "test-key"
 
 DEBUG = False
 ALLOWED_HOSTS = default_dev_allowed_hosts()

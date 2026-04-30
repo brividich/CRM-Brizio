@@ -1,0 +1,12 @@
+<div class="hub-empty-state"{% if element_id %} id="{{ element_id }}"{% endif %}>
+  <div class="hub-empty-state__icon" aria-hidden="true">{{ icon|default:"-" }}</div>
+  <h2 class="hub-empty-state__title">{{ title }}</h2>
+  {% if text %}
+    <p class="hub-empty-state__text">{{ text }}</p>
+  {% endif %}
+  {% if cta_url and cta_label %}
+    <div class="hub-empty-state__actions">
+      <a class="btn btn-secondary btn-sm" href="{{ cta_url }}">{{ cta_label }}</a>
+    </div>
+  {% endif %}
+</div>

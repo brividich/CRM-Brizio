@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskEvent
+from .models import MeetingIssue, MeetingRoom, Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskEvent
 
 
 class SubTaskInline(admin.TabularInline):
@@ -103,3 +103,25 @@ class ProjectCommentAdmin(admin.ModelAdmin):
     search_fields = ("project__name", "author__username", "target_user__username", "body")
     autocomplete_fields = ("project", "author", "target_user")
     readonly_fields = ("created_at",)
+
+
+@admin.register(MeetingRoom)
+class MeetingRoomAdmin(admin.ModelAdmin):
+    list_display = ("nome", "ordine", "note")
+    list_editable = ("ordine",)
+    search_fields = ("nome",)
+
+
+@admin.register(MeetingIssue)
+class MeetingIssueAdmin(admin.ModelAdmin):
+    list_display = ("title", "project", "status", "source_meeting", "resolution_meeting", "assigned_to", "due_date")
+    list_filter = ("status", "project")
+    search_fields = ("title", "description", "project__name", "linked_task__title")
+    autocomplete_fields = (
+        "project",
+        "assigned_to",
+        "resolved_by",
+        "created_by",
+        "linked_task",
+    )
+    readonly_fields = ("created_at", "updated_at", "resolved_at")

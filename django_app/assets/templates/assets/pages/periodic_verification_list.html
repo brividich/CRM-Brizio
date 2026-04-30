@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Manutenzione periodica{% endblock %}
+{% block title %}{{ periodic_page_title|default:"Manutenzione periodica" }}{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -334,16 +334,16 @@ body.theme-dark .pv-empty { color:var(--text-light); }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Manutenzione periodica{% endblock %}
+{% block assets_shell_title %}{{ periodic_page_title|default:"Manutenzione periodica" }}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Gestisci i piani ricorrenti come categoria della manutenzione assets, con fornitore, cadenza e asset coinvolti.</p>
+<p>{{ periodic_page_subtitle|default:"Gestisci i piani ricorrenti come categoria della manutenzione assets, con fornitore, cadenza e asset coinvolti." }}</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
   {% if selected_asset %}
     <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
   {% endif %}
   {% if is_edit %}
-    <a class="btn btn-secondary" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Nuovo piano</a>
+    <a class="btn btn-secondary" href="{{ periodic_base_url }}{% if selected_asset %}&asset={{ selected_asset.id }}{% endif %}">Nuovo piano</a>
   {% endif %}
 {% endblock %}
 
@@ -398,6 +398,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
           <form method="post" class="pv-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="{% if is_edit %}update_periodic_verification{% else %}create_periodic_verification{% endif %}">
+            <input type="hidden" name="scope" value="{{ periodic_scope }}">
             <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
             <input type="hidden" name="edit_id" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
             {% if form.non_field_errors %}
@@ -479,7 +480,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
             <div class="pv-form-actions">
               <button class="btn btn-primary" type="submit">{% if is_edit %}Salva modifica{% else %}Crea piano{% endif %}</button>
               {% if is_edit %}
-                <a class="btn" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Annulla</a>
+                <a class="btn" href="{{ periodic_base_url }}{% if selected_asset %}&asset={{ selected_asset.id }}{% endif %}">Annulla</a>
               {% endif %}
             </div>
           </form>
@@ -540,6 +541,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
                   <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="delete_periodic_verification">
+                    <input type="hidden" name="scope" value="{{ periodic_scope }}">
                     <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
                     <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
                     <button class="btn btn-danger" type="submit">Elimina</button>
@@ -554,10 +556,12 @@ body.theme-dark .pv-empty { color:var(--text-light); }
                     <form method="post" class="pv-inline-form">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="create_outlook_calendar_event">
+                      <input type="hidden" name="scope" value="{{ periodic_scope }}">
                       <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
                       <input type="hidden" name="asset_id" value="{{ selected_asset.id }}">
                       <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
                       <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+                      <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
                       <select class="pv-inline-select" name="target_legacy_user_id" required>
                         <option value="">Seleziona utente calendario</option>
                         {% for user_id, user_label in calendar_user_choices %}

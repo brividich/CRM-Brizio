@@ -26,9 +26,11 @@
     "*.pyc",
     "*.pyo",
     "*.sqlite3",
+    "acl_report*.json",
     "conftest.py",
     "DIPENDENTI.csv",
     "db.sqlite3",
+    "deployment_validation*.json",
     "test_*.py",
     "tests.py"
   ]

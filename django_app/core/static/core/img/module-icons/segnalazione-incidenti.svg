@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Segnalazione incidenti">
+  <path d="M30 18h49l11 11" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square"/>
+  <path d="M96 18h15l13 13" fill="none" stroke="#ff6b00" stroke-width="6" stroke-linecap="square"/>
+  <path d="M111 38v50l-18 18H31L14 89V38z" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M91 107h22V88" fill="none" stroke="#6f94b5" stroke-width="10" stroke-linecap="square"/>
+  <path d="M65 35 98 92H32z" fill="#fff" stroke="#002b5c" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M65 53v20M65 84h.01M43 101h44" fill="none" stroke="#002b5c" stroke-width="8" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,150 @@
+<section class="at-card at-embedded-panel">
+  <div class="at-card-h">
+    <div>
+      <strong>Gestione Attrezzatura per P/N {{ embedded_context.part_number|default:"-" }}</strong>
+      <div class="at-muted">Stato operativo letto da Attrezzatura e AttrezzaturaTask.</div>
+    </div>
+    <span class="badge">{{ embedded_context.open_tasks|length }} task aperte</span>
+  </div>
+  <div class="at-card-b">
+    <div class="at-grid-3">
+      <div><span class="at-muted">Attrezzature collegate</span><br><strong>{{ embedded_context.summary.count|default:0 }}</strong></div>
+      <div><span class="at-muted">Disponibili</span><br><strong>{{ embedded_context.summary.available_count|default:0 }}</strong></div>
+      <div><span class="at-muted">Pronte produzione</span><br><strong>{{ embedded_context.summary.ready_count|default:0 }}</strong></div>
+    </div>
+
+    {% if embedded_context.action_url %}
+      <div class="at-action-grid">
+        <form method="post" action="{{ embedded_context.action_url }}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_availability_task">
+          <button class="btn secondary" type="submit">Crea verifica disponibilita</button>
+        </form>
+        <form method="post" action="{{ embedded_context.action_url }}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_new_tool_task">
+          <button class="btn secondary" type="submit">Crea task nuovo attrezzo</button>
+        </form>
+        <form method="post" action="{{ embedded_context.action_url }}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_draft_tool">
+          <input class="input" type="text" name="codice" maxlength="80" placeholder="Codice, se noto">
+          <input class="input" type="text" name="description" maxlength="255" placeholder="Descrizione bozza">
+          <button class="btn" type="submit">Crea bozza</button>
+        </form>
+      </div>
+    {% endif %}
+
+    <div class="at-table-wrap">
+      <table class="at-table">
+        <thead><tr><th>Codice</th><th>P/N</th><th>Stato</th><th>Disponibilita</th><th>Avanzamento</th><th>Azioni</th></tr></thead>
+        <tbody>
+          {% for item in embedded_context.attrezzature %}
+            <tr>
+              <td><a href="{% url 'attrezzature:detail' item.pk %}">{{ item.codice|default:"-" }}</a></td>
+              <td>{{ item.display_part_number }}</td>
+              <td><span class="badge{% if item.is_pronta_produzione or item.is_finita %} ok{% elif item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
+              <td>{{ item.get_disponibilita_stato_display }}</td>
+              <td>{{ item.avanzamento_percentuale|default:"-" }}%</td>
+              <td>
+                {% if embedded_context.action_url %}
+                  <div class="at-row-actions">
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="link_tool">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <button class="btn secondary" type="submit">Collega</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_progress">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <input class="input at-compact-input" type="number" name="percentuale" min="0" max="100" value="{{ item.avanzamento_percentuale|default:'' }}" aria-label="Avanzamento percentuale">
+                      <select class="input at-compact-select" name="stato" aria-label="Stato attrezzatura">
+                        <option value="">Stato invariato</option>
+                        {% for value, label in embedded_context.stato_choices %}
+                          <option value="{{ value }}" {% if item.stato == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                      <input class="input" type="text" name="note" maxlength="255" placeholder="Nota avanzamento">
+                      <button class="btn secondary" type="submit">Aggiorna</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="set_availability">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <select class="input at-compact-select" name="disponibilita_stato" aria-label="Disponibilita attrezzatura">
+                        {% for value, label in embedded_context.disponibilita_choices %}
+                          <option value="{{ value }}" {% if item.disponibilita_stato == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn secondary" type="submit">Disponibilita</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="add_note">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <input class="input" type="text" name="note" maxlength="500" placeholder="Nota operativa">
+                      <button class="btn secondary" type="submit">Nota</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="confirm_ready">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <button class="btn" type="submit">Pronta produzione</button>
+                    </form>
+                  </div>
+                {% else %}
+                  <span class="at-muted">Azioni disponibili nel contesto KICK-OFF.</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="at-muted">Nessuna attrezzatura collegata a questo P/N.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="at-table-wrap">
+      <table class="at-table">
+        <thead><tr><th>Task</th><th>Tipo</th><th>Stato</th><th>Origine</th><th>Kickoff refs</th><th>Azioni</th></tr></thead>
+        <tbody>
+          {% for task in embedded_context.tasks %}
+            <tr>
+              <td><a href="{% url 'attrezzature:task_detail' task.pk %}">{{ task.titolo }}</a></td>
+              <td>{{ task.get_tipo_display }}</td>
+              <td><span class="badge{% if task.is_completed %} ok{% elif task.is_overdue %} danger{% endif %}">{{ task.get_stato_display }}</span></td>
+              <td>{{ task.get_origine_display }}</td>
+              <td>{{ task.external_kickoff_id|default:"-" }} / {{ task.external_kickoff_activity_id|default:"-" }}</td>
+              <td>
+                {% if embedded_context.action_url and not task.is_completed %}
+                  <div class="at-row-actions">
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="complete_attrezzatura_task">
+                      <input type="hidden" name="attrezzatura_task_id" value="{{ task.pk }}">
+                      <input class="input" type="text" name="note" maxlength="255" placeholder="Nota completamento">
+                      <button class="btn secondary" type="submit">Completa</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="block_attrezzatura_task">
+                      <input type="hidden" name="attrezzatura_task_id" value="{{ task.pk }}">
+                      <input class="input" type="text" name="reason" maxlength="255" placeholder="Motivo blocco">
+                      <button class="btn danger" type="submit">Blocca</button>
+                    </form>
+                  </div>
+                {% else %}
+                  <span class="at-muted">-</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="at-muted">Nessuna task attrezzatura collegata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

@@ -18,8 +18,19 @@ from django.utils import timezone
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso
 from core.models import Notifica, Profile, UserOnboarding
+from attrezzature.models import (
+    Attrezzatura,
+    AttrezzaturaStato,
+    AttrezzaturaTask as GestioneAttrezzaturaTask,
+    AttrezzaturaTaskOrigine as GestioneAttrezzaturaTaskOrigine,
+    AttrezzaturaTaskStato as GestioneAttrezzaturaTaskStato,
+    AttrezzaturaTaskTipo as GestioneAttrezzaturaTaskTipo,
+)
 
 from .models import (
+    KickoffMeeting,
+    MeetingIssue,
+    MeetingIssueStatus,
     Project,
     ProjectComment,
     SubTask,
@@ -305,6 +316,105 @@ class TasksBaseTestCase(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingIssueWorkflowTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="meeting-owner",
+            legacy_user_id=201,
+            role_id=2,
+            role_name="tasks",
+        )
+        self.project = Project.objects.create(name="Kickoff test", created_by=self.user)
+
+    def test_new_meeting_creates_managed_issue_and_carries_it_to_next_agenda(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_meeting_create", args=[self.project.id]),
+            {
+                "titolo": "Incontro 1",
+                "data": "2026-04-29",
+                "ora": "09:00",
+                "luogo": "Sala test",
+                "agenda_items_raw": "[]",
+                "new_issue_title": ["Materiale mancante"],
+                "new_issue_description": ["Serve conferma dal fornitore"],
+                "new_issue_assigned_to": [str(self.user.id)],
+                "new_issue_due_date": ["2026-05-02"],
+                "new_issue_task": [""],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        issue = MeetingIssue.objects.get(project=self.project)
+        self.assertEqual(issue.status, MeetingIssueStatus.OPEN)
+        self.assertEqual(issue.source_meeting.numero, 1)
+        self.assertEqual(issue.assigned_to, self.user)
+
+        response = self.client.get(reverse("tasks:project_meeting_create", args=[self.project.id]))
+        self.assertContains(response, "Materiale mancante")
+        self.assertContains(response, "Problema aperto")
+
+    def test_meeting_form_can_resolve_existing_issue_and_status_endpoint_can_reopen(self):
+        self.client.force_login(self.user)
+        meeting_1 = KickoffMeeting.objects.create(
+            project=self.project,
+            titolo="Incontro 1",
+            data=timezone.localdate(),
+            created_by=self.user,
+        )
+        issue = MeetingIssue.objects.create(
+            project=self.project,
+            source_meeting=meeting_1,
+            title="Quote non allineate",
+            created_by=self.user,
+        )
+        meeting_2 = KickoffMeeting.objects.create(
+            project=self.project,
+            titolo="Incontro 2",
+            data=timezone.localdate(),
+            created_by=self.user,
+        )
+
+        response = self.client.post(
+            reverse("tasks:project_meeting_edit", args=[self.project.id, meeting_2.id]),
+            {
+                "titolo": meeting_2.titolo,
+                "data": meeting_2.data.isoformat(),
+                "ora": "",
+                "luogo": "",
+                "agenda_items_raw": "[]",
+                "meeting_issue_ids": [str(issue.id)],
+                "resolved_issue_ids": [str(issue.id)],
+                f"issue_resolution_{issue.id}": "Allineate in riunione",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        issue.refresh_from_db()
+        self.assertEqual(issue.status, MeetingIssueStatus.RESOLVED)
+        self.assertEqual(issue.resolution_meeting, meeting_2)
+        self.assertEqual(issue.resolution_note, "Allineate in riunione")
+
+        detail_response = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.id, meeting_2.id]))
+        self.assertContains(detail_response, "Quote non allineate")
+        self.assertContains(detail_response, "Allineate in riunione")
+
+        response = self.client.post(
+            reverse("tasks:project_meeting_issue_status", args=[self.project.id, meeting_2.id, issue.id]),
+            {"action": "reopen"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        issue.refresh_from_db()
+        self.assertEqual(issue.status, MeetingIssueStatus.OPEN)
+        self.assertIsNone(issue.resolution_meeting)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TaskAdminSettingsTests(TasksBaseTestCase):
     def setUp(self):
         super().setUp()
@@ -471,6 +581,143 @@ class TaskAntiIDORTests(TasksBaseTestCase):
             {"attach_to": "task"},
         )
         self.assertEqual(response.status_code, 404)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit", "tasks_comment"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="attpanel",
+            legacy_user_id=2101,
+            role_id=2,
+            role_name="utente",
+        )
+        self.project = Project.objects.create(
+            name="Kickoff panel",
+            created_by=self.user,
+            part_number=" pn-77 ",
+        )
+        self.task = Task.objects.create(
+            title="Verifica attrezzatura",
+            description="Controllare attrezzatura per produzione",
+            created_by=self.user,
+            assigned_to=self.user,
+            project=self.project,
+        )
+
+    def test_detail_embeds_attrezzatura_panel_for_project_part_number(self):
+        Attrezzatura.objects.create(
+            codice="AT-77",
+            part_number="PN-77",
+            descrizione="Staffa prova",
+            stato=AttrezzaturaStato.IN_CORSO,
+            created_by=self.user,
+        )
+        GestioneAttrezzaturaTask.objects.create(
+            part_number="PN-77",
+            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+            titolo="Verificare disponibilita PN-77",
+            origine=GestioneAttrezzaturaTaskOrigine.KICKOFF,
+            external_kickoff_id=str(self.project.id),
+            external_kickoff_activity_id=str(self.task.id),
+            created_by=self.user,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Gestione Attrezzatura per P/N PN-77")
+        self.assertContains(response, "AT-77")
+        self.assertContains(response, "Verificare disponibilita PN-77")
+        self.assertContains(response, reverse("tasks:attrezzature_action", args=[self.task.id]))
+
+    def test_attrezzatura_action_creates_kickoff_availability_task(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tasks:attrezzature_action", args=[self.task.id]),
+            {"action": "create_availability_task"},
+        )
+
+        self.assertRedirects(response, reverse("tasks:detail", args=[self.task.id]))
+        linked = GestioneAttrezzaturaTask.objects.get(
+            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+            external_kickoff_activity_id=str(self.task.id),
+        )
+        self.assertEqual(linked.part_number, "PN-77")
+        self.assertEqual(linked.external_kickoff_id, str(self.project.id))
+        self.assertEqual(linked.origine, GestioneAttrezzaturaTaskOrigine.KICKOFF)
+
+    def test_attrezzatura_action_creates_draft_tool_from_kickoff_context(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tasks:attrezzature_action", args=[self.task.id]),
+            {
+                "action": "create_draft_tool",
+                "codice": "AT-DRAFT",
+                "description": "Bozza da activity",
+            },
+        )
+
+        self.assertRedirects(response, reverse("tasks:detail", args=[self.task.id]))
+        tool = Attrezzatura.objects.get(codice="AT-DRAFT")
+        self.assertEqual(tool.part_number, "PN-77")
+        self.assertEqual(tool.descrizione, "Bozza da activity")
+        self.assertEqual(tool.origine_import, "kickoff")
+
+    def test_attrezzatura_action_updates_progress_and_completes_task(self):
+        tool = Attrezzatura.objects.create(
+            codice="AT-UPD",
+            part_number="PN-77",
+            stato=AttrezzaturaStato.IN_CORSO,
+            created_by=self.user,
+        )
+        linked = GestioneAttrezzaturaTask.objects.create(
+            attrezzatura=tool,
+            part_number="PN-77",
+            tipo=GestioneAttrezzaturaTaskTipo.AGGIORNA_AVANZAMENTO,
+            titolo="Aggiornare AT-UPD",
+            origine=GestioneAttrezzaturaTaskOrigine.KICKOFF,
+            external_kickoff_id=str(self.project.id),
+            external_kickoff_activity_id=str(self.task.id),
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        progress_response = self.client.post(
+            reverse("tasks:attrezzature_action", args=[self.task.id]),
+            {
+                "action": "update_progress",
+                "attrezzatura_id": str(tool.id),
+                "percentuale": "80",
+                "stato": AttrezzaturaStato.IN_ATTESA,
+                "note": "Aggiornato da dettaglio activity",
+            },
+        )
+        self.assertRedirects(progress_response, reverse("tasks:detail", args=[self.task.id]))
+        tool.refresh_from_db()
+        self.assertEqual(tool.avanzamento_percentuale, 80)
+        self.assertEqual(tool.stato, AttrezzaturaStato.IN_ATTESA)
+        self.assertEqual(tool.avanzamenti.count(), 1)
+
+        complete_response = self.client.post(
+            reverse("tasks:attrezzature_action", args=[self.task.id]),
+            {
+                "action": "complete_attrezzatura_task",
+                "attrezzatura_task_id": str(linked.id),
+                "note": "Completata da KICK-OFF",
+            },
+        )
+        self.assertRedirects(complete_response, reverse("tasks:detail", args=[self.task.id]))
+        linked.refresh_from_db()
+        self.assertEqual(linked.stato, GestioneAttrezzaturaTaskStato.COMPLETATA)
+        self.assertEqual(linked.completed_by, self.user)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

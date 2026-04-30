@@ -72,6 +72,28 @@ def report_problem(request):
     )
 
 
+def _build_django_q_stats() -> dict:
+    try:
+        from django_q.models import Failure, Schedule, Success
+
+        now = timezone.now()
+        last_24h = now - timedelta(hours=24)
+        return {
+            "available": True,
+            "success_24h": Success.objects.filter(started__gte=last_24h).count(),
+            "failure_24h": Failure.objects.filter(started__gte=last_24h).count(),
+            "schedules_count": Schedule.objects.filter(repeats__lt=0).count()
+            + Schedule.objects.filter(repeats__gt=0).count(),
+            "recent_failures": list(
+                Failure.objects.filter(started__gte=last_24h)
+                .order_by("-started")
+                .values("name", "func", "started", "result")[:5]
+            ),
+        }
+    except Exception:
+        return {"available": False}
+
+
 @legacy_admin_required
 def admin_dashboard(request):
     now = timezone.now()
@@ -113,6 +135,7 @@ def admin_dashboard(request):
         "latest_manual_reports": UserProblemReport.objects.select_related("issue", "user").order_by("-created_at")[:8],
         "recent_open_issues": Issue.objects.select_related("assigned_to").filter(open_filter).order_by("-last_seen_at")[:10],
         "missing_jobs": missing_jobs[:8],
+        "django_q_stats": _build_django_q_stats(),
     }
     return render(request, "monitoring/pages/dashboard.html", context)
 

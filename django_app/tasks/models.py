@@ -625,6 +625,11 @@ class TaskCategory(models.Model):
     )
     order_index = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    is_machine_work = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Se attivo, le attività di questo tipo sono 'Lavoro macchina': richiedono un campo asset e compaiono nel calendario delle macchine.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -772,3 +777,219 @@ class TaskExtraRef(models.Model):
     def __str__(self) -> str:
         target = self.asset_id or self.user_id
         return f"TaskExtraRef<task={self.task_id} {self.field_code}={target}>"
+
+
+class KickoffMeeting(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="meetings",
+        verbose_name="Kickoff",
+    )
+    numero = models.PositiveIntegerField(verbose_name="Numero incontro")
+    titolo = models.CharField(max_length=240, blank=True, default="", verbose_name="Titolo")
+    data = models.DateField(verbose_name="Data")
+    ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
+    luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
+
+    # Partecipanti: utenti portale (M2M) + email esterne (testo libero)
+    partecipanti_utenti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="kickoff_meetings_as_partecipante",
+        verbose_name="Partecipanti portale",
+    )
+    partecipanti_email_extra = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Email aggiuntive",
+        help_text="Un indirizzo email per riga (per partecipanti non presenti nel portale).",
+    )
+    # Campo legacy testo libero — mantenuto per retrocompat
+    partecipanti_testo = models.TextField(blank=True, default="", verbose_name="Note partecipanti")
+
+    ordine_del_giorno = models.TextField(blank=True, default="", verbose_name="Ordine del giorno")
+    note = models.TextField(blank=True, default="", verbose_name="Note / Verbale")
+    problemi_aperti = models.TextField(blank=True, default="", verbose_name="Problemi aperti")
+    next_steps = models.TextField(blank=True, default="", verbose_name="Next steps")
+
+    # Punti strutturati all'ordine del giorno
+    agenda_items = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Punti all'ordine del giorno",
+    )
+
+    # Integrazione Outlook Calendar
+    sync_outlook = models.BooleanField(
+        default=False,
+        verbose_name="Crea/aggiorna evento Outlook",
+        help_text="Se attivo, invia/aggiorna un evento calendario a tutti i partecipanti con email.",
+    )
+    outlook_organizer_email = models.CharField(
+        max_length=254,
+        blank=True,
+        default="",
+        verbose_name="Email organizzatore (Outlook)",
+        help_text="Lascia vuoto per usare l'email dell'utente che salva l'incontro.",
+    )
+    outlook_event_id = models.CharField(max_length=512, blank=True, default="")
+    outlook_event_web_link = models.CharField(max_length=1024, blank=True, default="")
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="kickoff_meetings_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["numero"]
+        unique_together = [["project", "numero"]]
+        verbose_name = "Incontro kickoff"
+        verbose_name_plural = "Incontri kickoff"
+
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.numero:
+            last = KickoffMeeting.objects.filter(project=self.project).aggregate(m=Max("numero"))["m"]
+            self.numero = (last or 0) + 1
+        super().save(*args, **kwargs)
+
+    def get_all_attendee_emails(self) -> list[str]:
+        """Restituisce la lista deduplicata di email da inviare all'evento Outlook."""
+        emails: list[str] = []
+        for user in self.partecipanti_utenti.all():
+            email = (getattr(user, "email", "") or "").strip()
+            if email and email not in emails:
+                emails.append(email)
+        for line in (self.partecipanti_email_extra or "").splitlines():
+            email = line.strip()
+            if email and "@" in email and email not in emails:
+                emails.append(email)
+        return emails
+
+    def __str__(self) -> str:
+        return f"Incontro {self.numero} — {self.project}"
+
+
+class MeetingIssueStatus(models.TextChoices):
+    OPEN = "OPEN", "Aperto"
+    RESOLVED = "RESOLVED", "Risolto"
+
+
+class MeetingIssue(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="meeting_issues",
+        verbose_name="Kickoff",
+    )
+    source_meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="issues_created",
+        verbose_name="Incontro di origine",
+    )
+    resolution_meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="issues_resolved",
+        verbose_name="Incontro di risoluzione",
+    )
+    title = models.CharField(max_length=220, verbose_name="Problema")
+    description = models.TextField(blank=True, default="", verbose_name="Dettaglio")
+    status = models.CharField(
+        max_length=16,
+        choices=MeetingIssueStatus.choices,
+        default=MeetingIssueStatus.OPEN,
+        verbose_name="Stato",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_issues_assigned",
+        verbose_name="Responsabile",
+    )
+    due_date = models.DateField(null=True, blank=True, verbose_name="Scadenza")
+    linked_task = models.ForeignKey(
+        Task,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_issues",
+        verbose_name="Attivita collegata",
+    )
+    resolution_note = models.TextField(blank=True, default="", verbose_name="Nota risoluzione")
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_issues_resolved",
+        verbose_name="Risolto da",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_issues_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "due_date", "created_at", "id"]
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["source_meeting", "status"]),
+            models.Index(fields=["resolution_meeting", "status"]),
+        ]
+        verbose_name = "Problema incontro"
+        verbose_name_plural = "Problemi incontri"
+
+    @property
+    def is_resolved(self) -> bool:
+        return self.status == MeetingIssueStatus.RESOLVED
+
+    def mark_resolved(self, *, meeting: KickoffMeeting, user=None, note: str = "") -> None:
+        self.status = MeetingIssueStatus.RESOLVED
+        self.resolution_meeting = meeting
+        self.resolved_by = user if getattr(user, "is_authenticated", False) else None
+        self.resolved_at = timezone.now()
+        if note is not None:
+            self.resolution_note = note.strip()
+
+    def reopen(self) -> None:
+        self.status = MeetingIssueStatus.OPEN
+        self.resolution_meeting = None
+        self.resolved_by = None
+        self.resolved_at = None
+        self.resolution_note = ""
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class MeetingRoom(models.Model):
+    nome = models.CharField(max_length=120, unique=True, verbose_name="Nome sala")
+    note = models.TextField(blank=True, default="", verbose_name="Note")
+    ordine = models.PositiveSmallIntegerField(default=0, verbose_name="Ordine")
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Sala riunioni"
+        verbose_name_plural = "Sale riunioni"
+
+    def __str__(self) -> str:
+        return self.nome

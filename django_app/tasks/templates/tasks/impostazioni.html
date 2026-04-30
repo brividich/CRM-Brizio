@@ -838,6 +838,9 @@
                     <option value="{{ value }}">{{ label }}</option>
                   {% endfor %}
                 </select>
+                <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+                  <input type="checkbox" name="is_machine_work"> Lavoro macchina (compare nel calendario asset)
+                </label>
                 <button type="submit" class="btn btn-sm">+ Crea tipo</button>
               </form>
             </aside>
@@ -873,6 +876,9 @@
                     </div>
                     <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
                       <input type="checkbox" name="is_active" {% if tipi_focus_category.is_active %}checked{% endif %}> Attivo
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
+                      <input type="checkbox" name="is_machine_work" {% if tipi_focus_category.is_machine_work %}checked{% endif %}> Lavoro macchina
                     </label>
                   </div>
                   <div style="margin-top:8px;">

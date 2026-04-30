@@ -1,0 +1,61 @@
+{% comment %}
+Fragment HTMX: card azione vuota da appendere al container #actions-section-body.
+Viene restituita dalla view add_azione_partial. Il JS aggiorna TOTAL_FORMS ascoltando
+l'evento custom "htmxActionAdded" triggerato dall'header HX-Trigger-After-Swap.
+{% endcomment %}
+<article class="designer-meta-card"
+    id="action-card-new-{{ action_index }}"
+    data-action-card
+    data-is-existing="false"
+    data-htmx-new-action>
+  {% for hidden_field in form.hidden_fields %}{{ hidden_field }}{% endfor %}
+
+  <div class="designer-header">
+    <div>
+      <div class="designer-summary-kicker">Azione <span data-order-badge>{{ action_index|add:1 }}</span> <span class="designer-pill designer-pill-primary" style="font-size:10px;">nuova</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-action-label>— seleziona tipo azione —</div>
+      <div class="designer-section-subtitle" data-action-summary>Configura i parametri dell'azione.</div>
+    </div>
+    <div class="designer-actions">
+      <button type="button"
+          class="btn btn-light"
+          hx-post="{% url 'admin_portale:automazioni_htmx_remove_azione' rule.id %}"
+          hx-vals='{"source_code":"{{ source_code }}"}'
+          hx-target="#action-card-new-{{ action_index }}"
+          hx-swap="outerHTML"
+          hx-confirm="Rimuovere questa azione?"
+          title="Rimuovi azione">
+        &times; Rimuovi
+      </button>
+    </div>
+  </div>
+
+  <div class="designer-editor-shell" style="border-top:none;padding-top:0;margin-top:12px;" open>
+    <div class="designer-editor-stack">
+      <div class="designer-editor-panel">
+        <div class="designer-field">
+          <label for="{{ form.action_type.id_for_label }}">Tipo azione</label>
+          {{ form.action_type }}
+        </div>
+        <div class="designer-field" style="margin-top:8px;">
+          <label for="{{ form.description.id_for_label }}">Descrizione</label>
+          {{ form.description }}
+        </div>
+        <div class="designer-field" style="margin-top:8px;">
+          <label for="{{ form.order.id_for_label }}">Ordine</label>
+          {{ form.order }}
+        </div>
+        <div class="designer-toggle-wrap" style="margin-top:6px;">
+          {{ form.is_enabled }}
+          <label for="{{ form.is_enabled.id_for_label }}" style="margin-left:8px;font-size:13px;">Azione abilitata</label>
+        </div>
+        <div class="designer-field" style="margin-top:8px;">
+          <label for="{{ form.config_json.id_for_label }}">Configurazione JSON</label>
+          {{ form.config_json }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="designer-help" style="margin-top:6px;color:#0f766e;font-weight:700;" data-card-feedback></div>
+</article>

@@ -1,0 +1,45 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Anteprima KICK-OFF{% endblock %}
+{% block page_subtitle %}Controllo rapido per P/N con stato attrezzature, task aperte e suggerimenti prima dell'avanzamento KICK-OFF.{% endblock %}
+{% block attrezzature_content %}
+<section class="at-card">
+  <div class="at-card-h"><strong>P/N KICK-OFF</strong></div>
+  <div class="at-card-b">
+    <form method="get" class="at-filter">
+      {{ form.as_p }}
+      <datalist id="attrezzature-part-number-list">
+        {% for pn in part_numbers %}<option value="{{ pn }}"></option>{% endfor %}
+      </datalist>
+      <button class="btn" type="submit">Mostra</button>
+    </form>
+  </div>
+</section>
+<section class="at-card">
+  <div class="at-card-h">
+    <strong>P/N gia inseriti</strong>
+    <span class="badge">{{ part_numbers|length }}</span>
+  </div>
+  <div class="at-card-b">
+    {% if part_numbers %}
+    <div class="at-pn-list">
+      {% for pn in part_numbers %}
+      <a class="at-pn-chip" href="{% url 'attrezzature:embedded_preview' %}?part_number={{ pn|urlencode }}">{{ pn }}</a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <span class="at-muted">Nessun P/N ancora censito nelle attrezzature.</span>
+    {% endif %}
+  </div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>Suggerimenti</strong></div>
+  <div class="at-card-b">
+    <ul class="at-suggestions">
+      {% for suggestion in suggestions %}
+      <li>{{ suggestion }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% if embedded_context %}{% include "attrezzature/components/embedded_panel.html" with embedded_context=embedded_context %}{% endif %}
+{% endblock %}

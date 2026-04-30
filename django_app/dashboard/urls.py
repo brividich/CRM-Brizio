@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import htmx_views, views
 
 
 urlpatterns = [
@@ -19,5 +19,7 @@ urlpatterns = [
     path("api/employee-board/reset", views.api_employee_board_reset, name="api_employee_board_reset"),
     path("api/employee-board/admin-template", views.api_employee_board_admin_template, name="api_employee_board_admin_template"),
     path("api/employee-board/data", views.api_employee_board_data, name="api_employee_board_data"),
+    path("api/employee-board/widget/<str:widget_id>/partial/", htmx_views.widget_partial, name="widget_partial"),
     path("scheda-dipendente/pdf", views.employee_board_pdf, name="employee_board_pdf"),
+    path("hub-preview/", views.dashboard_hub_preview, name="dashboard_hub_preview"),
 ]

@@ -1,10 +1,11 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import htmx_views, views
 
 
 urlpatterns = [
+    path("assenze/calendario/partial/", htmx_views.calendario_month_partial, name="assenze_calendario_partial"),
     path("assenze/", views.menu, name="assenze_menu"),
     path("assenze/richiesta_assenze", views.richiesta_assenze, name="assenze_richiesta"),
     path("assenze/impostazioni/", views.gestione_assenze, name="assenze_gestione"),

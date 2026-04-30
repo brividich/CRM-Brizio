@@ -1,0 +1,15 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Import Excel legacy{% endblock %}
+{% block page_subtitle %}Preview dry-run prima della conferma. Le righe originali vengono preservate, OG incluso solo come payload raw.{% endblock %}
+{% block attrezzature_content %}
+<section class="at-card">
+  <div class="at-card-h"><strong>Carica file</strong></div>
+  <div class="at-card-b">
+    <form method="post" action="{% url 'attrezzature:import_preview' %}" enctype="multipart/form-data" class="at-form">
+      {% csrf_token %}
+      <div class="at-form-grid">{{ form.as_p }}</div>
+      <div class="at-actions"><button class="btn" type="submit">Avvia preview</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

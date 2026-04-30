@@ -1,0 +1,49 @@
+{% comment %}
+Card "Queue Health (django-q)" per la dashboard monitoring admin.
+Contesto richiesto: django_q_stats (dict con chiavi: available, success_24h, failure_24h, schedules_count)
+{% endcomment %}
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Queue Health (django-q)</div>
+  </div>
+  <div class="card-body">
+    {% if django_q_stats.available %}
+      <div class="monitoring-inline-list">
+        <div class="monitoring-inline-item">
+          <div style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;">
+            <div>
+              <div class="monitoring-meta">Successi 24h</div>
+              <strong style="font-size:1.4rem;color:var(--color-success,#22c55e);">
+                {{ django_q_stats.success_24h }}
+              </strong>
+            </div>
+            <div>
+              <div class="monitoring-meta">Fallimenti 24h</div>
+              <strong style="font-size:1.4rem;{% if django_q_stats.failure_24h %}color:var(--color-danger,#ef4444);{% endif %}">
+                {{ django_q_stats.failure_24h }}
+              </strong>
+            </div>
+            <div>
+              <div class="monitoring-meta">Schedule attivi</div>
+              <strong style="font-size:1.4rem;">{{ django_q_stats.schedules_count }}</strong>
+            </div>
+          </div>
+        </div>
+        {% for row in django_q_stats.recent_failures %}
+          <div class="monitoring-inline-item" style="border-left:3px solid var(--color-danger,#ef4444);padding-left:.75rem;">
+            <strong>{{ row.name|default:"task" }}</strong>
+            <div class="monitoring-meta">{{ row.started|date:"d/m/Y H:i" }} — {{ row.func }}</div>
+            <div style="margin-top:4px;font-size:.8rem;color:var(--color-text-muted);">
+              {{ row.result|truncatechars:200 }}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="monitoring-note">
+        django-q non disponibile o non ancora migrato.
+        Eseguire <code>python manage.py migrate django_q</code> per abilitare.
+      </div>
+    {% endif %}
+  </div>
+</div>

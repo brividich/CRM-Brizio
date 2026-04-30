@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+﻿{% extends "core/base.html" %}
 {% load ui_icons %}
 
 {% block title %}{{ page_title|default:"Dashboard" }} | Portale Applicativo{% endblock %}
@@ -13,7 +13,7 @@
   --bg: #f2f5f8;
 }
 
-/* ── Layout generale board ─────────────────────────────────────────────────── */
+/* â”€â”€ Layout generale board â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-root {
   max-width: 1400px;
   margin: 0 auto;
@@ -73,7 +73,7 @@
   color: #475569;
 }
 
-/* ── Grid widget ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Grid widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -87,7 +87,7 @@
   #eb-grid { grid-template-columns: 1fr; }
 }
 
-/* ── Widget card ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Widget card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-widget {
   background: #fff;
   border: 1px solid rgba(0, 43, 92, .12);
@@ -141,8 +141,21 @@
 .eb-widget-body {
   padding: 14px;
 }
+.eb-widget-loading { padding: 8px 0; }
+.eb-skel-line {
+  height: 12px; border-radius: 6px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: eb-shimmer 1.4s infinite;
+  margin-bottom: 10px;
+}
+.eb-skel-line.short { width: 55%; }
+@keyframes eb-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
-/* ── Drag handle ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Drag handle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-drag-handle {
   display: none;
   cursor: grab;
@@ -155,7 +168,7 @@
 .eb-drag-handle:active { cursor: grabbing; }
 #eb-root.edit-mode .eb-drag-handle { display: inline-flex; align-items: center; }
 
-/* ── Edit mode overlay ─────────────────────────────────────────────────────── */
+/* â”€â”€ Edit mode overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-root.edit-mode .eb-widget { cursor: default; }
 
 .eb-remove-btn {
@@ -207,7 +220,7 @@
 }
 .eb-refresh-btn:hover { background: var(--bg-hover,#f1f5f9); }
 
-/* ── Add widget panel ──────────────────────────────────────────────────────── */
+/* â”€â”€ Add widget panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-add-panel {
   display: none;
   margin-top: 20px;
@@ -284,7 +297,7 @@
   border: 1px solid #dbeafe;
 }
 
-/* ── Config modal ──────────────────────────────────────────────────────────── */
+/* â”€â”€ Config modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-config-modal {
   display: none;
   position: fixed;
@@ -316,7 +329,7 @@
 .eb-cfg-toggle input[type=checkbox] { width: 16px; height: 16px; }
 .eb-cfg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 
-/* ── Widget-specific: profilo ──────────────────────────────────────────────── */
+/* â”€â”€ Widget-specific: profilo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-profilo-grid {
   display: grid;
   grid-template-columns: 72px 1fr;
@@ -356,7 +369,7 @@
 .eb-badge.gray { background:#f1f5f9; color:#475569; }
 .eb-badge.purple { background:#faf5ff; color:#7c3aed; }
 
-/* ── Widget-specific: stats ────────────────────────────────────────────────── */
+/* â”€â”€ Widget-specific: stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -443,7 +456,7 @@
   color: #64748b;
 }
 
-/* ── Widget-specific: liste ────────────────────────────────────────────────── */
+/* â”€â”€ Widget-specific: liste â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-list { list-style: none; padding: 0; margin: 0; }
 .eb-list-item {
   display: flex;
@@ -500,7 +513,7 @@
 
 .eb-empty { color: #94a3b8; font-size: 13px; padding: 6px 0; text-align: center; }
 
-/* ── Edit bar ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Edit bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 #eb-edit-bar {
   display: flex;
   align-items: center;
@@ -516,7 +529,7 @@
 }
 #eb-edit-bar-status { flex: 1; }
 
-/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .eb-btn {
   padding: 7px 14px;
   border-radius: 8px;
@@ -538,7 +551,7 @@
 .eb-btn.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .eb-btn.success:hover { background: #dcfce7; }
 
-/* ── Print / PDF ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Print / PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 @media print {
   #eb-edit-bar, #eb-add-panel, .eb-drag-handle, .eb-remove-btn,
   .eb-config-btn, .eb-refresh-btn, .eb-header-actions { display: none !important; }
@@ -605,7 +618,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
   <div class="eb-header">
     <div class="eb-header-copy">
       <div class="page-h">{% if primary_dashboard %}Dashboard{% else %}Dashboard personale{% endif %}</div>
-      <div class="page-sub">{{ display_name }} · workspace KPI personale con widget multi-modulo configurabili</div>
+      <div class="page-sub">{{ display_name }} Â· workspace KPI personale con widget multi-modulo configurabili</div>
       <div class="eb-status-row">
         <span class="eb-status-pill">
           Template iniziale: {{ board_cfg.template_name|default:"Predefinito sistema" }}
@@ -627,7 +640,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
   </div>
 
   <div id="eb-edit-bar" style="display:none;">
-    <span>Modalita modifica — trascina i widget per riordinarli, clicca &#9881; per configurarli.</span>
+    <span>Modalita modifica â€” trascina i widget per riordinarli, clicca &#9881; per configurarli.</span>
     <span id="eb-edit-bar-status"></span>
     <button class="eb-btn success" id="eb-save-btn">&#10003; Salva layout</button>
     <button class="eb-btn danger" id="eb-reset-btn">&#8635; Ripristina template</button>
@@ -653,372 +666,17 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
             <button class="eb-remove-btn" data-widget-id="{{ w.id }}" title="Nascondi widget">&#10005;</button>
           </div>
         </div>
-        <div class="eb-widget-body" id="eb-body-{{ w.id }}">
-          {% if w.id == "profilo" %}
-            {% with d=widget_data.profilo %}
-            <div class="eb-profilo-grid">
-              <div class="eb-avatar" id="eb-avatar-init">{{ d.nome|slice:":1"|upper }}{% if not d.nome %}?{% endif %}</div>
-              <div>
-                <div class="eb-profilo-name">{{ d.nome|default:"—" }}</div>
-                <div class="eb-profilo-role">{{ d.ruolo|default:"—" }}</div>
-                <div class="eb-profilo-details">
-                  {% if d.mansione %}<span class="eb-badge">&#128188; {{ d.mansione }}</span>{% endif %}
-                  {% if d.reparto %}<span class="eb-badge green">&#127970; {{ d.reparto }}</span>{% endif %}
-                  {% if d.macchina %}<span class="eb-badge purple">&#9881; {{ d.macchina }}</span>{% endif %}
-                  {% if d.telefono %}<span class="eb-badge gray">&#128222; {{ d.telefono }}</span>{% endif %}
-                  {% if d.cellulare %}<span class="eb-badge gray">&#128241; {{ d.cellulare }}</span>{% endif %}
-                  {% if d.email_notifica %}<span class="eb-badge gray">&#9993; {{ d.email_notifica }}</span>{% endif %}
-                </div>
-              </div>
-            </div>
-            {% endwith %}
-
-          {% elif w.id == "panoramica_moduli" %}
-            {% with d=widget_data.panoramica_moduli %}
-            <div class="eb-kpi-grid">
-              {% for card in d.cards %}
-                <a class="eb-kpi-card {{ card.tone }}" href="{{ card.url }}">
-                  {% if card.icon_url %}
-                    <span class="eb-kpi-icon" aria-hidden="true"><img src="{{ card.icon_url }}" alt="" loading="lazy"></span>
-                  {% endif %}
-                  <span class="eb-kpi-value">{{ card.value }}</span>
-                  <span class="eb-kpi-label">{{ card.label }}</span>
-                  <span class="eb-kpi-meta">{{ card.meta }}</span>
-                </a>
-              {% endfor %}
-            </div>
-            {% endwith %}
-
-          {% elif w.id == "tasks_stats" %}
-            {% with d=widget_data.tasks_stats %}
-            <div class="eb-stats-row">
-              <div class="eb-stat-box">
-                <div class="eb-stat-val blue">{{ d.stats.todo|default:0 }}</div>
-                <div class="eb-stat-label">Da fare</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val yellow">{{ d.stats.in_progress|default:0 }}</div>
-                <div class="eb-stat-label">In corso</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val green">{{ d.stats.done|default:0 }}</div>
-                <div class="eb-stat-label">Completati</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
-                <div class="eb-stat-label">Scaduti</div>
-              </div>
-            </div>
-            {% endwith %}
-
-          {% elif w.id == "tasks_assegnati" %}
-            {% with d=widget_data.tasks_assegnati %}
-            {% if d.items %}
-            <ul class="eb-list">
-              {% for t in d.items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if t.is_overdue %}red{% elif t.status == 'IN_PROGRESS' %}yellow{% else %}blue{% endif %}"></span>
-                <div style="flex:1;min-width:0;">
-                  <div class="eb-list-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ t.title }}">
-                    <a href="{% url 'tasks:detail' t.id %}" style="color:inherit;text-decoration:none;">{{ t.title }}</a>
-                  </div>
-                  <div class="eb-list-sub">
-                    {% if t.project %}{{ t.project }} &mdash; {% endif %}
-                    {% if t.due_date %}Scadenza: {{ t.due_date }}{% endif %}
-                    {% if t.next_step %}<br>{{ t.next_step|truncatechars:60 }}{% endif %}
-                  </div>
-                </div>
-                <div class="eb-list-meta">
-                  {% if t.is_overdue %}
-                    <span class="eb-tag overdue">Scaduto</span>
-                  {% else %}
-                    <span class="eb-tag {{ t.status|lower|cut:'_' }}">{{ t.status_label }}</span>
-                  {% endif %}
-                  <br>
-                  <span class="eb-tag {{ t.priority|lower }}">{{ t.priority_label }}</span>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <div class="eb-empty">Nessun task aperto assegnato</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "assenze_future" %}
-            {% with items=widget_data.assenze_future %}
-            {% if items %}
-            <ul class="eb-list">
-              {% for a in items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if a.stato == 'Approvato' %}green{% elif a.stato == 'Rifiutato' %}gray{% else %}yellow{% endif %}"></span>
-                <div style="flex:1;">
-                  <div class="eb-list-main">{{ a.tipo }}</div>
-                  <div class="eb-list-sub">{{ a.inizio }} &rarr; {{ a.fine }}{% if a.motivazione %} &mdash; {{ a.motivazione|truncatechars:40 }}{% endif %}</div>
-                </div>
-                <div class="eb-list-meta">
-                  <span class="eb-tag {% if a.stato == 'Approvato' %}approvato{% elif a.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ a.stato }}</span>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <div class="eb-empty">Nessuna assenza programmata</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "tickets_miei" %}
-            {% with d=widget_data.tickets_miei %}
-            <div class="eb-stats-row">
-              <div class="eb-stat-box">
-                <div class="eb-stat-val blue">{{ d.stats.open|default:0 }}</div>
-                <div class="eb-stat-label">Aperti</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val yellow">{{ d.stats.in_charge|default:0 }}</div>
-                <div class="eb-stat-label">In carico</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val">{{ d.stats.waiting|default:0 }}</div>
-                <div class="eb-stat-label">In attesa</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val red">{{ d.stats.urgent|default:0 }}</div>
-                <div class="eb-stat-label">Urgenti</div>
-              </div>
-            </div>
-            {% if d.items %}
-            <ul class="eb-list" style="margin-top:10px;">
-              {% for t in d.items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if t.priorita == 'URGENTE' %}red{% elif t.stato == 'IN_CARICO' %}yellow{% else %}blue{% endif %}"></span>
-                <div style="flex:1;min-width:0;">
-                  <div class="eb-list-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ t.titolo }}">
-                    <a href="{% url 'tickets:detail' t.id %}" style="color:inherit;text-decoration:none;">{{ t.numero_ticket }} · {{ t.titolo }}</a>
-                  </div>
-                  <div class="eb-list-sub">
-                    {{ t.tipo }} · Aggiornato {{ t.updated_at }}{% if t.asset %}<br>{{ t.asset|truncatechars:60 }}{% endif %}
-                  </div>
-                </div>
-                <div class="eb-list-meta">
-                  <span class="eb-tag {% if t.stato == 'APERTA' %}info{% elif t.stato == 'IN_CARICO' %}warning{% elif t.stato == 'IN_ATTESA' %}purple{% else %}approvato{% endif %}">{{ t.stato_label }}</span>
-                  <br>
-                  <span class="eb-tag {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' %}danger{% elif t.priorita == 'MEDIA' %}warning{% else %}approvato{% endif %}">{{ t.priorita_label }}</span>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            <div style="margin-top:8px;text-align:right;">
-              <a href="{% url 'tickets:dashboard' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Apri modulo ticket &rarr;</a>
-            </div>
-            {% else %}
-            <div class="eb-empty" style="margin-top:10px;">Nessun ticket collegato al tuo profilo</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "assets_dotazione" %}
-            {% with d=widget_data.assets_dotazione %}
-            <div class="eb-stats-row">
-              <div class="eb-stat-box">
-                <div class="eb-stat-val blue">{{ d.stats.assigned|default:0 }}</div>
-                <div class="eb-stat-label">Assegnati</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val green">{{ d.stats.in_use|default:0 }}</div>
-                <div class="eb-stat-label">In uso</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val yellow">{{ d.stats.in_repair|default:0 }}</div>
-                <div class="eb-stat-label">In riparazione</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val red">{{ d.stats.deadlines|default:0 }}</div>
-                <div class="eb-stat-label">Scadenze</div>
-              </div>
-            </div>
-            {% if d.items %}
-            <ul class="eb-list" style="margin-top:10px;">
-              {% for a in d.items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if a.deadline_state == 'overdue' %}red{% elif a.deadline_state == 'warning' %}yellow{% else %}blue{% endif %}"></span>
-                <div style="flex:1;min-width:0;">
-                  <div class="eb-list-main">
-                    <a href="{% url 'assets:asset_view' a.id %}" style="color:inherit;text-decoration:none;">{{ a.asset_tag }} · {{ a.name }}</a>
-                  </div>
-                  <div class="eb-list-sub">
-                    {{ a.status_label }}{% if a.location %} · {{ a.location }}{% endif %}
-                    {% if a.deadline_title %}<br>{{ a.deadline_title }}{% if a.deadline_due_date %} · scade il {{ a.deadline_due_date }}{% endif %}{% endif %}
-                  </div>
-                </div>
-                <div class="eb-list-meta">
-                  <span class="eb-tag info">{{ a.status_label }}</span>
-                  {% if a.deadline_title %}
-                    <br>
-                    <span class="eb-tag {% if a.deadline_state == 'overdue' %}danger{% elif a.deadline_state == 'warning' %}warning{% else %}approvato{% endif %}">
-                      {% if a.deadline_state == 'overdue' %}Scaduta{% elif a.deadline_state == 'warning' %}Vicino scadenza{% else %}OK{% endif %}
-                    </span>
-                  {% endif %}
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <div class="eb-empty" style="margin-top:10px;">Nessun asset assegnato</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "procedure_da_leggere" %}
-            {% with d=widget_data.procedure_da_leggere %}
-            <div class="eb-stats-row compact-3">
-              <div class="eb-stat-box">
-                <div class="eb-stat-val yellow">{{ d.stats.pending|default:0 }}</div>
-                <div class="eb-stat-label">Pendenti</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
-                <div class="eb-stat-label">Scadute</div>
-              </div>
-              <div class="eb-stat-box">
-                <div class="eb-stat-val green">{{ d.stats.confirmed|default:0 }}</div>
-                <div class="eb-stat-label">Confermate</div>
-              </div>
-            </div>
-            {% if d.items %}
-            <ul class="eb-list" style="margin-top:10px;">
-              {% for p in d.items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if p.status == 'OVERDUE' %}red{% elif p.status == 'OPENED' %}yellow{% else %}blue{% endif %}"></span>
-                <div style="flex:1;min-width:0;">
-                  <div class="eb-list-main">
-                    <a href="{% url 'procedure_refresh:assignment_detail' p.id %}" style="color:inherit;text-decoration:none;">{{ p.document_code }}{% if p.document_title %} · {{ p.document_title|truncatechars:45 }}{% endif %}</a>
-                  </div>
-                  <div class="eb-list-sub">
-                    {{ p.campaign }}{% if p.due_date %} · Scadenza {{ p.due_date }}{% endif %}
-                  </div>
-                </div>
-                <div class="eb-list-meta">
-                  <span class="eb-tag {% if p.status == 'OVERDUE' %}danger{% elif p.status == 'OPENED' %}warning{% elif p.status == 'READ_CONFIRMED' %}approvato{% else %}info{% endif %}">{{ p.status_label }}</span>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            <div style="margin-top:8px;text-align:right;">
-              <a href="{% url 'procedure_refresh:my_assignments' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Apri campagne e prese visione &rarr;</a>
-            </div>
-            {% else %}
-            <div class="eb-empty" style="margin-top:10px;">Nessuna procedura in attesa</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "assenze_da_approvare" %}
-            {% with items=widget_data.assenze_da_approvare %}
-            {% if items %}
-            <ul class="eb-list">
-              {% for a in items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot yellow"></span>
-                <div style="flex:1;">
-                  <div class="eb-list-main">{{ a.dipendente }}</div>
-                  <div class="eb-list-sub">{{ a.tipo }} &mdash; {{ a.inizio_label }} &rarr; {{ a.fine_label }}{% if a.motivo %} &mdash; {{ a.motivo|truncatechars:40 }}{% endif %}</div>
-                </div>
-                <div class="eb-list-meta">
-                  <a href="{% url 'assenze_car_dashboard' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Gestisci</a>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            <div style="margin-top:8px;text-align:right;">
-              <a href="{% url 'assenze_car_dashboard' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
-            </div>
-            {% else %}
-            <div class="eb-empty">Nessuna richiesta in attesa</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "progetti_capo" %}
-            {% with items=widget_data.progetti_capo %}
-            {% if items %}
-            <ul class="eb-list">
-              {% for p in items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot purple"></span>
-                <div style="flex:1;">
-                  <div class="eb-list-main">
-                    <a href="{% url 'tasks:project_gantt' p.id %}" style="color:inherit;text-decoration:none;">{{ p.name }}</a>
-                  </div>
-                  <div class="eb-list-sub">
-                    {% if p.client %}Cliente: {{ p.client }}{% endif %}
-                    {% if p.part_number %} &mdash; PN: {{ p.part_number }}{% endif %}
-                    {% if p.manager %}<br>PM: {{ p.manager }}{% endif %}
-                  </div>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <div class="eb-empty">Nessun progetto come capo commessa</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "anomalie_gestione" %}
-            {% with items=widget_data.anomalie_gestione %}
-            {% if items %}
-            <ul class="eb-list">
-              {% for a in items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if not a.chiusa %}red{% else %}green{% endif %}"></span>
-                <div style="flex:1;">
-                  <div class="eb-list-main">{{ a.seriale|default:"—" }}</div>
-                  <div class="eb-list-sub">
-                    {% if a.operatore %}Op: {{ a.operatore }} &mdash; {% endif %}
-                    Avanzamento: {{ a.avanzamento }}
-                  </div>
-                </div>
-                <div class="eb-list-meta">
-                  <span class="eb-tag {% if not a.chiusa %}attesa{% else %}approvato{% endif %}">{% if not a.chiusa %}Aperta{% else %}Chiusa{% endif %}</span>
-                  <br>
-                  <a href="{% url 'gestione_anomalie_page' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Dettaglio</a>
-                </div>
-              </li>
-              {% endfor %}
-            </ul>
-            <div style="margin-top:8px;text-align:right;">
-              <a href="{% url 'gestione_anomalie_page' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
-            </div>
-            {% else %}
-            <div class="eb-empty">Nessuna anomalia da gestire</div>
-            {% endif %}
-            {% endwith %}
-
-          {% elif w.id == "notifiche" %}
-            {% with items=widget_data.notifiche %}
-            {% if items %}
-            <ul class="eb-list">
-              {% for n in items %}
-              <li class="eb-list-item">
-                <span class="eb-list-dot {% if not n.letta %}blue{% else %}gray{% endif %}"></span>
-                <div style="flex:1;">
-                  <div class="eb-list-main" style="{% if not n.letta %}font-weight:700;{% endif %}">{{ n.messaggio|truncatechars:70 }}</div>
-                  <div class="eb-list-sub">{{ n.tipo_label }} &mdash; {{ n.data }}</div>
-                </div>
-                {% if n.url %}
-                <div class="eb-list-meta">
-                  <a href="{{ n.url }}" style="font-size:11px;color:#2563eb;text-decoration:none;">Apri</a>
-                </div>
-                {% endif %}
-              </li>
-              {% endfor %}
-            </ul>
-            {% else %}
-            <div class="eb-empty">Nessuna notifica</div>
-            {% endif %}
-            {% endwith %}
-
-          {% else %}
-            <div class="eb-empty">Widget non disponibile</div>
-          {% endif %}
+        <div class="eb-widget-body" id="eb-body-{{ w.id }}"
+            hx-get="{% url 'widget_partial' w.id %}"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+          <div class="eb-widget-loading" aria-label="Caricamento...">
+            <div class="eb-skel-line"></div>
+            <div class="eb-skel-line short"></div>
+            <div class="eb-skel-line"></div>
+          </div>
         </div>
-      </div>
+      </div>{# /eb-widget #}
       {% endwith %}
     {% empty %}
       <div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:40px;">
@@ -1030,7 +688,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
   <div id="eb-add-panel">
     <div style="font-size:13px;font-weight:700;color:#0f172a;">Aggiungi / riabilita widget</div>
     <div style="margin-top:6px;font-size:12px;color:#64748b;">
-      Ogni utente può comporre la propria scheda. Il ripristino riapplica il template iniziale definito dagli admin.
+      Ogni utente puÃ² comporre la propria scheda. Il ripristino riapplica il template iniziale definito dagli admin.
     </div>
     <div class="eb-add-grid" id="eb-add-grid">
       {% for w in all_widgets %}
@@ -1100,7 +758,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
   let editMode = false;
   let layoutDirty = false;
 
-  // ── helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function setStatus(msg, err) {
     if (!editBarStatus) return;
     editBarStatus.textContent = msg || "";
@@ -1126,7 +784,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     });
   }
 
-  // ── edit mode ─────────────────────────────────────────────────────────────
+  // â”€â”€ edit mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function enterEditMode() {
     editMode = true;
     root.classList.add("edit-mode");
@@ -1145,12 +803,12 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     setStatus("");
   }
 
-  function markDirty() { layoutDirty = true; setStatus("Modifiche non salvate — premi Salva."); }
+  function markDirty() { layoutDirty = true; setStatus("Modifiche non salvate â€” premi Salva."); }
 
   document.getElementById("eb-edit-btn")?.addEventListener("click", enterEditMode);
   document.getElementById("eb-done-btn")?.addEventListener("click", exitEditMode);
 
-  // ── save layout ───────────────────────────────────────────────────────────
+  // â”€â”€ save layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function saveLayout() {
     const layout = currentOrder();
     setStatus("Salvataggio...");
@@ -1175,7 +833,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
 
   document.getElementById("eb-save-btn")?.addEventListener("click", saveLayout);
 
-  // ── reset layout ──────────────────────────────────────────────────────────
+  // â”€â”€ reset layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function resetLayout() {
     const templateName = boardCfg.template_name || "template iniziale";
     if (!confirm(`Ripristinare la scheda al ${templateName}?`)) return;
@@ -1227,7 +885,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
 
   document.getElementById("eb-save-template-btn")?.addEventListener("click", saveAdminTemplate);
 
-  // ── drag & drop ───────────────────────────────────────────────────────────
+  // â”€â”€ drag & drop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let dragSrc = null;
 
   grid.addEventListener("dragstart", function (e) {
@@ -1274,7 +932,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     grid.querySelectorAll(".eb-widget").forEach(el => el.classList.remove("drag-over"));
   });
 
-  // ── remove widget ─────────────────────────────────────────────────────────
+  // â”€â”€ remove widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   grid.addEventListener("click", function (e) {
     const btn = e.target.closest(".eb-remove-btn");
     if (!btn) return;
@@ -1285,7 +943,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     setTimeout(() => { widget.remove(); syncAddPanel(); markDirty(); }, 200);
   });
 
-  // ── add widget ────────────────────────────────────────────────────────────
+  // â”€â”€ add widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   addPanel?.addEventListener("click", function (e) {
     const btn = e.target.closest("[data-add-wid]");
     if (!btn) return;
@@ -1301,34 +959,26 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     }).then(() => location.reload());
   });
 
-  // ── refresh widget ────────────────────────────────────────────────────────
-  grid.addEventListener("click", async function (e) {
+  // â”€â”€ refresh widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  grid.addEventListener("click", function (e) {
     const btn = e.target.closest(".eb-refresh-btn");
     if (!btn) return;
     const wid = btn.dataset.widgetId;
     if (!wid) return;
-    btn.style.opacity = "0.4";
-    btn.disabled = true;
-    try {
-      const resp = await fetch(`{% url 'api_employee_board_data' %}?widget_id=${encodeURIComponent(wid)}`);
-      const res = await resp.json();
-      if (res.ok) {
-        // ricarica solo il body del widget via reload completo per ora
-        location.reload();
-      }
-    } catch { /* silent */ }
-    finally {
-      btn.style.opacity = "";
-      btn.disabled = false;
+    const body = document.getElementById(`eb-body-${wid}`);
+    if (body && window.htmx) {
+      htmx.trigger(body, "load");
+    } else {
+      location.reload();
     }
   });
 
-  // ── PDF / print ───────────────────────────────────────────────────────────
+  // â”€â”€ PDF / print â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   document.getElementById("eb-pdf-btn")?.addEventListener("click", function () {
     window.print();
   });
 
-  // ── config modal ──────────────────────────────────────────────────────────
+  // â”€â”€ config modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let cfgWidgetId = null;
 
   const modal = document.getElementById("eb-config-modal");
@@ -1435,7 +1085,7 @@ body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(
     if (e.key === "Escape" && modal.classList.contains("open")) closeConfig();
   });
 
-  // ── init ──────────────────────────────────────────────────────────────────
+  // â”€â”€ init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   syncAddPanel();
 
 })();

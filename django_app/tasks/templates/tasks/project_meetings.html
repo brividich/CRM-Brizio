@@ -1,0 +1,155 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_head %}
+<style>
+.meetings-hero {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  border-radius: 16px;
+  padding: 28px 32px 24px;
+  margin-bottom: 28px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.meetings-hero-icon {
+  width: 52px; height: 52px; flex-shrink: 0;
+  background: rgba(255,255,255,.15);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.meetings-hero-icon svg { width: 28px; height: 28px; stroke: #fff; }
+.meetings-hero-body { flex: 1; }
+.meetings-hero-body h2 { font-size: 1.25rem; font-weight: 700; margin: 0 0 4px; }
+.meetings-hero-body p { margin: 0; opacity: .8; font-size: .875rem; }
+.meetings-hero-cta {
+  background: #fff; color: #1e3a5f;
+  padding: 10px 20px; border-radius: 8px;
+  font-weight: 600; font-size: .875rem;
+  text-decoration: none; white-space: nowrap;
+}
+.meetings-hero-cta:hover { background: #f0f7ff; }
+
+.meeting-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-left: 5px solid #2563eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: start;
+  gap: 16px;
+  transition: box-shadow .15s, transform .15s;
+  text-decoration: none;
+  color: inherit;
+}
+.meeting-card:hover { box-shadow: 0 6px 24px rgba(37,99,235,.1); transform: translateY(-2px); }
+.meeting-num {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; font-weight: 800; color: #1d4ed8;
+}
+.meeting-body h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 700; color: #1e293b; }
+.meeting-body .meeting-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: .8125rem; color: #64748b; }
+.meeting-meta-item { display: flex; align-items: center; gap: 5px; }
+.meeting-meta-item svg { width: 14px; height: 14px; stroke: currentColor; flex-shrink: 0; }
+.meeting-actions { display: flex; gap: 8px; align-items: center; }
+.meeting-btn {
+  padding: 6px 14px; border-radius: 7px; font-size: .8125rem; font-weight: 600;
+  text-decoration: none; border: 1px solid transparent; cursor: pointer;
+}
+.meeting-btn.primary { background: #2563eb; color: #fff; }
+.meeting-btn.primary:hover { background: #1d4ed8; }
+.meeting-btn.ghost { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
+.meeting-btn.ghost:hover { background: #f1f5f9; }
+.meeting-btn.danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.meeting-btn.danger:hover { background: #fee2e2; }
+.meeting-empty {
+  text-align: center; padding: 60px 20px; color: #94a3b8;
+}
+.meeting-empty svg { width: 48px; height: 48px; stroke: #cbd5e1; margin-bottom: 16px; }
+.meeting-empty p { margin: 0 0 20px; font-size: 1rem; }
+
+/* Dark mode */
+body.theme-dark .meeting-card { background: #1e293b; border-color: #334155; border-left-color: #3b82f6; }
+body.theme-dark .meeting-body h3 { color: #f1f5f9; }
+body.theme-dark .meeting-num { background: linear-gradient(135deg,#1e3a5f,#1d4ed8); }
+body.theme-dark .meetings-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%); }
+body.theme-dark .meeting-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
+</style>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-panel" style="padding:0; overflow:hidden;">
+  <div style="padding:24px 28px 0;">
+    <div class="meetings-hero">
+      <div class="meetings-hero-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
+        </svg>
+      </div>
+      <div class="meetings-hero-body">
+        <h2>Incontri di avanzamento</h2>
+        <p>{{ project.name }} &mdash; traccia lo stato di avanzamento, i problemi aperti e i next steps incontro per incontro{% if open_issue_count %} · {{ open_issue_count }} problem{% if open_issue_count == 1 %}a{% else %}i{% endif %} ancora apert{% if open_issue_count == 1 %}o{% else %}i{% endif %}{% endif %}</p>
+      </div>
+      {% if can_manage %}
+        <a class="meetings-hero-cta" href="{% url 'tasks:project_meeting_create' project.id %}">+ Nuovo incontro</a>
+      {% endif %}
+    </div>
+
+    {% if meetings %}
+      <div style="margin-bottom:28px;">
+        {% for meeting in meetings %}
+          <div class="meeting-card">
+            <div class="meeting-num">{{ meeting.numero }}</div>
+            <div class="meeting-body">
+              <h3>
+                {% if meeting.titolo %}{{ meeting.titolo }}{% else %}Incontro {{ meeting.numero }}{% endif %}
+              </h3>
+              <div class="meeting-meta">
+                <span class="meeting-meta-item">
+                  <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                  {{ meeting.data|date:"d/m/Y" }}{% if meeting.ora %} &middot; {{ meeting.ora|time:"H:i" }}{% endif %}
+                </span>
+                {% if meeting.luogo %}
+                  <span class="meeting-meta-item">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+                    {{ meeting.luogo }}
+                  </span>
+                {% endif %}
+                {% if meeting.problemi_aperti %}
+                  <span class="meeting-meta-item" style="color:#ef4444;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                    Problemi aperti
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="meeting-actions">
+              <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Apri</a>
+              {% if can_manage %}
+                <a class="meeting-btn ghost" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Modifica</a>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="meeting-empty">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
+        </svg>
+        <p>Nessun incontro registrato per questo kickoff.</p>
+        {% if can_manage %}
+          <a class="meeting-btn primary" href="{% url 'tasks:project_meeting_create' project.id %}">Aggiungi il primo incontro</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

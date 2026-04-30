@@ -5,12 +5,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gestione Anomalie | Portale Applicativo</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       min-height: 100vh;
-      background: #bdc6cf;
+      background: var(--bg);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -25,7 +26,11 @@
       content: '';
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 50% 40%, #c8d0d8 0%, #adb8c2 100%);
+      background: var(--bg);
+      background:
+        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
+        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
       z-index: 0;
     }
 
@@ -172,7 +177,7 @@
     }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
 
   <a href="{% url 'dashboard' %}" class="back-link">
     &#8592; Dashboard

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Anagrafica">
+  <path d="M30 18h49l11 11" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square"/>
+  <path d="M96 18h15l13 13" fill="none" stroke="#ff6b00" stroke-width="6" stroke-linecap="square"/>
+  <path d="M111 38v50l-18 18H31L14 89V38z" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M91 107h22V88" fill="none" stroke="#6f94b5" stroke-width="10" stroke-linecap="square"/>
+  <rect x="35" y="41" width="68" height="48" rx="6" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <circle cx="55" cy="58" r="8" fill="#002b5c"/>
+  <path d="M41 78a15 15 0 0 1 28 0" fill="#002b5c"/>
+  <path d="M78 54h15M78 67h18M78 80h12" fill="none" stroke="#002b5c" stroke-width="5" stroke-linecap="round"/>
+</svg>

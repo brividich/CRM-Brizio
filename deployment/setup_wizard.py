@@ -5828,7 +5828,14 @@ class ServerDashboard:
             ("ACL dry-run", "manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.prod"),
             ("ACL apply legacy", "manage.py bootstrap_acl_v2 --import-legacy --apply --settings=config.settings.prod"),
             ("Seed descrizioni pulsanti", "manage.py seed_pulsanti_descrizioni --settings=config.settings.prod"),
+            ("Q - migra django-q", "manage.py migrate django_q --noinput --settings=config.settings.prod"),
+            ("Q - registra schedule", "manage.py setup_q_schedules --settings=config.settings.prod"),
         ]
+        # Automazioni django-q — widget refs (impostati in _build)
+        self._q_status_lbl: tk.Label | None = None
+        self._q_log_txt: tk.Text | None = None
+        self._q_start_btn: "SecondaryButton | None" = None
+        self._q_stop_btn: "SecondaryButton | None" = None
 
         self._build()
         self._refresh()
@@ -5915,6 +5922,56 @@ class ServerDashboard:
         )
         admin_note_fg = GRAY500 if self._admin_mode else YELLOW_TX
         tk.Label(ctrl, text=admin_note, font=FSM, fg=admin_note_fg, bg="white").pack(anchor="w", pady=(8, 0))
+
+        # ── Automazioni django-q ─────────────────────────────────
+        frame(main, height=14).pack()
+        q_card = frame(main, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        q_card.pack(fill="x")
+
+        q_head_row = frame(q_card, bg=GRAY50)
+        q_head_row.pack(fill="x", padx=14, pady=(10, 6))
+        tk.Label(q_head_row, text="Automazioni (django-q)", font=(SF, 9, "bold"),
+                 bg=GRAY50, fg=GRAY600).pack(side="left")
+        self._q_status_lbl = tk.Label(q_head_row, text="—", font=FSM,
+                                      bg=GRAY50, fg=GRAY400)
+        self._q_status_lbl.pack(side="right")
+
+        q_btn_row = frame(q_card, bg=GRAY50)
+        q_btn_row.pack(anchor="w", padx=14, pady=(0, 8))
+        SecondaryButton(
+            q_btn_row, "🗄  Migra django-q",
+            lambda: self._q_run_manage(
+                "manage.py migrate django_q --noinput --settings=config.settings.prod"
+            ),
+        ).pack(side="left", padx=(0, 8))
+        SecondaryButton(
+            q_btn_row, "📅  Registra schedule",
+            lambda: self._q_run_manage(
+                "manage.py setup_q_schedules --settings=config.settings.prod"
+            ),
+        ).pack(side="left", padx=(0, 8))
+        SecondaryButton(
+            q_btn_row, "📋  Installa task",
+            self._q_install_task,
+        ).pack(side="left", padx=(0, 8))
+        self._q_start_btn = SecondaryButton(q_btn_row, "▶  Avvia qcluster",
+                                            self._q_start_task)
+        self._q_start_btn.pack(side="left", padx=(0, 8))
+        self._q_stop_btn = SecondaryButton(q_btn_row, "■  Ferma qcluster",
+                                           self._q_stop_task)
+        self._q_stop_btn.pack(side="left", padx=(0, 8))
+
+        q_log_wrap = frame(q_card, bg=CODE_BG,
+                           highlightthickness=1, highlightbackground=GRAY700)
+        q_log_wrap.pack(fill="x", padx=14, pady=(0, 10))
+        self._q_log_txt = tk.Text(
+            q_log_wrap, bg=CODE_BG, fg=CODE_FG, font=FMO,
+            relief="flat", state="disabled", wrap="none", height=4,
+        )
+        q_log_sb = tk.Scrollbar(q_log_wrap, command=self._q_log_txt.yview)
+        self._q_log_txt.configure(yscrollcommand=q_log_sb.set)
+        q_log_sb.pack(side="right", fill="y")
+        self._q_log_txt.pack(fill="both", expand=True, padx=8, pady=6)
 
         # ── Log viewer ──────────────────────────────────────────
         frame(main, height=14).pack()
@@ -6071,6 +6128,42 @@ Write-Output "$sState|$pState|$port"
 
         url = f"http://localhost:{port}/" if port else f"http://localhost/"
         self.root.after(0, lambda: self._update_ui(site_state, pool_state, url, log_lines))
+
+        # Stato task qcluster e log
+        q_task = f"QCluster_{env.upper()}"
+        q_ps = f"""
+$t = Get-ScheduledTask -TaskName '{q_task}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+if ($t) {{
+    $i = Get-ScheduledTaskInfo -TaskName '{q_task}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+    $lastRun = if ($i.LastRunTime) {{ $i.LastRunTime.ToString('dd/MM HH:mm') }} else {{ 'mai' }}
+    Write-Output "$($t.State)|$lastRun|$($i.LastTaskResult)"
+}} else {{
+    Write-Output "NotFound||"
+}}
+"""
+        try:
+            qr = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", q_ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=8, creationflags=subprocess.CREATE_NO_WINDOW)
+            qp = (qr.stdout or "").strip().split("|")
+            q_state   = qp[0] if len(qp) > 0 else "Unknown"
+            q_lastrun = qp[1] if len(qp) > 1 else ""
+            q_result  = qp[2].strip() if len(qp) > 2 else ""
+        except Exception:
+            q_state = q_lastrun = q_result = ""
+
+        q_log_path = ep / "logs" / "qcluster.log"
+        q_log_tail = ""
+        try:
+            if q_log_path.exists():
+                with open(q_log_path, encoding="utf-8", errors="replace") as f:
+                    q_log_tail = "".join(f.readlines()[-20:])
+        except Exception:
+            q_log_tail = ""
+
+        self.root.after(0, lambda s=q_state, r=q_lastrun, x=q_result, l=q_log_tail:
+                        self._q_update_status(s, r, x, l))
 
     def _update_ui(self, site_state, pool_state, url, log_lines):
         state_map = {
@@ -6352,6 +6445,187 @@ Write-Output "$sState|$pState|$port"
             self._append_terminal("\n[stop richiesto]\n", "meta")
         except Exception as exc:
             self._append_terminal(f"\nStop non riuscito: {exc}\n", "error")
+
+    # ── Automazioni django-q ─────────────────────────────────────
+
+    def _q_task_name(self, env: str | None = None) -> str:
+        return f"QCluster_{(env or self._selected_env.get()).upper()}"
+
+    def _q_update_status(self, state: str, last_run: str, result: str, log_tail: str):
+        """Aggiorna badge stato e log qcluster (main thread)."""
+        if not self._q_status_lbl:
+            return
+        state_map = {
+            "Running": ("● In esecuzione", GREEN),
+            "Ready":   ("● Pronto (idle)", GRAY500),
+            "Stopped": ("○ Fermato", GRAY400),
+            "Disabled": ("✗ Disabilitato", YELLOW_TX),
+            "NotFound": ("✗ Non installato", RED),
+        }
+        text, fg = state_map.get(state, (f"— {state}", GRAY400))
+        if last_run and state != "NotFound":
+            text += f"  (ultima: {last_run})"
+        self._q_status_lbl.configure(text=text, fg=fg)
+
+        if self._q_log_txt:
+            self._q_log_txt.configure(state="normal")
+            self._q_log_txt.delete("1.0", "end")
+            self._q_log_txt.insert("end", log_tail or "(nessun log qcluster disponibile)")
+            self._q_log_txt.see("end")
+            self._q_log_txt.configure(state="disabled")
+
+        if self._q_start_btn:
+            self._q_start_btn.set_enabled(state in {"Ready", "Stopped", "NotFound"})
+        if self._q_stop_btn:
+            self._q_stop_btn.set_enabled(state == "Running")
+
+    def _q_run_manage(self, command: str):
+        """Esegue un manage.py nel terminale integrato."""
+        self._terminal_cmd_var.set(command)
+        self._run_terminal_command()
+
+    def _q_script_source(self, env: str) -> Path | None:
+        """Cerca start_qcluster.ps1 nella release corrente."""
+        candidates = [
+            self._env_root(env) / "current" / "deployment" / "start_qcluster.ps1",
+            Path(__file__).parent / "start_qcluster.ps1",
+        ]
+        for c in candidates:
+            if c.exists():
+                return c
+        return None
+
+    def _q_ensure_script(self, env: str) -> Path | None:
+        """Copia start_qcluster.ps1 in shared\\scripts\\ e restituisce il path."""
+        src = self._q_script_source(env)
+        dest_dir = Path(self.BASE_DIR) / "shared" / "scripts"
+        dest = dest_dir / "start_qcluster.ps1"
+        if src and src != dest:
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(src), str(dest))
+            except Exception as exc:
+                messagebox.showwarning(
+                    "qcluster — script",
+                    f"Impossibile copiare lo script in {dest_dir}:\n{exc}\n\n"
+                    "Lo script verrà referenziato dalla posizione attuale.",
+                )
+                return src
+        return dest if dest.exists() else src
+
+    def _q_install_task(self):
+        """Registra il task schedulato \\PortaleNovicrom\\QCluster_<ENV>."""
+        env = self._selected_env.get()
+        task_name = self._q_task_name(env)
+        script_path = self._q_ensure_script(env)
+        if not script_path:
+            messagebox.showerror(
+                "qcluster — Installa task",
+                "start_qcluster.ps1 non trovato.\n"
+                "Assicurati che la release sia attiva o che lo script esista in "
+                "deployment\\start_qcluster.ps1.",
+            )
+            return
+
+        if not messagebox.askyesno(
+            "Installa task qcluster",
+            f"Registrare il Task Scheduler:\n"
+            f"  Nome: \\PortaleNovicrom\\{task_name}\n"
+            f"  Script: {script_path}\n"
+            f"  Ambiente: {env.upper()}\n\n"
+            f"Il task verrà registrato con trigger 'All'avvio' e livello Highest.\n"
+            f"Procedere?",
+        ):
+            return
+
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    $action = New-ScheduledTaskAction `
+        -Execute 'powershell.exe' `
+        -Argument '-NonInteractive -ExecutionPolicy Bypass -File \"{script_path}\" -Environment {env}'
+    $trigger  = New-ScheduledTaskTrigger -AtStartup
+    $settings = New-ScheduledTaskSettingsSet `
+        -ExecutionTimeLimit ([TimeSpan]::Zero) `
+        -MultipleInstances IgnoreNew `
+        -RestartCount 3 `
+        -RestartInterval (New-TimeSpan -Minutes 1)
+    New-Item -Path '\\PortaleNovicrom' -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+    Register-ScheduledTask `
+        -TaskName '{task_name}' `
+        -TaskPath '\\PortaleNovicrom\\' `
+        -Action $action `
+        -Trigger $trigger `
+        -Settings $settings `
+        -RunLevel Highest `
+        -Force `
+        -Description 'django-q2 qcluster NOVICROM HUB {env.upper()}'
+    Write-Output 'OK'
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
+
+        def _run():
+            try:
+                r = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=30, creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                out = (r.stdout or "").strip()
+                if out.startswith("ERR:"):
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "qcluster — Installa task", f"Errore registrazione task:\n{out[4:]}"))
+                elif "OK" in out:
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "qcluster — Installa task",
+                        f"✓ Task \\PortaleNovicrom\\{task_name} registrato.\n"
+                        "Avvialo con '▶ Avvia qcluster' oppure riavvia il server."))
+                    self.root.after(0, self._refresh)
+                else:
+                    self.root.after(0, lambda: messagebox.showwarning(
+                        "qcluster — Installa task", f"Output inatteso:\n{out or r.stderr}"))
+            except Exception as exc:
+                self.root.after(0, lambda e=exc: messagebox.showerror(
+                    "qcluster — Installa task", f"Eccezione:\n{e}"))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _q_start_task(self):
+        env = self._selected_env.get()
+        task_name = self._q_task_name(env)
+        ps = f"Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'"
+        def _run():
+            try:
+                subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+            except Exception:
+                pass
+            self.root.after(1500, self._refresh)
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _q_stop_task(self):
+        env = self._selected_env.get()
+        task_name = self._q_task_name(env)
+        if not messagebox.askyesno(
+            "Ferma qcluster",
+            f"Fermare il task {task_name}?\n\nI job in corso verranno interrotti.",
+        ):
+            return
+        ps = f"Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue"
+        def _run():
+            try:
+                subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+            except Exception:
+                pass
+            self.root.after(1500, self._refresh)
+        threading.Thread(target=_run, daemon=True).start()
 
     def _open_live_password_reset(self):
         if not self._admin_mode:

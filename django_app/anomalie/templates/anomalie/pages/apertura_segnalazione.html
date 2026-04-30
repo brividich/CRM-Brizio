@@ -18,14 +18,18 @@
       font-family: "Outfit", sans-serif;
       font-size: var(--fs-base);
       line-height: var(--lh-base);
-      background: #bdc6cf;
+      background: var(--bg);
       position: relative;
     }
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 50% 30%, #c8d0d8 0%, #adb8c2 100%);
+      background: var(--bg);
+      background:
+        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
+        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
       z-index: 0;
     }
 
@@ -408,7 +412,7 @@
     }
   </style>
 </head>
-<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
   <div id="root"></div>
 
   <script>

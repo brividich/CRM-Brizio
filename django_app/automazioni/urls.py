@@ -1,10 +1,13 @@
 from django.urls import path
 
-from . import views
+from . import htmx_views, views
 
 
 urlpatterns = [
     path("impostazioni/", views.settings_page, name="automazioni_settings"),
+    # ── HTMX partials designer ────────────────────────────────────────────────
+    path("regole/<int:rule_id>/azioni/aggiungi/", htmx_views.add_azione_partial, name="automazioni_htmx_add_azione"),
+    path("regole/<int:rule_id>/azioni/rimuovi/", htmx_views.remove_azione_partial, name="automazioni_htmx_remove_azione"),
     path("trigger-generator/", views.trigger_generator_page, name="automazioni_trigger_generator"),
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),

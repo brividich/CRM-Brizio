@@ -669,8 +669,7 @@ def _base_dashboard_context(request) -> dict[str, Any]:
 
 @login_required
 def dashboard_home(request):
-    context = _build_employee_board_context(request, primary_dashboard=True)
-    return render(request, "dashboard/pages/employee_board.html", context)
+    return redirect("dashboard_hub_preview")
 
 
 @login_required
@@ -1993,3 +1992,286 @@ def api_debug_ui_meta(request):
     except Exception as exc:
         result["pulsanti_error"] = str(exc)
     return JsonResponse(result)
+
+
+# ── Hub Preview ────────────────────────────────────────────────────────────────
+
+_HUB_DAY_IT = [
+    "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
+]
+_HUB_MONTH_IT = [
+    "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+]
+
+
+def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
+    """Raccoglie KPI cross-modulo per la hub preview. Ogni modulo è opzionale."""
+    from django.utils import timezone as tz
+    kpis: list[dict] = []
+    today = tz.localdate()
+
+    # ── Assenze ──
+    kpis.append({
+        "kpi_key": "assenze",
+        "label": "Richieste in attesa",
+        "value": ctx.get("richieste_attesa", 0),
+        "sub": f"{ctx.get('richieste_total', 0)} totali",
+        "icon": "ASS",
+        "icon_class": "yellow",
+    })
+
+    # ── Anomalie (tabella legacy, raw SQL) ──
+    try:
+        with connections["default"].cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM anomalie WHERE COALESCE(chiudere, 0) = 0")
+            row = cur.fetchone()
+        kpis.append({
+            "kpi_key": "anomalie",
+            "label": "Anomalie aperte",
+            "value": int(row[0]) if row else 0,
+            "sub": "in produzione",
+            "icon": "ANO",
+            "icon_class": "red",
+        })
+    except Exception:
+        pass
+
+    # ── Ticket ──
+    try:
+        from tickets.models import Ticket, StatoTicket
+        aperta = Ticket.objects.filter(stato=StatoTicket.APERTA).count()
+        in_carico = Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count()
+        kpis.append({
+            "kpi_key": "ticket",
+            "label": "Ticket aperti",
+            "value": aperta,
+            "sub": f"{in_carico} in lavorazione",
+            "icon": "TKT",
+            "icon_class": "blue",
+        })
+    except Exception:
+        pass
+
+    # ── Asset ──
+    try:
+        from assets.models import Asset
+        in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+        totale = Asset.objects.count()
+        kpis.append({
+            "kpi_key": "asset",
+            "label": "Asset monitorati",
+            "value": totale,
+            "sub": f"{in_uso} in uso",
+            "icon": "AST",
+            "icon_class": "green",
+        })
+    except Exception:
+        pass
+
+    # ── Task / KICK-OFF ──
+    try:
+        from tasks.models import Task, TaskStatus
+        attivi = Task.objects.filter(
+            status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS]
+        ).count()
+        kpis.append({
+            "kpi_key": "task",
+            "label": "Task attivi",
+            "value": attivi,
+            "sub": "kick-off",
+            "icon": "TSK",
+            "icon_class": "blue",
+        })
+    except Exception:
+        pass
+
+    # ── DPI richieste in attesa ──
+    try:
+        from dpi.models import RichiestaDPI
+        dpi_attesa = RichiestaDPI.objects.filter(stato="INVIATA").count()
+        if dpi_attesa:
+            kpis.append({
+                "kpi_key": "dpi",
+                "label": "DPI in attesa",
+                "value": dpi_attesa,
+                "sub": "richieste",
+                "icon": "DPI",
+                "icon_class": "yellow",
+            })
+    except Exception:
+        pass
+
+    # ── Scadenze imminenti asset ──
+    try:
+        from assets.models import AssetAdministrativeDeadline, PeriodicVerification
+        import datetime
+        horizon = today + datetime.timedelta(days=30)
+        scad_amm = AssetAdministrativeDeadline.objects.filter(
+            is_active=True, due_date__lte=horizon
+        ).count()
+        scad_man = PeriodicVerification.objects.filter(
+            is_active=True, next_verification_date__lte=horizon
+        ).count()
+        totale_scad = scad_amm + scad_man
+        kpis.append({
+            "kpi_key": "scadenze",
+            "label": "Scadenze imminenti",
+            "value": totale_scad,
+            "sub": f"{scad_amm} amm. · {scad_man} manut.",
+            "icon": "SCA",
+            "icon_class": "red" if totale_scad else "green",
+        })
+    except Exception:
+        pass
+
+    # ── Diario preposto ──
+    try:
+        from diario_preposto.models import SegnalazionePreposto
+        anno = today.year
+        n_segnalazioni = SegnalazionePreposto.objects.filter(
+            data_segnalazione__year=anno
+        ).count()
+        kpis.append({
+            "kpi_key": "diario",
+            "label": "Diario preposto",
+            "value": n_segnalazioni,
+            "sub": f"segnalazioni {anno}",
+            "icon": "DRP",
+            "icon_class": "blue",
+        })
+    except Exception:
+        pass
+
+    # ── Rilevazione incidenti ──
+    try:
+        from rilevazione_incidenti.models import RilevazioneIncidente
+        anno = today.year
+        n_incidenti = RilevazioneIncidente.objects.filter(
+            data_segnalazione__year=anno
+        ).count()
+        kpis.append({
+            "kpi_key": "incidenti",
+            "label": "Incidenti rilevati",
+            "value": n_incidenti,
+            "sub": f"anno {anno}",
+            "icon": "INC",
+            "icon_class": "red" if n_incidenti else "green",
+        })
+    except Exception:
+        pass
+
+    # ── Notizie da leggere ──
+    try:
+        from django.db.models import Exists, OuterRef
+        from notizie.models import Notizia, NotiziaLettura
+        from notizie.models import STATO_PUBBLICATA
+        legacy_user = ctx.get("legacy_user")
+        if legacy_user:
+            confermata = NotiziaLettura.objects.filter(
+                notizia=OuterRef("pk"),
+                legacy_user_id=legacy_user.pk,
+                versione_letta=OuterRef("versione"),
+                ack_at__isnull=False,
+            )
+            da_leggere = (
+                Notizia.objects.filter(stato=STATO_PUBBLICATA)
+                .exclude(Exists(confermata))
+                .count()
+            )
+            kpis.append({
+                "kpi_key": "notizie",
+                "label": "Notizie da leggere",
+                "value": da_leggere,
+                "sub": "bacheca comunicazioni",
+                "icon": "NOT",
+                "icon_class": "yellow" if da_leggere else "green",
+            })
+    except Exception:
+        pass
+
+    # ── Procedure refresh da confermare ──
+    try:
+        from procedure_refresh.models import ProcedureAssignment, AssignmentStatus
+        user = request.user if request else None
+        if user and user.is_authenticated:
+            da_confermare = ProcedureAssignment.objects.filter(
+                user=user,
+                status=AssignmentStatus.ASSIGNED,
+            ).count()
+            kpis.append({
+                "kpi_key": "procedure",
+                "label": "Procedure da confermare",
+                "value": da_confermare,
+                "sub": "presa visione",
+                "icon": "PRF",
+                "icon_class": "yellow" if da_confermare else "green",
+            })
+    except Exception:
+        pass
+
+    # ── Applica overrides da SiteConfig ──
+    try:
+        from core.models import SiteConfig
+        cfg = {
+            row["key"]: row["value"]
+            for row in SiteConfig.objects.filter(key__startswith="hub_kpi_").values("key", "value")
+        }
+        filtered = []
+        for kpi in kpis:
+            key = kpi.get("kpi_key", "")
+            if cfg.get(f"hub_kpi_{key}_disabled") == "1":
+                continue
+            label_ov = cfg.get(f"hub_kpi_{key}_label", "")
+            icon_ov  = cfg.get(f"hub_kpi_{key}_icon", "")
+            bg_ov    = cfg.get(f"hub_kpi_{key}_bg_color", "")
+            fg_ov    = cfg.get(f"hub_kpi_{key}_fg_color", "")
+            if label_ov:
+                kpi["label"] = label_ov
+            if icon_ov:
+                kpi["icon"] = icon_ov
+            if bg_ov:
+                kpi["custom_bg"] = bg_ov
+                kpi["custom_fg"] = fg_ov or "#ffffff"
+            filtered.append(kpi)
+        kpis = filtered
+    except Exception:
+        pass
+
+    return kpis
+
+
+@login_required
+def dashboard_hub_preview(request):
+    ctx = _base_dashboard_context(request)
+    now = timezone.localtime(timezone.now())
+    date_label = (
+        f"{_HUB_DAY_IT[now.weekday()]} {now.day} "
+        f"{_HUB_MONTH_IT[now.month - 1]} {now.year} · Hub Aziendale Novicrom"
+    )
+    display_name = ctx.get("display_name") or request.user.get_full_name() or request.user.get_username()
+
+    hub_branding = {}
+    try:
+        from core.models import SiteConfig
+        branding_keys = {
+            "hub_hero_title", "hub_hero_sub", "hub_bg_color",
+            "hub_hero_color_1", "hub_hero_color_2", "hub_logo_url",
+        }
+        for row in SiteConfig.objects.filter(key__in=branding_keys).values("key", "value"):
+            hub_branding[row["key"]] = row["value"] or ""
+    except Exception:
+        pass
+
+    ctx.update({
+        "page_title": "Hub Preview",
+        "greeting_name": display_name,
+        "date_label": date_label,
+        "hub_kpis": _hub_kpi_cards(ctx, request),
+        "modules": ctx.get("module_cards", []),
+        "activities": list(ctx.get("richieste_recenti", []))[:5],
+        "pending_approvals": ctx.get("ctx_widget", {}),
+        "hub_branding": hub_branding,
+        "hub_is_staff": request.user.is_staff,
+    })
+    return render(request, "core/pages/dashboard_hub_preview.html", ctx)

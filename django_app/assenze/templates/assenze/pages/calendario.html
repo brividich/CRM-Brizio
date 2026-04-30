@@ -309,6 +309,31 @@
     </div>
   </section>
 
+  {# ── HTMX navigazione mese (lista eventi) ─────────────────────────────── #}
+  <nav class="htmx-cal-nav" aria-label="Vista lista per mese" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="btn btn-sm btn-secondary"
+        hx-get="{% url 'assenze_calendario_partial' %}?mese={{ mese_prev }}"
+        hx-target="#calendario-body"
+        hx-swap="innerHTML"
+        hx-push-url="?mese={{ mese_prev }}"
+        hx-indicator="#cal-loading">
+      &#8592; {{ mese_prev }}
+    </button>
+    <span style="font-size:13px;font-weight:700;color:#1e293b;">Lista {{ mese_corrente_label }}</span>
+    <button class="btn btn-sm btn-secondary"
+        hx-get="{% url 'assenze_calendario_partial' %}?mese={{ mese_next }}"
+        hx-target="#calendario-body"
+        hx-swap="innerHTML"
+        hx-push-url="?mese={{ mese_next }}"
+        hx-indicator="#cal-loading">
+      {{ mese_next }} &#8594;
+    </button>
+    <span class="htmx-indicator" id="cal-loading" aria-hidden="true" style="margin-left:4px;">
+      <span style="display:inline-block;width:12px;height:12px;border:2px solid #94a3b8;border-top-color:#2563eb;border-radius:50%;animation:btn-spin .65s linear infinite;vertical-align:middle;"></span>
+    </span>
+  </nav>
+
+  <div id="calendario-body">
   <div class="calendar-layout">
     <section class="abs-panel calendar-shell">
       <div class="abs-panel-body">
@@ -348,6 +373,7 @@
       </section>
     </aside>
   </div>
+  </div>{# /calendario-body #}
 
   <div class="event-modal-backdrop" id="eventModalBackdrop" hidden>
     <div class="event-modal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">

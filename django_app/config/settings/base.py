@@ -187,6 +187,7 @@ INSTALLED_APPS = [
     "assenze.apps.AssenzeConfig",
     "anomalie.apps.AnomalieConfig",
     "assets.apps.AssetsConfig",
+    "attrezzature.apps.AttrezzatureConfig",
     "tasks.apps.TasksConfig",
     "automazioni.apps.AutomazioniConfig",
     "monitoring.apps.MonitoringConfig",
@@ -202,12 +203,15 @@ INSTALLED_APPS = [
     "dpi.apps.DpiConfig",
     "procedure_refresh.apps.ProcedureRefreshConfig",
     "django_extensions",
+    "django_q",
+    "django_htmx",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "core.middleware.AdaptiveSecureCookieMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django_htmx.middleware.HtmxMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "core.csrf_cookie_middleware.EnsureCSRFCookieMiddleware",
@@ -324,10 +328,20 @@ TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_pr
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+Q_CLUSTER = {
+    "name": "novicrom_hub",
+    "workers": 2,
+    "timeout": 120,
+    "retry": 180,
+    "save_limit": 250,
+    "max_attempts": 3,
+    "orm": "default",
+}
+
 CSRF_FAILURE_VIEW = "core.views.csrf_failure"
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "dashboard_home"
+LOGIN_REDIRECT_URL = "dashboard_hub_preview"
 LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_AGE = max(300, SESSION_IDLE_TIMEOUT_SECONDS) if SESSION_IDLE_TIMEOUT_SECONDS > 0 else 1209600
 

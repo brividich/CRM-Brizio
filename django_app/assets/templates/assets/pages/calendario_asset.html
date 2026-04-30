@@ -1,0 +1,607 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Calendario Asset{% endblock %}
+
+{% block assets_shell_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+<style>
+/* ── Layout ──────────────────────────────────────────────── */
+.ca-page { display:grid; gap:14px; }
+.ca-panel { display:none; }
+.ca-panel.active { display:block; }
+
+/* ── Topbar ──────────────────────────────────────────────── */
+.ca-topbar {
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:10px;
+  background:#fff; border:1px solid #dbe1ea; border-radius:14px;
+  padding:12px 16px;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+}
+
+/* ── Toggle vista ────────────────────────────────────────── */
+.ca-toggle {
+  display:flex; gap:4px;
+  background:#f1f5f9; border-radius:10px; padding:4px;
+}
+.ca-toggle-btn {
+  padding:7px 18px; font-size:13px; font-weight:700;
+  color:#64748b; cursor:pointer; border:none; border-radius:7px;
+  background:transparent; transition:all .15s; line-height:1;
+  font-family:inherit;
+}
+.ca-toggle-btn.active {
+  background:#fff; color:#1d4ed8;
+  box-shadow:0 1px 4px rgba(15,23,42,.1);
+}
+.ca-toggle-btn:hover:not(.active) { color:#334155; }
+
+/* ── Legenda ─────────────────────────────────────────────── */
+.ca-legend { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.ca-legend-item { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#64748b; }
+.ca-legend-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+/* ── Filter card ─────────────────────────────────────────── */
+.ca-filter-card {
+  background:#fff; border:1px solid #dbe1ea; border-radius:14px;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+  padding:12px 16px;
+}
+.ca-filter-row {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+}
+.ca-filter-label {
+  font-size:11px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.05em; color:#94a3b8; flex-shrink:0; min-width:54px;
+}
+.ca-chips { display:flex; gap:6px; flex-wrap:wrap; flex:1; min-width:0; }
+.ca-chip {
+  padding:5px 12px; font-size:12px; font-weight:700;
+  color:#64748b; background:#f1f5f9; border:1px solid transparent;
+  border-radius:20px; cursor:pointer; font-family:inherit;
+  transition:all .15s; line-height:1; white-space:nowrap;
+}
+.ca-chip:hover:not(.active) { background:#e2e8f0; color:#334155; }
+.ca-chip.active { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+
+.ca-machine-toggle-btn {
+  margin-left:auto; flex-shrink:0; display:flex; align-items:center; gap:5px;
+  padding:5px 11px; font-size:12px; font-weight:700; color:#64748b;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;
+  cursor:pointer; font-family:inherit; white-space:nowrap; transition:all .15s;
+}
+.ca-machine-toggle-btn:hover { background:#f1f5f9; color:#334155; }
+.ca-toggle-arrow { font-size:10px; transition:transform .2s; display:inline-block; }
+.ca-toggle-arrow.open { transform:rotate(180deg); }
+
+.ca-asset-list {
+  display:none; flex-wrap:wrap; gap:6px;
+  padding-top:10px; margin-top:10px;
+  border-top:1px solid #f1f5f9;
+}
+.ca-asset-list.open { display:flex; }
+.ca-asset-item {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 10px; background:#f8fafc; border:1px solid #e2e8f0;
+  border-radius:8px; cursor:pointer; font-size:12px; transition:all .15s;
+  user-select:none;
+}
+.ca-asset-item:hover { background:#f1f5f9; border-color:#cbd5e1; }
+.ca-asset-item input[type="checkbox"] { margin:0; cursor:pointer; accent-color:#2563eb; }
+.ca-asset-item.filtered-out { opacity:.4; }
+.ca-asset-tag { font-weight:800; color:#1d4ed8; font-size:11px; }
+.ca-asset-name { font-weight:600; color:#334155; }
+.ca-asset-rep {
+  font-size:10px; font-weight:700; color:#94a3b8;
+  background:#e2e8f0; padding:1px 6px; border-radius:10px;
+}
+
+/* ── Card contenitore ────────────────────────────────────── */
+.ca-card {
+  background:#fff; border:1px solid #dbe1ea; border-radius:14px;
+  box-shadow:0 2px 12px rgba(15,23,42,.04); overflow:hidden;
+}
+.ca-card-body { padding:20px; }
+
+/* ── Loading skeleton ────────────────────────────────────── */
+.ca-skeleton {
+  display:grid; gap:10px; padding:20px;
+  animation: ca-pulse 1.5s ease-in-out infinite;
+}
+.ca-skeleton-row { height:16px; border-radius:6px; background:#f1f5f9; }
+@keyframes ca-pulse { 0%,100% { opacity:1; } 50% { opacity:.45; } }
+
+/* ── Empty state ─────────────────────────────────────────── */
+.ca-empty {
+  display:flex; flex-direction:column; align-items:center;
+  gap:10px; padding:48px 20px; text-align:center;
+}
+.ca-empty-icon { font-size:36px; opacity:.35; }
+.ca-empty-title { font-size:15px; font-weight:700; color:#334155; }
+.ca-empty-sub { font-size:13px; color:#94a3b8; }
+
+/* ── FullCalendar overrides ──────────────────────────────── */
+.fc { font-family:inherit !important; }
+.fc .fc-toolbar { margin-bottom:14px !important; flex-wrap:wrap; gap:8px; }
+.fc .fc-toolbar-title {
+  font-size:16px !important; font-weight:800 !important;
+  color:#0f172a !important; letter-spacing:-.01em;
+}
+.fc .fc-button {
+  background:#f8fafc !important; border:1px solid #dbe1ea !important;
+  color:#334155 !important; font-weight:700 !important;
+  font-size:12px !important; padding:6px 12px !important;
+  border-radius:8px !important; box-shadow:none !important;
+  font-family:inherit !important; transition:background .15s !important;
+}
+.fc .fc-button:hover { background:#f1f5f9 !important; }
+.fc .fc-button-active,
+.fc .fc-button-primary:not(:disabled).fc-button-active {
+  background:#2563eb !important; border-color:#2563eb !important; color:#fff !important;
+}
+.fc .fc-button-primary:not(:disabled):active {
+  background:#1d4ed8 !important; border-color:#1d4ed8 !important;
+}
+.fc .fc-button-group { gap:4px; display:flex; }
+.fc .fc-col-header-cell { background:#f8fafc; }
+.fc .fc-col-header-cell-cushion {
+  font-size:11px !important; font-weight:700 !important;
+  text-transform:uppercase; letter-spacing:.05em;
+  color:#64748b !important; text-decoration:none !important; padding:8px 4px !important;
+}
+.fc .fc-daygrid-day-number {
+  font-size:12px !important; color:#64748b !important;
+  text-decoration:none !important; padding:4px 6px !important;
+}
+.fc .fc-daygrid-day.fc-day-today { background:#eff6ff !important; }
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color:#2563eb !important; font-weight:800 !important; }
+.fc-theme-standard td, .fc-theme-standard th { border-color:#e5e7eb !important; }
+.fc-theme-standard .fc-scrollgrid { border-color:#e5e7eb !important; }
+.fc .fc-event {
+  border-radius:5px !important; border:none !important;
+  font-size:11px !important; font-weight:700 !important;
+  padding:1px 5px !important; cursor:pointer;
+}
+.fc .fc-list-event:hover td { background:#f8fafc !important; }
+.fc .fc-list-day-cushion { background:#f8fafc !important; font-size:12px !important; font-weight:700 !important; }
+.fc .fc-list-event-title a { color:#1d4ed8 !important; text-decoration:none !important; }
+.fc .fc-list-event-title a:hover { text-decoration:underline !important; }
+
+/* ── Gantt overrides ─────────────────────────────────────── */
+.gantt-container { overflow-x:auto; background:transparent !important; border:none !important; }
+.gantt .grid-background { fill:transparent !important; }
+.gantt .grid-header { fill:#f8fafc !important; }
+.gantt .grid-row { fill:#fff !important; }
+.gantt .grid-row:nth-child(even) { fill:#fafbfc !important; }
+.gantt .row-line { stroke:#e5e7eb !important; }
+.gantt .tick { stroke:#e5e7eb !important; }
+.gantt .today-highlight { fill:#eff6ff !important; opacity:1 !important; }
+.gantt .lower-text, .gantt .upper-text {
+  fill:#64748b !important; font-family:inherit !important;
+  font-size:11px !important; font-weight:700 !important;
+}
+.gantt .bar-label {
+  fill:#fff !important; font-family:inherit !important;
+  font-size:11px !important; font-weight:700 !important;
+}
+.gantt .bar { rx:5 !important; }
+.gantt .bar-wrapper:hover .bar { opacity:.85 !important; }
+.gantt .bar-wrapper.bar-lavoro .bar { fill:#2563eb !important; }
+.gantt .bar-wrapper.bar-maint   .bar { fill:#f59e0b !important; }
+.gantt .bar-wrapper.bar-scad    .bar { fill:#10b981 !important; }
+
+/* ── Dark mode ───────────────────────────────────────────── */
+body.theme-dark .ca-topbar { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ca-toggle { background:rgba(255,255,255,.08); }
+body.theme-dark .ca-toggle-btn.active { background:var(--surface); color:#93c5fd; }
+body.theme-dark .ca-toggle-btn { color:var(--text-light); }
+body.theme-dark .ca-legend-item { color:var(--text-light); }
+body.theme-dark .ca-filter-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ca-chip { background:rgba(255,255,255,.07); color:var(--text-light); border-color:transparent; }
+body.theme-dark .ca-chip:hover:not(.active) { background:rgba(255,255,255,.1); color:var(--text); }
+body.theme-dark .ca-chip.active { background:rgba(37,99,235,.18); border-color:rgba(37,99,235,.4); color:#93c5fd; }
+body.theme-dark .ca-machine-toggle-btn { background:rgba(255,255,255,.05); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .ca-machine-toggle-btn:hover { background:rgba(255,255,255,.08); color:var(--text); }
+body.theme-dark .ca-asset-list { border-top-color:var(--border); }
+body.theme-dark .ca-asset-item { background:rgba(255,255,255,.04); border-color:var(--border); }
+body.theme-dark .ca-asset-item:hover { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.15); }
+body.theme-dark .ca-asset-name { color:var(--text); }
+body.theme-dark .ca-asset-rep { background:rgba(255,255,255,.1); color:var(--text-light); }
+body.theme-dark .ca-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ca-skeleton-row { background:rgba(255,255,255,.07); }
+body.theme-dark .ca-empty-title { color:var(--text); }
+body.theme-dark .fc .fc-toolbar-title { color:var(--text) !important; }
+body.theme-dark .fc .fc-button { background:var(--surface) !important; border-color:var(--border) !important; color:var(--text-mid) !important; }
+body.theme-dark .fc .fc-button:hover { background:rgba(255,255,255,.07) !important; }
+body.theme-dark .fc .fc-col-header-cell { background:rgba(255,255,255,.04) !important; }
+body.theme-dark .fc .fc-col-header-cell-cushion { color:var(--text-light) !important; }
+body.theme-dark .fc .fc-daygrid-day-number { color:var(--text-light) !important; }
+body.theme-dark .fc .fc-daygrid-day.fc-day-today { background:rgba(37,99,235,.12) !important; }
+body.theme-dark .fc-theme-standard td,
+body.theme-dark .fc-theme-standard th,
+body.theme-dark .fc-theme-standard .fc-scrollgrid { border-color:var(--border) !important; }
+body.theme-dark .fc .fc-list-day-cushion { background:rgba(255,255,255,.05) !important; }
+body.theme-dark .gantt .grid-header { fill:rgba(255,255,255,.04) !important; }
+body.theme-dark .gantt .grid-row { fill:var(--surface) !important; }
+body.theme-dark .gantt .grid-row:nth-child(even) { fill:rgba(255,255,255,.02) !important; }
+body.theme-dark .gantt .row-line,
+body.theme-dark .gantt .tick { stroke:var(--border) !important; }
+body.theme-dark .gantt .today-highlight { fill:rgba(37,99,235,.12) !important; }
+body.theme-dark .gantt .lower-text,
+body.theme-dark .gantt .upper-text { fill:var(--text-light) !important; }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Calendario Asset{% endblock %}
+{% block assets_shell_subtitle %}
+<p style="margin:3px 0 0; color:#64748b; font-size:13px;">Pianificazione lavori e manutenzioni su tutte le macchine</p>
+{% endblock %}
+
+{% block assets_shell_toolbar %}
+<a href="{% url 'assets:work_machine_list' %}" style="display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border:1px solid #dbe1ea; border-radius:9px; background:#fff; color:#334155; font-size:13px; font-weight:700; text-decoration:none;">
+  ← Lista macchine
+</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="ca-page">
+
+  <!-- Topbar: legenda + toggle vista -->
+  <div class="ca-topbar">
+    <div class="ca-legend">
+      <div class="ca-legend-item"><div class="ca-legend-dot" style="background:#2563eb;"></div>Lavoro in corso</div>
+      <div class="ca-legend-item"><div class="ca-legend-dot" style="background:#93c5fd;"></div>Lavoro pianificato</div>
+      <div class="ca-legend-item"><div class="ca-legend-dot" style="background:#f59e0b;"></div>Manutenzione</div>
+      <div class="ca-legend-item"><div class="ca-legend-dot" style="background:#10b981;"></div>Scadenza</div>
+    </div>
+    <div class="ca-toggle">
+      <button class="ca-toggle-btn active" id="btn-cal" onclick="switchView('calendar')">Calendario</button>
+      <button class="ca-toggle-btn" id="btn-gantt" onclick="switchView('gantt')">Gantt</button>
+    </div>
+  </div>
+
+  <!-- Filter panel -->
+  <div class="ca-filter-card">
+    <div class="ca-filter-row">
+      <span class="ca-filter-label">Reparto</span>
+      <div class="ca-chips" id="reparto-chips">
+        <button class="ca-chip active" data-reparto="__all__" onclick="onRepartoClick(this)">Tutti</button>
+        {% for r in reparti %}
+        <button class="ca-chip" data-reparto="{{ r }}" onclick="onRepartoClick(this)">{{ r }}</button>
+        {% endfor %}
+      </div>
+      {% if machines %}
+      <button class="ca-machine-toggle-btn" id="machine-toggle-btn" onclick="toggleMachineList()">
+        <span id="machine-count-label">Tutte le macchine</span>
+        <span class="ca-toggle-arrow" id="machine-toggle-arrow">▾</span>
+      </button>
+      {% endif %}
+    </div>
+    {% if machines %}
+    <div class="ca-asset-list" id="machine-list">
+      {% for m in machines %}
+      <label class="ca-asset-item" data-reparto="{{ m.reparto|default:'' }}">
+        <input type="checkbox" class="ca-asset-cb" data-asset-id="{{ m.pk }}" checked>
+        <span class="ca-asset-tag">{{ m.asset_tag }}</span>
+        <span class="ca-asset-name">{{ m.name|default:m.asset_tag }}</span>
+        {% if m.reparto %}<span class="ca-asset-rep">{{ m.reparto }}</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Calendar panel -->
+  <div id="panel-calendar" class="ca-panel active">
+    <div class="ca-card">
+      <div class="ca-card-body" id="cal-body">
+        <div class="ca-skeleton" id="cal-loading">
+          <div class="ca-skeleton-row" style="width:40%; height:20px;"></div>
+          <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:8px;">
+            {% for i in "1234567" %}<div class="ca-skeleton-row" style="height:11px;"></div>{% endfor %}
+            {% for i in "12345678910111213141516171819202122232425262728" %}<div class="ca-skeleton-row" style="height:48px; border-radius:8px;"></div>{% endfor %}
+          </div>
+        </div>
+        <div id="cal-content" style="display:none;">
+          <div id="fullcalendar-global"></div>
+          <div class="ca-empty" id="cal-empty" style="display:none;">
+            <div class="ca-empty-icon">📅</div>
+            <div class="ca-empty-title">Nessun evento da visualizzare</div>
+            <div class="ca-empty-sub">Prova a modificare il filtro oppure crea attività di tipo "Lavoro macchina".</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gantt panel -->
+  <div id="panel-gantt" class="ca-panel">
+    <div class="ca-card">
+      <div class="ca-card-body" style="padding:16px 20px;">
+        <div id="gantt-container">
+          <div class="ca-skeleton" id="gantt-loading">
+            {% for i in "123456789" %}
+            <div style="display:grid; grid-template-columns:200px 1fr; gap:12px; align-items:center;">
+              <div class="ca-skeleton-row" style="height:22px; border-radius:6px;"></div>
+              <div class="ca-skeleton-row" style="height:22px; border-radius:6px; width:{% cycle '55' '30' '70' '45' '80' '25' '60' '35' '65' %}%;"></div>
+            </div>
+            {% endfor %}
+          </div>
+          <div id="gantt-content" style="display:none;"></div>
+          <div class="ca-empty" id="gantt-empty" style="display:none;">
+            <div class="ca-empty-icon">📊</div>
+            <div class="ca-empty-title">Nessun evento da visualizzare</div>
+            <div class="ca-empty-sub">Prova a modificare il filtro oppure crea attività di tipo "Lavoro macchina".</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.umd.js"></script>
+<script>
+(function () {
+  var jsonUrl = "{% url 'assets:calendario_asset_json' %}";
+  var fcCalendar = null;
+  var ganttRendered = false;
+  var allData = null;
+  var selectedAssets = null; // null = all selected
+
+  /* ── Filter helpers ────────────────────────────── */
+
+  function filteredEvents() {
+    if (!allData) return [];
+    var events = allData.events || [];
+    if (selectedAssets === null) return events;
+    return events.filter(function(ev) {
+      return selectedAssets.has(String(ev.resourceId));
+    });
+  }
+
+  function updateCountLabel() {
+    var label = document.getElementById("machine-count-label");
+    if (!label) return;
+    if (selectedAssets === null) {
+      label.textContent = "Tutte le macchine";
+    } else {
+      var total = document.querySelectorAll(".ca-asset-cb").length;
+      label.textContent = selectedAssets.size + "/" + total + " macchine";
+    }
+  }
+
+  function syncRepartoChips() {
+    var allChip = document.querySelector('[data-reparto="__all__"]');
+    var repChips = document.querySelectorAll('#reparto-chips .ca-chip:not([data-reparto="__all__"])');
+    if (!repChips.length) return;
+    var checkedByRep = {}, totalByRep = {};
+    document.querySelectorAll(".ca-asset-cb").forEach(function(cb) {
+      var rep = cb.closest(".ca-asset-item").dataset.reparto;
+      totalByRep[rep] = (totalByRep[rep] || 0) + 1;
+      if (cb.checked) checkedByRep[rep] = (checkedByRep[rep] || 0) + 1;
+    });
+    var allActive = true;
+    repChips.forEach(function(chip) {
+      var rep = chip.dataset.reparto;
+      var active = (totalByRep[rep] || 0) > 0 && (checkedByRep[rep] || 0) === (totalByRep[rep] || 0);
+      chip.classList.toggle("active", active);
+      if (!active) allActive = false;
+    });
+    allChip.classList.toggle("active", allActive);
+  }
+
+  /* ── Reparto chip click ────────────────────────── */
+  function onRepartoClick(btn) {
+    var rep = btn.dataset.reparto;
+    var allChip = document.querySelector('[data-reparto="__all__"]');
+    var repChips = document.querySelectorAll('#reparto-chips .ca-chip:not([data-reparto="__all__"])');
+    var allCbs = document.querySelectorAll(".ca-asset-cb");
+
+    if (rep === "__all__") {
+      allChip.classList.add("active");
+      repChips.forEach(function(c) { c.classList.remove("active"); });
+      allCbs.forEach(function(cb) {
+        cb.checked = true;
+        cb.closest(".ca-asset-item").classList.remove("filtered-out");
+      });
+      selectedAssets = null;
+    } else {
+      allChip.classList.remove("active");
+      btn.classList.toggle("active");
+      var activeReps = Array.from(document.querySelectorAll('#reparto-chips .ca-chip:not([data-reparto="__all__"]).active'));
+      if (activeReps.length === 0 || activeReps.length === repChips.length) {
+        allChip.classList.add("active");
+        repChips.forEach(function(c) { c.classList.remove("active"); });
+        allCbs.forEach(function(cb) {
+          cb.checked = true;
+          cb.closest(".ca-asset-item").classList.remove("filtered-out");
+        });
+        selectedAssets = null;
+      } else {
+        var activeRepSet = new Set(activeReps.map(function(c) { return c.dataset.reparto; }));
+        var newSelected = new Set();
+        allCbs.forEach(function(cb) {
+          var itemRep = cb.closest(".ca-asset-item").dataset.reparto;
+          var inRep = activeRepSet.has(itemRep);
+          cb.checked = inRep;
+          cb.closest(".ca-asset-item").classList.toggle("filtered-out", !inRep);
+          if (inRep) newSelected.add(String(cb.dataset.assetId));
+        });
+        selectedAssets = (newSelected.size === allCbs.length) ? null : newSelected;
+      }
+    }
+    updateCountLabel();
+    applyFilter();
+  }
+  window.onRepartoClick = onRepartoClick;
+
+  /* ── Machine list toggle ───────────────────────── */
+  function toggleMachineList() {
+    var list = document.getElementById("machine-list");
+    var arrow = document.getElementById("machine-toggle-arrow");
+    var open = list.classList.toggle("open");
+    arrow.classList.toggle("open", open);
+  }
+  window.toggleMachineList = toggleMachineList;
+
+  /* ── Individual asset checkbox change ─────────── */
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".ca-asset-cb").forEach(function(cb) {
+      cb.addEventListener("change", function() {
+        var allCbs = document.querySelectorAll(".ca-asset-cb");
+        var checked = Array.from(document.querySelectorAll(".ca-asset-cb:checked"));
+        if (checked.length === allCbs.length) {
+          selectedAssets = null;
+        } else {
+          selectedAssets = new Set(checked.map(function(c) { return String(c.dataset.assetId); }));
+        }
+        syncRepartoChips();
+        updateCountLabel();
+        applyFilter();
+      });
+    });
+  });
+
+  /* ── View switching ────────────────────────────── */
+  function switchView(view) {
+    document.getElementById("panel-calendar").classList.toggle("active", view === "calendar");
+    document.getElementById("panel-gantt").classList.toggle("active", view === "gantt");
+    document.getElementById("btn-cal").classList.toggle("active", view === "calendar");
+    document.getElementById("btn-gantt").classList.toggle("active", view === "gantt");
+    if (view === "gantt" && allData && !ganttRendered) renderGantt(filteredEvents());
+    if (view === "calendar" && fcCalendar) fcCalendar.render();
+  }
+  window.switchView = switchView;
+
+  /* ── Calendar ──────────────────────────────────── */
+  function showCalendar(events) {
+    var content = document.getElementById("cal-content");
+    var emptyEl = document.getElementById("cal-empty");
+    var calEl = document.getElementById("fullcalendar-global");
+    content.style.display = "";
+    if (fcCalendar) { fcCalendar.destroy(); fcCalendar = null; }
+    if (!events.length) {
+      emptyEl.style.display = "";
+      calEl.style.display = "none";
+      return;
+    }
+    emptyEl.style.display = "none";
+    calEl.style.display = "";
+    fcCalendar = new FullCalendar.Calendar(calEl, {
+      initialView: "dayGridMonth",
+      locale: "it",
+      firstDay: 1,
+      height: "auto",
+      headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listMonth" },
+      buttonText: { today: "Oggi", month: "Mese", list: "Lista" },
+      dayMaxEvents: 3,
+      events: events.map(function(ev) {
+        return {
+          id: ev.id, title: ev.title, start: ev.start, end: ev.end,
+          backgroundColor: ev.color, borderColor: ev.color, textColor: "#fff",
+          extendedProps: { kind: ev.kind, assignee: ev.assignee, project: ev.project, url: ev.url }
+        };
+      }),
+      eventClick: function(info) {
+        var url = info.event.extendedProps.url;
+        if (url) window.open(url, "_blank");
+      },
+      eventDidMount: function(info) {
+        var p = info.event.extendedProps;
+        var parts = [p.kind, p.assignee, p.project].filter(Boolean);
+        if (parts.length) info.el.title = parts.join(" | ");
+      }
+    });
+    fcCalendar.render();
+  }
+
+  function initCalendar(events) {
+    var loading = document.getElementById("cal-loading");
+    if (loading) loading.style.display = "none";
+    showCalendar(events);
+  }
+
+  /* ── Gantt ─────────────────────────────────────── */
+  function renderGantt(events) {
+    var loading = document.getElementById("gantt-loading");
+    var content = document.getElementById("gantt-content");
+    var emptyEl = document.getElementById("gantt-empty");
+    if (loading) loading.style.display = "none";
+    content.innerHTML = "";
+
+    var validEvents = events.filter(function(ev) { return ev.start; });
+    if (!validEvents.length) {
+      emptyEl.style.display = "";
+      content.style.display = "none";
+      ganttRendered = true;
+      return;
+    }
+    emptyEl.style.display = "none";
+    content.style.display = "";
+
+    var resourceMap = {};
+    (allData.resources || []).forEach(function(r) { resourceMap[r.id] = r.title; });
+
+    var tasks = validEvents.map(function(ev) {
+      var machine = resourceMap[ev.resourceId] || "";
+      var machinePart = machine.split("–").pop().trim();
+      return {
+        id: ev.id,
+        name: machinePart ? machinePart + "  ·  " + ev.title : ev.title,
+        start: ev.start,
+        end: ev.end || ev.start,
+        progress: 0,
+        custom_class: ev.kind === "lavoro" ? "bar-lavoro" : ev.kind === "manutenzione" ? "bar-maint" : "bar-scad",
+      };
+    });
+
+    try {
+      new Gantt(content, tasks, {
+        view_mode: "Week", language: "it",
+        bar_height: 26, bar_corner_radius: 5, arrow_curve: 5, padding: 16,
+        on_click: function() {},
+        popup_trigger: "mouseover",
+      });
+    } catch(e) {
+      content.innerHTML = "";
+      emptyEl.style.display = "";
+    }
+    ganttRendered = true;
+  }
+
+  /* ── Apply filter ──────────────────────────────── */
+  function applyFilter() {
+    if (!allData) return;
+    var events = filteredEvents();
+    showCalendar(events);
+    ganttRendered = false;
+    if (document.getElementById("panel-gantt").classList.contains("active")) {
+      renderGantt(events);
+    }
+  }
+
+  /* ── Load data ─────────────────────────────────── */
+  fetch(jsonUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      allData = data;
+      initCalendar(filteredEvents());
+    })
+    .catch(function() {
+      var loading = document.getElementById("cal-loading");
+      if (loading) loading.style.display = "none";
+      var content = document.getElementById("cal-content");
+      content.style.display = "";
+      var emptyEl = document.getElementById("cal-empty");
+      emptyEl.style.display = "";
+      emptyEl.querySelector(".ca-empty-title").textContent = "Errore nel caricamento dei dati";
+    });
+
+})();
+</script>
+{% endblock %}

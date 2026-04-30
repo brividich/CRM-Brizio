@@ -10,8 +10,9 @@ from django.db.models import Q
 from core.legacy_models import UtenteLegacy
 
 from .models import (
-    Project, ProjectComment, SubTask, Task, TaskAttachment, TaskCategory,
-    TaskComment, TaskPriority, TaskRoleAssignment, TaskRoleType, TaskStatus,
+    KickoffMeeting, Project, ProjectComment, SubTask, Task, TaskAttachment,
+    TaskCategory, TaskComment, TaskPriority, TaskRoleAssignment, TaskRoleType,
+    TaskStatus,
 )
 
 
@@ -899,3 +900,112 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
         if due_date and next_step_due and due_date < next_step_due:
             self.add_error("due_date", "La data fine deve essere uguale o successiva alla data inizio.")
         return cleaned_data
+
+
+class KickoffMeetingForm(forms.ModelForm):
+    # Campo hidden gestito da JS: lista JSON dei punti all'ordine del giorno
+    agenda_items_raw = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_agenda_items_raw"}),
+    )
+
+    class Meta:
+        model = KickoffMeeting
+        fields = [
+            "titolo", "data", "ora", "luogo",
+            "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
+            "ordine_del_giorno", "note", "problemi_aperti", "next_steps",
+            "sync_outlook", "outlook_organizer_email",
+        ]
+        widgets = {
+            "titolo": forms.TextInput(attrs={"class": "input", "placeholder": "Titolo opzionale"}),
+            "data": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
+            "ora": forms.TimeInput(attrs={"class": "input", "type": "time"}, format="%H:%M"),
+            "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. Sala riunioni / Teams"}),
+            "partecipanti_utenti": forms.CheckboxSelectMultiple(),
+            "partecipanti_email_extra": forms.Textarea(
+                attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
+            ),
+            "partecipanti_testo": forms.Textarea(
+                attrs={"class": "input", "rows": 2, "placeholder": "Note aggiuntive sui partecipanti (facoltativo)"}
+            ),
+            "ordine_del_giorno": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Note testuali aggiuntive (facoltativo — usa i punti strutturati sopra)"}),
+            "note": forms.Textarea(attrs={"class": "input", "rows": 6, "placeholder": "Verbale / Note incontro"}),
+            "problemi_aperti": forms.Textarea(attrs={"class": "input", "rows": 4, "placeholder": "Problemi emersi, con responsabile e scadenza"}),
+            "next_steps": forms.Textarea(attrs={"class": "input", "rows": 4, "placeholder": "Chi fa cosa entro quando"}),
+            "sync_outlook": forms.CheckboxInput(attrs={"class": "mf-toggle"}),
+            "outlook_organizer_email": forms.EmailInput(
+                attrs={"class": "input", "placeholder": "organizzatore@azienda.it (lascia vuoto = tuo account)"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        import json
+        super().__init__(*args, **kwargs)
+        self.fields["partecipanti_utenti"].queryset = task_active_users_queryset()
+        self.fields["partecipanti_utenti"].required = False
+        self.fields["partecipanti_email_extra"].required = False
+        self.fields["partecipanti_testo"].required = False
+        self.fields["outlook_organizer_email"].required = False
+        # Pre-popola il campo hidden con i punti agenda dell'istanza (per edit)
+        if self.instance.pk:
+            self.initial["agenda_items_raw"] = json.dumps(self.instance.agenda_items or [])
+
+    def clean_agenda_items_raw(self):
+        import json
+        raw = self.cleaned_data.get("agenda_items_raw") or "[]"
+        try:
+            items = json.loads(raw)
+            if not isinstance(items, list):
+                return []
+            result = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                titolo = str(item.get("titolo", "")).strip()[:200]
+                if not titolo:
+                    continue
+                task_id = item.get("task_id")
+                custom_fields = []
+                raw_custom_fields = item.get("custom_fields") or []
+                if isinstance(raw_custom_fields, list):
+                    for custom_field in raw_custom_fields[:12]:
+                        if not isinstance(custom_field, dict):
+                            continue
+                        label = str(custom_field.get("label", "")).strip()[:80]
+                        value = str(custom_field.get("value", "")).strip()[:500]
+                        if label and value:
+                            custom_fields.append({"label": label, "value": value})
+                result.append({
+                    "id": str(item.get("id", "")),
+                    "titolo": titolo,
+                    "nota": str(item.get("nota", "")).strip()[:1000],
+                    "task_id": int(task_id) if task_id else None,
+                    "task_label": str(item.get("task_label", "")).strip()[:200],
+                    "issue_id": int(item.get("issue_id")) if item.get("issue_id") else None,
+                    "source": str(item.get("source", "")).strip()[:40],
+                    "locked": bool(item.get("locked", False)),
+                    "custom_fields": custom_fields,
+                    "done": bool(item.get("done", False)),
+                })
+            return result
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return []
+
+    def clean_partecipanti_email_extra(self) -> str:
+        raw = self.cleaned_data.get("partecipanti_email_extra", "")
+        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        invalid = [l for l in lines if "@" not in l]
+        if invalid:
+            raise forms.ValidationError(
+                f"Indirizzi non validi (manca @): {', '.join(invalid)}"
+            )
+        return "\n".join(lines)
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.agenda_items = self.cleaned_data.get("agenda_items_raw") or []
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

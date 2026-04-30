@@ -3,7 +3,7 @@
 {% block extra_head %}
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
-.as-shell { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; background: #f4f7fc; border-top: 1px solid #dbe3f0; }
+.as-shell { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; background: transparent; border-top: 1px solid #dbe3f0; }
 .as-side { align-self: stretch; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 10px; }
 .as-brand { display: flex; align-items: center; gap: 10px; }
 .as-logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
@@ -96,7 +96,7 @@
   .as-main { padding: 10px; }
 }
 /* ── Dark mode ─────────────────────────────────────────── */
-body.theme-dark .as-shell { background: var(--bg); border-color: var(--border); }
+body.theme-dark .as-shell { background: transparent; border-color: var(--border); }
 body.theme-dark .as-side { background: var(--surface); border-color: var(--border); }
 body.theme-dark .as-name { color: var(--text); }
 body.theme-dark .as-name span { color: #60a5fa; }

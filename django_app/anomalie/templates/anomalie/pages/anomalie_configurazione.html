@@ -14,7 +14,11 @@
       font-family: "Outfit", sans-serif;
       font-size: var(--fs-base);
       line-height: var(--lh-base);
-      background: radial-gradient(ellipse at 50% 22%, #cad3dc 0%, #aebac5 100%);
+      background: var(--bg);
+      background:
+        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
+        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
+        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
       color: #1f2937;
     }
     .topbar {
@@ -221,7 +225,7 @@
     .log-head { font-size: var(--fs-xs); text-transform: uppercase; color: #8fa5c0; font-weight: 700; background: #f0f5ff; border-radius: 6px; }
   </style>
 </head>
-<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
   <div class="topbar">
     <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
     <div class="topbar-sep"></div>

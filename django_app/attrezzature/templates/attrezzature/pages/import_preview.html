@@ -1,0 +1,17 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Preview import{% endblock %}
+{% block page_actions %}
+<a class="btn secondary" href="{% url 'attrezzature:import' %}">Carica un altro file</a>
+<form method="post" action="{% url 'attrezzature:import_confirm' %}">{% csrf_token %}<button class="btn" type="submit">Conferma import</button></form>
+{% endblock %}
+{% block attrezzature_content %}
+<section class="at-kpis">
+  <div class="at-kpi"><b>{{ preview.summary.created }}</b><span>Create</span></div>
+  <div class="at-kpi"><b>{{ preview.summary.updated }}</b><span>Aggiornate</span></div>
+  <div class="at-kpi"><b>{{ preview.summary.unchanged }}</b><span>Invariate</span></div>
+  <div class="at-kpi"><b>{{ preview.summary.skipped }}</b><span>Saltate</span></div>
+  <div class="at-kpi"><b>{{ preview.summary.warning_count }}</b><span>Warning</span></div>
+  <div class="at-kpi"><b>{{ preview.summary.error_count }}</b><span>Errori</span></div>
+</section>
+<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Riga</th><th>Azione</th><th>Codice</th><th>P/N</th><th>Stato</th><th>Warning/Errori</th></tr></thead><tbody>{% for row in preview.row_previews %}<tr><td>{{ row.excel_row_number }}</td><td><span class="badge">{{ row.proposed_action }}</span></td><td>{{ row.normalized.codice|default:"-" }}</td><td>{{ row.normalized.part_number|default:"-" }}</td><td>{{ row.normalized.stato|default:"-" }}</td><td>{% for w in row.warnings %}<div class="badge warn">{{ w }}</div>{% endfor %}{% for e in row.errors %}<div class="badge danger">{{ e }}</div>{% endfor %}</td></tr>{% empty %}<tr><td colspan="6"><div class="at-empty">Nessuna riga in preview.</div></td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

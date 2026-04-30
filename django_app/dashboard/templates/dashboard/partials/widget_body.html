@@ -1,0 +1,367 @@
+{% comment %}
+Fragment HTMX: innerHTML del body di un singolo widget dashboard.
+Restituito da htmx_views.widget_partial. Contesto: w (widget def dict), widget_data {widget_id: data}.
+{% endcomment %}
+{% if w.id == "profilo" %}
+  {% with d=widget_data.profilo %}
+  <div class="eb-profilo-grid">
+    <div class="eb-avatar" id="eb-avatar-init">{{ d.nome|slice:":1"|upper }}{% if not d.nome %}?{% endif %}</div>
+    <div>
+      <div class="eb-profilo-name">{{ d.nome|default:"—" }}</div>
+      <div class="eb-profilo-role">{{ d.ruolo|default:"—" }}</div>
+      <div class="eb-profilo-details">
+        {% if d.mansione %}<span class="eb-badge">&#128188; {{ d.mansione }}</span>{% endif %}
+        {% if d.reparto %}<span class="eb-badge green">&#127970; {{ d.reparto }}</span>{% endif %}
+        {% if d.macchina %}<span class="eb-badge purple">&#9881; {{ d.macchina }}</span>{% endif %}
+        {% if d.telefono %}<span class="eb-badge gray">&#128222; {{ d.telefono }}</span>{% endif %}
+        {% if d.cellulare %}<span class="eb-badge gray">&#128241; {{ d.cellulare }}</span>{% endif %}
+        {% if d.email_notifica %}<span class="eb-badge gray">&#9993; {{ d.email_notifica }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+
+{% elif w.id == "panoramica_moduli" %}
+  {% with d=widget_data.panoramica_moduli %}
+  <div class="eb-kpi-grid">
+    {% for card in d.cards %}
+      <a class="eb-kpi-card {{ card.tone }}" href="{{ card.url }}">
+        {% if card.icon_url %}
+          <span class="eb-kpi-icon" aria-hidden="true"><img src="{{ card.icon_url }}" alt="" loading="lazy"></span>
+        {% endif %}
+        <span class="eb-kpi-value">{{ card.value }}</span>
+        <span class="eb-kpi-label">{{ card.label }}</span>
+        <span class="eb-kpi-meta">{{ card.meta }}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% endwith %}
+
+{% elif w.id == "tasks_stats" %}
+  {% with d=widget_data.tasks_stats %}
+  <div class="eb-stats-row">
+    <div class="eb-stat-box">
+      <div class="eb-stat-val blue">{{ d.stats.todo|default:0 }}</div>
+      <div class="eb-stat-label">Da fare</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val yellow">{{ d.stats.in_progress|default:0 }}</div>
+      <div class="eb-stat-label">In corso</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val green">{{ d.stats.done|default:0 }}</div>
+      <div class="eb-stat-label">Completati</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+      <div class="eb-stat-label">Scaduti</div>
+    </div>
+  </div>
+  {% endwith %}
+
+{% elif w.id == "tasks_assegnati" %}
+  {% with d=widget_data.tasks_assegnati %}
+  {% if d.items %}
+  <ul class="eb-list">
+    {% for t in d.items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if t.is_overdue %}red{% elif t.status == 'IN_PROGRESS' %}yellow{% else %}blue{% endif %}"></span>
+      <div style="flex:1;min-width:0;">
+        <div class="eb-list-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ t.title }}">
+          <a href="{% url 'tasks:detail' t.id %}" style="color:inherit;text-decoration:none;">{{ t.title }}</a>
+        </div>
+        <div class="eb-list-sub">
+          {% if t.project %}{{ t.project }} &mdash; {% endif %}
+          {% if t.due_date %}Scadenza: {{ t.due_date }}{% endif %}
+          {% if t.next_step %}<br>{{ t.next_step|truncatechars:60 }}{% endif %}
+        </div>
+      </div>
+      <div class="eb-list-meta">
+        {% if t.is_overdue %}
+          <span class="eb-tag overdue">Scaduto</span>
+        {% else %}
+          <span class="eb-tag {{ t.status|lower|cut:'_' }}">{{ t.status_label }}</span>
+        {% endif %}
+        <br>
+        <span class="eb-tag {{ t.priority|lower }}">{{ t.priority_label }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="eb-empty">Nessun task aperto assegnato</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "assenze_future" %}
+  {% with items=widget_data.assenze_future %}
+  {% if items %}
+  <ul class="eb-list">
+    {% for a in items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if a.stato == 'Approvato' %}green{% elif a.stato == 'Rifiutato' %}gray{% else %}yellow{% endif %}"></span>
+      <div style="flex:1;">
+        <div class="eb-list-main">{{ a.tipo }}</div>
+        <div class="eb-list-sub">{{ a.inizio }} &rarr; {{ a.fine }}{% if a.motivazione %} &mdash; {{ a.motivazione|truncatechars:40 }}{% endif %}</div>
+      </div>
+      <div class="eb-list-meta">
+        <span class="eb-tag {% if a.stato == 'Approvato' %}approvato{% elif a.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ a.stato }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="eb-empty">Nessuna assenza programmata</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "tickets_miei" %}
+  {% with d=widget_data.tickets_miei %}
+  <div class="eb-stats-row">
+    <div class="eb-stat-box">
+      <div class="eb-stat-val blue">{{ d.stats.open|default:0 }}</div>
+      <div class="eb-stat-label">Aperti</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val yellow">{{ d.stats.in_charge|default:0 }}</div>
+      <div class="eb-stat-label">In carico</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val">{{ d.stats.waiting|default:0 }}</div>
+      <div class="eb-stat-label">In attesa</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val red">{{ d.stats.urgent|default:0 }}</div>
+      <div class="eb-stat-label">Urgenti</div>
+    </div>
+  </div>
+  {% if d.items %}
+  <ul class="eb-list" style="margin-top:10px;">
+    {% for t in d.items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if t.priorita == 'URGENTE' %}red{% elif t.stato == 'IN_CARICO' %}yellow{% else %}blue{% endif %}"></span>
+      <div style="flex:1;min-width:0;">
+        <div class="eb-list-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ t.titolo }}">
+          <a href="{% url 'tickets:detail' t.id %}" style="color:inherit;text-decoration:none;">{{ t.numero_ticket }} · {{ t.titolo }}</a>
+        </div>
+        <div class="eb-list-sub">
+          {{ t.tipo }} · Aggiornato {{ t.updated_at }}{% if t.asset %}<br>{{ t.asset|truncatechars:60 }}{% endif %}
+        </div>
+      </div>
+      <div class="eb-list-meta">
+        <span class="eb-tag {% if t.stato == 'APERTA' %}info{% elif t.stato == 'IN_CARICO' %}warning{% elif t.stato == 'IN_ATTESA' %}purple{% else %}approvato{% endif %}">{{ t.stato_label }}</span>
+        <br>
+        <span class="eb-tag {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' %}danger{% elif t.priorita == 'MEDIA' %}warning{% else %}approvato{% endif %}">{{ t.priorita_label }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div style="margin-top:8px;text-align:right;">
+    <a href="{% url 'tickets:dashboard' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Apri modulo ticket &rarr;</a>
+  </div>
+  {% else %}
+  <div class="eb-empty" style="margin-top:10px;">Nessun ticket collegato al tuo profilo</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "assets_dotazione" %}
+  {% with d=widget_data.assets_dotazione %}
+  <div class="eb-stats-row">
+    <div class="eb-stat-box">
+      <div class="eb-stat-val blue">{{ d.stats.assigned|default:0 }}</div>
+      <div class="eb-stat-label">Assegnati</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val green">{{ d.stats.in_use|default:0 }}</div>
+      <div class="eb-stat-label">In uso</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val yellow">{{ d.stats.in_repair|default:0 }}</div>
+      <div class="eb-stat-label">In riparazione</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val red">{{ d.stats.deadlines|default:0 }}</div>
+      <div class="eb-stat-label">Scadenze</div>
+    </div>
+  </div>
+  {% if d.items %}
+  <ul class="eb-list" style="margin-top:10px;">
+    {% for a in d.items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if a.deadline_state == 'overdue' %}red{% elif a.deadline_state == 'warning' %}yellow{% else %}blue{% endif %}"></span>
+      <div style="flex:1;min-width:0;">
+        <div class="eb-list-main">
+          <a href="{% url 'assets:asset_view' a.id %}" style="color:inherit;text-decoration:none;">{{ a.asset_tag }} · {{ a.name }}</a>
+        </div>
+        <div class="eb-list-sub">
+          {{ a.status_label }}{% if a.location %} · {{ a.location }}{% endif %}
+          {% if a.deadline_title %}<br>{{ a.deadline_title }}{% if a.deadline_due_date %} · scade il {{ a.deadline_due_date }}{% endif %}{% endif %}
+        </div>
+      </div>
+      <div class="eb-list-meta">
+        <span class="eb-tag info">{{ a.status_label }}</span>
+        {% if a.deadline_title %}
+          <br>
+          <span class="eb-tag {% if a.deadline_state == 'overdue' %}danger{% elif a.deadline_state == 'warning' %}warning{% else %}approvato{% endif %}">
+            {% if a.deadline_state == 'overdue' %}Scaduta{% elif a.deadline_state == 'warning' %}Vicino scadenza{% else %}OK{% endif %}
+          </span>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="eb-empty" style="margin-top:10px;">Nessun asset assegnato</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "procedure_da_leggere" %}
+  {% with d=widget_data.procedure_da_leggere %}
+  <div class="eb-stats-row compact-3">
+    <div class="eb-stat-box">
+      <div class="eb-stat-val yellow">{{ d.stats.pending|default:0 }}</div>
+      <div class="eb-stat-label">Pendenti</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+      <div class="eb-stat-label">Scadute</div>
+    </div>
+    <div class="eb-stat-box">
+      <div class="eb-stat-val green">{{ d.stats.confirmed|default:0 }}</div>
+      <div class="eb-stat-label">Confermate</div>
+    </div>
+  </div>
+  {% if d.items %}
+  <ul class="eb-list" style="margin-top:10px;">
+    {% for p in d.items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if p.status == 'OVERDUE' %}red{% elif p.status == 'OPENED' %}yellow{% else %}blue{% endif %}"></span>
+      <div style="flex:1;min-width:0;">
+        <div class="eb-list-main">
+          <a href="{% url 'procedure_refresh:assignment_detail' p.id %}" style="color:inherit;text-decoration:none;">{{ p.document_code }}{% if p.document_title %} · {{ p.document_title|truncatechars:45 }}{% endif %}</a>
+        </div>
+        <div class="eb-list-sub">
+          {{ p.campaign }}{% if p.due_date %} · Scadenza {{ p.due_date }}{% endif %}
+        </div>
+      </div>
+      <div class="eb-list-meta">
+        <span class="eb-tag {% if p.status == 'OVERDUE' %}danger{% elif p.status == 'OPENED' %}warning{% elif p.status == 'READ_CONFIRMED' %}approvato{% else %}info{% endif %}">{{ p.status_label }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div style="margin-top:8px;text-align:right;">
+    <a href="{% url 'procedure_refresh:my_assignments' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Apri campagne e prese visione &rarr;</a>
+  </div>
+  {% else %}
+  <div class="eb-empty" style="margin-top:10px;">Nessuna procedura in attesa</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "assenze_da_approvare" %}
+  {% with items=widget_data.assenze_da_approvare %}
+  {% if items %}
+  <ul class="eb-list">
+    {% for a in items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot yellow"></span>
+      <div style="flex:1;">
+        <div class="eb-list-main">{{ a.dipendente }}</div>
+        <div class="eb-list-sub">{{ a.tipo }} &mdash; {{ a.inizio_label }} &rarr; {{ a.fine_label }}{% if a.motivo %} &mdash; {{ a.motivo|truncatechars:40 }}{% endif %}</div>
+      </div>
+      <div class="eb-list-meta">
+        <a href="{% url 'assenze_car_dashboard' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Gestisci</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div style="margin-top:8px;text-align:right;">
+    <a href="{% url 'assenze_car_dashboard' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
+  </div>
+  {% else %}
+  <div class="eb-empty">Nessuna richiesta in attesa</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "progetti_capo" %}
+  {% with items=widget_data.progetti_capo %}
+  {% if items %}
+  <ul class="eb-list">
+    {% for p in items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot purple"></span>
+      <div style="flex:1;">
+        <div class="eb-list-main">
+          <a href="{% url 'tasks:project_gantt' p.id %}" style="color:inherit;text-decoration:none;">{{ p.name }}</a>
+        </div>
+        <div class="eb-list-sub">
+          {% if p.client %}Cliente: {{ p.client }}{% endif %}
+          {% if p.part_number %} &mdash; PN: {{ p.part_number }}{% endif %}
+          {% if p.manager %}<br>PM: {{ p.manager }}{% endif %}
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="eb-empty">Nessun progetto come capo commessa</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "anomalie_gestione" %}
+  {% with items=widget_data.anomalie_gestione %}
+  {% if items %}
+  <ul class="eb-list">
+    {% for a in items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if not a.chiusa %}red{% else %}green{% endif %}"></span>
+      <div style="flex:1;">
+        <div class="eb-list-main">{{ a.seriale|default:"—" }}</div>
+        <div class="eb-list-sub">
+          {% if a.operatore %}Op: {{ a.operatore }} &mdash; {% endif %}
+          Avanzamento: {{ a.avanzamento }}
+        </div>
+      </div>
+      <div class="eb-list-meta">
+        <span class="eb-tag {% if not a.chiusa %}attesa{% else %}approvato{% endif %}">{% if not a.chiusa %}Aperta{% else %}Chiusa{% endif %}</span>
+        <br>
+        <a href="{% url 'gestione_anomalie_page' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Dettaglio</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div style="margin-top:8px;text-align:right;">
+    <a href="{% url 'gestione_anomalie_page' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
+  </div>
+  {% else %}
+  <div class="eb-empty">Nessuna anomalia da gestire</div>
+  {% endif %}
+  {% endwith %}
+
+{% elif w.id == "notifiche" %}
+  {% with items=widget_data.notifiche %}
+  {% if items %}
+  <ul class="eb-list">
+    {% for n in items %}
+    <li class="eb-list-item">
+      <span class="eb-list-dot {% if not n.letta %}blue{% else %}gray{% endif %}"></span>
+      <div style="flex:1;">
+        <div class="eb-list-main" style="{% if not n.letta %}font-weight:700;{% endif %}">{{ n.messaggio|truncatechars:70 }}</div>
+        <div class="eb-list-sub">{{ n.tipo_label }} &mdash; {{ n.data }}</div>
+      </div>
+      {% if n.url %}
+      <div class="eb-list-meta">
+        <a href="{{ n.url }}" style="font-size:11px;color:#2563eb;text-decoration:none;">Apri</a>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="eb-empty">Nessuna notifica</div>
+  {% endif %}
+  {% endwith %}
+
+{% else %}
+  <div class="eb-empty">Widget non disponibile</div>
+{% endif %}

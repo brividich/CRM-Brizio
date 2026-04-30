@@ -108,6 +108,7 @@ from core.models import (
 
 from .decorators import legacy_admin_required
 from .forms import BulkRoleForm, PulsanteForm, UtenteCreateForm, UtenteUpdateForm
+from .security import sensitive_admin_operation_required
 
 
 PERM_OPTIONAL_FIELDS = ("can_edit", "can_delete", "can_approve")
@@ -9506,7 +9507,7 @@ def download_release_package(request):
     return FileResponse(open(f, "rb"), as_attachment=True, filename=f.name)
 
 
-@legacy_admin_required
+@sensitive_admin_operation_required("release_restart_service")
 @csrf_protect
 @require_POST
 def api_release_restart_service(request):
@@ -9718,7 +9719,7 @@ Write-Output "Riavvio schedulato per {site_name}. La pagina potrebbe perdere con
     )
 
 
-@legacy_admin_required
+@sensitive_admin_operation_required("release_terminal_command")
 @csrf_protect
 @require_POST
 def api_release_terminal_command(request):

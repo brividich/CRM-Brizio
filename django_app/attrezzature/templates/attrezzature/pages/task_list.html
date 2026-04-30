@@ -1,0 +1,80 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Task operativi{% endblock %}
+{% block page_actions %}<a class="btn" href="{% url 'attrezzature:task_create' %}">Nuova task</a>{% endblock %}
+{% block attrezzature_content %}
+{% include "attrezzature/components/counters.html" %}
+<section class="at-card">
+  <div class="at-card-h">
+    <strong>Filtri task</strong>
+    {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute %}
+    <span class="badge info">Filtri attivi</span>
+    {% endif %}
+  </div>
+  <div class="at-card-b">
+    <form method="get" class="at-filter">
+      <label>Tipo
+        <select class="input" name="tipo">
+          <option value="">Tutti</option>
+          {% for value,label in task_tipo_choices %}<option value="{{ value }}" {% if request.GET.tipo == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Stato
+        <select class="input" name="stato">
+          <option value="">Tutti</option>
+          {% for value,label in task_stato_choices %}<option value="{{ value }}" {% if request.GET.stato == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Priorita
+        <select class="input" name="priorita">
+          <option value="">Tutte</option>
+          {% for value,label in task_priorita_choices %}<option value="{{ value }}" {% if request.GET.priorita == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Origine
+        <select class="input" name="origine">
+          <option value="">Tutte</option>
+          {% for value,label in task_origine_choices %}<option value="{{ value }}" {% if request.GET.origine == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>P/N
+        <input class="input" name="part_number" value="{{ request.GET.part_number }}" placeholder="Part number">
+      </label>
+      <label class="at-field">
+        <span>Scadenza</span>
+        <span><input type="checkbox" name="scadute" value="1" {% if request.GET.scadute %}checked{% endif %}> Solo scadute</span>
+      </label>
+      <button class="btn" type="submit">Filtra</button>
+      {% if request.GET.tipo or request.GET.stato or request.GET.priorita or request.GET.origine or request.GET.part_number or request.GET.scadute %}
+      <a class="btn secondary" href="{% url 'attrezzature:task_list' %}">Reset</a>
+      {% endif %}
+    </form>
+  </div>
+</section>
+<div class="at-table-wrap">
+  <table class="at-table">
+    <thead><tr><th>Titolo</th><th>Tipo</th><th>Stato</th><th>Priorita</th><th>P/N</th><th>Scadenza</th><th>Origine</th></tr></thead>
+    <tbody>
+      {% for task in page.object_list %}
+      <tr>
+        <td><a href="{% url 'attrezzature:task_detail' task.pk %}">{{ task.titolo }}</a></td>
+        <td>{{ task.get_tipo_display }}</td>
+        <td><span class="badge{% if task.is_completed %} ok{% elif task.is_overdue %} danger{% endif %}">{{ task.get_stato_display }}</span></td>
+        <td>{{ task.get_priorita_display }}</td>
+        <td>{{ task.part_number|default:"-" }}</td>
+        <td>{{ task.scadenza|date:"d/m/Y"|default:"-" }}</td>
+        <td>{{ task.get_origine_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7"><div class="at-empty">Nessuna task.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page.has_other_pages %}
+  <div class="at-pagination">
+    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Prec</a>{% endif %}
+    <span class="current">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Succ</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

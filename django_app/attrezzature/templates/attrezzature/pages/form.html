@@ -1,0 +1,17 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}{% if mode == "edit" %}Modifica attrezzatura{% else %}Nuova attrezzatura{% endif %}{% endblock %}
+{% block page_actions %}
+<a class="btn secondary" href="{% if attrezzatura %}{% url 'attrezzature:detail' attrezzatura.pk %}{% else %}{% url 'attrezzature:list' %}{% endif %}">Annulla</a>
+{% endblock %}
+{% block attrezzature_content %}
+<section class="at-card">
+  <div class="at-card-h"><strong>Dati attrezzatura</strong></div>
+  <div class="at-card-b">
+    <form method="post" class="at-form">
+      {% csrf_token %}
+      <div class="at-form-grid">{{ form.as_p }}</div>
+      <div class="at-actions"><button class="btn" type="submit">Salva</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

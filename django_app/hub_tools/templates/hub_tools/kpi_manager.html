@@ -1,0 +1,315 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — KPI Cards{% endblock %}
+
+{% block content %}
+<style>
+.km-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+.km-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.km-title { font-size: 1.35rem; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+.km-subtitle { font-size: .83rem; color: #64748b; margin-top: 3px; }
+.km-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.km-btn { padding: 7px 16px; border-radius: 8px; font-size: .83rem; font-weight: 700; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: background .15s; }
+.km-btn-primary { background: #1a6fc4; color: #fff; }
+.km-btn-primary:hover { background: #1560ae; }
+.km-btn-outline { background: #fff; color: #1a6fc4; border: 1.5px solid #1a6fc4; }
+.km-btn-outline:hover { background: #eff6ff; }
+.km-btn-muted { background: #fff; color: #64748b; border: 1.5px solid #d1d9e6; }
+.km-btn-muted:hover { border-color: #94a3b8; }
+
+.km-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+
+.km-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  transition: box-shadow .15s;
+}
+.km-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.km-card-disabled { opacity: .55; }
+
+.km-card-head {
+  padding: 14px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.km-kpi-icon {
+  width: 42px; height: 42px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  flex-shrink: 0;
+  transition: background .2s, color .2s;
+}
+.km-kpi-icon.blue   { background: rgba(31,92,145,.12);  color: #1f5c91; }
+.km-kpi-icon.green  { background: rgba(29,127,79,.12);  color: #1d7f4f; }
+.km-kpi-icon.red    { background: rgba(181,61,61,.12);  color: #b53d3d; }
+.km-kpi-icon.yellow { background: rgba(197,138,21,.12); color: #c58a15; }
+
+.km-card-key { font-size: .72rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; }
+.km-card-label { font-size: .88rem; font-weight: 700; color: #0f172a; }
+
+.km-card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.km-field { display: flex; flex-direction: column; gap: 4px; }
+.km-field-label { font-size: .72rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; }
+.km-input { padding: 7px 10px; border: 1.5px solid #d1d9e6; border-radius: 7px; font-size: .83rem; color: #1e293b; width: 100%; box-sizing: border-box; }
+.km-input:focus { outline: none; border-color: #1a6fc4; }
+
+.km-color-row { display: flex; gap: 8px; align-items: center; }
+.km-color-input { width: 40px; height: 32px; border: 1.5px solid #d1d9e6; border-radius: 6px; cursor: pointer; padding: 2px 3px; }
+.km-color-hex { width: 90px; padding: 7px 8px; border: 1.5px solid #d1d9e6; border-radius: 7px; font-size: .8rem; font-family: monospace; }
+.km-color-hex:focus { outline: none; border-color: #1a6fc4; }
+.km-color-clear { padding: 4px 8px; font-size: .72rem; border-radius: 5px; border: 1px solid #d1d9e6; background: #fff; cursor: pointer; color: #64748b; }
+.km-color-clear:hover { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+
+.km-card-footer { padding: 10px 16px 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.km-toggle-row { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: #475569; }
+.km-toggle { position: relative; display: inline-block; width: 38px; height: 22px; }
+.km-toggle input { opacity: 0; width: 0; height: 0; }
+.km-toggle-slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 22px; cursor: pointer; transition: .25s; }
+.km-toggle-slider:before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .25s; }
+input:checked + .km-toggle-slider { background: #dc2626; }
+input:checked + .km-toggle-slider:before { transform: translateX(16px); }
+.km-save-btn { padding: 5px 14px; border-radius: 7px; font-size: .78rem; font-weight: 700; border: none; cursor: pointer; background: #1a6fc4; color: #fff; transition: background .15s; }
+.km-save-btn:hover { background: #1560ae; }
+
+/* Preview strip */
+.km-preview-strip {
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .75rem;
+  color: #64748b;
+}
+.km-preview-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800;
+}
+
+/* Toast */
+.km-toast { position: fixed; bottom: 24px; right: 24px; z-index: 2000; padding: 10px 18px; border-radius: 8px; font-size: .84rem; font-weight: 600; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.15); display: none; }
+.km-toast-ok { background: #15803d; }
+.km-toast-err { background: #b91c1c; }
+
+/* Dark mode */
+body.theme-dark .km-card { background: var(--surface); border-color: var(--border); }
+body.theme-dark .km-card-head { border-color: var(--border); }
+body.theme-dark .km-card-label { color: var(--text); }
+body.theme-dark .km-input { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
+body.theme-dark .km-color-hex { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
+body.theme-dark .km-preview-strip { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .km-subtitle { color: var(--text-light); }
+body.theme-dark .km-btn-outline { background: var(--surface-alt); border-color: var(--border); color: var(--text-light); }
+body.theme-dark .km-btn-muted { background: var(--surface-alt); border-color: var(--border); color: var(--text-light); }
+</style>
+
+<div class="km-wrap">
+  <div class="km-header">
+    <div>
+      <div class="km-title">📊 KPI Cards</div>
+      <div class="km-subtitle">Personalizza etichetta, icona, colori e visibilità di ogni card nella dashboard principale.</div>
+    </div>
+    <div class="km-actions">
+      <button class="km-btn km-btn-primary" onclick="saveAll()">💾 Salva tutto</button>
+      <button class="km-btn km-btn-muted" onclick="resetAll()">↺ Reset tutti</button>
+      <a href="{% url 'dashboard_hub_preview' %}" target="_blank" class="km-btn km-btn-outline">👁 Anteprima</a>
+      <a href="{% url 'hub_tools:hub_index' %}" class="km-btn km-btn-muted">← Hub Tools</a>
+    </div>
+  </div>
+
+  <div class="km-grid" id="kpiGrid">
+    {% for kpi in kpis %}
+    <div class="km-card {% if kpi.disabled %}km-card-disabled{% endif %}" id="card-{{ kpi.key }}">
+
+      <div class="km-card-head">
+        <div class="km-kpi-icon {{ kpi.default_color }}" id="previewIcon-{{ kpi.key }}"
+             style="{% if kpi.bg_color %}background:{{ kpi.bg_color }};color:{{ kpi.fg_color|default:'#fff' }}{% endif %}">
+          <span id="previewIconText-{{ kpi.key }}">{{ kpi.icon|default:kpi.default_icon }}</span>
+        </div>
+        <div>
+          <div class="km-card-key">{{ kpi.key }}</div>
+          <div class="km-card-label" id="previewLabel-{{ kpi.key }}">{{ kpi.label|default:kpi.default_label }}</div>
+        </div>
+      </div>
+
+      <div class="km-card-body">
+
+        <div class="km-field">
+          <div class="km-field-label">Etichetta</div>
+          <input class="km-input" id="label-{{ kpi.key }}" value="{{ kpi.label }}"
+                 placeholder="{{ kpi.default_label }}"
+                 oninput="document.getElementById('previewLabel-{{ kpi.key }}').textContent = this.value || '{{ kpi.default_label }}'">
+        </div>
+
+        <div class="km-field">
+          <div class="km-field-label">Icona (testo)</div>
+          <input class="km-input" id="icon-{{ kpi.key }}" value="{{ kpi.icon }}"
+                 placeholder="{{ kpi.default_icon }}" maxlength="6"
+                 style="font-family:monospace;letter-spacing:.08em"
+                 oninput="document.getElementById('previewIconText-{{ kpi.key }}').textContent = this.value || '{{ kpi.default_icon }}'">
+        </div>
+
+        <div class="km-field">
+          <div class="km-field-label">Colore sfondo icona</div>
+          <div class="km-color-row">
+            <input type="color" class="km-color-input" id="bg-{{ kpi.key }}"
+                   value="{{ kpi.bg_color|default:'#e0eaf4' }}"
+                   oninput="syncColor('bg','{{ kpi.key }}')">
+            <input class="km-color-hex" id="bghex-{{ kpi.key }}"
+                   value="{{ kpi.bg_color }}" placeholder="#rrggbb"
+                   oninput="syncHex('bg','{{ kpi.key }}')">
+            <button class="km-color-clear" onclick="clearColor('bg','{{ kpi.key }}')">✕ reset</button>
+          </div>
+        </div>
+
+        <div class="km-field">
+          <div class="km-field-label">Colore testo icona</div>
+          <div class="km-color-row">
+            <input type="color" class="km-color-input" id="fg-{{ kpi.key }}"
+                   value="{{ kpi.fg_color|default:'#ffffff' }}"
+                   oninput="syncColor('fg','{{ kpi.key }}')">
+            <input class="km-color-hex" id="fghex-{{ kpi.key }}"
+                   value="{{ kpi.fg_color }}" placeholder="#rrggbb"
+                   oninput="syncHex('fg','{{ kpi.key }}')">
+            <button class="km-color-clear" onclick="clearColor('fg','{{ kpi.key }}')">✕ reset</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="km-preview-strip">
+        <div class="km-preview-icon {{ kpi.default_color }}" id="previewMini-{{ kpi.key }}"
+             style="{% if kpi.bg_color %}background:{{ kpi.bg_color }};color:{{ kpi.fg_color|default:'#fff' }}{% endif %}">
+          <span id="previewMiniText-{{ kpi.key }}">{{ kpi.icon|default:kpi.default_icon }}</span>
+        </div>
+        <span>Come appare nella dashboard</span>
+      </div>
+
+      <div class="km-card-footer">
+        <label class="km-toggle-row">
+          <label class="km-toggle">
+            <input type="checkbox" id="disabled-{{ kpi.key }}" {% if kpi.disabled %}checked{% endif %}
+                   onchange="toggleDisabled('{{ kpi.key }}', this.checked)">
+            <span class="km-toggle-slider"></span>
+          </label>
+          Nascosta
+        </label>
+        <button class="km-save-btn" onclick="saveSingle('{{ kpi.key }}')">Salva</button>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="km-toast" id="kmToast"></div>
+
+<script>
+const SAVE_URL = "{% url 'hub_tools:hub_kpi_save' %}";
+const CSRF = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+
+function toast(msg, ok = true) {
+  const el = document.getElementById("kmToast");
+  el.textContent = msg;
+  el.className = "km-toast " + (ok ? "km-toast-ok" : "km-toast-err");
+  el.style.display = "block";
+  setTimeout(() => el.style.display = "none", 3000);
+}
+
+function syncColor(prefix, key) {
+  const val = document.getElementById(`${prefix}-${key}`).value;
+  document.getElementById(`${prefix}hex-${key}`).value = val;
+  applyPreview(key);
+}
+function syncHex(prefix, key) {
+  const val = document.getElementById(`${prefix}hex-${key}`).value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+    document.getElementById(`${prefix}-${key}`).value = val;
+  }
+  applyPreview(key);
+}
+function clearColor(prefix, key) {
+  document.getElementById(`${prefix}-${key}`).value = prefix === "bg" ? "#e0eaf4" : "#ffffff";
+  document.getElementById(`${prefix}hex-${key}`).value = "";
+  applyPreview(key);
+}
+
+function applyPreview(key) {
+  const bg = document.getElementById(`bghex-${key}`).value.trim();
+  const fg = document.getElementById(`fghex-${key}`).value.trim() || "#fff";
+  ["previewIcon", "previewMini"].forEach(pfx => {
+    const el = document.getElementById(`${pfx}-${key}`);
+    if (!el) return;
+    if (bg) {
+      el.style.background = bg;
+      el.style.color = fg;
+    } else {
+      el.style.background = "";
+      el.style.color = "";
+    }
+  });
+}
+
+function toggleDisabled(key, checked) {
+  const card = document.getElementById(`card-${key}`);
+  card.classList.toggle("km-card-disabled", checked);
+}
+
+function getKpiData(key) {
+  return {
+    key,
+    label:    document.getElementById(`label-${key}`)?.value.trim() || "",
+    icon:     document.getElementById(`icon-${key}`)?.value.trim() || "",
+    bg_color: document.getElementById(`bghex-${key}`)?.value.trim() || "",
+    fg_color: document.getElementById(`fghex-${key}`)?.value.trim() || "",
+    disabled: document.getElementById(`disabled-${key}`)?.checked || false,
+  };
+}
+
+async function saveSingle(key) {
+  const r = await fetch(SAVE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF() },
+    body: JSON.stringify(getKpiData(key)),
+  });
+  const j = await r.json();
+  toast(j.ok ? "Salvato ✓" : (j.error || "Errore"), j.ok);
+}
+
+async function saveAll() {
+  const keys = [...document.querySelectorAll(".km-card")].map(c => c.id.replace("card-", ""));
+  const kpis = keys.map(getKpiData);
+  const r = await fetch(SAVE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF() },
+    body: JSON.stringify({ kpis }),
+  });
+  const j = await r.json();
+  toast(j.ok ? "Tutto salvato ✓" : (j.error || "Errore"), j.ok);
+}
+
+async function resetAll() {
+  if (!confirm("Ripristinare tutte le KPI ai valori predefiniti?")) return;
+  const keys = [...document.querySelectorAll(".km-card")].map(c => c.id.replace("card-", ""));
+  const kpis = keys.map(key => ({ key, label: "", icon: "", bg_color: "", fg_color: "", disabled: false }));
+  const r = await fetch(SAVE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF() },
+    body: JSON.stringify({ kpis }),
+  });
+  const j = await r.json();
+  if (j.ok) { toast("Reset completato — ricarica la pagina"); setTimeout(() => location.reload(), 1200); }
+  else toast(j.error || "Errore", false);
+}
+</script>
+{% endblock %}

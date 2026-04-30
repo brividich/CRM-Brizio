@@ -1,6 +1,9 @@
 param(
     [string]$SourcePath = "",
-    [switch]$Quiet
+    [switch]$Quiet,
+    [int]$AclMaxMissing = 222,
+    [switch]$FailOnDeploymentWarn,
+    [string]$ArtifactDir = ""
 )
 
 Set-StrictMode -Version Latest
@@ -14,6 +17,16 @@ if (-not $SourcePath) {
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
+if (-not $ArtifactDir) {
+    $ArtifactDir = Join-Path $SourcePath "django_app"
+} else {
+    if ([System.IO.Path]::IsPathRooted($ArtifactDir)) {
+        $ArtifactDir = [System.IO.Path]::GetFullPath($ArtifactDir)
+    } else {
+        $ArtifactDir = [System.IO.Path]::GetFullPath((Join-Path $SourcePath $ArtifactDir))
+    }
+}
+
 function Write-GuardInfo {
     param([string]$Message)
     if (-not $Quiet) {
@@ -25,6 +38,65 @@ function Add-Failure {
     param([string]$Message)
     $script:failures.Add($Message)
     Write-Host "[release_guard][FAIL] $Message" -ForegroundColor Red
+}
+
+function Write-TextArtifact {
+    param(
+        [string]$Path,
+        [string[]]$Lines
+    )
+
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+        [void](New-Item -ItemType Directory -Path $parent -Force)
+    }
+    $text = ($Lines -join [System.Environment]::NewLine)
+    [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Invoke-GuardCommand {
+    param(
+        [string]$PythonExe,
+        [string]$ManagePy,
+        [string[]]$Arguments,
+        [string]$Label,
+        [string]$ArtifactPath = ""
+    )
+
+    Write-GuardInfo "Eseguo ${Label}: $PythonExe $ManagePy $($Arguments -join ' ')"
+    Push-Location $SourcePath
+    $previousErrorActionPreference = $ErrorActionPreference
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+    try {
+        $ErrorActionPreference = "Continue"
+        & $PythonExe $ManagePy @Arguments 1> $stdoutPath 2> $stderrPath
+        $exitCode = $LASTEXITCODE
+        $stdout = @(Get-Content -LiteralPath $stdoutPath -ErrorAction SilentlyContinue | ForEach-Object { "$_" })
+        $stderr = @(Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue | ForEach-Object { "$_" })
+        $output = @($stdout + $stderr)
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+        Pop-Location
+    }
+
+    if ($ArtifactPath) {
+        Write-TextArtifact -Path $ArtifactPath -Lines $stdout
+        Write-GuardInfo "Artifact aggiornato: $ArtifactPath"
+    }
+
+    if ($exitCode -ne 0) {
+        Add-Failure("$Label fallito con exit code $exitCode")
+        if (-not $Quiet) {
+            $output | ForEach-Object { Write-Host "  $_" }
+        }
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = $output
+    }
 }
 
 function Require-File {
@@ -358,26 +430,53 @@ if ($wizardStaleness -gt $wizardFreshnessGrace) {
 
 $pythonExe = Resolve-Python -RootPath $SourcePath
 if (-not $pythonExe) {
-    Add-Failure("Python non trovato. Serve per eseguire bootstrap_acl_v2 --dry-run.")
+    Add-Failure("Python non trovato. Serve per eseguire i controlli Django del release guard.")
 } else {
-    Write-GuardInfo "Eseguo bootstrap_acl_v2 --dry-run con: $pythonExe"
-    Push-Location $SourcePath
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        $aclOutput = & $pythonExe manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.dev 2>&1 | ForEach-Object { "$_" }
-        $aclExitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-        Pop-Location
-    }
+    $djangoManage = Join-Path $SourcePath "django_app\manage.py"
+    $aclArtifact = Join-Path $ArtifactDir "acl_report_latest.json"
+    $deploymentArtifact = Join-Path $ArtifactDir "deployment_validation_latest.json"
 
-    if ($aclExitCode -ne 0) {
-        Add-Failure("bootstrap_acl_v2 --dry-run fallito con exit code $aclExitCode")
-        if (-not $Quiet) {
-            $aclOutput | ForEach-Object { Write-Host "  $_" }
-        }
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("check", "--settings=config.settings.test") `
+        -Label "Django check")
+
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("secret_hygiene_check") `
+        -Label "secret_hygiene_check")
+
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("bootstrap_acl_v2", "--dry-run", "--settings=config.settings.dev") `
+        -Label "bootstrap_acl_v2 --dry-run")
+
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("acl_coverage_report", "--max-missing", "$AclMaxMissing") `
+        -Label "acl_coverage_report --max-missing $AclMaxMissing")
+
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("acl_coverage_report", "--format", "json") `
+        -Label "acl_coverage_report JSON artifact" `
+        -ArtifactPath $aclArtifact)
+
+    $deploymentValidationArgs = @("validate_deployment", "--format", "json", "--settings=config.settings.test")
+    if ($FailOnDeploymentWarn) {
+        $deploymentValidationArgs += "--fail-on-warn"
     }
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments $deploymentValidationArgs `
+        -Label "validate_deployment JSON artifact" `
+        -ArtifactPath $deploymentArtifact)
 }
 
 if ($failures.Count -gt 0) {
@@ -386,5 +485,5 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "[release_guard] OK - documentazione, versioni, wizard e smoke ACL sono coerenti." -ForegroundColor Green
+Write-Host "[release_guard] OK - documentazione, versioni, wizard, hygiene, ACL e validazione deploy sono coerenti." -ForegroundColor Green
 exit 0

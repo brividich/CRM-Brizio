@@ -1,0 +1,16 @@
+<header class="hub-page-header{% if compact %} hub-page-header--compact{% endif %}">
+  <div class="hub-page-header__main">
+    {% if eyebrow %}
+      <div class="hub-page-header__eyebrow">{{ eyebrow }}</div>
+    {% endif %}
+    <h1 class="hub-page-header__title">{{ title }}</h1>
+    {% if subtitle %}
+      <p class="hub-page-header__subtitle"{% if subtitle_id %} id="{{ subtitle_id }}"{% endif %}>{{ subtitle }}</p>
+    {% endif %}
+    {% if status_label %}
+      <div class="hub-page-header__meta">
+        {% include "core/components/status_badge.html" with label=status_label tone=status_tone only %}
+      </div>
+    {% endif %}
+  </div>
+</header>

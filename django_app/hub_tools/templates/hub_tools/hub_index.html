@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Centro di gestione{% endblock %}
+
+{% block content %}
+<style>
+.hi-wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+@media (max-width: 600px) {
+  .hi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.hi-header { margin-bottom: 32px; }
+.hi-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.hi-subtitle { font-size: .88rem; color: #64748b; }
+
+.hi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.hi-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 22px;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow .15s, border-color .15s, transform .1s;
+  position: relative;
+  overflow: hidden;
+}
+.hi-card:hover {
+  box-shadow: 0 6px 24px rgba(0,0,0,.1);
+  transform: translateY(-2px);
+}
+.hi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--card-color, #1a6fc4);
+  border-radius: 14px 14px 0 0;
+}
+
+.hi-card-top { display: flex; align-items: center; gap: 12px; }
+.hi-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  background: var(--card-bg, #eff6ff);
+}
+.hi-card-name {
+  font-size: .97rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.hi-card-desc {
+  font-size: .8rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+.hi-card-arrow {
+  margin-top: auto;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--card-color, #1a6fc4);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Back link */
+.hi-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .82rem;
+  color: #64748b;
+  text-decoration: none;
+  margin-bottom: 20px;
+}
+.hi-back:hover { color: #1a6fc4; }
+
+/* Dark mode */
+body.theme-dark .hi-title { color: var(--text); }
+body.theme-dark .hi-subtitle { color: var(--text-light); }
+body.theme-dark .hi-card { background: var(--surface); border-color: var(--border); }
+body.theme-dark .hi-card-name { color: var(--text); }
+body.theme-dark .hi-card-desc { color: var(--text-light); }
+body.theme-dark .hi-back { color: var(--text-light); }
+</style>
+
+<div class="hi-wrap">
+  <a href="{% url 'admin_portale:index' %}" class="hi-back">← Torna all'admin portale</a>
+
+  <div class="hi-header">
+    <div class="hi-title">⚡ Hub Tools</div>
+    <div class="hi-subtitle">Tutti gli strumenti di gestione del portale NOVICROM HUB in un unico posto.</div>
+  </div>
+
+  <div class="hi-grid">
+    {% for tool in tools %}
+    <a href="{{ tool.url }}" class="hi-card" style="--card-color: {{ tool.color }}; --card-bg: {{ tool.color }}18; border-color: {{ tool.color }}28">
+      <div class="hi-card-top">
+        <div class="hi-icon">{{ tool.icon }}</div>
+        <div class="hi-card-name">{{ tool.title }}</div>
+      </div>
+      <div class="hi-card-desc">{{ tool.desc }}</div>
+      <div class="hi-card-arrow">Apri →</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

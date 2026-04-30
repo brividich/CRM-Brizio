@@ -3,7 +3,7 @@
 {% block tasks_shell_head %}
 <style>
   /* ══════════════════════════════════════════════
-     LIST.HTML — stili globale + project-mode
+     LIST.HTML — Dashboard attivita + project mode
   ══════════════════════════════════════════════ */
 
   /* ── Filtri collassabili ── */
@@ -22,40 +22,56 @@
     letter-spacing: .06em;
   }
   .tl-filter-toggle:hover { color: var(--ts-text); }
+
   .tl-filter-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
     background: rgba(15,23,42,.05);
-    transition: background .12s ease;
+    border: 1px solid var(--ts-border);
+    transition: background .12s ease, border-color .12s ease;
   }
-  .tl-filter-toggle:hover .tl-filter-icon { background: rgba(249,115,22,.1); }
-  .tl-filter-body { display: none; padding-top: 12px; border-top: 1px solid var(--ts-border); margin-top: 4px; }
+  .tl-filter-toggle:hover .tl-filter-icon { background: rgba(249,115,22,.1); border-color: rgba(249,115,22,.25); }
+
+  .tl-filter-body { display: none; padding-top: 14px; border-top: 1px solid var(--ts-border); margin-top: 4px; }
   .tl-filter-body.open { display: block; }
+
   .tl-filter-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
   }
+
   .tl-active-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
   /* ── Admin console KPI inline ── */
-  .tl-admin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tl-admin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+
   .tl-admin-kpi {
-    padding: 12px 14px;
-    border: 1px solid var(--ts-border);
+    padding: 14px 16px;
+    border: 1px solid;
     border-radius: var(--ts-radius-md);
-    background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+    transition: box-shadow .15s ease, transform .15s ease;
   }
-  .tl-admin-kpi-val { font-size: 26px; font-weight: 900; line-height: 1; color: #1d4ed8; }
-  .tl-admin-kpi-val.amber  { color: #b45309; }
-  .tl-admin-kpi-val.teal   { color: #0f766e; }
-  .tl-admin-kpi-val.purple { color: #7c3aed; }
-  .tl-admin-kpi-val.red    { color: #b91c1c; }
-  .tl-admin-kpi-label { margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--ts-text-mid); }
+  .tl-admin-kpi:hover { box-shadow: 0 6px 18px rgba(15,23,42,.09); transform: translateY(-1px); }
+
+  .tl-admin-kpi.c-blue   { background: linear-gradient(145deg,#dbeafe 0%,#eff6ff 30%,#fff 100%); border-color: #bfdbfe; }
+  .tl-admin-kpi.c-amber  { background: linear-gradient(145deg,#fde68a 0%,#fffbeb 30%,#fff 100%); border-color: #fcd34d; }
+  .tl-admin-kpi.c-teal   { background: linear-gradient(145deg,#ccfbf1 0%,#f0fdfb 30%,#fff 100%); border-color: #99f6e4; }
+  .tl-admin-kpi.c-purple { background: linear-gradient(145deg,#ede9fe 0%,#f5f3ff 30%,#fff 100%); border-color: #ddd6fe; }
+  .tl-admin-kpi.c-red    { background: linear-gradient(145deg,#fecaca 0%,#fef2f2 30%,#fff 100%); border-color: #fca5a5; }
+
+  .tl-admin-kpi-val          { font-size: 28px; font-weight: 900; line-height: 1; color: #1d4ed8; }
+  .tl-admin-kpi-val.blue     { color: #1d4ed8; }
+  .tl-admin-kpi-val.amber    { color: #b45309; }
+  .tl-admin-kpi-val.teal     { color: #0f766e; }
+  .tl-admin-kpi-val.purple   { color: #7c3aed; }
+  .tl-admin-kpi-val.red      { color: #b91c1c; }
+  .tl-admin-kpi-label        { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--ts-text-mid); }
 
   /* ── Task table (global mode) ── */
   .tl-table-wrap {
@@ -64,12 +80,14 @@
     border: 1px solid var(--ts-border);
     background: #fff;
   }
+
   .tl-table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 13px; }
+
   .tl-table thead th {
-    padding: 9px 12px;
-    background: #f8fbff;
-    border-bottom: 1px solid #e5edf5;
-    color: #64748b;
+    padding: 10px 13px;
+    background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
+    border-bottom: 1px solid #dde8f2;
+    color: #475569;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: .08em;
@@ -77,192 +95,265 @@
     text-align: left;
     white-space: nowrap;
   }
-  .tl-table tbody tr { border-bottom: 1px solid #f0f4f8; transition: background .08s ease; }
+
+  .tl-table tbody tr {
+    border-bottom: 1px solid #f0f4f8;
+    transition: background .08s ease;
+  }
   .tl-table tbody tr:last-child { border-bottom: none; }
-  .tl-table tbody tr:hover td { background: #f8fbff; }
-  .tl-table td { padding: 10px 12px; vertical-align: middle; color: #1e293b; }
-  .tl-table tbody tr.status-todo        td:first-child { border-left: 3px solid #818cf8; }
-  .tl-table tbody tr.status-in_progress td:first-child { border-left: 3px solid #f59e0b; }
-  .tl-table tbody tr.status-done        td:first-child { border-left: 3px solid #22c55e; }
-  .tl-table tbody tr.status-canceled    td:first-child { border-left: 3px solid #94a3b8; }
-  .tl-table tbody tr.status-overdue     td:first-child { border-left: 3px solid #ef4444; }
-  .tl-task-link  { font-weight: 800; color: #0f172a; text-decoration: none; font-size: 13px; line-height: 1.3; display: block; }
+  .tl-table tbody tr:hover td   { background: #eef5ff; }
+  .tl-table td { padding: 11px 13px; vertical-align: middle; color: #1e293b; }
+
+  /* Status left-border indicator — 4px */
+  .tl-table tbody tr.status-todo        td:first-child { border-left: 4px solid #818cf8; }
+  .tl-table tbody tr.status-in_progress td:first-child { border-left: 4px solid #f59e0b; }
+  .tl-table tbody tr.status-done        td:first-child { border-left: 4px solid #22c55e; }
+  .tl-table tbody tr.status-canceled    td:first-child { border-left: 4px solid #94a3b8; }
+  .tl-table tbody tr.status-overdue     td:first-child { border-left: 4px solid #ef4444; }
+
+  /* Subtle row tint on hover by status */
+  .tl-table tbody tr.status-overdue:hover td     { background: #fff5f5; }
+  .tl-table tbody tr.status-in_progress:hover td { background: #fffbf0; }
+  .tl-table tbody tr.status-done:hover td        { background: #f0fdf4; }
+
+  .tl-task-link {
+    font-weight: 800; color: #0f172a; text-decoration: none;
+    font-size: 13px; line-height: 1.3; display: block;
+  }
   .tl-task-link:hover { color: #1d4ed8; }
-  .tl-task-desc  { margin-top: 2px; color: #94a3b8; font-size: 11px; line-height: 1.4; font-weight: 400; }
-  .tl-ko-link    { color: #475569; text-decoration: none; font-size: 11px; font-weight: 700; }
+  .tl-task-desc { margin-top: 2px; color: #94a3b8; font-size: 11px; line-height: 1.4; }
+  .tl-ko-link   { color: #475569; text-decoration: none; font-size: 11px; font-weight: 700; }
   .tl-ko-link:hover { color: #1d4ed8; }
-  .tl-assignee   { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+  .tl-assignee  { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
   .tl-avatar {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 24px; height: 24px; border-radius: 999px;
+    width: 26px; height: 26px; border-radius: 999px;
     background: linear-gradient(135deg, #93c5fd, #3b82f6);
-    color: #fff; font-size: 9px; font-weight: 900; letter-spacing: .02em; flex-shrink: 0;
+    color: #fff; font-size: 9px; font-weight: 900; flex-shrink: 0;
   }
-  .tl-assignee-name { font-size: 12px; color: #475569; font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tl-date         { font-size: 12px; color: #475569; font-weight: 600; white-space: nowrap; }
-  .tl-date.overdue { color: #dc2626; font-weight: 800; }
-  .tl-col-actions  { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
-  .tl-tag          { font-size: 11px; color: #64748b; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-assignee-name { font-size: 12px; color: #475569; font-weight: 600; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-date          { font-size: 12px; color: #475569; font-weight: 600; white-space: nowrap; }
+  .tl-date.overdue  { color: #dc2626; font-weight: 800; }
+  .tl-col-actions   { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+  .tl-tag           { font-size: 11px; color: #64748b; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ══════════════════════════════════════════════
-     PROJECT MODE
+     PROJECT MODE — Kanban Board
   ══════════════════════════════════════════════ */
 
   /* Header card progetto */
   .pk-header {
     border-radius: 20px;
-    padding: 24px 28px;
+    padding: 26px 30px;
     background:
-      radial-gradient(ellipse at 90% -10%, rgba(249,115,22,.4) 0%, transparent 44%),
+      radial-gradient(ellipse at 90% -10%, rgba(249,115,22,.42) 0%, transparent 44%),
       radial-gradient(ellipse at -5% 120%, rgba(56,189,248,.32) 0%, transparent 52%),
       linear-gradient(140deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
-    box-shadow: 0 16px 40px rgba(30,58,138,.22), inset 0 1px 0 rgba(255,255,255,.08);
+    box-shadow: 0 20px 48px rgba(30,58,138,.24), inset 0 1px 0 rgba(255,255,255,.08);
     color: #fff;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 24px;
     align-items: center;
   }
+
   .pk-header-eyebrow {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,.55);
-    margin-bottom: 4px;
+    font-size: 10px; font-weight: 800; letter-spacing: .12em;
+    text-transform: uppercase; color: rgba(255,255,255,.5); margin-bottom: 5px;
   }
   .pk-header-title {
-    font-size: 22px;
-    font-weight: 900;
-    letter-spacing: -.02em;
-    color: #fff;
-    margin: 0 0 10px;
+    font-size: 22px; font-weight: 900; letter-spacing: -.02em; color: #fff; margin: 0 0 10px;
   }
   .pk-header-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .pk-header-chip {
     display: inline-flex; align-items: center;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.18);
-    font-size: 11px; font-weight: 700; color: rgba(255,255,255,.9);
-    white-space: nowrap;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.2);
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,.9); white-space: nowrap;
   }
-  .pk-header-desc {
-    font-size: 12px;
-    color: rgba(255,255,255,.65);
-    line-height: 1.5;
-    margin-top: 6px;
-  }
+  .pk-header-desc  { font-size: 12px; color: rgba(255,255,255,.65); line-height: 1.5; margin-top: 6px; }
   .pk-header-people {
     display: flex; gap: 14px; flex-wrap: wrap;
-    font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600;
-    margin-top: 8px;
+    font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600; margin-top: 8px;
   }
-  .pk-header-people span b { color: rgba(255,255,255,.85); font-weight: 800; }
+  .pk-header-people span b { color: rgba(255,255,255,.88); font-weight: 800; }
 
   /* Cerchio progresso */
   .pk-progress-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
   .pk-progress-ring svg { transform: rotate(-90deg); }
-  .pk-progress-ring-bg  { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 8; }
+  .pk-progress-ring-bg   { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 8; }
   .pk-progress-ring-fill {
-    fill: none;
-    stroke: #86efac;
-    stroke-width: 8;
-    stroke-linecap: round;
-    transition: stroke-dashoffset .6s cubic-bezier(.22,1,.36,1);
+    fill: none; stroke: #86efac; stroke-width: 8; stroke-linecap: round;
+    transition: stroke-dashoffset .7s cubic-bezier(.22,1,.36,1);
   }
   .pk-progress-pct {
     position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 900; color: #fff;
-    line-height: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 900; color: #fff; line-height: 1;
   }
-  .pk-progress-pct small { font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55); text-transform: uppercase; margin-top: 2px; letter-spacing: .08em; }
+  .pk-progress-pct small {
+    font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55);
+    text-transform: uppercase; margin-top: 2px; letter-spacing: .08em;
+  }
 
-  /* Grid task cards */
-  .pk-task-grid {
+  /* ── Kanban board ── */
+  .kb-board {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
   }
-  .pk-task-card {
-    background: #fff;
-    border: 1px solid #e5edf5;
+
+  .kb-col {
+    background: #f4f8fd;
+    border: 1px solid #dde8f2;
     border-radius: 16px;
-    padding: 16px 18px;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    transition: box-shadow .13s ease, transform .13s ease, border-color .13s ease;
+    min-height: 200px;
+  }
+
+  .kb-col-head {
+    padding: 13px 16px 12px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #dde8f2;
+    position: sticky; top: 0; z-index: 1;
+  }
+  .kb-col-head-label {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; flex: 1;
+  }
+  .kb-col-count {
+    min-width: 22px; height: 22px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 900;
+  }
+  .kb-col-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Column colour schemes */
+  .kb-col.col-todo   { background: #f4f8fd; border-top: 3px solid #818cf8; }
+  .kb-col.col-wip    { background: #fffbf0; border-top: 3px solid #f59e0b; }
+  .kb-col.col-overdue{ background: #fff5f5; border-top: 3px solid #ef4444; }
+  .kb-col.col-done   { background: #f0fdf4; border-top: 3px solid #22c55e; }
+
+  .kb-col.col-todo    .kb-col-head { background: #eef4fb; }
+  .kb-col.col-wip     .kb-col-head { background: #fef9ec; }
+  .kb-col.col-overdue .kb-col-head { background: #fef2f2; }
+  .kb-col.col-done    .kb-col-head { background: #ecfdf5; }
+
+  .kb-col.col-todo    .kb-col-head-label { color: #4f46e5; }
+  .kb-col.col-wip     .kb-col-head-label { color: #b45309; }
+  .kb-col.col-overdue .kb-col-head-label { color: #b91c1c; }
+  .kb-col.col-done    .kb-col-head-label { color: #15803d; }
+
+  .kb-col.col-todo    .kb-col-dot { background: #818cf8; }
+  .kb-col.col-wip     .kb-col-dot { background: #f59e0b; }
+  .kb-col.col-overdue .kb-col-dot { background: #ef4444; }
+  .kb-col.col-done    .kb-col-dot { background: #22c55e; }
+
+  .kb-col.col-todo    .kb-col-count { background: #e0e7ff; color: #4338ca; }
+  .kb-col.col-wip     .kb-col-count { background: #fde68a; color: #92400e; }
+  .kb-col.col-overdue .kb-col-count { background: #fecaca; color: #991b1b; }
+  .kb-col.col-done    .kb-col-count { background: #bbf7d0; color: #166534; }
+
+  .kb-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+
+  .kb-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    text-decoration: none; color: inherit;
+    transition: box-shadow .12s, transform .12s, border-color .12s;
     position: relative;
-    overflow: hidden;
+  }
+  .kb-card:hover { box-shadow: 0 6px 20px rgba(15,23,42,.10); transform: translateY(-2px); border-color: #c7d8ee; }
+
+  .kb-card-title {
+    font-size: 12.5px; font-weight: 800; color: #0f172a; line-height: 1.35;
+  }
+  .kb-card:hover .kb-card-title { color: #1d4ed8; }
+  .kb-card-desc { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+  .kb-card-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 7px; border-top: 1px solid #f0f4f8;
+    gap: 6px;
+  }
+  .kb-card-assignee { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .kb-card-aname { font-size: 10.5px; color: #64748b; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-card-date { font-size: 10.5px; color: #64748b; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .kb-card-date.overdue { color: #dc2626; }
+  .kb-col-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 20px 12px; font-size: 11px; color: #94a3b8;
+  }
+
+  /* Priority strip on left edge */
+  .kb-card::before {
+    content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+    border-radius: 3px 0 0 3px; background: #e2e8f0;
+  }
+  .kb-card.prio-high::before   { background: #ef4444; }
+  .kb-card.prio-medium::before { background: #f59e0b; }
+  .kb-card.prio-low::before    { background: #22c55e; }
+
+  /* Old grid compat (used in filtered non-kanban scenarios) */
+  .pk-task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+  .pk-task-card {
+    background: #fff; border: 1px solid #e5edf5; border-radius: 16px;
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+    transition: box-shadow .14s ease, transform .14s ease, border-color .14s ease;
+    position: relative; overflow: hidden;
   }
   .pk-task-card::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    border-radius: 16px 0 0 16px;
-    background: #cbd5e1;
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    border-radius: 16px 0 0 16px; background: #cbd5e1;
   }
   .pk-task-card.status-todo::before        { background: #818cf8; }
   .pk-task-card.status-in_progress::before { background: #f59e0b; }
   .pk-task-card.status-done::before        { background: #22c55e; }
   .pk-task-card.status-canceled::before    { background: #94a3b8; }
-  .pk-task-card.is-overdue::before         { background: #ef4444; }
-  .pk-task-card:hover {
-    box-shadow: 0 8px 24px rgba(15,23,42,.09);
-    transform: translateY(-2px);
-    border-color: #c7d8ee;
-  }
+  .pk-task-card.is-overdue::before         { background: linear-gradient(180deg, #ef4444, #dc2626); }
+  .pk-task-card:hover { box-shadow: 0 10px 28px rgba(15,23,42,.10); transform: translateY(-2px); border-color: #c7d8ee; }
   .pk-task-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
-  .pk-task-title {
-    font-size: 13px; font-weight: 800; color: #0f172a;
-    text-decoration: none; line-height: 1.35;
-    display: block;
-  }
+  .pk-task-title { font-size: 13px; font-weight: 800; color: #0f172a; text-decoration: none; line-height: 1.35; display: block; }
   .pk-task-title:hover { color: #1d4ed8; }
-  .pk-task-desc { font-size: 11px; color: #94a3b8; line-height: 1.45; font-weight: 400; flex: 1; }
+  .pk-task-desc   { font-size: 11px; color: #94a3b8; line-height: 1.45; flex: 1; }
   .pk-task-footer {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; margin-top: auto; padding-top: 8px;
-    border-top: 1px solid #f0f4f8;
+    gap: 8px; margin-top: auto; padding-top: 9px; border-top: 1px solid #f0f4f8;
   }
   .pk-task-assignee { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .pk-task-assignee-name {
-    font-size: 11px; color: #64748b; font-weight: 600;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  .pk-task-date { font-size: 11px; color: #64748b; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .pk-task-assignee-name { font-size: 11px; color: #64748b; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pk-task-date        { font-size: 11px; color: #64748b; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
   .pk-task-date.overdue { color: #dc2626; }
   .pk-task-open {
-    display: inline-flex; align-items: center; gap: 3px;
-    padding: 5px 12px; border-radius: 8px;
-    background: #f1f5f9; border: 1px solid #e2e8f0;
-    font-size: 11px; font-weight: 800; color: #334155;
+    display: inline-flex; align-items: center; gap: 4px; padding: 5px 13px; border-radius: 9px;
+    background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 11px; font-weight: 800; color: #334155;
     text-decoration: none; white-space: nowrap;
-    transition: background .1s ease, color .1s ease;
-    flex-shrink: 0;
+    transition: background .1s ease, color .1s ease, border-color .1s ease; flex-shrink: 0;
   }
   .pk-task-open:hover { background: #e0e7ff; color: #1d4ed8; border-color: #c7d2fe; }
 
   /* Empty state project */
   .pk-empty {
     display: flex; flex-direction: column; align-items: center;
-    gap: 10px; padding: 48px 24px; text-align: center;
-    color: #64748b;
+    gap: 10px; padding: 52px 24px; text-align: center; color: #64748b;
   }
   .pk-empty-icon {
-    width: 56px; height: 56px; border-radius: 18px;
+    width: 60px; height: 60px; border-radius: 20px;
     background: #f1f5f9; border: 1px solid #e2e8f0;
     display: flex; align-items: center; justify-content: center;
   }
   .pk-empty strong { color: #0f172a; font-size: 15px; }
-  .pk-empty p { font-size: 13px; margin: 0; max-width: 340px; }
+  .pk-empty p      { font-size: 13px; margin: 0; max-width: 340px; }
 
-  /* Responsive */
+  /* ── Responsive ── */
+  @media (max-width: 1200px) {
+    .kb-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @media (max-width: 1100px) {
     .tl-admin-kpis    { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .tl-filter-grid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -271,31 +362,62 @@
     .pk-progress-ring { display: none; }
   }
   @media (max-width: 760px) {
-    .tl-admin-kpis, .tl-filter-grid, .pk-task-grid { grid-template-columns: 1fr; }
+    .tl-admin-kpis, .tl-filter-grid, .pk-task-grid, .kb-board { grid-template-columns: 1fr; }
   }
 
-  body.theme-dark .tl-admin-kpi { background:var(--surface); }
-  body.theme-dark .tl-table-wrap { background:var(--surface); }
-  body.theme-dark .tl-table thead th { background:var(--thead-bg); border-color:var(--border); }
-  body.theme-dark .tl-table tbody tr { border-color:var(--border); }
-  body.theme-dark .tl-table tbody tr:hover td { background:var(--tbody-hover); }
-  body.theme-dark .tl-table td { color:var(--text); }
-  body.theme-dark .tl-task-link { color:var(--text); }
-  body.theme-dark .tl-task-desc { color:var(--text-light); }
-  body.theme-dark .tl-ko-link { color:var(--text-mid); }
-  body.theme-dark .tl-assignee-name, body.theme-dark .tl-date { color:var(--text-mid); }
-  body.theme-dark .tl-tag { color:var(--text-light); }
-  body.theme-dark .pk-task-card { background:var(--surface); border-color:var(--border); }
-  body.theme-dark .pk-task-card:hover { border-color:var(--border); box-shadow:0 8px 24px rgba(0,0,0,.3); }
-  body.theme-dark .pk-task-title { color:var(--text); }
-  body.theme-dark .pk-task-desc { color:var(--text-light); }
-  body.theme-dark .pk-task-footer { border-color:var(--border); }
-  body.theme-dark .pk-task-assignee-name, body.theme-dark .pk-task-date { color:var(--text-light); }
-  body.theme-dark .pk-task-open { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
-  body.theme-dark .pk-task-open:hover { background:rgba(29,78,216,.2); color:#93c5fd; border-color:rgba(29,78,216,.3); }
-  body.theme-dark .pk-empty { color:var(--text-light); }
-  body.theme-dark .pk-empty-icon { background:var(--surface-alt); border-color:var(--border); }
-  body.theme-dark .pk-empty strong { color:var(--text); }
+  /* ── Dark mode — Command Center ── */
+  body.theme-dark .tl-admin-kpi.c-blue,
+  body.theme-dark .tl-admin-kpi.c-amber,
+  body.theme-dark .tl-admin-kpi.c-teal,
+  body.theme-dark .tl-admin-kpi.c-purple,
+  body.theme-dark .tl-admin-kpi.c-red { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .tl-table-wrap { background: var(--surface); }
+  body.theme-dark .tl-table thead th { background: var(--thead-bg); border-color: var(--border); }
+  body.theme-dark .tl-table tbody tr { border-color: var(--border); }
+  body.theme-dark .tl-table tbody tr:hover td,
+  body.theme-dark .tl-table tbody tr.status-overdue:hover td,
+  body.theme-dark .tl-table tbody tr.status-in_progress:hover td,
+  body.theme-dark .tl-table tbody tr.status-done:hover td { background: rgba(255,255,255,.04); }
+  body.theme-dark .tl-table td      { color: var(--text); border-color: var(--border); }
+  body.theme-dark .tl-task-link     { color: var(--text); }
+  body.theme-dark .tl-task-desc     { color: var(--text-light); }
+  body.theme-dark .tl-ko-link       { color: var(--text-mid); }
+  body.theme-dark .tl-assignee-name,
+  body.theme-dark .tl-date          { color: var(--text-mid); }
+  body.theme-dark .tl-tag           { color: var(--text-light); }
+
+  /* Kanban dark */
+  body.theme-dark .kb-col.col-todo    { background: #0f172a; border-color: #334155; border-top-color: #6366f1; }
+  body.theme-dark .kb-col.col-wip     { background: #1c1507; border-color: #334155; border-top-color: #f59e0b; }
+  body.theme-dark .kb-col.col-overdue { background: #1c0707; border-color: #334155; border-top-color: #ef4444; }
+  body.theme-dark .kb-col.col-done    { background: #071a0f; border-color: #334155; border-top-color: #22c55e; }
+  body.theme-dark .kb-col.col-todo    .kb-col-head { background: rgba(99,102,241,.12); border-bottom-color: #334155; }
+  body.theme-dark .kb-col.col-wip     .kb-col-head { background: rgba(245,158,11,.1); border-bottom-color: #334155; }
+  body.theme-dark .kb-col.col-overdue .kb-col-head { background: rgba(239,68,68,.1); border-bottom-color: #334155; }
+  body.theme-dark .kb-col.col-done    .kb-col-head { background: rgba(34,197,94,.1); border-bottom-color: #334155; }
+  body.theme-dark .kb-col.col-todo    .kb-col-head-label { color: #a5b4fc; }
+  body.theme-dark .kb-col.col-wip     .kb-col-head-label { color: #fcd34d; }
+  body.theme-dark .kb-col.col-overdue .kb-col-head-label { color: #fca5a5; }
+  body.theme-dark .kb-col.col-done    .kb-col-head-label { color: #86efac; }
+  body.theme-dark .kb-card { background: #1e293b; border-color: #334155; }
+  body.theme-dark .kb-card:hover { border-color: #475569; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+  body.theme-dark .kb-card-title { color: #e2e8f0; }
+  body.theme-dark .kb-card:hover .kb-card-title { color: #93c5fd; }
+  body.theme-dark .kb-card-desc { color: #64748b; }
+  body.theme-dark .kb-card-foot { border-top-color: #334155; }
+  body.theme-dark .kb-card-aname, body.theme-dark .kb-card-date { color: #64748b; }
+  body.theme-dark .pk-task-card     { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .pk-task-card:hover { border-color: var(--border); box-shadow: 0 10px 28px rgba(0,0,0,.3); }
+  body.theme-dark .pk-task-title    { color: var(--text); }
+  body.theme-dark .pk-task-desc     { color: var(--text-light); }
+  body.theme-dark .pk-task-footer   { border-color: var(--border); }
+  body.theme-dark .pk-task-assignee-name,
+  body.theme-dark .pk-task-date     { color: var(--text-light); }
+  body.theme-dark .pk-task-open     { background: var(--surface-alt); border-color: var(--border); color: var(--text-mid); }
+  body.theme-dark .pk-task-open:hover { background: rgba(29,78,216,.2); color: #93c5fd; border-color: rgba(29,78,216,.3); }
+  body.theme-dark .pk-empty         { color: var(--text-light); }
+  body.theme-dark .pk-empty-icon    { background: var(--surface-alt); border-color: var(--border); }
+  body.theme-dark .pk-empty strong  { color: var(--text); }
 </style>
 {% endblock %}
 
@@ -404,18 +526,17 @@
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
-{# MODALITA PROGETTO (?project=N) #}
+{# ════════ MODALITA PROGETTO (?project=N) ════════ #}
 {% if active_project %}
 
-  {# Header card progetto #}
   <div class="pk-header">
     <div>
       <p class="pk-header-eyebrow">Kickoff {{ active_project.kickoff_number }}</p>
       <h2 class="pk-header-title">{{ active_project.name }}</h2>
       <div class="pk-header-chips">
         {% if active_project.part_number %}<span class="pk-header-chip">P/N {{ active_project.part_number }}</span>{% endif %}
-        {% if active_project.revisione %}<span class="pk-header-chip">Rev. {{ active_project.revisione }}</span>{% endif %}
-        {% if active_project.versione %}<span class="pk-header-chip">Ver. {{ active_project.versione }}</span>{% endif %}
+        {% if active_project.revisione   %}<span class="pk-header-chip">Rev. {{ active_project.revisione }}</span>{% endif %}
+        {% if active_project.versione    %}<span class="pk-header-chip">Ver. {{ active_project.versione }}</span>{% endif %}
         {% if active_project.client_name %}<span class="pk-header-chip">{{ active_project.client_name }}</span>{% endif %}
         {% if active_project.vrf_quote_number %}<span class="pk-header-chip">Prev. {{ active_project.vrf_quote_number }}</span>{% endif %}
         <span class="pk-header-chip">VRF: {{ active_project.get_vrf_status_display }}</span>
@@ -427,15 +548,13 @@
       {% endif %}
       <div class="pk-header-people">
         {% if active_project.project_manager %}<span><b>PM</b> {{ active_project.project_manager.get_full_name|default:active_project.project_manager.username }}</span>{% endif %}
-        {% if active_project.capo_commessa %}<span><b>CC</b> {{ active_project.capo_commessa.get_full_name|default:active_project.capo_commessa.username }}</span>{% endif %}
-        {% if active_project.programmer %}<span><b>Prog.</b> {{ active_project.programmer.get_full_name|default:active_project.programmer.username }}</span>{% endif %}
+        {% if active_project.capo_commessa   %}<span><b>CC</b> {{ active_project.capo_commessa.get_full_name|default:active_project.capo_commessa.username }}</span>{% endif %}
+        {% if active_project.programmer      %}<span><b>Prog.</b> {{ active_project.programmer.get_full_name|default:active_project.programmer.username }}</span>{% endif %}
       </div>
     </div>
 
-    {# Cerchio progresso #}
     <div class="pk-progress-ring">
       {% with circumference=264 %}
-      {% with offset=circumference|add:0 %}
       <svg width="96" height="96" viewBox="0 0 96 96">
         <circle class="pk-progress-ring-bg"   cx="48" cy="48" r="42"/>
         <circle class="pk-progress-ring-fill" cx="48" cy="48" r="42"
@@ -443,20 +562,20 @@
                 stroke-dashoffset="{{ circumference }}"
                 style="stroke-dashoffset:calc({{ circumference }}px - {{ done_pct }} * {{ circumference }}px / 100)"/>
       </svg>
-      {% endwith %}{% endwith %}
+      {% endwith %}
       <div class="pk-progress-pct">{{ done_pct }}<small>% done</small></div>
     </div>
   </div>
 
-  {# Pannello attivita + filtri #}
   <section class="ts-panel">
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Attivita kickoff</h2>
-        <p class="ts-panel-subtitle">{{ tasks|length }} attivita &middot; ordine per scadenza</p>
+        <h2 class="ts-panel-title">Kanban kickoff</h2>
+        <p class="ts-panel-subtitle">{{ tasks|length }} attivita &middot; vista per stato</p>
       </div>
       <div class="ts-panel-meta">
         <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:project_gantt' active_project.id %}">Gantt</a>
+        <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:project_meetings' active_project.id %}">Incontri</a>
         <button class="tl-filter-toggle" id="tl-toggle-btn" type="button" onclick="toggleFilters()">
           <span class="tl-filter-icon">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -508,39 +627,133 @@
       </div>
 
       {% if tasks %}
-        <div class="pk-task-grid">
-          {% for task in tasks %}
-            <div class="pk-task-card status-{{ task.status|lower }}{% if task.is_overdue %} is-overdue{% endif %}">
-              <div class="pk-task-badges">
-                <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-                <span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span>
-                {% if task.is_overdue %}<span class="ts-badge danger">Overdue</span>{% endif %}
-              </div>
-              <a class="pk-task-title" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
-              {% if task.description %}
-                <p class="pk-task-desc">{{ task.description|truncatechars:80 }}</p>
-              {% endif %}
-              {% if task.tags %}
-                <div class="tl-tag" title="{{ task.tags }}">{{ task.tags }}</div>
-              {% endif %}
-              <div class="pk-task-footer">
-                <div class="pk-task-assignee">
-                  {% if task.assigned_to %}
-                    <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
-                    <span class="pk-task-assignee-name">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
-                  {% else %}
-                    <span style="color:#94a3b8;font-size:11px;">Non assegnato</span>
-                  {% endif %}
-                </div>
-                <div class="pk-task-date{% if task.is_overdue %} overdue{% endif %}">
-                  {% if task.next_step_due %}{{ task.next_step_due|date:"d/m" }} &rarr; {% endif %}
-                  {% if task.due_date %}{{ task.due_date|date:"d/m/Y" }}{% else %}&mdash;{% endif %}
-                </div>
-              </div>
-              <a class="pk-task-open" href="{% url 'tasks:detail' task.id %}">Apri &rarr;</a>
+        {# ── Kanban board: 4 colonne ── #}
+        <div class="kb-board">
+
+          {# Colonna: Da fare #}
+          <div class="kb-col col-todo">
+            <div class="kb-col-head">
+              <span class="kb-col-dot"></span>
+              <span class="kb-col-head-label">Da fare</span>
+              <span class="kb-col-count"></span>
             </div>
-          {% endfor %}
-        </div>
+            <div class="kb-cards">
+              {% for task in tasks %}
+                {% if not task.is_overdue and task.status == 'TODO' %}
+                  <a class="kb-card prio-{{ task.priority|lower }}" href="{% url 'tasks:detail' task.id %}">
+                    <div class="kb-card-title">{{ task.title }}</div>
+                    {% if task.description %}<div class="kb-card-desc">{{ task.description|truncatechars:70 }}</div>{% endif %}
+                    <div class="kb-card-foot">
+                      <div class="kb-card-assignee">
+                        {% if task.assigned_to %}
+                          <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                          <span class="kb-card-aname">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                        {% else %}
+                          <span class="kb-card-aname" style="color:#94a3b8;">—</span>
+                        {% endif %}
+                      </div>
+                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                    </div>
+                  </a>
+                {% endif %}
+              {% endfor %}
+              <div class="kb-col-empty">Nessuna attivita</div>
+            </div>
+          </div>
+
+          {# Colonna: In corso #}
+          <div class="kb-col col-wip">
+            <div class="kb-col-head">
+              <span class="kb-col-dot"></span>
+              <span class="kb-col-head-label">In corso</span>
+              <span class="kb-col-count"></span>
+            </div>
+            <div class="kb-cards">
+              {% for task in tasks %}
+                {% if not task.is_overdue and task.status == 'IN_PROGRESS' %}
+                  <a class="kb-card prio-{{ task.priority|lower }}" href="{% url 'tasks:detail' task.id %}">
+                    <div class="kb-card-title">{{ task.title }}</div>
+                    {% if task.description %}<div class="kb-card-desc">{{ task.description|truncatechars:70 }}</div>{% endif %}
+                    <div class="kb-card-foot">
+                      <div class="kb-card-assignee">
+                        {% if task.assigned_to %}
+                          <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                          <span class="kb-card-aname">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                        {% else %}
+                          <span class="kb-card-aname" style="color:#94a3b8;">—</span>
+                        {% endif %}
+                      </div>
+                      <span class="kb-card-date">{% if task.next_step_due %}{{ task.next_step_due|date:"d/m" }} → {% endif %}{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                    </div>
+                  </a>
+                {% endif %}
+              {% endfor %}
+              <div class="kb-col-empty">Nessuna attivita</div>
+            </div>
+          </div>
+
+          {# Colonna: Scadute / Overdue #}
+          <div class="kb-col col-overdue">
+            <div class="kb-col-head">
+              <span class="kb-col-dot"></span>
+              <span class="kb-col-head-label">Scadute</span>
+              <span class="kb-col-count"></span>
+            </div>
+            <div class="kb-cards">
+              {% for task in tasks %}
+                {% if task.is_overdue %}
+                  <a class="kb-card prio-{{ task.priority|lower }}" href="{% url 'tasks:detail' task.id %}">
+                    <div class="kb-card-title">{{ task.title }}</div>
+                    {% if task.description %}<div class="kb-card-desc">{{ task.description|truncatechars:70 }}</div>{% endif %}
+                    <div class="kb-card-foot">
+                      <div class="kb-card-assignee">
+                        {% if task.assigned_to %}
+                          <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                          <span class="kb-card-aname">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                        {% else %}
+                          <span class="kb-card-aname" style="color:#94a3b8;">—</span>
+                        {% endif %}
+                      </div>
+                      <span class="kb-card-date overdue">{% if task.due_date %}{{ task.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+                    </div>
+                  </a>
+                {% endif %}
+              {% endfor %}
+              <div class="kb-col-empty">Nessuna attivita</div>
+            </div>
+          </div>
+
+          {# Colonna: Completate #}
+          <div class="kb-col col-done">
+            <div class="kb-col-head">
+              <span class="kb-col-dot"></span>
+              <span class="kb-col-head-label">Completate</span>
+              <span class="kb-col-count"></span>
+            </div>
+            <div class="kb-cards">
+              {% for task in tasks %}
+                {% if task.status == 'DONE' %}
+                  <a class="kb-card prio-{{ task.priority|lower }}" href="{% url 'tasks:detail' task.id %}">
+                    <div class="kb-card-title" style="text-decoration:line-through;opacity:.65;">{{ task.title }}</div>
+                    <div class="kb-card-foot">
+                      <div class="kb-card-assignee">
+                        {% if task.assigned_to %}
+                          <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                          <span class="kb-card-aname">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                        {% else %}
+                          <span class="kb-card-aname" style="color:#94a3b8;">—</span>
+                        {% endif %}
+                      </div>
+                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                    </div>
+                  </a>
+                {% endif %}
+              {% endfor %}
+              <div class="kb-col-empty">Nessuna attivita</div>
+            </div>
+          </div>
+
+        </div>{# /kb-board #}
       {% else %}
         <div class="pk-empty">
           <div class="pk-empty-icon">
@@ -560,7 +773,7 @@
   </section>
 
 
-{# MODALITA GLOBALE (backlog completo) #}
+{# ════════ MODALITA GLOBALE (backlog) ════════ #}
 {% else %}
 
   {% if is_scope_admin and admin_console %}
@@ -574,30 +787,30 @@
     </div>
     <div class="ts-panel-body">
       <div class="tl-admin-kpis">
-        <div class="tl-admin-kpi">
-          <div class="tl-admin-kpi-val">{{ admin_console.unassigned }}</div>
+        <div class="tl-admin-kpi c-blue">
+          <div class="tl-admin-kpi-val blue">{{ admin_console.unassigned }}</div>
           <div class="tl-admin-kpi-label">Non assegnate</div>
         </div>
-        <div class="tl-admin-kpi">
+        <div class="tl-admin-kpi c-amber">
           <div class="tl-admin-kpi-val amber">{{ admin_console.without_due_date }}</div>
           <div class="tl-admin-kpi-label">Senza data fine</div>
         </div>
-        <div class="tl-admin-kpi">
+        <div class="tl-admin-kpi c-teal">
           <div class="tl-admin-kpi-val teal">{{ admin_console.without_project }}</div>
           <div class="tl-admin-kpi-label">Attivita singole</div>
         </div>
-        <div class="tl-admin-kpi">
+        <div class="tl-admin-kpi c-purple">
           <div class="tl-admin-kpi-val purple">{{ admin_console.due_next_7d }}</div>
           <div class="tl-admin-kpi-label">Scadono in 7gg</div>
         </div>
-        <div class="tl-admin-kpi">
+        <div class="tl-admin-kpi c-red">
           <div class="tl-admin-kpi-val red">{{ admin_console.stale_in_progress }}</div>
           <div class="tl-admin-kpi-label">In corso ferme &gt;7gg</div>
         </div>
       </div>
 
       {% if admin_project_summary %}
-      <div class="ts-card-grid" style="margin-top:12px;">
+      <div class="ts-card-grid" style="margin-top:4px;">
         {% for project in admin_project_summary %}
           <a class="ts-card ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
             <div class="ts-card-title">{{ project.name }}</div>
@@ -786,18 +999,28 @@
     const body = document.getElementById('tl-filter-body');
     if (!body) return;
     body.classList.toggle('open');
-    const btn = document.getElementById('tl-toggle-btn');
-    if (btn) btn.querySelector('.tl-filter-icon').style.background = body.classList.contains('open') ? 'rgba(249,115,22,.15)' : '';
+    const icon = document.querySelector('#tl-toggle-btn .tl-filter-icon');
+    if (icon) icon.style.background = body.classList.contains('open') ? 'rgba(249,115,22,.15)' : '';
   }
 
-  // Auto-open filters se ci sono filtri attivi (eccetto project che e gia nel contesto)
   (function () {
     const params = new URLSearchParams(window.location.search);
-    const filterKeys = ['status','priority','assigned_to','tag','due_from','due_to','overdue','unassigned','without_due_date','without_project'];
-    if (filterKeys.some(k => params.get(k))) {
+    const keys = ['status','priority','assigned_to','tag','due_from','due_to','overdue','unassigned','without_due_date','without_project'];
+    if (keys.some(k => params.get(k))) {
       const body = document.getElementById('tl-filter-body');
       if (body) body.classList.add('open');
     }
+  })();
+
+  // Kanban: count cards per column, hide "empty" placeholders where cards exist
+  (function () {
+    document.querySelectorAll('.kb-col').forEach(col => {
+      const cards = col.querySelectorAll('.kb-card');
+      const count = col.querySelector('.kb-col-count');
+      const empty = col.querySelector('.kb-col-empty');
+      if (count) count.textContent = cards.length;
+      if (empty) empty.style.display = cards.length > 0 ? 'none' : '';
+    });
   })();
 </script>
 {% endblock %}

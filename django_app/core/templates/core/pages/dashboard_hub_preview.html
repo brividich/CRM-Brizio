@@ -1,0 +1,299 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Preview · NOVICROM HUB{% endblock %}
+
+{% block body_class %}{{ block.super }} hub-page{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/hub_dashboard.css' %}">
+{% with b=hub_branding %}
+{% if b.hub_bg_color or b.hub_hero_color_1 or b.hub_hero_color_2 %}
+<style>
+  .hub-page { --hub-bg: {{ b.hub_bg_color|default:'#f4f7fb' }}; }
+  {% if b.hub_hero_color_1 or b.hub_hero_color_2 %}
+  .hub-page .hd-hero {
+    background: linear-gradient(135deg,
+      {{ b.hub_hero_color_1|default:'#12395f' }} 0%,
+      {{ b.hub_hero_color_2|default:'#1f5c91' }} 100%) !important;
+  }
+  {% endif %}
+  {% if b.hub_bg_color %}
+  .hub-page .hd-wrap { background: {{ b.hub_bg_color }}; }
+  {% endif %}
+</style>
+{% endif %}
+{% endwith %}
+{% endblock %}
+
+{% block content %}
+<div class="hd-wrap">
+
+  {# ── Toolbar admin (solo staff) ──────────────────────────────────────── #}
+  {% if hub_is_staff %}
+  <div class="hd-admin-toolbar">
+    <div class="hd-admin-toolbar-label">⚙️ Gestione Hub</div>
+    <div class="hd-admin-toolbar-actions">
+      <a href="{% url 'hub_tools:hub_pulsanti_manager' %}" class="hd-admin-btn">🔲 Pulsanti</a>
+      <a href="{% url 'hub_tools:hub_branding' %}" class="hd-admin-btn">🎨 Branding</a>
+      <a href="{% url 'hub_tools:hub_index' %}" class="hd-admin-btn">⚡ Hub Tools</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Header interno pagina ───────────────────────────────────────────── #}
+  <div class="hd-page-header">
+    <div class="hd-page-header-left">
+      <div class="hd-greeting">Buongiorno, {{ greeting_name }} 👋</div>
+      <div class="hd-date">{{ date_label }}</div>
+    </div>
+    <div class="hd-page-header-right">
+      <div class="hd-session-pill">
+        <span class="hd-session-dot"></span>
+        Sessione attiva
+      </div>
+      {% if is_admin %}
+      <span class="hd-admin-badge">Amministratore</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Hero ────────────────────────────────────────────────────────────── #}
+  <div class="hd-hero">
+    <div class="hd-hero-body">
+      {% if hub_branding.hub_logo_url %}
+      <img src="{{ hub_branding.hub_logo_url }}" class="hd-hero-logo" alt="Logo">
+      {% endif %}
+      <div class="hd-hero-title">{{ hub_branding.hub_hero_title|default:"Centro operativo Novicrom" }}</div>
+      <div class="hd-hero-sub">{{ hub_branding.hub_hero_sub|default:"Panoramica attività, richieste, anomalie e stato dei moduli aziendali." }}</div>
+    </div>
+    <div class="hd-hero-decoration" aria-hidden="true">
+      <span>NOVICROM HUB</span>
+    </div>
+  </div>
+
+  {# ── KPI cross-modulo ────────────────────────────────────────────────── #}
+  {% if hub_kpis %}
+  <div class="hd-kpi-grid">
+    {% for kpi in hub_kpis %}
+    <div class="hd-kpi-card">
+      <div class="hd-kpi-icon {% if kpi.custom_bg %}custom{% else %}{{ kpi.icon_class|default:'blue' }}{% endif %}"
+           {% if kpi.custom_bg %}style="background:{{ kpi.custom_bg }};color:{{ kpi.custom_fg|default:'#fff' }}"{% endif %}>{{ kpi.icon }}</div>
+      <div class="hd-kpi-body">
+        <div class="hd-kpi-value">{{ kpi.value|default:0 }}</div>
+        <div class="hd-kpi-label">{{ kpi.label }}</div>
+        {% if kpi.sub %}<div class="hd-kpi-sub">{{ kpi.sub }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Board: colonna principale + pannello laterale ───────────────────── #}
+  <div class="hd-board">
+
+    {# Colonna principale #}
+    <div class="hd-board-main">
+
+      {# Moduli #}
+      {% if modules %}
+      <div class="hd-section">
+        <div class="hd-section-title">Moduli principali</div>
+        <div class="hd-modules-grid">
+          {% for mod in modules %}
+          <div class="hd-mod-card">
+            <div class="hd-mod-header">
+              <div class="hd-mod-icon">
+                {% if mod.image_url %}<img src="{{ mod.image_url }}" alt="">
+                {% else %}{{ mod.name|slice:":1"|upper }}{% endif %}
+              </div>
+              <div class="hd-mod-meta">
+                <div class="hd-mod-name">{{ mod.name }}</div>
+                <div class="hd-mod-sub">{{ mod.module|default:"" }}</div>
+              </div>
+            </div>
+            <div class="hd-mod-actions">
+              <a href="{{ mod.href|default:'#' }}" class="hd-btn-primary">Apri modulo</a>
+              <a href="{{ mod.href|default:'#' }}" class="hd-btn-secondary">Dettagli</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="hd-section">
+        <div class="hd-section-title">Moduli principali</div>
+        <div class="hd-empty">Nessun modulo configurato per il tuo profilo.</div>
+      </div>
+      {% endif %}
+
+      {# Richieste recenti (tabella) #}
+      {% if richieste_recenti %}
+      <div class="hd-section">
+        <div class="hd-section-title">
+          Richieste recenti
+          <span class="hd-section-badge">{{ richieste_total }} totali</span>
+        </div>
+        <div class="hd-table-wrap">
+          <table class="hd-table">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Motivazione</th>
+                <th>Inizio</th>
+                <th>Fine</th>
+                <th>Stato</th>
+                <th>Creata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in richieste_recenti %}
+              <tr>
+                <td>{{ r.tipo|default:"—" }}</td>
+                <td class="hd-td-muted">{{ r.motivazione|default:"—"|truncatechars:40 }}</td>
+                <td>{{ r.inizio|default:"—" }}</td>
+                <td>{{ r.fine|default:"—" }}</td>
+                <td>
+                  <span class="hd-stato hd-stato-{{ r.stato|lower|cut:' ' }}">{{ r.stato }}</span>
+                </td>
+                <td class="hd-td-muted">{{ r.creata|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Status strip #}
+      <div class="hd-status-strip">
+        <div class="hd-status-item">
+          <span class="hd-status-dot"></span>
+          <span class="hd-status-label">Navigation Registry</span>
+          <span class="hd-status-val">Attivo</span>
+        </div>
+        <div class="hd-status-item">
+          <span class="hd-status-dot"></span>
+          <span class="hd-status-label">Fallback legacy</span>
+          <span class="hd-status-val">Disponibile</span>
+        </div>
+        <div class="hd-status-item">
+          <span class="hd-status-dot"></span>
+          <span class="hd-status-label">ACL</span>
+          <span class="hd-status-val">Operativo</span>
+        </div>
+        <div class="hd-status-item">
+          <span class="hd-status-dot"></span>
+          <span class="hd-status-label">Sincronizzazioni</span>
+          <span class="hd-status-val">OK</span>
+        </div>
+      </div>
+
+    </div>{# .hd-board-main #}
+
+    {# Pannello laterale #}
+    <aside class="hd-board-side">
+
+      {# Contatori richieste #}
+      {% if richieste_total or richieste_attesa or richieste_approvate %}
+      <div class="hd-side-card">
+        <div class="hd-side-title">Le mie richieste</div>
+        <div class="hd-counter-row">
+          <div class="hd-counter hd-counter-blue">
+            <div class="hd-counter-val">{{ richieste_total|default:0 }}</div>
+            <div class="hd-counter-lbl">Totali</div>
+          </div>
+          <div class="hd-counter hd-counter-yellow">
+            <div class="hd-counter-val">{{ richieste_attesa|default:0 }}</div>
+            <div class="hd-counter-lbl">In attesa</div>
+          </div>
+          <div class="hd-counter hd-counter-green">
+            <div class="hd-counter-val">{{ richieste_approvate|default:0 }}</div>
+            <div class="hd-counter-lbl">Approvate</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Attività recenti #}
+      <div class="hd-side-card">
+        <div class="hd-side-title">
+          Attività recenti
+          <a href="#" class="hd-side-link">Vedi tutte</a>
+        </div>
+        <div class="hd-activity-list">
+          {% for act in activities %}
+          <div class="hd-activity-item">
+            <span class="hd-activity-dot
+              {% if act.stato == 'Approvato' %}green
+              {% elif act.stato == 'Rifiutato' %}red
+              {% else %}yellow{% endif %}"></span>
+            <div class="hd-activity-body">
+              <div class="hd-activity-main">{{ act.tipo|default:"Attività" }}</div>
+              <div class="hd-activity-sub">
+                {% if act.motivazione %}{{ act.motivazione|truncatechars:38 }}{% else %}{{ act.stato }}{% endif %}
+              </div>
+            </div>
+            <div class="hd-activity-time">{{ act.creata|default:"" }}</div>
+          </div>
+          {% empty %}
+          <div class="hd-empty-sm">Nessuna attività recente</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# Da approvare (CAR / admin) #}
+      {% with pa=pending_approvals %}
+      {% if pa.pending_count %}
+      <div class="hd-side-card hd-side-card-accent">
+        <div class="hd-side-title">Da approvare
+          <span class="hd-badge-accent">{{ pa.pending_count }}</span>
+        </div>
+        <div class="hd-approve-row">
+          <div class="hd-approve-label">Richieste assenza in attesa</div>
+          <a href="#" class="hd-approve-link">Vai alla lista →</a>
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      {# Badge CAR #}
+      {% if car_pending_count and car_pending_count > 0 %}
+      <div class="hd-side-card hd-car-card">
+        <div class="hd-car-top">
+          <div class="hd-car-icon" aria-hidden="true">⚠</div>
+          <div>
+            <div class="hd-side-title" style="margin-bottom:2px;">Badge CAR</div>
+            <div class="hd-car-sub">Assenze in attesa del tuo reparto</div>
+          </div>
+        </div>
+        <div class="hd-car-count">{{ car_pending_count }}</div>
+        <a href="{% url 'assenze_gestione' %}" class="hd-car-link">Apri gestione</a>
+      </div>
+      {% endif %}
+
+      {# Ruolo utente #}
+      {% if legacy_user %}
+      <div class="hd-side-card hd-user-card">
+        <div class="hd-user-avatar-lg">
+          {{ greeting_name|slice:":1"|upper }}
+        </div>
+        <div class="hd-user-details">
+          <div class="hd-user-fullname">{{ greeting_name }}</div>
+          <div class="hd-user-role-lbl">
+            {% if legacy_user.ruolo %}{{ legacy_user.ruolo }}
+            {% else %}IT Administrator{% endif %}
+          </div>
+        </div>
+        <div class="hd-user-meta">
+          <span class="hd-meta-dot"></span> Sessione attiva
+        </div>
+      </div>
+      {% endif %}
+
+    </aside>{# .hd-board-side #}
+
+  </div>{# .hd-board #}
+
+</div>{# .hd-wrap #}
+{% endblock %}

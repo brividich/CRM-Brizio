@@ -1,0 +1,46 @@
+.hub-dashboard-pilot .eb-header {
+  align-items: flex-start;
+  padding: var(--hub-space-4);
+  border: 1px solid var(--hub-color-border);
+  border-radius: var(--hub-radius-xl);
+  background: linear-gradient(180deg, var(--hub-color-surface) 0%, var(--hub-color-surface-raised) 100%);
+  box-shadow: var(--hub-shadow-sm);
+}
+
+.hub-dashboard-pilot .eb-header .hub-page-header {
+  flex: 1 1 auto;
+}
+
+.hub-dashboard-pilot .eb-widget {
+  border-color: var(--hub-color-border);
+  border-radius: var(--hub-radius-xl);
+}
+
+.hub-dashboard-pilot .eb-widget-head {
+  background: var(--hub-color-surface-raised);
+}
+
+.hub-dashboard-pilot #eb-edit-bar.hub-toolbar {
+  background: var(--hub-status-info-bg);
+  border-color: var(--hub-status-info);
+  border-color: color-mix(in srgb, var(--hub-status-info) 28%, var(--hub-color-border));
+  color: var(--hub-color-steel);
+}
+
+.hub-dashboard-pilot .dash-bp-grid {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.hub-dashboard-pilot .dash-ind-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.hub-dashboard-pilot .hub-empty-state {
+  width: 100%;
+}
+
+.hub-dashboard-pilot #dash-modules-grid > .hub-empty-state,
+.hub-dashboard-pilot .dash-bp-grid > .hub-empty-state,
+.hub-dashboard-pilot .dash-ind-grid > .hub-empty-state {
+  grid-column: 1 / -1;
+}

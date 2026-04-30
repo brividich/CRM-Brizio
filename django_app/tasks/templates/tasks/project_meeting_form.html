@@ -1,0 +1,1146 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_head %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────── */
+.mf-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 4px 48px;
+}
+.mf-header {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  border-radius: 16px;
+  padding: 24px 28px;
+  color: #fff;
+}
+.mf-header-icon {
+  width: 50px; height: 50px;
+  background: rgba(255,255,255,.15);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mf-header-icon svg { width: 26px; height: 26px; stroke: #fff; }
+.mf-header h2 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 800; }
+.mf-header p  { margin: 0; opacity: .8; font-size: .875rem; }
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+.mf-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.mf-section-head {
+  background: linear-gradient(180deg, #f4f8fd 0%, #eef4fb 100%);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mf-section-head svg { width: 16px; height: 16px; stroke: #64748b; flex-shrink: 0; }
+.mf-section-head span { font-size: .8125rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .05em; }
+.mf-section-body { padding: 20px; }
+
+/* ── Fields ─────────────────────────────────────────────────────────── */
+.mf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mf-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) { .mf-row, .mf-row-3 { grid-template-columns: 1fr; } }
+.mf-field { margin-bottom: 16px; }
+.mf-field:last-child { margin-bottom: 0; }
+.mf-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .8125rem; font-weight: 600; color: #475569; margin-bottom: 6px;
+}
+.mf-label .req { color: #ef4444; }
+.mf-hint { font-size: .75rem; color: #94a3b8; margin-top: 5px; line-height: 1.4; }
+.mf-field .input { width: 100%; box-sizing: border-box; }
+.mf-errorlist { list-style: none; padding: 0; margin: 5px 0 0; }
+.mf-errorlist li { font-size: .8rem; color: #dc2626; display: flex; align-items: center; gap: 4px; }
+.mf-errorlist li::before { content: "⚠"; font-size: .7rem; }
+
+/* ── Partecipanti search + tags ─────────────────────────────────────── */
+.mf-search-box {
+  position: relative; margin-bottom: 10px;
+}
+.mf-search-box input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 12px 9px 36px;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: .875rem; color: #1e293b; background: #f8fafc;
+  outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.mf-search-box input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: #fff; }
+.mf-search-box .mf-search-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; stroke: #94a3b8; pointer-events: none;
+}
+.mf-search-count {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: .75rem; color: #94a3b8; font-weight: 600;
+}
+
+.mf-participant-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px;
+  margin-bottom: 10px;
+}
+.mf-ptag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 99px;
+  padding: 3px 10px 3px 8px; font-size: .8125rem; color: #1e40af; font-weight: 500;
+}
+.mf-ptag-avatar {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2563eb; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; font-weight: 700; flex-shrink: 0;
+}
+.mf-ptag-none { font-size: .8125rem; color: #94a3b8; font-style: italic; padding: 4px 0; }
+
+.mf-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafcff;
+}
+.mf-user-grid label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: .875rem; color: #334155; cursor: pointer;
+  padding: 5px 8px; border-radius: 6px;
+  transition: background .1s; user-select: none;
+}
+.mf-user-grid label:hover { background: #eff6ff; }
+.mf-user-grid label.mf-hidden { display: none; }
+.mf-user-grid input[type=checkbox] { accent-color: #2563eb; width: 15px; height: 15px; flex-shrink: 0; }
+.mf-user-grid-empty { font-size: .85rem; color: #94a3b8; text-align: center; padding: 16px; font-style: italic; display: none; }
+
+/* ── Agenda builder ─────────────────────────────────────────────────── */
+.agenda-list { margin-bottom: 12px; }
+.agenda-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 8px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.agenda-item:hover { border-color: #bfdbfe; box-shadow: 0 1px 4px rgba(37,99,235,.08); }
+.agenda-num {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: #2563eb; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+}
+.agenda-body { flex: 1; min-width: 0; }
+.agenda-title { font-size: .9rem; font-weight: 600; color: #1e293b; word-break: break-word; }
+.agenda-nota { font-size: .8125rem; color: #64748b; margin-top: 4px; white-space: pre-wrap; }
+.agenda-extra-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 6px; margin-top: 8px;
+}
+.agenda-extra-field {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 7px 9px; min-width: 0;
+}
+.agenda-extra-field span {
+  display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: #64748b; font-weight: 700; margin-bottom: 2px;
+}
+.agenda-extra-field strong {
+  display: block; font-size: .8rem; color: #1e293b; font-weight: 600;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.agenda-task-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 99px;
+  padding: 1px 8px; font-size: .75rem; color: #15803d; font-weight: 500;
+  margin-left: 8px; white-space: nowrap;
+}
+.agenda-task-badge svg { width: 11px; height: 11px; stroke: #16a34a; }
+.agenda-del {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; cursor: pointer;
+  border: none; background: transparent; color: #94a3b8; transition: background .1s, color .1s;
+}
+.agenda-del:hover { background: #fee2e2; color: #dc2626; }
+.agenda-del svg { width: 14px; height: 14px; stroke: currentColor; }
+
+.agenda-empty-state {
+  text-align: center; padding: 28px 16px;
+  color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 10px;
+  font-size: .875rem;
+}
+.agenda-empty-state svg { width: 32px; height: 32px; stroke: #cbd5e1; margin: 0 auto 8px; display: block; }
+
+/* Add form inline */
+.agenda-add-form {
+  background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 10px;
+  padding: 16px; display: none; margin-bottom: 8px;
+}
+.agenda-add-form.open { display: block; }
+.agenda-add-title { font-size: .8125rem; font-weight: 700; color: #1e40af; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.agenda-add-title svg { width: 14px; height: 14px; stroke: currentColor; }
+.agenda-add-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+@media (max-width: 580px) { .agenda-add-row { grid-template-columns: 1fr; } }
+.agenda-add-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.agenda-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.agenda-custom-head .mf-label { margin: 0; }
+.agenda-custom-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: 7px; border: 1px solid #bfdbfe;
+  background: #eff6ff; color: #2563eb; font-size: .78rem; font-weight: 700;
+  cursor: pointer;
+}
+.agenda-custom-btn:hover { background: #dbeafe; border-color: #93c5fd; }
+.agenda-custom-btn svg { width: 13px; height: 13px; stroke: currentColor; }
+.agenda-custom-fields { display: grid; gap: 8px; }
+.agenda-custom-row {
+  display: grid; grid-template-columns: minmax(120px, .45fr) minmax(160px, 1fr) 30px;
+  gap: 8px; align-items: center;
+}
+.agenda-custom-row .input { width: 100%; box-sizing: border-box; }
+.agenda-custom-remove {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 7px; background: transparent; color: #94a3b8; cursor: pointer;
+}
+.agenda-custom-remove:hover { background: #fee2e2; color: #dc2626; }
+.agenda-custom-remove svg { width: 14px; height: 14px; stroke: currentColor; }
+@media (max-width: 580px) { .agenda-custom-row { grid-template-columns: 1fr 1fr 30px; } }
+
+.agenda-btn-add {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 8px; font-size: .875rem; font-weight: 600;
+  border: 1px dashed #bfdbfe; background: #f0f7ff; color: #2563eb; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.agenda-btn-add:hover { background: #dbeafe; border-color: #93c5fd; }
+.agenda-btn-add svg { width: 15px; height: 15px; stroke: currentColor; }
+
+/* Problemi gestiti */
+.mf-issues-list { display: grid; gap: 10px; margin-bottom: 16px; }
+.mf-issue-card {
+  border: 1px solid #fecaca; background: #fff7f7; border-radius: 10px;
+  padding: 12px 14px; display: grid; gap: 8px;
+}
+.mf-issue-card.resolved { border-color: #bbf7d0; background: #f0fdf4; }
+.mf-issue-top { display: flex; align-items: flex-start; gap: 10px; }
+.mf-issue-check { width: 17px; height: 17px; margin-top: 2px; accent-color: #16a34a; flex-shrink: 0; }
+.mf-issue-main { flex: 1; min-width: 0; }
+.mf-issue-title { font-size: .9rem; font-weight: 800; color: #991b1b; overflow-wrap: anywhere; }
+.mf-issue-card.resolved .mf-issue-title { color: #166534; text-decoration: line-through; }
+.mf-issue-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.mf-issue-chip {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 99px;
+  padding: 2px 8px; font-size: .72rem; font-weight: 700;
+  background: #fff; border: 1px solid #fecaca; color: #b91c1c;
+}
+.mf-issue-card.resolved .mf-issue-chip { border-color: #bbf7d0; color: #15803d; }
+.mf-issue-desc { margin: 3px 0 0; white-space: pre-wrap; font-size: .8125rem; color: #64748b; line-height: 1.45; }
+.mf-issue-resolution { display: none; margin-left: 27px; }
+.mf-issue-card.resolved .mf-issue-resolution { display: block; }
+.mf-new-issues { display: grid; gap: 10px; }
+.mf-new-issue-row {
+  display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, .8fr) 132px 32px;
+  gap: 8px; align-items: start; padding: 10px; border: 1px solid #e2e8f0;
+  border-radius: 10px; background: #f8fafc;
+}
+.mf-new-issue-row textarea { min-height: 38px; resize: vertical; }
+.mf-new-issue-remove {
+  width: 32px; height: 32px; border: none; border-radius: 7px; background: transparent;
+  color: #94a3b8; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.mf-new-issue-remove:hover { background: #fee2e2; color: #dc2626; }
+.mf-new-issue-remove svg { width: 15px; height: 15px; stroke: currentColor; }
+@media (max-width: 760px) { .mf-new-issue-row { grid-template-columns: 1fr; } .mf-new-issue-remove { width: 100%; } }
+
+/* ── Collassabile note ODG (legacy) ─────────────────────────────────── */
+.mf-collapsible-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .8rem; color: #64748b; cursor: pointer; user-select: none;
+  padding: 6px 0; border: none; background: none; font-weight: 500;
+}
+.mf-collapsible-toggle svg { width: 14px; height: 14px; stroke: currentColor; transition: transform .2s; }
+.mf-collapsible-toggle.open svg { transform: rotate(90deg); }
+.mf-collapsible-body { display: none; margin-top: 8px; }
+.mf-collapsible-body.open { display: block; }
+
+/* ── Outlook toggle ─────────────────────────────────────────────────── */
+.mf-outlook-toggle {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 20px; cursor: pointer; border-bottom: 1px solid #e2e8f0;
+}
+.mf-outlook-toggle-label { flex: 1; }
+.mf-outlook-toggle-label strong { display: block; font-size: .9rem; font-weight: 700; color: #1e293b; }
+.mf-outlook-toggle-label span { font-size: .8rem; color: #64748b; }
+.mf-toggle {
+  position: relative; width: 42px; height: 24px; flex-shrink: 0;
+  -webkit-appearance: none; appearance: none;
+  background: #e2e8f0; border-radius: 999px; cursor: pointer; transition: background .2s;
+}
+.mf-toggle:checked { background: #2563eb; }
+.mf-toggle::before {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.mf-toggle:checked::before { left: 21px; }
+.mf-outlook-body { padding: 16px 20px; display: none; }
+.mf-outlook-body.open { display: block; }
+.mf-outlook-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: #0078d4; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mf-outlook-icon svg { width: 20px; height: 20px; fill: #fff; }
+.mf-outlook-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.mf-outlook-title { font-size: .9rem; font-weight: 700; color: #0f172a; }
+.mf-outlook-sub { font-size: .8rem; color: #64748b; }
+.mf-attendees-preview {
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px; font-size: .8125rem; color: #1e40af;
+}
+.mf-at-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.mf-at-row:last-child { margin-bottom: 0; }
+.mf-at-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.mf-actions { display: flex; gap: 10px; align-items: center; margin-top: 24px; flex-wrap: wrap; }
+.mf-btn {
+  padding: 11px 26px; border-radius: 9px; font-size: .9rem; font-weight: 700;
+  text-decoration: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  transition: background .15s, transform .1s;
+}
+.mf-btn svg { width: 16px; height: 16px; stroke: currentColor; }
+.mf-btn.primary { background: #2563eb; color: #fff; }
+.mf-btn.primary:hover { background: #1d4ed8; }
+.mf-btn.primary:active { transform: scale(.98); }
+.mf-btn.ghost { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.mf-btn.ghost:hover { background: #e2e8f0; }
+.mf-btn-sm {
+  padding: 7px 14px; border-radius: 7px; font-size: .825rem; font-weight: 600;
+  border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+}
+.mf-btn-sm.primary { background: #2563eb; color: #fff; }
+.mf-btn-sm.primary:hover { background: #1d4ed8; }
+.mf-btn-sm.ghost { background: #e2e8f0; color: #475569; }
+.mf-btn-sm.ghost:hover { background: #cbd5e1; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────── */
+body.theme-dark .mf-section { background: #1e293b; border-color: #334155; }
+body.theme-dark .mf-section-head { background: #0f172a; border-bottom-color: #334155; }
+body.theme-dark .mf-section-head span { color: #94a3b8; }
+body.theme-dark .mf-header { background: linear-gradient(135deg,#0f172a,#1e3a5f); }
+body.theme-dark .mf-btn.ghost { background: #0f172a; color: #94a3b8; border-color: #334155; }
+body.theme-dark .mf-user-grid { background: #0f172a; border-color: #334155; }
+body.theme-dark .mf-user-grid label { color: #e2e8f0; }
+body.theme-dark .mf-user-grid label:hover { background: rgba(37,99,235,.15); }
+body.theme-dark .mf-search-box input { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+body.theme-dark .mf-ptag { background: rgba(37,99,235,.15); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .agenda-item { background: #0f172a; border-color: #334155; }
+body.theme-dark .agenda-item:hover { border-color: rgba(59,130,246,.4); }
+body.theme-dark .agenda-title { color: #e2e8f0; }
+body.theme-dark .agenda-nota { color: #94a3b8; }
+body.theme-dark .agenda-extra-field { background: #111827; border-color: #334155; }
+body.theme-dark .agenda-extra-field span { color: #94a3b8; }
+body.theme-dark .agenda-extra-field strong { color: #e2e8f0; }
+body.theme-dark .agenda-empty-state { border-color: #334155; color: #64748b; }
+body.theme-dark .agenda-add-form { background: rgba(37,99,235,.08); border-color: rgba(59,130,246,.25); }
+body.theme-dark .agenda-custom-btn { background: rgba(37,99,235,.12); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .agenda-btn-add { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+body.theme-dark .mf-issue-card { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
+body.theme-dark .mf-issue-card.resolved { background: rgba(22,163,74,.1); border-color: rgba(22,163,74,.3); }
+body.theme-dark .mf-issue-title { color: #fca5a5; }
+body.theme-dark .mf-issue-card.resolved .mf-issue-title { color: #86efac; }
+body.theme-dark .mf-issue-chip { background: #0f172a; border-color: rgba(239,68,68,.35); color: #fca5a5; }
+body.theme-dark .mf-issue-card.resolved .mf-issue-chip { border-color: rgba(22,163,74,.35); color: #86efac; }
+body.theme-dark .mf-new-issue-row { background: #0f172a; border-color: #334155; }
+body.theme-dark .mf-collapsible-toggle { color: #94a3b8; }
+body.theme-dark .mf-outlook-toggle { border-bottom-color: #334155; }
+body.theme-dark .mf-outlook-toggle-label strong { color: #e2e8f0; }
+body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-color: rgba(59,130,246,.3); color: #93c5fd; }
+</style>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="mf-wrap">
+
+  {# ── Header ───────────────────────────────────────────────────────── #}
+  <div class="mf-header">
+    <div class="mf-header-icon">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2">
+        {% if is_edit %}
+          <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/>
+        {% else %}
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        {% endif %}
+      </svg>
+    </div>
+    <div>
+      <h2>{% if is_edit %}Modifica incontro #{{ meeting.numero }}{% else %}Nuovo incontro di avanzamento{% endif %}</h2>
+      <p>{{ project.name }}{% if project.part_number %} · P/N {{ project.part_number }}{% endif %}</p>
+    </div>
+  </div>
+
+  <form method="post" novalidate id="meeting-form">
+    {% csrf_token %}
+    {{ form.agenda_items_raw }}
+
+    {# ── Informazioni base ──────────────────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+        <span>Informazioni base</span>
+      </div>
+      <div class="mf-section-body">
+        <div class="mf-field">
+          <label class="mf-label" for="{{ form.titolo.id_for_label }}">Titolo incontro</label>
+          {{ form.titolo }}
+          {% if form.titolo.errors %}<ul class="mf-errorlist">{% for e in form.titolo.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          <p class="mf-hint">Facoltativo — se lasciato vuoto appare come "Incontro N".</p>
+        </div>
+        <div class="mf-row">
+          <div class="mf-field">
+            <label class="mf-label" for="{{ form.data.id_for_label }}">Data <span class="req">*</span></label>
+            {{ form.data }}
+            {% if form.data.errors %}<ul class="mf-errorlist">{% for e in form.data.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="mf-field">
+            <label class="mf-label" for="{{ form.ora.id_for_label }}">Ora</label>
+            {{ form.ora }}
+          </div>
+        </div>
+        <div class="mf-field" style="margin-bottom:0">
+          <label class="mf-label" for="{{ form.luogo.id_for_label }}">Luogo / Link</label>
+          {{ form.luogo }}
+          <datalist id="meeting-rooms-datalist"></datalist>
+          <p class="mf-hint">Seleziona una sala dalla lista o digita un link (es. Teams, Zoom).</p>
+        </div>
+      </div>
+    </div>
+
+    {# ── Partecipanti ───────────────────────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
+        <span>Partecipanti</span>
+      </div>
+      <div class="mf-section-body">
+
+        {# Utenti portale con ricerca live #}
+        <div class="mf-field">
+          <label class="mf-label">Utenti del portale</label>
+
+          {# Chips utenti selezionati #}
+          <div class="mf-participant-tags" id="participant-tags">
+            <span class="mf-ptag-none">Nessun utente selezionato</span>
+          </div>
+
+          {# Search box #}
+          <div class="mf-search-box">
+            <svg class="mf-search-icon" fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+            <input type="text" id="participant-search" placeholder="Cerca per nome…" autocomplete="off">
+            <span class="mf-search-count" id="search-count"></span>
+          </div>
+
+          {# Grid checkbox #}
+          <div class="mf-user-grid" id="mf-user-grid">
+            {{ form.partecipanti_utenti }}
+          </div>
+          <div class="mf-user-grid-empty" id="grid-empty">Nessun utente trovato</div>
+          {% if form.partecipanti_utenti.errors %}<ul class="mf-errorlist">{% for e in form.partecipanti_utenti.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          <p class="mf-hint">Le email degli utenti selezionati saranno usate per l'invito Outlook.</p>
+        </div>
+
+        {# Email esterne #}
+        <div class="mf-field">
+          <label class="mf-label" for="{{ form.partecipanti_email_extra.id_for_label }}">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#94a3b8"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+            Email aggiuntive (esterni)
+          </label>
+          {{ form.partecipanti_email_extra }}
+          <p class="mf-hint">Un indirizzo per riga — per fornitori, clienti o consulenti non presenti nel portale.</p>
+          {% if form.partecipanti_email_extra.errors %}<ul class="mf-errorlist">{% for e in form.partecipanti_email_extra.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+
+        {# Note partecipanti (collassabile) #}
+        <div class="mf-field" style="margin-bottom:0">
+          <button type="button" class="mf-collapsible-toggle" id="toggle-part-note">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            Note partecipanti (facoltativo)
+          </button>
+          <div class="mf-collapsible-body" id="part-note">
+            <div style="margin-top:10px">
+              {{ form.partecipanti_testo }}
+              <p class="mf-hint">Testo libero: ruoli, sostituzioni, presenti solo parzialmente, ecc.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Ordine del giorno ──────────────────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+        <span>Ordine del giorno</span>
+      </div>
+      <div class="mf-section-body">
+
+        {# Lista punti strutturati #}
+        <div class="mf-field" style="margin-bottom:0">
+          <label class="mf-label">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#64748b"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z"/></svg>
+            Punti da trattare
+          </label>
+          <p class="mf-hint" style="margin-bottom:10px">Aggiungi uno o più punti strutturati — puoi opzionalmente collegarli a un'attività del kickoff.</p>
+
+          {# Lista attuale #}
+          <div class="agenda-list" id="agenda-list"></div>
+
+          {# Form aggiunta inline #}
+          <div class="agenda-add-form" id="agenda-add-form">
+            <div class="agenda-add-title">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Nuovo punto all'ordine del giorno
+            </div>
+            <div class="mf-field">
+              <label class="mf-label" for="new-agenda-title">Titolo <span class="req">*</span></label>
+              <input type="text" id="new-agenda-title" class="input" placeholder="Es. Stato avanzamento commessa, Gestione anomalie, Collaudo…" maxlength="200" style="width:100%;box-sizing:border-box">
+            </div>
+            <div class="mf-field">
+              <label class="mf-label" for="new-agenda-nota">Nota aggiuntiva</label>
+              <textarea id="new-agenda-nota" class="input" rows="2" placeholder="Dettagli, contesto, documenti di riferimento…" style="width:100%;box-sizing:border-box;resize:vertical"></textarea>
+            </div>
+            <div class="mf-field">
+              <div class="agenda-custom-head">
+                <label class="mf-label">Campi personalizzati</label>
+                <button type="button" class="agenda-custom-btn" id="agenda-custom-add-btn">
+                  <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Campo
+                </button>
+              </div>
+              <div class="agenda-custom-fields" id="agenda-custom-fields"></div>
+              <p class="mf-hint">Aggiungi dati liberi come responsabile, scadenza, reparto, riferimento documento o qualsiasi campo utile per questo punto.</p>
+            </div>
+            {% if project_tasks_json != "[]" %}
+            <div class="mf-field" style="margin-bottom:0">
+              <label class="mf-label" for="new-agenda-task">Collega a un'attività del kickoff (opzionale)</label>
+              <select id="new-agenda-task" class="input" style="width:100%;box-sizing:border-box">
+                <option value="">— nessuna attività collegata —</option>
+              </select>
+            </div>
+            {% endif %}
+            <div class="agenda-add-actions">
+              <button type="button" class="mf-btn-sm primary" id="agenda-confirm-btn">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Aggiungi
+              </button>
+              <button type="button" class="mf-btn-sm ghost" id="agenda-cancel-btn">Annulla</button>
+            </div>
+          </div>
+
+          {# Pulsante apri form #}
+          <button type="button" class="agenda-btn-add" id="agenda-add-btn">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Aggiungi punto
+          </button>
+
+          {# Note testuali legacy ODG #}
+          <div style="margin-top:14px">
+            <button type="button" class="mf-collapsible-toggle" id="toggle-odg-note">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+              Note testuali aggiuntive (testo libero)
+            </button>
+            <div class="mf-collapsible-body" id="odg-note">
+              <div style="margin-top:10px">
+                {{ form.ordine_del_giorno }}
+                <p class="mf-hint">Usa questo campo per testo libero o appunti iniziali — i punti strutturati sopra sono il metodo principale.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Verbale / Note ─────────────────────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+        <span>Verbale e note</span>
+      </div>
+      <div class="mf-section-body">
+        <div class="mf-field" style="margin-bottom:0">
+          <label class="mf-label" for="{{ form.note.id_for_label }}">Verbale / Note incontro</label>
+          {{ form.note }}
+          <p class="mf-hint">Compila durante o dopo l'incontro. Supporta testo libero strutturato.</p>
+        </div>
+      </div>
+    </div>
+
+    {# ── Problemi gestiti ───────────────────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-section-head">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+        <span>Problemi aperti e decisioni</span>
+      </div>
+      <div class="mf-section-body">
+        {% if meeting_issues %}
+          <div class="mf-field">
+            <label class="mf-label">Problemi riportati automaticamente</label>
+            <p class="mf-hint" style="margin-bottom:10px">I problemi ancora aperti entrano automaticamente nell'ordine del giorno. Spunta "risolto" quando l'incontro li chiude; se restano non risolti saranno riportati nel prossimo incontro.</p>
+            <div class="mf-issues-list">
+              {% for issue in meeting_issues %}
+                <div class="mf-issue-card{% if issue.is_resolved %} resolved{% endif %}" data-issue-card>
+                  <input type="hidden" name="meeting_issue_ids" value="{{ issue.id }}">
+                  <div class="mf-issue-top">
+                    <input class="mf-issue-check" type="checkbox" name="resolved_issue_ids" value="{{ issue.id }}" id="issue-resolved-{{ issue.id }}" {% if issue.is_resolved %}checked{% endif %}>
+                    <div class="mf-issue-main">
+                      <label class="mf-issue-title" for="issue-resolved-{{ issue.id }}">{{ issue.title }}</label>
+                      <div class="mf-issue-meta">
+                        <span class="mf-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
+                        {% if issue.source_meeting %}<span class="mf-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
+                        {% if issue.assigned_to %}<span class="mf-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
+                        {% if issue.due_date %}<span class="mf-issue-chip">Scad. {{ issue.due_date|date:"d/m/Y" }}</span>{% endif %}
+                        {% if issue.linked_task %}<span class="mf-issue-chip">Task: {{ issue.linked_task.title }}</span>{% endif %}
+                      </div>
+                      {% if issue.description %}<p class="mf-issue-desc">{{ issue.description }}</p>{% endif %}
+                    </div>
+                  </div>
+                  <div class="mf-issue-resolution">
+                    <label class="mf-label" for="issue-resolution-{{ issue.id }}">Nota risoluzione</label>
+                    <textarea class="input" rows="2" id="issue-resolution-{{ issue.id }}" name="issue_resolution_{{ issue.id }}" placeholder="Come e' stato risolto, decisione presa o riferimento operativo">{{ issue.resolution_note }}</textarea>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="mf-field">
+          <label class="mf-label">Nuovi problemi emersi in questo incontro</label>
+          <div class="mf-new-issues" id="new-issues-list"></div>
+          <button type="button" class="agenda-btn-add" id="add-issue-btn" style="margin-top:10px">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Aggiungi problema
+          </button>
+          <p class="mf-hint">Ogni nuovo problema resta tracciato sul kickoff e verra' proposto automaticamente negli incontri successivi finche' non viene risolto.</p>
+        </div>
+
+        <div class="mf-row">
+          <div class="mf-field" style="margin-bottom:0">
+            <button type="button" class="mf-collapsible-toggle" id="toggle-problems-note">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+              Note problemi legacy / testo libero
+            </button>
+            <div class="mf-collapsible-body" id="problems-note">
+              <div style="margin-top:10px">
+                {{ form.problemi_aperti }}
+                <p class="mf-hint">Campo storico mantenuto per appunti liberi; la gestione automatica usa i problemi strutturati sopra.</p>
+              </div>
+            </div>
+          </div>
+          <div class="mf-field" style="margin-bottom:0">
+            <label class="mf-label" for="{{ form.next_steps.id_for_label }}">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:#16a34a"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              Next steps
+            </label>
+            {{ form.next_steps }}
+            <p class="mf-hint">Azioni operative: nel dettaglio incontro puoi trasformare ogni riga in task del kickoff.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Integrazione Outlook Calendar ─────────────────────────────── #}
+    <div class="mf-section">
+      <div class="mf-outlook-toggle" id="outlook-toggle-row">
+        <div class="mf-outlook-icon">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 12.072a12 12 0 1 0-13.868 11.854v-8.094H7.1v-3.76h3.032V9.41c0-2.99 1.893-4.637 4.525-4.637 1.31 0 2.683.234 2.683.234v2.949H15.82c-1.49 0-1.956.925-1.956 1.875v2.24h3.328l-.532 3.76h-2.796v8.094A12 12 0 0 0 24 12.072Z"/>
+          </svg>
+        </div>
+        <div class="mf-outlook-toggle-label">
+          <strong>Calendario Outlook</strong>
+          <span>Crea un evento sul calendario con tutti i partecipanti come invitati</span>
+        </div>
+        {{ form.sync_outlook }}
+      </div>
+      <div class="mf-outlook-body" id="outlook-body">
+        <div id="mf-attendees-preview" class="mf-attendees-preview" style="display:none;"></div>
+        <div class="mf-field" style="margin-bottom:0">
+          <label class="mf-label" for="{{ form.outlook_organizer_email.id_for_label }}">Email organizzatore</label>
+          {{ form.outlook_organizer_email }}
+          <p class="mf-hint">Lascia vuoto per usare la tua email — l'evento sarà creato sul tuo calendario.</p>
+          {% if form.outlook_organizer_email.errors %}<ul class="mf-errorlist">{% for e in form.outlook_organizer_email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        {% if is_edit and meeting.outlook_event_id %}
+          <div style="font-size:.8125rem;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-top:12px;">
+            Evento Outlook esistente — salvando si aggiorna con i partecipanti attuali.
+            {% if meeting.outlook_event_web_link %}
+              <a href="{{ meeting.outlook_event_web_link }}" target="_blank" rel="noopener" style="color:#0369a1;font-weight:700;">Apri in Outlook &rarr;</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Submit ────────────────────────────────────────────────────── #}
+    <div class="mf-actions">
+      <button type="submit" class="mf-btn primary">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+        {% if is_edit %}Salva modifiche{% else %}Crea incontro{% endif %}
+      </button>
+      <a class="mf-btn ghost" href="{% url 'tasks:project_meetings' project.id %}">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+{{ project_tasks_json|json_script:"project-tasks-data" }}
+{{ meeting_rooms_json|json_script:"meeting-rooms-data" }}
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─── Sale riunioni → datalist ────────────────────────────────────── */
+  try {
+    const roomsEl = document.getElementById('meeting-rooms-data');
+    const rooms = roomsEl ? (JSON.parse(roomsEl.textContent) || []) : [];
+    const dl = document.getElementById('meeting-rooms-datalist');
+    const luogoInput = document.getElementById('{{ form.luogo.id_for_label }}');
+    if (dl && rooms.length > 0) {
+      rooms.forEach(function(nome) {
+        const opt = document.createElement('option');
+        opt.value = nome;
+        dl.appendChild(opt);
+      });
+      if (luogoInput) luogoInput.setAttribute('list', 'meeting-rooms-datalist');
+    }
+  } catch(e) {}
+
+  /* ─── Dati tasks dal kickoff ──────────────────────────────────────── */
+  let projectTasks = [];
+  try {
+    const el = document.getElementById('project-tasks-data');
+    if (el) projectTasks = JSON.parse(el.textContent) || [];
+  } catch(e) { projectTasks = []; }
+
+  /* Popola il select task nel form aggiunta */
+  const taskSelect = document.getElementById('new-agenda-task');
+  if (taskSelect && projectTasks.length > 0) {
+    projectTasks.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.title;
+      taskSelect.appendChild(opt);
+    });
+  }
+
+  /* ─── Escape HTML ─────────────────────────────────────────────────── */
+  function esc(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function normalizeCustomFields(fields) {
+    if (!Array.isArray(fields)) return [];
+    return fields
+      .map(field => ({
+        label: String(field?.label || '').trim(),
+        value: String(field?.value || '').trim(),
+      }))
+      .filter(field => field.label && field.value)
+      .slice(0, 12);
+  }
+
+  function addCustomFieldRow(label = '', value = '') {
+    const container = document.getElementById('agenda-custom-fields');
+    if (!container) return;
+    if (container.querySelectorAll('.agenda-custom-row').length >= 12) return;
+
+    const row = document.createElement('div');
+    row.className = 'agenda-custom-row';
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.className = 'input';
+    labelInput.placeholder = 'Nome campo';
+    labelInput.maxLength = 80;
+    labelInput.value = label;
+    labelInput.dataset.role = 'label';
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.className = 'input';
+    valueInput.placeholder = 'Valore';
+    valueInput.maxLength = 500;
+    valueInput.value = value;
+    valueInput.dataset.role = 'value';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'agenda-custom-remove';
+    removeBtn.title = 'Rimuovi campo';
+    removeBtn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>';
+    removeBtn.addEventListener('click', () => row.remove());
+
+    row.append(labelInput, valueInput, removeBtn);
+    container.appendChild(row);
+    labelInput.focus();
+  }
+
+  function resetCustomFieldRows() {
+    const container = document.getElementById('agenda-custom-fields');
+    if (container) container.innerHTML = '';
+  }
+
+  function collectCustomFields() {
+    const rows = document.querySelectorAll('#agenda-custom-fields .agenda-custom-row');
+    return Array.from(rows).map(row => {
+      const label = row.querySelector('[data-role="label"]')?.value.trim() || '';
+      const value = row.querySelector('[data-role="value"]')?.value.trim() || '';
+      return { label, value };
+    }).filter(field => field.label && field.value).slice(0, 12);
+  }
+
+  /* ─── Agenda builder ─────────────────────────────────────────────── */
+  let agenda = [];
+
+  function initAgenda() {
+    const raw = document.getElementById('id_agenda_items_raw');
+    if (raw && raw.value) {
+      try { agenda = JSON.parse(raw.value) || []; } catch(e) { agenda = []; }
+    }
+    renderAgenda();
+  }
+
+  function saveAgendaToHidden() {
+    const raw = document.getElementById('id_agenda_items_raw');
+    if (raw) raw.value = JSON.stringify(agenda);
+  }
+
+  function renderAgenda() {
+    const container = document.getElementById('agenda-list');
+    if (!container) return;
+
+    if (agenda.length === 0) {
+      container.innerHTML = `
+        <div class="agenda-empty-state">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+          </svg>
+          Nessun punto aggiunto — clicca <strong>Aggiungi punto</strong> per strutturare l'ordine del giorno.
+        </div>`;
+      saveAgendaToHidden();
+      return;
+    }
+
+    container.innerHTML = agenda.map((item, idx) => {
+      const taskBadge = item.task_id
+        ? `<span class="agenda-task-badge"><svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>${esc(item.task_label || ('Task #' + item.task_id))}</span>`
+        : '';
+      const issueBadge = item.issue_id
+        ? `<span class="agenda-task-badge" style="background:#fff7f7;border-color:#fecaca;color:#b91c1c">Problema tracciato</span>`
+        : '';
+      const nota = item.nota
+        ? `<div class="agenda-nota">${esc(item.nota)}</div>`
+        : '';
+      const customFields = normalizeCustomFields(item.custom_fields);
+      const customFieldsHtml = customFields.length
+        ? `<div class="agenda-extra-fields">${customFields.map(field => `
+            <div class="agenda-extra-field">
+              <span>${esc(field.label)}</span>
+              <strong>${esc(field.value)}</strong>
+            </div>`).join('')}</div>`
+        : '';
+      return `
+        <div class="agenda-item">
+          <div class="agenda-num">${idx + 1}</div>
+          <div class="agenda-body">
+            <div class="agenda-title">${esc(item.titolo)}${issueBadge}${taskBadge}</div>
+            ${nota}
+            ${customFieldsHtml}
+          </div>
+          ${item.locked ? '' : `
+            <button type="button" class="agenda-del" onclick="removeAgendaItem('${esc(item.id)}')" title="Rimuovi punto">
+              <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+          `}
+        </div>`;
+    }).join('');
+
+    saveAgendaToHidden();
+  }
+
+  window.removeAgendaItem = function(id) {
+    agenda = agenda.filter(item => item.id !== id);
+    renderAgenda();
+  };
+
+  function showAddForm() {
+    const btn = document.getElementById('agenda-add-btn');
+    const form = document.getElementById('agenda-add-form');
+    if (btn) btn.style.display = 'none';
+    if (form) form.classList.add('open');
+    const t = document.getElementById('new-agenda-title');
+    if (t) t.focus();
+  }
+
+  function hideAddForm() {
+    const btn = document.getElementById('agenda-add-btn');
+    const form = document.getElementById('agenda-add-form');
+    if (btn) btn.style.display = '';
+    if (form) form.classList.remove('open');
+    const t = document.getElementById('new-agenda-title');
+    const n = document.getElementById('new-agenda-nota');
+    const k = document.getElementById('new-agenda-task');
+    if (t) t.value = '';
+    if (n) n.value = '';
+    if (k) k.value = '';
+    resetCustomFieldRows();
+  }
+
+  function confirmAddItem() {
+    const titleEl = document.getElementById('new-agenda-title');
+    const notaEl  = document.getElementById('new-agenda-nota');
+    const taskEl  = document.getElementById('new-agenda-task');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    if (!title) { if (titleEl) { titleEl.focus(); titleEl.style.borderColor='#ef4444'; } return; }
+    if (titleEl) titleEl.style.borderColor = '';
+
+    const taskId = taskEl ? taskEl.value : '';
+    const taskLabel = taskId
+      ? (projectTasks.find(t => String(t.id) === taskId)?.title || ('Task #' + taskId))
+      : '';
+
+    agenda.push({
+      id: String(Date.now()),
+      titolo: title,
+      nota: notaEl ? notaEl.value.trim() : '',
+      task_id: taskId ? parseInt(taskId) : null,
+      task_label: taskLabel,
+      custom_fields: collectCustomFields(),
+      done: false,
+    });
+
+    renderAgenda();
+    hideAddForm();
+  }
+
+  /* Wiring pulsanti agenda */
+  const agendaAddBtn     = document.getElementById('agenda-add-btn');
+  const agendaConfirmBtn = document.getElementById('agenda-confirm-btn');
+  const agendaCancelBtn  = document.getElementById('agenda-cancel-btn');
+  const agendaCustomAddBtn = document.getElementById('agenda-custom-add-btn');
+  if (agendaAddBtn)     agendaAddBtn.addEventListener('click', showAddForm);
+  if (agendaConfirmBtn) agendaConfirmBtn.addEventListener('click', confirmAddItem);
+  if (agendaCancelBtn)  agendaCancelBtn.addEventListener('click', hideAddForm);
+  if (agendaCustomAddBtn) agendaCustomAddBtn.addEventListener('click', () => addCustomFieldRow());
+
+  /* Tasto Enter nel campo titolo aggiunge l'item */
+  const newAgendaTitleEl = document.getElementById('new-agenda-title');
+  if (newAgendaTitleEl) {
+    newAgendaTitleEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); confirmAddItem(); }
+    });
+  }
+
+  /* Problemi gestiti */
+  function userOptionsHtml() {
+    return `<option value="">Responsabile</option>{% for u in active_users %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username|escapejs }}</option>{% endfor %}`;
+  }
+
+  function taskOptionsHtml() {
+    if (!projectTasks.length) return '<option value="">Task collegato</option>';
+    return '<option value="">Task collegato</option>' + projectTasks.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join('');
+  }
+
+  function addIssueRow() {
+    const list = document.getElementById('new-issues-list');
+    if (!list) return;
+    const row = document.createElement('div');
+    row.className = 'mf-new-issue-row';
+    row.innerHTML = `
+      <div>
+        <input class="input" type="text" name="new_issue_title" maxlength="220" placeholder="Problema aperto" style="width:100%;box-sizing:border-box">
+        <textarea class="input" name="new_issue_description" rows="2" placeholder="Dettaglio / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
+      </div>
+      <div>
+        <select class="input" name="new_issue_assigned_to" style="width:100%;box-sizing:border-box">${userOptionsHtml()}</select>
+        <select class="input" name="new_issue_task" style="width:100%;box-sizing:border-box;margin-top:6px">${taskOptionsHtml()}</select>
+      </div>
+      <input class="input" type="date" name="new_issue_due_date" title="Scadenza">
+      <button type="button" class="mf-new-issue-remove" title="Rimuovi problema">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+      </button>
+    `;
+    row.querySelector('.mf-new-issue-remove')?.addEventListener('click', () => row.remove());
+    list.appendChild(row);
+    row.querySelector('input[name="new_issue_title"]')?.focus();
+  }
+
+  const addIssueBtn = document.getElementById('add-issue-btn');
+  if (addIssueBtn) addIssueBtn.addEventListener('click', addIssueRow);
+
+  document.querySelectorAll('[data-issue-card]').forEach(card => {
+    const checkbox = card.querySelector('.mf-issue-check');
+    if (!checkbox) return;
+    const syncCard = () => card.classList.toggle('resolved', checkbox.checked);
+    checkbox.addEventListener('change', syncCard);
+    syncCard();
+  });
+
+  /* Salva prima del submit */
+  const meetingFormEl = document.getElementById('meeting-form');
+  if (meetingFormEl) meetingFormEl.addEventListener('submit', saveAgendaToHidden);
+
+  /* Init da dati esistenti (edit) */
+  initAgenda();
+
+  /* ─── Ricerca invitati ────────────────────────────────────────────── */
+  function updateParticipantTags() {
+    const tags = document.getElementById('participant-tags');
+    if (!tags) return;
+    const selected = [];
+    document.querySelectorAll('#mf-user-grid input[type=checkbox]:checked').forEach(cb => {
+      const label = cb.closest('label');
+      if (label) selected.push(label.textContent.trim());
+    });
+    if (selected.length === 0) {
+      tags.innerHTML = '<span class="mf-ptag-none">Nessun utente selezionato</span>';
+    } else {
+      tags.innerHTML = selected.map(name => {
+        const initials = name.trim().split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 2);
+        return `<span class="mf-ptag"><span class="mf-ptag-avatar">${esc(initials)}</span>${esc(name)}</span>`;
+      }).join('');
+    }
+  }
+
+  function filterParticipants(query) {
+    const grid = document.getElementById('mf-user-grid');
+    const emptyMsg = document.getElementById('grid-empty');
+    const countEl = document.getElementById('search-count');
+    if (!grid) return;
+
+    const q = query.toLowerCase().trim();
+    let visible = 0;
+    grid.querySelectorAll('label').forEach(label => {
+      const match = !q || label.textContent.toLowerCase().includes(q);
+      label.classList.toggle('mf-hidden', !match);
+      if (match) visible++;
+    });
+
+    const total = grid.querySelectorAll('label').length;
+    if (emptyMsg) emptyMsg.style.display = (q && visible === 0) ? '' : 'none';
+    if (countEl) countEl.textContent = q ? `${visible}/${total}` : '';
+  }
+
+  const searchInput = document.getElementById('participant-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => filterParticipants(searchInput.value));
+  }
+
+  document.querySelectorAll('#mf-user-grid input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      updateParticipantTags();
+      updateAttendeesPreview();
+    });
+  });
+
+  updateParticipantTags();
+
+  /* ─── Outlook toggle ──────────────────────────────────────────────── */
+  function updateAttendeesPreview() {
+    const toggle = document.querySelector('.mf-toggle');
+    if (!toggle || !toggle.checked) return;
+    const preview = document.getElementById('mf-attendees-preview');
+    if (!preview) return;
+
+    const emails = [];
+    document.querySelectorAll('#mf-user-grid input[type=checkbox]:checked').forEach(cb => {
+      const label = cb.closest('label');
+      if (label) emails.push(label.textContent.trim());
+    });
+    const extraField = document.querySelector('[name="partecipanti_email_extra"]');
+    if (extraField) {
+      extraField.value.split('\n').forEach(line => {
+        const e = line.trim();
+        if (e && e.includes('@')) emails.push(e);
+      });
+    }
+
+    if (emails.length === 0) {
+      preview.style.display = 'none';
+    } else {
+      preview.style.display = '';
+      preview.innerHTML =
+        `<div style="font-size:.75rem;font-weight:700;margin-bottom:6px;opacity:.7">INVITATI (${emails.length})</div>` +
+        emails.map(e => `<div class="mf-at-row"><span class="mf-at-dot"></span>${esc(e)}</div>`).join('');
+    }
+  }
+
+  function updateOutlookVisibility() {
+    const toggle = document.querySelector('.mf-toggle');
+    const body   = document.getElementById('outlook-body');
+    if (!toggle || !body) return;
+    body.classList.toggle('open', toggle.checked);
+    updateAttendeesPreview();
+  }
+
+  /* ─── Outlook toggle ──────────────────────────────────────────────── */
+  const outlookToggleRow = document.getElementById('outlook-toggle-row');
+  if (outlookToggleRow) {
+    outlookToggleRow.addEventListener('click', function() {
+      const toggle = document.querySelector('.mf-toggle');
+      if (toggle) { toggle.checked = !toggle.checked; toggle.dispatchEvent(new Event('change')); }
+    });
+  }
+  const mfToggle = document.querySelector('.mf-toggle');
+  if (mfToggle) mfToggle.addEventListener('change', updateOutlookVisibility);
+  const emailExtraField = document.querySelector('[name="partecipanti_email_extra"]');
+  if (emailExtraField) emailExtraField.addEventListener('input', updateAttendeesPreview);
+  updateOutlookVisibility();
+
+  /* ─── Collassabili ─────────────────────────────────────────────────── */
+  function wireCollapsible(toggleId, bodyId) {
+    const btn  = document.getElementById(toggleId);
+    const body = document.getElementById(bodyId);
+    if (!btn || !body) return;
+    btn.addEventListener('click', function() {
+      body.classList.toggle('open');
+      btn.classList.toggle('open');
+    });
+  }
+  wireCollapsible('toggle-part-note', 'part-note');
+  wireCollapsible('toggle-odg-note',  'odg-note');
+  wireCollapsible('toggle-problems-note', 'problems-note');
+
+  /* Apri automaticamente note ODG se il campo ha già contenuto (edit) */
+  const odgField = document.querySelector('[name="ordine_del_giorno"]');
+  if (odgField && odgField.value.trim()) {
+    const odgBody   = document.getElementById('odg-note');
+    const odgToggle = document.getElementById('toggle-odg-note');
+    if (odgBody)   odgBody.classList.add('open');
+    if (odgToggle) odgToggle.classList.add('open');
+  }
+
+  const problemsField = document.querySelector('[name="problemi_aperti"]');
+  if (problemsField && problemsField.value.trim()) {
+    const problemsBody   = document.getElementById('problems-note');
+    const problemsToggle = document.getElementById('toggle-problems-note');
+    if (problemsBody)   problemsBody.classList.add('open');
+    if (problemsToggle) problemsToggle.classList.add('open');
+  }
+
+})();
+</script>
+{% endblock %}

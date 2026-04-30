@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Gestione anomalie">
+  <path d="M30 18h49l11 11" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square"/>
+  <path d="M96 18h15l13 13" fill="none" stroke="#ff6b00" stroke-width="6" stroke-linecap="square"/>
+  <path d="M111 38v50l-18 18H31L14 89V38z" fill="none" stroke="#002b5c" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M91 107h22V88" fill="none" stroke="#6f94b5" stroke-width="10" stroke-linecap="square"/>
+  <circle cx="60" cy="61" r="26" fill="#fff" stroke="#002b5c" stroke-width="5"/>
+  <path d="M60 45v22M60 78h.01" fill="none" stroke="#002b5c" stroke-width="8" stroke-linecap="round"/>
+  <path d="m80 81 23 23" fill="none" stroke="#002b5c" stroke-width="9" stroke-linecap="round"/>
+</svg>

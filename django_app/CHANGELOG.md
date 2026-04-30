@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+## [Unreleased]
+
+### Hub Preview — Gestione pulsanti, branding e dashboard principale
+
+- **[feat] Pulsanti Manager** (`hub_tools/views.py`, `hub_tools/urls.py`, `hub_tools/templates/hub_tools/pulsanti_manager.html`): nuova sezione admin `/admin-portale/hub/pulsanti/` per la gestione completa dei pulsanti hub. Permette inserimento, modifica, cambio logo (upload file PNG/JPG/SVG/WebP max 2 MB), abilitazione/disabilitazione e cancellazione. I loghi vengono salvati in `media/hub_pulsanti_logos/` e la path aggiornata in `ui_pulsanti_meta.card_image`. Include API endpoints JSON: `save`, `logo`, `toggle`, `delete`.
+- **[feat] Branding Hub Preview** (`hub_tools/views.py`, `hub_tools/urls.py`, `hub_tools/templates/hub_tools/branding.html`): nuova sezione admin `/admin-portale/hub/branding/` per personalizzazione grafica della pagina hub-preview. Supporta: logo hero (upload, rimozione), titolo e sottotitolo hero, colore sfondo pagina, gradiente hero (colore 1 e 2). Preview live dei colori e testi nell'interfaccia. I valori sono salvati in `SiteConfig` con chiavi `hub_hero_title`, `hub_hero_sub`, `hub_bg_color`, `hub_hero_color_1`, `hub_hero_color_2`, `hub_logo_url`.
+- **[feat] Hub come dashboard principale** (`hub_tools/views.py`, `core/accounts/views.py`): aggiunto toggle nella pagina branding per impostare hub-preview come dashboard post-login per tutti gli utenti non-admin. Implementato tramite `SiteConfig.module_login_redirect_target = "hub-preview"`. Il sistema di redirect ora riconosce il target speciale `hub-preview` → `reverse("dashboard_hub_preview")`.
+- **[feat] Admin toolbar inline su hub-preview** (`core/templates/core/pages/dashboard_hub_preview.html`, `core/static/core/css/hub_dashboard.css`): barra admin (visibile solo agli staff) in cima alla hub-preview con link rapidi a "Pulsanti" e "Personalizza". Include stili dark-mode.
+- **[feat] Branding dinamico hub-preview** (`dashboard/views.py`): la view `dashboard_hub_preview` legge le chiavi branding da `SiteConfig` e le passa al template. Il template applica i colori come CSS vars inline e mostra il logo nell'hero se configurato.
+- **[feat] Hub Tools index** (`hub_tools/views.py`, `hub_tools/urls.py`, `hub_tools/templates/hub_tools/hub_index.html`): nuova pagina indice `/admin-portale/hub/` che raccoglie tutti gli strumenti di gestione del portale (pulsanti, branding, moduli, categorie, notifiche, database, setup wizard, guide) in un'unica griglia di card. Tutte le sottopagine hub aggiornate con link di ritorno all'indice hub invece dell'admin portale.
+
 ## 0.9.18 - 2026-04-16
 
 ### Modulo Automazioni

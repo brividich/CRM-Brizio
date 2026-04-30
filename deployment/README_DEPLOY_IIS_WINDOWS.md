@@ -67,6 +67,40 @@ Il guard blocca il rilascio se trova:
 - fallback di versione non allineati
 - `deployment/dist/SetupWizard.exe` mancante o palesemente obsoleto
 - fallimento di `bootstrap_acl_v2 --dry-run`
+- finding HIGH in `secret_hygiene_check`
+- errori di `python django_app\manage.py check --settings=config.settings.test`
+- regressione ACL sopra la baseline `acl_coverage_report --max-missing 216`
+- FAIL in `validate_deployment --format json --settings=config.settings.test`
+
+Il guard produce anche questi artifact JSON in `django_app\`:
+
+- `acl_report_latest.json`
+- `deployment_validation_latest.json`
+
+I warning di `validate_deployment` sono ammessi nella fase iniziale per non
+bloccare il progetto su debito storico o integrazioni non configurate in locale.
+Per ambienti piu severi usare:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\release_guard.ps1 -FailOnDeploymentWarn
+```
+
+La baseline ACL e volutamente esplicita: `-AclMaxMissing 216` e il default del
+guard. Non usare `--fail-on-missing` finche esistono route storiche non migrate.
+La baseline va aumentata solo con decisione consapevole e motivata; in condizioni
+normali ogni nuovo binding dovrebbe ridurla. Se il guard fallisce per ACL, aprire
+`django_app\acl_report_latest.json`, verificare le route `status=missing` e
+decidere se creare binding/grant canonici o documentare temporaneamente il debito.
+
+Comandi manuali equivalenti:
+
+```powershell
+python django_app\manage.py secret_hygiene_check
+python django_app\manage.py acl_coverage_report --max-missing 216
+python django_app\manage.py acl_coverage_report --format json
+python django_app\manage.py validate_deployment --format json --settings=config.settings.test
+python django_app\manage.py check --settings=config.settings.test
+```
 
 ### 2. Crea il pacchetto release
 
@@ -199,6 +233,8 @@ python manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.dev
 
 - output di `tools/release_guard.ps1`
 - output di `bootstrap_acl_v2 --dry-run`
+- `django_app\acl_report_latest.json`
+- `django_app\deployment_validation_latest.json`
 - esito dello smoke HTTP
 - eventuale checklist UAT ACL compilata
 
@@ -212,6 +248,81 @@ Rollback rapido:
 ```
 
 Il modello a release directory + junction `current` permette di tornare indietro senza ricreare il pacchetto.
+
+## Background jobs con django-q2
+
+Il portale usa **django-q2** per eseguire i job periodici delle automazioni senza dipendere da finestre `cmd.exe` visibili. Il processo worker si chiama `qcluster`.
+
+### Job periodici registrati
+
+| Schedule | Funzione | Frequenza |
+| --- | --- | --- |
+| `automation_queue` | `automazioni.tasks.run_automation_queue` | ogni 60 s |
+| `approval_mailbox` | `automazioni.tasks.run_approval_mailbox` | ogni 120 s |
+
+### Prima configurazione dopo il deploy
+
+```powershell
+# 1. Migra le tabelle django-q (ORM broker + schedule)
+ENV\venv\Scripts\python.exe manage.py migrate django_q --settings=config.settings.prod
+
+# 2. Registra gli schedule in modo idempotente
+ENV\venv\Scripts\python.exe manage.py setup_q_schedules --settings=config.settings.prod
+```
+
+Entrambi i comandi sono **idempotenti**: ri-eseguirli non crea duplicati.
+
+### Avviare qcluster manualmente (test)
+
+```powershell
+ENV\venv\Scripts\python.exe manage.py qcluster --settings=config.settings.prod
+```
+
+Il processo rimane in foreground e scrive su stdout. Per uso in produzione registrarlo come Task Scheduler (vedi sotto).
+
+### Registrare qcluster come Task Scheduler (produzione)
+
+Registrare `deployment/start_qcluster.ps1` come task schedulato persistente:
+
+```powershell
+$action = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"C:\PortaleNovicrom\shared\scripts\start_qcluster.ps1`" -Environment prod"
+
+$trigger = New-ScheduledTaskTrigger -AtStartup
+
+$settings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit ([TimeSpan]::Zero) `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
+    -MultipleInstances IgnoreNew
+
+Register-ScheduledTask `
+    -TaskName "\PortaleNovicrom\QCluster_PROD" `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -RunLevel Highest `
+    -Description "django-q2 qcluster — background job NOVICROM HUB PROD"
+```
+
+Impostazioni obbligatorie nel Task Scheduler GUI:
+
+- **Trigger**: "All'avvio del computer" (At startup)
+- **Esegui indipendentemente dall'accesso utente**: abilitato
+- **Limite di tempo di esecuzione**: nessuno (task persistente)
+- **Account**: account di servizio con accesso al filesystem e al DB
+
+Lo script `start_qcluster.ps1` gestisce il restart automatico on crash con `Start-Sleep 5` tra un tentativo e il successivo; il log viene scritto su `C:\PortaleNovicrom\<env>\logs\qcluster.log`.
+
+### Task Scheduler legacy (DEPRECATED)
+
+> I task Windows che lanciavano direttamente `process_automation_queue` e `process_approval_mailbox` ogni minuto sono **deprecati** con l'adozione di django-q2. Mantenerli temporaneamente come fallback è accettabile durante la transizione, ma vanno disabilitati non appena qcluster è stabile in produzione.
+
+Task deprecati:
+
+- `Portale Hub Polling Mail` — sostituito da `approval_mailbox` schedule django-q
+- task manuale `process_automation_queue` — sostituito da `automation_queue` schedule django-q
 
 ## Errori da evitare
 

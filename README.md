@@ -53,7 +53,7 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 
 | | |
 |---|---|
-| 🧩 **21 app Django custom** | raggruppate per area funzionale |
+| 🧩 **22 app Django custom** | raggruppate per area funzionale |
 | 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
 | 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
 | 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
@@ -125,7 +125,7 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
-### Tutti i 21 moduli custom a colpo d'occhio
+### Tutti i 22 moduli custom a colpo d'occhio
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
@@ -136,20 +136,21 @@ sequenceDiagram
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
-| 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario, work order, manutenzioni periodiche, planimetrie, licenze SW, Outlook sync |
-| 9 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, VRF (MOD.073), blocco progressivo |
-| 10 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
-| 11 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint |
-| 12 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Segnalazione e gestione anomalie produzione |
-| 13 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti |
-| 14 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
-| 15 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
-| 16 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: richieste, approvazione, consegna, KPI |
-| 17 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni e follow-up |
-| 18 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions e incidenti (SharePoint source of truth) |
-| 19 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, tracking, export CSV |
-| 20 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI) |
-| 21 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import Power Automate |
+| 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione (card grid), work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
+| 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: import Excel legacy, stato attrezzi, task operativi, boundary KICK-OFF |
+| 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, incontri avanzamento, VRF (MOD.073), blocco progressivo |
+| 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
+| 12 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint |
+| 13 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Segnalazione e gestione anomalie produzione |
+| 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti |
+| 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
+| 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
+| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: richieste, approvazione, consegna, KPI |
+| 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni e follow-up |
+| 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions e incidenti (SharePoint source of truth) |
+| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, tracking, export CSV |
+| 21 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI) |
+| 22 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import Power Automate |
 
 > Tutte le app sono disabilitabili dal **Module Manager** in `/admin-portale/hub/moduli/` e selezionabili in fase di setup dal wizard (step 11/14).
 > Il tier di selezione è: **system** (obbligatori: core, anagrafica, dashboard, hub_tools), **standard** (pre-selezionati), **optional** (disattivati di default, per futuro licensing).
@@ -271,12 +272,16 @@ Anagrafica master del portale, integrata con Active Directory e tabelle legacy.
 
 Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT, infrastruttura, software.
 
-- **27 modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
+- **27+ modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
+- **Tipi asset**: PC, Portatile, Server, VM, Firewall, Stampante, Dispositivo, Fonia, CNC, Macchina di lavoro, Carroponte, Videosorveglianza, Altro
+- **Inventario IT** su `/assets/dispositivi/` — card grid con filtri per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
+- **Inventario produzione** su `/assets/work-machines/` — card grid con foto, badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
 - **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
 - **Work Order** (ordini di lavoro) con allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato
 - **Planimetrie** con marker posizionabili, aree, officine, TVCC
+- **Calendario asset** su `/assets/calendario/` — vista mensile (FullCalendar) + Gantt (frappe-gantt) con filtri macchina/reparto
 - **Licenze software** (software, antivirus, Office) assegnabili ad asset o dipendenti su `/assets/licenze/`
 - **Sync Outlook** via Graph per scadenze manutenzioni/contratti/verifiche (tracking anti-duplicati)
 - **Dashboard KPI personalizzabile** con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag&drop
@@ -289,7 +294,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
 Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato agli utenti come "KICK-OFF".
 
-- **11 modelli operativi**: Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment, VRFRiskAssessment, TaskRoleDefinition, TaskRoleAccessRule, TaskUserAccessRule + singleton `TaskImpostazioni`
+- **Modelli operativi KICK-OFF**: Project, Task/SubTask, commenti, allegati, VRF, ruoli/accessi, `KickoffMeeting`, `MeetingIssue`, `MeetingRoom` + singleton `TaskImpostazioni`
 - **Kickoff = progetto** con numerazione automatica `KICK-OFF <progressivo>`
 - **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
 - **VRF upload workflow**: dopo creazione kickoff, redirect a `/tasks/projects/<id>/vrf/` per caricare il MOD.073 Excel
@@ -297,6 +302,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Blocco progressivo VRF**: warning dopo `vrf_reminder_days` (default 7g), **bloccante** dopo `vrf_blocking_days` (default 30g) — guardati da `task_create` e `task_edit`
 - **Stati VRF**: `PENDING` / `UPLOADED` / `NOT_REQUIRED` con badge colorato nel portfolio
 - **Copia kickoff** con due varianti: "Copia kickoff e VRF" e "Copia kickoff e VRF tranne P/N" (svuota cella B3 del workbook)
+- **Incontri di avanzamento**: ogni kickoff ha incontri numerati con agenda strutturata, partecipanti portale/esterni, sale riunioni configurabili, sync Outlook e tracker problemi. I problemi non risolti vengono riportati automaticamente nell'ordine del giorno dell'incontro successivo e possono essere chiusi/riaperti dal verbale.
 - **Impostazioni** tab `Configurazione`, `Riepilogo`, `Ruoli operativi`, `Accessi`, `Promemoria`, `Record`, `Log attivita`; legacy `/tasks/gestione/` → redirect a `Riepilogo`
 - **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
 - **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
@@ -635,7 +641,7 @@ powershell tools\install-git-hooks.ps1
 | Osservabilità | `SafeTimedRotatingFileHandler` multi-process, SQL logging, audit DB |
 | Hardening | `django-axes` rate-limit login, `axes` lockout template, upload MIME validation, CSRF, allowlist SQL |
 
-Dipendenze: [`django_app/requirements.txt`](django_app/requirements.txt)
+Dipendenze: [`django_app/requirements.in`](django_app/requirements.in) (sorgente) → [`django_app/requirements.txt`](django_app/requirements.txt) (generato da pip-compile)
 
 ---
 
@@ -648,11 +654,24 @@ git clone <repo-url> novicrom-hub
 cd novicrom-hub
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r django_app\requirements.txt
+
+# Installa dipendenze (pip-sync allinea l'env esattamente ai .txt compilati)
+pip install pip-tools
+pip-sync django_app\requirements.txt django_app\requirements-dev.txt
 
 # Installa pre-commit hook anti-leak (raccomandato)
 powershell tools\install-git-hooks.ps1
 ```
+
+> **Workflow dipendenze (pip-tools):** non modificare mai `requirements.txt` a mano.
+> Edita `django_app/requirements.in` (dirette) o `django_app/requirements-dev.in` (dev),
+> poi rigenera con `.\tools\update-deps.ps1 compile` e committa entrambi i file.
+>
+> | Comando | Effetto |
+> | --- | --- |
+> | `.\tools\update-deps.ps1 compile` | Rigenera entrambi i `.txt` dai `.in` |
+> | `.\tools\update-deps.ps1 sync` | Installa/rimuove pacchetti per allinearsi ai `.txt` |
+> | `.\tools\update-deps.ps1 upgrade` | Aggiorna tutto il possibile e rigenera i `.txt` |
 
 ### 2. Configura `.env`
 
@@ -759,7 +778,12 @@ python django_app\manage.py process_approval_mailbox
 # ACL v2 governance
 python django_app\manage.py bootstrap_acl_v2 --dry-run
 python django_app\manage.py acl_fallback_report --only-unbound
+python django_app\manage.py acl_coverage_report --max-missing 216
 python django_app\manage.py seed_acl_uat --reset
+
+# Release guard progressivo
+python django_app\manage.py secret_hygiene_check
+python django_app\manage.py validate_deployment --format json --settings=config.settings.test
 
 # Backup
 python django_app\manage.py backup_portale --include-media --retention 10

@@ -1,0 +1,15 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}Nuova task attrezzatura{% endblock %}
+{% block page_actions %}<a class="btn secondary" href="{% url 'attrezzature:task_list' %}">Annulla</a>{% endblock %}
+{% block attrezzature_content %}
+<section class="at-card">
+  <div class="at-card-h"><strong>Dati task</strong></div>
+  <div class="at-card-b">
+    <form method="post" class="at-form">
+      {% csrf_token %}
+      <div class="at-form-grid">{{ form.as_p }}</div>
+      <div class="at-actions"><button class="btn" type="submit">Salva task</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -30,6 +30,7 @@ urlpatterns = [
     path("", include("assenze.urls")),
     path("", include("anomalie.urls")),
     path("", include(("assets.urls", "assets"), namespace="assets")),
+    path("", include(("attrezzature.urls", "attrezzature"), namespace="attrezzature")),
     path("", include(("tasks.urls", "tasks"), namespace="tasks")),
     path("notizie/", include("notizie.urls")),
     path(

@@ -1,0 +1,62 @@
+{% extends "attrezzature/base.html" %}
+{% block page_title %}{{ attrezzatura.codice|default:"Attrezzatura" }}{% endblock %}
+{% block page_actions %}
+<a class="btn secondary" href="{% url 'attrezzature:list' %}">Torna alla lista</a>
+{% if attrezzatura.part_number %}
+<a class="btn secondary" href="{% url 'attrezzature:embedded_preview' %}?part_number={{ attrezzatura.part_number|urlencode }}">Anteprima KICK-OFF</a>
+{% endif %}
+<a class="btn" href="{% url 'attrezzature:edit' attrezzatura.pk %}">Modifica</a>
+{% if can_delete_attrezzature %}
+<form method="post" action="{% url 'attrezzature:delete' attrezzatura.pk %}" onsubmit="return confirm('Eliminare definitivamente questa attrezzatura? Operazione non reversibile.');">
+  {% csrf_token %}
+  <button class="btn danger" type="submit">Elimina</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block attrezzature_content %}
+<section class="at-grid-2">
+  <div class="at-card">
+    <div class="at-card-h"><strong>Informazioni</strong></div>
+    <div class="at-card-b">
+      <div class="at-detail-list">
+        <div class="at-detail-item"><span>Descrizione</span>{{ attrezzatura.descrizione|default:"-" }}</div>
+        <div class="at-detail-item"><span>P/N principale</span>{{ attrezzatura.display_part_number }}</div>
+        <div class="at-detail-item"><span>Stato</span><span class="badge{% if attrezzatura.is_finita or attrezzatura.is_pronta_produzione %} ok{% elif attrezzatura.is_in_ritardo %} danger{% endif %}">{{ attrezzatura.get_stato_display }}</span></div>
+        <div class="at-detail-item"><span>Disponibilita</span>{{ attrezzatura.get_disponibilita_stato_display }}</div>
+        <div class="at-detail-item"><span>Avanzamento</span>{{ attrezzatura.avanzamento_percentuale|default:"-" }}%</div>
+        <div class="at-detail-item"><span>Origine import</span>{{ attrezzatura.origine_import|default:"-" }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="at-card">
+    <div class="at-card-h"><strong>Azioni rapide</strong></div>
+    <div class="at-card-b">
+      <form method="post" action="{% url 'attrezzature:update_progress' attrezzatura.pk %}" class="at-form">
+        {% csrf_token %}
+        <div class="at-form-grid">{{ progress_form.as_p }}</div>
+        <button class="btn" type="submit">Aggiorna avanzamento</button>
+      </form>
+      <form method="post" action="{% url 'attrezzature:confirm_ready' attrezzatura.pk %}" class="at-mini-form">
+        {% csrf_token %}
+        <button class="btn secondary" type="submit">Conferma pronta produzione</button>
+      </form>
+    </div>
+  </div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>P/N associati</strong></div>
+  <div class="at-card-b">{% for pn in attrezzatura.part_numbers.all %}<span class="badge">{{ pn.part_number }}</span>{% empty %}<span class="at-muted">Nessuna associazione aggiuntiva.</span>{% endfor %}</div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>Avanzamenti</strong></div>
+  <div class="at-table-wrap"><table class="at-table"><thead><tr><th>Data</th><th>Stato</th><th>Avanzamento</th><th>Origine</th><th>Nota</th></tr></thead><tbody>{% for row in attrezzatura.avanzamenti.all %}<tr><td>{{ row.created_at|date:"d/m/Y H:i" }}</td><td>{{ row.stato_precedente|default:"-" }} -> {{ row.stato_nuovo|default:"-" }}</td><td>{{ row.avanzamento_precedente|default:"-" }} -> {{ row.avanzamento_nuovo|default:"-" }}</td><td>{{ row.origine|default:"-" }}</td><td>{{ row.nota|default:"" }}</td></tr>{% empty %}<tr><td colspan="5" class="at-muted">Nessuno storico avanzamento.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>Task operativi</strong></div>
+  <div class="at-table-wrap"><table class="at-table"><thead><tr><th>Titolo</th><th>Tipo</th><th>Stato</th><th>Scadenza</th></tr></thead><tbody>{% for task in attrezzatura.tasks.all %}<tr><td><a href="{% url 'attrezzature:task_detail' task.pk %}">{{ task.titolo }}</a></td><td>{{ task.get_tipo_display }}</td><td><span class="badge{% if task.is_completed %} ok{% elif task.is_overdue %} danger{% endif %}">{{ task.get_stato_display }}</span></td><td>{{ task.scadenza|date:"d/m/Y"|default:"-" }}</td></tr>{% empty %}<tr><td colspan="4" class="at-muted">Nessuna task.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>Note</strong></div>
+  <div class="at-card-b">{% for nota in attrezzatura.note.all %}<div><strong>{{ nota.created_at|date:"d/m/Y H:i" }}</strong><br>{{ nota.testo }}</div>{% empty %}<span class="at-muted">Nessuna nota operativa.</span>{% endfor %}</div>
+</section>
+{% endblock %}

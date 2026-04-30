@@ -795,7 +795,24 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
                 {% include "automazioni/components/action_card.html" with entry=entry %}
               {% endfor %}
             </div>
-            <button type="button" class="btn btn-light" data-add-action style="margin-top:8px;">+ Nuova azione</button>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+              {# Bottone JS classico — sempre visibile come fallback #}
+              <button type="button" class="btn btn-light" data-add-action>+ Nuova azione (form)</button>
+              {% if not is_new_rule %}
+                {# Bottone HTMX — aggiunge card senza ricarica pagina (solo regole salvate) #}
+                <button type="button" class="btn btn-light"
+                    hx-post="{% url 'admin_portale:automazioni_htmx_add_azione' rule.id %}"
+                    hx-target="#designer-new-actions"
+                    hx-swap="beforeend"
+                    hx-include="[name='actions-TOTAL_FORMS']"
+                    hx-vals='{"source_code":"{{ rule.source_code }}"}'
+                    hx-indicator="#htmx-action-indicator">
+                  &#43; Nuova azione (HTMX)
+                </button>
+                <span class="htmx-indicator" id="htmx-action-indicator" aria-hidden="true"
+                    style="display:inline-block;width:14px;height:14px;border:2px solid #94a3b8;border-top-color:#0f766e;border-radius:50%;animation:btn-spin .65s linear infinite;vertical-align:middle;"></span>
+              {% endif %}
+            </div>
           </div>
         </section>
       </div>

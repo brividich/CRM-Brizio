@@ -19,3 +19,13 @@ CSRF_TRUSTED_ORIGINS = env_list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     ["http://127.0.0.1:8000", "http://localhost:8000"],
 )
+
+Q_CLUSTER = {
+    "name": "novicrom_hub_dev",
+    "workers": 1,
+    "timeout": 60,
+    "retry": 90,
+    "save_limit": 100,
+    "max_attempts": 2,
+    "orm": "default",
+}

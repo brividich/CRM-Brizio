@@ -1,0 +1,58 @@
+{% comment %}
+Fragment HTMX: corpo calendario mensile.
+Viene swappato dentro #calendario-body dalla view calendario_month_partial.
+{% endcomment %}
+<nav class="htmx-cal-nav" aria-label="Navigazione mese">
+  <button class="btn btn-sm btn-secondary htmx-cal-btn"
+      hx-get="{% url 'assenze_calendario_partial' %}?mese={{ mese_prev }}"
+      hx-target="#calendario-body"
+      hx-swap="innerHTML"
+      hx-push-url="?mese={{ mese_prev }}"
+      hx-indicator="#cal-loading">
+    &#8592; Mese precedente
+  </button>
+  <span class="htmx-cal-month-label">{{ mese_corrente_label }}</span>
+  <button class="btn btn-sm btn-secondary htmx-cal-btn"
+      hx-get="{% url 'assenze_calendario_partial' %}?mese={{ mese_next }}"
+      hx-target="#calendario-body"
+      hx-swap="innerHTML"
+      hx-push-url="?mese={{ mese_next }}"
+      hx-indicator="#cal-loading">
+    Mese successivo &#8594;
+  </button>
+  <span class="htmx-indicator" id="cal-loading" aria-label="Caricamento…">
+    <span class="btn-loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #94a3b8;border-top-color:#2563eb;border-radius:50%;animation:btn-spin .65s linear infinite;vertical-align:middle;"></span>
+  </span>
+  <a href="{% url 'assenze_calendario' %}?mese={{ mese_corrente }}" class="btn btn-sm" style="margin-left:auto;">
+    &#128197; Vista griglia completa
+  </a>
+</nav>
+
+<section class="htmx-cal-list-section abs-panel" style="margin-top:14px;">
+  <div class="abs-panel-head">
+    <div class="abs-panel-title-wrap">
+      <h2 class="abs-panel-title">Assenze — {{ mese_corrente_label }}</h2>
+      <p class="abs-panel-subtitle">{{ eventi|length }} event{% if eventi|length == 1 %}o{% else %}i{% endif %} nel mese</p>
+    </div>
+  </div>
+  <div class="abs-panel-body">
+    {% if eventi %}
+      <div class="agenda-list">
+        {% for e in eventi %}
+          <div class="agenda-item" style="border-left-color:{{ e.color }};">
+            <div class="agenda-head">
+              <span class="agenda-name">{{ e.dipendente }}</span>
+              <span class="status-chip {% if 'Approvato' in e.consenso %}approvato{% elif 'Rifiutato' in e.consenso %}rifiutato{% else %}in-attesa{% endif %}">
+                {{ e.consenso|default:"In attesa" }}
+              </span>
+            </div>
+            <div class="agenda-time">{{ e.inizio|slice:":10" }}{% if e.fine %} → {{ e.fine|slice:":10" }}{% endif %}</div>
+            <div class="agenda-meta">{{ e.tipo }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="agenda-empty">Nessuna assenza registrata per {{ mese_corrente_label }}.</div>
+    {% endif %}
+  </div>
+</section>

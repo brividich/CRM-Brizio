@@ -3,6 +3,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Hub Index
+    path("", views.hub_index, name="hub_index"),
     # Moduli
     path("moduli/", views.moduli, name="hub_moduli"),
     path("moduli/toggle/", views.api_toggle_module, name="hub_moduli_toggle"),
@@ -33,4 +35,19 @@ urlpatterns = [
     path("notifiche/invia/", views.api_notifica_invia, name="hub_notifica_invia"),
     path("notifiche/<int:notifica_id>/elimina/", views.api_notifica_elimina, name="hub_notifica_elimina"),
     path("notifiche/bulk/", views.api_notifiche_bulk, name="hub_notifiche_bulk"),
+    # KPI Manager
+    path("kpi/", views.hub_kpi_manager, name="hub_kpi_manager"),
+    path("kpi/api/save/", views.api_hub_kpi_save, name="hub_kpi_save"),
+    # Pulsanti Manager
+    path("pulsanti/", views.hub_pulsanti_manager, name="hub_pulsanti_manager"),
+    path("pulsanti/api/save/", views.api_pulsante_save, name="hub_pulsante_save"),
+    path("pulsanti/api/<int:pid>/logo/", views.api_pulsante_logo_upload, name="hub_pulsante_logo"),
+    path("pulsanti/api/<int:pid>/toggle/", views.api_pulsante_toggle, name="hub_pulsante_toggle"),
+    path("pulsanti/api/<int:pid>/delete/", views.api_pulsante_delete, name="hub_pulsante_delete"),
+    # Branding Hub Preview
+    path("branding/", views.hub_branding, name="hub_branding"),
+    path("branding/api/save/", views.api_hub_branding_save, name="hub_branding_save"),
+    path("branding/api/logo/", views.api_hub_branding_logo_upload, name="hub_branding_logo"),
+    path("branding/api/logo/remove/", views.api_hub_branding_logo_remove, name="hub_branding_logo_remove"),
+    path("branding/api/set-homepage/", views.api_set_hub_as_homepage, name="hub_set_homepage"),
 ]

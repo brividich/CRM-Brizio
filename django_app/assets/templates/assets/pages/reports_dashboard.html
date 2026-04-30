@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Report manutenzione{% endblock %}
+{% block title %}{{ reports_page_title|default:"Report manutenzione" }}{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -93,8 +93,8 @@
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Report manutenzione{% endblock %}
-{% block assets_shell_subtitle %}<p>KPI in alto, riepilogo coerente sotto e un solo punto di approfondimento operativo per evitare effetto dashboard rumorosa.</p>{% endblock %}
+{% block assets_shell_title %}{{ reports_page_title|default:"Report manutenzione" }}{% endblock %}
+{% block assets_shell_subtitle %}<p>{{ reports_page_subtitle|default:"KPI in alto, riepilogo coerente sotto e un solo punto di approfondimento operativo per evitare effetto dashboard rumorosa." }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{{ maintenance_schedule_url }}">Prossime manutenzioni</a>
   <a class="btn" href="{{ assistance_contracts_url }}">Contratti assistenza</a>
@@ -184,12 +184,15 @@
         <p>Un'unica area di drill-down per leggere criticità, aperti oltre soglia, chiusi recenti e piano mese senza frammentare la dashboard.</p>
       </div>
       <form method="get" class="rd-period-form">
+        <input type="hidden" name="scope" value="{{ reports_scope }}">
+        {% if maintenance_month_enabled %}
         <div>
           <label for="maintenanceMonthInput">Mese piano</label>
           <input id="maintenanceMonthInput" type="month" name="month" value="{{ maintenance_month_code }}">
         </div>
         <button class="btn" type="submit">Aggiorna</button>
         <a class="btn btn-primary" id="maintenanceMonthPdfLink" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener" data-base-url="{{ maintenance_month_pdf_base_url }}">PDF manutenzioni mese</a>
+        {% endif %}
       </form>
     </div>
     <div class="rd-card-body">
@@ -197,7 +200,9 @@
         <button type="button" class="rd-tab is-active" data-rd-tab="critical">Criticita</button>
         <button type="button" class="rd-tab" data-rd-tab="open">Interventi aperti</button>
         <button type="button" class="rd-tab" data-rd-tab="done">Chiusi recenti</button>
+        {% if maintenance_month_enabled %}
         <button type="button" class="rd-tab" data-rd-tab="month">Piano mese</button>
+        {% endif %}
       </div>
 
       <section class="rd-panel is-active" data-rd-panel="critical">
@@ -299,6 +304,7 @@
         </div>
       </section>
 
+      {% if maintenance_month_enabled %}
       <section class="rd-panel" data-rd-panel="month">
         <p class="rd-empty" style="margin:0 0 12px;">{{ maintenance_month_label|capfirst }} · {{ maintenance_month_period_label }} · Scadute {{ maintenance_month_overdue_count }} · In soglia {{ maintenance_month_warning_count }} · Pianificate {{ maintenance_month_ok_count }}</p>
         <div class="rd-table-wrap">
@@ -332,6 +338,9 @@
           </table>
         </div>
       </section>
+      {% elif maintenance_month_empty_message %}
+        <p class="rd-empty">{{ maintenance_month_empty_message }}</p>
+      {% endif %}
     </div>
   </article>
 </section>

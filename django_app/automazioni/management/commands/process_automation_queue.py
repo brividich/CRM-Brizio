@@ -90,3 +90,15 @@ class Command(BaseCommand):
                 )
             else:
                 self.stdout.write(f"queue_id={queue_id} status={status} {message}".rstrip())
+            for rule_preview in event.get("rule_previews") or []:
+                preview_message = rule_preview.get("message") or ""
+                if preview_message:
+                    self.stdout.write(f"  {preview_message}")
+                for action_preview in rule_preview.get("actions") or []:
+                    action_id = action_preview.get("action_id") or "-"
+                    action_type = action_preview.get("action_type") or "-"
+                    action_status = action_preview.get("status") or "-"
+                    action_message = action_preview.get("message") or ""
+                    self.stdout.write(
+                        f"    action_id={action_id} type={action_type} status={action_status} {action_message}".rstrip()
+                    )

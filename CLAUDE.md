@@ -61,8 +61,9 @@ python django_app\manage.py validate_deployment --format json --settings=config.
 # ACL / release support
 python django_app\manage.py bootstrap_acl_v2 --dry-run
 python django_app\manage.py acl_fallback_report --only-unbound
-python django_app\manage.py acl_coverage_report --max-missing 216
-.\tools\release_guard.ps1
+python django_app\manage.py acl_coverage_report --max-missing 222
+# Settings files call _load_dotenv(...) to read .env at startup
+.\tools\release_guard.ps1  # also: tools/release_guard.ps1
 ```
 
 No tests are required for documentation-only changes unless project files outside documentation are changed.
@@ -71,7 +72,8 @@ No tests are required for documentation-only changes unless project files outsid
 
 - Read only the relevant AI doc(s), not the whole `docs/ai` folder.
 - Keep edits scoped and compatible with existing module boundaries.
-- For code changes, update `CHANGELOG.md`; update `README.md` only when visible functionality, URLs, setup, dependencies, or user-facing docs change.
+- **MANDATORY after every code change:** update `CHANGELOG.md` with all modified files and a description under `[Unreleased]`. Do this automatically, without waiting for an explicit request.
+- **MANDATORY when visible functionality, URLs, setup, dependencies, or user-facing docs change:** update `README.md` (module catalog table and/or the relevant `<details>` section). Do this automatically, without waiting for an explicit request.
 - Update root `CLAUDE.md` only for concise operational changes; put long-form details in the relevant `docs/ai/*.md` file.
 - If user-facing behavior changes, follow the version-bump checklist in [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
 - If `deployment/setup_wizard.py` changes, regenerate `deployment/dist/SetupWizard.exe` and respect bundle exclusions.

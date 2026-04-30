@@ -28,8 +28,20 @@ from core.legacy_utils import legacy_table_columns
 from core.legacy_utils import sync_django_user_from_legacy
 from core.models import AuditLog, Notifica, Profile
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+from attrezzature.models import (
+    Attrezzatura,
+    AttrezzaturaNota,
+    AttrezzaturaStato,
+    AttrezzaturaTask as GestioneAttrezzaturaTask,
+    AttrezzaturaTaskStato as GestioneAttrezzaturaTaskStato,
+    AttrezzaturaTaskTipo as GestioneAttrezzaturaTaskTipo,
+    DisponibilitaStato,
+)
+from attrezzature.services import kickoff_integration as attrezzature_kickoff
+from attrezzature.services import workflow as attrezzature_workflow
 
 from .forms import (
+    KickoffMeetingForm,
     ProjectCommentForm,
     ProjectKickoffForm,
     ProjectTaskGanttUpdateForm,
@@ -44,6 +56,10 @@ from .forms import (
     task_active_users_queryset,
 )
 from .models import (
+    KickoffMeeting,
+    MeetingIssue,
+    MeetingIssueStatus,
+    MeetingRoom,
     Project,
     ProjectComment,
     SubTask,
@@ -120,6 +136,13 @@ TASK_ACCESS_LEVEL_ORDER = {
     TaskAccessLevel.READ_ALL: 1,
     TaskAccessLevel.EDIT_ASSIGNED: 2,
     TaskAccessLevel.EDIT_ALL: 3,
+}
+ATTREZZATURA_KICKOFF_TASK_TYPES = {
+    "creazione_attrezzo": GestioneAttrezzaturaTaskTipo.CREAZIONE_ATTREZZO,
+    "verifica_disponibilita": GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+    "aggiorna_avanzamento": GestioneAttrezzaturaTaskTipo.AGGIORNA_AVANZAMENTO,
+    "controllo_ritardo": GestioneAttrezzaturaTaskTipo.CONTROLLO_RITARDO,
+    "conferma_pronta_produzione": GestioneAttrezzaturaTaskTipo.CONFERMA_PRONTA_PRODUZIONE,
 }
 
 
@@ -1821,8 +1844,238 @@ def task_detail(request, task_id: int):
             "task_status_choices": TaskStatus.choices,
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
+            "attrezzatura_embedded_context": _build_task_attrezzatura_context(task),
         },
     )
+
+
+def _task_attrezzatura_part_number(task: Task) -> str:
+    if task.project_id and task.project.part_number:
+        return attrezzature_kickoff.normalize_part_number(task.project.part_number)
+    data = task.extra_data or {}
+    for key in ("part_number", "pn", "p_n", "particolare"):
+        if data.get(key):
+            return attrezzature_kickoff.normalize_part_number(data.get(key))
+    return ""
+
+
+def _task_attrezzatura_tipo(task: Task) -> str:
+    data = task.extra_data or {}
+    explicit = str(data.get("attrezzatura_task_type") or data.get("tipo_attrezzatura") or "").strip().lower()
+    if explicit in ATTREZZATURA_KICKOFF_TASK_TYPES:
+        return ATTREZZATURA_KICKOFF_TASK_TYPES[explicit]
+    category = getattr(task, "category", None)
+    if category is None:
+        return ""
+    for candidate in (category.slug, category.name):
+        normalized = slugify(str(candidate or "").strip()).replace("-", "_")
+        if normalized in ATTREZZATURA_KICKOFF_TASK_TYPES:
+            return ATTREZZATURA_KICKOFF_TASK_TYPES[normalized]
+    return ""
+
+
+def _ensure_attrezzatura_task_link_for_kickoff_task(task: Task, user=None):
+    part_number = _task_attrezzatura_part_number(task)
+    tipo = _task_attrezzatura_tipo(task)
+    if not part_number or not tipo:
+        return None
+    title = f"{task.title} - Gestione Attrezzatura"
+    linked, _created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+        tipo=tipo,
+        part_number=part_number,
+        titolo=title,
+        descrizione=task.description,
+        kickoff_ref=task.project_id,
+        kickoff_activity_ref=task.id,
+        user=user,
+    )
+    return linked
+
+
+def _build_task_attrezzatura_context(task: Task) -> dict | None:
+    part_number = _task_attrezzatura_part_number(task)
+    if not part_number:
+        return None
+    context = attrezzature_kickoff.build_kickoff_attrezzatura_context(
+        part_number,
+        kickoff_ref=task.project_id,
+        kickoff_activity_ref=task.id,
+    )
+    context.update(
+        {
+            "action_url": reverse("tasks:attrezzature_action", kwargs={"task_id": task.id}),
+            "source_task": task,
+            "stato_choices": AttrezzaturaStato.choices,
+            "disponibilita_choices": DisponibilitaStato.choices,
+            "task_status_choices": GestioneAttrezzaturaTaskStato.choices,
+        }
+    )
+    return context
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def attrezzatura_action(request, task_id: int):
+    task = get_object_or_404(_detail_queryset(request), pk=task_id)
+    if not _can_manage_task(request, task):
+        return render(
+            request,
+            "core/pages/forbidden.html",
+            {"page_title": "Accesso negato"},
+            status=403,
+        )
+    part_number = _task_attrezzatura_part_number(task) or attrezzature_kickoff.normalize_part_number(
+        request.POST.get("part_number", "")
+    )
+    if not part_number:
+        messages.error(request, "P/N mancante: impossibile collegare Gestione Attrezzatura.")
+        return redirect("tasks:detail", task_id=task.id)
+
+    action = (request.POST.get("action") or "").strip()
+    attrezzatura_id = request.POST.get("attrezzatura_id")
+    attrezzatura = None
+    if attrezzatura_id:
+        attrezzatura = get_object_or_404(Attrezzatura, pk=attrezzatura_id)
+
+    if action == "create_availability_task":
+        linked, created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+            part_number=part_number,
+            attrezzatura=attrezzatura,
+            titolo=f"Verificare disponibilita attrezzatura per {task.title}",
+            descrizione=task.description,
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        messages.success(request, "Task disponibilita creata." if created else f"Task disponibilita gia collegata: {linked.titolo}.")
+    elif action == "create_new_tool_task":
+        linked, created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+            tipo=GestioneAttrezzaturaTaskTipo.CREAZIONE_ATTREZZO,
+            part_number=part_number,
+            titolo=f"Creare nuovo attrezzo per P/N {part_number}",
+            descrizione=task.description,
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        messages.success(request, "Task creazione attrezzo creata." if created else f"Task creazione gia collegata: {linked.titolo}.")
+    elif action == "create_draft_tool":
+        tool = attrezzature_kickoff.create_draft_attrezzatura_from_kickoff(
+            part_number=part_number,
+            description=request.POST.get("description", "") or task.description,
+            codice=request.POST.get("codice", ""),
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        messages.success(request, f"Bozza attrezzatura creata per P/N {tool.part_number}.")
+    elif action == "link_tool":
+        if attrezzatura is None:
+            messages.error(request, "Seleziona un'attrezzatura da collegare.")
+        else:
+            linked = _ensure_attrezzatura_task_link_for_kickoff_task(task, user=request.user)
+            if linked is None:
+                linked, _created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+                    tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+                    part_number=part_number,
+                    attrezzatura=attrezzatura,
+                    titolo=f"Gestire attrezzatura per {task.title}",
+                    kickoff_ref=task.project_id,
+                    kickoff_activity_ref=task.id,
+                    user=request.user,
+                )
+            attrezzature_kickoff.link_attrezzatura_to_kickoff_activity(
+                attrezzatura,
+                kickoff_ref=task.project_id,
+                kickoff_activity_ref=task.id,
+                task=linked,
+            )
+            messages.success(request, f"Attrezzatura {attrezzatura.codice or attrezzatura.pk} collegata.")
+    elif action == "update_progress":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            raw_percent = (request.POST.get("percentuale") or "").strip()
+            try:
+                percent = int(raw_percent) if raw_percent else None
+            except ValueError:
+                messages.error(request, "Percentuale avanzamento non valida.")
+                return redirect("tasks:detail", task_id=task.id)
+            stato = request.POST.get("stato") or None
+            attrezzature_kickoff.update_attrezzatura_progress_from_kickoff(
+                attrezzatura,
+                percentuale=percent,
+                stato=stato,
+                user=request.user,
+                note=request.POST.get("note", ""),
+                kickoff_ref=task.project_id,
+                kickoff_activity_ref=task.id,
+            )
+            messages.success(request, "Avanzamento attrezzatura aggiornato.")
+    elif action == "set_availability":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            attrezzature_workflow.set_availability_status(
+                attrezzatura,
+                request.POST.get("disponibilita_stato") or attrezzatura.disponibilita_stato,
+                user=request.user,
+                note=request.POST.get("note", ""),
+            )
+            messages.success(request, "Disponibilita attrezzatura aggiornata.")
+    elif action == "add_note":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            text = (request.POST.get("note") or "").strip()
+            if text:
+                AttrezzaturaNota.objects.create(
+                    attrezzatura=attrezzatura,
+                    testo=text,
+                    origine="kickoff_activity",
+                    created_by=request.user,
+                )
+                messages.success(request, "Nota attrezzatura aggiunta.")
+            else:
+                messages.error(request, "Scrivi una nota prima di salvarla.")
+    elif action == "confirm_ready":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            attrezzature_kickoff.confirm_attrezzatura_ready_from_kickoff(
+                attrezzatura,
+                user=request.user,
+                note=request.POST.get("note", ""),
+                kickoff_ref=task.project_id,
+                kickoff_activity_ref=task.id,
+            )
+            messages.success(request, "Attrezzatura confermata pronta produzione.")
+    elif action in {"complete_attrezzatura_task", "block_attrezzatura_task"}:
+        gestione_task_id = request.POST.get("attrezzatura_task_id")
+        task_qs = GestioneAttrezzaturaTask.objects.filter(
+            Q(part_number__iexact=part_number)
+            | Q(external_kickoff_activity_id=str(task.id))
+            | Q(external_kickoff_id=str(task.project_id or ""))
+        )
+        gestione_task = get_object_or_404(task_qs, pk=gestione_task_id)
+        if action == "complete_attrezzatura_task":
+            attrezzature_kickoff.complete_attrezzatura_task_from_kickoff(
+                gestione_task,
+                user=request.user,
+                note=request.POST.get("note", ""),
+            )
+            messages.success(request, "Task Gestione Attrezzatura completata.")
+        else:
+            attrezzature_kickoff.block_attrezzatura_task_from_kickoff(
+                gestione_task,
+                user=request.user,
+                reason=request.POST.get("reason", ""),
+            )
+            messages.success(request, "Task Gestione Attrezzatura bloccata.")
+    else:
+        messages.error(request, "Azione Gestione Attrezzatura non riconosciuta.")
+    return redirect("tasks:detail", task_id=task.id)
 
 
 def _suggest_task_start_date(project) -> date:
@@ -1983,6 +2236,9 @@ def task_create(request):
             task.save()
             form.save_m2m()
             _persist_task_extra_data(task, request.POST)
+            for mw_warn in _check_machine_work_overlaps(task, exclude_task_id=None):
+                messages.warning(request, mw_warn)
+            _ensure_attrezzatura_task_link_for_kickoff_task(task, user=request.user)
             if form.reused_existing_project is not None and task.project_id:
                 if form.reused_existing_project_fields:
                     messages.info(
@@ -2146,6 +2402,9 @@ def task_edit(request, task_id: int):
             updated_task.save()
             form.save_m2m()
             _persist_task_extra_data(updated_task, request.POST)
+            for mw_warn in _check_machine_work_overlaps(updated_task, exclude_task_id=updated_task.pk):
+                messages.warning(request, mw_warn)
+            _ensure_attrezzatura_task_link_for_kickoff_task(updated_task, user=request.user)
             _log_task_update_events(updated_task, request.user, before)
             if form.reused_existing_project is not None and updated_task.project_id:
                 messages.info(
@@ -2344,6 +2603,39 @@ def edit_subtask_status(request, task_id: int, subtask_id: int):
     else:
         messages.error(request, "Stato subtask non valido.")
     return redirect("tasks:detail", task_id=task_id)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def subtask_toggle(request, task_id: int, subtask_id: int):
+    from django.http import JsonResponse
+
+    task = get_object_or_404(_scoped_tasks_queryset(request), pk=task_id)
+    if not _can_manage_task(request, task):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+    subtask = get_object_or_404(SubTask.objects.filter(task=task), pk=subtask_id)
+    old_status = subtask.status
+    subtask.status = TaskStatus.TODO if subtask.status == TaskStatus.DONE else TaskStatus.DONE
+    subtask.save(update_fields=["status"])
+    if old_status != subtask.status:
+        _log_event(
+            task,
+            request.user,
+            TaskEventType.SUBTASK_STATUS_CHANGE,
+            {"subtask_id": subtask.id, "from": old_status, "to": subtask.status},
+        )
+        _apply_subtask_rollup(task, request.user)
+    task.refresh_from_db(fields=["status"])
+    return JsonResponse(
+        {
+            "ok": True,
+            "subtask_id": subtask.id,
+            "status": subtask.status,
+            "status_display": subtask.get_status_display(),
+            "task_status": task.status,
+            "task_status_display": task.get_status_display(),
+        }
+    )
 
 
 @require_POST
@@ -3619,6 +3911,56 @@ def _asset_availability_report(
     }
 
 
+def _check_machine_work_overlaps(task: "Task", exclude_task_id: int | None) -> list[str]:
+    """Ritorna avvisi (non bloccanti) se l'asset assegnato è già occupato da
+    un altro task 'lavoro macchina' nella stessa finestra temporale."""
+    if not task.category_id or not getattr(task.category, "is_machine_work", False):
+        return []
+    start = task.next_step_due
+    end = task.due_date
+    if not start and not end:
+        return []
+    asset_refs = list(
+        task.extra_refs.filter(asset__isnull=False).select_related("asset")
+    )
+    if not asset_refs:
+        return []
+    warnings_out: list[str] = []
+    for ref in asset_refs:
+        qs = (
+            TaskExtraRef.objects
+            .filter(asset_id=ref.asset_id)
+            .exclude(task_id=task.pk)
+            .select_related("task__category", "task__assigned_to")
+            .filter(
+                task__category__is_machine_work=True,
+                task__status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS],
+            )
+        )
+        if exclude_task_id:
+            qs = qs.exclude(task_id=exclude_task_id)
+        conflicts = []
+        for other_ref in qs:
+            t = other_ref.task
+            t_start = t.next_step_due
+            t_end = t.due_date
+            overlaps = True
+            if start and t_end and t_end < start:
+                overlaps = False
+            if end and t_start and t_start > end:
+                overlaps = False
+            if overlaps:
+                conflicts.append(t)
+        if conflicts:
+            asset_label = f"{ref.asset.asset_tag} - {ref.asset.name}"
+            titles = ", ".join(f"'{c.title}'" for c in conflicts[:3])
+            suffix = f" (+{len(conflicts)-3} altri)" if len(conflicts) > 3 else ""
+            warnings_out.append(
+                f"Macchina {asset_label} già impegnata nello stesso periodo: {titles}{suffix}."
+            )
+    return warnings_out
+
+
 def _check_blocking_asset_conflicts(task: "Task", post_data, exclude_task_id: int | None) -> list[str]:
     """Ritorna la lista di messaggi di errore per eventuali conflitti asset
     bloccanti, usando la stessa logica dell'endpoint availability. Se le
@@ -3815,6 +4157,7 @@ def _handle_tasks_categories_post(request):
             icon=icon[:80],
             role_type=_clean_category_role(),
             order_index=max_order + 10,
+            is_machine_work=bool(request.POST.get("is_machine_work")),
         )
         log_action(request, "tipo_creato", "tasks", {
             "message": f"Creato tipo attivita '{category.name}'",
@@ -3838,6 +4181,7 @@ def _handle_tasks_categories_post(request):
         category.icon = (request.POST.get("icon") or "").strip()[:80]
         category.role_type = _clean_category_role()
         category.is_active = bool(request.POST.get("is_active"))
+        category.is_machine_work = bool(request.POST.get("is_machine_work"))
         try:
             category.order_index = max(0, int(request.POST.get("order_index") or 0))
         except (TypeError, ValueError):
@@ -4772,3 +5116,509 @@ def import_excel(request):
         return redirect("tasks:list")
 
     return redirect("tasks:import_excel")
+
+
+# ---------------------------------------------------------------------------
+# Incontri kickoff
+# ---------------------------------------------------------------------------
+
+def _sync_meeting_outlook(request, meeting) -> None:
+    from .meeting_outlook import sync_meeting_outlook_event
+    level, msg = sync_meeting_outlook_event(request=request, meeting=meeting)
+    if level == "success":
+        messages.success(request, msg)
+    elif level in ("warning", "error"):
+        messages.warning(request, msg)
+    elif level == "info":
+        messages.info(request, msg)
+
+
+def _parse_optional_date(value: str):
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _issue_display_owner(issue: MeetingIssue) -> str:
+    if issue.assigned_to_id:
+        return issue.assigned_to.get_full_name() or issue.assigned_to.username
+    return ""
+
+
+def _meeting_issue_agenda_item(issue: MeetingIssue) -> dict:
+    custom_fields = [{"label": "Stato", "value": issue.get_status_display()}]
+    owner = _issue_display_owner(issue)
+    if owner:
+        custom_fields.append({"label": "Responsabile", "value": owner})
+    if issue.due_date:
+        custom_fields.append({"label": "Scadenza", "value": issue.due_date.strftime("%d/%m/%Y")})
+    if issue.source_meeting_id:
+        custom_fields.append({"label": "Origine", "value": f"Incontro {issue.source_meeting.numero}"})
+    return {
+        "id": f"issue-{issue.pk}",
+        "titolo": f"Problema aperto: {issue.title}",
+        "nota": issue.description,
+        "task_id": issue.linked_task_id,
+        "task_label": issue.linked_task.title if issue.linked_task_id else "",
+        "issue_id": issue.pk,
+        "source": "meeting_issue",
+        "locked": True,
+        "custom_fields": custom_fields,
+        "done": issue.is_resolved,
+    }
+
+
+def _open_meeting_issues_for_project(project: Project):
+    return (
+        project.meeting_issues
+        .filter(status=MeetingIssueStatus.OPEN)
+        .select_related("source_meeting", "assigned_to", "linked_task")
+        .order_by("due_date", "created_at", "id")
+    )
+
+
+def _meeting_issue_ids_from_agenda(meeting: KickoffMeeting) -> list[int]:
+    ids: list[int] = []
+    for item in meeting.agenda_items or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            issue_id = int(item.get("issue_id") or 0)
+        except (TypeError, ValueError):
+            issue_id = 0
+        if issue_id:
+            ids.append(issue_id)
+    return ids
+
+
+def _set_meeting_agenda_issue_done(meeting: KickoffMeeting, issue_id: int, done: bool) -> None:
+    agenda_items = meeting.agenda_items or []
+    if not isinstance(agenda_items, list):
+        return
+    changed = False
+    for item in agenda_items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            item_issue_id = int(item.get("issue_id") or 0)
+        except (TypeError, ValueError):
+            item_issue_id = 0
+        if item_issue_id == issue_id and bool(item.get("done", False)) != done:
+            item["done"] = done
+            changed = True
+    if changed:
+        meeting.agenda_items = agenda_items
+        meeting.save(update_fields=["agenda_items", "updated_at"])
+
+
+def _meeting_issues_for_form(project: Project, meeting: KickoffMeeting | None = None):
+    qs = project.meeting_issues.select_related(
+        "source_meeting",
+        "resolution_meeting",
+        "assigned_to",
+        "linked_task",
+        "resolved_by",
+    )
+    if meeting is None:
+        return qs.filter(status=MeetingIssueStatus.OPEN).order_by("due_date", "created_at", "id")
+    return qs.filter(
+        Q(status=MeetingIssueStatus.OPEN)
+        | Q(source_meeting=meeting)
+        | Q(resolution_meeting=meeting)
+        | Q(pk__in=_meeting_issue_ids_from_agenda(meeting))
+    ).distinct().order_by("status", "due_date", "created_at", "id")
+
+
+def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMeeting) -> None:
+    displayed_ids: set[int] = set()
+    for raw in request.POST.getlist("meeting_issue_ids"):
+        try:
+            displayed_ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+
+    resolved_ids: set[int] = set()
+    for raw in request.POST.getlist("resolved_issue_ids"):
+        try:
+            resolved_ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+
+    if displayed_ids:
+        for issue in MeetingIssue.objects.filter(project=project, pk__in=displayed_ids):
+            note = request.POST.get(f"issue_resolution_{issue.pk}", "")
+            if issue.pk in resolved_ids:
+                issue.mark_resolved(meeting=meeting, user=request.user, note=note)
+                issue.save(update_fields=[
+                    "status",
+                    "resolution_meeting",
+                    "resolved_by",
+                    "resolved_at",
+                    "resolution_note",
+                    "updated_at",
+                ])
+            elif issue.resolution_meeting_id == meeting.pk and issue.status == MeetingIssueStatus.RESOLVED:
+                issue.reopen()
+                issue.save(update_fields=[
+                    "status",
+                    "resolution_meeting",
+                    "resolved_by",
+                    "resolved_at",
+                    "resolution_note",
+                    "updated_at",
+                ])
+
+        agenda_changed = False
+        agenda_items = meeting.agenda_items or []
+        if isinstance(agenda_items, list):
+            for item in agenda_items:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    item_issue_id = int(item.get("issue_id") or 0)
+                except (TypeError, ValueError):
+                    item_issue_id = 0
+                if item_issue_id in displayed_ids:
+                    next_done = item_issue_id in resolved_ids
+                    if bool(item.get("done", False)) != next_done:
+                        item["done"] = next_done
+                        agenda_changed = True
+        if agenda_changed:
+            meeting.agenda_items = agenda_items
+            meeting.save(update_fields=["agenda_items", "updated_at"])
+
+    titles = request.POST.getlist("new_issue_title")
+    descriptions = request.POST.getlist("new_issue_description")
+    assigned_to_ids = request.POST.getlist("new_issue_assigned_to")
+    due_dates = request.POST.getlist("new_issue_due_date")
+    linked_task_ids = request.POST.getlist("new_issue_task")
+
+    for idx, raw_title in enumerate(titles):
+        title = (raw_title or "").strip()
+        if not title:
+            continue
+        description = (descriptions[idx] if idx < len(descriptions) else "").strip()
+        assigned_to = None
+        assigned_to_id = (assigned_to_ids[idx] if idx < len(assigned_to_ids) else "").strip()
+        if assigned_to_id:
+            try:
+                assigned_to = User.objects.get(pk=int(assigned_to_id))
+            except (User.DoesNotExist, ValueError):
+                assigned_to = None
+        linked_task = None
+        linked_task_id = (linked_task_ids[idx] if idx < len(linked_task_ids) else "").strip()
+        if linked_task_id:
+            try:
+                linked_task = project.tasks.get(pk=int(linked_task_id))
+            except (Task.DoesNotExist, ValueError):
+                linked_task = None
+        MeetingIssue.objects.create(
+            project=project,
+            source_meeting=meeting,
+            title=title[:220],
+            description=description,
+            assigned_to=assigned_to,
+            due_date=_parse_optional_date(due_dates[idx] if idx < len(due_dates) else ""),
+            linked_task=linked_task,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+
+
+@task_permissions_required("tasks_view")
+def project_meetings(request, project_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meetings = project.meetings.select_related("created_by").prefetch_related("partecipanti_utenti").order_by("numero")
+    can_manage = _can_manage_project(request, project)
+    open_issue_count = project.meeting_issues.filter(status=MeetingIssueStatus.OPEN).count()
+    return render(
+        request,
+        "tasks/project_meetings.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Incontri - {project.name}",
+            "project": project,
+            "meetings": meetings,
+            "can_manage": can_manage,
+            "open_issue_count": open_issue_count,
+        },
+    )
+
+
+@task_permissions_required("tasks_create")
+def project_meeting_create(request, project_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per aggiungere incontri a questo kickoff.")
+        return redirect("tasks:project_meetings", project_id=project_id)
+    meeting_issues = list(_open_meeting_issues_for_project(project))
+    if request.method == "POST":
+        form = KickoffMeetingForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                meeting = form.save(commit=False)
+                meeting.project = project
+                meeting.created_by = request.user
+                meeting.save()
+                form.save_m2m()
+                _sync_meeting_issues_from_post(request, project, meeting)
+            _sync_meeting_outlook(request, meeting)
+            log_action(request, "kickoff_meeting_create", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
+            messages.success(request, f"Incontro {meeting.numero} aggiunto.")
+            return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting.pk)
+    else:
+        auto_agenda = [_meeting_issue_agenda_item(issue) for issue in meeting_issues]
+        form = KickoffMeetingForm(initial={
+            "data": timezone.localdate(),
+            "agenda_items_raw": json.dumps(auto_agenda),
+        })
+    project_tasks = list(project.tasks.values("id", "title", "status").order_by("title")[:100])
+    meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
+    active_users = task_active_users_queryset()
+    return render(
+        request,
+        "tasks/project_meeting_form.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Nuovo incontro - {project.name}",
+            "project": project,
+            "form": form,
+            "is_edit": False,
+            "project_tasks_json": json.dumps(project_tasks),
+            "meeting_rooms_json": json.dumps(meeting_rooms),
+            "meeting_issues": meeting_issues,
+            "active_users": active_users,
+        },
+    )
+
+
+@task_permissions_required("tasks_view")
+def project_meeting_detail(request, project_id: int, meeting_id: int):
+    from .forms import task_active_users_queryset
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(
+        KickoffMeeting.objects.prefetch_related("partecipanti_utenti"),
+        pk=meeting_id, project=project,
+    )
+    can_manage = _can_manage_project(request, project)
+    # Righe next_steps non vuote (per CTA "Crea task da questo step")
+    next_steps_lines = [l.strip() for l in (meeting.next_steps or "").splitlines() if l.strip()]
+    agenda_issue_ids = _meeting_issue_ids_from_agenda(meeting)
+    meeting_issues = list(
+        project.meeting_issues
+        .filter(
+            Q(source_meeting=meeting)
+            | Q(resolution_meeting=meeting)
+            | Q(pk__in=agenda_issue_ids)
+        )
+        .select_related("source_meeting", "resolution_meeting", "assigned_to", "linked_task", "resolved_by")
+        .distinct()
+        .order_by("status", "due_date", "created_at", "id")
+    )
+    return render(
+        request,
+        "tasks/project_meeting_detail.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Incontro {meeting.numero} - {project.name}",
+            "project": project,
+            "meeting": meeting,
+            "can_manage": can_manage,
+            "meeting_issues": meeting_issues,
+            "next_steps_lines": next_steps_lines,
+            "active_users": task_active_users_queryset() if can_manage else [],
+            "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",
+            "task_from_step_url": reverse("tasks:project_meeting_task_from_step", kwargs={"project_id": project_id, "meeting_id": meeting_id}),
+        },
+    )
+
+
+@task_permissions_required("tasks_create")
+def project_meeting_edit(request, project_id: int, meeting_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per modificare questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    meeting_issues = list(_meeting_issues_for_form(project, meeting))
+    if request.method == "POST":
+        form = KickoffMeetingForm(request.POST, instance=meeting)
+        if form.is_valid():
+            with transaction.atomic():
+                meeting = form.save()
+                _sync_meeting_issues_from_post(request, project, meeting)
+            _sync_meeting_outlook(request, meeting)
+            log_action(request, "kickoff_meeting_edit", "tasks", {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id})
+            messages.success(request, "Incontro aggiornato.")
+            return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    else:
+        form = KickoffMeetingForm(instance=meeting)
+    project_tasks = list(project.tasks.values("id", "title", "status").order_by("title")[:100])
+    meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
+    active_users = task_active_users_queryset()
+    return render(
+        request,
+        "tasks/project_meeting_form.html",
+        {
+            **_tasks_shell_context(request, active="meetings", project=project),
+            "page_title": f"Modifica incontro {meeting.numero} - {project.name}",
+            "project": project,
+            "meeting": meeting,
+            "form": form,
+            "is_edit": True,
+            "project_tasks_json": json.dumps(project_tasks),
+            "meeting_rooms_json": json.dumps(meeting_rooms),
+            "meeting_issues": meeting_issues,
+            "active_users": active_users,
+        },
+    )
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_delete(request, project_id: int, meeting_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per eliminare questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    numero = meeting.numero
+    meeting.delete()
+    log_action(request, "kickoff_meeting_delete", "tasks", {"meeting_numero": numero, "project_id": project_id})
+    messages.success(request, f"Incontro {numero} eliminato.")
+    return redirect("tasks:project_meetings", project_id=project_id)
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_issue_status(request, project_id: int, meeting_id: int, issue_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    issue = get_object_or_404(MeetingIssue, pk=issue_id, project=project)
+    if not _can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per aggiornare i problemi di questo kickoff.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+    action = (request.POST.get("action") or "").strip()
+    if action == "resolve":
+        issue.mark_resolved(
+            meeting=meeting,
+            user=request.user,
+            note=request.POST.get("resolution_note", ""),
+        )
+        issue.save(update_fields=[
+            "status",
+            "resolution_meeting",
+            "resolved_by",
+            "resolved_at",
+            "resolution_note",
+            "updated_at",
+        ])
+        _set_meeting_agenda_issue_done(meeting, issue.pk, True)
+        log_action(request, "kickoff_meeting_issue_resolve", "tasks", {"issue_id": issue.pk, "meeting_id": meeting.pk, "project_id": project.pk})
+        messages.success(request, "Problema segnato come risolto.")
+    elif action == "reopen":
+        issue.reopen()
+        issue.save(update_fields=[
+            "status",
+            "resolution_meeting",
+            "resolved_by",
+            "resolved_at",
+            "resolution_note",
+            "updated_at",
+        ])
+        _set_meeting_agenda_issue_done(meeting, issue.pk, False)
+        log_action(request, "kickoff_meeting_issue_reopen", "tasks", {"issue_id": issue.pk, "meeting_id": meeting.pk, "project_id": project.pk})
+        messages.info(request, "Problema riaperto e riportato nei prossimi incontri.")
+    else:
+        messages.error(request, "Azione non valida.")
+    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, item_id: str):
+    """Toggle done/undone su un singolo punto agenda dell'incontro."""
+    from django.http import JsonResponse
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    new_done = None
+    items = meeting.agenda_items or []
+    for item in items:
+        if str(item.get("id", "")) == item_id:
+            item["done"] = not bool(item.get("done", False))
+            new_done = item["done"]
+            break
+
+    if new_done is None:
+        return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
+
+    meeting.agenda_items = items
+    meeting.save(update_fields=["agenda_items"])
+    return JsonResponse({"ok": True, "done": new_done, "item_id": item_id})
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
+    """Crea un task kickoff a partire da un next step dell'incontro."""
+    from django.http import JsonResponse
+    from datetime import date as _date
+
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    title = (request.POST.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
+
+    # Assegnatario (opzionale)
+    assigned_to = None
+    assigned_to_id = (request.POST.get("assigned_to") or "").strip()
+    if assigned_to_id:
+        try:
+            assigned_to = User.objects.get(pk=int(assigned_to_id))
+        except (User.DoesNotExist, ValueError):
+            pass
+
+    # Scadenza (opzionale)
+    due_date = None
+    due_date_raw = (request.POST.get("due_date") or "").strip()
+    if due_date_raw:
+        try:
+            due_date = _date.fromisoformat(due_date_raw)
+        except ValueError:
+            pass
+
+    # Priorità
+    priority_raw = (request.POST.get("priority") or "MEDIUM").strip().upper()
+    if priority_raw not in (TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH):
+        priority_raw = TaskPriority.MEDIUM
+
+    task = Task(
+        title=title,
+        project=project,
+        assigned_to=assigned_to,
+        due_date=due_date,
+        priority=priority_raw,
+        status=TaskStatus.TODO,
+        created_by=request.user,
+        description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d/%m/%Y})",
+    )
+    task.save()
+
+    log_action(
+        request, "kickoff_task_from_step", "tasks",
+        {"task_id": task.pk, "title": title, "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+    )
+
+    task_url = reverse("tasks:detail", kwargs={"task_id": task.pk})
+    return JsonResponse({"ok": True, "task_id": task.pk, "task_url": task_url, "title": title})

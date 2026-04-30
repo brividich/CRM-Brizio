@@ -167,6 +167,40 @@
     <article class="wmf-card">
       <div class="wmf-card-head">
         <div>
+          <h2>Foto macchina</h2>
+          <p>Immagine rappresentativa visualizzata nella lista macchine.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        {% with wm=asset.work_machine %}
+        <div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          {% if wm and wm.photo %}
+          <div>
+            <img src="{{ wm.photo.url }}" alt="{{ asset.name }}"
+                 style="width:160px; height:110px; object-fit:cover; border-radius:10px; border:1px solid #dbe1ea; display:block;">
+            <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:#64748b; cursor:pointer;">
+              <input type="checkbox" name="clear_photo" value="1">
+              Rimuovi foto
+            </label>
+          </div>
+          {% else %}
+          <div style="width:160px; height:110px; border-radius:10px; border:2px dashed #dbe1ea; background:#f8fafc; display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:12px; font-weight:700; text-align:center; flex-shrink:0;">
+            Nessuna foto
+          </div>
+          {% endif %}
+          <div class="wmf-field" style="flex:1; min-width:220px;">
+            <label for="id_photo">{% if wm and wm.photo %}Sostituisci foto{% else %}Carica foto{% endif %}</label>
+            <input type="file" name="photo" id="id_photo" accept="image/*" class="input">
+            <div class="wmf-help">Formati supportati: JPG, PNG, WEBP. Max ~5 MB.</div>
+          </div>
+        </div>
+        {% endwith %}
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
           <h2>Responsabile e note</h2>
           <p>Informazioni operative e di assegnazione.</p>
         </div>

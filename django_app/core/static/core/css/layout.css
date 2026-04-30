@@ -1,0 +1,107 @@
+.hub-page {
+  display: grid;
+  gap: var(--hub-space-5);
+  min-width: 0;
+}
+
+.hub-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hub-space-4);
+  margin-bottom: var(--hub-space-5);
+  min-width: 0;
+}
+
+.hub-page-header--compact {
+  margin-bottom: 0;
+}
+
+.hub-page-header__main {
+  display: grid;
+  gap: var(--hub-space-1);
+  min-width: 0;
+}
+
+.hub-page-header__eyebrow {
+  color: var(--hub-color-steel);
+  font-size: var(--hub-font-xs);
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.hub-page-header__title {
+  color: var(--hub-color-text);
+  font-size: var(--hub-font-heading);
+  font-weight: 800;
+  line-height: 1.12;
+  margin: 0;
+}
+
+.hub-page-header__subtitle {
+  color: var(--hub-color-text-muted);
+  font-size: var(--hub-font-md);
+  margin: 0;
+}
+
+.hub-page-header__meta,
+.hub-page-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hub-space-2);
+}
+
+.hub-page-header__actions {
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.hub-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--hub-space-2);
+  flex-wrap: wrap;
+  padding: var(--hub-space-3) var(--hub-space-4);
+  border: 1px solid var(--hub-color-border);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-color-surface);
+  box-shadow: var(--hub-shadow-sm);
+}
+
+.hub-toolbar__main {
+  flex: 1 1 auto;
+  min-width: 180px;
+}
+
+.hub-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--hub-space-3);
+  flex-wrap: wrap;
+  padding: var(--hub-space-4);
+  border: 1px solid var(--hub-color-border);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-color-surface-raised);
+}
+
+.hub-grid {
+  display: grid;
+  gap: var(--hub-space-4);
+}
+
+.hub-grid--kpi {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+@media (max-width: 700px) {
+  .hub-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hub-page-header__actions {
+    justify-content: flex-start;
+  }
+}

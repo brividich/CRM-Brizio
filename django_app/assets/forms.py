@@ -524,6 +524,50 @@ class WorkMachineFilterForm(forms.Form):
             self.fields[field_name].widget.attrs["class"] = ""
 
 
+IT_DEVICE_TYPES = [
+    Asset.TYPE_PC,
+    Asset.TYPE_NOTEBOOK,
+    Asset.TYPE_SERVER,
+    Asset.TYPE_VM,
+    Asset.TYPE_FIREWALL,
+    Asset.TYPE_STAMPANTE,
+    Asset.TYPE_HW,
+    Asset.TYPE_FONIA,
+    Asset.TYPE_CCTV,
+    Asset.TYPE_OTHER,
+]
+
+PRODUCTION_ASSET_TYPES = [
+    Asset.TYPE_CNC,
+    Asset.TYPE_WORK_MACHINE,
+    Asset.TYPE_CARROPONTE,
+]
+
+IT_DEVICE_TYPE_CHOICES = [
+    (v, label) for v, label in Asset.TYPE_CHOICES
+    if v in IT_DEVICE_TYPES
+]
+
+
+class DeviceFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Ricerca")
+    asset_type = forms.ChoiceField(
+        required=False,
+        label="Tipo",
+        choices=[("", "Tutti i tipi"), *IT_DEVICE_TYPE_CHOICES],
+    )
+    status = forms.ChoiceField(
+        required=False,
+        label="Stato",
+        choices=[("", "Tutti gli stati"), *Asset.STATUS_CHOICES],
+    )
+    reparto = forms.CharField(required=False, label="Reparto")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _attach_input_css(self)
+
+
 class AssetComponentForm(forms.ModelForm):
     class Meta:
         model = AssetComponent
@@ -1369,9 +1413,13 @@ class PeriodicVerificationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         actor = kwargs.pop("actor", None)
         preselected_asset_id = kwargs.pop("preselected_asset_id", 0)
+        asset_queryset = kwargs.pop("asset_queryset", None)
         super().__init__(*args, **kwargs)
         self.actor = actor
-        self.fields["asset_ids"].queryset = Asset.objects.order_by("reparto", "name", "asset_tag")
+        self._asset_queryset_limited = asset_queryset is not None
+        self.fields["asset_ids"].queryset = (
+            asset_queryset if asset_queryset is not None else Asset.objects.all()
+        ).order_by("reparto", "name", "asset_tag")
         self.fields["frequency_months"].help_text = "Esempi: 1, 2, 3, 6, 12."
         self.fields["asset_ids"].help_text = "Puoi collegare piu asset allo stesso piano di manutenzione periodica."
         self.fields["asset_ids"].widget.attrs["data-pv-asset-select"] = "1"
@@ -1399,7 +1447,13 @@ class PeriodicVerificationForm(forms.ModelForm):
             instance.next_verification_date = _add_months(instance.last_verification_date, instance.frequency_months)
         if commit:
             instance.save()
-            instance.assets.set(self.cleaned_data.get("asset_ids") or [])
+            selected_assets = list(self.cleaned_data.get("asset_ids") or [])
+            if self._asset_queryset_limited and instance.pk:
+                editable_ids = set(self.fields["asset_ids"].queryset.values_list("id", flat=True))
+                preserved_assets = list(instance.assets.exclude(id__in=editable_ids))
+                instance.assets.set([*preserved_assets, *selected_assets])
+            else:
+                instance.assets.set(selected_assets)
         return instance
 
 

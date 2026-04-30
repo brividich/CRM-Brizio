@@ -1,0 +1,7 @@
+<div class="hub-kpi-card{% if tone %} hub-kpi-card--{{ tone }}{% endif %}">
+  <div class="hub-kpi-card__label">{{ label }}</div>
+  <div class="hub-kpi-card__value">{{ value|default:"-" }}</div>
+  {% if meta %}
+    <div class="hub-kpi-card__meta">{{ meta }}</div>
+  {% endif %}
+</div>
