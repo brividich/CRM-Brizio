@@ -210,6 +210,17 @@
     </section>
     {% endif %}
 
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Attrezzatura</span><h2 class="tf-title">Gestione Attrezzatura</h2><p class="tf-copy">Collega un attrezzo esistente o apri la richiesta operativa per il P/N senza duplicare la scheda KICK-OFF.</p></div></div>
+      <div class="tf-grid-2">
+        <div class="ts-field"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}{% if form.tooling_mode.help_text %}<div class="ts-field-help">{{ form.tooling_mode.help_text }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
+        <div class="ts-field full"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
+      </div>
+    </section>
+
     {% if form.category.field.queryset.exists %}
     <section class="tf-panel">
       <div class="tf-head"><div><span class="tf-kicker">Tipo</span><h2 class="tf-title">Tipo attivita e campi specifici</h2><p class="tf-copy">Selezionando un tipo (es. Programmazione, Collaudo) vengono mostrati i campi dedicati configurati dall'amministratore.</p></div></div>

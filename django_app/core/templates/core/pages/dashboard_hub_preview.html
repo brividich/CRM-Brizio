@@ -295,5 +295,13 @@
 
   </div>{# .hd-board #}
 
+  <footer class="hd-footer">
+    <div>Versione portale <strong>{{ app_version }}</strong></div>
+    <div class="hd-footer-meta">
+      {% if current_release.date %}<span>Release {{ current_release.date }}</span>{% endif %}
+      <span>Moduli versionati {{ module_versions|length }}</span>
+    </div>
+  </footer>
+
 </div>{# .hd-wrap #}
 {% endblock %}

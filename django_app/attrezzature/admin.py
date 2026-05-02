@@ -5,6 +5,7 @@ from .models import (
     AttrezzaturaAvanzamento,
     AttrezzaturaImportBatch,
     AttrezzaturaImportRow,
+    AttrezzaturaKickoffLink,
     AttrezzaturaNota,
     AttrezzaturaPartNumber,
     AttrezzaturaTask,
@@ -38,6 +39,13 @@ class AttrezzaturaTaskAdmin(admin.ModelAdmin):
     list_display = ("titolo", "tipo", "stato", "priorita", "part_number", "codice_attrezzo", "assegnato_a", "scadenza", "origine")
     search_fields = ("titolo", "descrizione", "part_number", "codice_attrezzo", "external_kickoff_id", "external_kickoff_activity_id")
     list_filter = ("tipo", "stato", "priorita", "origine")
+
+
+@admin.register(AttrezzaturaKickoffLink)
+class AttrezzaturaKickoffLinkAdmin(admin.ModelAdmin):
+    list_display = ("attrezzatura", "project", "task", "attrezzatura_task", "relationship_type", "part_number_snapshot", "updated_at")
+    search_fields = ("attrezzatura__codice", "attrezzatura__part_number", "part_number_snapshot", "notes")
+    list_filter = ("relationship_type",)
 
 
 @admin.register(AttrezzaturaNota)

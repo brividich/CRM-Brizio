@@ -6,6 +6,18 @@ from django.utils import timezone
 
 
 class AttrezzaturaStato(models.TextChoices):
+    DRAFT = "draft", "Richiesta"
+    REQUESTED = "requested", "Richiesta"
+    CHECKING_AVAILABLE = "checking_available", "Verifica disponibilità"
+    AVAILABLE = "available", "Disponibile"
+    TO_CREATE = "to_create", "Da creare"
+    IN_PROGRESS = "in_progress", "In lavorazione"
+    BLOCKED = "blocked", "Bloccata"
+    LATE = "late", "In ritardo"
+    READY_FOR_PRODUCTION = "ready_for_production", "Pronta per produzione"
+    CLOSED = "closed", "Chiusa"
+    ARCHIVED = "archived", "Archiviata"
+    # Valori legacy preservati per compatibilità con import e dati già presenti.
     DA_CLASSIFICARE = "da_classificare", "Da classificare"
     DA_VERIFICARE = "da_verificare", "Da verificare"
     NON_DISPONIBILE = "non_disponibile", "Non disponibile"
@@ -49,6 +61,12 @@ class AttrezzaturaTaskOrigine(models.TextChoices):
     REGOLA_AUTOMATICA = "regola_automatica", "Regola automatica"
 
 
+class AttrezzaturaKickoffRelationType(models.TextChoices):
+    CREATED_FROM_KICKOFF = "created_from_kickoff", "Creata da KICK-OFF"
+    LINKED_EXISTING = "linked_existing", "Collegata esistente"
+    VERIFICATION_REQUIRED = "verification_required", "Verifica richiesta"
+
+
 class AttrezzaturaTaskPriorita(models.TextChoices):
     BASSA = "bassa", "Bassa"
     NORMALE = "normale", "Normale"
@@ -78,12 +96,13 @@ class Attrezzatura(models.Model):
     part_number = models.CharField(max_length=120, blank=True, default="", db_index=True)
     numero_pezzi = models.PositiveIntegerField(null=True, blank=True)
     avanzamento_percentuale = models.PositiveSmallIntegerField(null=True, blank=True)
-    stato = models.CharField(max_length=40, choices=AttrezzaturaStato.choices, default=AttrezzaturaStato.DA_CLASSIFICARE, db_index=True)
+    stato = models.CharField(max_length=40, choices=AttrezzaturaStato.choices, default=AttrezzaturaStato.REQUESTED, db_index=True)
     disponibilita_stato = models.CharField(max_length=40, choices=DisponibilitaStato.choices, default=DisponibilitaStato.DA_VERIFICARE)
     ordine_visuale = models.IntegerField(null=True, blank=True)
     data_consegna_prevista = models.DateField(null=True, blank=True, db_index=True)
     note_consegna = models.TextField(blank=True, default="")
     note_rocco = models.TextField(blank=True, default="")
+    blocked_reason = models.TextField(blank=True, default="")
     origine_import = models.CharField(max_length=120, blank=True, default="")
     pronta_produzione_at = models.DateTimeField(null=True, blank=True)
     pronta_produzione_by = models.ForeignKey(
@@ -142,11 +161,15 @@ class Attrezzatura(models.Model):
 
     @property
     def is_finita(self) -> bool:
-        return self.stato == AttrezzaturaStato.FINITA
+        return self.stato in {AttrezzaturaStato.FINITA, AttrezzaturaStato.CLOSED, AttrezzaturaStato.ARCHIVED}
 
     @property
     def is_pronta_produzione(self) -> bool:
-        return self.stato == AttrezzaturaStato.PRONTA_PRODUZIONE
+        return self.stato in {AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION}
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.stato == AttrezzaturaStato.BLOCKED
 
     @property
     def is_in_ritardo(self) -> bool:
@@ -156,9 +179,12 @@ class Attrezzatura(models.Model):
             AttrezzaturaStato.FINITA,
             AttrezzaturaStato.ANNULLATA,
             AttrezzaturaStato.PRONTA_PRODUZIONE,
+            AttrezzaturaStato.READY_FOR_PRODUCTION,
+            AttrezzaturaStato.CLOSED,
+            AttrezzaturaStato.ARCHIVED,
         }:
             return False
-        return self.data_consegna_prevista < timezone.localdate()
+        return self.stato == AttrezzaturaStato.LATE or self.data_consegna_prevista < timezone.localdate()
 
     @property
     def display_part_number(self) -> str:
@@ -266,6 +292,59 @@ class AttrezzaturaTask(models.Model):
     @property
     def is_overdue(self) -> bool:
         return bool(self.scadenza and self.is_open and self.scadenza < timezone.localdate())
+
+
+class AttrezzaturaKickoffLink(models.Model):
+    attrezzatura = models.ForeignKey(
+        Attrezzatura,
+        on_delete=models.CASCADE,
+        related_name="kickoff_links",
+    )
+    project = models.ForeignKey(
+        "tasks.Project",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="attrezzature_links",
+    )
+    task = models.ForeignKey(
+        "tasks.Task",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="attrezzature_links",
+    )
+    attrezzatura_task = models.ForeignKey(
+        AttrezzaturaTask,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="kickoff_links",
+    )
+    relationship_type = models.CharField(
+        max_length=40,
+        choices=AttrezzaturaKickoffRelationType.choices,
+        default=AttrezzaturaKickoffRelationType.LINKED_EXISTING,
+        db_index=True,
+    )
+    part_number_snapshot = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        indexes = [
+            models.Index(fields=["task", "relationship_type"]),
+            models.Index(fields=["project", "relationship_type"]),
+            models.Index(fields=["part_number_snapshot"]),
+        ]
+        verbose_name = "Collegamento KICK-OFF attrezzatura"
+        verbose_name_plural = "Collegamenti KICK-OFF attrezzature"
+
+    def __str__(self) -> str:
+        return f"AttrezzaturaKickoffLink<{self.attrezzatura_id}:task={self.task_id}>"
 
 
 class AttrezzaturaNota(models.Model):

@@ -54,20 +54,94 @@ def update_attrezzatura_progress(attrezzatura, percentuale=None, stato=None, use
 
 
 def set_availability_status(attrezzatura, disponibilita_stato, user=None, note=""):
+    old_stato = attrezzatura.stato
+    old_percentuale = attrezzatura.avanzamento_percentuale
     attrezzatura.disponibilita_stato = disponibilita_stato
+    if disponibilita_stato == DisponibilitaStato.DISPONIBILE:
+        attrezzatura.stato = AttrezzaturaStato.AVAILABLE
+    elif disponibilita_stato == DisponibilitaStato.DA_CREARE:
+        attrezzatura.stato = AttrezzaturaStato.TO_CREATE
+    elif disponibilita_stato == DisponibilitaStato.DA_VERIFICARE:
+        attrezzatura.stato = AttrezzaturaStato.CHECKING_AVAILABLE
     if user is not None:
         attrezzatura.updated_by = user
-    attrezzatura.save(update_fields=["disponibilita_stato", "updated_by", "updated_at"] if user is not None else ["disponibilita_stato", "updated_at"])
+    fields = ["disponibilita_stato", "stato", "updated_at"]
+    if user is not None:
+        fields.append("updated_by")
+    attrezzatura.save(update_fields=fields)
+    if old_stato != attrezzatura.stato:
+        AttrezzaturaAvanzamento.objects.create(
+            attrezzatura=attrezzatura,
+            stato_precedente=old_stato or "",
+            stato_nuovo=attrezzatura.stato or "",
+            avanzamento_precedente=old_percentuale,
+            avanzamento_nuovo=attrezzatura.avanzamento_percentuale,
+            nota=note or "Disponibilita aggiornata",
+            origine="disponibilita",
+            created_by=user,
+        )
     if note:
         AttrezzaturaNota.objects.create(attrezzatura=attrezzatura, testo=note, origine="disponibilita", created_by=user)
     return attrezzatura
+
+
+def mark_availability_check_started(attrezzatura, user=None, note=""):
+    return update_attrezzatura_progress(
+        attrezzatura,
+        stato=AttrezzaturaStato.CHECKING_AVAILABLE,
+        user=user,
+        note=note or "Verifica disponibilita avviata",
+        origine="verifica_disponibilita",
+    )
+
+
+def mark_available(attrezzatura, user=None, note=""):
+    return set_availability_status(attrezzatura, DisponibilitaStato.DISPONIBILE, user=user, note=note)
+
+
+def mark_to_create(attrezzatura, user=None, note=""):
+    return set_availability_status(attrezzatura, DisponibilitaStato.DA_CREARE, user=user, note=note or "Attrezzatura da creare")
+
+
+def mark_blocked(attrezzatura, user=None, reason=""):
+    attrezzatura.blocked_reason = reason or ""
+    attrezzatura.save(update_fields=["blocked_reason", "updated_at"])
+    return update_attrezzatura_progress(
+        attrezzatura,
+        stato=AttrezzaturaStato.BLOCKED,
+        user=user,
+        note=reason or "Attrezzatura bloccata",
+        origine="blocco",
+    )
+
+
+def close_attrezzatura(attrezzatura, user=None, note=""):
+    return update_attrezzatura_progress(
+        attrezzatura,
+        percentuale=attrezzatura.avanzamento_percentuale,
+        stato=AttrezzaturaStato.CLOSED,
+        user=user,
+        note=note or "Attrezzatura chiusa",
+        origine="chiusura",
+    )
+
+
+def archive_attrezzatura(attrezzatura, user=None, note=""):
+    return update_attrezzatura_progress(
+        attrezzatura,
+        percentuale=attrezzatura.avanzamento_percentuale,
+        stato=AttrezzaturaStato.ARCHIVED,
+        user=user,
+        note=note or "Attrezzatura archiviata",
+        origine="archiviazione",
+    )
 
 
 @transaction.atomic
 def confirm_ready_for_production(attrezzatura, user=None, note=""):
     old_stato = attrezzatura.stato
     old_percentuale = attrezzatura.avanzamento_percentuale
-    attrezzatura.stato = AttrezzaturaStato.PRONTA_PRODUZIONE
+    attrezzatura.stato = AttrezzaturaStato.READY_FOR_PRODUCTION
     attrezzatura.disponibilita_stato = DisponibilitaStato.DISPONIBILE
     attrezzatura.pronta_produzione_at = timezone.now()
     attrezzatura.pronta_produzione_by = user

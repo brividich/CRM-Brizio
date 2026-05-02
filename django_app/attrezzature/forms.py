@@ -23,6 +23,7 @@ class AttrezzaturaForm(forms.ModelForm):
             "data_consegna_prevista",
             "note_consegna",
             "note_rocco",
+            "blocked_reason",
         ]
         widgets = {
             "codice": forms.TextInput(attrs={"class": "input"}),
@@ -36,6 +37,7 @@ class AttrezzaturaForm(forms.ModelForm):
             "data_consegna_prevista": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "note_consegna": forms.Textarea(attrs={"class": "input", "rows": 3}),
             "note_rocco": forms.Textarea(attrs={"class": "input", "rows": 3}),
+            "blocked_reason": forms.Textarea(attrs={"class": "input", "rows": 3}),
         }
 
 
@@ -95,6 +97,10 @@ class TaskCompleteForm(forms.Form):
 
 class TaskBlockForm(forms.Form):
     reason = forms.CharField(widget=forms.Textarea(attrs={"class": "input", "rows": 3}))
+
+
+class AttrezzaturaBlockForm(forms.Form):
+    reason = forms.CharField(widget=forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Motivo blocco"}))
 
 
 class NotaForm(forms.ModelForm):

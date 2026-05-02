@@ -154,7 +154,16 @@ if (Test-Path $WebConfigTemplate) {
     $content = $content -replace "%%ENV_PATH%%",     $siteRoot
     $content = $content -replace "%%VENV_PATH%%",    $paths.Venv
     $content = $content -replace "%%LOGS_PATH%%",    $paths.Logs
-    $content = $content -replace "%%SETTINGS_MOD%%", "config.settings.$Environment"
+    # test usa config.settings.prod: l'ambiente IIS TEST deve girare con SQL Server
+    # e le stesse impostazioni del profilo prod, NON il profilo SQLite/dev del test runner.
+    $settingsMap = @{
+        "test" = "config.settings.prod"
+        "prod" = "config.settings.prod"
+    }
+    if (-not $settingsMap.ContainsKey($Environment)) {
+        throw "Ambiente '$Environment' non ha un mapping settings configurato in configure-iis-site.ps1."
+    }
+    $content = $content -replace "%%SETTINGS_MOD%%", $settingsMap[$Environment]
     $content = $content -replace "%%DJANGO_APP%%",   "$siteRoot\current\django_app"
 
     $content | Set-Content $webConfigDest -Encoding UTF8

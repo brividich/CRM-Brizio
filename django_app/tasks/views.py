@@ -1892,6 +1892,62 @@ def _ensure_attrezzatura_task_link_for_kickoff_task(task: Task, user=None):
     return linked
 
 
+def _handle_task_tooling_form_action(request, task: Task, form: TaskForm) -> None:
+    mode = form.cleaned_data.get("tooling_mode") or TaskForm.TOOLING_NONE
+    if mode == TaskForm.TOOLING_NONE:
+        return
+    part_number = attrezzature_kickoff.normalize_part_number(
+        form.cleaned_data.get("tooling_part_number")
+        or (task.project.part_number if task.project_id else "")
+        or _task_attrezzatura_part_number(task)
+    )
+    if mode == TaskForm.TOOLING_LINK_EXISTING:
+        tool = form.cleaned_data.get("tooling_existing_attrezzatura")
+        if not tool:
+            return
+        linked, _created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+            part_number=part_number or tool.part_number,
+            attrezzatura=tool,
+            titolo=f"Gestire attrezzatura per {task.title}",
+            descrizione=task.description,
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        attrezzature_kickoff.link_attrezzatura_to_kickoff_activity(
+            tool,
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            task=linked,
+        )
+        log_action(request, "tooling_linked_from_task_form", "tasks", {"task_id": task.id, "attrezzatura_id": tool.id})
+        messages.success(request, f"Attrezzatura {tool.codice or tool.pk} collegata all'attivita.")
+    elif mode == TaskForm.TOOLING_REQUEST_NEW:
+        tool = attrezzature_kickoff.create_draft_attrezzatura_from_kickoff(
+            part_number=part_number,
+            description=form.cleaned_data.get("tooling_description") or task.description,
+            codice=form.cleaned_data.get("tooling_code") or "",
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        log_action(request, "tooling_requested_from_task_form", "tasks", {"task_id": task.id, "attrezzatura_id": tool.id})
+        messages.success(request, f"Richiesta attrezzatura creata per P/N {tool.part_number}.")
+    elif mode == TaskForm.TOOLING_VERIFICATION_REQUIRED:
+        linked, created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
+            tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
+            part_number=part_number,
+            titolo=f"Verificare disponibilita attrezzatura per {task.title}",
+            descrizione=form.cleaned_data.get("tooling_description") or task.description,
+            kickoff_ref=task.project_id,
+            kickoff_activity_ref=task.id,
+            user=request.user,
+        )
+        log_action(request, "tooling_verification_requested_from_task_form", "tasks", {"task_id": task.id, "attrezzatura_task_id": linked.id})
+        messages.success(request, "Verifica disponibilita attrezzatura creata." if created else "Verifica disponibilita gia collegata.")
+
+
 def _build_task_attrezzatura_context(task: Task) -> dict | None:
     part_number = _task_attrezzatura_part_number(task)
     if not part_number:
@@ -2013,6 +2069,47 @@ def attrezzatura_action(request, task_id: int):
                 kickoff_activity_ref=task.id,
             )
             messages.success(request, "Avanzamento attrezzatura aggiornato.")
+    elif action == "mark_blocked":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            reason = (request.POST.get("reason") or "").strip()
+            if not reason:
+                messages.error(request, "Indica il motivo del blocco.")
+            else:
+                attrezzature_workflow.mark_blocked(attrezzatura, user=request.user, reason=reason)
+                attrezzature_kickoff.upsert_kickoff_link(
+                    attrezzatura=attrezzatura,
+                    kickoff_ref=task.project_id,
+                    kickoff_activity_ref=task.id,
+                    user=request.user,
+                    notes=reason,
+                )
+                log_action(
+                    request,
+                    "tooling_blocked_from_kickoff",
+                    "tasks",
+                    {"task_id": task.id, "attrezzatura_id": attrezzatura.id, "reason": reason},
+                )
+                messages.success(request, "Attrezzatura bloccata.")
+    elif action == "mark_to_create":
+        if attrezzatura is None:
+            messages.error(request, "Attrezzatura non trovata.")
+        else:
+            attrezzature_workflow.mark_to_create(attrezzatura, user=request.user, note=request.POST.get("note", ""))
+            attrezzature_kickoff.upsert_kickoff_link(
+                attrezzatura=attrezzatura,
+                kickoff_ref=task.project_id,
+                kickoff_activity_ref=task.id,
+                user=request.user,
+            )
+            log_action(
+                request,
+                "tooling_to_create_from_kickoff",
+                "tasks",
+                {"task_id": task.id, "attrezzatura_id": attrezzatura.id},
+            )
+            messages.success(request, "Attrezzatura segnata da creare.")
     elif action == "set_availability":
         if attrezzatura is None:
             messages.error(request, "Attrezzatura non trovata.")
@@ -2022,6 +2119,12 @@ def attrezzatura_action(request, task_id: int):
                 request.POST.get("disponibilita_stato") or attrezzatura.disponibilita_stato,
                 user=request.user,
                 note=request.POST.get("note", ""),
+            )
+            attrezzature_kickoff.upsert_kickoff_link(
+                attrezzatura=attrezzatura,
+                kickoff_ref=task.project_id,
+                kickoff_activity_ref=task.id,
+                user=request.user,
             )
             messages.success(request, "Disponibilita attrezzatura aggiornata.")
     elif action == "add_note":
@@ -2239,6 +2342,7 @@ def task_create(request):
             for mw_warn in _check_machine_work_overlaps(task, exclude_task_id=None):
                 messages.warning(request, mw_warn)
             _ensure_attrezzatura_task_link_for_kickoff_task(task, user=request.user)
+            _handle_task_tooling_form_action(request, task, form)
             if form.reused_existing_project is not None and task.project_id:
                 if form.reused_existing_project_fields:
                     messages.info(
@@ -2405,6 +2509,7 @@ def task_edit(request, task_id: int):
             for mw_warn in _check_machine_work_overlaps(updated_task, exclude_task_id=updated_task.pk):
                 messages.warning(request, mw_warn)
             _ensure_attrezzatura_task_link_for_kickoff_task(updated_task, user=request.user)
+            _handle_task_tooling_form_action(request, updated_task, form)
             _log_task_update_events(updated_task, request.user, before)
             if form.reused_existing_project is not None and updated_task.project_id:
                 messages.info(
@@ -2608,8 +2713,6 @@ def edit_subtask_status(request, task_id: int, subtask_id: int):
 @require_POST
 @task_permissions_required("tasks_view")
 def subtask_toggle(request, task_id: int, subtask_id: int):
-    from django.http import JsonResponse
-
     task = get_object_or_404(_scoped_tasks_queryset(request), pk=task_id)
     if not _can_manage_task(request, task):
         return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
@@ -5397,7 +5500,6 @@ def project_meeting_create(request, project_id: int):
 
 @task_permissions_required("tasks_view")
 def project_meeting_detail(request, project_id: int, meeting_id: int):
-    from .forms import task_active_users_queryset
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(
         KickoffMeeting.objects.prefetch_related("partecipanti_utenti"),
@@ -5542,7 +5644,6 @@ def project_meeting_issue_status(request, project_id: int, meeting_id: int, issu
 @task_permissions_required("tasks_create")
 def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, item_id: str):
     """Toggle done/undone su un singolo punto agenda dell'incontro."""
-    from django.http import JsonResponse
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     if not _can_manage_project(request, project):
@@ -5568,9 +5669,6 @@ def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, ite
 @task_permissions_required("tasks_create")
 def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
     """Crea un task kickoff a partire da un next step dell'incontro."""
-    from django.http import JsonResponse
-    from datetime import date as _date
-
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     if not _can_manage_project(request, project):
@@ -5594,7 +5692,7 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
     due_date_raw = (request.POST.get("due_date") or "").strip()
     if due_date_raw:
         try:
-            due_date = _date.fromisoformat(due_date_raw)
+            due_date = date.fromisoformat(due_date_raw)
         except ValueError:
             pass
 

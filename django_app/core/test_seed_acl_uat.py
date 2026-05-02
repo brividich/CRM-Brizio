@@ -145,7 +145,7 @@ class SeedAclUatCommandTests(TestCase):
             True,
         )
 
-        deny_override = decision("uat.base2", "uat.base2@novicrom.local", "/assets/")
+        deny_override = decision("uat.base2", "uat.base2@novicrom.local", "/assets/lista/")
         self.assertFalse(deny_override["allowed"])
         self.assertEqual(deny_override["decision_source"], "canonical")
 

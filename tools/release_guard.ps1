@@ -60,7 +60,9 @@ function Invoke-GuardCommand {
         [string]$ManagePy,
         [string[]]$Arguments,
         [string]$Label,
-        [string]$ArtifactPath = ""
+        [string]$ArtifactPath = "",
+        [string[]]$FailOnOutputPattern = @(),
+        [string]$FailOnOutputMessage = ""
     )
 
     Write-GuardInfo "Eseguo ${Label}: $PythonExe $ManagePy $($Arguments -join ' ')"
@@ -90,6 +92,23 @@ function Invoke-GuardCommand {
         Add-Failure("$Label fallito con exit code $exitCode")
         if (-not $Quiet) {
             $output | ForEach-Object { Write-Host "  $_" }
+        }
+    }
+
+    if ($FailOnOutputPattern.Count -gt 0) {
+        $outputText = $output -join [System.Environment]::NewLine
+        foreach ($pattern in $FailOnOutputPattern) {
+            if ([regex]::IsMatch($outputText, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+                if ($FailOnOutputMessage) {
+                    Add-Failure($FailOnOutputMessage)
+                } else {
+                    Add-Failure("$Label ha prodotto output non valido: $pattern")
+                }
+                if (-not $Quiet) {
+                    $output | ForEach-Object { Write-Host "  $_" }
+                }
+                break
+            }
         }
     }
 
@@ -441,6 +460,23 @@ if (-not $pythonExe) {
         -ManagePy $djangoManage `
         -Arguments @("check", "--settings=config.settings.test") `
         -Label "Django check")
+
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("makemigrations", "--check", "--dry-run") `
+        -Label "makemigrations --check")
+
+    # La discovery globale da repo root non entra in django_app/ (non e un package);
+    # il gate usa quindi le app project-critical gia validate e blocca comunque
+    # qualsiasi output Django che indichi zero test scoperti.
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("test", "core", "tasks", "attrezzature", "--settings=config.settings.test") `
+        -Label "Django test suite" `
+        -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
+        -FailOnOutputMessage "Test gate invalid because Django discovered zero tests.")
 
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `

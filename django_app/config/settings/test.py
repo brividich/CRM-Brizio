@@ -1,3 +1,5 @@
+import os
+
 from .base import *  # noqa: F403,F401
 from .base import BASE_DIR, default_dev_allowed_hosts
 
@@ -24,7 +26,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": _TEST_DB_DIR / "runtime.sqlite3",
         "TEST": {
-            "NAME": _TEST_DB_DIR / "suite.sqlite3",
+            "NAME": _TEST_DB_DIR / f"suite_{os.getpid()}.sqlite3",
         },
     }
 }
@@ -40,3 +42,9 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
+
+# Bare Django discovery starts from the caller's current directory. In this
+# repo, tests live under django_app/ while commands are commonly launched from
+# the repo root, so the release baseline is declared explicitly.
+TEST_RUNNER = "config.test_runner.NovicromDiscoverRunner"
+DEFAULT_TEST_LABELS = ("core", "tasks", "attrezzature")

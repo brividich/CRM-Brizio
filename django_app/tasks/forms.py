@@ -8,6 +8,7 @@ from django.db import DatabaseError
 from django.db.models import Q
 
 from core.legacy_models import UtenteLegacy
+from attrezzature.models import Attrezzatura
 
 from .models import (
     KickoffMeeting, Project, ProjectComment, SubTask, Task, TaskAttachment,
@@ -190,6 +191,16 @@ class TaskForm(forms.ModelForm):
         (ASSIGNMENT_CONFLICT_KEEP, "Mantieni priorita inserita"),
         (ASSIGNMENT_CONFLICT_RAISE, "Alza priorita a High"),
     )
+    TOOLING_NONE = "none"
+    TOOLING_LINK_EXISTING = "link_existing"
+    TOOLING_REQUEST_NEW = "request_new"
+    TOOLING_VERIFICATION_REQUIRED = "verification_required"
+    TOOLING_MODE_CHOICES = (
+        (TOOLING_NONE, "Nessuna azione attrezzatura"),
+        (TOOLING_LINK_EXISTING, "Collega attrezzatura esistente"),
+        (TOOLING_REQUEST_NEW, "Richiedi nuovo attrezzo per P/N"),
+        (TOOLING_VERIFICATION_REQUIRED, "Richiedi verifica disponibilita"),
+    )
 
     task_scope = forms.ChoiceField(
         required=False,
@@ -314,6 +325,36 @@ class TaskForm(forms.ModelForm):
         label="Promemoria automatico sul portale",
         help_text="Crea una notifica portale 'N giorni' prima della scadenza (N da Impostazioni modulo).",
     )
+    tooling_mode = forms.ChoiceField(
+        required=False,
+        choices=TOOLING_MODE_CHOICES,
+        initial=TOOLING_NONE,
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Azione Gestione Attrezzatura",
+    )
+    tooling_existing_attrezzatura = forms.ModelChoiceField(
+        required=False,
+        queryset=Attrezzatura.objects.none(),
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Attrezzatura esistente",
+    )
+    tooling_part_number = forms.CharField(
+        required=False,
+        max_length=120,
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Default: P/N kickoff"}),
+        label="P/N attrezzatura",
+    )
+    tooling_code = forms.CharField(
+        required=False,
+        max_length=80,
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 80, "placeholder": "Codice attrezzo, se noto"}),
+        label="Codice attrezzo",
+    )
+    tooling_description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Nota richiesta attrezzatura"}),
+        label="Nota attrezzatura",
+    )
 
     class Meta:
         model = Task
@@ -366,6 +407,7 @@ class TaskForm(forms.ModelForm):
         self.fields["project_new_capo_commessa"].queryset = _users_for_role(TaskRoleType.CAPO_COMMESSA)
         self.fields["project_new_programmer"].queryset    = _users_for_role(TaskRoleType.PROGRAMMER)
         self.fields["project_similar_choice"].queryset = project_qs
+        self.fields["tooling_existing_attrezzatura"].queryset = Attrezzatura.objects.order_by("codice", "part_number", "id")
 
         self.fields["project_choice"].label = "Collega a kickoff esistente"
         self.fields["project_link_mode"].label = "Come vuoi lavorare sul kickoff"
@@ -406,6 +448,9 @@ class TaskForm(forms.ModelForm):
         )
         self.fields["project_similar_choice"].help_text = "Seleziona un'attivita simile gia presente, se disponibile."
         self.fields["project_similar_new_note"].help_text = "Usa questo campo solo se l'attivita simile non esiste ancora."
+        self.fields["tooling_mode"].help_text = (
+            "Opzionale: crea o collega il workflow Gestione Attrezzatura mentre salvi l'attivita KICK-OFF."
+        )
 
         # Initial per i nuovi campi outlook/reminder: in edit legge dall'istanza,
         # in create usa default (reminder attivo, outlook disattivo).
@@ -595,6 +640,19 @@ class TaskForm(forms.ModelForm):
         cleaned_data["project_new_revisione"] = project_new_revisione
         cleaned_data["project_new_versione"] = project_new_versione
         cleaned_data["project_similar_new_note"] = similar_new_note
+
+        tooling_mode = cleaned_data.get("tooling_mode") or self.TOOLING_NONE
+        if tooling_mode == self.TOOLING_LINK_EXISTING and not cleaned_data.get("tooling_existing_attrezzatura"):
+            self.add_error("tooling_existing_attrezzatura", "Seleziona l'attrezzatura da collegare.")
+        if tooling_mode in {self.TOOLING_REQUEST_NEW, self.TOOLING_VERIFICATION_REQUIRED}:
+            has_pn = bool(
+                (cleaned_data.get("tooling_part_number") or "").strip()
+                or project_new_part_number
+                or (cleaned_data.get("project_choice") and cleaned_data["project_choice"].part_number)
+                or (self.instance and self.instance.pk and self.instance.project_id and self.instance.project.part_number)
+            )
+            if not has_pn:
+                self.add_error("tooling_part_number", "Indica il P/N o collega l'attivita a un kickoff con P/N.")
         return cleaned_data
 
     def resolve_project(self, created_by):

@@ -164,6 +164,7 @@ _ROUTE_BINDINGS = {
     "attrezzature:delete": "attrezzature.attrezzature.delete",
     "attrezzature:bulk_delete": "attrezzature.attrezzature.delete",
     "attrezzature:update_progress": "attrezzature.attrezzature.edit",
+    "attrezzature:action": "attrezzature.attrezzature.edit",
     "attrezzature:confirm_ready": "attrezzature.attrezzature.confirm",
     "attrezzature:import": "attrezzature.import.import",
     "attrezzature:import_preview": "attrezzature.import.import",

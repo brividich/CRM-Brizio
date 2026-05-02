@@ -15,6 +15,7 @@ from .models import (
     Attrezzatura,
     AttrezzaturaAvanzamento,
     AttrezzaturaImportRow,
+    AttrezzaturaKickoffLink,
     AttrezzaturaPartNumber,
     AttrezzaturaStato,
     AttrezzaturaTask,
@@ -195,7 +196,8 @@ class WorkflowTests(TestCase):
         AttrezzaturaTask.objects.create(attrezzatura=tool, tipo=AttrezzaturaTaskTipo.CONFERMA_PRONTA_PRODUZIONE, titolo="Ready")
         workflow.confirm_ready_for_production(tool, user=self.user, note="ready")
         tool.refresh_from_db()
-        self.assertEqual(tool.stato, AttrezzaturaStato.PRONTA_PRODUZIONE)
+        self.assertEqual(tool.stato, AttrezzaturaStato.READY_FOR_PRODUCTION)
+        self.assertTrue(tool.is_pronta_produzione)
         self.assertEqual(tool.disponibilita_stato, DisponibilitaStato.DISPONIBILE)
         self.assertTrue(AttrezzaturaAvanzamento.objects.filter(attrezzatura=tool).exists())
         self.assertEqual(tool.tasks.get().stato, AttrezzaturaTaskStato.COMPLETATA)
@@ -243,9 +245,28 @@ class KickoffBoundaryTests(TestCase):
         self.assertEqual(task.stato, AttrezzaturaTaskStato.COMPLETATA)
         kickoff_integration.confirm_attrezzatura_ready_from_kickoff(tool, user=self.user, kickoff_activity_ref="a3")
         tool.refresh_from_db()
-        self.assertEqual(tool.stato, AttrezzaturaStato.PRONTA_PRODUZIONE)
+        self.assertEqual(tool.stato, AttrezzaturaStato.READY_FOR_PRODUCTION)
         ctx = kickoff_integration.build_kickoff_attrezzatura_context("PN-X")
         self.assertEqual(ctx["summary"]["ready_count"], 1)
+
+    def test_kickoff_link_uses_real_fk_when_ids_are_available(self):
+        from tasks.models import Project, Task
+
+        project = Project.objects.create(name="Kickoff", part_number="PN-L", created_by=self.user)
+        activity = Task.objects.create(title="Creare attrezzo", project=project, created_by=self.user)
+
+        tool = kickoff_integration.create_draft_attrezzatura_from_kickoff(
+            part_number="PN-L",
+            description="Attrezzo da kickoff",
+            kickoff_ref=project.id,
+            kickoff_activity_ref=activity.id,
+            user=self.user,
+        )
+
+        link = AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task=activity).order_by("relationship_type").first()
+        self.assertIsNotNone(link)
+        self.assertEqual(link.project, project)
+        self.assertEqual(link.part_number_snapshot, "PN-L")
 
 
 class RouteTests(TestCase):
@@ -265,6 +286,40 @@ class RouteTests(TestCase):
         for url in routes:
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, url)
+
+    def test_action_route_updates_operational_lifecycle(self):
+        response = self.client.post(
+            reverse("attrezzature:action", kwargs={"pk": self.tool.pk}),
+            {"action": "start_availability_check"},
+        )
+        self.assertRedirects(response, reverse("attrezzature:detail", kwargs={"pk": self.tool.pk}))
+        self.tool.refresh_from_db()
+        self.assertEqual(self.tool.stato, AttrezzaturaStato.CHECKING_AVAILABLE)
+
+        response = self.client.post(
+            reverse("attrezzature:action", kwargs={"pk": self.tool.pk}),
+            {"action": "mark_blocked", "reason": "Materiale mancante"},
+        )
+        self.assertRedirects(response, reverse("attrezzature:detail", kwargs={"pk": self.tool.pk}))
+        self.tool.refresh_from_db()
+        self.assertEqual(self.tool.stato, AttrezzaturaStato.BLOCKED)
+        self.assertEqual(self.tool.blocked_reason, "Materiale mancante")
+
+    def test_list_filters_linked_kickoff_and_ready(self):
+        from tasks.models import Project, Task
+
+        ready = Attrezzatura.objects.create(codice="READY", part_number="PN-R", stato=AttrezzaturaStato.READY_FOR_PRODUCTION)
+        project = Project.objects.create(name="Kickoff linked", part_number="PN-W", created_by=self.user)
+        activity = Task.objects.create(title="Activity linked", project=project, created_by=self.user)
+        AttrezzaturaKickoffLink.objects.create(attrezzatura=self.tool, project=project, task=activity, part_number_snapshot="PN-W")
+
+        linked_response = self.client.get(reverse("attrezzature:list"), {"linked_kickoff": "1"})
+        self.assertContains(linked_response, "WEB")
+        self.assertNotContains(linked_response, "READY")
+
+        ready_response = self.client.get(reverse("attrezzature:list"), {"ready": "1"})
+        self.assertContains(ready_response, "READY")
+        self.assertNotContains(ready_response, "WEB")
 
     def test_superuser_can_delete_single_attrezzatura(self):
         response = self.client.post(reverse("attrezzature:delete", kwargs={"pk": self.tool.pk}))

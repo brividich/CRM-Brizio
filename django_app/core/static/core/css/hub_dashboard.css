@@ -788,3 +788,28 @@ body.theme-dark .hub-page .hd-admin-btn:hover {
 @media (max-width: 480px) {
   .hub-page .hd-kpi-grid { grid-template-columns: 1fr; }
 }
+
+.hub-page .hd-footer {
+  margin-top: 24px;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--hub-line);
+  border-radius: var(--hub-radius);
+  background: rgba(255,255,255,.74);
+  color: var(--hub-muted);
+  font-size: 12px;
+}
+
+.hub-page .hd-footer strong {
+  color: var(--hub-ink);
+}
+
+.hub-page .hd-footer-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}

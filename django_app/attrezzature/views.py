@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import os
+import tempfile
 import uuid
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
@@ -14,10 +14,12 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
+from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
 from .forms import (
     AttrezzaturaForm,
+    AttrezzaturaBlockForm,
     AttrezzaturaTaskForm,
     EmbeddedPreviewForm,
     ImportUploadForm,
@@ -85,6 +87,15 @@ def _admin_required_response(request):
     return HttpResponseForbidden("Eliminazione consentita solo agli amministratori.")
 
 
+def _audit(request, action: str, attrezzatura: Attrezzatura | None = None, payload: dict | None = None) -> None:
+    detail = dict(payload or {})
+    if attrezzatura is not None:
+        detail.setdefault("attrezzatura_id", attrezzatura.id)
+        detail.setdefault("codice", attrezzatura.codice)
+        detail.setdefault("part_number", attrezzatura.part_number)
+    log_action(request, action, "attrezzature", detail)
+
+
 def _kickoff_preview_suggestions(embedded_context: dict | None) -> list[str]:
     if not embedded_context:
         return [
@@ -122,7 +133,7 @@ def _existing_part_numbers(limit: int = 200) -> list[str]:
 
 @login_required
 def attrezzatura_list(request):
-    qs = Attrezzatura.objects.all().annotate(task_count=Count("tasks"))
+    qs = Attrezzatura.objects.all().annotate(task_count=Count("tasks"), kickoff_link_count=Count("kickoff_links", distinct=True))
     if request.GET.get("stato"):
         qs = qs.filter(stato=request.GET["stato"])
     if request.GET.get("disponibilita_stato"):
@@ -136,7 +147,17 @@ def attrezzatura_list(request):
             stato__in=[AttrezzaturaStato.FINITA, AttrezzaturaStato.ANNULLATA, AttrezzaturaStato.PRONTA_PRODUZIONE]
         )
     if request.GET.get("pronta_produzione"):
-        qs = qs.filter(stato=AttrezzaturaStato.PRONTA_PRODUZIONE)
+        qs = qs.filter(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+    ready = request.GET.get("ready")
+    if ready == "1":
+        qs = qs.filter(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+    elif ready == "0":
+        qs = qs.exclude(stato__in=[AttrezzaturaStato.PRONTA_PRODUZIONE, AttrezzaturaStato.READY_FOR_PRODUCTION])
+    linked = request.GET.get("linked_kickoff")
+    if linked == "1":
+        qs = qs.filter(kickoff_links__isnull=False).distinct()
+    elif linked == "0":
+        qs = qs.filter(kickoff_links__isnull=True)
     page = Paginator(qs.order_by("codice", "part_number", "id"), 50).get_page(request.GET.get("page"))
     return render(request, "attrezzature/pages/list.html", {**_base_context("list"), "page": page, "can_delete_attrezzature": _can_delete_attrezzature(request)})
 
@@ -144,13 +165,19 @@ def attrezzatura_list(request):
 @login_required
 def attrezzatura_detail(request, pk: int):
     attrezzatura = get_object_or_404(
-        Attrezzatura.objects.prefetch_related("part_numbers", "avanzamenti", "tasks", "note", "import_rows"),
+        Attrezzatura.objects.prefetch_related("part_numbers", "avanzamenti", "tasks", "note", "import_rows", "kickoff_links"),
         pk=pk,
     )
     return render(
         request,
         "attrezzature/pages/detail.html",
-        {**_base_context("list"), "attrezzatura": attrezzatura, "progress_form": ProgressUpdateForm(), "can_delete_attrezzature": _can_delete_attrezzature(request)},
+        {
+            **_base_context("list"),
+            "attrezzatura": attrezzatura,
+            "progress_form": ProgressUpdateForm(),
+            "block_form": AttrezzaturaBlockForm(),
+            "can_delete_attrezzature": _can_delete_attrezzature(request),
+        },
     )
 
 
@@ -163,6 +190,7 @@ def attrezzatura_create(request):
             obj.created_by = request.user
             obj.updated_by = request.user
             obj.save()
+            _audit(request, "tooling_created", obj)
             messages.success(request, "Attrezzatura creata.")
             return redirect("attrezzature:detail", pk=obj.pk)
     else:
@@ -179,6 +207,7 @@ def attrezzatura_edit(request, pk: int):
             saved = form.save(commit=False)
             saved.updated_by = request.user
             saved.save()
+            _audit(request, "tooling_updated", saved)
             messages.success(request, "Attrezzatura aggiornata.")
             return redirect("attrezzature:detail", pk=obj.pk)
     else:
@@ -193,6 +222,7 @@ def attrezzatura_delete(request, pk: int):
         return _admin_required_response(request)
     obj = get_object_or_404(Attrezzatura, pk=pk)
     label = str(obj)
+    _audit(request, "tooling_deleted", obj)
     obj.delete()
     messages.success(request, f"Attrezzatura eliminata: {label}.")
     return redirect("attrezzature:list")
@@ -209,6 +239,8 @@ def attrezzatura_bulk_delete(request):
         return redirect("attrezzature:list")
     qs = Attrezzatura.objects.filter(pk__in=ids)
     count = qs.count()
+    for obj in qs:
+        _audit(request, "tooling_deleted", obj, {"bulk": True})
     qs.delete()
     messages.success(request, f"Attrezzature eliminate: {count}.")
     return redirect("attrezzature:list")
@@ -229,9 +261,19 @@ def import_preview(request):
         return redirect("attrezzature:import")
     upload = form.cleaned_data["file"]
     token = uuid.uuid4().hex
-    storage_path = f"attrezzature_import_preview/{token}_{upload.name}"
-    saved_path = default_storage.save(storage_path, ContentFile(upload.read()))
-    with default_storage.open(saved_path, "rb") as fh:
+    suffix = os.path.splitext(upload.name)[1] or ".xlsx"
+    tmp = tempfile.NamedTemporaryFile(
+        prefix=f"attrezzature_{token}_",
+        suffix=suffix,
+        delete=False,
+    )
+    try:
+        tmp.write(upload.read())
+        tmp.flush()
+        saved_path = tmp.name
+    finally:
+        tmp.close()
+    with open(saved_path, "rb") as fh:
         preview = excel_import.build_import_preview(fh, filename=upload.name, user=request.user)
     request.session["attrezzature_import_preview_path"] = saved_path
     request.session["attrezzature_import_preview_name"] = upload.name
@@ -243,13 +285,13 @@ def import_preview(request):
 def import_confirm(request):
     path = request.session.get("attrezzature_import_preview_path")
     name = request.session.get("attrezzature_import_preview_name") or "import_attrezzature.xlsx"
-    if not path or not default_storage.exists(path):
+    if not path or not os.path.exists(path):
         messages.error(request, "Preview import non trovata. Carica di nuovo il file.")
         return redirect("attrezzature:import")
-    with default_storage.open(path, "rb") as fh:
+    with open(path, "rb") as fh:
         result = excel_import.confirm_import(fh, filename=name, user=request.user)
     try:
-        default_storage.delete(path)
+        os.unlink(path)
     except Exception:
         pass
     request.session.pop("attrezzature_import_preview_path", None)
@@ -329,7 +371,55 @@ def update_progress(request, pk: int):
             note=form.cleaned_data.get("note", ""),
             origine="manuale",
         )
+        _audit(
+            request,
+            "tooling_progress_updated",
+            attrezzatura,
+            {
+                "stato": form.cleaned_data.get("stato") or attrezzatura.stato,
+                "avanzamento_percentuale": form.cleaned_data.get("avanzamento_percentuale"),
+            },
+        )
         messages.success(request, "Avanzamento aggiornato.")
+    return redirect("attrezzature:detail", pk=pk)
+
+
+@require_POST
+@login_required
+def attrezzatura_action(request, pk: int):
+    attrezzatura = get_object_or_404(Attrezzatura, pk=pk)
+    action = (request.POST.get("action") or "").strip()
+    note = request.POST.get("note", "")
+    if action == "start_availability_check":
+        workflow.mark_availability_check_started(attrezzatura, user=request.user, note=note)
+        _audit(request, "tooling_availability_check_started", attrezzatura)
+        messages.success(request, "Verifica disponibilita avviata.")
+    elif action == "mark_available":
+        workflow.mark_available(attrezzatura, user=request.user, note=note)
+        _audit(request, "tooling_marked_available", attrezzatura)
+        messages.success(request, "Attrezzatura segnata disponibile.")
+    elif action == "mark_to_create":
+        workflow.mark_to_create(attrezzatura, user=request.user, note=note)
+        _audit(request, "tooling_marked_to_create", attrezzatura)
+        messages.success(request, "Attrezzatura segnata da creare.")
+    elif action == "mark_blocked":
+        form = AttrezzaturaBlockForm(request.POST)
+        if form.is_valid():
+            workflow.mark_blocked(attrezzatura, user=request.user, reason=form.cleaned_data["reason"])
+            _audit(request, "tooling_blocked", attrezzatura, {"reason": form.cleaned_data["reason"]})
+            messages.success(request, "Attrezzatura bloccata.")
+        else:
+            messages.error(request, "Indica il motivo del blocco.")
+    elif action == "close":
+        workflow.close_attrezzatura(attrezzatura, user=request.user, note=note)
+        _audit(request, "tooling_closed", attrezzatura)
+        messages.success(request, "Attrezzatura chiusa.")
+    elif action == "archive":
+        workflow.archive_attrezzatura(attrezzatura, user=request.user, note=note)
+        _audit(request, "tooling_archived", attrezzatura)
+        messages.success(request, "Attrezzatura archiviata.")
+    else:
+        messages.error(request, "Azione attrezzatura non riconosciuta.")
     return redirect("attrezzature:detail", pk=pk)
 
 
@@ -338,6 +428,7 @@ def update_progress(request, pk: int):
 def confirm_ready(request, pk: int):
     attrezzatura = get_object_or_404(Attrezzatura, pk=pk)
     workflow.confirm_ready_for_production(attrezzatura, user=request.user, note=request.POST.get("note", ""))
+    _audit(request, "tooling_ready_for_production", attrezzatura)
     messages.success(request, "Attrezzatura confermata pronta per produzione.")
     return redirect("attrezzature:detail", pk=pk)
 

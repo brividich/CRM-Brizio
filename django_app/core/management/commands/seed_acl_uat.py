@@ -397,7 +397,7 @@ ROUTE_SAMPLE_DEFINITIONS: tuple[RouteSample, ...] = (
     RouteSample(
         key="R04",
         route_name="assets:asset_list",
-        path="/assets/",
+        path="/assets/lista/",
         expected_status=STATUS_CANONICAL_BOUND,
         note="Binding canonico su route_name.",
     ),
@@ -490,7 +490,7 @@ SCENARIO_SEEDS: tuple[ScenarioSeed, ...] = (
         scenario_id="S04",
         user_key="uat.base2",
         role_name="utente_base",
-        path="/assets/",
+        path="/assets/lista/",
         expected_permission_code="assets.asset.view",
         expected_source="canonical",
         expected_allowed=False,

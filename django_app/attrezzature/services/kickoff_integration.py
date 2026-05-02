@@ -4,6 +4,8 @@ from django.db.models import Q
 
 from attrezzature.models import (
     Attrezzatura,
+    AttrezzaturaKickoffLink,
+    AttrezzaturaKickoffRelationType,
     AttrezzaturaPartNumber,
     AttrezzaturaStato,
     AttrezzaturaTask,
@@ -17,6 +19,54 @@ from attrezzature.services import workflow
 
 def normalize_part_number(value: str) -> str:
     return " ".join(str(value or "").strip().upper().split())
+
+
+def _int_or_none(value):
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def upsert_kickoff_link(
+    *,
+    attrezzatura,
+    kickoff_ref=None,
+    kickoff_activity_ref=None,
+    attrezzatura_task=None,
+    relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING,
+    user=None,
+    notes="",
+):
+    project_id = _int_or_none(kickoff_ref)
+    task_id = _int_or_none(kickoff_activity_ref)
+    if attrezzatura is None or (project_id is None and task_id is None):
+        return None
+    lookup = {
+        "attrezzatura": attrezzatura,
+        "task_id": task_id,
+        "relationship_type": relationship_type,
+    }
+    defaults = {
+        "project_id": project_id,
+        "attrezzatura_task": attrezzatura_task,
+        "part_number_snapshot": normalize_part_number(attrezzatura.part_number),
+        "notes": notes or "",
+        "created_by": user,
+    }
+    link, created = AttrezzaturaKickoffLink.objects.get_or_create(**lookup, defaults=defaults)
+    updates = []
+    for field, value in defaults.items():
+        if field == "created_by" and not created:
+            continue
+        if getattr(link, field) != value:
+            setattr(link, field, value)
+            updates.append(field)
+    if updates:
+        link.save(update_fields=[*updates, "updated_at"])
+    return link
 
 
 def get_attrezzature_for_part_number(part_number: str):
@@ -38,7 +88,7 @@ def get_attrezzature_summary_for_part_number(part_number: str) -> dict:
         "part_number": normalize_part_number(part_number),
         "count": len(tools),
         "available_count": sum(1 for item in tools if item.disponibilita_stato == DisponibilitaStato.DISPONIBILE),
-        "ready_count": sum(1 for item in tools if item.stato == AttrezzaturaStato.PRONTA_PRODUZIONE),
+        "ready_count": sum(1 for item in tools if item.is_pronta_produzione),
         "late_count": sum(1 for item in tools if item.is_in_ritardo),
         "tools": tools,
     }
@@ -47,6 +97,21 @@ def get_attrezzature_summary_for_part_number(part_number: str) -> dict:
 def build_kickoff_attrezzatura_context(part_number: str, kickoff_ref=None, kickoff_activity_ref=None) -> dict:
     pn = normalize_part_number(part_number)
     tools = list(get_attrezzature_for_part_number(pn))
+    link_q = Q()
+    if kickoff_ref:
+        link_q |= Q(project_id=_int_or_none(kickoff_ref))
+    if kickoff_activity_ref:
+        link_q |= Q(task_id=_int_or_none(kickoff_activity_ref))
+    links = []
+    if link_q:
+        links = list(
+            AttrezzaturaKickoffLink.objects.filter(link_q)
+            .select_related("attrezzatura", "project", "task", "attrezzatura_task")
+            .order_by("-updated_at", "-id")
+        )
+        linked_tools = [link.attrezzatura for link in links if link.attrezzatura_id]
+        existing_ids = {tool.id for tool in tools}
+        tools.extend(tool for tool in linked_tools if tool.id not in existing_ids)
     task_q = Q(part_number__iexact=pn)
     if kickoff_ref:
         task_q |= Q(external_kickoff_id=str(kickoff_ref))
@@ -58,6 +123,7 @@ def build_kickoff_attrezzatura_context(part_number: str, kickoff_ref=None, kicko
         "kickoff_ref": str(kickoff_ref or ""),
         "kickoff_activity_ref": str(kickoff_activity_ref or ""),
         "attrezzature": tools,
+        "links": links,
         "tasks": tasks,
         "open_tasks": [task for task in tasks if task.is_open],
         "summary": get_attrezzature_summary_for_part_number(pn),
@@ -102,6 +168,15 @@ def get_or_create_attrezzatura_task_for_kickoff_activity(
         external_kickoff_activity_id=str(kickoff_activity_ref or ""),
         created_by=user,
     )
+    if attrezzatura is not None:
+        upsert_kickoff_link(
+            attrezzatura=attrezzatura,
+            kickoff_ref=kickoff_ref,
+            kickoff_activity_ref=kickoff_activity_ref,
+            attrezzatura_task=task,
+            relationship_type=AttrezzaturaKickoffRelationType.VERIFICATION_REQUIRED,
+            user=user,
+        )
     return task, True
 
 
@@ -117,6 +192,13 @@ def link_attrezzatura_to_kickoff_activity(attrezzatura, kickoff_ref=None, kickof
         if kickoff_activity_ref is not None:
             task.external_kickoff_activity_id = str(kickoff_activity_ref)
         task.save(update_fields=["attrezzatura", "part_number", "codice_attrezzo", "external_kickoff_id", "external_kickoff_activity_id", "updated_at"])
+    upsert_kickoff_link(
+        attrezzatura=attrezzatura,
+        kickoff_ref=kickoff_ref,
+        kickoff_activity_ref=kickoff_activity_ref,
+        attrezzatura_task=task,
+        relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING,
+    )
     return task
 
 
@@ -126,7 +208,7 @@ def create_draft_attrezzatura_from_kickoff(*, part_number, description="", codic
         codice=str(codice or "").strip(),
         descrizione=description or "",
         part_number=pn,
-        stato=AttrezzaturaStato.DA_CREARE if not codice else AttrezzaturaStato.DA_CLASSIFICARE,
+        stato=AttrezzaturaStato.TO_CREATE if not codice else AttrezzaturaStato.REQUESTED,
         disponibilita_stato=DisponibilitaStato.DA_CREARE if not codice else DisponibilitaStato.DA_VERIFICARE,
         origine_import="kickoff",
         created_by=user,
@@ -134,13 +216,28 @@ def create_draft_attrezzatura_from_kickoff(*, part_number, description="", codic
     )
     if pn:
         AttrezzaturaPartNumber.objects.get_or_create(attrezzatura=tool, part_number=pn, defaults={"fonte": "kickoff"})
-    workflow.create_new_tool_task(
+    gestione_task = workflow.create_new_tool_task(
         pn,
         description=description,
         codice_attrezzo=codice,
         kickoff_ref=kickoff_ref,
         kickoff_activity_ref=kickoff_activity_ref,
         user=user,
+    )
+    link_attrezzatura_to_kickoff_activity(
+        tool,
+        kickoff_ref=kickoff_ref,
+        kickoff_activity_ref=kickoff_activity_ref,
+        task=gestione_task,
+    )
+    upsert_kickoff_link(
+        attrezzatura=tool,
+        kickoff_ref=kickoff_ref,
+        kickoff_activity_ref=kickoff_activity_ref,
+        attrezzatura_task=gestione_task,
+        relationship_type=AttrezzaturaKickoffRelationType.CREATED_FROM_KICKOFF,
+        user=user,
+        notes=description,
     )
     return tool
 
@@ -156,6 +253,14 @@ def update_attrezzatura_progress_from_kickoff(attrezzatura, percentuale=None, st
             kickoff_ref=kickoff_ref,
             kickoff_activity_ref=kickoff_activity_ref,
             user=user,
+        )
+        upsert_kickoff_link(
+            attrezzatura=result,
+            kickoff_ref=kickoff_ref,
+            kickoff_activity_ref=kickoff_activity_ref,
+            relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING,
+            user=user,
+            notes=note,
         )
     return result
 
@@ -174,6 +279,15 @@ def confirm_attrezzatura_ready_from_kickoff(attrezzatura, user=None, note="", ki
         )
         if task.stato != AttrezzaturaTaskStato.COMPLETATA:
             workflow.complete_task(task, user=user, note=note)
+        upsert_kickoff_link(
+            attrezzatura=result,
+            kickoff_ref=kickoff_ref,
+            kickoff_activity_ref=kickoff_activity_ref,
+            attrezzatura_task=task,
+            relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING,
+            user=user,
+            notes=note,
+        )
     return result
 
 

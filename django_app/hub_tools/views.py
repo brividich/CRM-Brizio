@@ -2121,6 +2121,8 @@ def hub_pulsanti_manager(request):
         for p in Pulsante.objects.all().order_by("modulo", "id"):
             pid = int(p.id)
             meta = ui_meta.get(pid, {})
+            if not meta.get("is_padre", False):
+                continue
             card_img = meta.get("card_image", "")
             pulsanti.append({
                 "id": pid,
@@ -2133,7 +2135,7 @@ def hub_pulsanti_manager(request):
                 "ui_order": meta.get("ui_order"),
                 "card_image": card_img,
                 "image_url": _resolve_media_url(card_img),
-                "is_padre": meta.get("is_padre", False),
+                "is_padre": True,
             })
     except Exception:
         pass

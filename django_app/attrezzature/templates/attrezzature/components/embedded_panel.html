@@ -1,7 +1,7 @@
 <section class="at-card at-embedded-panel">
   <div class="at-card-h">
     <div>
-      <strong>Gestione Attrezzatura per P/N {{ embedded_context.part_number|default:"-" }}</strong>
+      <strong>Attrezzatura collegata - P/N {{ embedded_context.part_number|default:"-" }}</strong>
       <div class="at-muted">Stato operativo letto da Attrezzatura e AttrezzaturaTask.</div>
     </div>
     <span class="badge">{{ embedded_context.open_tasks|length }} task aperte</span>
@@ -43,7 +43,7 @@
             <tr>
               <td><a href="{% url 'attrezzature:detail' item.pk %}">{{ item.codice|default:"-" }}</a></td>
               <td>{{ item.display_part_number }}</td>
-              <td><span class="badge{% if item.is_pronta_produzione or item.is_finita %} ok{% elif item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
+              <td><span class="badge{% if item.is_pronta_produzione or item.is_finita %} ok{% elif item.is_blocked or item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
               <td>{{ item.get_disponibilita_stato_display }}</td>
               <td>{{ item.avanzamento_percentuale|default:"-" }}%</td>
               <td>
@@ -79,6 +79,19 @@
                         {% endfor %}
                       </select>
                       <button class="btn secondary" type="submit">Disponibilita</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="mark_blocked">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <input class="input" type="text" name="reason" maxlength="500" placeholder="Motivo blocco">
+                      <button class="btn danger" type="submit">Blocca</button>
+                    </form>
+                    <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="mark_to_create">
+                      <input type="hidden" name="attrezzatura_id" value="{{ item.pk }}">
+                      <button class="btn secondary" type="submit">Da creare</button>
                     </form>
                     <form method="post" action="{{ embedded_context.action_url }}" class="at-inline-form">
                       {% csrf_token %}

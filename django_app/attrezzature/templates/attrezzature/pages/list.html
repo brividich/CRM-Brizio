@@ -9,7 +9,7 @@
 <section class="at-card">
   <div class="at-card-h">
     <strong>Filtri</strong>
-    {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo %}
+    {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo or request.GET.linked_kickoff or request.GET.ready %}
     <span class="badge info">Filtri attivi</span>
     {% endif %}
   </div>
@@ -37,8 +37,22 @@
         <span>Ritardo</span>
         <span><input type="checkbox" name="in_ritardo" value="1" {% if request.GET.in_ritardo %}checked{% endif %}> Solo in ritardo</span>
       </label>
+      <label>Collegamento KICK-OFF
+        <select class="input" name="linked_kickoff">
+          <option value="">Tutte</option>
+          <option value="1" {% if request.GET.linked_kickoff == "1" %}selected{% endif %}>Collegate</option>
+          <option value="0" {% if request.GET.linked_kickoff == "0" %}selected{% endif %}>Non collegate</option>
+        </select>
+      </label>
+      <label>Pronta produzione
+        <select class="input" name="ready">
+          <option value="">Tutte</option>
+          <option value="1" {% if request.GET.ready == "1" %}selected{% endif %}>Pronte</option>
+          <option value="0" {% if request.GET.ready == "0" %}selected{% endif %}>Non pronte</option>
+        </select>
+      </label>
       <button class="btn" type="submit">Filtra</button>
-      {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo %}
+      {% if request.GET.stato or request.GET.disponibilita_stato or request.GET.part_number or request.GET.codice or request.GET.in_ritardo or request.GET.linked_kickoff or request.GET.ready %}
       <a class="btn secondary" href="{% url 'attrezzature:list' %}">Reset</a>
       {% endif %}
     </form>
@@ -55,7 +69,7 @@
 <div class="at-table-wrap">
   <table class="at-table">
     <thead>
-      <tr>{% if can_delete_attrezzature %}<th class="at-check-col"><input class="at-row-check" type="checkbox" data-at-check-all aria-label="Seleziona tutte"></th>{% endif %}<th>Codice</th><th>Descrizione</th><th>P/N</th><th>Stato</th><th>Disponibilita</th><th>Consegna</th><th>Task</th></tr>
+      <tr>{% if can_delete_attrezzature %}<th class="at-check-col"><input class="at-row-check" type="checkbox" data-at-check-all aria-label="Seleziona tutte"></th>{% endif %}<th>Codice</th><th>Descrizione</th><th>P/N</th><th>Stato</th><th>Disponibilita</th><th>Consegna</th><th>KICK-OFF</th><th>Task</th></tr>
     </thead>
     <tbody>
       {% for item in page.object_list %}
@@ -67,10 +81,11 @@
         <td><span class="badge{% if item.is_finita or item.is_pronta_produzione %} ok{% elif item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
         <td>{{ item.get_disponibilita_stato_display }}</td>
         <td>{{ item.data_consegna_prevista|date:"d/m/Y"|default:"-" }}</td>
+        <td>{% if item.kickoff_link_count %}<span class="badge info">{{ item.kickoff_link_count }}</span>{% else %}-{% endif %}</td>
         <td>{{ item.task_count }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if can_delete_attrezzature %}8{% else %}7{% endif %}"><div class="at-empty">Nessuna attrezzatura trovata.</div></td></tr>
+      <tr><td colspan="{% if can_delete_attrezzature %}9{% else %}8{% endif %}"><div class="at-empty">Nessuna attrezzatura trovata.</div></td></tr>
       {% endfor %}
     </tbody>
   </table>

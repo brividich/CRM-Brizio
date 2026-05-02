@@ -58,3 +58,21 @@ class ManagePySettingsSelectionTests(SimpleTestCase):
             test_settings = importlib.reload(test_settings)
 
         self.assertEqual(test_settings.DATABASES["default"]["ENGINE"], "django.db.backends.sqlite3")
+
+    def test_test_settings_define_release_suite_labels_for_bare_discovery(self):
+        test_settings = importlib.import_module("config.settings.test")
+
+        self.assertEqual(test_settings.TEST_RUNNER, "config.test_runner.NovicromDiscoverRunner")
+        self.assertEqual(test_settings.DEFAULT_TEST_LABELS, ("core", "tasks", "attrezzature"))
+
+    def test_test_runner_uses_release_suite_labels_when_no_labels_are_passed(self):
+        from config.test_runner import NovicromDiscoverRunner
+
+        runner = NovicromDiscoverRunner(verbosity=0)
+        with patch("django.test.runner.DiscoverRunner.build_suite", return_value="suite") as build_suite:
+            suite = runner.build_suite([])
+
+        self.assertEqual(suite, "suite")
+        build_suite.assert_called_once()
+        args, _kwargs = build_suite.call_args
+        self.assertEqual(args[0], ["core", "tasks", "attrezzature"])

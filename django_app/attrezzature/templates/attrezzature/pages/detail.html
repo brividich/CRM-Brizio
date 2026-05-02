@@ -24,7 +24,11 @@
         <div class="at-detail-item"><span>Stato</span><span class="badge{% if attrezzatura.is_finita or attrezzatura.is_pronta_produzione %} ok{% elif attrezzatura.is_in_ritardo %} danger{% endif %}">{{ attrezzatura.get_stato_display }}</span></div>
         <div class="at-detail-item"><span>Disponibilita</span>{{ attrezzatura.get_disponibilita_stato_display }}</div>
         <div class="at-detail-item"><span>Avanzamento</span>{{ attrezzatura.avanzamento_percentuale|default:"-" }}%</div>
+        <div class="at-detail-item"><span>Consegna prevista</span>{{ attrezzatura.data_consegna_prevista|date:"d/m/Y"|default:"-" }}{% if attrezzatura.is_in_ritardo %} <span class="badge danger">In ritardo</span>{% endif %}</div>
         <div class="at-detail-item"><span>Origine import</span>{{ attrezzatura.origine_import|default:"-" }}</div>
+        {% if attrezzatura.blocked_reason %}
+        <div class="at-detail-item" style="grid-column:1/-1;"><span>Motivo blocco</span>{{ attrezzatura.blocked_reason }}</div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -40,7 +44,62 @@
         {% csrf_token %}
         <button class="btn secondary" type="submit">Conferma pronta produzione</button>
       </form>
+      <div class="at-action-grid">
+        <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="start_availability_check">
+          <button class="btn secondary" type="submit">Avvia verifica disponibilita</button>
+        </form>
+        <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="mark_available">
+          <button class="btn secondary" type="submit">Segna disponibile</button>
+        </form>
+        <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="mark_to_create">
+          <button class="btn secondary" type="submit">Segna da creare</button>
+        </form>
+        <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="close">
+          <button class="btn secondary" type="submit">Chiudi</button>
+        </form>
+        <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-mini-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="archive">
+          <button class="btn secondary" type="submit">Archivia</button>
+        </form>
+      </div>
+      <form method="post" action="{% url 'attrezzature:action' attrezzatura.pk %}" class="at-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="mark_blocked">
+        <div class="at-form-grid">{{ block_form.as_p }}</div>
+        <button class="btn warn" type="submit">Blocca con motivo</button>
+      </form>
     </div>
+  </div>
+</section>
+<section class="at-card">
+  <div class="at-card-h"><strong>Collegamenti KICK-OFF</strong></div>
+  <div class="at-table-wrap">
+    <table class="at-table">
+      <thead><tr><th>Tipo</th><th>Kickoff</th><th>Attivita</th><th>Task attrezzatura</th><th>P/N snapshot</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for link in attrezzatura.kickoff_links.all %}
+        <tr>
+          <td>{{ link.get_relationship_type_display }}</td>
+          <td>{% if link.project %}<a href="{% url 'tasks:project_gantt' link.project.id %}">{{ link.project.name }}</a>{% else %}-{% endif %}</td>
+          <td>{% if link.task %}<a href="{% url 'tasks:detail' link.task.id %}">{{ link.task.title }}</a>{% else %}-{% endif %}</td>
+          <td>{% if link.attrezzatura_task %}<a href="{% url 'attrezzature:task_detail' link.attrezzatura_task.id %}">{{ link.attrezzatura_task.titolo }}</a>{% else %}-{% endif %}</td>
+          <td>{{ link.part_number_snapshot|default:"-" }}</td>
+          <td>{{ link.notes|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="at-muted">Nessun collegamento KICK-OFF strutturato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
 <section class="at-card">

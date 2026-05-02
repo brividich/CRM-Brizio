@@ -17,6 +17,7 @@ from core.models import (
     Profile,
     RolePermissionGrant,
     RoutePermissionBinding,
+    UserOnboarding,
     UserPermissionGrant,
 )
 
@@ -531,6 +532,7 @@ class ACLV2MiddlewareIntegrationTests(TestCase):
             legacy_ruolo_id=self.legacy_user.ruolo_id,
             legacy_ruolo=self.legacy_user.ruolo,
         )
+        UserOnboarding.objects.create(user=self.user, completed=True)
 
     def test_exempt_path_bypasses_acl_even_without_authentication(self):
         middleware = ACLMiddleware(lambda request: HttpResponse("ok", status=200))
@@ -544,26 +546,26 @@ class ACLV2MiddlewareIntegrationTests(TestCase):
 
     def test_canonical_deny_returns_forbidden_response(self):
         PermissionDefinition.objects.create(
-            code="core.profilo.view",
-            label="Profilo utente",
-            module="core",
+            code="admin_portale.users.view",
+            label="Utenti portale",
+            module="admin_portale",
             is_active=True,
         )
         RoutePermissionBinding.objects.create(
-            route_name="profilo",
+            route_name="admin_portale:utenti_list",
             path_pattern="",
             match_strategy=RoutePermissionBinding.MATCH_EXACT,
-            permission_id="core.profilo.view",
-            source_app="core",
+            permission_id="admin_portale.users.view",
+            source_app="admin_portale",
             is_active=True,
         )
         RolePermissionGrant.objects.create(
             legacy_role_id=6,
-            permission_id="core.profilo.view",
+            permission_id="admin_portale.users.view",
             enabled=False,
         )
         middleware = ACLMiddleware(lambda request: HttpResponse("ok", status=200))
-        request = self.factory.get("/profilo/")
+        request = self.factory.get("/admin-portale/utenti/")
         _attach_session(request)
         request.user = self.user
 

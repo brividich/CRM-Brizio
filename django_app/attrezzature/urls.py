@@ -22,6 +22,7 @@ urlpatterns = [
     path("attrezzature/tasks/<int:pk>/complete/", views.task_complete, name="task_complete"),
     path("attrezzature/tasks/<int:pk>/block/", views.task_block, name="task_block"),
     path("attrezzature/<int:pk>/aggiorna-avanzamento/", views.update_progress, name="update_progress"),
+    path("attrezzature/<int:pk>/azione/", views.attrezzatura_action, name="action"),
     path("attrezzature/<int:pk>/conferma-pronta-produzione/", views.confirm_ready, name="confirm_ready"),
     path("attrezzature/embedded-preview/", views.embedded_preview, name="embedded_preview"),
 ]

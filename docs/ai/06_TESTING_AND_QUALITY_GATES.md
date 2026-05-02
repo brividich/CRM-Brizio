@@ -22,6 +22,7 @@ Questo aggiornamento ÃƒÆ’Ã‚Â¨ parte integrante di ogni task, non un'at
 - Set canonico da mantenere coerente con `VERSION`: `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `docs/ai/*.md`, `doc/README.md`, `doc/START_HERE.md`, `doc/TESTING.md`, `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`
 - Guard operativo: `tools/release_guard.ps1`
 - Il release guard esegue anche `secret_hygiene_check` (bloccante), `acl_coverage_report --max-missing 216`, `validate_deployment --format json --settings=config.settings.test` (FAIL bloccanti, WARN ammessi) e `check --settings=config.settings.test`.
+- Il gate test del release guard usa label esplicite (`core tasks attrezzature`) perche la discovery globale lanciata dalla root del repo non entra in `django_app/` (directory senza `__init__.py`) e puo terminare con `Found 0 test(s)` / `NO TESTS RAN`. Il profilo `config.settings.test` applica la stessa baseline tramite `NovicromDiscoverRunner` quando `manage.py test` viene invocato senza label. Il guard deve fallire se l'output del comando test contiene una di queste condizioni, anche con exit code 0.
 - Artifact guard generati e non versionati: `django_app/acl_report_latest.json` e `django_app/deployment_validation_latest.json`.
 - Non usare `acl_coverage_report --fail-on-missing` nel guard finche la baseline storica non e azzerata; ogni aumento di `-AclMaxMissing` deve essere una decisione esplicita.
 - `deployment/scripts/package-release.ps1` deve eseguire il guard prima di creare lo zip
@@ -149,6 +150,7 @@ Accessibile da launcher, FinishPage e CLI `--mode=dashboard`.
 - `config/settings/base.py` + `dev.py` + `test.py` + `prod.py`
 - Variabili ambiente da `django_app/.env` caricate dal loader custom `_load_dotenv(...)` in `base.py`
 - `config.settings.test` forza SQLite e servizi lightweight anche se il file `.env` punta a SQL Server
+- `config.settings.test` usa un database test SQLite con nome per processo sotto `django_app/.tmp_tests`, cosi un file rimasto da un run interrotto non puo bloccare il run successivo con prompt interattivi o schema parziali.
 - `python manage.py test` usa automaticamente `config.settings.test` se non passi `--settings`
 - Nei flussi wizard/deploy l'ambiente `test` usa comunque `config.settings.prod`
 - La source of truth persistita e `django_app/.env` in sviluppo; nei deploy TEST/PROD e `ENV/config/.env`, caricato prima del `.env` copiato nella release attiva (`current/django_app/.env` o `releases/<id>/django_app/.env`) che resta solo fallback per chiavi mancanti.

@@ -34,6 +34,9 @@ Pillow>=12.0                    # elaborazione immagini (upload, fotocard)
 python-magic-bin>=0.4.14; platform_system=="Windows"
 python-magic>=0.4.14; platform_system!="Windows"
 
+# --- HTMX integration ---
+django-htmx>=1.17               # middleware + script bundled per htmx SSR
+
 # --- Dev server (django-extensions runserver_plus) ---
 django-extensions>=4.1
 Werkzeug>=3.0,<4                # richiesto da runserver_plus; versione controllata esplicitamente

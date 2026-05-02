@@ -656,6 +656,7 @@ class DashboardRoutingTests(TestCase):
     @override_settings(LEGACY_AUTH_ENABLED=False)
     def test_dashboard_and_dashboard_home_routes_work(self):
         user = get_user_model().objects.create_user(username="route-user", password="pass12345")
+        UserOnboarding.objects.create(user=user, completed=True)
         self.client.force_login(user)
 
         root_url = reverse("root")
@@ -668,8 +669,14 @@ class DashboardRoutingTests(TestCase):
         root_response = self.client.get(root_url)
         self.assertEqual(root_response.status_code, 302)
         self.assertEqual(root_response.headers.get("Location"), "/dashboard")
-        self.assertEqual(self.client.get(dashboard_url).status_code, 200)
-        self.assertEqual(self.client.get(dashboard_home_url).status_code, 200)
+        dashboard_response = self.client.get(dashboard_url)
+        dashboard_home_response = self.client.get(dashboard_home_url)
+        self.assertEqual(dashboard_response.status_code, 302)
+        self.assertEqual(dashboard_response.headers.get("Location"), reverse("dashboard_hub_preview"))
+        self.assertEqual(dashboard_home_response.status_code, 302)
+        self.assertEqual(dashboard_home_response.headers.get("Location"), reverse("dashboard_hub_preview"))
+        self.assertEqual(self.client.get(dashboard_url, follow=True).status_code, 200)
+        self.assertEqual(self.client.get(dashboard_home_url, follow=True).status_code, 200)
 
     def test_coming_assenze_route_name_resolves_to_modulo_assenze_path(self):
         self.assertEqual(reverse("coming_assenze"), reverse("assenze_menu"))
@@ -681,11 +688,13 @@ class DashboardRoutingTests(TestCase):
     )
     def test_dashboard_home_shows_version_footer(self):
         user = get_user_model().objects.create_user(username="route-user-version", password="pass12345")
+        UserOnboarding.objects.create(user=user, completed=True)
         self.client.force_login(user)
 
-        response = self.client.get(reverse("dashboard_home"))
+        response = self.client.get(reverse("dashboard_home"), follow=True)
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.redirect_chain, [(reverse("dashboard_hub_preview"), 302)])
         self.assertContains(response, "Versione portale")
         self.assertContains(response, "9.9.9-test")
         self.assertContains(response, "Moduli versionati")
@@ -1182,6 +1191,8 @@ class ImpersonationFlowTests(TestCase):
         self.target_legacy = UtenteLegacy.objects.get(id=200)
         self.admin_user = sync_django_user_from_legacy(self.admin_legacy)
         self.target_user = sync_django_user_from_legacy(self.target_legacy)
+        UserOnboarding.objects.get_or_create(user=self.admin_user, defaults={"completed": True})
+        UserOnboarding.objects.get_or_create(user=self.target_user, defaults={"completed": True})
 
     def test_admin_can_start_and_stop_impersonation_with_audit(self):
         self.client.force_login(self.admin_user)

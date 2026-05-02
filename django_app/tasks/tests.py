@@ -20,6 +20,7 @@ from core.legacy_models import Permesso
 from core.models import Notifica, Profile, UserOnboarding
 from attrezzature.models import (
     Attrezzatura,
+    AttrezzaturaKickoffLink,
     AttrezzaturaStato,
     AttrezzaturaTask as GestioneAttrezzaturaTask,
     AttrezzaturaTaskOrigine as GestioneAttrezzaturaTaskOrigine,
@@ -631,7 +632,7 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Gestione Attrezzatura per P/N PN-77")
+        self.assertContains(response, "Attrezzatura collegata - P/N PN-77")
         self.assertContains(response, "AT-77")
         self.assertContains(response, "Verificare disponibilita PN-77")
         self.assertContains(response, reverse("tasks:attrezzature_action", args=[self.task.id]))
@@ -652,6 +653,51 @@ class TaskAttrezzaturaEmbeddedPanelTests(TasksBaseTestCase):
         self.assertEqual(linked.part_number, "PN-77")
         self.assertEqual(linked.external_kickoff_id, str(self.project.id))
         self.assertEqual(linked.origine, GestioneAttrezzaturaTaskOrigine.KICKOFF)
+
+    def test_create_task_can_request_new_tooling_workflow(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:create"),
+            {
+                "task_scope": "project",
+                "project_link_mode": "existing",
+                "project_choice": str(self.project.id),
+                "title": "Creare attrezzo P/N 77",
+                "description": "Serve attrezzo dedicato",
+                "status": TaskStatus.TODO,
+                "priority": TaskPriority.MEDIUM,
+                "tooling_mode": "request_new",
+                "tooling_code": "AT-REQ",
+                "tooling_description": "Da creare per produzione",
+                "reminder_portal_enabled_field": "on",
+            },
+        )
+        task = Task.objects.get(title="Creare attrezzo P/N 77")
+        self.assertRedirects(response, reverse("tasks:detail", args=[task.id]))
+        tool = Attrezzatura.objects.get(codice="AT-REQ")
+        self.assertEqual(tool.part_number, "PN-77")
+        self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task=task).exists())
+
+    def test_create_task_can_link_existing_tooling(self):
+        tool = Attrezzatura.objects.create(codice="AT-LINK", part_number="PN-77")
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:create"),
+            {
+                "task_scope": "project",
+                "project_link_mode": "existing",
+                "project_choice": str(self.project.id),
+                "title": "Verificare attrezzo esistente",
+                "status": TaskStatus.TODO,
+                "priority": TaskPriority.MEDIUM,
+                "tooling_mode": "link_existing",
+                "tooling_existing_attrezzatura": str(tool.id),
+                "reminder_portal_enabled_field": "on",
+            },
+        )
+        task = Task.objects.get(title="Verificare attrezzo esistente")
+        self.assertRedirects(response, reverse("tasks:detail", args=[task.id]))
+        self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task=task).exists())
 
     def test_attrezzatura_action_creates_draft_tool_from_kickoff_context(self):
         self.client.force_login(self.user)

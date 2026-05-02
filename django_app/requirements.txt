@@ -13,7 +13,7 @@ cryptography==44.0.3      # via msal, pyjwt, pyopenssl, pyspnego
 django==5.2.11            # via -r requirements.in, django-axes, django-extensions, django-picklefield, django-q2, mssql-django
 django-axes==7.1.0        # via -r requirements.in
 django-extensions==4.1    # via -r requirements.in
-django-htmx>=1.17.0       # via -r requirements.in — HTMX middleware + bundled script
+django-htmx==1.27.0       # via -r requirements.in
 django-picklefield==3.4.0  # via django-q2
 django-q2==1.9.0          # via -r requirements.in
 et-xmlfile==2.0.0         # via openpyxl
