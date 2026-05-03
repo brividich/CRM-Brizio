@@ -247,6 +247,7 @@ Superficie di monitoring del portale, issue tracking interno e segnalazioni uten
 - **Alert email** su eventi di sistema configurabili
 - **Monitor automazioni** con health card della queue
 - **Segnalazioni utente** dirette all'admin
+- **Liveness/readiness probe** runtime (`/healthz`, `/readyz`) con check su DB, cache, Graph, LDAP, SMTP e queue automazioni; risultato memoizzato in cache, IP allowlist via `HEALTHZ_ALLOWED_IPS`. Riusabili da `validate_deployment --with-integration` per coerenza tra deploy validation e runtime
 - CSS dedicato in `static/monitoring/css/monitoring.css` verificato in `collectstatic`
 </details>
 
@@ -279,7 +280,8 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
 - **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
 - **Work Order** (ordini di lavoro) con allegati, log cronologico, fornitori associati
-- **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato
+- **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. Per ogni piano (es. "Cambio olio") la pagina mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione** che crea un OdL preventivo chiuso e aggiorna last/next date del piano. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
+- **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI; le scadenze creano un record `AssetAdministrativeDeadlineCompletion` e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
 - **Planimetrie** con marker posizionabili, aree, officine, TVCC
 - **Calendario asset** su `/assets/calendario/` — vista mensile (FullCalendar) + Gantt (frappe-gantt) con filtri macchina/reparto
 - **Licenze software** (software, antivirus, Office) assegnabili ad asset o dipendenti su `/assets/licenze/`
@@ -784,6 +786,10 @@ python django_app\manage.py seed_acl_uat --reset
 # Release guard progressivo
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test
+
+# Liveness/readiness (HTTP)
+curl http://127.0.0.1:8000/healthz   # liveness — sempre 200 se Django risponde
+curl http://127.0.0.1:8000/readyz    # readiness — JSON con status check, 503 se critical fail
 
 # Backup
 python django_app\manage.py backup_portale --include-media --retention 10

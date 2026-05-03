@@ -21,6 +21,8 @@ _SETUP_EXEMPT = (
     "/favicon",
     "/admin/",
     "/health",
+    "/healthz",
+    "/readyz",
     "/version",
 )
 

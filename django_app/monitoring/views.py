@@ -16,8 +16,24 @@ from django.views.decorators.http import require_POST
 from admin_portale.decorators import legacy_admin_required
 from core.audit import log_action
 
+from .health import http_status_for, is_ip_allowed, run_readyz_checks
 from .models import AutomationExecution, AutomationJob, Issue, UserProblemReport
 from .services import OPEN_ISSUE_STATUSES, detect_missed_jobs, detect_stuck_jobs, register_user_problem_report
+
+
+def healthz(request):
+    """Liveness probe: 200 se Django sta processando richieste. Nessun check esterno."""
+    if not is_ip_allowed(request):
+        return JsonResponse({"status": "forbidden"}, status=403)
+    return JsonResponse({"status": "ok"})
+
+
+def readyz(request):
+    """Readiness probe: aggregato dei check su DB/cache/Graph/LDAP/SMTP/queue."""
+    if not is_ip_allowed(request):
+        return JsonResponse({"status": "forbidden"}, status=403)
+    report = run_readyz_checks()
+    return JsonResponse(report.to_payload(), status=http_status_for(report))
 
 
 @login_required

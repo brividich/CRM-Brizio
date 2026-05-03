@@ -18,9 +18,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from monitoring import views as monitoring_views
 from tasks import views as task_views
 
 urlpatterns = [
+    # Liveness/readiness — root, prima di setup_wizard cosi' restano disponibili
+    # anche durante un primo avvio non finalizzato. IP allowlist via settings.
+    path("healthz", monitoring_views.healthz, name="healthz"),
+    path("readyz", monitoring_views.readyz, name="readyz"),
     # Setup wizard — deve essere prima di tutto per intercettare il primo avvio
     path("setup/", include(("setup_wizard.urls", "setup_wizard"), namespace="setup_wizard")),
     # Compat alias un-namespaced (evita NoReverseMatch su vecchi riferimenti "project_list"/"project_gantt")

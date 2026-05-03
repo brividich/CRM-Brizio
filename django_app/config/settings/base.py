@@ -170,6 +170,17 @@ MONITORING_EMAIL_RATE_LIMIT_SECONDS = int(env("MONITORING_EMAIL_RATE_LIMIT_SECON
 MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
     env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
 )
+# Liveness/readiness endpoints (monitoring/health.py).
+# HEALTHZ_ALLOWED_IPS: client IP autorizzati a chiamare /healthz e /readyz.
+# Default: solo loopback. Aggiungere l'IP del proxy IIS / load balancer.
+HEALTHZ_ALLOWED_IPS = env_list("HEALTHZ_ALLOWED_IPS", ["127.0.0.1", "::1"])
+# Memoizzazione del risultato /readyz per evitare DoS sulle integrazioni.
+# Mettere 0 per disabilitare la cache (test, debugging).
+READYZ_TTL_SECONDS = int(env("READYZ_TTL_SECONDS", "10") or "10")
+# Sottoinsieme di check da eseguire (CSV). Vuoto/non impostato => tutti.
+# Nomi disponibili: db_default, db_legacy, cache, graph_token, ldap, smtp,
+# automation_queue.
+READYZ_CHECKS_ENABLED = env_list("READYZ_CHECKS_ENABLED", [])
 
 
 INSTALLED_APPS = [
@@ -352,6 +363,8 @@ TRUSTED_PROXY_IPS: set[str] = set(env_list("TRUSTED_PROXY_IPS", []))
 # Prefissi URL esenti da autenticazione e timeout di sessione (usati da entrambi i middleware).
 MIDDLEWARE_EXEMPT_PREFIXES = (
     "/health",
+    "/healthz",
+    "/readyz",
     "/version",
     "/check",
     "/login",
