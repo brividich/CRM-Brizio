@@ -791,6 +791,12 @@ python django_app\manage.py validate_deployment --format json --settings=config.
 curl http://127.0.0.1:8000/healthz   # liveness — sempre 200 se Django risponde
 curl http://127.0.0.1:8000/readyz    # readiness — JSON con status check, 503 se critical fail
 
+# Contract test integrazioni esterne (livello A, offline)
+python django_app\manage.py test core.contract_tests --settings=config.settings.test
+# Livello B (live, opt-in — tocca Graph/LDAP/SMTP reali)
+$env:RUN_LIVE_INTEGRATION_TESTS = "1"
+python django_app\manage.py test core.contract_tests --tag live_integration --settings=config.settings.test
+
 # Backup
 python django_app\manage.py backup_portale --include-media --retention 10
 

@@ -1,0 +1,8 @@
+{
+  "_description": "Risposta MSAL acquire_token_for_client su tenant valido. Sanitizzata.",
+  "_recorded_from": "manual-stub-2026",
+  "access_token": "synthetic.access.token.placeholder",
+  "expires_in": 3599,
+  "ext_expires_in": 3599,
+  "token_type": "Bearer"
+}

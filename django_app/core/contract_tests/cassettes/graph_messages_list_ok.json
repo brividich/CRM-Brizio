@@ -1,0 +1,29 @@
+{
+  "_description": "Shape parziale di GET /v1.0/users/{id}/mailFolders/Inbox/messages. Sanitizzata.",
+  "_recorded_from": "manual-stub-2026",
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('synthetic')/mailFolders('Inbox')/messages",
+  "@odata.nextLink": null,
+  "value": [
+    {
+      "id": "AAMkSyntheticMessageId00000001",
+      "receivedDateTime": "2026-04-01T08:30:00Z",
+      "subject": "Approvazione richiesta - sintetica",
+      "bodyPreview": "Questo e' un messaggio sintetico per il contract test.",
+      "from": {
+        "emailAddress": {
+          "name": "Mittente Sintetico",
+          "address": "mittente@example.invalid"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "name": "Approver Sintetico",
+            "address": "approver@example.invalid"
+          }
+        }
+      ],
+      "isRead": false
+    }
+  ]
+}
