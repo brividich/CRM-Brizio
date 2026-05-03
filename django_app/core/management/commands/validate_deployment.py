@@ -157,7 +157,7 @@ class DeploymentValidator:
             )
         )
 
-    def run(self) -> list[CheckResult]:
+    def run(self, *, with_integration: bool = False) -> list[CheckResult]:
         self.check_django_settings()
         self.check_database()
         self.check_static_media()
@@ -166,7 +166,47 @@ class DeploymentValidator:
         self.check_ldap()
         self.check_email()
         self.check_security()
+        if with_integration:
+            self.check_runtime_integrations()
         return self.results
+
+    def check_runtime_integrations(self) -> None:
+        """Esegue i probe runtime di monitoring/health.py.
+
+        Riusa la stessa logica di /readyz cosi' che "deploy validato" e
+        "ready per il traffico" usino lo stesso set di check, evitando drift
+        fra validation e runtime.
+        """
+        try:
+            from monitoring.health import run_readyz_checks
+        except Exception as exc:
+            self.add(
+                "integration",
+                "import",
+                FAIL,
+                f"Impossibile importare monitoring.health: {exc.__class__.__name__}: {exc}",
+            )
+            return
+
+        report = run_readyz_checks()
+        for check in report.checks:
+            severity = OK
+            if check.status == "fail":
+                severity = FAIL if check.critical else WARN
+            elif check.status == "warn":
+                severity = WARN
+            elif check.status == "skipped":
+                severity = OK
+
+            message = check.message or f"Check {check.name}: {check.status}"
+            details: dict[str, Any] = {
+                "status": check.status,
+                "latency_ms": check.latency_ms,
+                "critical": check.critical,
+            }
+            if check.details:
+                details.update(check.details)
+            self.add("integration", check.name, severity, message, **details)
 
     def check_django_settings(self) -> None:
         settings_module = _text(os.environ.get("DJANGO_SETTINGS_MODULE"))
@@ -447,9 +487,18 @@ class Command(BaseCommand):
             default=True,
             help="Ritorna exit code non-zero in presenza di FAIL (default: true).",
         )
+        parser.add_argument(
+            "--with-integration",
+            action="store_true",
+            help=(
+                "Esegue anche i probe runtime di monitoring/health.py "
+                "(DB, cache, Graph token, LDAP, SMTP, queue automazioni). "
+                "Da usare in pre-rilascio o per diagnosi rapida."
+            ),
+        )
 
     def handle(self, *args, **options):
-        results = DeploymentValidator().run()
+        results = DeploymentValidator().run(with_integration=bool(options["with_integration"]))
         summary = _summary(results)
 
         if options["format"] == "json":

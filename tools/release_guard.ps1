@@ -3,7 +3,11 @@ param(
     [switch]$Quiet,
     [int]$AclMaxMissing = 222,
     [switch]$FailOnDeploymentWarn,
-    [string]$ArtifactDir = ""
+    [string]$ArtifactDir = "",
+    # -WithLive abilita i contract test livello B (toccano Graph/LDAP/SMTP reali).
+    # Usare prima di un release significativa o quando si sospetta una rotazione
+    # di credenziali. Richiede config\.env.test con integrazioni configurate.
+    [switch]$WithLive
 )
 
 Set-StrictMode -Version Latest
@@ -473,7 +477,7 @@ if (-not $pythonExe) {
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `
         -ManagePy $djangoManage `
-        -Arguments @("test", "core", "tasks", "attrezzature", "--settings=config.settings.test") `
+        -Arguments @("test", "core", "tasks", "attrezzature", "monitoring.tests", "monitoring.test_health", "--settings=config.settings.test") `
         -Label "Django test suite" `
         -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
         -FailOnOutputMessage "Test gate invalid because Django discovered zero tests.")
@@ -513,6 +517,32 @@ if (-not $pythonExe) {
         -Arguments $deploymentValidationArgs `
         -Label "validate_deployment JSON artifact" `
         -ArtifactPath $deploymentArtifact)
+
+    # Contract test livello A — sempre eseguiti (offline, deterministici).
+    # Sono gia' parte di "Django test suite" via discovery di core/, ma li
+    # rilanciamo isolati per renderli visibili nei log e per fail-fast su
+    # regressioni di contratto.
+    [void](Invoke-GuardCommand `
+        -PythonExe $pythonExe `
+        -ManagePy $djangoManage `
+        -Arguments @("test", "core.contract_tests", "--settings=config.settings.test") `
+        -Label "Contract tests (livello A)" `
+        -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
+        -FailOnOutputMessage "Contract tests gate invalid: zero tests scoperti.")
+
+    if ($WithLive) {
+        Write-GuardInfo "Eseguo contract test livello B (live integration). Richiedono credenziali reali."
+        $env:RUN_LIVE_INTEGRATION_TESTS = "1"
+        try {
+            [void](Invoke-GuardCommand `
+                -PythonExe $pythonExe `
+                -ManagePy $djangoManage `
+                -Arguments @("test", "core.contract_tests", "--tag", "live_integration", "--settings=config.settings.test") `
+                -Label "Contract tests live (livello B)")
+        } finally {
+            Remove-Item Env:RUN_LIVE_INTEGRATION_TESTS -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 if ($failures.Count -gt 0) {

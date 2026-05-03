@@ -786,6 +786,8 @@ python django_app\manage.py seed_acl_uat --reset
 # Release guard progressivo
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test
+# Validate + probe runtime delle integrazioni (DB, cache, Graph, LDAP, SMTP)
+python django_app\manage.py validate_deployment --with-integration --settings=config.settings.test
 
 # Liveness/readiness (HTTP)
 curl http://127.0.0.1:8000/healthz   # liveness — sempre 200 se Django risponde
@@ -796,6 +798,8 @@ python django_app\manage.py test core.contract_tests --settings=config.settings.
 # Livello B (live, opt-in — tocca Graph/LDAP/SMTP reali)
 $env:RUN_LIVE_INTEGRATION_TESTS = "1"
 python django_app\manage.py test core.contract_tests --tag live_integration --settings=config.settings.test
+# Release guard con livello B incluso
+.\tools\release_guard.ps1 -WithLive
 
 # Backup
 python django_app\manage.py backup_portale --include-media --retention 10
