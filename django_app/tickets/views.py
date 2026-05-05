@@ -372,6 +372,7 @@ def _ticket_form_context(tipo: str = "", error: str = "", form_data=None,
         "form_data": form_data,
         "my_assets_list": my_assets_list or [],
         "my_assets_label": my_assets_label,
+        "include_in_maintenance_register": True if tipo == TipoTicket.MAN else False,
     }
 
 
@@ -836,6 +837,7 @@ def ticket_nuovo(request):
         sicurezza   = sicurezza_raw == "1"
         asset_id    = (request.POST.get("asset_id") or "").strip()
         asset_libera= (request.POST.get("asset_descrizione_libera") or "").strip()[:300]
+        include_maintenance = request.POST.get("include_in_maintenance_register") == "1"
 
         if sicurezza_raw not in {"0", "1"}:
             return render(request, "tickets/pages/nuovo.html",
@@ -872,6 +874,7 @@ def ticket_nuovo(request):
             richiedente_nome=name,
             richiedente_email=email,
             richiedente_legacy_user_id=legacy_id,
+            include_in_maintenance_register=include_maintenance if tipo_post == TipoTicket.MAN else False,
         )
         ticket.save()
 

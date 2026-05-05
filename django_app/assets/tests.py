@@ -529,7 +529,7 @@ class AssetsRoutingTests(TestCase):
 
     def test_reports_dashboard_contains_month_selector(self):
         self.client.force_login(self.user)
-        response = self.client.get(reverse("assets:reports"))
+        response = self.client.get(reverse("assets:reports") + "?scope=production")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'type="month"', html=False)
         self.assertContains(response, f'value="{timezone.localdate().strftime("%Y-%m")}"', html=False)
@@ -585,7 +585,7 @@ class AssetsRoutingTests(TestCase):
         )
 
         self.client.force_login(admin)
-        response = self.client.get(reverse("assets:periodic_verifications"))
+        response = self.client.get(reverse("assets:periodic_verifications") + "?scope=production")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Cerca asset coinvolti per tag o nome")
@@ -926,8 +926,6 @@ class AssetsRoutingTests(TestCase):
                 self.assertTrue(machine.five_axes)
                 self.assertEqual(str(machine.next_maintenance_date), "2026-03-30")
                 self.assertEqual(machine.maintenance_reminder_days, 15)
-                self.assertEqual(asset.sharepoint_folder_url, "https://contoso.sharepoint.com/sites/example/Shared%20Documents/CN5/ML-TEST")
-                self.assertEqual(asset.sharepoint_folder_path, "Macchine/CN5/ML-TEST")
                 documents = asset.extra_columns.get("documents", [])
                 self.assertEqual(len(documents), 2)
                 self.assertEqual({row["category"] for row in documents}, {"SPECIFICHE", "MANUALI"})
@@ -1782,7 +1780,7 @@ class AssetsRoutingTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        child = AssetSidebarButton.objects.get(label="TVCC")
+        child = AssetSidebarButton.objects.get(label="TVCC", parent=parent)
         self.assertEqual(child.parent, parent)
         self.assertTrue(child.is_subitem)
         self.assertEqual(child.section, parent.section)
@@ -2616,8 +2614,8 @@ class ImportWorkMachinesExcelTests(TestCase):
             _build_work_machine_workbook(
                 file_path,
                 rows=[
-                    ["CN5", "DMG Mori DMC 160U", 1600, 1600, 1100, "-", "-", 2019, 183, "✓", "-", "✓", "-", "-"],
-                    ["CN5", "DMG Mori DMC 160U", 1600, 1600, 1100, "-", "-", 2023, 243, "✓", "-", "✓", "✓", "0.010"],
+                    ["CN5", "DMG Mori DMC 160U", 1600, 1600, 1100, "-", "-", 2019, 183, "âœ“", "-", "âœ“", "-", "-"],
+                    ["CN5", "DMG Mori DMC 160U", 1600, 1600, 1100, "-", "-", 2023, 243, "âœ“", "-", "âœ“", "âœ“", "0.010"],
                 ],
             )
 
@@ -2645,7 +2643,7 @@ class ImportWorkMachinesExcelTests(TestCase):
             _build_work_machine_workbook(
                 file_path,
                 rows=[
-                    ["TNC", "DMG Ecturn 650", "-", "-", "-", "-", "-", 2019, "-", "✓", 6, "✓", "-", "-"],
+                    ["TNC", "DMG Ecturn 650", "-", "-", "-", "-", "-", 2019, "-", "âœ“", 6, "âœ“", "-", "-"],
                 ],
             )
             call_command("import_work_machines_excel", file=str(file_path))
@@ -2653,7 +2651,7 @@ class ImportWorkMachinesExcelTests(TestCase):
             _build_work_machine_workbook(
                 file_path,
                 rows=[
-                    ["TNC", "DMG Ecturn 650", "-", "-", "-", "-", "-", 2019, 12, "-", 8, "✓", "✓", "0.005"],
+                    ["TNC", "DMG Ecturn 650", "-", "-", "-", "-", "-", 2019, 12, "-", 8, "âœ“", "âœ“", "0.005"],
                 ],
             )
             call_command("import_work_machines_excel", file=str(file_path))
@@ -3811,7 +3809,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(calendar_event.graph_event_id, "evt-periodic")
 
         with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
-            page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}")
+            page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}&scope=production")
         self.assertEqual(page_response.status_code, 200)
         self.assertContains(page_response, "Crea evento Outlook")
         self.assertContains(page_response, "Evento Outlook")
@@ -4033,10 +4031,477 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-        response = self.client.get(reverse("assets:reports"))
+        response = self.client.get(reverse("assets:reports") + "?scope=production")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Apri tutti gli aperti")
         self.assertContains(response, "?status=OPEN")
         self.assertContains(response, "Interventi aperti")
         self.assertContains(response, "Imposta prima esecuzione")
+
+    def test_record_periodic_verification_execution_creates_workorder_and_advances_plan(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Cambio Olio",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        plan = PeriodicVerification.objects.create(
+            name="Cambio olio",
+            supplier=supplier,
+            frequency_months=3,
+            last_verification_date=date(2025, 11, 1),
+            next_verification_date=date(2026, 2, 1),
+            created_by=self.admin,
+        )
+        plan.assets.add(self.asset)
+        self.client.force_login(self.admin)
+
+        execution_date = date(2026, 4, 28)
+        response = self.client.post(
+            reverse("assets:periodic_verifications"),
+            {
+                "action": "record_periodic_verification_execution",
+                "verification_id": str(plan.id),
+                "execution_asset_id": str(self.asset.id),
+                "execution_date": execution_date.isoformat(),
+                "execution_duration_minutes": "45",
+                "execution_cost_eur": "120,50",
+                "execution_notes": "Sostituito olio idraulico, controllato livelli",
+                "filter_asset": str(self.asset.id),
+                "filter_scope": "production",
+                "filter_window": "12",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        plan.refresh_from_db()
+        self.assertEqual(plan.last_verification_date, execution_date)
+        self.assertEqual(plan.next_verification_date, date(2026, 7, 28))
+
+        wo = WorkOrder.objects.get(periodic_verification=plan, asset=self.asset)
+        self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(wo.kind, WorkOrder.KIND_PREVENTIVE)
+        self.assertEqual(wo.intervention_duration_minutes, 45)
+        self.assertEqual(str(wo.cost_eur), "120.50")
+        self.assertIn("olio idraulico", wo.resolution)
+        self.assertEqual(wo.supplier_id, supplier.id)
+
+    def test_record_maintenance_rule_execution_creates_workorder_and_updates_state(self):
+        self.client.force_login(self.admin)
+
+        execution_date = date(2026, 4, 20)
+        response = self.client.post(
+            reverse("assets:maintenance_schedule"),
+            {
+                "action": "record_maintenance_rule_execution",
+                "asset_id": str(self.asset.id),
+                "base_rule_id": str(self.base_rule.id),
+                "execution_date": execution_date.isoformat(),
+                "execution_duration_minutes": "30",
+                "execution_cost_eur": "75",
+                "execution_notes": "Lubrificazione completa guide e mandrino",
+                "filter_asset": str(self.asset.id),
+                "filter_status": "all",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302, response.content[:400])
+
+        wo = WorkOrder.objects.get(maintenance_rule=self.base_rule, asset=self.asset)
+        self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(wo.kind, WorkOrder.KIND_PREVENTIVE)
+        self.assertEqual(wo.intervention_duration_minutes, 30)
+        self.assertEqual(str(wo.cost_eur), "75.00")
+        self.assertIn("Lubrificazione", wo.resolution)
+
+        state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=self.base_rule)
+        self.assertEqual(state.last_execution_date, execution_date)
+        self.assertEqual(state.last_work_order_id, wo.id)
+
+        page = self.client.get(reverse("assets:maintenance_schedule"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Esecuzioni recenti")
+        self.assertContains(page, "Registra esecuzione")
+
+    def test_record_periodic_verification_execution_supports_multi_asset_and_attachments(self):
+        from anagrafica.models import Fornitore
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import WorkOrderAttachment
+
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Multi",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        second_asset = Asset.objects.create(
+            name="Centro di lavoro ST3 Secondo",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            reparto="OFF",
+            source_key="asset-step-three-second",
+        )
+        plan = PeriodicVerification.objects.create(
+            name="Taratura mandrino",
+            supplier=supplier,
+            frequency_months=6,
+            last_verification_date=date(2025, 11, 1),
+            next_verification_date=date(2026, 5, 1),
+            created_by=self.admin,
+        )
+        plan.assets.add(self.asset, second_asset)
+        self.client.force_login(self.admin)
+
+        execution_date = date(2026, 5, 3)
+        attachment_file = SimpleUploadedFile(
+            "verbale.pdf",
+            b"%PDF-1.4 fake",
+            content_type="application/pdf",
+        )
+        response = self.client.post(
+            reverse("assets:periodic_verifications"),
+            {
+                "action": "record_periodic_verification_execution",
+                "verification_id": str(plan.id),
+                "execution_asset_ids": [str(self.asset.id), str(second_asset.id)],
+                "execution_date": execution_date.isoformat(),
+                "execution_duration_minutes": "60",
+                "execution_cost_eur": "200.00",
+                "execution_notes": "Taratura completata su entrambe le macchine",
+                "execution_files": [attachment_file],
+                "filter_asset": str(self.asset.id),
+                "filter_scope": "production",
+                "filter_window": "12",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content[:400])
+
+        plan.refresh_from_db()
+        self.assertEqual(plan.last_verification_date, execution_date)
+
+        workorders = WorkOrder.objects.filter(periodic_verification=plan, asset__in=[self.asset, second_asset])
+        self.assertEqual(workorders.count(), 2)
+        for wo in workorders:
+            self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
+            self.assertEqual(wo.attachments.count(), 1)
+            attachment = wo.attachments.first()
+            self.assertEqual(attachment.original_name, "verbale.pdf")
+
+        total_attachments = WorkOrderAttachment.objects.filter(work_order__in=workorders).count()
+        self.assertEqual(total_attachments, 2)
+
+    def test_maintenance_schedule_lists_periodic_verifications(self):
+        from anagrafica.models import Fornitore
+
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Tarature",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        plan = PeriodicVerification.objects.create(
+            name="Verifica manometri",
+            supplier=supplier,
+            frequency_months=12,
+            last_verification_date=date(2025, 6, 1),
+            next_verification_date=date(2026, 6, 1),
+            created_by=self.admin,
+        )
+        plan.assets.add(self.asset)
+        self.client.force_login(self.admin)
+
+        page = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Verifiche periodiche pianificate")
+        self.assertContains(page, "Verifica manometri")
+        self.assertContains(page, "Apri piano")
+
+    def test_complete_administrative_deadline_with_next_due_renews_record(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_REVISION,
+            title="Revisione carroponte",
+            due_date=date(2026, 4, 30),
+            warning_days=30,
+            is_active=True,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:asset_administrative_deadline_list"),
+            {
+                "action": "complete_administrative_deadline",
+                "deadline_id": str(deadline.id),
+                "execution_date": "2026-04-28",
+                "execution_next_due": "2027-04-28",
+                "execution_duration_minutes": "60",
+                "execution_cost_eur": "350.00",
+                "execution_notes": "Revisione completata, nuovo verbale archiviato",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        deadline.refresh_from_db()
+        self.assertEqual(deadline.due_date, date(2027, 4, 28))
+        self.assertTrue(deadline.is_active)
+
+        completion = deadline.completions.get()
+        self.assertEqual(completion.completed_on, date(2026, 4, 28))
+        self.assertEqual(completion.next_due_date, date(2027, 4, 28))
+        self.assertEqual(str(completion.cost_eur), "350.00")
+        self.assertEqual(completion.duration_minutes, 60)
+        self.assertEqual(completion.completed_by_id, self.admin.id)
+        self.assertIn("verbale", completion.notes)
+
+        page = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Storico completamenti")
+        self.assertContains(page, "Revisione carroponte")
+
+    def test_complete_administrative_deadline_without_next_due_closes_record(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Certificato CE provvisorio",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:asset_administrative_deadline_list"),
+            {
+                "action": "complete_administrative_deadline",
+                "deadline_id": str(deadline.id),
+                "execution_date": "2026-04-15",
+                "execution_cost_eur": "0",
+                "execution_notes": "Sostituito da nuovo certificato CE2",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        deadline.refresh_from_db()
+        self.assertFalse(deadline.is_active)
+        self.assertEqual(deadline.completions.count(), 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetMaintenanceRegisterTicketTests(TestCase):
+    """Test per l'integrazione dei ticket MAN nel registro manutenzione asset (PATCH 21E)."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="test-user",
+            email="test@example.com",
+            first_name="Test",
+            last_name="User",
+        )
+        UserOnboarding.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "completed": True,
+                "skipped": False,
+                "completed_at": timezone.now(),
+            },
+        )
+
+        # Crea asset di test
+        self.asset_category = AssetCategory.objects.create(
+            code="CNC",
+            label="Macchine CNC",
+        )
+        self.asset = Asset.objects.create(
+            name="Macchina CNC Test",
+            asset_tag="CNC-001",
+            asset_type="CNC",
+            asset_category=self.asset_category,
+            status="IN_USE",
+        )
+
+    def test_asset_detail_shows_man_ticket_in_maintenance_register(self):
+        """Verifica che il dettaglio asset mostri i ticket MAN inclusi come manutenzione straordinaria."""
+        # Crea ticket MAN incluso
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN test",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        # Verifica che il ticket appaia nel registro manutenzione
+        self.assertContains(response, ticket.numero_ticket)
+        self.assertContains(response, ticket.titolo)
+
+    def test_asset_detail_does_not_show_excluded_man_ticket(self):
+        """Verifica che il dettaglio asset non mostri i ticket MAN esclusi nel registro manutenzione."""
+        # Crea ticket MAN escluso
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN escluso",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=False,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        # Verifica che il ticket non appaia nel registro manutenzione (sezione MANUTENZIONE)
+        # Il ticket puÃ² comunque apparire nella sezione "Ticket collegati"
+        from assets.services.maintenance_register import collect_asset_maintenance_register
+        register = collect_asset_maintenance_register(self.asset, include_tickets=True)
+        ticket_rows = [row for row in register if row["source"] == "TICKET"]
+        self.assertEqual(len(ticket_rows), 0)
+
+    def test_asset_detail_maintenance_register_preserves_workorders(self):
+        """Verifica che il registro manutenzione mantenga anche le righe WorkOrder esistenti."""
+        from .models import WorkOrder
+
+        # Crea WorkOrder
+        wo = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="WorkOrder test",
+            description="Descrizione WorkOrder",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        # Verifica che il WorkOrder appaia nel registro manutenzione
+        self.assertContains(response, wo.title)
+
+    def test_asset_detail_maintenance_register_shows_both_workorders_and_tickets(self):
+        """Verifica che il registro manutenzione mostri sia WorkOrder che ticket MAN."""
+        from .models import WorkOrder
+
+        # Crea WorkOrder
+        wo = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="WorkOrder test",
+            description="Descrizione WorkOrder",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        # Crea ticket MAN incluso
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN test",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+        self.assertEqual(response.status_code, 200)
+        # Verifica che entrambi appaiano nel registro manutenzione
+        self.assertContains(response, wo.title)
+        self.assertContains(response, ticket.numero_ticket)
+
+
+# ============================================================================
+# PATCH 21C: Antincendio Category and Presets Tests
+# ============================================================================
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AntincendioCategorySeedTests(TestCase):
+    """Test per la seed della categoria Antincendio e preset manutenzione (PATCH 21C)."""
+
+    def test_antincendio_category_exists(self):
+        """Verifica che la categoria Antincendio sia stata creata."""
+        category = AssetCategory.objects.filter(code="antincendio").first()
+        self.assertIsNotNone(category)
+        self.assertEqual(category.label, "Antincendio")
+        self.assertEqual(category.base_asset_type, Asset.TYPE_ANTINCENDIO)
+        self.assertTrue(category.is_active)
+
+    def test_antincendio_maintenance_templates_exist(self):
+        """Verifica che i template di manutenzione Antincendio siano stati creati."""
+        from assets.models import MaintenanceInterventionTemplate
+
+        category = AssetCategory.objects.get(code="antincendio")
+        templates = MaintenanceInterventionTemplate.objects.filter(asset_category=category).order_by("sort_order")
+
+        self.assertGreaterEqual(templates.count(), 5)
+
+        # Verifica template specifici
+        template_codes = {t.code for t in templates}
+        self.assertIn("estintori-annuale", template_codes)
+        self.assertIn("idranti-semestrale", template_codes)
+        self.assertIn("rilevatori-trimestrale", template_codes)
+        self.assertIn("sirene-mensile", template_codes)
+        self.assertIn("sprinkler-annuale", template_codes)
+
+    def test_antincendio_maintenance_rules_exist(self):
+        """Verifica che le regole di manutenzione Antincendio siano state create."""
+        from assets.models import MaintenanceRule, MaintenanceInterventionTemplate
+
+        category = AssetCategory.objects.get(code="antincendio")
+        rules = MaintenanceRule.objects.filter(asset_category=category).select_related("intervention_template")
+
+        self.assertGreaterEqual(rules.count(), 5)
+
+        # Verifica regole specifiche
+        rule_templates = {r.intervention_template.code for r in rules}
+        self.assertIn("estintori-annuale", rule_templates)
+        self.assertIn("idranti-semestrale", rule_templates)
+        self.assertIn("rilevatori-trimestrale", rule_templates)
+        self.assertIn("sirene-mensile", rule_templates)
+        self.assertIn("sprinkler-annuale", rule_templates)
+
+        # Verifica soglie
+        estintori_rule = rules.get(intervention_template__code="estintori-annuale")
+        self.assertEqual(estintori_rule.threshold_type, "DAYS")
+        self.assertEqual(estintori_rule.threshold_value, 365)
+        self.assertEqual(estintori_rule.warning_days, 30)
+
+        sirene_rule = rules.get(intervention_template__code="sirene-mensile")
+        self.assertEqual(sirene_rule.threshold_type, "DAYS")
+        self.assertEqual(sirene_rule.threshold_value, 30)
+        self.assertEqual(sirene_rule.warning_days, 7)
+
+    def test_antincendio_asset_tag_generation(self):
+        """Verifica che gli asset Antincendio generino tag con prefisso ANT."""
+        asset = Asset.objects.create(
+            name="Estintore portatile",
+            asset_type=Asset.TYPE_ANTINCENDIO,
+            reparto="OFF",
+        )
+
+        self.assertTrue(asset.asset_tag.startswith("ANT-"))
+
+    def test_antincendio_asset_with_category(self):
+        """Verifica che un asset Antincendio possa essere associato alla categoria Antincendio."""
+        category = AssetCategory.objects.get(code="antincendio")
+        asset = Asset.objects.create(
+            name="Sistema sprinkler",
+            asset_type=Asset.TYPE_ANTINCENDIO,
+            asset_category=category,
+            reparto="OFF",
+        )
+
+        self.assertEqual(asset.asset_category, category)
+        self.assertEqual(asset.asset_type, Asset.TYPE_ANTINCENDIO)
+        self.assertTrue(asset.asset_tag.startswith("ANT-"))

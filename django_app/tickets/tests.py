@@ -13,8 +13,20 @@ from django.utils import timezone
 
 from assets.models import Asset, AssetCategory
 from core.upload_mime import UploadMimeValidationError
+from core.models import UserOnboarding
 from tickets.models import PrioritaTicket, Ticket, TicketAllegato, TicketCommento, TicketIntervento, TicketStatoLog
 from tickets.views import _build_ticket_activity_feed, _get_assets_for_select
+
+
+def _complete_onboarding(user) -> None:
+    UserOnboarding.objects.update_or_create(
+        user=user,
+        defaults={
+            "completed": True,
+            "skipped": False,
+            "completed_at": timezone.now(),
+        },
+    )
 
 
 def _test_tmp_root() -> Path:
@@ -39,6 +51,7 @@ class TicketNuovoSafetyTests(TestCase):
             password="pass12345",
             email="ticket@example.com",
         )
+        _complete_onboarding(self.user)
         self.client.force_login(self.user)
 
     def _base_payload(self, tipo: str, sicurezza: str = "0") -> dict:
@@ -160,6 +173,7 @@ class TicketDashboardTests(TestCase):
             password="pass12345",
             email="dashboard-ticket@example.com",
         )
+        _complete_onboarding(self.user)
         self.client.force_login(self.user)
 
     def test_dashboard_shows_related_asset_column(self):
@@ -214,6 +228,8 @@ class TicketPdfTests(TestCase):
             password="pass12345",
             email="other-ticket@example.com",
         )
+        _complete_onboarding(self.user)
+        _complete_onboarding(self.other_user)
         self.ticket = Ticket.objects.create(
             tipo="IT",
             titolo="Ticket PDF",
@@ -266,6 +282,8 @@ class TicketAttachmentPrivacyTests(TestCase):
             password="pass12345",
             email="ticket-attachment-other@example.com",
         )
+        _complete_onboarding(self.user)
+        _complete_onboarding(self.other_user)
         self.ticket = Ticket.objects.create(
             tipo="IT",
             titolo="Ticket Allegato",
@@ -374,3 +392,236 @@ class TicketAttachmentPrivacyTests(TestCase):
                 self.assertEqual(forbidden_response.status_code, 403)
         finally:
             shutil.rmtree(test_dir, ignore_errors=True)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketMaintenanceRegisterTests(TestCase):
+    """Test per l'integrazione dei ticket MAN nel registro manutenzione asset (PATCH 21E)."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="test-user",
+            email="test@example.com",
+            first_name="Test",
+            last_name="User",
+        )
+        _complete_onboarding(self.user)
+
+        # Crea asset di test
+        self.asset_category = AssetCategory.objects.create(
+            code="CNC",
+            label="Macchine CNC",
+        )
+        self.asset = Asset.objects.create(
+            name="Macchina CNC Test",
+            asset_tag="CNC-001",
+            asset_type="CNC",
+            asset_category=self.asset_category,
+            status="IN_USE",
+        )
+
+    def test_new_man_ticket_form_defaults_maintenance_register_checked(self):
+        """Verifica che il form MAN proponga l'inclusione ma invii anche il valore unchecked."""
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("tickets:nuovo") + "?tipo=MAN")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'name="include_in_maintenance_register" value="0"',
+            html=False,
+        )
+        self.assertContains(
+            response,
+            'name="include_in_maintenance_register" value="1" checked',
+            html=False,
+        )
+
+    def test_new_man_ticket_has_include_in_maintenance_register_true_by_default(self):
+        """Verifica che un nuovo ticket MAN abbia include_in_maintenance_register=True di default."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tickets:nuovo") + "?tipo=MAN",
+            {
+                "tipo": "MAN",
+                "titolo": "Test ticket MAN",
+                "descrizione": "Descrizione test",
+                "categoria": "MECCANICA",
+                "priorita": "MEDIA",
+                "incide_sicurezza": "0",
+                "asset_id": str(self.asset.id),
+                "include_in_maintenance_register": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(titolo="Test ticket MAN")
+        self.assertTrue(ticket.include_in_maintenance_register)
+
+    def test_it_ticket_not_included_in_maintenance_register(self):
+        """Verifica che i ticket IT non vengano inclusi nel registro manutenzione anche se flag True."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tickets:nuovo") + "?tipo=IT",
+            {
+                "tipo": "IT",
+                "titolo": "Test ticket IT",
+                "descrizione": "Descrizione test",
+                "categoria": "PC",
+                "priorita": "MEDIA",
+                "incide_sicurezza": "0",
+                "asset_id": str(self.asset.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(titolo="Test ticket IT")
+        # I ticket IT non dovrebbero comparire nel registro manutenzione
+        from assets.services.maintenance_register import ticket_to_maintenance_register_row
+        row = ticket_to_maintenance_register_row(ticket)
+        self.assertIsNone(row)
+
+    def test_man_ticket_without_asset_not_included_in_maintenance_register(self):
+        """Verifica che un ticket MAN senza asset non venga incluso nel registro manutenzione."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tickets:nuovo") + "?tipo=MAN",
+            {
+                "tipo": "MAN",
+                "titolo": "Test ticket MAN senza asset",
+                "descrizione": "Descrizione test",
+                "categoria": "MECCANICA",
+                "priorita": "MEDIA",
+                "incide_sicurezza": "0",
+                "asset_descrizione_libera": "Asset generico",
+                "include_in_maintenance_register": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(titolo="Test ticket MAN senza asset")
+        self.assertTrue(ticket.include_in_maintenance_register)
+
+        # Non dovrebbe comparire nel registro manutenzione perché non ha asset
+        from assets.services.maintenance_register import ticket_to_maintenance_register_row
+        row = ticket_to_maintenance_register_row(ticket)
+        self.assertIsNone(row)
+
+    def test_man_ticket_with_asset_and_flag_true_appears_in_maintenance_register(self):
+        """Verifica che un ticket MAN con asset e flag True compaia come riga manutenzione."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tickets:nuovo") + "?tipo=MAN",
+            {
+                "tipo": "MAN",
+                "titolo": "Test ticket MAN con asset",
+                "descrizione": "Descrizione test",
+                "categoria": "MECCANICA",
+                "priorita": "MEDIA",
+                "incide_sicurezza": "0",
+                "asset_id": str(self.asset.id),
+                "include_in_maintenance_register": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(titolo="Test ticket MAN con asset")
+        self.assertTrue(ticket.include_in_maintenance_register)
+
+        # Dovrebbe comparire nel registro manutenzione
+        from assets.services.maintenance_register import ticket_to_maintenance_register_row
+        row = ticket_to_maintenance_register_row(ticket)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["source"], "TICKET")
+        self.assertEqual(row["maintenance_type"], "Straordinaria")
+        self.assertEqual(row["ticket"], ticket)
+        self.assertEqual(row["ticket_number"], ticket.numero_ticket)
+
+    def test_man_ticket_with_asset_and_flag_false_not_in_maintenance_register(self):
+        """Verifica che un ticket MAN con asset e flag False non compaia nel registro manutenzione."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("tickets:nuovo") + "?tipo=MAN",
+            {
+                "tipo": "MAN",
+                "titolo": "Test ticket MAN escluso",
+                "descrizione": "Descrizione test",
+                "categoria": "MECCANICA",
+                "priorita": "MEDIA",
+                "incide_sicurezza": "0",
+                "asset_id": str(self.asset.id),
+                "include_in_maintenance_register": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(titolo="Test ticket MAN escluso")
+        self.assertFalse(ticket.include_in_maintenance_register)
+
+        # Non dovrebbe comparire nel registro manutenzione
+        from assets.services.maintenance_register import ticket_to_maintenance_register_row
+        row = ticket_to_maintenance_register_row(ticket)
+        self.assertIsNone(row)
+
+    def test_collect_asset_maintenance_register_includes_tickets(self):
+        """Verifica che collect_asset_maintenance_register includa i ticket MAN."""
+        from assets.services.maintenance_register import collect_asset_maintenance_register
+
+        # Crea ticket MAN incluso
+        ticket_included = Ticket.objects.create(
+            tipo="MAN",
+            titolo="Ticket incluso",
+            descrizione="Descrizione",
+            categoria="MECCANICA",
+            priorita="MEDIA",
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        # Crea ticket MAN escluso
+        ticket_excluded = Ticket.objects.create(
+            tipo="MAN",
+            titolo="Ticket escluso",
+            descrizione="Descrizione",
+            categoria="MECCANICA",
+            priorita="MEDIA",
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=False,
+        )
+
+        # Crea ticket IT (non dovrebbe comparire)
+        ticket_it = Ticket.objects.create(
+            tipo="IT",
+            titolo="Ticket IT",
+            descrizione="Descrizione",
+            categoria="PC",
+            priorita="MEDIA",
+            asset=self.asset,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        # Recupera il registro manutenzione
+        register = collect_asset_maintenance_register(self.asset, include_tickets=True)
+
+        # Verifica che solo il ticket MAN incluso sia presente
+        ticket_rows = [row for row in register if row["source"] == "TICKET"]
+        self.assertEqual(len(ticket_rows), 1)
+        self.assertEqual(ticket_rows[0]["ticket"], ticket_included)
+        self.assertEqual(ticket_rows[0]["ticket_number"], ticket_included.numero_ticket)
+        # Verifica che il ticket MAN escluso e il ticket IT non siano presenti
+        ticket_ids = [row["ticket"].id for row in ticket_rows]
+        self.assertNotIn(ticket_excluded.id, ticket_ids)
+        self.assertNotIn(ticket_it.id, ticket_ids)

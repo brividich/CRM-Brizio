@@ -76,10 +76,13 @@ from .forms import (
     WorkOrderCloseForm,
     WorkOrderForm,
 )
+from .models import _add_months
 from .models import (
     Asset,
     AssetActionButton,
     AssetAdministrativeDeadline,
+    AssetAdministrativeDeadlineCompletion,
+    AssetAdministrativeDeadlineCompletionAttachment,
     AssetCategory,
     AssetCategoryField,
     AssetComponent,
@@ -888,7 +891,29 @@ def _work_machine_maintenance_month_pdf_url(*, month_code: str, reparto_filter: 
     return f'{reverse("assets:work_machine_maintenance_month_pdf")}?{"&".join(params)}'
 
 
-def _periodic_verifications_page_url(*, asset_id: int = 0, edit_id: int = 0, scope: str = "") -> str:
+PERIODIC_EXECUTION_WINDOW_CHOICES: tuple[tuple[str, str], ...] = (
+    ("12", "Ultimi 12 mesi"),
+    ("24", "Ultimi 24 mesi"),
+    ("all", "Tutto lo storico"),
+)
+PERIODIC_EXECUTION_WINDOW_DEFAULT = "12"
+
+
+def _normalize_periodic_execution_window(value: str | None) -> str:
+    candidate = _clean_string(value).lower()
+    valid = {key for key, _ in PERIODIC_EXECUTION_WINDOW_CHOICES}
+    if candidate in valid:
+        return candidate
+    return PERIODIC_EXECUTION_WINDOW_DEFAULT
+
+
+def _periodic_verifications_page_url(
+    *,
+    asset_id: int = 0,
+    edit_id: int = 0,
+    scope: str = "",
+    window: str = "",
+) -> str:
     params: list[str] = []
     scope_value = _normalize_reports_scope(scope) if scope else ""
     if scope_value:
@@ -897,6 +922,10 @@ def _periodic_verifications_page_url(*, asset_id: int = 0, edit_id: int = 0, sco
         params.append(f"asset={int(asset_id)}")
     if edit_id:
         params.append(f"edit={int(edit_id)}")
+    if window:
+        normalized_window = _normalize_periodic_execution_window(window)
+        if normalized_window != PERIODIC_EXECUTION_WINDOW_DEFAULT:
+            params.append(f"window={quote(normalized_window)}")
     base_url = reverse("assets:periodic_verifications")
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
@@ -2546,6 +2575,171 @@ def _periodic_verification_state(verification: PeriodicVerification, today=None)
     return {"status": "ok", "label": f"Pianificata tra {delta_days} gg", "date": next_date}
 
 
+def _periodic_execution_window_cutoff(window: str, today=None) -> "date | None":
+    current_day = today or timezone.localdate()
+    normalized = _normalize_periodic_execution_window(window)
+    if normalized == "all":
+        return None
+    months = int(normalized)
+    cutoff = current_day - timedelta(days=months * 31)
+    return cutoff
+
+
+def _parse_execution_cost_input(raw_value: str | None) -> "Decimal | None":
+    cleaned = _clean_string(raw_value)
+    if not cleaned:
+        return None
+    try:
+        value = Decimal(cleaned.replace(",", "."))
+    except (ArithmeticError, ValueError) as exc:
+        raise ValueError("invalid cost") from exc
+    if value < 0:
+        raise ValueError("negative cost")
+    return value
+
+
+def _build_execution_workorder(
+    *,
+    asset: Asset,
+    title: str,
+    description: str,
+    executed_on: date,
+    duration_minutes: int,
+    cost_value: "Decimal | None",
+    resolution_text: str,
+    periodic_verification: PeriodicVerification | None = None,
+    maintenance_rule: MaintenanceRule | None = None,
+    supplier=None,
+) -> WorkOrder:
+    executed_at_dt = timezone.make_aware(
+        datetime.combine(executed_on, datetime.min.time().replace(hour=12)),
+        timezone.get_current_timezone(),
+    )
+    workorder = WorkOrder.objects.create(
+        asset=asset,
+        periodic_verification=periodic_verification,
+        maintenance_rule=maintenance_rule,
+        supplier=supplier,
+        kind=WorkOrder.KIND_PREVENTIVE,
+        status=WorkOrder.STATUS_OPEN,
+        opened_at=executed_at_dt,
+        title=title[:255],
+        description=description,
+    )
+    workorder.closed_at = executed_at_dt
+    workorder.status = WorkOrder.STATUS_DONE
+    if resolution_text:
+        workorder.resolution = resolution_text
+    workorder.intervention_duration_minutes = max(0, int(duration_minutes or 0))
+    if cost_value is not None:
+        workorder.cost_eur = cost_value
+    workorder.full_clean()
+    workorder.save()
+    return workorder
+
+
+def _serialize_execution_workorder(workorder: WorkOrder) -> dict[str, object]:
+    return {
+        "workorder": workorder,
+        "asset": workorder.asset,
+        "asset_label": f"{workorder.asset.asset_tag} - {workorder.asset.name}",
+        "supplier_label": str(workorder.supplier) if workorder.supplier else "",
+        "executed_at": workorder.closed_at,
+        "duration_minutes": workorder.intervention_duration_minutes,
+        "downtime_minutes": workorder.downtime_minutes,
+        "cost_eur": workorder.resolved_total_cost_eur,
+        "resolution": workorder.resolution,
+        "title": workorder.title,
+        "url": reverse("assets:wo_view", kwargs={"id": workorder.id}),
+    }
+
+
+def _periodic_execution_rows_for_verification(
+    *,
+    verification_id: int,
+    asset_id: int = 0,
+    cutoff_date: "date | None" = None,
+    limit: int = 25,
+) -> list[dict[str, object]]:
+    qs = (
+        WorkOrder.objects.select_related("asset", "supplier")
+        .filter(periodic_verification_id=verification_id, status=WorkOrder.STATUS_DONE)
+    )
+    if asset_id:
+        qs = qs.filter(asset_id=int(asset_id))
+    if cutoff_date is not None:
+        qs = qs.filter(closed_at__date__gte=cutoff_date)
+    qs = qs.order_by("-closed_at", "-id")[: max(1, int(limit))]
+    return [_serialize_execution_workorder(workorder) for workorder in qs]
+
+
+def _maintenance_rule_execution_rows(
+    *,
+    asset_id: int,
+    base_rule_id: int,
+    cutoff_date: "date | None" = None,
+    limit: int = 10,
+) -> list[dict[str, object]]:
+    qs = (
+        WorkOrder.objects.select_related("asset", "supplier")
+        .filter(asset_id=int(asset_id), maintenance_rule_id=int(base_rule_id), status=WorkOrder.STATUS_DONE)
+    )
+    if cutoff_date is not None:
+        qs = qs.filter(closed_at__date__gte=cutoff_date)
+    qs = qs.order_by("-closed_at", "-id")[: max(1, int(limit))]
+    return [_serialize_execution_workorder(workorder) for workorder in qs]
+
+
+def _deadline_completion_rows(
+    *,
+    deadline_id: int,
+    cutoff_date: "date | None" = None,
+    limit: int = 10,
+) -> list[dict[str, object]]:
+    qs = (
+        AssetAdministrativeDeadlineCompletion.objects.select_related("completed_by")
+        .prefetch_related("attachments")
+        .filter(deadline_id=int(deadline_id))
+    )
+    if cutoff_date is not None:
+        qs = qs.filter(completed_on__gte=cutoff_date)
+    qs = qs.order_by("-completed_on", "-id")[: max(1, int(limit))]
+    rows: list[dict[str, object]] = []
+    for completion in qs:
+        attachment_rows: list[dict[str, object]] = []
+        for attachment in completion.attachments.all():
+            file_url = ""
+            try:
+                file_url = attachment.file.url if attachment.file else ""
+            except Exception:
+                file_url = ""
+            attachment_rows.append(
+                {
+                    "id": attachment.id,
+                    "name": attachment.original_name or Path(attachment.file.name).name,
+                    "url": file_url,
+                }
+            )
+        rows.append(
+            {
+                "completion": completion,
+                "completed_on": completion.completed_on,
+                "completed_by": completion.completed_by,
+                "completed_by_label": (
+                    completion.completed_by.get_full_name() or completion.completed_by.username
+                    if completion.completed_by_id
+                    else ""
+                ),
+                "duration_minutes": completion.duration_minutes,
+                "cost_eur": completion.cost_eur,
+                "notes": completion.notes,
+                "next_due_date": completion.next_due_date,
+                "attachment_rows": attachment_rows,
+            }
+        )
+    return rows
+
+
 def _compute_ticket_kpi_for_asset(asset: Asset) -> dict:
     """Calcola KPI ticket per il singolo asset.
 
@@ -2983,6 +3177,7 @@ def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
         asset_id=_as_int(request.POST.get("filter_asset"), default=0),
         edit_id=_as_int(request.POST.get("filter_edit"), default=0),
         scope=_clean_string(request.POST.get("filter_scope") or request.POST.get("scope")),
+        window=_clean_string(request.POST.get("filter_window")),
     )
 
 
@@ -4941,6 +5136,7 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("django:assets:software_license_list", "Licenze software"),
         ("django:assets:maintenance_schedule", "Prossime manutenzioni"),
         ("django:assets:assistance_contract_list", "Contratti assistenza"),
+        ("django:assets:reports", "Report asset"),
         ("django:assets:reports?scope=it", "Report dispositivi IT"),
         ("django:assets:reports?scope=production", "Report asset produzione"),
         ("django:assets:gestione_admin", "Impostazioni assets"),
@@ -7756,6 +7952,46 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "assistance_contract",
         ).all()[:10]
     )
+    # Aggiungi ticket MAN inclusi nel registro manutenzione
+    from assets.services.maintenance_register import collect_asset_maintenance_register
+    maintenance_register = collect_asset_maintenance_register(asset, include_tickets=True)
+    # Converti le righe del registro in formato compatibile con il template
+    maintenance_rows_from_register = []
+    for row in maintenance_register:
+        if row["source"] == "TICKET":
+            maintenance_rows_from_register.append({
+                "id": row["ticket"].id,
+                "title": row["title"],
+                "description": row["description"],
+                "status": row["status"],
+                "executed_at": row["executed_at"],
+                "created_at": row["created_at"],
+                "source": "TICKET",
+                "ticket_number": row["ticket_number"],
+                "url": row["url"],
+                "technician": row["technician"],
+                "priority": row["priority"],
+                "category": row["category"],
+            })
+        elif row["source"] == "WORKORDER":
+            maintenance_rows_from_register.append({
+                "id": row["workorder"].id,
+                "title": row["title"],
+                "description": row["description"],
+                "status": row["status"],
+                "executed_at": row["executed_at"],
+                "created_at": row["created_at"],
+                "source": "WORKORDER",
+                "url": row["url"],
+                "technician": row["technician"],
+                "get_status_display": row["workorder"].get_status_display,
+                "get_kind_display": row["workorder"].get_kind_display,
+                "supplier": row["workorder"].supplier,
+            })
+    # Ordina per data decrescente
+    maintenance_rows_from_register.sort(key=lambda x: (x["executed_at"] or x["created_at"] or timezone.now()), reverse=True)
+    # Limita a 10 righe
+    maintenance_rows = maintenance_rows_from_register[:10]
     from tickets.models import TipoTicket
     manageable_ticket_types = {
         ticket_type
@@ -7778,10 +8014,23 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     ]
     ticket_kpi = _compute_ticket_kpi_for_asset(asset)
     doc_category_labels, documents_by_category = _build_asset_documents_by_category(asset)
-    periodic_verification_rows = [
-        {"verification": verification, "state": _periodic_verification_state(verification, today=today)}
-        for verification in asset.periodic_verifications.all().order_by("name", "id")
-    ]
+    periodic_verification_rows = []
+    asset_execution_cutoff = _periodic_execution_window_cutoff(PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today)
+    for verification in asset.periodic_verifications.all().order_by("name", "id"):
+        execution_rows = _periodic_execution_rows_for_verification(
+            verification_id=verification.id,
+            asset_id=asset.id,
+            cutoff_date=asset_execution_cutoff,
+            limit=10,
+        )
+        periodic_verification_rows.append(
+            {
+                "verification": verification,
+                "state": _periodic_verification_state(verification, today=today),
+                "execution_rows": execution_rows,
+                "execution_count": len(execution_rows),
+            }
+        )
     active_component_count = sum(1 for component in component_rows if component.is_active)
     active_deadline_rows = [deadline for deadline in administrative_deadlines if deadline.is_active]
     deadline_state_rows = [
@@ -8589,6 +8838,119 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 messages.error(request, f"Creazione evento Outlook fallita: {exc}")
             return redirect(redirect_url)
 
+        if action == "complete_administrative_deadline":
+            redirect_url = _deadline_list_redirect_from_request(request)
+            if not _is_assets_admin(request):
+                messages.error(request, "Solo admin puo completare scadenze amministrative.")
+                return redirect(redirect_url)
+            deadline_id = _as_int(request.POST.get("deadline_id"), default=0)
+            deadline = (
+                AssetAdministrativeDeadline.objects.select_related("asset", "component")
+                .filter(pk=deadline_id)
+                .first()
+            )
+            if deadline is None:
+                messages.error(request, "Scadenza amministrativa non trovata.")
+                return redirect(redirect_url)
+            today_local = timezone.localdate()
+            executed_on_raw = _clean_string(request.POST.get("execution_date"))
+            if executed_on_raw:
+                try:
+                    completed_on = date.fromisoformat(executed_on_raw)
+                except ValueError:
+                    messages.error(request, "Data di completamento non valida.")
+                    return redirect(redirect_url)
+            else:
+                completed_on = today_local
+            if completed_on > today_local:
+                messages.error(request, "La data di completamento non puo essere futura.")
+                return redirect(redirect_url)
+            next_due_raw = _clean_string(request.POST.get("execution_next_due"))
+            next_due_date = None
+            if next_due_raw:
+                try:
+                    next_due_date = date.fromisoformat(next_due_raw)
+                except ValueError:
+                    messages.error(request, "Prossima scadenza non valida.")
+                    return redirect(redirect_url)
+                if next_due_date < completed_on:
+                    messages.error(request, "La prossima scadenza non puo precedere la data di completamento.")
+                    return redirect(redirect_url)
+            duration_minutes = max(0, _as_int(request.POST.get("execution_duration_minutes"), default=0))
+            try:
+                cost_value = _parse_execution_cost_input(request.POST.get("execution_cost_eur"))
+            except ValueError:
+                messages.error(request, "Costo non valido: usa un numero non negativo (es. 120.50).")
+                return redirect(redirect_url)
+            notes_text = _clean_string(request.POST.get("execution_notes"))
+            uploads, upload_errors = _validate_workorder_attachment_uploads(
+                request, field_name="completion_files"
+            )
+            if upload_errors:
+                for error in upload_errors:
+                    messages.error(request, error)
+                return redirect(redirect_url)
+            attachments_total = 0
+            try:
+                with transaction.atomic():
+                    completion = AssetAdministrativeDeadlineCompletion.objects.create(
+                        deadline=deadline,
+                        completed_on=completed_on,
+                        completed_by=request.user if request.user.is_authenticated else None,
+                        cost_eur=cost_value,
+                        duration_minutes=duration_minutes,
+                        notes=notes_text,
+                        next_due_date=next_due_date,
+                    )
+                    for upload in uploads:
+                        AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                            completion=completion,
+                            file=upload,
+                            original_name=Path(getattr(upload, "name", "") or "").name[:255],
+                            uploaded_by=request.user if request.user.is_authenticated else None,
+                        )
+                        attachments_total += 1
+                    if next_due_date is not None:
+                        deadline.due_date = next_due_date
+                        deadline.is_active = True
+                        deadline.save(update_fields=["due_date", "is_active", "updated_at"])
+                    else:
+                        deadline.is_active = False
+                        deadline.save(update_fields=["is_active", "updated_at"])
+            except ValidationError as exc:
+                messages.error(request, f"Completamento non registrabile: {exc}")
+                return redirect(redirect_url)
+            except Exception as exc:
+                messages.error(request, f"Errore registrazione completamento: {exc}")
+                return redirect(redirect_url)
+            log_action(
+                request,
+                "complete_administrative_deadline",
+                "assets",
+                {
+                    "deadline_id": deadline.id,
+                    "asset_id": deadline.asset_id,
+                    "completion_id": completion.id,
+                    "completed_on": str(completed_on),
+                    "next_due_date": str(next_due_date) if next_due_date else None,
+                    "cost_eur": str(cost_value) if cost_value is not None else None,
+                    "duration_minutes": duration_minutes,
+                    "attachments": attachments_total,
+                },
+            )
+            attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
+            if next_due_date is not None:
+                messages.success(
+                    request,
+                    f"Completamento registrato. Nuova scadenza fissata al {next_due_date:%d/%m/%Y}{attach_suffix}.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Completamento registrato il {completed_on:%d/%m/%Y}. Scadenza chiusa{attach_suffix}.",
+                )
+            return redirect(redirect_url)
+
     today = timezone.localdate()
     selected_asset_id = _as_int(request.GET.get("asset"), default=0)
     selected_component_id = _as_int(request.GET.get("component"), default=0)
@@ -8675,10 +9037,20 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     else:
         deadline_rows = [row for row in deadline_rows_all if row["state"]["status"] == status_filter]
 
+    deadline_completion_cutoff = _periodic_execution_window_cutoff(
+        PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today
+    )
     for row in deadline_rows:
         deadline = row["deadline"]
         row["calendar_event_rows"] = list(calendar_event_map.get(deadline.id, []))
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(deadline.asset, calendar_user_details)
+        row["completion_rows"] = _deadline_completion_rows(
+            deadline_id=deadline.id,
+            cutoff_date=deadline_completion_cutoff,
+            limit=10,
+        )
+        row["completion_count"] = len(row["completion_rows"])
+        row["last_completion"] = row["completion_rows"][0] if row["completion_rows"] else None
 
     component_options = []
     if selected_asset is not None:
@@ -8721,8 +9093,10 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 else reverse("assets:periodic_verifications")
             ),
             "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "can_manage_assets": _is_assets_admin(request),
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
             "calendar_user_choices": calendar_user_choices,
+            "today_iso": today.isoformat(),
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -9600,6 +9974,95 @@ def _maintenance_schedule_status_choices() -> list[tuple[str, str]]:
     ]
 
 
+def _periodic_verification_schedule_status(
+    *, due_date: "date | None", today: date, warning_days: int = 30
+) -> dict[str, str]:
+    if due_date is None:
+        return {"status": "missing", "label": "Da pianificare", "badge_class": "muted"}
+    delta = (due_date - today).days
+    if delta < 0:
+        return {"status": "overdue", "label": f"Scaduta da {abs(delta)} gg", "badge_class": "danger"}
+    if delta <= max(0, int(warning_days)):
+        if delta == 0:
+            return {"status": "warning", "label": "Scade oggi", "badge_class": "warn"}
+        return {"status": "warning", "label": f"In scadenza ({delta} gg)", "badge_class": "warn"}
+    return {"status": "upcoming", "label": f"Pianificata tra {delta} gg", "badge_class": "ok"}
+
+
+def _maintenance_schedule_periodic_rows(
+    *,
+    asset_queryset,
+    status_filter: str,
+    q: str,
+    today: date,
+) -> list[dict[str, object]]:
+    asset_ids = list(asset_queryset.values_list("id", flat=True))
+    if not asset_ids:
+        return []
+    verifications = list(
+        PeriodicVerification.objects.select_related("supplier")
+        .prefetch_related("assets")
+        .filter(is_active=True, assets__id__in=asset_ids)
+        .distinct()
+    )
+    if not verifications:
+        return []
+    asset_map = {asset.id: asset for asset in asset_queryset}
+    rows: list[dict[str, object]] = []
+    q_lower = q.casefold() if q else ""
+    for verification in verifications:
+        for asset in verification.assets.all():
+            if asset.id not in asset_map:
+                continue
+            local_asset = asset_map[asset.id]
+            due_date = verification.next_verification_date if isinstance(verification.next_verification_date, date) else None
+            schedule = _periodic_verification_schedule_status(due_date=due_date, today=today)
+            if status_filter == "due" and schedule["status"] not in {"overdue", "warning", "missing"}:
+                continue
+            if status_filter in {"overdue", "warning", "upcoming", "missing"} and schedule["status"] != status_filter:
+                continue
+            if q_lower:
+                searchable = [
+                    local_asset.asset_tag,
+                    local_asset.name,
+                    local_asset.reparto or "",
+                    verification.name or "",
+                    str(verification.supplier or ""),
+                ]
+                if not any(q_lower in (str(chunk) or "").casefold() for chunk in searchable):
+                    continue
+            rows.append(
+                {
+                    "asset": local_asset,
+                    "asset_detail_url": reverse("assets:asset_view", kwargs={"id": local_asset.id}),
+                    "verification": verification,
+                    "supplier_label": str(verification.supplier) if verification.supplier_id else "",
+                    "frequency_months": verification.frequency_months,
+                    "last_execution_date": verification.last_verification_date,
+                    "due_date": due_date,
+                    "schedule_status": schedule["status"],
+                    "schedule_label": schedule["label"],
+                    "schedule_badge_class": schedule["badge_class"],
+                    "edit_url": _periodic_verifications_page_url(
+                        asset_id=local_asset.id,
+                        edit_id=verification.id,
+                    ),
+                    "open_url": _periodic_verifications_page_url(asset_id=local_asset.id),
+                }
+            )
+    rows.sort(
+        key=lambda row: (
+            {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}.get(str(row["schedule_status"]), 9),
+            row["due_date"] or date.max,
+            (row["asset"].reparto or "").casefold(),
+            (row["asset"].name or "").casefold(),
+            row["asset"].id,
+            row["verification"].id,
+        )
+    )
+    return rows
+
+
 @login_required
 def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     can_manage_outlook_calendar = _is_assets_admin(request)
@@ -9673,6 +10136,93 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                     )
             except Exception as exc:
                 messages.error(request, f"Creazione evento Outlook fallita: {exc}")
+            return redirect(redirect_url)
+
+        if action == "record_maintenance_rule_execution":
+            redirect_url = _maintenance_schedule_redirect_from_request(request)
+            if not _is_assets_admin(request):
+                messages.error(request, "Solo admin puo registrare esecuzioni di manutenzione.")
+                return redirect(redirect_url)
+            asset_id = _as_int(request.POST.get("asset_id"), default=0)
+            base_rule_id = _as_int(request.POST.get("base_rule_id"), default=0)
+            asset = Asset.objects.select_related("asset_category").filter(pk=asset_id).first()
+            base_rule = MaintenanceRule.objects.filter(pk=base_rule_id).select_related("intervention_template").first()
+            if asset is None or base_rule is None:
+                messages.error(request, "Asset o regola manutenzione non trovati.")
+                return redirect(redirect_url)
+            today_local = timezone.localdate()
+            executed_on_raw = _clean_string(request.POST.get("execution_date"))
+            if executed_on_raw:
+                try:
+                    executed_on = date.fromisoformat(executed_on_raw)
+                except ValueError:
+                    messages.error(request, "Data di esecuzione non valida.")
+                    return redirect(redirect_url)
+            else:
+                executed_on = today_local
+            if executed_on > today_local:
+                messages.error(request, "La data di esecuzione non puo essere futura.")
+                return redirect(redirect_url)
+            duration_minutes = max(0, _as_int(request.POST.get("execution_duration_minutes"), default=0))
+            try:
+                cost_value = _parse_execution_cost_input(request.POST.get("execution_cost_eur"))
+            except ValueError:
+                messages.error(request, "Costo non valido: usa un numero non negativo (es. 120.50).")
+                return redirect(redirect_url)
+            resolution_text = _clean_string(request.POST.get("execution_notes"))
+            uploads, upload_errors = _validate_execution_attachment_uploads(request)
+            if upload_errors:
+                for error in upload_errors:
+                    messages.error(request, error)
+                return redirect(redirect_url)
+            template_label = (getattr(base_rule.intervention_template, "label", "") or base_rule.code or "Manutenzione").strip()
+            attachments_total = 0
+            try:
+                with transaction.atomic():
+                    workorder = _build_execution_workorder(
+                        asset=asset,
+                        title=f"Esecuzione regola: {template_label}",
+                        description=resolution_text,
+                        executed_on=executed_on,
+                        duration_minutes=duration_minutes,
+                        cost_value=cost_value,
+                        resolution_text=resolution_text,
+                        maintenance_rule=base_rule,
+                    )
+                    sync_workorder_maintenance_state(workorder)
+                    if uploads:
+                        attachments_total = len(
+                            _save_workorder_attachments(
+                                workorder=workorder,
+                                uploads=uploads,
+                                user=request.user,
+                            )
+                        )
+            except ValidationError as exc:
+                messages.error(request, f"Esecuzione non registrabile: {exc}")
+                return redirect(redirect_url)
+            except Exception as exc:
+                messages.error(request, f"Errore registrazione esecuzione: {exc}")
+                return redirect(redirect_url)
+            log_action(
+                request,
+                "record_maintenance_rule_execution",
+                "assets",
+                {
+                    "asset_id": asset.id,
+                    "base_rule_id": base_rule.id,
+                    "workorder_id": workorder.id,
+                    "executed_on": str(executed_on),
+                    "cost_eur": str(cost_value) if cost_value is not None else None,
+                    "duration_minutes": duration_minutes,
+                    "attachments": attachments_total,
+                },
+            )
+            attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
+            messages.success(
+                request,
+                f"Esecuzione registrata su {asset.asset_tag} il {executed_on:%d/%m/%Y}{attach_suffix}.",
+            )
             return redirect(redirect_url)
 
     selected_asset_id = _as_int(request.GET.get("asset"), default=0)
@@ -9787,6 +10337,10 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 if entry.maintenance_rule_id:
                     calendar_event_map[(entry.asset_id, entry.maintenance_rule_id, entry.due_date)].append(entry)
 
+    schedule_today = timezone.localdate()
+    schedule_execution_cutoff = _periodic_execution_window_cutoff(
+        PERIODIC_EXECUTION_WINDOW_DEFAULT, today=schedule_today
+    )
     for row in filtered_rows:
         due_date = row.get("due_date")
         if isinstance(due_date, date):
@@ -9796,6 +10350,13 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         else:
             row["calendar_event_rows"] = []
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
+        row["execution_rows"] = _maintenance_rule_execution_rows(
+            asset_id=row["asset"].id,
+            base_rule_id=row["base_rule"].id,
+            cutoff_date=schedule_execution_cutoff,
+            limit=5,
+        )
+        row["execution_count"] = len(row["execution_rows"])
 
     reparto_options = [
         value
@@ -9805,6 +10366,17 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         .distinct()
     ]
 
+    periodic_schedule_rows = _maintenance_schedule_periodic_rows(
+        asset_queryset=asset_qs,
+        status_filter=status_filter,
+        q=q,
+        today=schedule_today,
+    )
+    periodic_overdue = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "overdue")
+    periodic_warning = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "warning")
+    periodic_upcoming = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "upcoming")
+    periodic_missing = sum(1 for row in periodic_schedule_rows if row["schedule_status"] == "missing")
+
     return render(
         request,
         "assets/pages/maintenance_schedule.html",
@@ -9813,10 +10385,12 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "selected_asset": selected_asset,
             "schedule_rows": filtered_rows,
             "schedule_total": len(filtered_rows),
-            "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue"),
-            "warning_count": sum(1 for row in filtered_rows if row["schedule_status"] == "warning"),
-            "upcoming_count": sum(1 for row in filtered_rows if row["schedule_status"] == "upcoming"),
-            "missing_count": sum(1 for row in filtered_rows if row["schedule_status"] == "missing"),
+            "periodic_schedule_rows": periodic_schedule_rows,
+            "periodic_schedule_total": len(periodic_schedule_rows),
+            "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue") + periodic_overdue,
+            "warning_count": sum(1 for row in filtered_rows if row["schedule_status"] == "warning") + periodic_warning,
+            "upcoming_count": sum(1 for row in filtered_rows if row["schedule_status"] == "upcoming") + periodic_upcoming,
+            "missing_count": sum(1 for row in filtered_rows if row["schedule_status"] == "missing") + periodic_missing,
             "covered_count": sum(1 for row in filtered_rows if row["is_covered"]),
             "uncovered_count": sum(1 for row in filtered_rows if not row["is_covered"]),
             "category_options": AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"),
@@ -9829,8 +10403,10 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "q": q,
             "clear_filters_url": _maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
             "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "can_manage_assets": _is_assets_admin(request),
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
             "calendar_user_choices": calendar_user_choices,
+            "today_iso": schedule_today.isoformat(),
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -10996,6 +11572,8 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     periodic_context = _periodic_scope_context(periodic_scope)
     periodic_asset_types = list(periodic_context["asset_types"])
     scope_asset_queryset = Asset.objects.filter(asset_type__in=periodic_asset_types)
+    execution_window = _normalize_periodic_execution_window(request.GET.get("window"))
+    execution_cutoff = _periodic_execution_window_cutoff(execution_window, today=today)
 
     if "scope" not in request.GET and request.method == "GET":
         query = request.GET.copy()
@@ -11096,6 +11674,125 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                 messages.error(request, f"Creazione evento Outlook fallita: {exc}")
             return redirect(redirect_url)
 
+        if action == "record_periodic_verification_execution":
+            redirect_url = _periodic_verification_redirect_from_request(request)
+            if not can_manage_periodic_verifications:
+                messages.error(request, "Solo admin puo registrare esecuzioni di manutenzione periodica.")
+                return redirect(redirect_url)
+            verification_id = _as_int(request.POST.get("verification_id"), default=0)
+            verification = (
+                PeriodicVerification.objects.select_related("supplier")
+                .prefetch_related("assets")
+                .filter(pk=verification_id)
+                .first()
+            )
+            if verification is None:
+                messages.error(request, "Piano di manutenzione periodica non trovato.")
+                return redirect(redirect_url)
+            raw_asset_ids = request.POST.getlist("execution_asset_ids")
+            if not raw_asset_ids:
+                legacy_single = request.POST.get("execution_asset_id")
+                if legacy_single:
+                    raw_asset_ids = [legacy_single]
+            target_asset_ids: list[int] = []
+            for raw_id in raw_asset_ids:
+                parsed = _as_int(raw_id, default=0)
+                if parsed and parsed not in target_asset_ids:
+                    target_asset_ids.append(parsed)
+            target_assets = list(
+                verification.assets.filter(pk__in=target_asset_ids)
+            ) if target_asset_ids else []
+            if not target_assets:
+                messages.error(request, "Seleziona almeno un asset coinvolto nel piano per registrare l'esecuzione.")
+                return redirect(redirect_url)
+            executed_on_raw = _clean_string(request.POST.get("execution_date"))
+            if executed_on_raw:
+                try:
+                    executed_on = date.fromisoformat(executed_on_raw)
+                except ValueError:
+                    messages.error(request, "Data di esecuzione non valida.")
+                    return redirect(redirect_url)
+            else:
+                executed_on = today
+            if executed_on > today:
+                messages.error(request, "La data di esecuzione non puo essere futura.")
+                return redirect(redirect_url)
+            duration_minutes = max(0, _as_int(request.POST.get("execution_duration_minutes"), default=0))
+            try:
+                cost_value = _parse_execution_cost_input(request.POST.get("execution_cost_eur"))
+            except ValueError:
+                messages.error(request, "Costo non valido: usa un numero non negativo (es. 120.50).")
+                return redirect(redirect_url)
+            resolution_text = _clean_string(request.POST.get("execution_notes"))
+            uploads, upload_errors = _validate_execution_attachment_uploads(request)
+            if upload_errors:
+                for error in upload_errors:
+                    messages.error(request, error)
+                return redirect(redirect_url)
+            created_workorders: list[WorkOrder] = []
+            attachments_total = 0
+            try:
+                with transaction.atomic():
+                    for target_asset in target_assets:
+                        workorder = _build_execution_workorder(
+                            asset=target_asset,
+                            title=f"Esecuzione manutenzione periodica: {verification.name}",
+                            description=resolution_text,
+                            executed_on=executed_on,
+                            duration_minutes=duration_minutes,
+                            cost_value=cost_value,
+                            resolution_text=resolution_text,
+                            periodic_verification=verification,
+                            supplier=verification.supplier,
+                        )
+                        created_workorders.append(workorder)
+                        if uploads:
+                            attachments_total += len(
+                                _save_workorder_attachments(
+                                    workorder=workorder,
+                                    uploads=uploads,
+                                    user=request.user,
+                                )
+                            )
+                    previous_last = verification.last_verification_date
+                    if previous_last is None or executed_on >= previous_last:
+                        verification.last_verification_date = executed_on
+                        verification.next_verification_date = _add_months(
+                            executed_on, verification.frequency_months
+                        )
+                        verification.save(update_fields=["last_verification_date", "next_verification_date", "updated_at"])
+            except ValidationError as exc:
+                messages.error(request, f"Esecuzione non registrabile: {exc}")
+                return redirect(redirect_url)
+            except Exception as exc:
+                messages.error(request, f"Errore registrazione esecuzione: {exc}")
+                return redirect(redirect_url)
+            log_action(
+                request,
+                "record_periodic_verification_execution",
+                "assets",
+                {
+                    "verification_id": verification.id,
+                    "asset_ids": [asset.id for asset in target_assets],
+                    "workorder_ids": [wo.id for wo in created_workorders],
+                    "executed_on": str(executed_on),
+                    "cost_eur": str(cost_value) if cost_value is not None else None,
+                    "duration_minutes": duration_minutes,
+                    "attachments": attachments_total,
+                },
+            )
+            asset_label = (
+                target_assets[0].asset_tag
+                if len(target_assets) == 1
+                else f"{len(target_assets)} asset"
+            )
+            attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
+            messages.success(
+                request,
+                f"Esecuzione registrata su {asset_label} il {executed_on:%d/%m/%Y}{attach_suffix}.",
+            )
+            return redirect(redirect_url)
+
         if action in {"create_periodic_verification", "update_periodic_verification", "delete_periodic_verification"} and not can_manage_periodic_verifications:
             messages.error(request, "Solo admin puo gestire la manutenzione periodica.")
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
@@ -11161,6 +11858,11 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     ):
         linked_assets = [asset for asset in verification.assets.all() if asset.asset_type in periodic_asset_types]
         is_selected_asset_linked = bool(selected_asset and any(asset.id == selected_asset.id for asset in linked_assets))
+        execution_rows = _periodic_execution_rows_for_verification(
+            verification_id=verification.id,
+            asset_id=selected_asset.id if selected_asset is not None else 0,
+            cutoff_date=execution_cutoff,
+        )
         verification_rows.append(
             {
                 "verification": verification,
@@ -11179,7 +11881,11 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     asset_id=selected_asset.id if selected_asset else 0,
                     edit_id=verification.id,
                     scope=periodic_scope,
+                    window=execution_window,
                 ),
+                "execution_rows": execution_rows,
+                "execution_count": len(execution_rows),
+                "execution_assets": linked_assets,
             }
         )
 
@@ -11207,6 +11913,9 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             ),
             "selected_asset": selected_asset,
             "selected_asset_linked_count": selected_asset_linked_count,
+            "execution_window": execution_window,
+            "execution_window_choices": list(PERIODIC_EXECUTION_WINDOW_CHOICES),
+            "today_iso": today.isoformat(),
             "can_manage_periodic_verifications": can_manage_periodic_verifications,
             "can_manage_outlook_calendar": can_manage_outlook_calendar,
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
@@ -11639,10 +12348,12 @@ def _workorder_attachment_accept_attr() -> str:
     return ",".join(sorted(ASSET_DOCUMENT_ALLOWED_EXTENSIONS))
 
 
-def _validate_workorder_attachment_uploads(request: HttpRequest) -> tuple[list, list[str]]:
+def _validate_workorder_attachment_uploads(
+    request: HttpRequest, *, field_name: str = "attachments"
+) -> tuple[list, list[str]]:
     uploads = []
     errors: list[str] = []
-    for upload in request.FILES.getlist("attachments"):
+    for upload in request.FILES.getlist(field_name):
         file_name = Path(getattr(upload, "name", "") or "").name
         try:
             validate_extension_and_mime(
@@ -11657,6 +12368,10 @@ def _validate_workorder_attachment_uploads(request: HttpRequest) -> tuple[list, 
             continue
         uploads.append(upload)
     return uploads, errors
+
+
+def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, list[str]]:
+    return _validate_workorder_attachment_uploads(request, field_name="execution_files")
 
 
 def _save_workorder_attachments(*, workorder: WorkOrder, uploads: list, user) -> list[WorkOrderAttachment]:

@@ -434,19 +434,52 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 </tr>
               </thead>
               <tbody>
-                {% for wo in maintenance_rows %}
+                {% for row in maintenance_rows %}
                   <tr>
-                    <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
-                    <td>{{ wo.get_kind_display }}</td>
-                    <td><a href="{% url 'assets:wo_view' wo.id %}" style="color:#1d4ed8;text-decoration:none;">{{ wo.title }}</a></td>
-                    <td>{% if wo.supplier %}{{ wo.supplier }}{% else %}Interno / non indicato{% endif %}</td>
+                    <td>{% if row.executed_at %}{{ row.executed_at|date:"d/m/Y" }}{% else %}{{ row.created_at|date:"d/m/Y" }}{% endif %}</td>
                     <td>
-                      {% if wo.status == "DONE" %}
-                        <span class="as-badge as-badge--ok">Completato</span>
-                      {% elif wo.status == "OPEN" %}
-                        <span class="as-badge as-badge--info">Aperto</span>
+                      {% if row.source == "TICKET" %}
+                        <span style="font-size:11px;font-weight:700;background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;">Ticket</span>
                       {% else %}
-                        <span class="as-badge as-badge--muted">{{ wo.get_status_display }}</span>
+                        {{ row.get_kind_display|default:"Manuale" }}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if row.source == "TICKET" %}
+                        <a href="{{ row.url }}" style="color:#1d4ed8;text-decoration:none;">{{ row.title }}</a>
+                        {% if row.ticket_number %}
+                          <span style="font-size:11px;color:#64748b;margin-left:4px;">#{{ row.ticket_number }}</span>
+                        {% endif %}
+                      {% else %}
+                        <a href="{% url 'assets:wo_view' row.id %}" style="color:#1d4ed8;text-decoration:none;">{{ row.title }}</a>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if row.source == "TICKET" %}
+                        {% if row.technician %}{{ row.technician }}{% else %}—{% endif %}
+                      {% else %}
+                        {% if row.supplier %}{{ row.supplier }}{% else %}Interno / non indicato{% endif %}
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if row.source == "TICKET" %}
+                        {% if row.status == "Completato" %}
+                          <span class="as-badge as-badge--ok">Completato</span>
+                        {% elif row.status == "In corso" %}
+                          <span class="as-badge as-badge--info">In corso</span>
+                        {% elif row.status == "Annullato" %}
+                          <span class="as-badge as-badge--muted">Annullato</span>
+                        {% else %}
+                          <span class="as-badge as-badge--muted">{{ row.status }}</span>
+                        {% endif %}
+                      {% else %}
+                        {% if row.status == "DONE" %}
+                          <span class="as-badge as-badge--ok">Completato</span>
+                        {% elif row.status == "OPEN" %}
+                          <span class="as-badge as-badge--info">Aperto</span>
+                        {% else %}
+                          <span class="as-badge as-badge--muted">{{ row.get_status_display }}</span>
+                        {% endif %}
                       {% endif %}
                     </td>
                   </tr>
@@ -604,6 +637,23 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
                     {% if row.verification.next_verification_date %} | prossima {{ row.verification.next_verification_date|date:"d/m/Y" }}{% endif %}
                   </div>
+                  {% if row.execution_rows %}
+                    <details class="af-pv-history">
+                      <summary class="af-cust-sub">Esecuzioni registrate (ultimi 12 mesi): {{ row.execution_count }}</summary>
+                      <ul style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px;">
+                        {% for execution in row.execution_rows %}
+                          <li>
+                            <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
+                            {% if execution.resolution %} - {{ execution.resolution|truncatechars:120 }}{% endif %}
+                            {% if execution.cost_eur is not None %} ({{ execution.cost_eur }} EUR){% endif %}
+                            {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </details>
+                  {% else %}
+                    <div class="af-cust-sub" style="font-style:italic;">Nessuna esecuzione registrata negli ultimi 12 mesi.</div>
+                  {% endif %}
                 </div>
               {% empty %}
                 <div class="af-doc-empty">Questo asset non e ancora inserito in alcun piano di manutenzione periodica.</div>

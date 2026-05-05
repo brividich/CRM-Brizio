@@ -138,7 +138,7 @@ sequenceDiagram
 | 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione (card grid), work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
-| 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, incontri avanzamento, VRF (MOD.073), blocco progressivo |
+| 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
 | 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
 | 12 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint |
 | 13 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Segnalazione e gestione anomalie produzione |
@@ -279,9 +279,10 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario produzione** su `/assets/work-machines/` — card grid con foto, badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
 - **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
-- **Work Order** (ordini di lavoro) con allegati, log cronologico, fornitori associati
-- **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. Per ogni piano (es. "Cambio olio") la pagina mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione** che crea un OdL preventivo chiuso e aggiorna last/next date del piano. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
-- **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI; le scadenze creano un record `AssetAdministrativeDeadlineCompletion` e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
+- **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
+- **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
+- **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, archiviati in `assets_admin_deadlines/<asset_tag>/<completion_id>/`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
+- **Scadenzario unificato** su `/assets/manutenzione/prossime/`: oltre alle regole manutenzione giorni-base, la pagina elenca anche le **verifiche periodiche pianificate** (sezione dedicata sopra lo scadenzario regole) con stato `Scaduta / In scadenza / Pianificata`, filtri condivisi (asset, status, ricerca) e link diretti al piano. I KPI di sintesi sommano regole + verifiche periodiche
 - **Planimetrie** con marker posizionabili, aree, officine, TVCC
 - **Calendario asset** su `/assets/calendario/` — vista mensile (FullCalendar) + Gantt (frappe-gantt) con filtri macchina/reparto
 - **Licenze software** (software, antivirus, Office) assegnabili ad asset o dipendenti su `/assets/licenze/`
@@ -289,6 +290,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Dashboard KPI personalizzabile** con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag&drop
 - **Logo modulo** personalizzabile dalla tab Configurazione
 - **Etichette asset** con template stampabili
+- **Registro manutenzione unificato** su dettaglio asset: unisce WorkOrder (interventi esterni) e ticket MAN (manutenzioni straordinarie interne con `include_in_maintenance_register=True`) in un unico elenco ordinato per data, con badge distinti per sorgente, tecnico/fornitore appropriato e stati localizzati (PATCH 21E)
 </details>
 
 <details open>
@@ -309,6 +311,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
 - **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
 - **Import Excel** massivo per bulk creation
+- **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, mostrato con badge evidente nei form e liste
 </details>
 
 <details open>
@@ -368,6 +371,7 @@ Sistema ticket per richieste interne con capabilities analitiche avanzate.
 - **Categorie ticket** configurabili con SLA
 - **Upload allegati hardening** con validazione MIME reale (non solo estensione)
 - **Download autenticato** via view Django (non da `/media/tickets/` diretto)
+- **Integrazione registro manutenzione asset**: i ticket MAN con flag `include_in_maintenance_register=True` e asset collegato compaiono nel registro manutenzione dell'asset come interventi straordinari (PATCH 21E)
 </details>
 
 <details open>
@@ -404,13 +408,14 @@ Sistema di comunicazione top-down con target per ruolo/reparto.
 
 Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 
-- **5 modelli**: CategoriaDPI (con immagine e vita utile), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1), RichiestaDPICommento
+- **8 modelli**: CategoriaDPI (con immagine e vita utile), TipoDPI (sottocategoria), ModelloDPI (codice, produttore, immagine, vita utile override), TagliaDPI (valore taglia), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1), RichiestaDPICommento
+- **Gerarchia DPI**: Categoria → Tipo → Modello → Taglia per selezione granulare mantenendo retrocompatibilità con CategoriaDPI
 - **Richieste** con **card-picker grafico** (selezione DPI da immagini, non testo)
 - **Numerazione univoca** `DPI-YYYY-NNNN`
 - **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata
 - **Approvazione** da parte del responsabile sicurezza con commenti
 - **Consegna** con firma dipendente e data
-- **Vita utile** DPI tracciata per categoria (scadenza e sostituzione)
+- **Vita utile** DPI tracciata per categoria/modello (scadenza e sostituzione)
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
 </details>
@@ -423,6 +428,8 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 - **3 modelli**: SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni
 - **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
 - **Allegati multipli** (foto, documenti) con upload hardening
+- **Export Excel** con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, timestamp)
+- **Export PDF** per singola segnalazione con layout professionale
 - **Follow-up** con azioni correttive e verifica efficacia
 - **Firma** preposto e controfirma responsabile
 - **Report** per audit ispettivo esterno

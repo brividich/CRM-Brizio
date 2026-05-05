@@ -236,6 +236,10 @@ class Ticket(models.Model):
                             on_delete=models.SET_NULL,
                             related_name="ticket_ricorrenti",
                             help_text="Ticket precedente da cui deriva (se ricorrente)")
+    include_in_maintenance_register = models.BooleanField(
+                            default=True,
+                            verbose_name="Includi nel registro manutenzione",
+                            help_text="Se attivo, il ticket manutentivo collegato a un asset compare nel registro manutenzione come manutenzione straordinaria.")
     # ────────────────────────────────────────────────────────────────────────
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -92,6 +92,13 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
           <span class="tkt-prio tkt-prio-{{ ticket.priorita }}">{{ ticket.label_priorita }}</span>
           {% if ticket.incide_sicurezza %}<span class="tkt-badge" style="background:#fee2e2;color:#991b1b;">Sicurezza</span>{% endif %}
           {% if ticket.ricorrente %}<span class="tkt-badge" style="background:rgba(255,255,255,.14);color:#fff;">Ricorrente</span>{% endif %}
+          {% if ticket.tipo == 'MAN' %}
+            {% if ticket.include_in_maintenance_register %}
+              <span class="tkt-badge" style="background:#d1fae5;color:#065f46;">Registro manutenzione</span>
+            {% else %}
+              <span class="tkt-badge" style="background:#f1f5f9;color:#64748b;">Non in registro</span>
+            {% endif %}
+          {% endif %}
         </div>
       </div>
       <div style="font-size:12px;color:rgba(255,255,255,.78);text-align:right;">Aperto da <strong style="color:#fff;">{{ ticket.richiedente_nome }}</strong><br>{{ ticket.created_at|date:"d/m/Y H:i" }}<br>{% if ticket.closed_at %}Chiuso: {{ ticket.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
@@ -384,6 +391,7 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
           {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d/m/Y H:i" }}</span></div>{% endif %}
           {% if ticket.risolto_da_nome %}<div class="tkt-meta-item"><span class="tkt-meta-key">Risolto da</span><span class="tkt-meta-val">{{ ticket.risolto_da_nome }}</span></div>{% endif %}
           {% if ticket.ticket_origine %}<div class="tkt-meta-item"><span class="tkt-meta-key">Ticket origine</span><span class="tkt-meta-val"><a href="{% url 'tickets:gestione_detail' ticket.ticket_origine.pk %}">{{ ticket.ticket_origine.numero_ticket }}</a></span></div>{% endif %}
+          {% if ticket.tipo == 'MAN' %}<div class="tkt-meta-item"><span class="tkt-meta-key">Registro manutenzione</span><span class="tkt-meta-val">{% if ticket.include_in_maintenance_register %}<span style="color:#15803d;font-weight:700;">Incluso</span>{% else %}<span style="color:#94a3b8;">Escluso</span>{% endif %}</span></div>{% endif %}
         </div>
       </div>
     </aside>
