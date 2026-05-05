@@ -314,6 +314,68 @@
                         {% endfor %}
                       </div>
                     {% endif %}
+                    {% if can_manage_assets %}
+                      <div style="margin-top:8px;">
+                        <button class="btn btn-secondary" type="button" data-dl-record-toggle="{{ row.deadline.id }}">+ Marca completata</button>
+                      </div>
+                      <form method="post" class="dl-record-form" data-dl-record-form="{{ row.deadline.id }}" enctype="multipart/form-data" style="display:none;gap:8px;margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="complete_administrative_deadline">
+                        <input type="hidden" name="deadline_id" value="{{ row.deadline.id }}">
+                        <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                        <input type="hidden" name="filter_component" value="{% if selected_component %}{{ selected_component.id }}{% endif %}">
+                        <input type="hidden" name="filter_deadline_type" value="{{ selected_deadline_type }}">
+                        <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                        <input type="hidden" name="filter_q" value="{{ q }}">
+                        <div style="display:grid;gap:6px;grid-template-columns:repeat(2, minmax(0, 1fr));">
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Data completamento
+                            <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Prossima scadenza (opz.)
+                            <input type="date" name="execution_next_due" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Durata (min)
+                            <input type="number" name="execution_duration_minutes" min="0" value="0" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Costo (EUR)
+                            <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 80.00" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Note
+                            <textarea name="execution_notes" rows="2" placeholder="Documento emesso, ente, esito..." style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;"></textarea>
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Allegati (documenti, verbali, foto)
+                            <input type="file" name="completion_files" multiple style="border:1px dashed #cbd5e1;border-radius:8px;padding:6px 8px;background:#fff;">
+                            <span class="dl-inline-note">Caricamento opzionale. I file restano associati a questo completamento e visibili dallo storico.</span>
+                          </label>
+                        </div>
+                        <div class="dl-inline-note">Senza prossima scadenza la voce viene chiusa (is_active=false). Con una data nuova viene rinnovata.</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                          <button class="btn btn-primary" type="submit">Registra completamento</button>
+                          <button class="btn" type="button" data-dl-record-cancel="{{ row.deadline.id }}">Annulla</button>
+                        </div>
+                      </form>
+                    {% endif %}
+                    {% if row.completion_rows %}
+                      <div class="dl-existing-events" style="margin-top:8px;">
+                        <div class="dl-inline-note" style="font-weight:800;text-transform:uppercase;letter-spacing:.05em;">Storico completamenti ({{ row.completion_count }})</div>
+                        {% for completion in row.completion_rows %}
+                          <div class="dl-inline-note">
+                            <strong>{{ completion.completed_on|date:"d/m/Y" }}</strong>
+                            {% if completion.cost_eur is not None %} · {{ completion.cost_eur }} EUR{% endif %}
+                            {% if completion.duration_minutes %} · {{ completion.duration_minutes }} min{% endif %}
+                            {% if completion.next_due_date %} · prossima {{ completion.next_due_date|date:"d/m/Y" }}{% endif %}
+                            {% if completion.completed_by_label %} · {{ completion.completed_by_label }}{% endif %}
+                            {% if completion.notes %}<br>{{ completion.notes|truncatechars:160 }}{% endif %}
+                            {% if completion.attachment_rows %}
+                              <br>Allegati:
+                              {% for attachment in completion.attachment_rows %}
+                                {% if attachment.url %}<a href="{{ attachment.url }}" target="_blank" rel="noopener">{{ attachment.name }}</a>{% else %}{{ attachment.name }}{% endif %}{% if not forloop.last %} · {% endif %}
+                              {% endfor %}
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -326,4 +388,28 @@
     </div>
   </article>
 </section>
+<script>
+(() => {
+  document.querySelectorAll("[data-dl-record-toggle]").forEach((toggle) => {
+    const key = toggle.dataset.dlRecordToggle;
+    const form = document.querySelector(`[data-dl-record-form="${key}"]`);
+    const cancel = document.querySelector(`[data-dl-record-cancel="${key}"]`);
+    if (!form) return;
+    toggle.addEventListener("click", () => {
+      form.style.display = form.style.display === "grid" ? "none" : "grid";
+    });
+    cancel?.addEventListener("click", () => {
+      form.style.display = "none";
+    });
+  });
+  const focusId = new URL(window.location.href).searchParams.get("focus_deadline");
+  if (focusId) {
+    const target = document.querySelector(`[data-dl-record-form="${focusId}"]`);
+    if (target) {
+      target.style.display = "grid";
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+})();
+</script>
 {% endblock %}

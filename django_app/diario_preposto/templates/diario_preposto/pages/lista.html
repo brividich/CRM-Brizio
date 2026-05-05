@@ -110,6 +110,10 @@ body.theme-dark .dp-empty { color:var(--text-light); }
       </select>
     </label>
     <button type="submit" class="dp-filters-btn">Filtra</button>
+    <a href="{% url 'diario_preposto:export_excel' %}{% if q %}?q={{ q }}{% endif %}{% if filtro_preposto %}{% if q %}&{% else %}?{% endif %}preposto={{ filtro_preposto }}{% endif %}"
+       class="dp-filters-btn" style="background:#10b981;">
+      &#128196; Esporta Excel
+    </a>
     {% if q or filtro_preposto %}
     <a href="{% url 'diario_preposto:lista' %}" class="dp-filters-reset">Reset</a>
     {% endif %}

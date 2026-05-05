@@ -266,13 +266,13 @@ body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; colo
       <ul class="ad-list">
         {% for dl in kpis.scadenze_arretrate %}
         <li class="ad-list-item">
-          <a href="{% url 'assets:asset_view' dl.asset_id %}" class="ad-list-name" title="{{ dl.title }}">{{ dl.title|truncatechars:36 }}</a>
+          <a href="{% url 'assets:asset_administrative_deadline_list' %}?focus_deadline={{ dl.id }}" class="ad-list-name" title="{{ dl.title }} — clicca per registrare il completamento">{{ dl.title|truncatechars:36 }}</a>
           <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
           <span class="ad-list-date ad-list-badge red">{{ dl.due_date|date:"d/m/Y" }}</span>
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:asset_administrative_deadline_list' %}?status=overdue" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -289,13 +289,13 @@ body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; colo
       <ul class="ad-list">
         {% for dl in kpis.prossime_scadenze %}
         <li class="ad-list-item">
-          <a href="{% url 'assets:asset_view' dl.asset_id %}" class="ad-list-name" title="{{ dl.title }}">{{ dl.title|truncatechars:36 }}</a>
+          <a href="{% url 'assets:asset_administrative_deadline_list' %}?focus_deadline={{ dl.id }}" class="ad-list-name" title="{{ dl.title }} — clicca per registrare il completamento">{{ dl.title|truncatechars:36 }}</a>
           <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
           <span class="ad-list-date ad-list-badge yellow">{{ dl.due_date|date:"d/m/Y" }}</span>
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:asset_administrative_deadline_list' %}?status=warning" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -344,7 +344,7 @@ body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; colo
       </div>
       <div class="ad-w-label">Verifiche periodiche scadute</div>
       <div class="ad-w-val {% if kpis.verifiche_scadute > 0 %}danger{% endif %}">{{ kpis.verifiche_scadute }}</div>
-      <a href="{% url 'assets:periodic_verifications' %}" class="ad-w-link">Gestisci verifiche →</a>
+      <a href="{% url 'assets:periodic_verifications' %}?scope=production" class="ad-w-link">Gestisci verifiche →</a>
     </div>
 
     {# == verifiche_30gg ============================================== #}

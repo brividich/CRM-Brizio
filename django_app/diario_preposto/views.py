@@ -235,6 +235,114 @@ def elimina(request, pk):
 
 
 @login_required
+def export_excel(request):
+    """Esporta la lista delle segnalazioni in formato Excel."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        qs = SegnalazionePreposto.objects.all()
+
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(
+                Q(codice_identificativo__icontains=q)
+                | Q(titolo__icontains=q)
+                | Q(descrizione__icontains=q)
+                | Q(chi_segnala__icontains=q)
+                | Q(preposto__icontains=q)
+            )
+
+        filtro_preposto = request.GET.get("preposto", "").strip()
+        if filtro_preposto:
+            qs = qs.filter(preposto__icontains=filtro_preposto)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Diario Preposto"
+
+        headers = [
+            "Codice identificativo",
+            "Data segnalazione",
+            "Titolo",
+            "Descrizione",
+            "Preposto",
+            "Chi segnala",
+            "Creato da",
+            "Numero allegati",
+            "Creato il",
+            "Aggiornato il",
+        ]
+
+        header_font = Font(bold=True, size=11, color="FFFFFF")
+        header_fill = PatternFill(start_color="03787C", end_color="03787C", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        for col_num, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        for row_num, segnalazione in enumerate(qs, start=2):
+            data_segnalazione = (
+                timezone.localtime(segnalazione.data_segnalazione).strftime("%d/%m/%Y %H:%M")
+                if segnalazione.data_segnalazione
+                else ""
+            )
+            created_at = timezone.localtime(segnalazione.created_at).strftime("%d/%m/%Y %H:%M")
+            updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d/%m/%Y %H:%M")
+            creato_da = segnalazione.creato_da.get_full_name() if segnalazione.creato_da else ""
+
+            ws.cell(row=row_num, column=1, value=segnalazione.codice_identificativo or "")
+            ws.cell(row=row_num, column=2, value=data_segnalazione)
+            ws.cell(row=row_num, column=3, value=segnalazione.titolo or "")
+            ws.cell(row=row_num, column=4, value=segnalazione.descrizione or "")
+            ws.cell(row=row_num, column=5, value=segnalazione.preposto or "")
+            ws.cell(row=row_num, column=6, value=segnalazione.chi_segnala or "")
+            ws.cell(row=row_num, column=7, value=creato_da)
+            ws.cell(row=row_num, column=8, value=segnalazione.allegati.count())
+            ws.cell(row=row_num, column=9, value=created_at)
+            ws.cell(row=row_num, column=10, value=updated_at)
+
+            for col_num in range(1, 11):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.border = thin_border
+
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column].width = adjusted_width
+
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        filename = f"diario_preposto_{timezone.now().strftime('%Y%m%d')}.xlsx"
+        response = HttpResponse(buf, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    except ImportError:
+        return HttpResponse("openpyxl non disponibile", status=500)
+
+
+@login_required
 def export_pdf(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
     allegati = list(segnalazione.allegati.all())

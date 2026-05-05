@@ -4429,79 +4429,86 @@ class AssetMaintenanceRegisterTicketTests(TestCase):
 class AntincendioCategorySeedTests(TestCase):
     """Test per la seed della categoria Antincendio e preset manutenzione (PATCH 21C)."""
 
-    def test_antincendio_category_exists(self):
-        """Verifica che la categoria Antincendio sia stata creata."""
-        category = AssetCategory.objects.filter(code="antincendio").first()
-        self.assertIsNotNone(category)
+    def test_seed_antincendio_creates_category(self):
+        call_command("seed_assets_antincendio")
+
+        category = AssetCategory.objects.get(code="antincendio")
         self.assertEqual(category.label, "Antincendio")
-        self.assertEqual(category.base_asset_type, Asset.TYPE_ANTINCENDIO)
+        self.assertEqual(category.base_asset_type, Asset.TYPE_OTHER)
         self.assertTrue(category.is_active)
 
-    def test_antincendio_maintenance_templates_exist(self):
-        """Verifica che i template di manutenzione Antincendio siano stati creati."""
-        from assets.models import MaintenanceInterventionTemplate
+    def test_seed_antincendio_is_idempotent(self):
+        call_command("seed_assets_antincendio")
+        call_command("seed_assets_antincendio")
 
-        category = AssetCategory.objects.get(code="antincendio")
-        templates = MaintenanceInterventionTemplate.objects.filter(asset_category=category).order_by("sort_order")
-
-        self.assertGreaterEqual(templates.count(), 5)
-
-        # Verifica template specifici
-        template_codes = {t.code for t in templates}
-        self.assertIn("estintori-annuale", template_codes)
-        self.assertIn("idranti-semestrale", template_codes)
-        self.assertIn("rilevatori-trimestrale", template_codes)
-        self.assertIn("sirene-mensile", template_codes)
-        self.assertIn("sprinkler-annuale", template_codes)
-
-    def test_antincendio_maintenance_rules_exist(self):
-        """Verifica che le regole di manutenzione Antincendio siano state create."""
-        from assets.models import MaintenanceRule, MaintenanceInterventionTemplate
-
-        category = AssetCategory.objects.get(code="antincendio")
-        rules = MaintenanceRule.objects.filter(asset_category=category).select_related("intervention_template")
-
-        self.assertGreaterEqual(rules.count(), 5)
-
-        # Verifica regole specifiche
-        rule_templates = {r.intervention_template.code for r in rules}
-        self.assertIn("estintori-annuale", rule_templates)
-        self.assertIn("idranti-semestrale", rule_templates)
-        self.assertIn("rilevatori-trimestrale", rule_templates)
-        self.assertIn("sirene-mensile", rule_templates)
-        self.assertIn("sprinkler-annuale", rule_templates)
-
-        # Verifica soglie
-        estintori_rule = rules.get(intervention_template__code="estintori-annuale")
-        self.assertEqual(estintori_rule.threshold_type, "DAYS")
-        self.assertEqual(estintori_rule.threshold_value, 365)
-        self.assertEqual(estintori_rule.warning_days, 30)
-
-        sirene_rule = rules.get(intervention_template__code="sirene-mensile")
-        self.assertEqual(sirene_rule.threshold_type, "DAYS")
-        self.assertEqual(sirene_rule.threshold_value, 30)
-        self.assertEqual(sirene_rule.warning_days, 7)
-
-    def test_antincendio_asset_tag_generation(self):
-        """Verifica che gli asset Antincendio generino tag con prefisso ANT."""
-        asset = Asset.objects.create(
-            name="Estintore portatile",
-            asset_type=Asset.TYPE_ANTINCENDIO,
-            reparto="OFF",
+        self.assertEqual(AssetCategory.objects.filter(code="antincendio").count(), 1)
+        self.assertEqual(MaintenanceInterventionTemplate.objects.filter(code="prova-antincendio").count(), 1)
+        self.assertEqual(
+            MaintenanceRule.objects.filter(
+                asset_category__code="antincendio",
+                intervention_template__code="prova-antincendio",
+            ).count(),
+            1,
         )
 
-        self.assertTrue(asset.asset_tag.startswith("ANT-"))
+    def test_seed_antincendio_creates_category_fields(self):
+        call_command("seed_assets_antincendio")
 
-    def test_antincendio_asset_with_category(self):
-        """Verifica che un asset Antincendio possa essere associato alla categoria Antincendio."""
+        category = AssetCategory.objects.get(code="antincendio")
+        expected_codes = {
+            "tipo_presidio",
+            "ubicazione",
+            "matricola",
+            "data_ultima_verifica",
+            "data_prossima_verifica",
+            "note_sicurezza",
+        }
+        fields = AssetCategoryField.objects.filter(category=category, code__in=expected_codes)
+        self.assertEqual(set(fields.values_list("code", flat=True)), expected_codes)
+        self.assertTrue(all(not field.is_required for field in fields))
+        self.assertTrue(all(field.show_in_form for field in fields))
+        self.assertTrue(all(field.show_in_detail for field in fields))
+        self.assertEqual(fields.get(code="data_ultima_verifica").field_type, AssetCategoryField.TYPE_DATE)
+        self.assertEqual(fields.get(code="data_prossima_verifica").field_type, AssetCategoryField.TYPE_DATE)
+        self.assertEqual(fields.get(code="note_sicurezza").field_type, AssetCategoryField.TYPE_TEXTAREA)
+
+    def test_seed_antincendio_creates_maintenance_template(self):
+        call_command("seed_assets_antincendio")
+
+        template = MaintenanceInterventionTemplate.objects.get(code="prova-antincendio")
+        self.assertEqual(template.label, "Prova antincendio")
+        self.assertEqual(template.asset_category.code, "antincendio")
+        self.assertTrue(template.is_active)
+
+    def test_seed_antincendio_creates_maintenance_rule(self):
+        call_command("seed_assets_antincendio")
+
+        category = AssetCategory.objects.get(code="antincendio")
+        template = MaintenanceInterventionTemplate.objects.get(code="prova-antincendio")
+        rule = MaintenanceRule.objects.get(asset_category=category, intervention_template=template)
+        self.assertEqual(rule.threshold_type, MaintenanceRule.THRESHOLD_DAYS)
+        self.assertEqual(rule.threshold_value, 180)
+        self.assertEqual(rule.warning_days, 30)
+        self.assertTrue(rule.is_active)
+
+    def test_antincendio_asset_can_be_created_with_existing_asset_type(self):
+        call_command("seed_assets_antincendio")
         category = AssetCategory.objects.get(code="antincendio")
         asset = Asset.objects.create(
-            name="Sistema sprinkler",
-            asset_type=Asset.TYPE_ANTINCENDIO,
+            name="Estintore portatile",
+            asset_type=Asset.TYPE_OTHER,
             asset_category=category,
             reparto="OFF",
         )
 
         self.assertEqual(asset.asset_category, category)
-        self.assertEqual(asset.asset_type, Asset.TYPE_ANTINCENDIO)
-        self.assertTrue(asset.asset_tag.startswith("ANT-"))
+        self.assertEqual(asset.asset_type, Asset.TYPE_OTHER)
+        self.assertFalse(asset.asset_tag.startswith("ANT-"))
+
+    def test_maintenance_rule_targets_antincendio_category(self):
+        call_command("seed_assets_antincendio")
+
+        rule = MaintenanceRule.objects.select_related("asset_category").get(
+            intervention_template__code="prova-antincendio"
+        )
+        self.assertEqual(rule.asset_category.code, "antincendio")

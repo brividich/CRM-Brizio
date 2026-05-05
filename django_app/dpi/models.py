@@ -43,6 +43,111 @@ class CategoriaDPI(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Tipo DPI
+# ---------------------------------------------------------------------------
+
+class TipoDPI(models.Model):
+    categoria = models.ForeignKey(
+        CategoriaDPI,
+        on_delete=models.CASCADE,
+        related_name="tipi",
+    )
+    nome = models.CharField(max_length=100)
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    ordine = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["categoria__order_index", "categoria__nome", "ordine", "nome"]
+        verbose_name = "Tipo DPI"
+        verbose_name_plural = "Tipi DPI"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["categoria", "nome"],
+                name="uniq_tipo_dpi_categoria_nome",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.categoria.nome} - {self.nome}"
+
+
+# ---------------------------------------------------------------------------
+# Modello DPI
+# ---------------------------------------------------------------------------
+
+class ModelloDPI(models.Model):
+    tipo = models.ForeignKey(
+        TipoDPI,
+        on_delete=models.CASCADE,
+        related_name="modelli",
+    )
+    codice = models.CharField(max_length=50, unique=True)
+    nome = models.CharField(max_length=150)
+    produttore = models.CharField(max_length=150, blank=True, default="")
+    descrizione = models.TextField(blank=True, default="")
+    immagine = models.ImageField(upload_to="dpi/modelli/", null=True, blank=True)
+    vita_utile_giorni = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Override della vita utile della categoria (se vuoto usa quella della categoria)",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["tipo__categoria__order_index", "tipo__ordine", "codice", "nome"]
+        verbose_name = "Modello DPI"
+        verbose_name_plural = "Modelli DPI"
+
+    def __str__(self) -> str:
+        return f"{self.codice} - {self.nome}"
+
+    @property
+    def immagine_url(self) -> str:
+        if self.immagine:
+            return self.immagine.url
+        return ""
+
+    @property
+    def effective_vita_utile_giorni(self) -> int | None:
+        return self.vita_utile_giorni or self.tipo.categoria.vita_utile_giorni
+
+
+# ---------------------------------------------------------------------------
+# Taglia DPI
+# ---------------------------------------------------------------------------
+
+class TagliaDPI(models.Model):
+    modello = models.ForeignKey(
+        ModelloDPI,
+        on_delete=models.CASCADE,
+        related_name="taglie",
+    )
+    valore = models.CharField(max_length=50)
+    ordine = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["modello__tipo__categoria__order_index", "modello__tipo__ordine", "ordine", "valore"]
+        verbose_name = "Taglia DPI"
+        verbose_name_plural = "Taglie DPI"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["modello", "valore"],
+                name="uniq_taglia_dpi_modello_valore",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.modello.codice} - {self.valore}"
+
+
+# ---------------------------------------------------------------------------
 # Impostazioni modulo (singleton)
 # ---------------------------------------------------------------------------
 
@@ -114,6 +219,30 @@ class RichiestaDPI(models.Model):
         CategoriaDPI,
         on_delete=models.PROTECT,
         related_name="richieste",
+    )
+    tipo_dpi = models.ForeignKey(
+        TipoDPI,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="richieste",
+        help_text="Tipo DPI (opzionale, per selezione più specifica)",
+    )
+    modello_dpi = models.ForeignKey(
+        ModelloDPI,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="richieste",
+        help_text="Modello DPI (opzionale, per selezione più specifica)",
+    )
+    taglia_dpi = models.ForeignKey(
+        TagliaDPI,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="richieste",
+        help_text="Taglia DPI (opzionale, per selezione più specifica)",
     )
     quantita = models.PositiveIntegerField(default=1)
     motivazione = models.TextField(blank=True, default="")

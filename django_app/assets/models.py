@@ -684,6 +684,86 @@ class AssetAdministrativeDeadline(models.Model):
         return (self.due_date - current_day).days
 
 
+class AssetAdministrativeDeadlineCompletion(models.Model):
+    deadline = models.ForeignKey(
+        AssetAdministrativeDeadline,
+        on_delete=models.CASCADE,
+        related_name="completions",
+    )
+    completed_on = models.DateField(db_index=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_asset_administrative_deadlines",
+    )
+    cost_eur = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    duration_minutes = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True, default="")
+    next_due_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-completed_on", "-id"]
+        verbose_name = "Esecuzione scadenza"
+        verbose_name_plural = "Esecuzioni scadenze"
+
+    def __str__(self) -> str:
+        return f"Completamento {self.deadline_id} del {self.completed_on:%d/%m/%Y}"
+
+
+def _admin_deadline_completion_attachment_upload_to(instance, filename: str) -> str:
+    asset_tag = "asset-tmp"
+    completion = getattr(instance, "completion", None)
+    deadline = getattr(completion, "deadline", None) if completion else None
+    asset = getattr(deadline, "asset", None) if deadline else None
+    if asset is not None:
+        asset_tag = asset.asset_tag or f"asset-{asset.id}"
+    suffix = Path(filename or "").suffix.lower()[:20]
+    stem = slugify(Path(filename or "").stem)[:80] or "allegato"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    token = uuid.uuid4().hex[:8]
+    completion_id = getattr(instance, "completion_id", None) or "tmp"
+    return f"assets_admin_deadlines/{asset_tag}/{completion_id}/{stamp}_{token}_{stem}{suffix}"
+
+
+class AssetAdministrativeDeadlineCompletionAttachment(models.Model):
+    completion = models.ForeignKey(
+        AssetAdministrativeDeadlineCompletion,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file = models.FileField(upload_to=_admin_deadline_completion_attachment_upload_to)
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_admin_deadline_completion_attachments_uploaded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"AdminDeadlineAttachment<{self.completion_id}:{self.original_name or Path(self.file.name).name}>"
+
+    def save(self, *args, **kwargs):
+        if not self.original_name and self.file:
+            self.original_name = Path(self.file.name).name[:255]
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name and storage.exists(file_name):
+            storage.delete(file_name)
+
+
 class MaintenanceInterventionTemplate(models.Model):
     code = models.SlugField(max_length=80, unique=True)
     label = models.CharField(max_length=120)
@@ -1548,6 +1628,15 @@ class WorkOrder(models.Model):
         (STATUS_CANCELED, "Annullata"),
     ]
 
+    ORIGIN_PERIODIC = "PERIODIC"
+    ORIGIN_MANUAL = "MANUAL"
+    ORIGIN_TICKET = "TICKET"
+    ORIGIN_CHOICES = [
+        (ORIGIN_PERIODIC, "Periodica"),
+        (ORIGIN_MANUAL, "Manuale"),
+        (ORIGIN_TICKET, "Da ticket"),
+    ]
+
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="workorders")
     periodic_verification = models.ForeignKey(
         PeriodicVerification,
@@ -1588,11 +1677,33 @@ class WorkOrder(models.Model):
     covered_by_contract = models.BooleanField(default=False, db_index=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_OTHER)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    origin = models.CharField(
+        max_length=20,
+        choices=ORIGIN_CHOICES,
+        default=ORIGIN_MANUAL,
+        db_index=True,
+        help_text="Origine della manutenzione (periodica, manuale, da ticket)",
+    )
+    executed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorders_executed",
+        help_text="Tecnico/manutentore che ha eseguito la manutenzione",
+    )
+    reference_batch = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Riferimento batch/regola per manutenzioni generate in blocco",
+    )
     opened_at = models.DateTimeField(default=timezone.now)
     closed_at = models.DateTimeField(null=True, blank=True)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     resolution = models.TextField(blank=True, default="")
+    notes = models.TextField(blank=True, default="", help_text="Note aggiuntive sulla manutenzione")
     intervention_duration_minutes = models.PositiveIntegerField(default=0)
     downtime_minutes = models.PositiveIntegerField(default=0)
     labor_cost_eur = models.DecimalField(

@@ -38,7 +38,7 @@ DPI_CATEGORY_ALLOWED_IMAGE_MIMES = {
     "image/x-ms-bmp",
 }
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
-DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine"}
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
 
 
 # ---------------------------------------------------------------------------

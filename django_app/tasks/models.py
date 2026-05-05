@@ -87,6 +87,12 @@ class Project(models.Model):
     vrf_quote_number = models.CharField(max_length=120, blank=True, default="", verbose_name="Preventivo n°")
     vrf_description = models.CharField(max_length=500, blank=True, default="", verbose_name="Descrizione VRF")
     vrf_esp = models.CharField(max_length=120, blank=True, default="", verbose_name="Esp")
+    safety_impact = models.BooleanField(
+        default=False,
+        verbose_name="Impatto sulla sicurezza",
+        help_text="Indica se il progetto ha impatto sulla sicurezza",
+        db_index=True,
+    )
     similar_project = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,

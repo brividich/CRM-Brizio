@@ -193,6 +193,65 @@ body.theme-dark .ms-empty { color:var(--text-light); }
     </div>
   </article>
 
+  {% if periodic_schedule_rows %}
+    <article class="ms-card">
+      <div class="ms-card-head">
+        <div>
+          <h2>Verifiche periodiche pianificate</h2>
+          <p>Piani di manutenzione periodica (es. cambio olio, taratura) collegati agli asset filtrati. Per registrare un'esecuzione apri la <a href="{% url 'assets:periodic_verifications' %}">pagina verifiche</a>.</p>
+        </div>
+      </div>
+      <div class="ms-card-body">
+        <div class="ms-table-wrap">
+          <table class="ms-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Piano</th>
+                <th>Cadenza</th>
+                <th>Ultima verifica</th>
+                <th>Prossima scadenza</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in periodic_schedule_rows %}
+                <tr>
+                  <td>
+                    <strong><a href="{{ row.asset_detail_url }}" style="color:#0f172a;text-decoration:none;">{{ row.asset.asset_tag }}</a></strong><br>
+                    <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} &middot; {{ row.asset.reparto }}{% endif %}</span>
+                  </td>
+                  <td>
+                    <strong>{{ row.verification.name }}</strong><br>
+                    <span class="ms-meta">{% if row.supplier_label %}{{ row.supplier_label }}{% else %}Fornitore non impostato{% endif %}</span>
+                  </td>
+                  <td><span class="ms-meta">{{ row.frequency_months }} mesi</span></td>
+                  <td>
+                    {% if row.last_execution_date %}
+                      <strong>{{ row.last_execution_date|date:"d/m/Y" }}</strong>
+                    {% else %}
+                      <span class="ms-meta">Nessuna verifica registrata</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.due_date %}<strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>{% endif %}
+                    <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                  </td>
+                  <td>
+                    <div class="ms-actions-row">
+                      <a class="btn btn-primary" href="{{ row.edit_url }}">Apri piano</a>
+                      <a class="btn btn-secondary" href="{{ row.open_url }}">Vai alla pagina verifiche</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+  {% endif %}
+
   <article class="ms-card">
     <div class="ms-card-head">
       <div>
@@ -269,7 +328,60 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                       {% else %}
                         <a class="btn btn-primary" href="{{ row.workorder_create_url }}">Crea intervento</a>
                       {% endif %}
+                      {% if can_manage_assets %}
+                        <button class="btn btn-secondary" type="button" data-ms-record-toggle="{{ row.asset.id }}-{{ row.base_rule.id }}">+ Registra esecuzione</button>
+                      {% endif %}
                     </div>
+                    {% if can_manage_assets %}
+                      <form method="post" class="ms-record-form" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data" style="display:none;gap:8px;margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="record_maintenance_rule_execution">
+                        <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
+                        <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                        <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                        <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                        <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
+                        <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
+                        <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
+                        <input type="hidden" name="filter_q" value="{{ q }}">
+                        <div style="display:grid;gap:6px;grid-template-columns:repeat(2, minmax(0, 1fr));">
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Data
+                            <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Durata (min)
+                            <input type="number" name="execution_duration_minutes" min="0" value="0" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Costo (EUR)
+                            <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Note / risoluzione
+                            <textarea name="execution_notes" rows="2" placeholder="Cosa e stato fatto, ricambi, anomalie..." style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;"></textarea>
+                          </label>
+                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Allegati (verbali, report, foto)
+                            <input type="file" name="execution_files" multiple style="border:1px dashed #cbd5e1;border-radius:8px;padding:6px 8px;background:#fff;">
+                            <span class="ms-suggestion">Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
+                          </label>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                          <button class="btn btn-primary" type="submit">Registra</button>
+                          <button class="btn" type="button" data-ms-record-cancel="{{ row.asset.id }}-{{ row.base_rule.id }}">Annulla</button>
+                        </div>
+                      </form>
+                    {% endif %}
+                    {% if row.execution_rows %}
+                      <div class="ms-existing-events" style="margin-top:8px;">
+                        <div class="ms-meta" style="font-weight:800;text-transform:uppercase;letter-spacing:.05em;">Esecuzioni recenti ({{ row.execution_count }})</div>
+                        {% for execution in row.execution_rows %}
+                          <div class="ms-meta">
+                            <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
+                            {% if execution.cost_eur is not None %} · {{ execution.cost_eur }} EUR{% endif %}
+                            {% if execution.duration_minutes %} · {{ execution.duration_minutes }} min{% endif %}
+                            {% if execution.url %} · <a href="{{ execution.url }}" class="as-link-subtle">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                            {% if execution.resolution %}<br><span class="ms-suggestion">{{ execution.resolution|truncatechars:140 }}</span>{% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
                     {% if row.suggestions %}
                       <div class="ms-suggestions">
                         {% for suggestion in row.suggestions %}
@@ -333,4 +445,20 @@ body.theme-dark .ms-empty { color:var(--text-light); }
     </div>
   </article>
 </section>
+<script>
+(() => {
+  document.querySelectorAll("[data-ms-record-toggle]").forEach((toggle) => {
+    const key = toggle.dataset.msRecordToggle;
+    const form = document.querySelector(`[data-ms-record-form="${key}"]`);
+    const cancel = document.querySelector(`[data-ms-record-cancel="${key}"]`);
+    if (!form) return;
+    toggle.addEventListener("click", () => {
+      form.style.display = form.style.display === "grid" ? "none" : "grid";
+    });
+    cancel?.addEventListener("click", () => {
+      form.style.display = "none";
+    });
+  });
+})();
+</script>
 {% endblock %}

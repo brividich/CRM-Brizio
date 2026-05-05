@@ -202,6 +202,36 @@
 }
 .pv-form-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .pv-list { display:grid; gap:10px; }
+.pv-list[data-pv-view="grid"] {
+  grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+  align-items:start;
+}
+.pv-list[data-pv-view="grid"] .pv-item .pv-note { display:none; }
+.pv-list[data-pv-view="grid"] .pv-item .pv-meta {
+  font-size:var(--fs-sm);
+}
+.pv-view-switch {
+  display:inline-flex;
+  gap:4px;
+  padding:4px;
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#f8fafc;
+}
+.pv-view-btn {
+  border:none;
+  background:transparent;
+  color:#64748b;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size: var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+}
+.pv-view-btn.is-active {
+  background:#1d4ed8;
+  color:#fff;
+}
 .pv-item {
   border:1px solid #e2e8f0;
   border-radius:12px;
@@ -210,6 +240,38 @@
   display:grid;
   gap:10px;
 }
+.pv-execution-toggle-all {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:var(--fs-sm);
+  font-weight:700;
+  color:#1d4ed8;
+  cursor:pointer;
+  user-select:none;
+}
+.pv-execution-toggle-all input { width:auto; margin:0; }
+.pv-execution-asset-list {
+  min-height:120px;
+  max-height:180px;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+  background:#fff;
+  padding:6px 8px;
+}
+.pv-execution-files {
+  border:1px dashed #cbd5e1;
+  border-radius:8px;
+  padding:8px;
+  background:#fff;
+  font-size:var(--fs-sm);
+  color:#334155;
+}
+body.theme-dark .pv-execution-asset-list { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .pv-execution-files { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .pv-execution-toggle-all { color:#93c5fd; }
+body.theme-dark .pv-view-switch { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .pv-view-btn { color:var(--text-light); }
 .pv-item-top {
   display:flex;
   justify-content:space-between;
@@ -268,6 +330,109 @@
 }
 .pv-delete-form { display:inline-flex; }
 .pv-empty { color:#64748b; font-size: var(--fs-base); }
+.pv-history {
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #dbe1ea;
+}
+.pv-history-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.pv-history-title {
+  font-size: var(--fs-sm);
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  font-weight:800;
+  color:#475569;
+}
+.pv-history-meta { color:#64748b; font-size: var(--fs-sm); }
+.pv-history-list { display:grid; gap:6px; }
+.pv-history-row {
+  display:grid;
+  grid-template-columns:90px 1fr auto;
+  gap:8px;
+  align-items:start;
+  font-size: var(--fs-sm);
+  padding:6px 8px;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  background:#fff;
+}
+.pv-history-row .pv-history-date { font-weight:800; color:#0f172a; }
+.pv-history-row .pv-history-body { color:#334155; }
+.pv-history-row .pv-history-body strong { color:#0f172a; }
+.pv-history-row .pv-history-extra { color:#64748b; }
+.pv-history-row a.pv-history-link {
+  color:#1d4ed8;
+  text-decoration:none;
+  font-weight:700;
+}
+.pv-record-toggle {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid #1d4ed8;
+  background:#1d4ed8;
+  color:#fff;
+  border-radius:999px;
+  padding:6px 12px;
+  font-size: var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+}
+.pv-record-toggle.is-secondary {
+  background:#fff;
+  color:#1d4ed8;
+}
+.pv-record-form {
+  display:none;
+  margin-top:10px;
+  padding:10px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#f8fafc;
+  gap:10px;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+.pv-record-form.is-open { display:grid; }
+.pv-record-form .pv-record-full { grid-column:1 / -1; }
+.pv-record-form label {
+  display:block;
+  margin-bottom:4px;
+  color:#334155;
+  font-weight:700;
+  font-size: var(--fs-sm);
+}
+.pv-record-form :is(input, select, textarea) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:8px 10px;
+  font:inherit;
+}
+.pv-window-bar {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.pv-window-bar form { display:inline-flex; gap:6px; align-items:center; }
+.pv-window-bar select {
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:6px 8px;
+  font:inherit;
+}
 @media (max-width: 1500px) {
   .pv-form-top { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
@@ -292,6 +457,19 @@
   .pv-delete-form { width:100%; }
 }
 /* ── Dark mode ─────────────────────────────────────────────────────── */
+body.theme-dark .pv-history-row { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pv-history-row .pv-history-date { color:var(--text); }
+body.theme-dark .pv-history-row .pv-history-body { color:var(--text-mid); }
+body.theme-dark .pv-history-row .pv-history-body strong { color:var(--text); }
+body.theme-dark .pv-history-row .pv-history-extra { color:var(--text-light); }
+body.theme-dark .pv-history-row a.pv-history-link { color:#93c5fd; }
+body.theme-dark .pv-history-title { color:var(--text-light); }
+body.theme-dark .pv-history-meta { color:var(--text-light); }
+body.theme-dark .pv-record-form { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .pv-record-form label { color:var(--text-mid); }
+body.theme-dark .pv-record-form :is(input,select,textarea) { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .pv-record-toggle.is-secondary { background:var(--surface-alt); color:#93c5fd; border-color:rgba(96,165,250,.45); }
+body.theme-dark .pv-window-bar select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .pv-kpi { background:var(--surface); border-color:var(--border); }
 body.theme-dark .pv-kpi-label { color:var(--text-light); }
 body.theme-dark .pv-kpi-value { color:var(--text); }
@@ -498,6 +676,29 @@ body.theme-dark .pv-empty { color:var(--text-light); }
               Per creare eventi Outlook filtra prima la pagina su un singolo asset.
             {% endif %}
           </p>
+          <div class="pv-card-head-tools" style="margin-top:8px;">
+            <div class="pv-view-switch" aria-label="Modalita visualizzazione">
+              <button class="pv-view-btn" type="button" data-pv-view-btn="grid">Griglia</button>
+              <button class="pv-view-btn" type="button" data-pv-view-btn="list">Elenco</button>
+            </div>
+          </div>
+          <div class="pv-window-bar" style="margin-top:8px;">
+            <span class="pv-history-title">Storico esecuzioni:</span>
+            <form method="get" action="{% url 'assets:periodic_verifications' %}">
+              <input type="hidden" name="scope" value="{{ periodic_scope }}">
+              {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
+              {% if edit_verification %}<input type="hidden" name="edit" value="{{ edit_verification.id }}">{% endif %}
+              <select name="window" onchange="this.form.submit()" aria-label="Finestra storico">
+                {% for choice_value, choice_label in execution_window_choices %}
+                  <option value="{{ choice_value }}" {% if execution_window == choice_value %}selected{% endif %}>{{ choice_label }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button class="btn btn-secondary" type="submit">Aggiorna</button></noscript>
+            </form>
+            {% if selected_asset %}
+              <span class="pv-history-meta">filtrato su {{ selected_asset.asset_tag }}</span>
+            {% endif %}
+          </div>
         </div>
         {% if can_manage_outlook_calendar and selected_asset and not outlook_calendar_ready %}
           <p class="pv-inline-note" style="margin:0;max-width:320px;">
@@ -506,7 +707,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
         {% endif %}
       </div>
       <div class="pv-card-body">
-        <div class="pv-list">
+        <div class="pv-list" data-pv-list-root data-pv-view="grid">
           {% for row in verification_rows %}
             <article class="pv-item">
               <div class="pv-item-top">
@@ -591,6 +792,90 @@ body.theme-dark .pv-empty { color:var(--text-light); }
                   {% endfor %}
                 </div>
               {% endif %}
+              <div class="pv-history">
+                <div class="pv-history-head">
+                  <span class="pv-history-title">Esecuzioni registrate</span>
+                  <span class="pv-history-meta">
+                    {{ row.execution_count }} nel periodo
+                    {% if selected_asset %} | asset {{ selected_asset.asset_tag }}{% endif %}
+                  </span>
+                </div>
+                {% if row.execution_rows %}
+                  <div class="pv-history-list">
+                    {% for execution in row.execution_rows %}
+                      <div class="pv-history-row">
+                        <div class="pv-history-date">{{ execution.executed_at|date:"d/m/Y" }}</div>
+                        <div class="pv-history-body">
+                          <div><strong>{{ execution.asset.asset_tag }}</strong> - {{ execution.asset.name }}</div>
+                          {% if execution.resolution %}<div>{{ execution.resolution|truncatechars:160 }}</div>{% endif %}
+                          <div class="pv-history-extra">
+                            {% if execution.supplier_label %}{{ execution.supplier_label }}{% else %}Fornitore non indicato{% endif %}
+                            {% if execution.duration_minutes %} | durata {{ execution.duration_minutes }} min{% endif %}
+                            {% if execution.cost_eur is not None %} | {{ execution.cost_eur }} EUR{% endif %}
+                          </div>
+                        </div>
+                        <div>
+                          {% if execution.url %}<a class="pv-history-link" href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="pv-empty">Nessuna esecuzione registrata nel periodo selezionato.</div>
+                {% endif %}
+                {% if can_manage_periodic_verifications and row.execution_assets %}
+                  <div>
+                    <button class="pv-record-toggle is-secondary" type="button" data-pv-record-toggle="{{ row.verification.id }}">+ Registra esecuzione</button>
+                  </div>
+                  <form method="post" class="pv-record-form" data-pv-record-form="{{ row.verification.id }}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="record_periodic_verification_execution">
+                    <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                    <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                    <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
+                    <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+                    <input type="hidden" name="filter_window" value="{{ execution_window }}">
+                    <div class="pv-record-full">
+                      <label>Asset coinvolti</label>
+                      <label class="pv-execution-toggle-all">
+                        <input type="checkbox" data-pv-execution-toggle-all="{{ row.verification.id }}" checked>
+                        <span>Seleziona / deseleziona tutti</span>
+                      </label>
+                      <select class="pv-execution-asset-list" name="execution_asset_ids" multiple required size="6" data-pv-execution-asset-list="{{ row.verification.id }}">
+                        {% for asset in row.execution_assets %}
+                          <option value="{{ asset.id }}" selected>{{ asset.asset_tag }} - {{ asset.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <div class="pv-help">L'esecuzione viene registrata su ogni asset selezionato (un intervento per asset).</div>
+                    </div>
+                    <div>
+                      <label>Data esecuzione</label>
+                      <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required>
+                    </div>
+                    <div>
+                      <label>Durata (minuti)</label>
+                      <input type="number" name="execution_duration_minutes" min="0" value="0">
+                    </div>
+                    <div>
+                      <label>Costo (EUR)</label>
+                      <input type="text" name="execution_cost_eur" placeholder="es. 120.50" inputmode="decimal">
+                    </div>
+                    <div class="pv-record-full">
+                      <label>Note / risoluzione</label>
+                      <textarea name="execution_notes" rows="2" placeholder="Cosa e stato fatto, eventuali ricambi sostituiti..."></textarea>
+                    </div>
+                    <div class="pv-record-full">
+                      <label>Allegati (verbali, report, foto)</label>
+                      <input class="pv-execution-files" type="file" name="execution_files" multiple>
+                      <div class="pv-help">Caricamento opzionale. I file vengono associati all'intervento creato e saranno visibili dall'asset.</div>
+                    </div>
+                    <div class="pv-record-full" style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <button class="btn btn-primary" type="submit">Registra esecuzione</button>
+                      <button class="btn" type="button" data-pv-record-cancel="{{ row.verification.id }}">Annulla</button>
+                    </div>
+                  </form>
+                {% endif %}
+              </div>
             </article>
           {% empty %}
             <div class="pv-empty">Nessuna manutenzione periodica ancora configurata.</div>
@@ -679,6 +964,58 @@ body.theme-dark .pv-empty { color:var(--text-light); }
     assetSelect.classList.add("pv-asset-select");
     updateAssetList();
   }
+
+  document.querySelectorAll("[data-pv-record-toggle]").forEach((toggle) => {
+    const planId = toggle.dataset.pvRecordToggle;
+    const form = document.querySelector(`[data-pv-record-form="${planId}"]`);
+    const cancel = document.querySelector(`[data-pv-record-cancel="${planId}"]`);
+    if (!form) return;
+    toggle.addEventListener("click", () => {
+      form.classList.toggle("is-open");
+    });
+    cancel?.addEventListener("click", () => {
+      form.classList.remove("is-open");
+    });
+  });
+
+  const listRoot = document.querySelector("[data-pv-list-root]");
+  const viewButtons = Array.from(document.querySelectorAll("[data-pv-view-btn]"));
+  const viewStorageKey = "assets.periodic-verifications.view";
+  const applyView = (view) => {
+    if (!listRoot) return;
+    const normalized = ["grid", "list"].includes(view) ? view : "grid";
+    listRoot.dataset.pvView = normalized;
+    viewButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.pvViewBtn === normalized);
+    });
+    try { window.localStorage.setItem(viewStorageKey, normalized); } catch (error) { void error; }
+  };
+  if (listRoot && viewButtons.length) {
+    let savedView = "grid";
+    try { savedView = window.localStorage.getItem(viewStorageKey) || "grid"; } catch (error) { void error; }
+    applyView(savedView);
+    viewButtons.forEach((button) => {
+      button.addEventListener("click", () => applyView(button.dataset.pvViewBtn || "grid"));
+    });
+  }
+
+  document.querySelectorAll("[data-pv-execution-toggle-all]").forEach((checkbox) => {
+    const planId = checkbox.dataset.pvExecutionToggleAll;
+    const list = document.querySelector(`[data-pv-execution-asset-list="${planId}"]`);
+    if (!list) return;
+    const syncToggle = () => {
+      const options = Array.from(list.options);
+      const allSelected = options.length > 0 && options.every((opt) => opt.selected);
+      checkbox.checked = allSelected;
+    };
+    checkbox.addEventListener("change", () => {
+      Array.from(list.options).forEach((option) => {
+        option.selected = checkbox.checked;
+      });
+    });
+    list.addEventListener("change", syncToggle);
+    syncToggle();
+  });
 })();
 </script>
 {% endblock %}
