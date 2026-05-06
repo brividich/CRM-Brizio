@@ -149,6 +149,36 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
         <input type="hidden" name="categoria_id" id="categoria_id" value="">
       </div>
 
+      <div class="dpi-field">
+        <label for="tipo_dpi_id">Tipo DPI</label>
+        <select name="tipo_dpi_id" id="tipo_dpi_id">
+          <option value="">Solo categoria</option>
+          {% for tipo in tipi_attivi %}
+          <option value="{{ tipo.pk }}">{{ tipo.categoria.nome }} - {{ tipo.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="dpi-field">
+        <label for="modello_dpi_id">Modello DPI</label>
+        <select name="modello_dpi_id" id="modello_dpi_id">
+          <option value="">Nessun modello specifico</option>
+          {% for modello in modelli_attivi %}
+          <option value="{{ modello.pk }}">{{ modello.tipo.categoria.nome }} - {{ modello.tipo.nome }} - {{ modello.codice }} {{ modello.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="dpi-field">
+        <label for="taglia_dpi_id">Taglia DPI</label>
+        <select name="taglia_dpi_id" id="taglia_dpi_id">
+          <option value="">Nessuna taglia specifica</option>
+          {% for taglia in taglie_attive %}
+          <option value="{{ taglia.pk }}">{{ taglia.modello.codice }} {{ taglia.modello.nome }} - {{ taglia.valore }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
       <!-- Quantità -->
       <div class="dpi-field">
         <label for="quantita">Quantità</label>

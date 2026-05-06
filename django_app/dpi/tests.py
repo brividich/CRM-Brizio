@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,8 +12,9 @@ from django.db.models import FileField, ImageField
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from core.models import UserOnboarding
 from core.upload_mime import UploadMimeValidationError
-from dpi.models import CategoriaDPI
+from dpi.models import CategoriaDPI, ConsegnaDPI, ModelloDPI, RichiestaDPI, StatoRichiesta, TagliaDPI, TipoDPI
 from dpi.views import DPI_MIME_POLICY_FIELDS
 
 
@@ -123,3 +125,209 @@ class DpiMimePolicyCoverageTests(SimpleTestCase):
                 discovered_fields.add(f"{model.__name__}.{field.name}")
 
         self.assertEqual(discovered_fields, set(DPI_MIME_POLICY_FIELDS))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DpiCatalogRequestTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="dpi-user",
+            email="dpi-user@example.com",
+            password="pass12345",
+        )
+        self.admin = get_user_model().objects.create_superuser(
+            username="dpi-manager",
+            email="dpi-manager@example.com",
+            password="pass12345",
+        )
+        UserOnboarding.objects.create(user=self.user, completed=True)
+
+    def _catalogo(self, suffix: str = ""):
+        categoria = CategoriaDPI.objects.create(
+            nome=f"Guanti{suffix}",
+            icona_emoji="G",
+            vita_utile_giorni=365,
+            is_active=True,
+        )
+        tipo = TipoDPI.objects.create(categoria=categoria, nome=f"Antitaglio{suffix}", is_active=True)
+        modello = ModelloDPI.objects.create(
+            tipo=tipo,
+            codice=f"G-AT-{suffix or 'BASE'}",
+            nome=f"Blade Safe{suffix}",
+            vita_utile_giorni=180,
+            is_active=True,
+        )
+        taglia = TagliaDPI.objects.create(modello=modello, valore=f"M{suffix}", is_active=True)
+        return categoria, tipo, modello, taglia
+
+    def _post_nuova(self, payload: dict):
+        self.client.force_login(self.user)
+        return self.client.post(reverse("dpi:nuova"), payload)
+
+    def test_catalog_type_model_size_can_be_created(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+
+        self.assertEqual(tipo.categoria, categoria)
+        self.assertEqual(modello.tipo, tipo)
+        self.assertEqual(taglia.modello, modello)
+        self.assertEqual(modello.effective_vita_utile_giorni, 180)
+
+    def test_new_request_saves_type_model_size(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+
+        response = self._post_nuova({
+            "categoria_id": str(categoria.pk),
+            "tipo_dpi_id": str(tipo.pk),
+            "modello_dpi_id": str(modello.pk),
+            "taglia_dpi_id": str(taglia.pk),
+            "quantita": "2",
+            "motivazione": "Prima dotazione",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        richiesta = RichiestaDPI.objects.get()
+        self.assertEqual(richiesta.categoria, categoria)
+        self.assertEqual(richiesta.tipo_dpi, tipo)
+        self.assertEqual(richiesta.modello_dpi, modello)
+        self.assertEqual(richiesta.taglia_dpi, taglia)
+
+    def test_new_request_with_category_only_still_works(self):
+        categoria = CategoriaDPI.objects.create(nome="Occhiali", icona_emoji="O", is_active=True)
+
+        response = self._post_nuova({
+            "categoria_id": str(categoria.pk),
+            "quantita": "1",
+            "motivazione": "",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        richiesta = RichiestaDPI.objects.get()
+        self.assertEqual(richiesta.categoria, categoria)
+        self.assertIsNone(richiesta.tipo_dpi)
+        self.assertIsNone(richiesta.modello_dpi)
+        self.assertIsNone(richiesta.taglia_dpi)
+
+    def test_new_request_rejects_incoherent_type_category(self):
+        categoria, _, _, _ = self._catalogo("A")
+        _, tipo_altro, _, _ = self._catalogo("B")
+
+        response = self._post_nuova({
+            "categoria_id": str(categoria.pk),
+            "tipo_dpi_id": str(tipo_altro.pk),
+            "quantita": "1",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RichiestaDPI.objects.count(), 0)
+
+    def test_new_request_rejects_incoherent_model_type(self):
+        categoria, tipo, _, _ = self._catalogo("A")
+        _, _, modello_altro, _ = self._catalogo("B")
+
+        response = self._post_nuova({
+            "categoria_id": str(categoria.pk),
+            "tipo_dpi_id": str(tipo.pk),
+            "modello_dpi_id": str(modello_altro.pk),
+            "quantita": "1",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RichiestaDPI.objects.count(), 0)
+
+    def test_new_request_rejects_incoherent_size_model(self):
+        categoria, tipo, modello, _ = self._catalogo("A")
+        _, _, _, taglia_altra = self._catalogo("B")
+
+        response = self._post_nuova({
+            "categoria_id": str(categoria.pk),
+            "tipo_dpi_id": str(tipo.pk),
+            "modello_dpi_id": str(modello.pk),
+            "taglia_dpi_id": str(taglia_altra.pk),
+            "quantita": "1",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RichiestaDPI.objects.count(), 0)
+
+    def test_detail_renders_type_model_size(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("dpi:detail", args=[richiesta.pk]))
+
+        self.assertContains(response, tipo.nome)
+        self.assertContains(response, modello.codice)
+        self.assertContains(response, taglia.valore)
+
+    def test_management_detail_renders_type_model_size(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("dpi:gestione_detail", args=[richiesta.pk]))
+
+        self.assertContains(response, tipo.nome)
+        self.assertContains(response, modello.codice)
+        self.assertContains(response, taglia.valore)
+
+    def test_delivery_uses_model_lifetime_override(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            stato=StatoRichiesta.APPROVATA,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.admin)
+        data_consegna = date(2026, 5, 5)
+
+        response = self.client.post(reverse("dpi:consegna", args=[richiesta.pk]), {
+            "data_consegna": data_consegna.isoformat(),
+            "note_consegna": "",
+            "firmato_ricevuta": "1",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        consegna = ConsegnaDPI.objects.get(richiesta=richiesta)
+        self.assertEqual(consegna.data_scadenza_stimata, data_consegna + timedelta(days=180))
+
+    def test_modello_dpi_image_mime_policy(self):
+        categoria, tipo, _, _ = self._catalogo()
+        self.client.force_login(self.admin)
+        with patch("dpi.views.validate_extension_and_mime", return_value="image/png") as mock_validate:
+            response = self.client.post(
+                reverse("dpi:modello_nuovo"),
+                {
+                    "tipo_id": str(tipo.pk),
+                    "codice": "ELM-01",
+                    "nome": "Elmetto Vertex",
+                    "produttore": "ACME",
+                    "descrizione": "",
+                    "vita_utile_giorni": "90",
+                    "is_active": "on",
+                    "immagine": SimpleUploadedFile("modello.png", b"\x89PNG\r\n\x1a\n", content_type="image/png"),
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(mock_validate.called)
+        self.assertTrue(ModelloDPI.objects.get(codice="ELM-01").immagine)

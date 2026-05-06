@@ -13,6 +13,9 @@
 .dpi-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
 .dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:24px 28px; }
 .dpi-card-title { font-size:16px; font-weight:800; color:#0f172a; margin-bottom:16px; }
+.dpi-settings-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+.dpi-settings-tabs a { padding:7px 13px; border-radius:8px; background:#f1f5f9; color:#475569; text-decoration:none; font-size:12px; font-weight:700; border:1px solid #e2e8f0; }
+.dpi-settings-tabs a:hover { background:#e2e8f0; }
 
 .dpi-field { margin-bottom:14px; }
 .dpi-field label { display:block; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
@@ -48,6 +51,14 @@
   padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700;
   text-decoration:none; border:none; cursor:pointer;
 }
+.dpi-catalog-list { display:flex; flex-direction:column; gap:10px; }
+.dpi-catalog-row { border:1px solid #e2e8f0; border-radius:10px; padding:11px 12px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start; background:#fff; }
+.dpi-catalog-row.inactive { opacity:.55; }
+.dpi-catalog-main { min-width:0; }
+.dpi-catalog-title { font-size:13px; font-weight:800; color:#0f172a; }
+.dpi-catalog-meta { font-size:11px; color:#64748b; margin-top:3px; line-height:1.4; }
+.dpi-catalog-actions { display:flex; gap:6px; flex-shrink:0; }
+.dpi-catalog-actions a { padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; background:#eff6ff; color:#1d4ed8; }
 
 /* Modale categoria */
 .dpi-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
@@ -66,6 +77,8 @@ body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color
 body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
 body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .dpi-card-title { color:var(--text); }
+body.theme-dark .dpi-settings-tabs a { background:var(--surface); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-settings-tabs a:hover { background:rgba(255,255,255,.07); color:var(--text); }
 body.theme-dark .dpi-field label { color:var(--text-mid); }
 body.theme-dark .dpi-field input[type=text], body.theme-dark .dpi-field input[type=email], body.theme-dark .dpi-field input[type=number], body.theme-dark .dpi-field textarea, body.theme-dark .dpi-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .dpi-btn-gray { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
@@ -74,6 +87,9 @@ body.theme-dark .dpi-cat-item { background:var(--surface-alt); border-color:var(
 body.theme-dark .dpi-cat-item-img { background:var(--surface); border-color:var(--border); }
 body.theme-dark .dpi-cat-item-nome { color:var(--text); }
 body.theme-dark .dpi-cat-item-meta { color:var(--text-light); }
+body.theme-dark .dpi-catalog-row { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dpi-catalog-title { color:var(--text); }
+body.theme-dark .dpi-catalog-meta { color:var(--text-light); }
 body.theme-dark .dpi-modal { background:var(--surface); }
 body.theme-dark .dpi-modal-title { color:var(--text); }
 body.theme-dark .dpi-modal-close { color:var(--text-light); }
@@ -88,8 +104,15 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
   <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
     <div>
       <div style="font-size:20px; font-weight:800; color:#0f172a;">Impostazioni DPI</div>
-      <div style="font-size:13px; color:#64748b; margin-top:2px;">Configura categorie e parametri del modulo</div>
+      <div style="font-size:13px; color:#64748b; margin-top:2px;">Configura catalogo DPI e parametri del modulo</div>
     </div>
+  </div>
+
+  <div class="dpi-settings-tabs">
+    <a href="#categorie">Categorie</a>
+    <a href="#tipi">Tipi</a>
+    <a href="#modelli">Modelli</a>
+    <a href="#taglie">Taglie</a>
   </div>
 
   <div class="dpi-grid-2">
@@ -123,7 +146,7 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
     </div>
 
     <!-- Colonna destra: categorie DPI -->
-    <div class="dpi-card">
+    <div class="dpi-card" id="categorie">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
         <div class="dpi-card-title" style="margin:0;">Categorie DPI</div>
         <button class="dpi-btn dpi-btn-blue" onclick="openModal()">+ Nuova categoria</button>
@@ -159,6 +182,90 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
       <p style="color:#94a3b8; font-size:13px; text-align:center; padding:20px;">
         Nessuna categoria configurata. Creane una per iniziare.
       </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dpi-grid-2">
+    <div class="dpi-card" id="tipi">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px;">
+        <div class="dpi-card-title" style="margin:0;">Tipi DPI</div>
+        <button class="dpi-btn dpi-btn-blue" onclick="openModal('tipo-modal')">+ Nuovo tipo</button>
+      </div>
+      {% if tipi %}
+      <div class="dpi-catalog-list">
+        {% for tipo in tipi %}
+        <div class="dpi-catalog-row{% if not tipo.is_active %} inactive{% endif %}">
+          <div class="dpi-catalog-main">
+            <div class="dpi-catalog-title">{{ tipo.categoria.nome }} / {{ tipo.nome }}</div>
+            <div class="dpi-catalog-meta">
+              Ordine {{ tipo.ordine }}{% if tipo.descrizione %} | {{ tipo.descrizione }}{% endif %}
+              {% if not tipo.is_active %} | INATTIVO{% endif %}
+            </div>
+          </div>
+          <div class="dpi-catalog-actions">
+            <a href="{% url 'dpi:tipo_modifica' tipo.pk %}">Modifica</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#94a3b8; font-size:13px;">Nessun tipo configurato.</p>
+      {% endif %}
+    </div>
+
+    <div class="dpi-card" id="modelli">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px;">
+        <div class="dpi-card-title" style="margin:0;">Modelli DPI</div>
+        <button class="dpi-btn dpi-btn-blue" onclick="openModal('modello-modal')">+ Nuovo modello</button>
+      </div>
+      {% if modelli %}
+      <div class="dpi-catalog-list">
+        {% for modello in modelli %}
+        <div class="dpi-catalog-row{% if not modello.is_active %} inactive{% endif %}">
+          <div class="dpi-catalog-main">
+            <div class="dpi-catalog-title">{{ modello.tipo.categoria.nome }} / {{ modello.tipo.nome }} / {{ modello.codice }} - {{ modello.nome }}</div>
+            <div class="dpi-catalog-meta">
+              {% if modello.produttore %}{{ modello.produttore }} | {% endif %}
+              {% if modello.vita_utile_giorni %}Vita utile {{ modello.vita_utile_giorni }} gg{% else %}Vita utile da categoria{% endif %}
+              {% if not modello.is_active %} | INATTIVO{% endif %}
+            </div>
+          </div>
+          <div class="dpi-catalog-actions">
+            <a href="{% url 'dpi:modello_modifica' modello.pk %}">Modifica</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#94a3b8; font-size:13px;">Nessun modello configurato.</p>
+      {% endif %}
+    </div>
+
+    <div class="dpi-card" id="taglie">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px;">
+        <div class="dpi-card-title" style="margin:0;">Taglie DPI</div>
+        <button class="dpi-btn dpi-btn-blue" onclick="openModal('taglia-modal')">+ Nuova taglia</button>
+      </div>
+      {% if taglie %}
+      <div class="dpi-catalog-list">
+        {% for taglia in taglie %}
+        <div class="dpi-catalog-row{% if not taglia.is_active %} inactive{% endif %}">
+          <div class="dpi-catalog-main">
+            <div class="dpi-catalog-title">{{ taglia.modello.codice }} - {{ taglia.modello.nome }} / {{ taglia.valore }}</div>
+            <div class="dpi-catalog-meta">
+              {{ taglia.modello.tipo.categoria.nome }} / {{ taglia.modello.tipo.nome }} | Ordine {{ taglia.ordine }}
+              {% if not taglia.is_active %} | INATTIVA{% endif %}
+            </div>
+          </div>
+          <div class="dpi-catalog-actions">
+            <a href="{% url 'dpi:taglia_modifica' taglia.pk %}">Modifica</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#94a3b8; font-size:13px;">Nessuna taglia configurata.</p>
       {% endif %}
     </div>
   </div>
@@ -230,12 +337,151 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
   </div>
 </div>
 
+<!-- Modale creazione/modifica tipo -->
+<div class="dpi-modal-overlay{% if tipo_edit %} open{% endif %}" id="tipo-modal">
+  <div class="dpi-modal">
+    <button class="dpi-modal-close" onclick="closeModal('tipo-modal')">x</button>
+    <div class="dpi-modal-title">{% if tipo_edit %}Modifica{% else %}Nuovo{% endif %} tipo DPI</div>
+    <form method="post" action="{% if tipo_edit %}{% url 'dpi:tipo_modifica' tipo_edit.pk %}{% else %}{% url 'dpi:tipo_nuovo' %}{% endif %}">
+      {% csrf_token %}
+      <div class="dpi-field">
+        <label>Categoria *</label>
+        <select name="categoria_id" required>
+          <option value="">Seleziona categoria</option>
+          {% for cat in categorie %}
+          <option value="{{ cat.pk }}"{% if tipo_edit and tipo_edit.categoria_id == cat.pk %} selected{% endif %}>{{ cat.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dpi-field">
+        <label>Nome *</label>
+        <input type="text" name="nome" value="{{ tipo_edit.nome|default:'' }}" required>
+      </div>
+      <div class="dpi-field">
+        <label>Descrizione</label>
+        <textarea name="descrizione" rows="2">{{ tipo_edit.descrizione|default:'' }}</textarea>
+      </div>
+      <div class="dpi-field">
+        <label>Ordine</label>
+        <input type="number" name="ordine" value="{{ tipo_edit.ordine|default:'0' }}" min="0">
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="is_active" id="tipo-active" value="1"{% if tipo_edit.is_active or not tipo_edit %} checked{% endif %}>
+        <label for="tipo-active" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Tipo attivo</label>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit" class="dpi-btn dpi-btn-green">Salva tipo</button>
+        <button type="button" class="dpi-btn dpi-btn-gray" onclick="closeModal('tipo-modal')">Annulla</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modale creazione/modifica modello -->
+<div class="dpi-modal-overlay{% if modello_edit %} open{% endif %}" id="modello-modal">
+  <div class="dpi-modal">
+    <button class="dpi-modal-close" onclick="closeModal('modello-modal')">x</button>
+    <div class="dpi-modal-title">{% if modello_edit %}Modifica{% else %}Nuovo{% endif %} modello DPI</div>
+    <form method="post"
+          action="{% if modello_edit %}{% url 'dpi:modello_modifica' modello_edit.pk %}{% else %}{% url 'dpi:modello_nuovo' %}{% endif %}"
+          enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="dpi-field">
+        <label>Tipo *</label>
+        <select name="tipo_id" required>
+          <option value="">Seleziona tipo</option>
+          {% for tipo in tipi %}
+          <option value="{{ tipo.pk }}"{% if modello_edit and modello_edit.tipo_id == tipo.pk %} selected{% endif %}>{{ tipo.categoria.nome }} - {{ tipo.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="dpi-field">
+          <label>Codice *</label>
+          <input type="text" name="codice" value="{{ modello_edit.codice|default:'' }}" required>
+        </div>
+        <div class="dpi-field">
+          <label>Nome *</label>
+          <input type="text" name="nome" value="{{ modello_edit.nome|default:'' }}" required>
+        </div>
+      </div>
+      <div class="dpi-field">
+        <label>Produttore</label>
+        <input type="text" name="produttore" value="{{ modello_edit.produttore|default:'' }}">
+      </div>
+      <div class="dpi-field">
+        <label>Descrizione</label>
+        <textarea name="descrizione" rows="2">{{ modello_edit.descrizione|default:'' }}</textarea>
+      </div>
+      <div class="dpi-field">
+        <label>Vita utile override (giorni)</label>
+        <input type="number" name="vita_utile_giorni" value="{{ modello_edit.vita_utile_giorni|default:'' }}" min="1">
+      </div>
+      <div class="dpi-field">
+        <label>Immagine</label>
+        {% if modello_edit.immagine %}
+        <img class="dpi-img-preview visible" id="model-img-preview" src="{{ modello_edit.immagine.url }}" alt="Anteprima">
+        {% else %}
+        <img class="dpi-img-preview" id="model-img-preview" src="" alt="Anteprima">
+        {% endif %}
+        <input type="file" name="immagine" accept="image/*" onchange="previewModelImg(this)">
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="is_active" id="modello-active" value="1"{% if modello_edit.is_active or not modello_edit %} checked{% endif %}>
+        <label for="modello-active" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Modello attivo</label>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit" class="dpi-btn dpi-btn-green">Salva modello</button>
+        <button type="button" class="dpi-btn dpi-btn-gray" onclick="closeModal('modello-modal')">Annulla</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modale creazione/modifica taglia -->
+<div class="dpi-modal-overlay{% if taglia_edit %} open{% endif %}" id="taglia-modal">
+  <div class="dpi-modal">
+    <button class="dpi-modal-close" onclick="closeModal('taglia-modal')">x</button>
+    <div class="dpi-modal-title">{% if taglia_edit %}Modifica{% else %}Nuova{% endif %} taglia DPI</div>
+    <form method="post" action="{% if taglia_edit %}{% url 'dpi:taglia_modifica' taglia_edit.pk %}{% else %}{% url 'dpi:taglia_nuova' %}{% endif %}">
+      {% csrf_token %}
+      <div class="dpi-field">
+        <label>Modello *</label>
+        <select name="modello_id" required>
+          <option value="">Seleziona modello</option>
+          {% for modello in modelli %}
+          <option value="{{ modello.pk }}"{% if taglia_edit and taglia_edit.modello_id == modello.pk %} selected{% endif %}>{{ modello.tipo.categoria.nome }} - {{ modello.tipo.nome }} - {{ modello.codice }} {{ modello.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="dpi-field">
+          <label>Valore *</label>
+          <input type="text" name="valore" value="{{ taglia_edit.valore|default:'' }}" required>
+        </div>
+        <div class="dpi-field">
+          <label>Ordine</label>
+          <input type="number" name="ordine" value="{{ taglia_edit.ordine|default:'0' }}" min="0">
+        </div>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="is_active" id="taglia-active" value="1"{% if taglia_edit.is_active or not taglia_edit %} checked{% endif %}>
+        <label for="taglia-active" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Taglia attiva</label>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit" class="dpi-btn dpi-btn-green">Salva taglia</button>
+        <button type="button" class="dpi-btn dpi-btn-gray" onclick="closeModal('taglia-modal')">Annulla</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
-function openModal() {
-  document.getElementById('cat-modal').classList.add('open');
+function openModal(id) {
+  document.getElementById(id || 'cat-modal').classList.add('open');
 }
-function closeModal() {
-  document.getElementById('cat-modal').classList.remove('open');
+function closeModal(id) {
+  document.getElementById(id || 'cat-modal').classList.remove('open');
 }
 function previewImg(input) {
   const preview = document.getElementById('img-preview');
@@ -244,8 +490,17 @@ function previewImg(input) {
     preview.classList.add('visible');
   }
 }
-document.getElementById('cat-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
+function previewModelImg(input) {
+  const preview = document.getElementById('model-img-preview');
+  if (input.files && input.files[0]) {
+    preview.src = URL.createObjectURL(input.files[0]);
+    preview.classList.add('visible');
+  }
+}
+document.querySelectorAll('.dpi-modal-overlay').forEach(function(modal) {
+  modal.addEventListener('click', function(e) {
+    if (e.target === this) closeModal(this.id);
+  });
 });
 </script>
 {% endblock %}

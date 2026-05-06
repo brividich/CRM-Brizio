@@ -140,7 +140,7 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
           <td>
             <span class="dpi-cat-chip">
               {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}{{ r.categoria.icona_emoji }}{% endif %}
-              {{ r.categoria.nome }}
+              {{ r.categoria.nome }}{% if r.tipo_dpi %} / {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} / {{ r.modello_dpi.codice }} {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} / {{ r.taglia_dpi.valore }}{% endif %}
             </span>
           </td>
           <td>{{ r.richiedente_nome }}</td>

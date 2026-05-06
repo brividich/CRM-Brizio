@@ -145,7 +145,7 @@ sequenceDiagram
 | 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti |
 | 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
 | 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
-| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: richieste, approvazione, consegna, KPI |
+| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna, KPI |
 | 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni e follow-up |
 | 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions e incidenti (SharePoint source of truth) |
 | 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, tracking, export CSV |
@@ -279,6 +279,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario produzione** su `/assets/work-machines/` — card grid con foto, badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
 - **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
+- **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
 - **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, archiviati in `assets_admin_deadlines/<asset_tag>/<completion_id>/`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
@@ -288,6 +289,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Licenze software** (software, antivirus, Office) assegnabili ad asset o dipendenti su `/assets/licenze/`
 - **Sync Outlook** via Graph per scadenze manutenzioni/contratti/verifiche (tracking anti-duplicati)
 - **Dashboard KPI personalizzabile** con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag&drop
+- **KPI per famiglia asset** nella dashboard assets: filtro `family=<AssetCategory.id>`, card per asset/stati/OdL/ticket MAN/ore fermo e box Antincendio basato sulla categoria `antincendio`
 - **Logo modulo** personalizzabile dalla tab Configurazione
 - **Etichette asset** con template stampabili
 - **Registro manutenzione unificato** su dettaglio asset: unisce WorkOrder (interventi esterni) e ticket MAN (manutenzioni straordinarie interne con `include_in_maintenance_register=True`) in un unico elenco ordinato per data, con badge distinti per sorgente, tecnico/fornitore appropriato e stati localizzati (PATCH 21E)
@@ -409,13 +411,13 @@ Sistema di comunicazione top-down con target per ruolo/reparto.
 Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 
 - **8 modelli**: CategoriaDPI (con immagine e vita utile), TipoDPI (sottocategoria), ModelloDPI (codice, produttore, immagine, vita utile override), TagliaDPI (valore taglia), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1), RichiestaDPICommento
-- **Gerarchia DPI**: Categoria → Tipo → Modello → Taglia per selezione granulare mantenendo retrocompatibilità con CategoriaDPI
-- **Richieste** con **card-picker grafico** (selezione DPI da immagini, non testo)
+- **Gerarchia DPI**: Categoria → Tipo → Modello → Taglia gestibile da `/dpi/impostazioni/`, con immagine modello e attivazione/disattivazione record
+- **Richieste** con **card-picker grafico** per la categoria e selezione opzionale di tipo/modello/taglia; resta supportata la richiesta con sola categoria
 - **Numerazione univoca** `DPI-YYYY-NNNN`
 - **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata
 - **Approvazione** da parte del responsabile sicurezza con commenti
 - **Consegna** con firma dipendente e data
-- **Vita utile** DPI tracciata per categoria/modello (scadenza e sostituzione)
+- **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
 </details>

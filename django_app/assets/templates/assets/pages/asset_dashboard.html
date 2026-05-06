@@ -89,6 +89,33 @@
 .fill-teal      { background: #14b8a6; }
 .fill-rose      { background: #f43f5e; }
 
+/* KPI famiglia asset */
+.ad-family-section { margin: 28px 0 18px; display: grid; gap: 16px; }
+.ad-section-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.ad-section-title { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: #0f172a; }
+.ad-section-sub { margin: 3px 0 0; color: #64748b; font-size: var(--fs-sm); }
+.ad-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ad-filter select { min-width: 220px; border: 1px solid #d1dae8; border-radius: 8px; padding: 7px 10px; background: #fff; color: #1e293b; font-size: var(--fs-sm); }
+.ad-family-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ad-family-metric { background: #fff; border: 1px solid #dbe3f0; border-radius: 8px; padding: 13px 14px; box-shadow: 0 1px 5px rgba(15,23,42,.04); }
+.ad-family-label { color: #64748b; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.ad-family-value { margin-top: 5px; color: #0f172a; font-size: var(--fs-2xl); font-weight: 800; line-height: 1; }
+.ad-family-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.ad-family-panel { background: #fff; border: 1px solid #dbe3f0; border-radius: 8px; padding: 14px; }
+.ad-panel-title { margin: 0 0 10px; color: #0f172a; font-size: var(--fs-base); font-weight: 800; }
+.ad-mini-bars { display: grid; gap: 8px; }
+.ad-mini-row { display: grid; grid-template-columns: minmax(92px, 1fr) 2fr auto; gap: 8px; align-items: center; font-size: var(--fs-xs); }
+.ad-mini-label { color: #334155; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-mini-track { height: 8px; background: #e5ecf6; border-radius: 999px; overflow: hidden; }
+.ad-mini-fill { height: 100%; border-radius: 999px; background: #3b82f6; }
+.ad-mini-fill.green { background: #22c55e; }
+.ad-mini-fill.orange { background: #f97316; }
+.ad-mini-count { color: #64748b; font-weight: 800; min-width: 34px; text-align: right; }
+.ad-empty { color: #94a3b8; font-size: var(--fs-sm); }
+.ad-fire { border: 1px solid #fecaca; background: #fff7f7; border-radius: 8px; padding: 14px; }
+.ad-fire-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ad-fire .ad-family-metric { border-color: #fecaca; box-shadow: none; }
+
 /* ── Modale personalizza ────────────────────────────────────────────── */
 .ad-overlay     { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 2000;
                   align-items: center; justify-content: center; }
@@ -120,8 +147,9 @@
 .ad-refresh-ts  { font-size: var(--fs-xs); color: #94a3b8; }
 
 @media (max-width: 1100px) { .ad-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 800px)  { .ad-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } .ad-widget.wide { grid-column: span 2; } }
-@media (max-width: 500px)  { .ad-grid { grid-template-columns: 1fr; gap: 8px; } .ad-widget.wide { grid-column: span 1; } .ad-bar-label { width: 80px; } }
+@media (max-width: 1100px) { .ad-family-grid { grid-template-columns: repeat(3, 1fr); } .ad-family-panels { grid-template-columns: 1fr; } }
+@media (max-width: 800px)  { .ad-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } .ad-widget.wide { grid-column: span 2; } .ad-family-grid, .ad-fire-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 500px)  { .ad-grid { grid-template-columns: 1fr; gap: 8px; } .ad-widget.wide { grid-column: span 1; } .ad-bar-label { width: 80px; } .ad-family-grid, .ad-fire-grid { grid-template-columns: 1fr; } .ad-mini-row { grid-template-columns: 1fr; } .ad-filter select { min-width: 100%; } }
 
 body.theme-dark .ad-cats-label { color:var(--text-light); }
 body.theme-dark .ad-cat { background:rgba(29,78,216,.15); border-color:rgba(29,78,216,.35); color:#93c5fd; }
@@ -157,6 +185,19 @@ body.theme-dark .ad-list-badge.slate { background:rgba(71,85,105,.2); color:#94a
 body.theme-dark .ad-bar-label { color:var(--text); }
 body.theme-dark .ad-bar-track { background:rgba(255,255,255,.07); }
 body.theme-dark .ad-bar-count { color:var(--text-light); }
+body.theme-dark .ad-section-title,
+body.theme-dark .ad-panel-title,
+body.theme-dark .ad-family-value { color:var(--text); }
+body.theme-dark .ad-section-sub,
+body.theme-dark .ad-family-label,
+body.theme-dark .ad-mini-count { color:var(--text-light); }
+body.theme-dark .ad-filter select,
+body.theme-dark .ad-family-metric,
+body.theme-dark .ad-family-panel { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .ad-mini-label { color:var(--text); }
+body.theme-dark .ad-mini-track { background:rgba(255,255,255,.07); }
+body.theme-dark .ad-fire { background:rgba(185,28,28,.08); border-color:rgba(248,113,113,.35); }
+body.theme-dark .ad-fire .ad-family-metric { border-color:rgba(248,113,113,.35); }
 body.theme-dark .ad-refresh-ts { color:var(--text-light); }
 body.theme-dark .ad-modal { background:var(--surface); }
 body.theme-dark .ad-modal-head { border-bottom-color:var(--border); }
@@ -428,6 +469,133 @@ body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; colo
     {% endfor %}
 
   </div>{# /ad-grid #}
+
+  <section class="ad-family-section" aria-labelledby="ad-family-kpi-title">
+    <div class="ad-section-head">
+      <div>
+        <h2 class="ad-section-title" id="ad-family-kpi-title">KPI per famiglia asset</h2>
+        <p class="ad-section-sub">
+          {% if selected_family_label %}{{ selected_family_label }}{% else %}Tutte le famiglie{% endif %}
+        </p>
+      </div>
+      <form class="ad-filter" method="get">
+        <label class="ad-cats-label" for="family-filter">Famiglia</label>
+        <select id="family-filter" name="family">
+          <option value="">Tutte le famiglie</option>
+          {% for family in family_options %}
+          <option value="{{ family.id }}" {% if family.id == selected_family_id %}selected{% endif %}>{{ family.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="ad-btn" type="submit">Applica</button>
+      </form>
+    </div>
+
+    <div class="ad-family-grid">
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Totale asset famiglia</div>
+        <div class="ad-family-value">{{ family_kpis.totale_asset_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Asset in uso</div>
+        <div class="ad-family-value">{{ family_kpis.asset_in_uso_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Asset in riparazione</div>
+        <div class="ad-family-value">{{ family_kpis.asset_in_riparazione_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">OdL aperti</div>
+        <div class="ad-family-value">{{ family_kpis.wo_aperte_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">OdL chiusi mese</div>
+        <div class="ad-family-value">{{ family_kpis.wo_chiuse_mese_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Ticket MAN aperti</div>
+        <div class="ad-family-value">{{ family_kpis.ticket_man_aperti_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Ticket MAN chiusi mese</div>
+        <div class="ad-family-value">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div>
+      </div>
+      <div class="ad-family-metric">
+        <div class="ad-family-label">Ore fermo mese</div>
+        <div class="ad-family-value">{{ family_kpis.fermi_ore_mese_famiglia|floatformat:2 }}</div>
+      </div>
+    </div>
+
+    <div class="ad-family-panels">
+      <div class="ad-family-panel">
+        <h3 class="ad-panel-title">Asset per famiglia</h3>
+        <div class="ad-mini-bars">
+          {% for row in family_distribution %}
+          <div class="ad-mini-row">
+            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="ad-mini-track"><span class="ad-mini-fill" style="width:{{ row.percent|default:0 }}%;"></span></span>
+            <span class="ad-mini-count">{{ row.count }}</span>
+          </div>
+          {% empty %}
+          <span class="ad-empty">Nessun dato</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="ad-family-panel">
+        <h3 class="ad-panel-title">Manutenzioni per famiglia</h3>
+        <div class="ad-mini-bars">
+          {% for row in maintenance_by_family %}
+          <div class="ad-mini-row">
+            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="ad-mini-track"><span class="ad-mini-fill green" style="width:{{ row.percent|default:0 }}%;"></span></span>
+            <span class="ad-mini-count">{{ row.count }}</span>
+          </div>
+          {% empty %}
+          <span class="ad-empty">Nessun dato</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="ad-family-panel">
+        <h3 class="ad-panel-title">Ore fermo per famiglia</h3>
+        <div class="ad-mini-bars">
+          {% for row in downtime_by_family %}
+          <div class="ad-mini-row">
+            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="ad-mini-track"><span class="ad-mini-fill orange" style="width:{{ row.percent|default:0 }}%;"></span></span>
+            <span class="ad-mini-count">{{ row.hours|floatformat:2 }}</span>
+          </div>
+          {% empty %}
+          <span class="ad-empty">Nessun dato</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {% if fire_safety_kpis.has_fire_safety %}
+    <div class="ad-fire">
+      <h3 class="ad-panel-title">Antincendio</h3>
+      <div class="ad-fire-grid">
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Asset antincendio totali</div>
+          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_asset_totali }}</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Scadenze scadute</div>
+          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_scadenze_scadute }}</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Scadenze prossimi 30 giorni</div>
+          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_scadenze_30gg }}</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">OdL aperti antincendio</div>
+          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_wo_aperte }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </section>
 
   {# Pulsante "Aggiungi widget" a piede griglia #}
   <div style="text-align:center;margin-top:8px;">

@@ -115,13 +115,28 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           {% endif %}
           <div>
             <div class="dpi-cat-big-nome">{{ richiesta.categoria.nome }}</div>
-            {% if richiesta.categoria.vita_utile_giorni %}
-            <div style="font-size:12px; color:#4b7a5c;">Vita utile: {{ richiesta.categoria.vita_utile_giorni }} giorni</div>
+            {% if richiesta.tipo_dpi or richiesta.modello_dpi or richiesta.taglia_dpi %}
+            <div style="font-size:12px; color:#4b7a5c;">
+              {% if richiesta.tipo_dpi %}{{ richiesta.tipo_dpi.nome }}{% endif %}
+              {% if richiesta.modello_dpi %}{% if richiesta.tipo_dpi %} / {% endif %}{{ richiesta.modello_dpi.codice }} {{ richiesta.modello_dpi.nome }}{% endif %}
+              {% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}
+            </div>
+            {% endif %}
+            {% if vita_utile_consegna %}
+            <div style="font-size:12px; color:#4b7a5c;">Vita utile: {{ vita_utile_consegna }} giorni{% if richiesta.modello_dpi and richiesta.modello_dpi.vita_utile_giorni %} (modello){% endif %}</div>
             {% endif %}
           </div>
         </div>
 
         <dl class="dpi-dl">
+          <dt>Categoria</dt>
+          <dd>{{ richiesta.categoria.nome }}</dd>
+          <dt>Tipo</dt>
+          <dd>{% if richiesta.tipo_dpi %}{{ richiesta.tipo_dpi.nome }}{% else %}-{% endif %}</dd>
+          <dt>Modello</dt>
+          <dd>{% if richiesta.modello_dpi %}{{ richiesta.modello_dpi.codice }} - {{ richiesta.modello_dpi.nome }}{% else %}-{% endif %}</dd>
+          <dt>Taglia</dt>
+          <dd>{% if richiesta.taglia_dpi %}{{ richiesta.taglia_dpi.valore }}{% else %}-{% endif %}</dd>
           <dt>Richiedente</dt>
           <dd>{{ richiesta.richiedente_nome }}{% if richiesta.richiedente_reparto %} — {{ richiesta.richiedente_reparto }}{% endif %}</dd>
           {% if richiesta.richiedente_email %}
@@ -145,6 +160,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
         <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:12px;">Consegna registrata</div>
         <dl class="dpi-consegna-box">
           <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
+          <dt>DPI</dt><dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.codice }} {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome }}</dd>{% endif %}
           {% if consegna.data_scadenza_stimata %}<dt>Scadenza</dt><dd>{{ consegna.data_scadenza_stimata|date:"d/m/Y" }}</dd>{% endif %}
           <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
@@ -195,7 +211,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
               <label for="data-consegna">Data consegna *</label>
               <input type="date" name="data_consegna" id="data-consegna" value="{{ oggi|date:'Y-m-d' }}" required>
             </div>
-            {% if richiesta.categoria.vita_utile_giorni %}
+            {% if vita_utile_consegna %}
             <div class="dpi-field">
               <label for="data-scadenza">Scadenza stimata (auto-calcolata, modifica se necessario)</label>
               <input type="date" name="data_scadenza_stimata" id="data-scadenza">
@@ -258,12 +274,12 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
   </div>
 </div>
 
-{% if richiesta.categoria.vita_utile_giorni %}
+{% if vita_utile_consegna %}
 <script>
 (function() {
   const dataConsegnaInput = document.getElementById('data-consegna');
   const dataScadenzaInput = document.getElementById('data-scadenza');
-  const vitaUtile = {{ richiesta.categoria.vita_utile_giorni }};
+  const vitaUtile = {{ vita_utile_consegna }};
 
   function aggiornaScadenza() {
     const val = dataConsegnaInput.value;

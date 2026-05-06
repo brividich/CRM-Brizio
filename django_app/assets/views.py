@@ -125,6 +125,13 @@ from .maintenance import (
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
 )
+from .services.dashboard_kpi import (
+    get_downtime_by_family,
+    get_families_distribution,
+    get_family_dashboard_kpis,
+    get_fire_safety_kpis,
+    get_maintenance_by_family,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13654,15 +13661,34 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         return redirect(legacy_list_redirect)
 
     today = timezone.localdate()
+    selected_family_id = None
+    selected_family_label = ""
+    raw_family_id = request.GET.get("family")
+    if raw_family_id:
+        try:
+            candidate_family_id = int(raw_family_id)
+        except (TypeError, ValueError):
+            candidate_family_id = None
+        if candidate_family_id:
+            selected_family = AssetCategory.objects.filter(pk=candidate_family_id, is_active=True).first()
+            if selected_family:
+                selected_family_id = selected_family.id
+                selected_family_label = selected_family.label
 
     # Configurazione widget utente
     cfg, _ = AssetDashboardConfig.objects.get_or_create(user=request.user)
     enabled = cfg.get_enabled_widgets()
 
     kpis = _compute_dashboard_kpis(today)
+    family_kpis = get_family_dashboard_kpis(selected_family_id, today=today)
+    family_distribution = get_families_distribution(today=today)
+    maintenance_by_family = get_maintenance_by_family(today=today)
+    downtime_by_family = get_downtime_by_family(today=today)
+    fire_safety_kpis = get_fire_safety_kpis(today=today)
 
     # Categorie asset attive (solo principali, per i link in cima)
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
+    family_options = categories
 
     # Metadati widget arricchiti con valore
     widgets_all = []
@@ -13687,6 +13713,14 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "enabled_widgets_json": json.dumps(enabled),
         "widgets_all": widgets_all,
         "categories": categories,
+        "selected_family_id": selected_family_id,
+        "selected_family_label": selected_family_label,
+        "family_options": family_options,
+        "family_kpis": family_kpis,
+        "family_distribution": family_distribution,
+        "maintenance_by_family": maintenance_by_family,
+        "downtime_by_family": downtime_by_family,
+        "fire_safety_kpis": fire_safety_kpis,
         "branding": branding,
         "page_title": "Dashboard Assets",
     })

@@ -22,5 +22,11 @@ urlpatterns = [
     path("impostazioni/categorie/nuova/", views.categoria_edit, name="categoria_nuova"),
     path("impostazioni/categorie/<int:pk>/modifica/", views.categoria_edit, name="categoria_modifica"),
     path("impostazioni/categorie/<int:pk>/elimina/", views.categoria_elimina, name="categoria_elimina"),
+    path("impostazioni/tipi/nuovo/", views.tipo_edit, name="tipo_nuovo"),
+    path("impostazioni/tipi/<int:pk>/modifica/", views.tipo_edit, name="tipo_modifica"),
+    path("impostazioni/modelli/nuovo/", views.modello_edit, name="modello_nuovo"),
+    path("impostazioni/modelli/<int:pk>/modifica/", views.modello_edit, name="modello_modifica"),
+    path("impostazioni/taglie/nuova/", views.taglia_edit, name="taglia_nuova"),
+    path("impostazioni/taglie/<int:pk>/modifica/", views.taglia_edit, name="taglia_modifica"),
     path("api/categorie/", views.api_categorie, name="api_categorie"),
 ]

@@ -7,6 +7,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -21,15 +22,18 @@ from .models import (
     CategoriaDPI,
     ConsegnaDPI,
     DPIImpostazioni,
+    ModelloDPI,
     RichiestaDPI,
     RichiestaDPICommento,
     StatoRichiesta,
+    TagliaDPI,
+    TipoDPI,
 )
 
 logger = logging.getLogger(__name__)
 
-DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
-DPI_CATEGORY_ALLOWED_IMAGE_MIMES = {
+DPI_ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+DPI_ALLOWED_IMAGE_MIMES = {
     "image/jpeg",
     "image/png",
     "image/webp",
@@ -37,6 +41,8 @@ DPI_CATEGORY_ALLOWED_IMAGE_MIMES = {
     "image/bmp",
     "image/x-ms-bmp",
 }
+DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
+DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
 DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
 
@@ -81,6 +87,146 @@ def _legacy_id(request) -> int | None:
     return None
 
 
+def _parse_optional_positive_int(value: str | None) -> int | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _catalog_select_related():
+    return {
+        "tipi": TipoDPI.objects.select_related("categoria").order_by("categoria__order_index", "categoria__nome", "ordine", "nome"),
+        "modelli": ModelloDPI.objects.select_related("tipo", "tipo__categoria").order_by("tipo__categoria__order_index", "tipo__ordine", "codice", "nome"),
+        "taglie": TagliaDPI.objects.select_related("modello", "modello__tipo", "modello__tipo__categoria").order_by("modello__tipo__categoria__order_index", "modello__tipo__ordine", "ordine", "valore"),
+    }
+
+
+def _catalog_context(impost: DPIImpostazioni, **extra) -> dict:
+    context = {
+        "impost": impost,
+        "categorie": CategoriaDPI.objects.all().order_by("order_index", "nome"),
+        "categorie_attive": CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"),
+        "responsabili_raw": serialize_contact_people(
+            impost.responsabili,
+            fallback_name=impost.responsabile_nome,
+            fallback_email=impost.responsabile_email,
+        ),
+        **_catalog_select_related(),
+    }
+    context.update(extra)
+    return context
+
+
+def _validate_uploaded_dpi_image(uploaded_image, label: str) -> str | None:
+    if uploaded_image is None:
+        return None
+    try:
+        validate_extension_and_mime(
+            uploaded_image,
+            allowed_extensions=DPI_ALLOWED_IMAGE_EXTENSIONS,
+            allowed_mimes=DPI_ALLOWED_IMAGE_MIMES,
+            label=label,
+        )
+    except UploadMimeValidationError as exc:
+        return str(exc)
+    return None
+
+
+def _active_catalog_options() -> dict:
+    return {
+        "tipi_attivi": TipoDPI.objects.filter(is_active=True, categoria__is_active=True)
+        .select_related("categoria")
+        .order_by("categoria__order_index", "categoria__nome", "ordine", "nome"),
+        "modelli_attivi": ModelloDPI.objects.filter(is_active=True, tipo__is_active=True, tipo__categoria__is_active=True)
+        .select_related("tipo", "tipo__categoria")
+        .order_by("tipo__categoria__order_index", "tipo__ordine", "codice", "nome"),
+        "taglie_attive": TagliaDPI.objects.filter(
+            is_active=True,
+            modello__is_active=True,
+            modello__tipo__is_active=True,
+            modello__tipo__categoria__is_active=True,
+        )
+        .select_related("modello", "modello__tipo", "modello__tipo__categoria")
+        .order_by("modello__tipo__categoria__order_index", "modello__tipo__ordine", "ordine", "valore"),
+    }
+
+
+def _resolve_richiesta_catalog_selection(post_data) -> tuple[CategoriaDPI | None, TipoDPI | None, ModelloDPI | None, TagliaDPI | None, list[str]]:
+    errors: list[str] = []
+    categoria = None
+    tipo = None
+    modello = None
+    taglia = None
+
+    cat_id = (post_data.get("categoria_id", "") or "").strip()
+    tipo_id = (post_data.get("tipo_dpi_id", "") or "").strip()
+    modello_id = (post_data.get("modello_dpi_id", "") or "").strip()
+    taglia_id = (post_data.get("taglia_dpi_id", "") or "").strip()
+
+    if cat_id:
+        try:
+            categoria = CategoriaDPI.objects.get(pk=int(cat_id), is_active=True)
+        except (CategoriaDPI.DoesNotExist, ValueError):
+            errors.append("Categoria DPI non valida.")
+
+    if tipo_id:
+        try:
+            tipo = TipoDPI.objects.select_related("categoria").get(pk=int(tipo_id), is_active=True, categoria__is_active=True)
+        except (TipoDPI.DoesNotExist, ValueError):
+            errors.append("Tipo DPI non valido.")
+
+    if modello_id:
+        try:
+            modello = ModelloDPI.objects.select_related("tipo", "tipo__categoria").get(
+                pk=int(modello_id),
+                is_active=True,
+                tipo__is_active=True,
+                tipo__categoria__is_active=True,
+            )
+        except (ModelloDPI.DoesNotExist, ValueError):
+            errors.append("Modello DPI non valido.")
+
+    if taglia_id:
+        try:
+            taglia = TagliaDPI.objects.select_related("modello", "modello__tipo", "modello__tipo__categoria").get(
+                pk=int(taglia_id),
+                is_active=True,
+                modello__is_active=True,
+                modello__tipo__is_active=True,
+                modello__tipo__categoria__is_active=True,
+            )
+        except (TagliaDPI.DoesNotExist, ValueError):
+            errors.append("Taglia DPI non valida.")
+
+    if taglia:
+        if modello and taglia.modello_id != modello.pk:
+            errors.append("La taglia selezionata non appartiene al modello DPI indicato.")
+        else:
+            modello = taglia.modello
+
+    if modello:
+        if tipo and modello.tipo_id != tipo.pk:
+            errors.append("Il modello selezionato non appartiene al tipo DPI indicato.")
+        else:
+            tipo = modello.tipo
+
+    if tipo:
+        if categoria and tipo.categoria_id != categoria.pk:
+            errors.append("Il tipo selezionato non appartiene alla categoria DPI indicata.")
+        else:
+            categoria = tipo.categoria
+
+    if categoria is None and not errors:
+        errors.append("Seleziona una categoria DPI.")
+
+    return categoria, tipo, modello, taglia, errors
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -91,11 +237,11 @@ def dashboard(request):
 
     # KPI globali (visibili al gestore) o personali (utente)
     if is_gestore:
-        qs_all = RichiestaDPI.objects.select_related("categoria")
+        qs_all = RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
     else:
         qs_all = RichiestaDPI.objects.filter(
             created_by=request.user
-        ).select_related("categoria")
+        ).select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
 
     n_totale = qs_all.count()
     n_inviate = qs_all.filter(stato=StatoRichiesta.INVIATA).count()
@@ -148,21 +294,12 @@ def nuova_richiesta(request):
     if not categorie:
         messages.warning(request, "Nessuna categoria DPI disponibile. Contatta l'amministratore.")
         return redirect("dpi:dashboard")
+    catalog_options = _active_catalog_options()
 
     if request.method == "POST":
-        cat_id = request.POST.get("categoria_id", "").strip()
         quantita_raw = request.POST.get("quantita", "1").strip()
         motivazione = request.POST.get("motivazione", "").strip()
-
-        errors = []
-        categoria = None
-        if not cat_id:
-            errors.append("Seleziona un tipo di DPI.")
-        else:
-            try:
-                categoria = CategoriaDPI.objects.get(pk=int(cat_id), is_active=True)
-            except (CategoriaDPI.DoesNotExist, ValueError):
-                errors.append("Categoria DPI non valida.")
+        categoria, tipo_dpi, modello_dpi, taglia_dpi, errors = _resolve_richiesta_catalog_selection(request.POST)
 
         try:
             quantita = max(1, int(quantita_raw))
@@ -176,6 +313,9 @@ def nuova_richiesta(request):
             info = _richiedente_info(request)
             r = RichiestaDPI.objects.create(
                 categoria=categoria,
+                tipo_dpi=tipo_dpi,
+                modello_dpi=modello_dpi,
+                taglia_dpi=taglia_dpi,
                 quantita=quantita,
                 motivazione=motivazione,
                 stato=StatoRichiesta.INVIATA,
@@ -191,6 +331,7 @@ def nuova_richiesta(request):
 
     return render(request, "dpi/pages/nuova_richiesta.html", {
         "categorie": categorie,
+        **catalog_options,
     })
 
 
@@ -202,10 +343,13 @@ def nuova_richiesta(request):
 def richiesta_detail(request, pk: int):
     is_gestore = _is_gestore(request)
     if is_gestore:
-        richiesta = get_object_or_404(RichiestaDPI.objects.select_related("categoria", "created_by"), pk=pk)
+        richiesta = get_object_or_404(
+            RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
+            pk=pk,
+        )
     else:
         richiesta = get_object_or_404(
-            RichiestaDPI.objects.select_related("categoria", "created_by"),
+            RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
             pk=pk,
             created_by=request.user,
         )
@@ -244,7 +388,9 @@ def annulla_richiesta(request, pk: int):
 
 @login_required
 def storico(request):
-    qs = RichiestaDPI.objects.filter(created_by=request.user).select_related("categoria").order_by("-created_at")
+    qs = RichiestaDPI.objects.filter(created_by=request.user).select_related(
+        "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "consegna"
+    ).order_by("-created_at")
 
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_cat = request.GET.get("categoria", "").strip()
@@ -278,7 +424,7 @@ def gestione_list(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
-    qs = RichiestaDPI.objects.select_related("categoria").order_by("-created_at")
+    qs = RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi").order_by("-created_at")
 
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_cat = request.GET.get("categoria", "").strip()
@@ -320,17 +466,23 @@ def gestione_detail(request, pk: int):
         return redirect("dpi:dashboard")
 
     richiesta = get_object_or_404(
-        RichiestaDPI.objects.select_related("categoria", "created_by"),
+        RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
         pk=pk,
     )
     commenti = richiesta.commenti.order_by("created_at")
     consegna = getattr(richiesta, "consegna", None)
+    vita_utile_consegna = (
+        richiesta.modello_dpi.effective_vita_utile_giorni
+        if richiesta.modello_dpi
+        else richiesta.categoria.vita_utile_giorni
+    )
 
     return render(request, "dpi/pages/gestione_detail.html", {
         "richiesta": richiesta,
         "commenti": commenti,
         "consegna": consegna,
         "oggi": timezone.localdate(),
+        "vita_utile_consegna": vita_utile_consegna,
     })
 
 
@@ -416,7 +568,10 @@ def consegna_richiesta(request, pk: int):
     if not _is_gestore(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
-    richiesta = get_object_or_404(RichiestaDPI.objects.select_related("categoria"), pk=pk)
+    richiesta = get_object_or_404(
+        RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"),
+        pk=pk,
+    )
     if richiesta.stato not in (StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA):
         messages.error(request, "Stato non valido per la consegna.")
         return redirect("dpi:gestione_detail", pk=pk)
@@ -436,9 +591,13 @@ def consegna_richiesta(request, pk: int):
         messages.error(request, "Data di consegna non valida.")
         return redirect("dpi:gestione_detail", pk=pk)
 
-    # Calcola scadenza automatica da vita utile categoria
+    # Calcola scadenza automatica da vita utile modello, se presente, altrimenti categoria.
     scadenza = None
-    vita_utile = richiesta.categoria.vita_utile_giorni
+    vita_utile = (
+        richiesta.modello_dpi.effective_vita_utile_giorni
+        if richiesta.modello_dpi
+        else richiesta.categoria.vita_utile_giorni
+    )
     if vita_utile:
         scadenza = data_consegna + timedelta(days=vita_utile)
 
@@ -521,17 +680,7 @@ def impostazioni(request):
         messages.success(request, "Impostazioni salvate.")
         return redirect("dpi:impostazioni")
 
-    categorie = CategoriaDPI.objects.all().order_by("order_index", "nome")
-
-    return render(request, "dpi/pages/impostazioni.html", {
-        "impost": impost,
-        "categorie": categorie,
-        "responsabili_raw": serialize_contact_people(
-            impost.responsabili,
-            fallback_name=impost.responsabile_nome,
-            fallback_email=impost.responsabile_email,
-        ),
-    })
+    return render(request, "dpi/pages/impostazioni.html", _catalog_context(impost))
 
 
 @login_required
@@ -555,24 +704,20 @@ def categoria_edit(request, pk: int | None = None):
             "nome": nome,
             "descrizione": request.POST.get("descrizione", "").strip(),
             "icona_emoji": request.POST.get("icona_emoji", "🦺").strip() or "🦺",
-            "vita_utile_giorni": int(request.POST.get("vita_utile_giorni") or 0) or None,
+            "vita_utile_giorni": _parse_optional_positive_int(request.POST.get("vita_utile_giorni")),
             "unita_misura": request.POST.get("unita_misura", "pz").strip() or "pz",
-            "scorta_minima": int(request.POST.get("scorta_minima") or 0),
+            "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
             "is_active": bool(request.POST.get("is_active")),
-            "order_index": int(request.POST.get("order_index") or 0),
+            "order_index": _parse_optional_positive_int(request.POST.get("order_index")) or 0,
         }
         uploaded_image = request.FILES.get("immagine")
-        if uploaded_image is not None:
-            try:
-                validate_extension_and_mime(
-                    uploaded_image,
-                    allowed_extensions=DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS,
-                    allowed_mimes=DPI_CATEGORY_ALLOWED_IMAGE_MIMES,
-                    label=uploaded_image.name or "Immagine categoria",
-                )
-            except UploadMimeValidationError as exc:
-                messages.error(request, str(exc))
-                return redirect("dpi:impostazioni")
+        image_error = _validate_uploaded_dpi_image(
+            uploaded_image,
+            uploaded_image.name if uploaded_image else "Immagine categoria",
+        )
+        if image_error:
+            messages.error(request, image_error)
+            return redirect("dpi:impostazioni")
 
         if cat:
             for k, v in data.items():
@@ -593,16 +738,191 @@ def categoria_edit(request, pk: int | None = None):
         return redirect("dpi:impostazioni")
 
     impost = DPIImpostazioni.get_singleton()
-    return render(request, "dpi/pages/impostazioni.html", {
-        "impost": impost,
-        "categorie": CategoriaDPI.objects.all().order_by("order_index", "nome"),
-        "cat_edit": cat,
-        "responsabili_raw": serialize_contact_people(
-            impost.responsabili,
-            fallback_name=impost.responsabile_nome,
-            fallback_email=impost.responsabile_email,
-        ),
-    })
+    return render(request, "dpi/pages/impostazioni.html", _catalog_context(impost, cat_edit=cat))
+
+
+@login_required
+def tipo_edit(request, pk: int | None = None):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+
+    tipo = get_object_or_404(TipoDPI.objects.select_related("categoria"), pk=pk) if pk else None
+
+    if request.method == "POST":
+        categoria_id = request.POST.get("categoria_id", "").strip()
+        nome = request.POST.get("nome", "").strip()
+        if not categoria_id:
+            messages.error(request, "La categoria del tipo DPI e obbligatoria.")
+            return redirect("dpi:impostazioni")
+        if not nome:
+            messages.error(request, "Il nome del tipo DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        try:
+            categoria = CategoriaDPI.objects.get(pk=int(categoria_id))
+        except (CategoriaDPI.DoesNotExist, ValueError):
+            messages.error(request, "Categoria DPI non valida.")
+            return redirect("dpi:impostazioni")
+
+        duplicate = TipoDPI.objects.filter(categoria=categoria, nome=nome)
+        if tipo:
+            duplicate = duplicate.exclude(pk=tipo.pk)
+        if duplicate.exists():
+            messages.error(request, "Esiste gia un tipo DPI con questo nome nella categoria selezionata.")
+            return redirect("dpi:impostazioni")
+
+        data = {
+            "categoria": categoria,
+            "nome": nome,
+            "descrizione": request.POST.get("descrizione", "").strip(),
+            "ordine": _parse_optional_positive_int(request.POST.get("ordine")) or 0,
+            "is_active": bool(request.POST.get("is_active")),
+        }
+        if tipo:
+            for key, value in data.items():
+                setattr(tipo, key, value)
+            tipo.save()
+            log_action(request, "modifica", "dpi", f"Modificato tipo DPI: {tipo.nome}")
+            messages.success(request, f"Tipo '{tipo.nome}' aggiornato.")
+        else:
+            tipo = TipoDPI.objects.create(**data)
+            log_action(request, "crea", "dpi", f"Creato tipo DPI: {tipo.nome}")
+            messages.success(request, f"Tipo '{tipo.nome}' creato.")
+        return redirect("dpi:impostazioni")
+
+    impost = DPIImpostazioni.get_singleton()
+    return render(request, "dpi/pages/impostazioni.html", _catalog_context(impost, tipo_edit=tipo))
+
+
+@login_required
+def modello_edit(request, pk: int | None = None):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+
+    modello = get_object_or_404(ModelloDPI.objects.select_related("tipo", "tipo__categoria"), pk=pk) if pk else None
+
+    if request.method == "POST":
+        tipo_id = request.POST.get("tipo_id", "").strip()
+        codice = request.POST.get("codice", "").strip()
+        nome = request.POST.get("nome", "").strip()
+        if not tipo_id:
+            messages.error(request, "Il tipo del modello DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        if not codice:
+            messages.error(request, "Il codice del modello DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        if not nome:
+            messages.error(request, "Il nome del modello DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        try:
+            tipo = TipoDPI.objects.select_related("categoria").get(pk=int(tipo_id))
+        except (TipoDPI.DoesNotExist, ValueError):
+            messages.error(request, "Tipo DPI non valido.")
+            return redirect("dpi:impostazioni")
+
+        duplicate = ModelloDPI.objects.filter(codice=codice)
+        if modello:
+            duplicate = duplicate.exclude(pk=modello.pk)
+        if duplicate.exists():
+            messages.error(request, "Esiste gia un modello DPI con questo codice.")
+            return redirect("dpi:impostazioni")
+
+        uploaded_image = request.FILES.get("immagine")
+        image_error = _validate_uploaded_dpi_image(
+            uploaded_image,
+            uploaded_image.name if uploaded_image else "Immagine modello",
+        )
+        if image_error:
+            messages.error(request, image_error)
+            return redirect("dpi:impostazioni")
+
+        data = {
+            "tipo": tipo,
+            "codice": codice,
+            "nome": nome,
+            "produttore": request.POST.get("produttore", "").strip(),
+            "descrizione": request.POST.get("descrizione", "").strip(),
+            "vita_utile_giorni": _parse_optional_positive_int(request.POST.get("vita_utile_giorni")),
+            "is_active": bool(request.POST.get("is_active")),
+        }
+        try:
+            if modello:
+                for key, value in data.items():
+                    setattr(modello, key, value)
+                if uploaded_image is not None:
+                    modello.immagine = uploaded_image
+                modello.save()
+                log_action(request, "modifica", "dpi", f"Modificato modello DPI: {modello.codice}")
+                messages.success(request, f"Modello '{modello.codice}' aggiornato.")
+            else:
+                modello = ModelloDPI(**data)
+                if uploaded_image is not None:
+                    modello.immagine = uploaded_image
+                modello.save()
+                log_action(request, "crea", "dpi", f"Creato modello DPI: {modello.codice}")
+                messages.success(request, f"Modello '{modello.codice}' creato.")
+        except IntegrityError:
+            messages.error(request, "Esiste gia un modello DPI con questo codice.")
+        return redirect("dpi:impostazioni")
+
+    impost = DPIImpostazioni.get_singleton()
+    return render(request, "dpi/pages/impostazioni.html", _catalog_context(impost, modello_edit=modello))
+
+
+@login_required
+def taglia_edit(request, pk: int | None = None):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+
+    taglia = get_object_or_404(
+        TagliaDPI.objects.select_related("modello", "modello__tipo", "modello__tipo__categoria"),
+        pk=pk,
+    ) if pk else None
+
+    if request.method == "POST":
+        modello_id = request.POST.get("modello_id", "").strip()
+        valore = request.POST.get("valore", "").strip()
+        if not modello_id:
+            messages.error(request, "Il modello della taglia DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        if not valore:
+            messages.error(request, "Il valore della taglia DPI e obbligatorio.")
+            return redirect("dpi:impostazioni")
+        try:
+            modello = ModelloDPI.objects.select_related("tipo", "tipo__categoria").get(pk=int(modello_id))
+        except (ModelloDPI.DoesNotExist, ValueError):
+            messages.error(request, "Modello DPI non valido.")
+            return redirect("dpi:impostazioni")
+
+        duplicate = TagliaDPI.objects.filter(modello=modello, valore=valore)
+        if taglia:
+            duplicate = duplicate.exclude(pk=taglia.pk)
+        if duplicate.exists():
+            messages.error(request, "Esiste gia questa taglia per il modello selezionato.")
+            return redirect("dpi:impostazioni")
+
+        data = {
+            "modello": modello,
+            "valore": valore,
+            "ordine": _parse_optional_positive_int(request.POST.get("ordine")) or 0,
+            "is_active": bool(request.POST.get("is_active")),
+        }
+        if taglia:
+            for key, value in data.items():
+                setattr(taglia, key, value)
+            taglia.save()
+            log_action(request, "modifica", "dpi", f"Modificata taglia DPI: {taglia.valore}")
+            messages.success(request, f"Taglia '{taglia.valore}' aggiornata.")
+        else:
+            taglia = TagliaDPI.objects.create(**data)
+            log_action(request, "crea", "dpi", f"Creata taglia DPI: {taglia.valore}")
+            messages.success(request, f"Taglia '{taglia.valore}' creata.")
+        return redirect("dpi:impostazioni")
+
+    impost = DPIImpostazioni.get_singleton()
+    return render(request, "dpi/pages/impostazioni.html", _catalog_context(impost, taglia_edit=taglia))
 
 
 @login_required
