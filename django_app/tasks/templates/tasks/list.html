@@ -539,6 +539,7 @@
         {% if active_project.versione    %}<span class="pk-header-chip">Ver. {{ active_project.versione }}</span>{% endif %}
         {% if active_project.client_name %}<span class="pk-header-chip">{{ active_project.client_name }}</span>{% endif %}
         {% if active_project.vrf_quote_number %}<span class="pk-header-chip">Prev. {{ active_project.vrf_quote_number }}</span>{% endif %}
+        {% if active_project.safety_impact %}<span class="pk-header-chip">Impatto sicurezza</span>{% endif %}
         <span class="pk-header-chip">VRF: {{ active_project.get_vrf_status_display }}</span>
       </div>
       {% if active_project.vrf_description %}

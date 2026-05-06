@@ -53,6 +53,7 @@ from .models import (
     TaskUserAccessRule,
     VRFDocStatus,
 )
+from .forms import ProjectKickoffForm
 from .views import _task_date_absence_conflicts
 
 User = get_user_model()
@@ -2427,6 +2428,8 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertContains(response, "Nuovo kickoff")
         self.assertContains(response, 'name="part_number"')
         self.assertContains(response, 'name="client_name"')
+        self.assertContains(response, 'name="safety_impact"')
+        self.assertContains(response, "Impatto sulla sicurezza")
 
     def test_post_creates_project_and_redirects_to_vrf_compile(self):
         self.client.force_login(self.user)
@@ -2452,6 +2455,65 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertEqual(project.client_name, "Cliente Test")
         self.assertEqual(project.revisione, "A")
         self.assertEqual(project.created_by, self.user)
+        self.assertFalse(project.safety_impact)
+
+    def test_project_safety_impact_defaults_false(self):
+        project = Project.objects.create(name="Kickoff safety default", created_by=self.user)
+
+        self.assertFalse(project.safety_impact)
+
+    def test_post_creates_project_with_safety_impact_true_without_changing_status_or_priority(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_create"),
+            {
+                "client_name": "Cliente Safety",
+                "part_number": "PN-SAFE-001",
+                "revisione": "A",
+                "versione": "1.0",
+                "description": "Desc",
+                "control_method": "",
+                "safety_impact": "on",
+                "vrf_quote_number": "Q-SAFE",
+                "vrf_description": "",
+                "vrf_esp": "",
+            },
+        )
+
+        project = Project.objects.get(part_number="PN-SAFE-001")
+        self.assertRedirects(response, reverse("tasks:project_vrf_compile", args=[project.id]))
+        self.assertTrue(project.safety_impact)
+        self.assertEqual(project.vrf_status, VRFDocStatus.PENDING)
+
+    def test_project_kickoff_form_edit_post_can_clear_safety_impact(self):
+        project = Project.objects.create(
+            client_name="Cliente Edit",
+            part_number="PN-EDIT-SAFE",
+            revisione="A",
+            versione="1.0",
+            safety_impact=True,
+            created_by=self.user,
+        )
+
+        form = ProjectKickoffForm(
+            {
+                "client_name": "Cliente Edit",
+                "part_number": "PN-EDIT-SAFE-2",
+                "revisione": "A",
+                "versione": "1.0",
+                "description": project.description,
+                "control_method": project.control_method,
+                "vrf_quote_number": project.vrf_quote_number,
+                "vrf_description": project.vrf_description,
+                "vrf_esp": project.vrf_esp,
+            },
+            instance=project,
+            project_queryset=Project.objects.exclude(pk=project.pk),
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        updated = form.save()
+        self.assertFalse(updated.safety_impact)
 
     def test_revisione_without_part_number_rejected(self):
         self.client.force_login(self.user)
@@ -2488,6 +2550,33 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.assertEqual(Project.objects.filter(part_number="DUP-001").count(), 1)
         existing.refresh_from_db()
         self.assertEqual(existing.client_name, "Cliente Precedente")
+
+    def test_safety_impact_badge_visible_on_project_detail_and_list_only_when_true(self):
+        safety_project = Project.objects.create(
+            name="Kickoff safety",
+            part_number="PN-SAFE-LIST",
+            safety_impact=True,
+            created_by=self.user,
+        )
+        Project.objects.create(
+            name="Kickoff normal",
+            part_number="PN-NORMAL-LIST",
+            safety_impact=False,
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        list_response = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, "Impatto sicurezza", count=1)
+
+        detail_response = self.client.get(reverse("tasks:project_gantt", args=[safety_project.id]))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Impatto sicurezza")
+
+        normal_response = self.client.get(reverse("tasks:project_gantt", args=[Project.objects.get(part_number="PN-NORMAL-LIST").id]))
+        self.assertEqual(normal_response.status_code, 200)
+        self.assertNotContains(normal_response, "Impatto sicurezza")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

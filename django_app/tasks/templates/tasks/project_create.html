@@ -138,6 +138,13 @@
             <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
             {{ form.control_method }}
           </div>
+          <div class="field">
+            <label for="{{ form.safety_impact.id_for_label }}">Impatto sulla sicurezza</label>
+            <div style="display:flex;align-items:center;gap:8px;min-height:34px;">
+              {{ form.safety_impact }}
+              <span class="help">Evidenzia il kickoff nelle viste operative</span>
+            </div>
+          </div>
           <div class="field span-3">
             <label for="{{ form.description.id_for_label }}">Descrizione kickoff</label>
             {{ form.description }}

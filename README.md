@@ -313,7 +313,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
 - **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
 - **Import Excel** massivo per bulk creation
-- **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, mostrato con badge evidente nei form e liste
+- **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 </details>
 
 <details open>
@@ -430,7 +430,7 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 - **3 modelli**: SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni
 - **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
 - **Allegati multipli** (foto, documenti) con upload hardening
-- **Export Excel** con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, timestamp)
+- **Export Excel** testato con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, `created_at`, `updated_at`)
 - **Export PDF** per singola segnalazione con layout professionale
 - **Follow-up** con azioni correttive e verifica efficacia
 - **Firma** preposto e controfirma responsabile

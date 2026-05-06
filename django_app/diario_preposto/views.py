@@ -270,8 +270,8 @@ def export_excel(request):
             "Chi segnala",
             "Creato da",
             "Numero allegati",
-            "Creato il",
-            "Aggiornato il",
+            "created_at",
+            "updated_at",
         ]
 
         header_font = Font(bold=True, size=11, color="FFFFFF")

@@ -331,6 +331,7 @@
                 {% if task.project.programmer %}<span class="task-meta-chip">Programmatore: {{ task.project.programmer.get_full_name|default:task.project.programmer.username }}</span>{% endif %}
                 {% if task.project.control_method %}<span class="task-meta-chip">Controllo: {{ task.project.control_method }}</span>{% endif %}
                 {% if task.project.part_number %}<span class="task-meta-chip">P/N: {{ task.project.part_number }}</span>{% endif %}
+                {% if task.project.safety_impact %}<span class="task-meta-chip">Impatto sicurezza</span>{% endif %}
                 {% if task.project.similar_project %}<span class="task-meta-chip">Simile a: {{ task.project.similar_project.name }}</span>{% endif %}
                 {% if task.project.similar_work_note %}<span class="task-meta-chip">Lavorazione simile: {{ task.project.similar_work_note }}</span>{% endif %}
               </div>

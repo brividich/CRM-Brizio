@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import load_workbook
+
+from core.models import UserOnboarding
 
 from .models import SegnalazionePreposto
 
@@ -91,3 +95,71 @@ class SegnalazionePrepostoCodiceTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn("inline;", response["Content-Disposition"])
         self.assertTrue(response.content.startswith(b"%PDF"))
+
+
+class SegnalazionePrepostoExcelExportTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="tester_excel",
+            email="tester_excel@example.com",
+            password="pwd12345",
+        )
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        self.client.force_login(self.user)
+        self.matching = SegnalazionePreposto.objects.create(
+            titolo="Segnalazione filtro",
+            data_segnalazione=_aware_datetime(2026, 5, 4),
+            descrizione="Descrizione inclusa",
+            preposto="Mario Rossi",
+            chi_segnala="Luca Verdi",
+            creato_da=self.user,
+        )
+        SegnalazionePreposto.objects.create(
+            titolo="Segnalazione esclusa",
+            data_segnalazione=_aware_datetime(2026, 5, 5),
+            descrizione="Descrizione esclusa",
+            preposto="Anna Bianchi",
+            chi_segnala="Giulia Neri",
+            creato_da=self.user,
+        )
+
+    def test_export_excel_response_headers_workbook_columns_and_filters(self):
+        response = self.client.get(reverse("diario_preposto:export_excel"), {"preposto": "Mario"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        expected_filename = f"diario_preposto_{timezone.now().strftime('%Y%m%d')}.xlsx"
+        self.assertIn(expected_filename, response["Content-Disposition"])
+
+        workbook = load_workbook(BytesIO(response.content), read_only=True, data_only=True)
+        try:
+            sheet = workbook["Diario Preposto"]
+            headers = [cell.value for cell in sheet[1]]
+            self.assertEqual(
+                [str(header).lower() for header in headers],
+                [
+                    "codice identificativo",
+                    "data segnalazione",
+                    "titolo",
+                    "descrizione",
+                    "preposto",
+                    "chi segnala",
+                    "creato da",
+                    "numero allegati",
+                    "created_at",
+                    "updated_at",
+                ],
+            )
+            exported_titles = [row[2] for row in sheet.iter_rows(min_row=2, values_only=True)]
+            self.assertEqual(exported_titles, [self.matching.titolo])
+        finally:
+            workbook.close()
+
+    def test_export_excel_requires_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("diario_preposto:export_excel"))
+
+        self.assertEqual(response.status_code, 302)

@@ -747,6 +747,7 @@
   <span class="ts-hero-pill">{{ tasks|length }} attivita</span>
   {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
   {% if project.part_number %}<span class="ts-hero-pill">P/N {{ project.part_number }}</span>{% endif %}
+  {% if project.safety_impact %}<span class="ts-hero-pill" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.35);">Impatto sicurezza</span>{% endif %}
   <span class="ts-hero-pill" style="{% if can_edit_schedule %}background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.35);{% endif %}">
     {% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}
   </span>
@@ -836,7 +837,7 @@
   {% endif %}
 
   {# ── Anagrafica kickoff ── #}
-  {% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
+  {% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.safety_impact or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
@@ -859,6 +860,7 @@
           {% if project.versione %}<span class="task-meta-chip" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;"><strong>Ver</strong> {{ project.versione }}</span>{% endif %}
           {% if project.vrf_quote_number %}<span class="task-meta-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
           {% if project.vrf_description %}<span class="task-meta-chip">{{ project.vrf_description }}</span>{% endif %}
+          {% if project.safety_impact %}<span class="task-meta-chip" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;">Impatto sicurezza</span>{% endif %}
           {% if project.project_manager %}<span class="task-meta-chip">PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
           {% if project.capo_commessa %}<span class="task-meta-chip">Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
           {% if project.programmer %}<span class="task-meta-chip">Prog.: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}

@@ -340,6 +340,9 @@
                 {% if project.versione %}
                   <span class="pf-chip ver"><span class="lbl">Ver</span>{{ project.versione }}</span>
                 {% endif %}
+                {% if project.safety_impact %}
+                  <span class="pf-chip" style="background:#fef2f2;border-color:#fecaca;color:#991b1b;">Impatto sicurezza</span>
+                {% endif %}
               </div>
 
               <!-- Avanzamento -->
