@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -310,6 +310,118 @@ GO
         self.assertEqual([path.name for path in files], ["trg_assenze_automation_after_update.sql"])
 
 
+@override_settings(AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED=True)
+class TriggerGeneratorAuditTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="trigger.audit",
+            email="trigger.audit@example.com",
+            password="pass12345",
+        )
+        UserOnboarding.objects.update_or_create(
+            user=self.admin,
+            defaults={"completed": True, "skipped": False, "completed_at": timezone.now()},
+        )
+
+    def _source(self):
+        return {
+            "code": "audit_source",
+            "label": "Audit Source",
+            "table_name": "audit_table",
+            "pk_field": "id",
+            "supported_operations": ["insert"],
+            "fields": [{"name": "id", "db_column": "id", "label": "ID"}],
+        }
+
+    def test_trigger_generator_preview_does_not_create_apply_audit(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin)
+        with (
+            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch("automazioni.views._apply_trigger_sql") as mocked_apply,
+        ):
+            response = self.client.post(
+                reverse("automazioni:automazioni_trigger_generator"),
+                {
+                    "action": "generate",
+                    "source_code": "audit_source",
+                    "op_insert": "on",
+                    "fields": ["id"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_apply.assert_not_called()
+        self.assertFalse(AuditLog.objects.filter(azione="apply_sql_trigger", modulo="automazioni").exists())
+
+    def test_trigger_generator_apply_writes_sanitized_operational_audit(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin)
+        with (
+            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch(
+                "automazioni.views._apply_trigger_sql",
+                return_value={"ok": True, "trigger_name": "trg_audit", "target_table": "dbo.audit_table"},
+            ) as mocked_apply,
+        ):
+            response = self.client.post(
+                reverse("automazioni:automazioni_trigger_generator"),
+                {
+                    "action": "apply",
+                    "source_code": "audit_source",
+                    "op_insert": "on",
+                    "fields": ["id"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_apply.assert_called_once()
+        entry = AuditLog.objects.filter(azione="apply_sql_trigger", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        detail = entry.dettaglio
+        self.assertEqual(detail["actor"], "trigger.audit@example.com")
+        self.assertEqual(detail["mode"], "apply")
+        self.assertTrue(detail["ok"])
+        self.assertEqual(detail["trigger_name"], "trg_audit")
+        self.assertEqual(detail["target_table"], "dbo.audit_table")
+        serialized = json.dumps(detail)
+        self.assertNotIn("CREATE TRIGGER", serialized)
+        self.assertNotIn("connection", serialized.lower())
+
+    def test_trigger_generator_apply_failure_writes_error_without_sql(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin)
+        with (
+            patch("automazioni.views._get_trigger_sources", return_value=[self._source()]),
+            patch("automazioni.views._generate_trigger_sql", return_value={"insert": "CREATE TRIGGER dbo.trg_audit ON dbo.audit_table AFTER INSERT AS SELECT 1"}),
+            patch(
+                "automazioni.views._apply_trigger_sql",
+                return_value={"ok": False, "message": "permesso negato"},
+            ),
+        ):
+            response = self.client.post(
+                reverse("automazioni:automazioni_trigger_generator"),
+                {
+                    "action": "apply",
+                    "source_code": "audit_source",
+                    "op_insert": "on",
+                    "fields": ["id"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        entry = AuditLog.objects.filter(azione="apply_sql_trigger", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertFalse(entry.dettaglio["ok"])
+        self.assertEqual(entry.dettaglio["error"], "permesso negato")
+        self.assertNotIn("CREATE TRIGGER", json.dumps(entry.dettaglio))
+
+
 class SourceRegistryFieldFilterTests(SimpleTestCase):
     def test_trigger_condition_template_and_action_fields_are_filtered(self):
         source_fields = get_source_fields("assenze")
@@ -430,7 +542,7 @@ class AutomazioniAdminPageTests(TestCase):
             "watched_field": "moderation_status",
             "is_draft": "on",
             "stop_on_first_failure": "on",
-            "conditions-TOTAL_FORMS": "2",
+            "conditions-TOTAL_FORMS": "1",
             "conditions-INITIAL_FORMS": "0",
             "conditions-MIN_NUM_FORMS": "0",
             "conditions-MAX_NUM_FORMS": "1000",
@@ -441,14 +553,7 @@ class AutomazioniAdminPageTests(TestCase):
             "conditions-0-value_type": "int",
             "conditions-0-compare_with_old": "",
             "conditions-0-is_enabled": "on",
-            "conditions-1-order": "",
-            "conditions-1-field_name": "",
-            "conditions-1-operator": "",
-            "conditions-1-expected_value": "",
-            "conditions-1-value_type": "",
-            "conditions-1-compare_with_old": "",
-            "conditions-1-is_enabled": "",
-            "actions-TOTAL_FORMS": "2",
+            "actions-TOTAL_FORMS": "1",
             "actions-INITIAL_FORMS": "0",
             "actions-MIN_NUM_FORMS": "0",
             "actions-MAX_NUM_FORMS": "1000",
@@ -457,10 +562,6 @@ class AutomazioniAdminPageTests(TestCase):
             "actions-0-is_enabled": "on",
             "actions-0-description": "Scrive un log operativo",
             "actions-0-write_log_message_template": "Assenza approvata #{id}",
-            "actions-1-order": "",
-            "actions-1-action_type": "",
-            "actions-1-is_enabled": "",
-            "actions-1-description": "",
         }
         data.update(overrides)
         return data
@@ -739,22 +840,21 @@ class AutomazioniAdminPageTests(TestCase):
             ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
         )
 
-    @patch("automazioni.views.connection.cursor")
+    @patch("automazioni.views._fetch_source_field_distinct_values")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_api_source_field_values_returns_known_and_distinct_values(
         self,
         mock_get_legacy_user,
         _mock_is_admin,
-        mock_connection_cursor,
+        mock_fetch_distinct_values,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
-        cursor = MagicMock()
-        cursor.fetchall.return_value = [("Ferie",), ("Malattia",), ("Permesso",)]
-        cursor_context = MagicMock()
-        cursor_context.__enter__.return_value = cursor
-        cursor_context.__exit__.return_value = False
-        mock_connection_cursor.return_value = cursor_context
+        mock_fetch_distinct_values.return_value = {
+            "queryable": True,
+            "values": ["Ferie", "Malattia", "Permesso"],
+            "message": "",
+        }
 
         response = self.client.get(
             reverse(
@@ -2874,7 +2974,7 @@ class AutomationPackageImportTests(TestCase):
         self.assertEqual(payload["created_by"], 7)
         sql = cursor.execute.call_args.args[0]
         self.assertIn("created_by_user_id", sql)
-        self.assertIn("AS [created_by]", sql)
+        self.assertIn(f"AS {connection.ops.quote_name('created_by')}", sql)
 
 
 class AutomationRuleModelTests(TestCase):
@@ -6345,7 +6445,7 @@ class GraphMailboxValidateSenderTests(TestCase):
         approval = self._make_approval(approver_emails=["responsabile@example.com"])
         error = _validate_sender(str(approval.token), "estraneo@example.com")
         self.assertIsNotNone(error)
-        self.assertIn("non nella lista", error)
+        self.assertIn("lista degli approvatori", error)
 
     def test_validate_sender_rejects_if_approver_list_empty(self):
         """Se approver_emails è vuoto, qualsiasi mittente è accettato."""
@@ -6369,13 +6469,13 @@ class GraphMailboxValidateSenderTests(TestCase):
         from .mailbox_graph import _validate_sender
         error = _validate_sender("non-un-uuid", "chiunque@example.com")
         self.assertIsNotNone(error)
-        self.assertIn("UUID non valido", error)
+        self.assertIn("Token non valido", error)
 
     def test_validate_sender_token_not_found(self):
         from .mailbox_graph import _validate_sender
         error = _validate_sender("00000000-0000-0000-0000-000000000000", "chiunque@example.com")
         self.assertIsNotNone(error)
-        self.assertIn("non trovato", error)
+        self.assertIn("approvazione non trovata", error)
 
     def test_validate_sender_fails_closed_on_unexpected_exception(self):
         from .mailbox_graph import _validate_sender
@@ -6384,7 +6484,7 @@ class GraphMailboxValidateSenderTests(TestCase):
             error = _validate_sender("00000000-0000-0000-0000-000000000001", "chiunque@example.com")
 
         self.assertIsNotNone(error)
-        self.assertIn("Validazione mittente non disponibile", error)
+        self.assertIn("errore tecnico", error)
 
 
 class GraphMailboxPollIntegrationTests(TestCase):
@@ -6930,9 +7030,20 @@ class ApprovalProxyEndpointTests(TestCase):
 
     # ── Happy path: attore autorizzato ───────────────────────────────────────
 
-    def test_approve_authorized_actor_succeeds(self):
+    def test_approve_authorized_actor_get_requires_confirmation(self):
         approval = self._make_approval()
         response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Conferma Approvazione")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")
+
+    def test_approve_authorized_actor_post_succeeds(self):
+        approval = self._make_approval()
+        response = self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
         )
@@ -6941,9 +7052,27 @@ class ApprovalProxyEndpointTests(TestCase):
         approval.refresh_from_db()
         self.assertEqual(approval.status, "approved")
 
-    def test_reject_authorized_actor_succeeds(self):
+    def test_second_post_does_not_overwrite_processed_decision(self):
         approval = self._make_approval()
-        response = self.client.get(
+        first = self.client.post(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        second = self.client.post(
+            f"/approval-actions/reject/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertContains(second, "Richiesta gi")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "approved")
+        self.assertEqual(approval.decided_by_email, self.ACTOR)
+
+    def test_reject_authorized_actor_post_succeeds(self):
+        approval = self._make_approval()
+        response = self.client.post(
             f"/approval-actions/reject/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
         )
@@ -6960,13 +7089,13 @@ class ApprovalProxyEndpointTests(TestCase):
         )
         approval = self._make_approval()
         self.client.force_login(user)
-        self.client.get(f"/approval-actions/approve/{approval.token}/")
+        self.client.post(f"/approval-actions/approve/{approval.token}/")
         approval.refresh_from_db()
         self.assertEqual(approval.decided_by_email, self.ACTOR)
 
     def test_identity_from_entra_principal_header(self):
         approval = self._make_approval()
-        self.client.get(
+        self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
         )
@@ -6975,7 +7104,7 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_identity_from_forwarded_email_header(self):
         approval = self._make_approval()
-        self.client.get(
+        self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_FORWARDED_EMAIL=self.ACTOR,
         )
@@ -6988,7 +7117,7 @@ class ApprovalProxyEndpointTests(TestCase):
         )
         approval = self._make_approval()
         self.client.force_login(user)
-        self.client.get(
+        self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ignored@corp.local",
         )
@@ -7027,6 +7156,17 @@ class ApprovalProxyEndpointTests(TestCase):
         self.assertContains(response, "Richiesta scaduta")
         self.assertIn(b'data-error-code="expired"', response.content)
 
+    def test_expired_post_is_blocked(self):
+        approval = self._make_approval(expired=True)
+        response = self.client.post(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Richiesta scaduta")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")
+
     # ── Blocchi di sicurezza: identità / autorizzazione ──────────────────────
 
     def test_empty_identity_blocked_with_no_identity_page(self):
@@ -7052,6 +7192,26 @@ class ApprovalProxyEndpointTests(TestCase):
         approval.refresh_from_db()
         self.assertEqual(approval.status, "pending")  # immutato
 
+    def test_actor_removed_before_post_is_blocked(self):
+        approval = self._make_approval()
+        get_response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(get_response.status_code, 200)
+        approval.approver_emails = ["other@example.com"]
+        approval.save(update_fields=["approver_emails"])
+
+        post_response = self.client.post(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+
+        self.assertEqual(post_response.status_code, 200)
+        self.assertContains(post_response, "Utente non autorizzato")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")
+
     def test_no_approvers_configured_blocks_any_actor(self):
         """approver_emails vuota → NO_APPROVERS (fail-closed), anche con attore valido."""
         approval = self._make_approval(approver_emails=[])
@@ -7067,10 +7227,13 @@ class ApprovalProxyEndpointTests(TestCase):
 
     # ── POST method not allowed ──────────────────────────────────────────────
 
-    def test_post_method_not_allowed(self):
+    def test_post_without_identity_is_denied(self):
         approval = self._make_approval()
         response = self.client.post(f"/approval-actions/approve/{approval.token}/")
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Identit")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")
 
     # ── Audit log ────────────────────────────────────────────────────────────
 
@@ -7081,7 +7244,7 @@ class ApprovalProxyEndpointTests(TestCase):
         )
         approval = self._make_approval()
         self.client.force_login(user)
-        self.client.get(f"/approval-actions/approve/{approval.token}/")
+        self.client.post(f"/approval-actions/approve/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
         self.assertIsNotNone(entry)
@@ -7096,7 +7259,7 @@ class ApprovalProxyEndpointTests(TestCase):
         )
         approval = self._make_approval()
         self.client.force_login(user)
-        self.client.get(f"/approval-actions/reject/{approval.token}/")
+        self.client.post(f"/approval-actions/reject/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
         self.assertIsNotNone(entry)
@@ -7111,7 +7274,7 @@ class ApprovalProxyEndpointTests(TestCase):
         )
         fake_token = "ffffffff-ffff-ffff-ffff-ffffffffffff"
         self.client.force_login(user)
-        self.client.get(f"/approval-actions/approve/{fake_token}/")
+        self.client.post(f"/approval-actions/approve/{fake_token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
         self.assertIsNotNone(entry)
@@ -7126,7 +7289,7 @@ class ApprovalProxyEndpointTests(TestCase):
             username="audit.unauth", email="intruder@example.com", password="test"
         )
         self.client.force_login(user)
-        self.client.get(f"/approval-actions/approve/{approval.token}/")
+        self.client.post(f"/approval-actions/approve/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
         self.assertIsNotNone(entry)
@@ -7139,7 +7302,7 @@ class ApprovalProxyEndpointTests(TestCase):
         """
         from core.models import AuditLog
         approval = self._make_approval(approver_emails=["entra.ok@corp.local"])
-        self.client.get(
+        self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ok@corp.local",
         )

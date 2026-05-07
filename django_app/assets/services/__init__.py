@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from django.urls import reverse
+from django.utils import timezone
 
 
 def ticket_to_maintenance_register_row(ticket: Any) -> dict[str, Any] | None:
@@ -33,12 +34,12 @@ def ticket_to_maintenance_register_row(ticket: Any) -> dict[str, Any] | None:
     - notes
     - url dettaglio ticket
     """
-    from tickets.models import Ticket
+    from tickets.models import Ticket, TipoTicket, StatoTicket
 
     if not isinstance(ticket, Ticket):
         return None
 
-    if ticket.tipo != Ticket.TipoTicket.MAN:
+    if ticket.tipo != TipoTicket.MAN:
         return None
 
     if not ticket.asset_id:
@@ -52,13 +53,13 @@ def ticket_to_maintenance_register_row(ticket: Any) -> dict[str, Any] | None:
 
     # Determina lo stato
     status = ticket.stato
-    if ticket.stato == Ticket.StatoTicket.CHIUSO:
+    if ticket.stato == StatoTicket.CHIUSO:
         status = "Completato"
-    elif ticket.stato == Ticket.StatoTicket.ANNULLATO:
+    elif ticket.stato == StatoTicket.ANNULLATO:
         status = "Annullato"
-    elif ticket.stato == Ticket.StatoTicket.IN_CARICO:
+    elif ticket.stato == StatoTicket.IN_CARICO:
         status = "In corso"
-    elif ticket.stato == Ticket.StatoTicket.IN_ATTESA:
+    elif ticket.stato == StatoTicket.IN_ATTESA:
         status = "In attesa"
     else:
         status = ticket.label_stato
@@ -67,7 +68,7 @@ def ticket_to_maintenance_register_row(ticket: Any) -> dict[str, Any] | None:
     technician = ticket.assegnato_a or ticket.risolto_da_nome or "—"
 
     # URL dettaglio ticket
-    url = reverse("tickets:detail", kwargs={"ticket_id": ticket.id})
+    url = reverse("tickets:detail", kwargs={"pk": ticket.id})
 
     return {
         "source": "TICKET",
@@ -103,39 +104,40 @@ def collect_asset_maintenance_register(asset: Any, *, include_tickets: bool = Tr
     Ordinamento per data decrescente.
     """
     from assets.models import WorkOrder
-    from tickets.models import Ticket
+    from tickets.models import Ticket, TipoTicket
 
     rows = []
 
     # Aggiungi WorkOrder esistenti
     workorders = WorkOrder.objects.filter(asset=asset).select_related(
-        "asset", "scheduled_maintenance", "technician"
-    ).order_by("-executed_at", "-created_at")
+        "asset", "periodic_verification", "executed_by"
+    ).order_by("-closed_at", "-opened_at")
 
     for wo in workorders:
         rows.append({
             "source": "WORKORDER",
-            "maintenance_type": wo.maintenance_type or "Manuale",
+            "maintenance_type": wo.get_kind_display() or "Manuale",
             "asset": wo.asset,
             "title": wo.title or f"WorkOrder #{wo.id}",
             "description": wo.description or "",
             "status": wo.status or "—",
-            "date": wo.executed_at or wo.created_at,
-            "executed_at": wo.executed_at,
-            "created_at": wo.created_at,
-            "technician": wo.technician.name if wo.technician else "—",
-            "assigned_to": wo.technician.name if wo.technician else "—",
+            "date": wo.closed_at or wo.opened_at,
+            "executed_at": wo.closed_at,
+            "created_at": wo.opened_at,
+            "technician": wo.executed_by.get_full_name() if wo.executed_by else "—",
+            "assigned_to": wo.executed_by.get_full_name() if wo.executed_by else "—",
             "workorder": wo,
             "origin_label": f"WorkOrder #{wo.id}",
             "notes": wo.notes or "",
-            "url": reverse("assets:workorder_detail", kwargs={"workorder_id": wo.id}),
+            "url": reverse("assets:wo_view", kwargs={"id": wo.id}),
+            "get_kind_display": wo.get_kind_display,
         })
 
     # Aggiungi ticket MAN inclusi nel registro
     if include_tickets:
         tickets = Ticket.objects.filter(
             asset=asset,
-            tipo=Ticket.TipoTicket.MAN,
+            tipo=TipoTicket.MAN,
             include_in_maintenance_register=True
         ).order_by("-closed_at", "-created_at")
 
@@ -148,3 +150,72 @@ def collect_asset_maintenance_register(asset: Any, *, include_tickets: bool = Tr
     rows.sort(key=lambda x: x["date"] or datetime.min, reverse=True)
 
     return rows
+
+
+def generate_workorders_for_rule(rule: Any, user: Any = None) -> list[Any]:
+    """
+    Genera WorkOrder per tutti gli asset coinvolti da una regola di manutenzione.
+
+    Crea un WorkOrder per ogni asset della categoria della regola.
+    Ogni WorkOrder ha:
+    - asset specifico
+    - origin=PERIODIC
+    - reference_batch comune non vuoto
+    - maintenance_rule collegato
+    - kind=PREVENTIVE
+    - status=OPEN
+
+    Evita duplicati nello stesso batch controllando reference_batch.
+
+    Args:
+        rule: MaintenanceRule instance
+        user: User instance (opzionale, per executed_by)
+
+    Returns:
+        list[WorkOrder]: WorkOrder creati
+    """
+    from assets.models import Asset, WorkOrder
+
+    if not rule or not rule.asset_category_id:
+        return []
+
+    # Genera reference_batch unico
+    timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    rule_id = getattr(rule, "id", "unknown")
+    reference_batch = f"BATCH_{rule_id}_{timestamp}"
+
+    # Trova tutti gli asset della categoria
+    assets = Asset.objects.filter(
+        asset_category_id=rule.asset_category_id,
+        status=Asset.STATUS_IN_USE
+    ).select_related("asset_category")
+
+    created_workorders = []
+    for asset in assets:
+        # Verifica se esiste già un WorkOrder per questo asset con lo stesso reference_batch
+        existing = WorkOrder.objects.filter(
+            asset=asset,
+            maintenance_rule=rule,
+            reference_batch=reference_batch
+        ).exists()
+
+        if existing:
+            continue
+
+        # Crea WorkOrder
+        wo = WorkOrder.objects.create(
+            asset=asset,
+            maintenance_rule=rule,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            reference_batch=reference_batch,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title=f"{rule.intervention_template.label} - {asset.asset_tag}",
+            description=rule.intervention_template.description or "",
+            notes=f"Generato da regola {rule.id} - batch {reference_batch}",
+            executed_by=user,
+            opened_at=timezone.now(),
+        )
+        created_workorders.append(wo)
+
+    return created_workorders

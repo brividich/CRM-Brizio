@@ -1,0 +1,65 @@
+name: Security Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  django-security-gate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: django_app/requirements.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r django_app/requirements.txt
+          pip install pip-audit
+
+      - name: Django check
+        shell: pwsh
+        run: python django_app/manage.py check --settings=config.settings.test
+
+      - name: Migration drift check
+        shell: pwsh
+        run: python django_app/manage.py makemigrations --check --dry-run --settings=config.settings.test
+
+      - name: Deployment validation
+        shell: pwsh
+        # `check --deploy` is intentionally not used here: this CI job runs
+        # with config.settings.test, without production TLS/cookie/proxy values.
+        # validate_deployment is the blocking deploy-compatibility gate.
+        run: python django_app/manage.py validate_deployment --format json --settings=config.settings.test
+
+      - name: Test approval and asset security sentinels
+        shell: pwsh
+        run: |
+          python django_app/manage.py test automazioni.tests.ApprovalProxyEndpointTests --settings=config.settings.test
+          python django_app/manage.py test automazioni.tests.TriggerGeneratorAuditTests --settings=config.settings.test
+          python django_app/manage.py test assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_completion_attachment_uses_private_download_route assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_attachment_download_requires_assets_admin assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_attachment_malicious_name_cannot_escape_private_root assets.tests.AssetAdminDeadlineAttachmentMigrationCommandTests --settings=config.settings.test
+
+      - name: Dependency audit
+        shell: pwsh
+        run: pip-audit -r django_app/requirements.txt
+
+      - name: Release guard
+        shell: pwsh
+        run: |
+          if (Test-Path ./tools/release_guard.ps1) {
+            ./tools/release_guard.ps1
+          } else {
+            Write-Host "release_guard.ps1 non presente: step saltato."
+          }

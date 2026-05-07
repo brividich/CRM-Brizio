@@ -4,6 +4,8 @@ import socket
 import tempfile
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 from config.app_version import (
     DEFAULT_APP_VERSION,
     MODULE_ENV_KEYS_BY_CODE,
@@ -156,6 +158,7 @@ SQL_LOG_LEVEL = env("SQL_LOG_LEVEL", "DEBUG").strip().upper() or "DEBUG"
 SQL_LOG_FORCE_DEBUG_CURSOR = env_bool("SQL_LOG_FORCE_DEBUG_CURSOR", SQL_LOG_ENABLED)
 SQL_LOG_MAX_BYTES = int(env("SQL_LOG_MAX_BYTES", str(10 * 1024 * 1024)) or str(10 * 1024 * 1024))
 SQL_LOG_BACKUP_COUNT = int(env("SQL_LOG_BACKUP_COUNT", "10") or "10")
+AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED = env_bool("AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED", False)
 MONITORING_ENABLED = env_bool("MONITORING_ENABLED", True)
 MONITORING_CAPTURE_403 = env_bool("MONITORING_CAPTURE_403", True)
 MONITORING_CAPTURE_404 = env_bool("MONITORING_CAPTURE_404", False)
@@ -336,6 +339,8 @@ BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
 TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
 # Allegati ticket: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
+ASSETS_PRIVATE_ROOT = Path(env("ASSETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -396,7 +401,14 @@ AXES_LOCKOUT_TEMPLATE = "core/pages/lockout.html"
 
 
 _default_log_dir = Path(tempfile.gettempdir()) / "briziohub_logs"
-LOG_DIR = Path(os.environ.get("DJANGO_LOG_DIR", str(_default_log_dir)))
+_configured_log_dir = os.environ.get("DJANGO_LOG_DIR")
+_env_name = env("DJANGO_ENV", "").strip().lower()
+_settings_module = env("DJANGO_SETTINGS_MODULE", "").strip().lower()
+if not _configured_log_dir and (_env_name in {"prod", "production"} or _settings_module.endswith(".prod")):
+    raise ImproperlyConfigured(
+        "DJANGO_LOG_DIR deve essere configurato in produzione: il fallback su temp di sistema non e' consentito."
+    )
+LOG_DIR = Path(_configured_log_dir or str(_default_log_dir))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 LOGGING = {

@@ -11,6 +11,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.management import call_command
@@ -42,6 +43,8 @@ from .models import (
     Asset,
     AssetActionButton,
     AssetAdministrativeDeadline,
+    AssetAdministrativeDeadlineCompletion,
+    AssetAdministrativeDeadlineCompletionAttachment,
     AssetCategory,
     AssetCategoryField,
     AssetComponent,
@@ -4158,22 +4161,23 @@ class AssetMaintenanceStepThreeTests(TestCase):
             b"%PDF-1.4 fake",
             content_type="application/pdf",
         )
-        response = self.client.post(
-            reverse("assets:periodic_verifications"),
-            {
-                "action": "record_periodic_verification_execution",
-                "verification_id": str(plan.id),
-                "execution_asset_ids": [str(self.asset.id), str(second_asset.id)],
-                "execution_date": execution_date.isoformat(),
-                "execution_duration_minutes": "60",
-                "execution_cost_eur": "200.00",
-                "execution_notes": "Taratura completata su entrambe le macchine",
-                "execution_files": [attachment_file],
-                "filter_asset": str(self.asset.id),
-                "filter_scope": "production",
-                "filter_window": "12",
-            },
-        )
+        with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+            response = self.client.post(
+                reverse("assets:periodic_verifications"),
+                {
+                    "action": "record_periodic_verification_execution",
+                    "verification_id": str(plan.id),
+                    "execution_asset_ids": [str(self.asset.id), str(second_asset.id)],
+                    "execution_date": execution_date.isoformat(),
+                    "execution_duration_minutes": "60",
+                    "execution_cost_eur": "200.00",
+                    "execution_notes": "Taratura completata su entrambe le macchine",
+                    "execution_files": [attachment_file],
+                    "filter_asset": str(self.asset.id),
+                    "filter_scope": "production",
+                    "filter_window": "12",
+                },
+            )
         self.assertEqual(response.status_code, 302, response.content[:400])
 
         plan.refresh_from_db()
@@ -4281,6 +4285,260 @@ class AssetMaintenanceStepThreeTests(TestCase):
         deadline.refresh_from_db()
         self.assertFalse(deadline.is_active)
         self.assertEqual(deadline.completions.count(), 1)
+
+    def test_admin_deadline_completion_attachment_uses_private_download_route(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale ISPESL",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        upload = SimpleUploadedFile("verbale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        self.client.force_login(self.admin)
+
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+            patch("assets.views.validate_extension_and_mime", return_value="application/pdf"),
+        ):
+            response = self.client.post(
+                reverse("assets:asset_administrative_deadline_list"),
+                {
+                    "action": "complete_administrative_deadline",
+                    "deadline_id": str(deadline.id),
+                    "execution_date": "2026-04-15",
+                    "execution_notes": "Verbale allegato",
+                    "completion_files": upload,
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            attachment = AssetAdministrativeDeadlineCompletionAttachment.objects.get()
+            self.assertTrue((Path(private_root) / attachment.file.name).exists())
+            self.assertFalse((Path(media_root) / attachment.file.name).exists())
+
+            page = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+            self.assertContains(
+                page,
+                reverse("assets:admin_deadline_attachment_download", args=[attachment.id]),
+            )
+
+            download = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
+            self.assertEqual(download.status_code, 200)
+            self.assertEqual(download["Content-Type"], "application/pdf")
+            self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4 test")
+            self.assertNotContains(page, "/media/assets_admin_deadlines/")
+            direct_media = self.client.get(settings.MEDIA_URL + attachment.file.name)
+            self.assertIn(direct_media.status_code, {404, 302})
+
+    def test_admin_deadline_attachment_download_requires_assets_admin(self):
+        user = User.objects.create_user(username="asset-basic", password="pass12345")
+        UserOnboarding.objects.update_or_create(
+            user=user,
+            defaults={"completed": True, "skipped": False, "completed_at": timezone.now()},
+        )
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale riservato",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=date(2026, 4, 15),
+        )
+        with _workspace_temporary_directory("assets-private-") as private_root, override_settings(ASSETS_PRIVATE_ROOT=private_root):
+            attachment = AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                completion=completion,
+                file=SimpleUploadedFile("verbale.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="verbale.pdf",
+            )
+            self.client.force_login(user)
+            response = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
+            self.assertEqual(response.status_code, 403)
+
+    def test_admin_deadline_attachment_malicious_name_cannot_escape_private_root(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale nome anomalo",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=date(2026, 4, 15),
+        )
+        self.client.force_login(self.admin)
+        with _workspace_temporary_directory("assets-private-") as private_root, override_settings(ASSETS_PRIVATE_ROOT=private_root):
+            attachment = AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                completion=completion,
+                file=SimpleUploadedFile("safe.pdf", b"safe", content_type="application/pdf"),
+                original_name="safe.pdf",
+            )
+            attachment.file.name = "../escape.pdf"
+            attachment.save(update_fields=["file"])
+            outside = Path(private_root).parent / "escape.pdf"
+            outside.write_bytes(b"outside")
+
+            response = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
+
+            self.assertEqual(response.status_code, 404)
+            self.assertTrue(outside.exists())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetAdminDeadlineAttachmentMigrationCommandTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="asset-migrate-admin",
+            email="asset-migrate-admin@test.local",
+            password="pass12345",
+        )
+        self.asset = Asset.objects.create(
+            name="Centro migrazione",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_tag="MIG-001",
+            source_key="asset-migrate-main",
+        )
+        self.deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale migrazione",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        self.completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=self.deadline,
+            completed_on=date(2026, 4, 15),
+            completed_by=self.admin,
+        )
+
+    def _attachment(self, name: str) -> AssetAdministrativeDeadlineCompletionAttachment:
+        return AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+            completion=self.completion,
+            file=name,
+            original_name=Path(name).name,
+            uploaded_by=self.admin,
+        )
+
+    def _run_command(self, *args: str) -> str:
+        stdout = io.StringIO()
+        call_command("migrate_admin_deadline_attachments_private", *args, stdout=stdout)
+        return stdout.getvalue()
+
+    def test_migration_command_dry_run_does_not_copy_or_delete(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment("assets_admin_deadlines/MIG-001/1/legacy.pdf")
+            source = Path(media_root) / attachment.file.name
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"legacy")
+
+            output = self._run_command()
+
+            attachment.refresh_from_db()
+            self.assertIn("DRY-RUN", output)
+            self.assertTrue(source.exists())
+            self.assertFalse((Path(private_root) / attachment.file.name).exists())
+            self.assertEqual(attachment.file.name, "assets_admin_deadlines/MIG-001/1/legacy.pdf")
+
+    def test_migration_command_apply_copies_to_private_root_and_normalizes_reference(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment(r"assets_admin_deadlines\MIG-001\1\legacy.pdf")
+            source = Path(media_root) / "assets_admin_deadlines" / "MIG-001" / "1" / "legacy.pdf"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"legacy")
+
+            output = self._run_command("--apply")
+
+            attachment.refresh_from_db()
+            self.assertIn("APPLY", output)
+            self.assertEqual(attachment.file.name, "assets_admin_deadlines/MIG-001/1/legacy.pdf")
+            self.assertEqual((Path(private_root) / attachment.file.name).read_bytes(), b"legacy")
+            self.assertTrue(source.exists())
+
+    def test_migration_command_delete_source_only_after_successful_copy(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment("assets_admin_deadlines/MIG-001/1/delete.pdf")
+            source = Path(media_root) / attachment.file.name
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"legacy")
+
+            output = self._run_command("--apply", "--delete-source")
+
+            self.assertIn("deleted=1", output)
+            self.assertFalse(source.exists())
+            self.assertEqual((Path(private_root) / attachment.file.name).read_bytes(), b"legacy")
+
+    def test_migration_command_missing_source_warns_without_crashing(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment("assets_admin_deadlines/MIG-001/1/missing.pdf")
+
+            output = self._run_command("--apply")
+
+            self.assertIn("sorgente mancante", output)
+            self.assertIn("missing=1", output)
+            self.assertFalse((Path(private_root) / attachment.file.name).exists())
+
+    def test_migration_command_is_idempotent_when_target_already_exists(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment("assets_admin_deadlines/MIG-001/1/done.pdf")
+            source = Path(media_root) / attachment.file.name
+            target = Path(private_root) / attachment.file.name
+            source.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            source.write_bytes(b"same")
+            target.write_bytes(b"same")
+
+            output = self._run_command("--apply", "--delete-source")
+
+            self.assertIn("skipped=1", output)
+            self.assertIn("deleted=1", output)
+            self.assertFalse(source.exists())
+            self.assertEqual(target.read_bytes(), b"same")
+
+    def test_migration_command_collision_keeps_source_and_target_unchanged(self):
+        with (
+            _workspace_temporary_directory("assets-media-") as media_root,
+            _workspace_temporary_directory("assets-private-") as private_root,
+            override_settings(MEDIA_ROOT=media_root, ASSETS_PRIVATE_ROOT=private_root),
+        ):
+            attachment = self._attachment("assets_admin_deadlines/MIG-001/1/collision.pdf")
+            source = Path(media_root) / attachment.file.name
+            target = Path(private_root) / attachment.file.name
+            source.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            source.write_bytes(b"source")
+            target.write_bytes(b"target")
+
+            output = self._run_command("--apply", "--delete-source")
+
+            self.assertIn("collisione target", output)
+            self.assertIn("collisions=1", output)
+            self.assertEqual(source.read_bytes(), b"source")
+            self.assertEqual(target.read_bytes(), b"target")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -4420,3 +4678,348 @@ class AssetMaintenanceRegisterTicketTests(TestCase):
         # Verifica che entrambi appaiano nel registro manutenzione
         self.assertContains(response, wo.title)
         self.assertContains(response, ticket.numero_ticket)
+
+
+class AssetMaintenanceRegisterUnifiedTests(TestCase):
+    """Test per il registro manutenzione unificato e generazione massiva (PATCH 21A-FINAL)."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_superuser(
+            username="maintenance-user",
+            email="maintenance@example.com",
+            password="secret123",
+        )
+        UserOnboarding.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "completed": True,
+                "skipped": False,
+                "completed_at": timezone.now(),
+            },
+        )
+
+        # Crea categoria e asset di test
+        self.category = AssetCategory.objects.create(
+            code="CNC-TEST",
+            label="Macchine CNC Test",
+        )
+        self.asset1 = Asset.objects.create(
+            name="Macchina CNC 1",
+            asset_tag="CNC-001",
+            asset_type="CNC",
+            asset_category=self.category,
+            status="IN_USE",
+        )
+        self.asset2 = Asset.objects.create(
+            name="Macchina CNC 2",
+            asset_tag="CNC-002",
+            asset_type="CNC",
+            asset_category=self.category,
+            status="IN_USE",
+        )
+        self.asset3 = Asset.objects.create(
+            name="Macchina CNC 3",
+            asset_tag="CNC-003",
+            asset_type="CNC",
+            asset_category=self.category,
+            status="IN_USE",
+        )
+
+        # Crea template e regola di manutenzione
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="cambio-olio-test",
+            label="Cambio olio test",
+            description="Template per cambio olio",
+            asset_category=self.category,
+        )
+        self.rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            warning_days=15,
+        )
+
+    def test_manual_workorder_can_be_created_for_single_asset(self):
+        """Verifica che sia possibile creare un WorkOrder manuale per un singolo asset."""
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset1.id]),
+            {
+                "periodic_verification": "",
+                "supplier": "",
+                "kind": WorkOrder.KIND_CORRECTIVE,
+                "status": WorkOrder.STATUS_OPEN,
+                "origin": WorkOrder.ORIGIN_MANUAL,
+                "title": "Manutenzione manuale test",
+                "description": "Descrizione manutenzione manuale",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "cost_eur": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)  # Redirect dopo creazione
+        wo = WorkOrder.objects.filter(asset=self.asset1, origin=WorkOrder.ORIGIN_MANUAL).first()
+        self.assertIsNotNone(wo)
+        self.assertEqual(wo.title, "Manutenzione manuale test")
+        self.assertEqual(wo.kind, WorkOrder.KIND_CORRECTIVE)
+        self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)
+
+    def test_manual_workorder_appears_in_asset_maintenance_register(self):
+        """Verifica che un WorkOrder manuale appaia nel registro manutenzione dell'asset."""
+        # Crea WorkOrder manuale
+        wo = WorkOrder.objects.create(
+            asset=self.asset1,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            origin=WorkOrder.ORIGIN_MANUAL,
+            title="Manutenzione manuale",
+            description="Test",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset1.id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, wo.title)
+
+    def test_periodic_rule_generation_creates_workorder_per_asset(self):
+        """Verifica che la generazione da regola crei un WorkOrder per ogni asset."""
+        from assets.services import generate_workorders_for_rule
+
+        created = generate_workorders_for_rule(self.rule, user=self.user)
+
+        self.assertEqual(len(created), 3)  # 3 asset nella categoria
+
+        # Verifica che ogni asset abbia un WorkOrder
+        for asset in [self.asset1, self.asset2, self.asset3]:
+            wo = WorkOrder.objects.filter(
+                asset=asset,
+                maintenance_rule=self.rule,
+                origin=WorkOrder.ORIGIN_PERIODIC,
+            ).first()
+            self.assertIsNotNone(wo)
+            self.assertEqual(wo.kind, WorkOrder.KIND_PREVENTIVE)
+            self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)
+
+    def test_periodic_rule_generation_uses_reference_batch(self):
+        """Verifica che la generazione da regola usi un reference_batch comune."""
+        from assets.services import generate_workorders_for_rule
+
+        created = generate_workorders_for_rule(self.rule, user=self.user)
+
+        self.assertEqual(len(created), 3)
+
+        # Tutti i WorkOrder devono avere lo stesso reference_batch
+        reference_batches = {wo.reference_batch for wo in created}
+        self.assertEqual(len(reference_batches), 1)
+        batch = reference_batches.pop()
+        self.assertTrue(batch.startswith("BATCH_"))
+        self.assertIn(str(self.rule.id), batch)
+
+    def test_periodic_rule_generation_does_not_create_cross_asset_single_record(self):
+        """Verifica che la generazione non crei un singolo record cross-asset."""
+        from assets.services import generate_workorders_for_rule
+
+        created = generate_workorders_for_rule(self.rule, user=self.user)
+
+        self.assertEqual(len(created), 3)
+
+        # Ogni WorkOrder deve essere associato a un asset specifico
+        asset_ids = {wo.asset_id for wo in created}
+        self.assertEqual(len(asset_ids), 3)
+        self.assertIn(self.asset1.id, asset_ids)
+        self.assertIn(self.asset2.id, asset_ids)
+        self.assertIn(self.asset3.id, asset_ids)
+
+    def test_workorder_report_attachment_upload(self):
+        """Verifica che sia possibile caricare un allegato rapportino a un WorkOrder."""
+        wo = WorkOrder.objects.create(
+            asset=self.asset1,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Intervento con allegato",
+            status=WorkOrder.STATUS_OPEN,
+        )
+
+        upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
+            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                response = self.client.post(
+                    reverse("assets:wo_create", args=[self.asset1.id]),
+                    {
+                        "periodic_verification": "",
+                        "supplier": "",
+                        "kind": WorkOrder.KIND_CORRECTIVE,
+                        "status": WorkOrder.STATUS_OPEN,
+                        "title": "Intervento con allegato",
+                        "description": "Test",
+                        "downtime_minutes": "0",
+                        "attachments": upload,
+                    },
+                )
+
+        self.assertEqual(response.status_code, 302)
+        # Verifica che l'allegato sia stato creato
+        attachment = WorkOrderAttachment.objects.filter(work_order__asset=self.asset1).first()
+        self.assertIsNotNone(attachment)
+        self.assertTrue(attachment.file.name.endswith(".pdf"))
+
+    def test_workorder_report_attachment_visible_on_asset_detail(self):
+        """Verifica che gli allegati WorkOrder siano visibili nel dettaglio asset."""
+        wo = WorkOrder.objects.create(
+            asset=self.asset1,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Intervento con allegato",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        # Crea allegato
+        attachment = WorkOrderAttachment.objects.create(
+            work_order=wo,
+            file=SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+            original_name="report.pdf",
+            uploaded_by=self.user,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset1.id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, wo.title)
+
+    def test_unified_register_contains_periodic_manual_and_ticket_rows(self):
+        """Verifica che il registro unificato contenga righe PERIODIC, MANUAL e TICKET."""
+        from assets.services import collect_asset_maintenance_register
+
+        # Crea WorkOrder periodico
+        wo_periodic = WorkOrder.objects.create(
+            asset=self.asset1,
+            maintenance_rule=self.rule,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            title="Manutenzione periodica",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        # Crea WorkOrder manuale
+        wo_manual = WorkOrder.objects.create(
+            asset=self.asset1,
+            origin=WorkOrder.ORIGIN_MANUAL,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            title="Manutenzione manuale",
+            status=WorkOrder.STATUS_DONE,
+            closed_at=timezone.now(),
+        )
+
+        # Crea ticket MAN incluso
+        ticket = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN test",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset1,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+            stato=StatoTicket.CHIUSO,
+            closed_at=timezone.now(),
+        )
+
+        # Raccogli registro
+        register = collect_asset_maintenance_register(self.asset1, include_tickets=True)
+
+        self.assertEqual(len(register), 3)
+
+        sources = {row["source"] for row in register}
+        self.assertIn("WORKORDER", sources)
+        self.assertIn("TICKET", sources)
+
+        # Verifica che ci siano entrambi i WorkOrder
+        wo_rows = [row for row in register if row["source"] == "WORKORDER"]
+        self.assertEqual(len(wo_rows), 2)
+
+        # Verifica che ci sia il ticket
+        ticket_rows = [row for row in register if row["source"] == "TICKET"]
+        self.assertEqual(len(ticket_rows), 1)
+
+    def test_ticket_it_not_in_unified_register(self):
+        """Verifica che i ticket IT non siano inclusi nel registro unificato."""
+        from assets.services import collect_asset_maintenance_register
+
+        # Crea ticket IT
+        ticket_it = Ticket.objects.create(
+            tipo=TipoTicket.IT,
+            titolo="Ticket IT test",
+            descrizione="Descrizione test",
+            categoria="SOFTWARE",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset1,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        # Crea ticket MAN
+        ticket_man = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN test",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset1,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        register = collect_asset_maintenance_register(self.asset1, include_tickets=True)
+
+        # Solo il ticket MAN deve essere presente
+        self.assertEqual(len(register), 1)
+        self.assertEqual(register[0]["source"], "TICKET")
+        self.assertEqual(register[0]["ticket"].id, ticket_man.id)
+
+    def test_ticket_man_excluded_flag_not_in_unified_register(self):
+        """Verifica che i ticket MAN con flag exclude non siano nel registro unificato."""
+        from assets.services import collect_asset_maintenance_register
+
+        # Crea ticket MAN incluso
+        ticket_included = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN incluso",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset1,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=True,
+        )
+
+        # Crea ticket MAN escluso
+        ticket_excluded = Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Ticket MAN escluso",
+            descrizione="Descrizione test",
+            categoria="MECCANICA",
+            priorita=PrioritaTicket.MEDIA,
+            asset=self.asset1,
+            richiedente_nome="Test User",
+            richiedente_email="test@example.com",
+            include_in_maintenance_register=False,
+        )
+
+        register = collect_asset_maintenance_register(self.asset1, include_tickets=True)
+
+        # Solo il ticket incluso deve essere presente
+        self.assertEqual(len(register), 1)
+        self.assertEqual(register[0]["ticket"].id, ticket_included.id)

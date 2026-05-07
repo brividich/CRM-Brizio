@@ -12,6 +12,8 @@ from django.db import IntegrityError, models
 from django.utils import timezone
 from django.utils.text import slugify
 
+from .storage import PrivateAssetAdministrativeDeadlineStorage
+
 
 class Asset(models.Model):
     TYPE_PC = "PC"
@@ -734,7 +736,10 @@ class AssetAdministrativeDeadlineCompletionAttachment(models.Model):
         on_delete=models.CASCADE,
         related_name="attachments",
     )
-    file = models.FileField(upload_to=_admin_deadline_completion_attachment_upload_to)
+    file = models.FileField(
+        upload_to=_admin_deadline_completion_attachment_upload_to,
+        storage=PrivateAssetAdministrativeDeadlineStorage(),
+    )
     original_name = models.CharField(max_length=255, blank=True, default="")
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

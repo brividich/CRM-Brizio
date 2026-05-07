@@ -70,6 +70,11 @@
           <div class="card-title">Accesso negato</div>
           <div class="card-subtitle">{{ error_message }}</div>
         {% endif %}
+      {% elif requires_confirmation %}
+        <div class="card-title">
+          {% if decision == "approved" %}Conferma Approvazione{% else %}Conferma Rifiuto{% endif %}
+        </div>
+        <div class="card-subtitle">Controlla la richiesta e conferma manualmente l'azione.</div>
       {% elif result.ok %}
         <div class="card-title">
           {% if decision == "approved" %}Richiesta Approvata{% else %}Richiesta Rifiutata{% endif %}
@@ -94,6 +99,35 @@
             </div>
           </div>
         {% endif %}
+
+      {% elif requires_confirmation %}
+        <div class="alert alert-warning">
+          Questa pagina non ha ancora modificato la richiesta. La decisione verra registrata solo dopo la conferma.
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Decisione</div>
+            <div class="meta-value">
+              {% if decision == "approved" %}
+                <span class="badge-approved">Approvazione</span>
+              {% else %}
+                <span class="badge-rejected">Rifiuto</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if decided_by %}
+          <div class="meta-item">
+            <div class="meta-label">Utente autenticato</div>
+            <div class="meta-value">{{ decided_by }}</div>
+          </div>
+          {% endif %}
+          {% if approval_id %}
+          <div class="meta-item">
+            <div class="meta-label">Richiesta</div>
+            <div class="meta-value">#{{ approval_id }}</div>
+          </div>
+          {% endif %}
+        </div>
 
       {% elif result.ok %}
         <div class="alert alert-success">{{ result.message }}</div>
@@ -134,7 +168,15 @@
     </div>
 
     <div class="card-footer">
-      <p class="close-hint">Puoi chiudere questa finestra.</p>
+      {% if requires_confirmation %}
+        <form method="post" action="">
+          <button type="submit" class="{% if decision == 'approved' %}badge-approved{% else %}badge-rejected{% endif %}" style="border:0;cursor:pointer;">
+            {% if decision == "approved" %}Conferma approvazione{% else %}Conferma rifiuto{% endif %}
+          </button>
+        </form>
+      {% else %}
+        <p class="close-hint">Puoi chiudere questa finestra.</p>
+      {% endif %}
     </div>
   </div>
 </body>

@@ -102,7 +102,7 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 
 Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
 
-**`/approval-actions/` â€” Entra Application Proxy**: endpoint GET one-click (`/approval-actions/approve/<token>/` e `/approval-actions/reject/<token>/`) pensati per essere pubblicati selettivamente su Entra Application Proxy. Riusano `process_approval_decision()`. L'identitÃ  viene estratta da sessione Django â†’ `X-MS-CLIENT-PRINCIPAL-NAME` â†’ `X-Forwarded-Email`. Ogni decisione Ã¨ tracciata in AuditLog. Pubblicare **solo** `/approval-actions/*` nell'Application Proxy, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
+**`/approval-actions/` â€” Entra Application Proxy**: endpoint pensati per essere pubblicati selettivamente su Entra Application Proxy. `GET /approval-actions/approve|reject/<token>/` mostra conferma senza side effect; solo `POST` chiama `process_approval_decision()`. L'identitÃ  viene estratta da sessione Django â†’ `X-MS-CLIENT-PRINCIPAL-NAME` â†’ `X-Forwarded-Email`. Ogni decisione Ã¨ tracciata in AuditLog. Pubblicare **solo** `/approval-actions/*` nell'Application Proxy, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
 
 Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant ACL dedicati):
 - `/onboarding/` per tutti gli utenti autenticati non superuser interessati al primo accesso

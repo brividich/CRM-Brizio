@@ -71,7 +71,7 @@ Versione app corrente: **1.0.1** (2026-04-28)
 
 - File log in `django_app/logs/`: `app.log`, `app-{hostname}.log`, `sql.log`
 - Handler custom `SafeTimedRotatingFileHandler` in `core/logging_handlers.py` (rotazione giornaliera, safe per multi-process)
-- SQL logging configurabile via env `SQL_LOG_ENABLED` e `SQL_LOG_LEVEL`
+- SQL logging configurabile via env `SQL_LOG_ENABLED` e `SQL_LOG_LEVEL`; in produzione `DJANGO_LOG_DIR` deve essere esplicito e non puo cadere sul temp di sistema.
 - In produzione non usare `print()` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â usare sempre `logging.getLogger(__name__)`
 
 ---

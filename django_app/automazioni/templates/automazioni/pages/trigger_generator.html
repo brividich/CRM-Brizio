@@ -162,12 +162,14 @@
               <button type="submit" name="action" value="generate" class="btn btn-primary">
                 Genera SQL
               </button>
-              {% if is_sql_server and generated %}
+              {% if can_apply_to_db and generated %}
                 <button type="submit" name="action" value="apply"
                         class="btn btn-danger"
                         onclick="return confirm('Applicare i trigger su dbo.{{ selected_source.table_name }}? I trigger esistenti verranno sostituiti.')">
                   Applica al DB
                 </button>
+              {% elif is_sql_server and generated %}
+                <span class="tg-muted">Applicazione diretta al DB disabilitata.</span>
               {% endif %}
             </div>
           </form>

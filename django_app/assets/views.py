@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import mimetypes
 import os
 import re
 import tempfile
@@ -24,7 +25,7 @@ from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
 from django.db.models import Avg, Count, Q
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
@@ -2715,16 +2716,11 @@ def _deadline_completion_rows(
     for completion in qs:
         attachment_rows: list[dict[str, object]] = []
         for attachment in completion.attachments.all():
-            file_url = ""
-            try:
-                file_url = attachment.file.url if attachment.file else ""
-            except Exception:
-                file_url = ""
             attachment_rows.append(
                 {
                     "id": attachment.id,
                     "name": attachment.original_name or Path(attachment.file.name).name,
-                    "url": file_url,
+                    "url": reverse("assets:admin_deadline_attachment_download", args=[attachment.id]),
                 }
             )
         rows.append(
@@ -2745,6 +2741,38 @@ def _deadline_completion_rows(
             }
         )
     return rows
+
+
+@login_required
+def admin_deadline_attachment_download(request, attachment_id: int):
+    attachment = get_object_or_404(
+        AssetAdministrativeDeadlineCompletionAttachment.objects.select_related("completion__deadline__asset"),
+        pk=attachment_id,
+    )
+    if not _is_assets_admin(request):
+        return render(request, "core/pages/forbidden.html", status=403)
+    storage = attachment.file.storage
+    if not attachment.file or not attachment.file.name or not storage.exists(attachment.file.name):
+        return HttpResponse("Allegato non trovato.", status=404)
+    filename = attachment.original_name or Path(attachment.file.name).name
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    log_action(
+        request,
+        "download_admin_deadline_attachment",
+        "assets",
+        {
+            "attachment_id": attachment.id,
+            "completion_id": attachment.completion_id,
+            "deadline_id": attachment.completion.deadline_id,
+            "asset_id": attachment.completion.deadline.asset_id,
+        },
+    )
+    return FileResponse(
+        storage.open(attachment.file.name, "rb"),
+        as_attachment=True,
+        filename=filename,
+        content_type=content_type,
+    )
 
 
 def _compute_ticket_kpi_for_asset(asset: Asset) -> dict:

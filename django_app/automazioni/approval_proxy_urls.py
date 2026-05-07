@@ -5,8 +5,10 @@ Pubblicare SOLO il prefisso /approval-actions/* nell'Application Proxy Entra.
 Non esporre l'intero /automazioni/ all'esterno.
 
 Pattern:
-  GET /approval-actions/approve/<uuid:token>/
-  GET /approval-actions/reject/<uuid:token>/
+  GET  /approval-actions/approve/<uuid:token>/  -> conferma senza side effect
+  POST /approval-actions/approve/<uuid:token>/  -> commit decisione
+  GET  /approval-actions/reject/<uuid:token>/   -> conferma senza side effect
+  POST /approval-actions/reject/<uuid:token>/   -> commit decisione
 """
 from django.urls import path
 

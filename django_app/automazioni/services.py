@@ -3527,39 +3527,44 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
     """
     from .models import AutomationApproval, AutomationRunLogStatus
 
-    try:
-        approval = AutomationApproval.objects.select_related("run_log", "action__rule").get(token=token)
-    except AutomationApproval.DoesNotExist:
-        return {"ok": False, "message": "Richiesta di approvazione non trovata."}
-
-    if approval.status != AutomationApproval.Status.PENDING:
-        return {
-            "ok": False,
-            "message": f"La richiesta Ã¨ giÃ  in stato '{approval.status}'. Non Ã¨ possibile decidere nuovamente.",
-            "current_status": approval.status,
-        }
-
-    if approval.is_expired():
-        approval.status = AutomationApproval.Status.EXPIRED
-        approval.save(update_fields=["status"])
-        return {"ok": False, "message": "La richiesta di approvazione Ã¨ scaduta."}
-
     if decision not in ("approved", "rejected"):
         return {"ok": False, "message": f"Decisione '{decision}' non valida. Usare 'approved' o 'rejected'."}
 
-    # Aggiorna approval
-    approval.status = decision
-    approval.decided_by_email = decided_by_email or ""
-    approval.decided_at = timezone.now()
-    approval.save(update_fields=["status", "decided_by_email", "decided_at"])
+    with transaction.atomic():
+        try:
+            approval = (
+                AutomationApproval.objects.select_for_update()
+                .select_related("run_log", "action__rule")
+                .get(token=token)
+            )
+        except AutomationApproval.DoesNotExist:
+            return {"ok": False, "message": "Richiesta di approvazione non trovata."}
 
-    # Recupera il run_log originale e aggiorna il suo status
-    run_log = approval.run_log
-    run_log.status = AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
-    run_log.result_message = (
-        f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {timezone.localtime(approval.decided_at).strftime('%d/%m/%Y %H:%M')}."
-    )
-    run_log.save(update_fields=["status", "result_message"])
+        if approval.status != AutomationApproval.Status.PENDING:
+            return {
+                "ok": False,
+                "message": f"La richiesta Ã¨ giÃ  in stato '{approval.status}'. Non Ã¨ possibile decidere nuovamente.",
+                "current_status": approval.status,
+            }
+
+        if approval.is_expired():
+            approval.status = AutomationApproval.Status.EXPIRED
+            approval.save(update_fields=["status"])
+            return {"ok": False, "message": "La richiesta di approvazione Ã¨ scaduta."}
+
+        # Aggiorna approval in transazione: il token diventa monouso prima delle azioni ramo.
+        approval.status = decision
+        approval.decided_by_email = decided_by_email or ""
+        approval.decided_at = timezone.now()
+        approval.save(update_fields=["status", "decided_by_email", "decided_at"])
+
+        # Recupera il run_log originale e aggiorna il suo status
+        run_log = approval.run_log
+        run_log.status = AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
+        run_log.result_message = (
+            f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {timezone.localtime(approval.decided_at).strftime('%d/%m/%Y %H:%M')}."
+        )
+        run_log.save(update_fields=["status", "result_message"])
 
     # Esegui le azioni del ramo corrispondente
     branch_actions = approval.approved_actions if decision == "approved" else approval.rejected_actions

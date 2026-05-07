@@ -12,6 +12,11 @@ urlpatterns = [
     path("assets/componenti/new/", views.asset_component_create, name="asset_component_create"),
     path("assets/componenti/edit/<int:id>/", views.asset_component_edit, name="asset_component_edit"),
     path("assets/scadenze/", views.asset_administrative_deadline_list, name="asset_administrative_deadline_list"),
+    path(
+        "assets/scadenze/allegati/<int:attachment_id>/download/",
+        views.admin_deadline_attachment_download,
+        name="admin_deadline_attachment_download",
+    ),
     path("assets/scadenze/new/", views.asset_administrative_deadline_create, name="asset_administrative_deadline_create"),
     path(
         "assets/scadenze/edit/<int:id>/",

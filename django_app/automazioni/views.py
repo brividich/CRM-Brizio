@@ -6,6 +6,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.db.models import Count
 from django.db import connection, transaction
@@ -15,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from admin_portale.decorators import legacy_admin_required
 from core.audit import log_action
@@ -5806,15 +5807,17 @@ def _extract_approver_identity(request) -> str:
     return ""
 
 
-@require_GET
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def approval_proxy_approve(request, token):
-    """GET /approval-actions/approve/<token>/ — approva immediatamente (Entra Proxy)."""
+    """GET conferma, POST approva (Entra Proxy)."""
     return _handle_approval_proxy(request, token, "approved")
 
 
-@require_GET
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
 def approval_proxy_reject(request, token):
-    """GET /approval-actions/reject/<token>/ — rifiuta immediatamente (Entra Proxy)."""
+    """GET conferma, POST rifiuta (Entra Proxy)."""
     return _handle_approval_proxy(request, token, "rejected")
 
 
@@ -5853,6 +5856,7 @@ def _handle_approval_proxy(request, token, decision: str):
                 "error_code": validation.error_code,
                 "message": validation.error_message,
                 "via": "entra_proxy",
+                "phase": request.method.lower(),
             },
         )
         return render(request, "automazioni/pages/approval_proxy_result.html", {
@@ -5872,6 +5876,15 @@ def _handle_approval_proxy(request, token, decision: str):
         })
 
     # ── Decisione (validazione passata) ──────────────────────────────────────
+    if request.method == "GET":
+        return render(request, "automazioni/pages/approval_proxy_result.html", {
+            "requires_confirmation": True,
+            "decision": decision,
+            "token": token_str,
+            "decided_by": decided_by,
+            "approval_id": validation.approval_id,
+        })
+
     result = process_approval_decision(token_str, decision, decided_by_email=decided_by)
 
     log_action(
@@ -6163,6 +6176,8 @@ GO
 def _apply_trigger_sql(sql: str) -> dict[str, object]:
     """Esegue DROP + CREATE TRIGGER sul DB (compatibile con tutte le versioni SQL Server)."""
     import re
+    if not getattr(settings, "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED", False):
+        return {"ok": False, "message": "Applicazione diretta al DB disabilitata da configurazione."}
     vendor = getattr(connection, "vendor", "")
     if vendor != "microsoft" and "mssql" not in vendor.lower():
         return {"ok": False, "message": "Database non è SQL Server — impossibile applicare trigger."}
@@ -6172,6 +6187,8 @@ def _apply_trigger_sql(sql: str) -> dict[str, object]:
         if not match:
             return {"ok": False, "message": "Nome trigger non trovato nel SQL generato."}
         trigger_name = match.group(1)
+        table_match = re.search(r"\bON\s+((?:\[?\w+\]?\.)?\[?\w+\]?)", sql, re.IGNORECASE)
+        target_table = (table_match.group(1).replace("[", "").replace("]", "") if table_match else "")
         # Estrae solo il blocco CREATE (senza commenti iniziali e senza GO)
         ddl_match = re.search(r"(CREATE\s+TRIGGER\s+.+?)(?:^\s*GO\s*$|$)", sql, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         ddl = ddl_match.group(1).strip() if ddl_match else sql
@@ -6181,7 +6198,7 @@ def _apply_trigger_sql(sql: str) -> dict[str, object]:
                 f"DROP TRIGGER [dbo].[{trigger_name}]"
             )
             cursor.execute(ddl)
-        return {"ok": True}
+        return {"ok": True, "trigger_name": trigger_name, "target_table": target_table}
     except Exception as exc:
         return {"ok": False, "message": str(exc)}
 
@@ -6223,11 +6240,31 @@ def trigger_generator_page(request):
             )
 
         if action == "apply" and generated:
+            if not request.user.is_superuser:
+                messages.error(request, "Solo un superuser puo applicare trigger al DB.")
+                return redirect("admin_portale:automazioni_trigger_generator")
+            if not getattr(settings, "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED", False):
+                messages.error(request, "Applicazione diretta al DB disabilitata da configurazione.")
+                return redirect("admin_portale:automazioni_trigger_generator")
             for op, sql in generated.items():
                 apply_results[op] = _apply_trigger_sql(sql)
-                if apply_results[op]["ok"]:
-                    log_action(request, "apply_sql_trigger", "automazioni",
-                               f"Trigger {op.upper()} applicato per sorgente '{selected_code}'")
+                result = apply_results[op]
+                log_action(
+                    request,
+                    "apply_sql_trigger",
+                    "automazioni",
+                    {
+                        "actor": str(getattr(request.user, "email", "") or request.user.username or ""),
+                        "applied_at": timezone.now().isoformat(),
+                        "source_code": selected_code,
+                        "operation": op,
+                        "mode": "apply",
+                        "ok": bool(result.get("ok")),
+                        "trigger_name": result.get("trigger_name") or f"trg_{selected_source['code']}_automation_after_{op}",
+                        "target_table": result.get("target_table") or f"dbo.{selected_source['table_name']}",
+                        "error": str(result.get("message") or "")[:500],
+                    },
+                )
             if all(r["ok"] for r in apply_results.values()):
                 messages.success(request, f"Trigger applicati con successo per '{selected_source['label']}'.")
             else:
@@ -6235,6 +6272,11 @@ def trigger_generator_page(request):
                 messages.error(request, f"Errori nell'applicazione: {'; '.join(errors)}")
 
     is_sql_server = getattr(connection, "vendor", "") == "microsoft" or "mssql" in getattr(connection, "vendor", "").lower()
+    can_apply_to_db = bool(
+        is_sql_server
+        and request.user.is_superuser
+        and getattr(settings, "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED", False)
+    )
 
     return render(request, "automazioni/pages/trigger_generator.html", {
         **_base_context(),
@@ -6244,6 +6286,7 @@ def trigger_generator_page(request):
         "generated": generated,
         "apply_results": apply_results,
         "is_sql_server": is_sql_server,
+        "can_apply_to_db": can_apply_to_db,
     })
 
 

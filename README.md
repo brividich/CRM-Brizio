@@ -282,7 +282,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
-- **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, archiviati in `assets_admin_deadlines/<asset_tag>/<completion_id>/`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
+- **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, path logico `assets_admin_deadlines/<asset_tag>/<completion_id>/`, storage privato `ASSETS_PRIVATE_ROOT` e download autenticato da `/assets/scadenze/allegati/<id>/download/`; migrazione operativa file legacy: `manage.py migrate_admin_deadline_attachments_private --apply --delete-source`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
 - **Scadenzario unificato** su `/assets/manutenzione/prossime/`: oltre alle regole manutenzione giorni-base, la pagina elenca anche le **verifiche periodiche pianificate** (sezione dedicata sopra lo scadenzario regole) con stato `Scaduta / In scadenza / Pianificata`, filtri condivisi (asset, status, ricerca) e link diretti al piano. I KPI di sintesi sommano regole + verifiche periodiche
 - **Planimetrie** con marker posizionabili, aree, officine, TVCC
 - **Calendario asset** su `/assets/calendario/` — vista mensile (FullCalendar) + Gantt (frappe-gantt) con filtri macchina/reparto
@@ -293,6 +293,8 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Logo modulo** personalizzabile dalla tab Configurazione
 - **Etichette asset** con template stampabili
 - **Registro manutenzione unificato** su dettaglio asset: unisce WorkOrder (interventi esterni) e ticket MAN (manutenzioni straordinarie interne con `include_in_maintenance_register=True`) in un unico elenco ordinato per data, con badge distinti per sorgente, tecnico/fornitore appropriato e stati localizzati (PATCH 21E)
+- **Generazione massiva WorkOrder** da regola/categoria: service `generate_workorders_for_rule(rule, user=None)` crea un WorkOrder per ogni asset della categoria con `reference_batch` comune non vuoto, `origin=PERIODIC`, `kind=PREVENTIVE` e prevenzione duplicati nello stesso batch (PATCH 21A-FINAL)
+- **Test completi registro manutenzione**: 10 test dedicati per creazione WorkOrder manuale, registro manutenzione asset, generazione massiva, `reference_batch`, verifica cross-asset, upload allegati rapportino, visibilita allegati, registro unificato PERIODIC/MANUAL/TICKET, esclusione ticket IT e ticket MAN con flag (PATCH 21A-FINAL)
 </details>
 
 <details open>
@@ -617,7 +619,7 @@ graph LR
 |---|---|---|
 | **Microsoft Graph** | SharePoint sync (assenze, incidenti), Outlook Calendar (scadenze assets), Teams chat flow (approvazioni), mailbox polling | `core/graph_utils.py` (cache cross-process) |
 | **LDAP / Active Directory** | Auth utenti con `LDAPBackend`, sync anagrafica, SSO SPNEGO opzionale | `core/accounts/backends.py`, `core/accounts/windows_sso.py` |
-| **Entra Application Proxy** | Pubblicazione selettiva di `/approval-actions/*` per approvazioni one-click fuori rete | `automazioni/approval_proxy_urls.py` |
+| **Entra Application Proxy** | Pubblicazione selettiva di `/approval-actions/*` per approvazioni fuori rete: GET mostra conferma, POST registra la decisione | `automazioni/approval_proxy_urls.py` |
 | **SMTP** | Notifiche utente, approvazioni email, reminder procedure | `EMAIL_*` in `.env` |
 
 ### Sicurezza credenziali
@@ -641,7 +643,7 @@ powershell tools\install-git-hooks.ps1
 | Area | Tecnologia |
 |---|---|
 | Runtime | **Python 3.11+** |
-| Framework | **Django 5.2.11** |
+| Framework | **Django 5.2.13** |
 | WSGI produzione | **Waitress** via `HttpPlatformHandler` (IIS) |
 | Database dev | **SQLite** |
 | Database prod | **SQL Server** via `mssql-django` + `pyodbc 5.2` (driver 18/17/13) |
@@ -798,6 +800,36 @@ python django_app\manage.py validate_deployment --format json --settings=config.
 # Validate + probe runtime delle integrazioni (DB, cache, Graph, LDAP, SMTP)
 python django_app\manage.py validate_deployment --with-integration --settings=config.settings.test
 
+# Validazione finale SEC-GUARD-02F
+python django_app\manage.py check --settings=config.settings.test
+python django_app\manage.py makemigrations --check --dry-run --settings=config.settings.test
+python django_app\manage.py test assets.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test automazioni.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py validate_deployment --settings=config.settings.test
+# Stato atteso: assets.tests 157 OK, automazioni.tests 310 OK,
+# validate_deployment OK=19 WARN=3 FAIL=0.
+
+# Patch 21 guard/audit locale
+.\scripts\patch21_guard.ps1
+.\scripts\patch21_audit.ps1
+.\scripts\patch21_full_guard.ps1
+
+# Deploy Guard (TEST/PROD) — orchestratore PowerShell fail-fast
+# Esegue probe Django, check/migrate/validate_deployment, preview/apply allegati
+# privati, restart App Pool e smoke HTTP. Report timestampato in .\deploy_reports\.
+# I 3 script PowerShell sono in `scripts/deploy_*.ps1`.
+# Esempio TEST:
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy_guard.ps1 `
+    -Environment test -IisSiteName "PortaleNovicrom-Test" `
+    -IisAppPool "PortaleNovicrom-Test" -RestartAppPool `
+    -SmokeUrl "https://test-portale-novicrom.local"
+# Esempio PROD:
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy_guard.ps1 `
+    -Environment prod -IisSiteName "PortaleNovicrom" `
+    -IisAppPool "PortaleNovicrom" -RestartAppPool `
+    -SmokeUrl "https://portale-novicrom.local" -StrictWarnings
+# Documentazione completa: docs/deploy/DEPLOY_GUARD.md
+
 # Liveness/readiness (HTTP)
 curl http://127.0.0.1:8000/healthz   # liveness — sempre 200 se Django risponde
 curl http://127.0.0.1:8000/readyz    # readiness — JSON con status check, 503 se critical fail
@@ -809,6 +841,14 @@ $env:RUN_LIVE_INTEGRATION_TESTS = "1"
 python django_app\manage.py test core.contract_tests --tag live_integration --settings=config.settings.test
 # Release guard con livello B incluso
 .\tools\release_guard.ps1 -WithLive
+
+# CI versionata
+# .github/workflows/security-gate.yml esegue check, drift migration,
+# validate_deployment, test sentinella security, pip-audit e release_guard.
+# .github/dependabot.yml apre PR settimanali per pip e GitHub Actions.
+# Nota: il workflow non usa `manage.py check --deploy` perche gira con
+# config.settings.test e senza valori reali TLS/cookie/proxy di produzione;
+# `validate_deployment` resta il gate bloccante compatibile CI.
 
 # Backup
 python django_app\manage.py backup_portale --include-media --retention 10
