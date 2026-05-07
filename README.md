@@ -712,6 +712,10 @@ python django_app\manage.py runserver --settings=config.settings.dev
 
 In alternativa: `django_app\avvia_server.bat` (libera la porta 8000 e avvia).
 
+Nota statici locali: `STATIC_URL` deve rimanere `/static/` e il processo di sviluppo deve vedere
+`DJANGO_DEBUG=1`; se una variabile d'ambiente Windows imposta `DJANGO_DEBUG=False`, `runserver`
+non serve CSS/SVG/HTMX e la UI appare senza stili.
+
 ### 4. URL principali in locale
 
 | URL | Descrizione |

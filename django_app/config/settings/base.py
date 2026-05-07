@@ -320,7 +320,7 @@ TIME_ZONE = env("TIME_ZONE", "Europe/Rome")
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = Path(env("STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
 MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
