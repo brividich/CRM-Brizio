@@ -54,7 +54,7 @@ from core.module_branding import (
     resolve_module_logo,
 )
 from core.module_registry import resolve_module_label
-from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
     AssetAdministrativeDeadlineForm,
@@ -96,6 +96,7 @@ from .models import (
     AssetLabelTemplate,
     AssetListLayout,
     AssetListOption,
+    AssetMaintenanceBudget,
     AssetMaintenanceRuleState,
     AssetMeter,
     AssetMeterHistory,
@@ -2269,6 +2270,25 @@ def _sanitize_sharepoint_segment(value: str | None) -> str:
     return row.strip(" .")
 
 
+def _sanitize_sharepoint_filename(value: str | None, *, fallback: str = "documento") -> str:
+    filename = safe_filename(value, max_length=180)
+    if not filename:
+        filename = fallback
+    filename = re.sub(r'["*:<>?|#%{}~&]', "-", filename)
+    filename = re.sub(r"\s+", " ", filename).strip(" .")
+    return filename or fallback
+
+
+def _sharepoint_document_remote_filename(document: AssetDocument) -> str:
+    source = _clean_string(document.original_name) or Path(document.file.name).name
+    filename = _sanitize_sharepoint_filename(source)
+    path = Path(filename)
+    suffix = path.suffix[:20]
+    stem = path.stem[:120] or "documento"
+    created = document.created_at.strftime("%Y%m%d_%H%M%S") if document.created_at else timezone.now().strftime("%Y%m%d_%H%M%S")
+    return f"{created}_{document.id}_{stem}{suffix}"
+
+
 def _default_asset_sharepoint_path(asset: Asset) -> str:
     defaults = _sharepoint_assets_defaults()
     root = defaults["work_machine_root_path"] if asset.asset_type == Asset.TYPE_WORK_MACHINE else defaults["asset_root_path"]
@@ -2415,7 +2435,7 @@ def _upload_asset_document_to_sharepoint(asset: Asset, document: AssetDocument) 
     category_folder = f"{folder_path}/{document.category.lower()}".strip("/")
     try:
         category_info = _ensure_sharepoint_folder(category_folder)
-        filename = _clean_string(document.original_name) or Path(document.file.name).name
+        filename = _sharepoint_document_remote_filename(document)
         remote_path = f"{category_info['path']}/{filename}".strip("/")
         url = f"{_sharepoint_drive_base_url()}/root:/{quote(remote_path, safe='/')}:/content"
         with document.file.open("rb") as handle:
@@ -2504,7 +2524,7 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
                 "name": uploaded.original_name or Path(uploaded.file.name).name,
                 "size": size_text,
                 "date": uploaded.document_date.strftime("%d/%m/%Y") if uploaded.document_date else uploaded.created_at.strftime("%d/%m/%Y"),
-                "url": uploaded.sharepoint_url or (uploaded.file.url if uploaded.file else ""),
+                "url": uploaded.sharepoint_url or reverse("assets:asset_document_download", args=[uploaded.id]),
                 "kind": "uploaded",
                 "meta": " | ".join(meta_parts),
             }
@@ -2524,6 +2544,49 @@ def _build_uploaded_documents_context(asset: Asset | None) -> dict[str, list[Ass
     return grouped
 
 
+@login_required
+def asset_document_download(request, document_id: int):
+    document = get_object_or_404(
+        AssetDocument.objects.select_related("asset", "uploaded_by"),
+        pk=document_id,
+    )
+    storage = document.file.storage if document.file else None
+    file_name = document.file.name if document.file else ""
+    if not storage or not file_name or not storage.exists(file_name):
+        log_action(
+            request,
+            "download_asset_document",
+            "assets",
+            {
+                "document_id": document.id,
+                "asset_id": document.asset_id,
+                "category": document.category,
+                "esito": "not_found",
+            },
+        )
+        return HttpResponse("Documento non trovato.", status=404)
+    filename = document.original_name or Path(file_name).name
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    log_action(
+        request,
+        "download_asset_document",
+        "assets",
+        {
+            "document_id": document.id,
+            "asset_id": document.asset_id,
+            "category": document.category,
+            "filename": filename,
+            "esito": "success",
+        },
+    )
+    return FileResponse(
+        storage.open(file_name, "rb"),
+        as_attachment=True,
+        filename=filename,
+        content_type=content_type,
+    )
+
+
 def _validate_asset_document_uploads(request: HttpRequest) -> tuple[dict[str, list], list[str]]:
     uploads: dict[str, list] = {}
     errors: list[str] = []
@@ -2540,10 +2603,12 @@ def _validate_asset_document_uploads(request: HttpRequest) -> tuple[dict[str, li
                     allowed_mimes=ASSET_DOCUMENT_ALLOWED_MIMES,
                     max_bytes=ASSET_DOCUMENT_MAX_BYTES,
                     label=filename,
+                    allow_empty=False,
                 )
             except UploadMimeValidationError as exc:
                 errors.append(str(exc))
                 continue
+            upload.name = _sanitize_sharepoint_filename(filename)
             valid_files.append(upload)
         uploads[category] = valid_files
     return uploads, errors
@@ -2567,7 +2632,7 @@ def _apply_asset_document_changes(
                 asset=asset,
                 category=category,
                 file=upload,
-                original_name=getattr(upload, "name", "")[:255],
+                original_name=_sanitize_sharepoint_filename(getattr(upload, "name", ""))[:255],
                 uploaded_by=actor if getattr(actor, "is_authenticated", False) else None,
             )
             warning = _upload_asset_document_to_sharepoint(asset, document)
@@ -8299,6 +8364,96 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     except Exception:
         asset_maintenance_costs = {"has_data": False}
 
+    # AS3: budget manutenzione per categoria asset (anno corrente e precedente)
+    asset_budget_rows: list[dict] = []
+    if asset.asset_category_id:
+        from decimal import Decimal as _Dec
+        _zero = _Dec("0")
+        _year = today.year
+        for _y in (_year, _year - 1):
+            try:
+                _budget_obj = AssetMaintenanceBudget.objects.filter(
+                    asset_category_id=asset.asset_category_id, year=_y
+                ).first()
+                if _budget_obj is None:
+                    continue
+                _budget = _budget_obj.budget_eur
+                _spent = asset_maintenance_costs.get("cost_year" if _y == _year else "cost_prev_year", _zero) or _zero
+                _pct = round(float(_spent / _budget * 100), 1) if _budget else 0.0
+                _residual = _budget - _spent
+                asset_budget_rows.append({
+                    "year": _y,
+                    "budget": _budget,
+                    "spent": _spent,
+                    "residual": _residual,
+                    "pct": min(_pct, 100.0),
+                    "over_budget": _spent > _budget,
+                })
+            except Exception:
+                pass
+
+    # AS4: timeline storico tecnico (OdL + verifiche + incidenti)
+    timeline_tech_rows: list[dict] = []
+    try:
+        from rilevazione_incidenti.models import RilevazioneIncidente as _RI
+        _incidents = list(
+            _RI.objects.filter(asset_id=asset.id)
+            .order_by("-data_segnalazione")[:50]
+        )
+        for _inc in _incidents:
+            timeline_tech_rows.append({
+                "tipo": "incidente",
+                "tipo_label": _inc.tipologia_scheda,
+                "data": _inc.data_segnalazione,
+                "titolo": _inc.tipologia_scheda,
+                "dettaglio": _inc.descrizione_avvenimento or _inc.nominativo,
+                "id": _inc.id,
+            })
+    except Exception:
+        pass
+    try:
+        _wo_all = list(
+            asset.workorders.order_by("-opened_at")
+            .values("id", "title", "kind", "status", "opened_at", "closed_at")[:50]
+        )
+        _kind_label = {
+            WorkOrder.KIND_PREVENTIVE: "Preventiva",
+            WorkOrder.KIND_CORRECTIVE: "Correttiva",
+            WorkOrder.KIND_SAFETY: "Sicurezza",
+            WorkOrder.KIND_CALIBRATION: "Taratura",
+            WorkOrder.KIND_OTHER: "Altro",
+        }
+        for _wo in _wo_all:
+            timeline_tech_rows.append({
+                "tipo": "workorder",
+                "tipo_label": f"OdL — {_kind_label.get(_wo['kind'], _wo['kind'])}",
+                "data": _wo["closed_at"] or _wo["opened_at"],
+                "titolo": _wo["title"],
+                "dettaglio": f"#{_wo['id']} · {WorkOrder.STATUS_CHOICES and dict(WorkOrder.STATUS_CHOICES).get(_wo['status'], _wo['status'])}",
+                "id": _wo["id"],
+            })
+    except Exception:
+        pass
+    try:
+        for _pv in asset.periodic_verifications.all().order_by("name")[:20]:
+            _pv_wos = list(
+                _pv.workorders.filter(asset_id=asset.id).order_by("-opened_at")
+                .values("id", "title", "opened_at", "closed_at", "status")[:5]
+            )
+            for _wo in _pv_wos:
+                timeline_tech_rows.append({
+                    "tipo": "verifica",
+                    "tipo_label": f"Verifica — {_pv.name}",
+                    "data": _wo["closed_at"] or _wo["opened_at"],
+                    "titolo": _pv.name,
+                    "dettaglio": f"#{_wo['id']} · {_wo['status']}",
+                    "id": _wo["id"],
+                })
+    except Exception:
+        pass
+    timeline_tech_rows.sort(key=lambda r: r["data"] if r["data"] else timezone.datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    timeline_tech_rows = timeline_tech_rows[:40]
+
     from tickets.models import TipoTicket
     manageable_ticket_types = {
         ticket_type
@@ -8550,6 +8705,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "maintenance_rows": maintenance_rows,
             "deadline_completion_history": deadline_completion_history,
             "asset_maintenance_costs": asset_maintenance_costs,
+            "asset_budget_rows": asset_budget_rows,
+            "timeline_tech_rows": timeline_tech_rows,
             "detail_maintenance_title": detail_maintenance_title,
             "ticket_rows": ticket_rows,
             "ticket_kpi": ticket_kpi,

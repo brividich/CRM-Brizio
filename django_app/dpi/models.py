@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.conf import settings
 from django.db import IntegrityError, models, transaction
@@ -19,6 +19,10 @@ class CategoriaDPI(models.Model):
     vita_utile_giorni = models.PositiveIntegerField(
         null=True, blank=True,
         help_text="Vita utile stimata in giorni (per calcolo scadenza automatica alla consegna)",
+    )
+    obbligatoria_mansionario = models.BooleanField(
+        default=False,
+        help_text="Categoria richiesta dal mansionario per il report conformita DPI",
     )
     unita_misura = models.CharField(max_length=30, blank=True, default="pz")
     scorta_minima = models.PositiveIntegerField(default=0, help_text="Soglia minima in magazzino per segnalazione")
@@ -336,6 +340,10 @@ class ConsegnaDPI(models.Model):
         null=True, blank=True,
         help_text="Scadenza stimata per rinnovo (calcolata automaticamente da vita utile categoria)",
     )
+    firma_immagine = models.TextField(
+        blank=True, default="",
+        help_text="Firma digitale del ricevente (PNG base64, data URI)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -344,6 +352,24 @@ class ConsegnaDPI(models.Model):
 
     def __str__(self) -> str:
         return f"Consegna {self.richiesta.numero} — {self.data_consegna}"
+
+    @property
+    def scadenza_calcolata(self):
+        """Alias leggibile per data_scadenza_stimata (D1)."""
+        return self.data_scadenza_stimata
+
+    @property
+    def semaforo_scadenza(self) -> str:
+        """Restituisce 'rosso', 'arancione', 'verde' o '' in base alla scadenza."""
+        sc = self.data_scadenza_stimata
+        if not sc:
+            return ""
+        oggi = timezone.localdate()
+        if sc < oggi:
+            return "rosso"
+        if sc <= oggi + timedelta(days=30):
+            return "arancione"
+        return "verde"
 
 
 # ---------------------------------------------------------------------------

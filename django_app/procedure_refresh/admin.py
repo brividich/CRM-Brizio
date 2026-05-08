@@ -5,6 +5,8 @@ from .models import (
     ProcedureCampaign,
     ProcedureCampaignDocument,
     ProcedureDocument,
+    ProcedureQuiz,
+    ProcedureQuizAttempt,
     ProcedureReadEvent,
     ProcedureRevision,
 )
@@ -63,3 +65,19 @@ class ProcedureReadEventAdmin(admin.ModelAdmin):
     list_display = ("assignment", "event_type", "event_at", "event_by")
     list_filter = ("event_type",)
     readonly_fields = ("event_at",)
+
+
+@admin.register(ProcedureQuiz)
+class ProcedureQuizAdmin(admin.ModelAdmin):
+    list_display = ("revision", "title", "is_active", "question_count", "updated_at")
+    list_filter = ("is_active", "revision__document__document_type")
+    search_fields = ("title", "revision__document__code", "revision__document__title")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(ProcedureQuizAttempt)
+class ProcedureQuizAttemptAdmin(admin.ModelAdmin):
+    list_display = ("quiz", "assignment", "user", "score", "total_questions", "submitted_at")
+    list_filter = ("quiz",)
+    search_fields = ("user__username", "user__last_name", "quiz__revision__document__code")
+    readonly_fields = ("submitted_at",)

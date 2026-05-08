@@ -27,6 +27,7 @@ from django.utils import timezone
 
 from assets.models import AssetAdministrativeDeadline, PeriodicVerification, WorkOrder
 from core.models import SiteConfig
+from core.notifiche import invia_notifica_email
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -176,6 +177,31 @@ class Command(BaseCommand):
                 recipient_list=recipients,
                 fail_silently=False,
             )
+            for email in recipients:
+                for d in admin_deadlines:
+                    days_left = (d.due_date - today).days
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Scadenza asset tra {days_left} giorni: {d.asset.asset_tag} - {d.title}.",
+                        f"/assets/scadenze/?focus_deadline={d.pk}",
+                    )
+                for v in periodic:
+                    days_left = (v.next_verification_date - today).days
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"Verifica periodica in scadenza tra {days_left} giorni: {v.name}.",
+                        f"/assets/manutenzione/verifiche/?edit={v.pk}",
+                    )
+                for wo in overdue_wo:
+                    age = (today - wo.opened_at.date()).days
+                    invia_notifica_email(
+                        email,
+                        "asset_scadenza",
+                        f"OdL aperto da {age} giorni: #{wo.pk} {wo.asset.asset_tag} - {wo.title}.",
+                        f"/assets/workorders/view/{wo.pk}/",
+                    )
             self.stdout.write(self.style.SUCCESS(
                 f"Email inviata a {len(recipients)} destinatari. "
                 f"Scadenze={len(admin_deadlines)} Verifiche={len(periodic)} OdL_ritardo={len(overdue_wo)}"

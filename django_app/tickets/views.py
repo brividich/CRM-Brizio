@@ -6,12 +6,12 @@ import json
 import mimetypes
 import os
 from io import BytesIO
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Case, When, Value, IntegerField
+from django.db.models import Q, Case, When, Value, IntegerField, Count
 from django.contrib.auth.views import redirect_to_login
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1037,8 +1037,9 @@ def ticket_gestione_list(request):
     cat_f      = request.GET.get("categoria", "").strip()
     data_da_f  = request.GET.get("data_da", "").strip()
     data_a_f   = request.GET.get("data_a", "").strip()
-    sicurezza_f = request.GET.get("sicurezza", "").strip()
-    ordine_f   = request.GET.get("ordine", "").strip()
+    sicurezza_f  = request.GET.get("sicurezza", "").strip()
+    ricorrente_f = request.GET.get("ricorrente", "").strip()
+    ordine_f     = request.GET.get("ordine", "").strip()
 
     _priority_order = Case(
         When(priorita="URGENTE", then=Value(0)),
@@ -1081,6 +1082,8 @@ def ticket_gestione_list(request):
             qs = qs.filter(categoria=cat_f)
         if sicurezza_f == "1":
             qs = qs.filter(incide_sicurezza=True)
+        if ricorrente_f == "1":
+            qs = qs.filter(ricorrente=True)
         if data_da_f:
             try:
                 qs = qs.filter(created_at__date__gte=datetime.strptime(data_da_f, "%Y-%m-%d").date())
@@ -1126,8 +1129,9 @@ def ticket_gestione_list(request):
         "filtro_cat":      cat_f,
         "filtro_data_da":  data_da_f,
         "filtro_data_a":   data_a_f,
-        "filtro_sicurezza": sicurezza_f,
-        "filtro_ordine":   ordine_f,
+        "filtro_sicurezza":  sicurezza_f,
+        "filtro_ricorrente": ricorrente_f,
+        "filtro_ordine":     ordine_f,
         "categorie_it":    get_categorie(TipoTicket.IT),
         "categorie_man":   get_categorie(TipoTicket.MAN),
         # KPI globali
@@ -1276,6 +1280,15 @@ def ticket_impostazioni(request):
     cfg_it  = TicketImpostazioni.get_or_create_for(TipoTicket.IT)
     cfg_man = TicketImpostazioni.get_or_create_for(TipoTicket.MAN)
 
+    cutoff = tz_now() - timedelta(days=90)
+    top_cause = list(
+        Ticket.objects
+        .filter(ricorrente=True, causa_radice__gt="", created_at__gte=cutoff)
+        .values("causa_radice")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:5]
+    )
+
     ctx = {
         "cfg_it":  cfg_it,
         "cfg_man": cfg_man,
@@ -1288,6 +1301,7 @@ def ticket_impostazioni(request):
         "categorie_ticket_man": list(
             CategoriaTicket.objects.filter(tipo=TipoTicket.MAN).order_by("ordine", "etichetta")
         ),
+        "top_cause": top_cause,
     }
     return render(request, "tickets/pages/impostazioni.html", ctx)
 

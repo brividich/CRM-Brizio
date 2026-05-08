@@ -25,6 +25,7 @@ from core.context_processors import (
     legacy_nav,
     normalize_sidebar_footer_actions,
 )
+from core.exporting import export_rows_response
 from core.impersonation import clear_impersonation_state, display_name_for_user, get_impersonation_state, is_impersonation_stop_path
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
@@ -244,6 +245,32 @@ def _is_json_request(request) -> bool:
         or requested_with == "xmlhttprequest"
         or "/api/" in path
     )
+
+
+def _current_legacy_user_id(request) -> int | None:
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not legacy_user or not getattr(legacy_user, "id", None):
+        return None
+    try:
+        return int(legacy_user.id)
+    except Exception:
+        return None
+
+
+def _notification_panel_context(request) -> dict:
+    from core.models import Notifica
+
+    legacy_user_id = _current_legacy_user_id(request)
+    if not legacy_user_id:
+        return {"notifications": [], "unread_count": 0, "latest_count": 0}
+    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id)
+    notifications = list(qs.order_by("-created_at")[:8])
+    unread_count = qs.filter(letta=False).count()
+    return {
+        "notifications": notifications,
+        "unread_count": unread_count,
+        "latest_count": len(notifications),
+    }
 
 
 def csrf_failure(request, reason=""):
@@ -793,7 +820,21 @@ def notifiche(request):
     if not legacy_user:
         lista = []
     else:
-        lista = list(Notifica.objects.filter(legacy_user_id=legacy_user.id)[:50])
+        qs = Notifica.objects.filter(legacy_user_id=legacy_user.id)
+        if (request.GET.get("export") or "").strip().lower() in {"csv", "xlsx"}:
+            return export_rows_response(
+                rows=qs.order_by("-created_at")[:500],
+                columns=[
+                    ("Data", "created_at"),
+                    ("Tipo", lambda n: n.get_tipo_display()),
+                    ("Messaggio", "messaggio"),
+                    ("Letta", lambda n: "Si" if n.letta else "No"),
+                    ("URL", "url_azione"),
+                ],
+                filename="notifiche",
+                fmt=request.GET.get("export"),
+            )
+        lista = list(qs[:50])
         # segna tutte come lette
         Notifica.objects.filter(legacy_user_id=legacy_user.id, letta=False).update(letta=True)
     return render(request, "core/pages/notifiche.html", {
@@ -866,6 +907,23 @@ def api_notifiche_popup_ack(request):
             legacy_user_id=legacy_user.id,
         ).update(popup_shown=True)
     return JsonResponse({"ok": True})
+
+
+@login_required
+def api_notifiche_panel(request):
+    return render(request, "core/components/notification_center_panel.html", _notification_panel_context(request))
+
+
+@login_required
+@require_POST
+def api_notifiche_mark_all_read(request):
+    from core.models import Notifica
+
+    legacy_user_id = _current_legacy_user_id(request)
+    if not legacy_user_id:
+        return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
+    updated = Notifica.objects.filter(legacy_user_id=legacy_user_id, letta=False).update(letta=True)
+    return JsonResponse({"ok": True, "updated": updated})
 
 
 _VALID_NAV_MODES = {"top", "side"}
@@ -1310,4 +1368,53 @@ def api_global_search(request):
     except Exception:
         pass
 
-    return JsonResponse({"results": results, "query": q})
+    # DPI / Richieste
+    try:
+        from dpi.models import RichiestaDPI
+        dpi_qs = RichiestaDPI.objects.filter(
+            Q(numero__icontains=q)
+            | Q(richiedente_nome__icontains=q)
+            | Q(richiedente_reparto__icontains=q)
+            | Q(motivazione__icontains=q)
+            | Q(categoria__nome__icontains=q)
+        ).select_related("categoria").order_by("-created_at")[:5]
+        for r in dpi_qs:
+            try:
+                url = reverse("dpi:gestione_detail", args=[r.pk])
+            except Exception:
+                url = "/dpi/gestione/"
+            results.append({
+                "tipo": "dpi",
+                "label": r.numero or str(r),
+                "sub": f"{r.richiedente_nome} - {r.label_stato}",
+                "preview": " - ".join(filter(None, [
+                    r.categoria.nome if r.categoria_id else "",
+                    r.richiedente_reparto,
+                    r.motivazione,
+                ]))[:220],
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    module_labels = {
+        "dipendente": "Anagrafica",
+        "asset": "Asset",
+        "ticket": "Ticket",
+        "kickoff": "KICK-OFF",
+        "task": "KICK-OFF",
+        "procedura": "Procedure",
+        "dpi": "DPI",
+    }
+    module_filter = (request.GET.get("module") or "").strip().lower()
+    enriched = []
+    for item in results:
+        tipo = str(item.get("tipo") or "")
+        module = module_labels.get(tipo, tipo.title())
+        if module_filter and module_filter not in {tipo.lower(), module.lower()}:
+            continue
+        item.setdefault("module", module)
+        item.setdefault("preview", item.get("sub") or "")
+        enriched.append(item)
+
+    return JsonResponse({"results": enriched, "query": q})

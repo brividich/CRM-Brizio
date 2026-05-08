@@ -148,6 +148,30 @@ body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(25
 
   {% if totale %}
 
+  <div class="sic-kpi-grid">
+    <div class="sic-kpi-card sic-kpi-ac">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">TRIR</span><span class="sic-kpi-pct">{{ safety_kpis.year }}</span></div>
+      <div class="sic-kpi-num">{% if safety_kpis.trir != None %}{{ safety_kpis.trir }}{% else %}-{% endif %}</div>
+      <div class="sic-kpi-lbl">Tasso registrabile</div>
+      <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% if safety_kpis.trir %}{{ safety_kpis.trir|floatformat:0 }}{% else %}0{% endif %}%"></div></div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-uc">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128197;</span><span class="sic-kpi-pct">ultimo infortunio</span></div>
+      <div class="sic-kpi-num">{% if safety_kpis.giorni_senza_infortuni != None %}{{ safety_kpis.giorni_senza_infortuni }}{% else %}-{% endif %}</div>
+      <div class="sic-kpi-lbl">Giorni senza infortuni</div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-nm">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128680;</span><span class="sic-kpi-pct">{{ safety_kpis.year }}</span></div>
+      <div class="sic-kpi-num">{{ safety_kpis.near_miss }}</div>
+      <div class="sic-kpi-lbl">Near miss anno corrente</div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-ua">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128101;</span><span class="sic-kpi-pct">headcount</span></div>
+      <div class="sic-kpi-num">{{ safety_kpis.headcount }}</div>
+      <div class="sic-kpi-lbl">Dipendenti attivi</div>
+    </div>
+  </div>
+
   <!-- KPI tipologie -->
   <div class="sic-kpi-grid">
     <div class="sic-kpi-card sic-kpi-uc">

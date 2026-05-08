@@ -205,6 +205,7 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
   <form method="post" id="sic-form">
     {% csrf_token %}
     <input type="hidden" name="Tipologia_scheda" value="{{ tipo }}">
+    <input type="hidden" name="tipo_evento" value="{{ tipo_evento }}">
 
     <div class="sic-form-card">
 
@@ -252,6 +253,18 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
             {% endfor %}
           </select>
         </div>
+
+        {% if planimetria_aree %}
+        <div class="sic-field">
+          <label>Area planimetria</label>
+          <select name="planimetria_area_id">
+            <option value="">Non associata</option>
+            {% for area in planimetria_aree %}
+            <option value="{{ area.pk }}"{% if form_data.planimetria_area_id.0 == area.pk|stringformat:"s" %} selected{% endif %}>{{ area.layout.category }} - {{ area.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
 
         <div class="sic-toggle-row">
           <label for="toggle-macchina">La causa è l'uso di una macchina/attrezzatura manuale?</label>

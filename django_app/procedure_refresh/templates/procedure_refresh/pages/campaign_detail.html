@@ -127,6 +127,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
         </form>
       {% endif %}
       <a href="{% url 'procedure_refresh:campaign_edit' pk=campaign.pk %}" class="pr-hbtn pr-hbtn-outline">Modifica</a>
+      <a href="{% url 'procedure_refresh:report_matrix' %}?camp_id={{ campaign.pk }}" class="pr-hbtn pr-hbtn-outline">Matrice</a>
       <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments&camp={{ campaign.pk }}" class="pr-hbtn pr-hbtn-outline">⬇ CSV</a>
     </div>
   </div>

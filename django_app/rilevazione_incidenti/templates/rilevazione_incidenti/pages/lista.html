@@ -205,6 +205,7 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       <a href="{% url 'rilevazione_incidenti:export_csv' %}" class="sic-btn-outline">&#128196; Export CSV</a>
       {% endif %}
       <a href="{% url 'rilevazione_incidenti:statistiche' %}" class="sic-btn-outline">&#128200; Statistiche</a>
+      <a href="{% url 'rilevazione_incidenti:heatmap' %}" class="sic-btn-outline">Heatmap</a>
       {% if can_manage_settings %}
       <a href="{% url 'rilevazione_incidenti:impostazioni' %}" class="sic-btn-outline">&#9881; Impostazioni</a>
       {% endif %}
@@ -270,6 +271,23 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       <div class="sic-tipo-card-num">{{ stats.accident }}</div>
     </div>
   </div>
+  <div class="sic-tipo-row">
+    <div class="sic-tipo-card sic-tipo-card-uc">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Unsafe condition / atti non sicuri</div>
+      <div class="sic-tipo-card-num">{{ stats.eventi_unsafe_condition }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-nm">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Near miss</div>
+      <div class="sic-tipo-card-num">{{ stats.eventi_near_miss }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-ac">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Incidenti</div>
+      <div class="sic-tipo-card-num">{{ stats.eventi_incidente }}</div>
+    </div>
+  </div>
   {% endif %}
 
   <!-- Filtri -->
@@ -280,6 +298,12 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       <option value="">Tutte le tipologie</option>
       {% for t in tipologie %}
       <option value="{{ t }}"{% if tipo_filter == t %} selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="tipo_evento" class="sic-filter-select">
+      <option value="">Tutte le categorie evento</option>
+      {% for val,label in tipi_evento %}
+      <option value="{{ val }}"{% if evento_filter == val %} selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     <select name="stato" class="sic-filter-select">
@@ -306,7 +330,7 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       <span>
         Rilevazioni
         <span class="sic-count-badge">{{ items|length }}</span>
-        {% if search or tipo_filter or stato_filter or reparto_filter %}
+        {% if search or tipo_filter or evento_filter or stato_filter or reparto_filter %}
         <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato</span>
         {% endif %}
       </span>

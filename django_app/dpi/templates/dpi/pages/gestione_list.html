@@ -45,6 +45,18 @@
 .dpi-cat-chip { display:inline-flex; align-items:center; gap:5px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:600; }
 .dpi-cat-chip img { width:16px; height:16px; object-fit:cover; border-radius:3px; }
 
+.dpi-semaforo { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; }
+.dpi-semaforo-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.dpi-semaforo-rosso .dpi-semaforo-dot { background:#dc2626; }
+.dpi-semaforo-rosso { color:#991b1b; }
+.dpi-semaforo-arancione .dpi-semaforo-dot { background:#f59e0b; }
+.dpi-semaforo-arancione { color:#92400e; }
+.dpi-semaforo-verde .dpi-semaforo-dot { background:#16a34a; }
+.dpi-semaforo-verde { color:#166534; }
+body.theme-dark .dpi-semaforo-rosso { color:#fca5a5; }
+body.theme-dark .dpi-semaforo-arancione { color:#fcd34d; }
+body.theme-dark .dpi-semaforo-verde { color:#86efac; }
+
 .dpi-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
 
 .dpi-pagination { display:flex; gap:6px; align-items:center; justify-content:center; padding:8px; }
@@ -129,6 +141,7 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
           <th>Reparto</th>
           <th>Qtà</th>
           <th>Stato</th>
+          <th>Scadenza</th>
           <th>Data</th>
           <th></th>
         </tr>
@@ -147,6 +160,16 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
           <td>{{ r.richiedente_reparto|default:"-" }}</td>
           <td>{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
           <td><span class="dpi-badge dpi-badge-{{ r.stato }}">{{ r.label_stato }}</span></td>
+          <td>
+            {% if r.consegna and r.consegna.scadenza_calcolata %}
+            <span class="dpi-semaforo dpi-semaforo-{{ r.consegna.semaforo_scadenza }}">
+              <span class="dpi-semaforo-dot"></span>
+              {{ r.consegna.scadenza_calcolata|date:"d/m/Y" }}
+            </span>
+            {% else %}
+            <span style="color:#94a3b8;">-</span>
+            {% endif %}
+          </td>
           <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
           <td><a href="{% url 'dpi:gestione_detail' r.pk %}">Gestisci →</a></td>
         </tr>

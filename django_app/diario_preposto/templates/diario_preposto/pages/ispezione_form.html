@@ -1,0 +1,116 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuova Ispezione - Diario Preposto{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-hero { background:linear-gradient(135deg,#03787C 0%,#0f766e 100%); border-radius:16px; padding:24px 30px; color:#fff; }
+.dpi-hero a { color:#fff; text-decoration:none; opacity:.78; font-size:13px; }
+.dpi-hero-title { font-size:24px; font-weight:900; margin-top:8px; }
+.dpi-hero-sub { font-size:13px; opacity:.78; margin-top:4px; }
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; }
+.dpi-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.dpi-field { display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+.dpi-field label { font-size:13px; font-weight:800; color:#334155; }
+.dpi-field input[type=text], .dpi-field input[type=date], .dpi-field select, .dpi-field textarea {
+  border:1px solid #cbd5e1; border-radius:10px; padding:9px 11px; font-size:14px; font-family:inherit;
+}
+.dpi-field textarea { resize:vertical; min-height:74px; }
+.dpi-section-title { font-size:12px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin:8px 0 16px; }
+.dpi-check-row { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:10px; background:#f8fafc; }
+.dpi-check-row input { margin-top:3px; }
+.dpi-check-label { font-weight:700; color:#334155; font-size:14px; }
+.dpi-check-meta { color:#64748b; font-size:12px; margin-top:2px; }
+.dpi-actions { display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; padding-top:16px; border-top:1px solid #e2e8f0; }
+.dpi-btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 18px; border-radius:10px; font-size:13px; font-weight:800; text-decoration:none; border:0; cursor:pointer; }
+.dpi-btn-primary { background:#0f766e; color:#fff; }
+.dpi-btn-secondary { background:#f1f5f9; color:#475569; }
+.dpi-errors { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size:13px; }
+body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-section-title, body.theme-dark .dpi-actions { border-color:var(--border); }
+body.theme-dark .dpi-field label, body.theme-dark .dpi-check-label { color:var(--text); }
+body.theme-dark .dpi-field input, body.theme-dark .dpi-field select, body.theme-dark .dpi-field textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-check-row { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dpi-check-meta { color:var(--text-light); }
+@media (max-width:720px) { .dpi-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  <div class="dpi-hero">
+    <a href="{% url 'diario_preposto:ispezioni' %}">Torna alle ispezioni</a>
+    <div class="dpi-hero-title">Nuova ispezione periodica</div>
+    <div class="dpi-hero-sub">Compilazione checklist area/macchina da template strutturato.</div>
+  </div>
+
+  {% if errors %}
+  <div class="dpi-errors">
+    {% for error in errors %}
+    <div>{{ error }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" class="dpi-card">
+    {% csrf_token %}
+
+    <div class="dpi-section-title">Contesto ispezione</div>
+    <div class="dpi-grid">
+      <div class="dpi-field">
+        <label for="area">Area</label>
+        <input id="area" type="text" name="area" value="{{ form_data.area.0|default:'' }}" required>
+      </div>
+      <div class="dpi-field">
+        <label for="macchina">Macchina / impianto</label>
+        <input id="macchina" type="text" name="macchina" value="{{ form_data.macchina.0|default:'' }}">
+      </div>
+    </div>
+
+    <div class="dpi-section-title">Checklist</div>
+    {% for voce in voci %}
+      {% if voce.tipo_campo == "check" %}
+      <label class="dpi-check-row">
+        <input type="checkbox" name="voce_{{ voce.pk }}" value="1"{% if voce.submitted_value == "1" %} checked{% endif %}>
+        <span>
+          <span class="dpi-check-label">{{ voce.label }}</span>
+          <span class="dpi-check-meta">{{ voce.categoria }}{% if voce.obbligatorio %} - voce obbligatoria{% endif %}</span>
+        </span>
+      </label>
+      {% elif voce.tipo_campo == "testo" %}
+      <div class="dpi-field">
+        <label for="voce_{{ voce.pk }}">{{ voce.label }}{% if voce.obbligatorio %} *{% endif %}</label>
+        <textarea id="voce_{{ voce.pk }}" name="voce_{{ voce.pk }}" rows="3"{% if voce.obbligatorio %} required{% endif %}>{{ voce.submitted_value }}</textarea>
+      </div>
+      {% elif voce.tipo_campo == "data" %}
+      <div class="dpi-field">
+        <label for="voce_{{ voce.pk }}">{{ voce.label }}{% if voce.obbligatorio %} *{% endif %}</label>
+        <input id="voce_{{ voce.pk }}" type="date" name="voce_{{ voce.pk }}" value="{{ voce.submitted_value }}"{% if voce.obbligatorio %} required{% endif %}>
+      </div>
+      {% elif voce.tipo_campo == "select" %}
+      <div class="dpi-field">
+        <label for="voce_{{ voce.pk }}">{{ voce.label }}{% if voce.obbligatorio %} *{% endif %}</label>
+        <select id="voce_{{ voce.pk }}" name="voce_{{ voce.pk }}"{% if voce.obbligatorio %} required{% endif %}>
+          <option value="">Seleziona</option>
+          {% for scelta in voce.scelte %}
+          <option value="{{ scelta }}"{% if voce.submitted_value == scelta %} selected{% endif %}>{{ scelta }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    {% endfor %}
+
+    <div class="dpi-section-title">Note generali</div>
+    <div class="dpi-field">
+      <label for="note">Anomalie o azioni correttive</label>
+      <textarea id="note" name="note" rows="4">{{ form_data.note.0|default:'' }}</textarea>
+    </div>
+
+    <div class="dpi-actions">
+      <a href="{% url 'diario_preposto:ispezioni' %}" class="dpi-btn dpi-btn-secondary">Annulla</a>
+      <button type="submit" class="dpi-btn dpi-btn-primary">Registra ispezione</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

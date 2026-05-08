@@ -3,6 +3,7 @@
   <a href="{% url 'dpi:storico' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'storico' %} active{% endif %}">Il mio storico</a>
   {% if is_gestore %}
   <a href="{% url 'dpi:gestione_list' %}" class="dpi-subnav-link{% if 'gestione' in request.resolver_match.url_name %} active{% endif %}">Gestione richieste</a>
+  <a href="{% url 'dpi:report_conformita' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'report_conformita' %} active{% endif %}">Report conformità</a>
   <a href="{% url 'dpi:impostazioni' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'impostazioni' %} active{% endif %}">Impostazioni</a>
   {% endif %}
 </nav>

@@ -22,9 +22,29 @@ urlpatterns = [
         name="copy_project_with_vrf_without_pn",
     ),
     path(
+        "tasks/projects/<int:project_id>/gantt/baseline/fix/",
+        views.project_gantt_fix_baseline,
+        name="project_gantt_fix_baseline",
+    ),
+    path(
+        "tasks/projects/<int:project_id>/gantt/baseline/clear/",
+        views.project_gantt_clear_baseline,
+        name="project_gantt_clear_baseline",
+    ),
+    path(
         "tasks/projects/<int:project_id>/gantt/tasks/<int:task_id>/update/",
         views.project_gantt_update_task,
         name="project_gantt_update_task",
+    ),
+    path(
+        "tasks/projects/<int:project_id>/gantt/dependencies/add/",
+        views.project_gantt_add_dependency,
+        name="project_gantt_add_dependency",
+    ),
+    path(
+        "tasks/projects/<int:project_id>/gantt/dependencies/<int:dep_id>/remove/",
+        views.project_gantt_remove_dependency,
+        name="project_gantt_remove_dependency",
     ),
     path(
         "tasks/projects/<int:project_id>/gantt/tasks/<int:task_id>/shift/",

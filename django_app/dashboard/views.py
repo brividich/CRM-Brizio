@@ -2270,6 +2270,13 @@ def dashboard_hub_preview(request):
     except Exception:
         pass
 
+    safety_kpis = {}
+    try:
+        from rilevazione_incidenti.services import get_safety_kpis
+        safety_kpis = get_safety_kpis()
+    except Exception:
+        pass
+
     ctx.update({
         "page_title": "Hub Preview",
         "greeting_name": display_name,
@@ -2281,5 +2288,6 @@ def dashboard_hub_preview(request):
         "hub_branding": hub_branding,
         "hub_is_staff": request.user.is_staff,
         "maintenance_by_family": maintenance_by_family,
+        "safety_kpis": safety_kpis,
     })
     return render(request, "core/pages/dashboard_hub_preview.html", ctx)

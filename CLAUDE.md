@@ -90,6 +90,7 @@ No tests are required for documentation-only changes unless project files outsid
 - [docs/ai/07_PATCH_HISTORY.md](docs/ai/07_PATCH_HISTORY.md) - patch/release-history maintenance rules.
 - [docs/ai/08_ROADMAP.md](docs/ai/08_ROADMAP.md) - current direction and known debt.
 - [docs/ai/09_PROMPT_LIBRARY.md](docs/ai/09_PROMPT_LIBRARY.md) - reusable targeted prompts.
+- [docs/ai/11_FEATURE_BACKLOG.md](docs/ai/11_FEATURE_BACKLOG.md) - feature backlog con checklist avanzamento per modulo.
 
 ## Current Product Direction
 

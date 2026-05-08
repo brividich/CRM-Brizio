@@ -964,6 +964,62 @@ class AssetsRoutingTests(TestCase):
                 self.assertEqual(upload.original_name, "manuale.pdf")
                 self.assertTrue(Path(upload.file.path).exists())
 
+    def test_work_machine_upload_sanitizes_name_and_uses_authenticated_download(self):
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-work-machine-upload-") as tmpdir:
+            manual_file = SimpleUploadedFile("../manuale rischio.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                    response = self.client.post(
+                        reverse("assets:work_machine_create"),
+                        {
+                            "name": "Centro upload locale",
+                            "reparto": "CN5",
+                            "status": Asset.STATUS_IN_USE,
+                            "documents_specs_payload": json.dumps([]),
+                            "documents_manuals_payload": json.dumps([]),
+                            "documents_interventions_payload": json.dumps([]),
+                            "upload_manuals_files": manual_file,
+                        },
+                    )
+                self.assertEqual(response.status_code, 302)
+                asset = Asset.objects.get(name="Centro upload locale")
+                upload = AssetDocument.objects.get(asset=asset, category=AssetDocument.CATEGORY_MANUALI)
+                self.assertEqual(upload.original_name, "manuale rischio.pdf")
+                self.assertNotIn("..", upload.file.name)
+                self.assertNotIn("\\", upload.file.name)
+
+                edit_page = self.client.get(reverse("assets:work_machine_edit", args=[asset.id]))
+                self.assertContains(edit_page, reverse("assets:asset_document_download", args=[upload.id]))
+                self.assertNotContains(edit_page, "/media/assets_documents/")
+
+                download = self.client.get(reverse("assets:asset_document_download", args=[upload.id]))
+                self.assertEqual(download.status_code, 200)
+                self.assertEqual(download["Content-Type"], "application/pdf")
+                self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4 test")
+
+    def test_sharepoint_remote_filename_is_unique_and_safe(self):
+        asset = Asset.objects.create(
+            name="Centro SharePoint filename",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            sharepoint_folder_path="Macchine/CN5/ML-000099",
+            source_key="manual-wm-sp-filename",
+        )
+        with _workspace_temporary_directory("assets-sp-filename-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            document = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_MANUALI,
+                file=SimpleUploadedFile("manuale rischio.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name='manuale: rischio?.pdf',
+            )
+            remote_name = asset_views._sharepoint_document_remote_filename(document)
+
+        self.assertIn(str(document.id), remote_name)
+        self.assertTrue(remote_name.endswith("manuale- rischio-.pdf"))
+        self.assertNotIn(":", remote_name)
+        self.assertNotIn("?", remote_name)
+
     def test_asset_detail_shows_sharepoint_actions(self):
         asset = Asset.objects.create(
             name="Centro documentato",

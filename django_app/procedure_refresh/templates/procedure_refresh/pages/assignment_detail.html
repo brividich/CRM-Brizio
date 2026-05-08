@@ -56,6 +56,12 @@
   background:#dcfce7; border:1px solid #86efac; border-radius:12px; padding:16px 20px;
   display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:#166534;
 }
+.pr-quiz-question { border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:12px; background:#f8fafc; }
+.pr-quiz-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:10px; }
+.pr-quiz-option { display:flex; align-items:flex-start; gap:8px; padding:7px 0; font-size:13px; color:#334155; cursor:pointer; }
+.pr-quiz-option input { width:16px; height:16px; margin-top:1px; accent-color:#1d4ed8; }
+.pr-quiz-result { background:#eef2ff; border:1px solid #c7d2fe; border-radius:12px; padding:14px 16px; font-size:13px; color:#3730a3; font-weight:700; }
+.pr-muted { font-size:12px; color:#64748b; }
 
 .pr-badge-assigned { background:#dbeafe; color:#1d4ed8; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
 .pr-badge-opened { background:#fef3c7; color:#b45309; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
@@ -69,6 +75,11 @@ body.theme-dark .pr-source-path { background:var(--surface-alt); color:#93c5fd; 
 body.theme-dark .pr-confirm-box { background:rgba(21,128,61,.1); border-color:rgba(134,239,172,.25); }
 body.theme-dark .pr-confirm-check label { color:var(--text); }
 body.theme-dark .pr-confirmed-banner { background:rgba(21,128,61,.15); border-color:rgba(134,239,172,.3); color:#86efac; }
+body.theme-dark .pr-quiz-question { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .pr-quiz-title { color:var(--text); }
+body.theme-dark .pr-quiz-option { color:var(--text-mid); }
+body.theme-dark .pr-quiz-result { background:rgba(29,78,216,.16); border-color:rgba(147,197,253,.28); color:#bfdbfe; }
+body.theme-dark .pr-muted { color:var(--text-light); }
 body.theme-dark .pr-badge-assigned { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .pr-badge-opened { background:rgba(180,83,9,.2); color:#fcd34d; }
 body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86efac; }
@@ -143,6 +154,37 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
       <div class="pr-card">
         <div class="pr-card-title">La tua nota</div>
         <p style="font-size:13px;color:#475569;">{{ assignment.user_note }}</p>
+      </div>
+    {% endif %}
+    {% if active_quiz %}
+      <div class="pr-card">
+        <div class="pr-card-title">{{ active_quiz.title }}</div>
+        {% if quiz_attempt %}
+          <div class="pr-quiz-result">
+            Quiz completato: {{ quiz_attempt.score }}/{{ quiz_attempt.total_questions }} risposte corrette
+          </div>
+          <div class="pr-muted" style="margin-top:8px;">Inviato il {{ quiz_attempt.submitted_at|date:"d/m/Y H:i" }}</div>
+        {% else %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="submit_quiz" value="1">
+            {% for question in active_quiz.questions %}
+              {% with question_index=forloop.counter0 %}
+                <div class="pr-quiz-question">
+                  <div class="pr-quiz-title">{{ forloop.counter }}. {{ question.text }}</div>
+                  {% for option in question.options %}
+                    <label class="pr-quiz-option">
+                      <input type="radio" name="quiz_q_{{ question_index }}" value="{{ forloop.counter0 }}">
+                      <span>{{ option }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+              {% endwith %}
+            {% endfor %}
+            <button type="submit" class="pr-btn-save">Invia quiz</button>
+            <div class="pr-muted" style="margin-top:8px;">Il quiz e' tracciato ma non modifica la conferma di presa visione.</div>
+          </form>
+        {% endif %}
       </div>
     {% endif %}
   {% else %}

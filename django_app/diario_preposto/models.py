@@ -138,6 +138,10 @@ class DiarioPrepostoImpostazioni(models.Model):
             "(creazione/modifica/eliminazione), oltre agli admin legacy."
         ),
     )
+    ispezione_frequenza_giorni = models.PositiveIntegerField(
+        default=7,
+        help_text="Frequenza attesa, in giorni, per le ispezioni periodiche del preposto.",
+    )
 
     class Meta:
         verbose_name = "Impostazioni Diario Preposto"

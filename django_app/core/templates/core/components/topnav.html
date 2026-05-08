@@ -89,12 +89,12 @@
         <span aria-hidden="true">&#128269;</span>
       </button>
 
-      <a href="{% url 'notifiche' %}" class="nav-icon" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
+      <button type="button" class="nav-icon nav-notify-btn" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}" data-notification-toggle>
         <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}
           <span class="nav-icon-badge" aria-hidden="true">{{ notifiche_count }}</span>
         {% endif %}
-      </a>
+      </button>
 
       <a href="{% url 'profilo' %}" class="nav-user" title="Il tuo profilo">
         <span class="nav-avatar">{{ display_name|slice:":2"|upper }}</span>

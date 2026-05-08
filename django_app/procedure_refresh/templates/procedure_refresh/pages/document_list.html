@@ -107,6 +107,8 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                       <br><span style="font-size:11px;color:#475569;">
                         {{ rev.revision_code }}
                         {% if rev.is_current %}<span class="pr-badge pr-badge-current" style="margin-left:4px;">corrente</span>{% endif %}
+                        <a href="{% url 'procedure_refresh:revision_quiz' rev_pk=rev.pk %}"
+                           style="margin-left:6px;color:#1d4ed8;text-decoration:none;font-weight:700;">Quiz</a>
                       </span>
                     {% endfor %}
                   {% else %}

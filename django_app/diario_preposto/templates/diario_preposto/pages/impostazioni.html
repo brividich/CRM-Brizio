@@ -38,6 +38,11 @@
                 </div>
               </div>
             {% endif %}
+            <div class="ms-field">
+              <label for="ispezione_frequenza_giorni">Frequenza ispezioni periodiche</label>
+              <input id="ispezione_frequenza_giorni" name="ispezione_frequenza_giorni" type="number" min="1" max="365" value="{{ cfg.ispezione_frequenza_giorni }}">
+              <span class="ms-field-help">Numero di giorni attesi tra una compilazione checklist e la successiva.</span>
+            </div>
             <div class="ms-form-actions">
               <a href="{% url 'diario_preposto:lista' %}" class="btn btn-secondary">Torna all'elenco</a>
               <button type="submit" class="btn btn-primary">Salva impostazioni</button>

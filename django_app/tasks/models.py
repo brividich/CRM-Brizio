@@ -173,6 +173,10 @@ class Task(models.Model):
         related_name="tasks_subscribed",
         blank=True,
     )
+    progress = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Avanzamento manuale dell'attività (0–100).",
+    )
     reminder_portal_enabled = models.BooleanField(
         default=True,
         help_text="Se attivo, crea un promemoria nel centro notifiche 'giorni_preavviso' prima della scadenza.",
@@ -237,6 +241,96 @@ class SubTask(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class DependencyType(models.TextChoices):
+    FS = "FS", "Fine → Inizio (FS)"
+    SS = "SS", "Inizio → Inizio (SS)"
+    FF = "FF", "Fine → Fine (FF)"
+    SF = "SF", "Inizio → Fine (SF)"
+
+
+class TaskDependency(models.Model):
+    """Dipendenza direzionale tra due task: `predecessor` deve rispettare il tipo prima che `successor` possa iniziare/finire."""
+    predecessor = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="successors",
+    )
+    successor = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="predecessors",
+    )
+    dependency_type = models.CharField(
+        max_length=2,
+        choices=DependencyType.choices,
+        default=DependencyType.FS,
+    )
+    lag_days = models.SmallIntegerField(
+        default=0,
+        help_text="Giorni di ritardo/anticipo (positivo = lag, negativo = lead).",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["predecessor", "successor"], name="tasks_taskdependency_unique_pair"),
+        ]
+        verbose_name = "Dipendenza task"
+
+    def __str__(self) -> str:
+        return f"{self.predecessor_id} →{self.dependency_type}→ {self.successor_id}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.predecessor_id and self.successor_id and self.predecessor_id == self.successor_id:
+            raise ValidationError("Un task non può dipendere da se stesso.")
+
+
+class GanttBaseline(models.Model):
+    """Snapshot delle date Gantt al momento del 'Fissa baseline'.
+
+    `snapshot` è un dict JSON: { "<task_id>": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} }
+    """
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="gantt_baseline",
+    )
+    snapshot = models.JSONField(default=dict)
+    fixed_at = models.DateTimeField(auto_now=True)
+    fixed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gantt_baselines_fixed",
+    )
+
+    class Meta:
+        verbose_name = "Baseline Gantt"
+
+    def __str__(self) -> str:
+        return f"Baseline {self.project.name}"
+
+    def get_task_delta_days(self, task: "Task") -> dict[str, int | None]:
+        """Restituisce {'start': Δgg, 'end': Δgg} rispetto alla baseline, o None se non presente."""
+        entry = self.snapshot.get(str(task.pk))
+        if not entry:
+            return {"start": None, "end": None}
+        from datetime import date as _date
+        def _delta(field_val, baseline_str):
+            if not field_val or not baseline_str:
+                return None
+            try:
+                b = _date.fromisoformat(baseline_str)
+                return (field_val - b).days
+            except (ValueError, TypeError):
+                return None
+        return {
+            "start": _delta(task.next_step_due, entry.get("start")),
+            "end":   _delta(task.due_date,      entry.get("end")),
+        }
 
 
 class TaskComment(models.Model):

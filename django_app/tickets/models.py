@@ -74,6 +74,14 @@ class CategoriaTicket(models.Model):
     etichetta = models.CharField(max_length=100)
     ordine    = models.PositiveIntegerField(default=0)
     attivo    = models.BooleanField(default=True)
+    sla_ore_risposta    = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="SLA risposta (ore). Vuoto = nessuno SLA.",
+    )
+    sla_ore_risoluzione = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="SLA risoluzione (ore). Vuoto = nessuno SLA.",
+    )
 
     class Meta:
         ordering = ["tipo", "ordine", "etichetta"]
@@ -302,6 +310,55 @@ class Ticket(models.Model):
     @property
     def label_categoria(self) -> str:
         return _get_categoria_label_map().get(self.categoria, self.categoria)
+
+    # ── SLA (calcolati, nessun campo DB su Ticket) ───────────────────────────
+
+    def _get_categoria_sla(self):
+        if not self.categoria:
+            return None
+        return CategoriaTicket.objects.filter(codice=self.categoria).first()
+
+    @property
+    def sla_scadenza_risposta(self):
+        from datetime import timedelta
+        cat = self._get_categoria_sla()
+        if cat is None or cat.sla_ore_risposta is None:
+            return None
+        if self.created_at is None:
+            return None
+        return self.created_at + timedelta(hours=cat.sla_ore_risposta)
+
+    @property
+    def sla_scadenza_risoluzione(self):
+        from datetime import timedelta
+        cat = self._get_categoria_sla()
+        if cat is None or cat.sla_ore_risoluzione is None:
+            return None
+        if self.created_at is None:
+            return None
+        return self.created_at + timedelta(hours=cat.sla_ore_risoluzione)
+
+    @property
+    def sla_risposta_scaduto(self) -> bool:
+        stati_ok = (StatoTicket.IN_CARICO, StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO)
+        if self.stato in stati_ok:
+            return False
+        scadenza = self.sla_scadenza_risposta
+        if scadenza is None:
+            return False
+        from django.utils import timezone
+        return timezone.now() > scadenza
+
+    @property
+    def sla_risoluzione_scaduto(self) -> bool:
+        stati_ok = (StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO)
+        if self.stato in stati_ok:
+            return False
+        scadenza = self.sla_scadenza_risoluzione
+        if scadenza is None:
+            return False
+        from django.utils import timezone
+        return timezone.now() > scadenza
 
 
 # ---------------------------------------------------------------------------

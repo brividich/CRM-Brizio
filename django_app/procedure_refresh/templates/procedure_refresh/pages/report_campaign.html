@@ -74,6 +74,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
       <a href="{% url 'procedure_refresh:report_user' %}" class="pr-tab">Per utente</a>
       <a href="{% url 'procedure_refresh:report_document' %}" class="pr-tab">Per documento</a>
       <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab active">Per campagna</a>
+      <a href="{% url 'procedure_refresh:report_matrix' %}" class="pr-tab">Matrice reparti</a>
     </div>
   </div>
 
@@ -89,7 +90,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
       </select>
       <button type="submit" class="pr-filter-btn">Visualizza</button>
       {% if selected_camp %}
-        <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments"
+        <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments&camp={{ selected_camp.pk }}"
            style="padding:8px 14px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
           ⬇ Export CSV
         </a>

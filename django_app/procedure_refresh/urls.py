@@ -23,6 +23,7 @@ urlpatterns = [
     # ── Admin — revisioni ───────────────────────────────────────────────────
     path("admin/documenti/<int:doc_pk>/revisioni/nuova/", views.revision_form, name="revision_create"),
     path("admin/documenti/<int:doc_pk>/revisioni/<int:pk>/", views.revision_form, name="revision_edit"),
+    path("admin/revisioni/<int:rev_pk>/quiz/", views.revision_quiz, name="revision_quiz"),
 
     # ── Admin — campagne ────────────────────────────────────────────────────
     path("admin/campagne/", views.campaign_list, name="campaign_list"),
@@ -43,5 +44,6 @@ urlpatterns = [
     path("admin/report/utente/", views.report_user, name="report_user"),
     path("admin/report/documento/", views.report_document, name="report_document"),
     path("admin/report/campagna/", views.report_campaign, name="report_campaign"),
+    path("admin/report/matrice/", views.report_matrix, name="report_matrix"),
     path("admin/export-csv/", views.export_csv, name="export_csv"),
 ]

@@ -1,0 +1,129 @@
+{% extends "core/base.html" %}
+
+{% block title %}Ispezioni Periodiche - Diario Preposto{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-hero { background:linear-gradient(135deg,#03787C 0%,#0f766e 100%); border-radius:16px; padding:24px 30px; color:#fff; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.dpi-hero-title { font-size:24px; font-weight:900; }
+.dpi-hero-sub { font-size:13px; opacity:.78; margin-top:4px; }
+.dpi-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.dpi-btn { display:inline-flex; align-items:center; justify-content:center; padding:9px 16px; border-radius:10px; border:1px solid transparent; font-size:13px; font-weight:700; text-decoration:none; cursor:pointer; }
+.dpi-btn-white { background:#fff; color:#03787C; }
+.dpi-btn-soft { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.42); }
+.dpi-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+.dpi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
+.dpi-kpi-val { font-size:26px; font-weight:900; color:#0f766e; line-height:1.1; }
+.dpi-kpi-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-top:4px; }
+.dpi-kpi-alert .dpi-kpi-val { color:#dc2626; }
+.dpi-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.dpi-section-head { padding:14px 18px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.dpi-section-title { font-size:14px; font-weight:800; color:#0f172a; }
+.dpi-section-sub { font-size:12px; color:#64748b; margin-top:2px; }
+.dpi-table-wrap { overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 14px; color:#64748b; font-size:11px; text-align:left; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-pill { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+.dpi-pill-ok { background:#dcfce7; color:#166534; }
+.dpi-pill-ko { background:#fee2e2; color:#991b1b; }
+.dpi-empty { padding:36px; text-align:center; color:#94a3b8; }
+body.theme-dark .dpi-kpi, body.theme-dark .dpi-section { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-section-head, body.theme-dark .dpi-table th, body.theme-dark .dpi-table td { border-color:var(--border); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); }
+body.theme-dark .dpi-section-title, body.theme-dark .dpi-table td { color:var(--text); }
+body.theme-dark .dpi-section-sub, body.theme-dark .dpi-kpi-lbl { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Ispezioni periodiche</div>
+      <div class="dpi-hero-sub">Checklist ricorrenti area/macchina compilate dal preposto</div>
+    </div>
+    <div class="dpi-actions">
+      <a href="{% url 'diario_preposto:lista' %}" class="dpi-btn dpi-btn-soft">Diario preposto</a>
+      {% if can_write %}
+      <a href="{% url 'diario_preposto:ispezione_nuova' %}" class="dpi-btn dpi-btn-white">Nuova ispezione</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dpi-kpis">
+    <div class="dpi-kpi">
+      <div class="dpi-kpi-val">{{ esecuzioni|length }}</div>
+      <div class="dpi-kpi-lbl">Ispezioni recenti</div>
+    </div>
+    <div class="dpi-kpi">
+      <div class="dpi-kpi-val">{{ frequenza_giorni }} gg</div>
+      <div class="dpi-kpi-lbl">Frequenza attesa</div>
+    </div>
+    <div class="dpi-kpi{% if ispezione_scaduta %} dpi-kpi-alert{% endif %}">
+      <div class="dpi-kpi-val">
+        {% if prossima_scadenza %}{{ prossima_scadenza|date:"d/m/Y" }}{% else %}Da pianificare{% endif %}
+      </div>
+      <div class="dpi-kpi-lbl">Prossima scadenza</div>
+    </div>
+    <div class="dpi-kpi">
+      <div class="dpi-kpi-val">{{ voci|length }}</div>
+      <div class="dpi-kpi-lbl">Voci template</div>
+    </div>
+  </div>
+
+  <section class="dpi-section">
+    <div class="dpi-section-head">
+      <div>
+        <div class="dpi-section-title">Storico ispezioni</div>
+        <div class="dpi-section-sub">Ultime 50 compilazioni registrate nel modello Checklist.</div>
+      </div>
+      {% if can_manage_settings %}
+      <a href="{% url 'diario_preposto:impostazioni' %}" class="dpi-btn" style="background:#f1f5f9;color:#475569;">Impostazioni</a>
+      {% endif %}
+    </div>
+    <div class="dpi-table-wrap">
+      {% if esecuzioni %}
+      <table class="dpi-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Area</th>
+            <th>Macchina</th>
+            <th>Preposto</th>
+            <th>Esito</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in esecuzioni %}
+          <tr>
+            <td style="white-space:nowrap;">{{ e.data_esecuzione|date:"d/m/Y H:i" }}</td>
+            <td>{{ e.meta.area|default:e.utente_nome|default:"-" }}</td>
+            <td>{{ e.meta.macchina|default:"-" }}</td>
+            <td>{{ e.eseguita_da_nome|default:"-" }}</td>
+            <td>
+              <span class="dpi-pill dpi-pill-ok">{{ e.ok_count }} OK</span>
+              {% if e.ko_count %}
+              <span class="dpi-pill dpi-pill-ko">{{ e.ko_count }} KO</span>
+              {% endif %}
+            </td>
+            <td>{{ e.meta.note|default:"-"|linebreaksbr }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="dpi-empty">
+        Nessuna ispezione registrata.
+        {% if can_write %}
+        <br><a href="{% url 'diario_preposto:ispezione_nuova' %}" style="color:#0f766e;font-weight:700;">Registra la prima ispezione</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import json
 import mimetypes
 import os
+from datetime import timedelta
 from functools import wraps
 from io import BytesIO
 from pathlib import Path
@@ -11,6 +13,7 @@ from xml.sax.saxutils import escape
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,6 +23,7 @@ from django.views.decorators.http import require_POST
 
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.models import ChecklistEsecuzione, ChecklistRisposta, ChecklistVoce
 from core.upload_mime import (
     UploadMimeValidationError,
     safe_filename,
@@ -30,6 +34,8 @@ from .forms import SegnalazioneForm
 from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
 
 logger = logging.getLogger(__name__)
+
+CHECKLIST_ISPEZIONE_PREPOSTO = "preposto_ispezione"
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +155,67 @@ def _pdf_safe_text(value: object, *, preserve_breaks: bool = False) -> str:
     return text
 
 
+def _ensure_ispezione_voci() -> list[ChecklistVoce]:
+    voci = list(
+        ChecklistVoce.objects.filter(
+            tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO,
+            is_active=True,
+        ).order_by("categoria", "ordine", "id")
+    )
+    if voci:
+        return voci
+    defaults = [
+        ("Area", "Area ordinata e percorsi liberi", "check", True, 10),
+        ("Macchina", "Protezioni e ripari presenti", "check", True, 20),
+        ("DPI", "DPI disponibili e correttamente utilizzati", "check", True, 30),
+        ("Note", "Anomalie o azioni correttive", "testo", False, 40),
+    ]
+    created = [
+        ChecklistVoce.objects.create(
+            tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO,
+            categoria=categoria,
+            label=label,
+            tipo_campo=tipo_campo,
+            obbligatorio=obbligatorio,
+            ordine=ordine,
+            is_active=True,
+        )
+        for categoria, label, tipo_campo, obbligatorio, ordine in defaults
+    ]
+    return created
+
+
+def _ispezione_metadata(esecuzione: ChecklistEsecuzione) -> dict:
+    try:
+        data = json.loads(esecuzione.note or "{}")
+        return data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _checklist_value_from_post(voce: ChecklistVoce, post) -> str:
+    key = f"voce_{voce.pk}"
+    if voce.tipo_campo == "check":
+        return "1" if post.get(key) else "0"
+    return (post.get(key) or "").strip()
+
+
+def _ispezione_actor(request) -> tuple[int, str]:
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    name, _email = _legacy_identity(request)
+    actor_id = legacy_user.id if legacy_user else request.user.id
+    return actor_id, name
+
+
+def _prepare_ispezione_rows(esecuzioni) -> list[ChecklistEsecuzione]:
+    rows = list(esecuzioni)
+    for esecuzione in rows:
+        esecuzione.meta = _ispezione_metadata(esecuzione)
+        esecuzione.ok_count = sum(1 for risposta in esecuzione.risposte.all() if risposta.valore == "1")
+        esecuzione.ko_count = sum(1 for risposta in esecuzione.risposte.all() if risposta.voce_tipo == "check" and risposta.valore != "1")
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -189,6 +256,109 @@ def lista(request):
             "can_write": _can_write(request),
             "can_manage_settings": _can_manage_settings(request),
             "totale": qs.count(),
+        },
+    )
+
+
+@login_required
+def ispezioni(request):
+    voci = _ensure_ispezione_voci()
+    cfg = DiarioPrepostoImpostazioni.get_singleton()
+    esecuzioni = _prepare_ispezione_rows(
+        ChecklistEsecuzione.objects.filter(tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO)
+        .prefetch_related("risposte")
+        .order_by("-data_esecuzione")[:50]
+    )
+    ultima = esecuzioni[0] if esecuzioni else None
+    prossima_scadenza = None
+    ispezione_scaduta = False
+    if ultima:
+        prossima_scadenza = timezone.localtime(ultima.data_esecuzione).date() + timedelta(
+            days=cfg.ispezione_frequenza_giorni
+        )
+        ispezione_scaduta = prossima_scadenza < timezone.localdate()
+
+    return render(
+        request,
+        "diario_preposto/pages/ispezioni.html",
+        {
+            "voci": voci,
+            "esecuzioni": esecuzioni,
+            "ultima": ultima,
+            "prossima_scadenza": prossima_scadenza,
+            "ispezione_scaduta": ispezione_scaduta,
+            "frequenza_giorni": cfg.ispezione_frequenza_giorni,
+            "can_write": _can_write(request),
+            "can_manage_settings": _can_manage_settings(request),
+        },
+    )
+
+
+@_write_required
+def ispezione_nuova(request):
+    voci = _ensure_ispezione_voci()
+    errors: list[str] = []
+    form_data = {}
+    for voce in voci:
+        voce.submitted_value = ""
+
+    if request.method == "POST":
+        form_data = dict(request.POST)
+        area = (request.POST.get("area") or "").strip()
+        macchina = (request.POST.get("macchina") or "").strip()
+        note = (request.POST.get("note") or "").strip()
+        if not area:
+            errors.append("Area obbligatoria.")
+
+        risposte = []
+        for voce in voci:
+            value = _checklist_value_from_post(voce, request.POST)
+            voce.submitted_value = value
+            if voce.obbligatorio and voce.tipo_campo != "check" and not value:
+                errors.append(f"Compilare la voce obbligatoria: {voce.label}.")
+            if voce.tipo_campo == "select" and value and voce.scelte and value not in voce.scelte:
+                errors.append(f"Valore non valido per: {voce.label}.")
+            risposte.append((voce, value))
+
+        if not errors:
+            actor_id, actor_name = _ispezione_actor(request)
+            metadata = {
+                "area": area,
+                "macchina": macchina,
+                "note": note,
+            }
+            with transaction.atomic():
+                esecuzione = ChecklistEsecuzione.objects.create(
+                    legacy_user_id=actor_id,
+                    utente_nome=area[:200],
+                    tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO,
+                    eseguita_da_id=actor_id,
+                    eseguita_da_nome=actor_name[:200],
+                    note=json.dumps(metadata, ensure_ascii=False),
+                    completata=True,
+                )
+                ChecklistRisposta.objects.bulk_create(
+                    [
+                        ChecklistRisposta(
+                            esecuzione=esecuzione,
+                            voce_id=voce.pk,
+                            voce_label=voce.label,
+                            voce_tipo=voce.tipo_campo,
+                            valore=value,
+                        )
+                        for voce, value in risposte
+                    ]
+                )
+            messages.success(request, "Ispezione periodica registrata.")
+            return redirect("diario_preposto:ispezioni")
+
+    return render(
+        request,
+        "diario_preposto/pages/ispezione_form.html",
+        {
+            "voci": voci,
+            "errors": errors,
+            "form_data": form_data,
         },
     )
 
@@ -763,6 +933,12 @@ def impostazioni(request):
             return branding_response
         raw = request.POST.get("acl_scrittura", "").strip()
         entries = [e.strip() for e in raw.replace(",", "\n").splitlines() if e.strip()]
+        raw_frequenza = request.POST.get("ispezione_frequenza_giorni", "").strip()
+        try:
+            frequenza = int(raw_frequenza)
+        except (TypeError, ValueError):
+            frequenza = cfg.ispezione_frequenza_giorni
+        cfg.ispezione_frequenza_giorni = min(max(frequenza, 1), 365)
         cfg.acl_scrittura = entries
         cfg.save()
         from core.audit import log_action

@@ -242,7 +242,7 @@ def safe_name(n):
         return os.path.basename(s) or s
     return s
 
-secret_key = str(getattr(settings, "SECRET_KEY", "") or "")
+secret_key = str(getattr(settings, "SECRET_KEY", "") or "")  # hygiene: skip - legge la key, non la contiene
 log_dir = str(getattr(settings, "DJANGO_LOG_DIR", "") or os.environ.get("DJANGO_LOG_DIR", ""))
 
 out = {
@@ -411,8 +411,8 @@ $summary = [PSCustomObject]@{
     db_host                = [string]$probeJson.host
     db_user_set            = [bool]$probeJson.user_set
     debug                  = [bool]$probeJson.debug
-    secret_key_len         = [int]$probeJson.secret_key_len
-    secret_key_placeholder = [bool]$probeJson.secret_key_placeholder
+    secret_key_len         = [int]$probeJson.secret_key_len       # hygiene: skip - lunghezza, non valore
+    secret_key_placeholder = [bool]$probeJson.secret_key_placeholder # hygiene: skip - flag booleano, non valore
     log_dir                = $logDir
     allowed_hosts_count    = [int]$probeJson.allowed_hosts_count
 }

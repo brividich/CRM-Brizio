@@ -599,6 +599,33 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
     cost_year = _wo_cost(year_start, year_end)
     cost_prev_year = _wo_cost(prev_year_start, prev_year_end)
 
+    # --- TCO cumulato (tutti gli anni, OdL chiusi) ---
+    tco_workorders = ZERO
+    try:
+        val = (
+            WorkOrder.objects
+            .filter(asset_id=asset_id, status=WorkOrder.STATUS_DONE, cost_eur__isnull=False)
+            .aggregate(total=Sum("cost_eur"))
+            .get("total")
+        )
+        tco_workorders = Decimal(str(val)) if val is not None else ZERO
+    except Exception:
+        pass
+
+    tco_deadlines = ZERO
+    try:
+        val = (
+            AssetAdministrativeDeadlineCompletion.objects
+            .filter(deadline__asset_id=asset_id, cost_eur__isnull=False)
+            .aggregate(total=Sum("cost_eur"))
+            .get("total")
+        )
+        tco_deadlines = Decimal(str(val)) if val is not None else ZERO
+    except Exception:
+        pass
+
+    tco_cumulative = tco_workorders + tco_deadlines
+
     # --- Deadline cost anno corrente ---
     deadline_cost_year = _deadline_cost(year_start, year_end)
 
@@ -662,6 +689,8 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
         "deadline_cost_year": deadline_cost_year,
         # Totale combinato anno corrente
         "total_cost_year": cost_year + deadline_cost_year,
+        # TCO cumulato (tutti gli anni)
+        "tco_cumulative": tco_cumulative,
         # Breakdown per tipo (anno corrente)
         "kind_breakdown": kind_breakdown,
         # Conteggi interventi per periodo

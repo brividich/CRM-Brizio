@@ -47,6 +47,8 @@ urlpatterns = [
     path("organigramma/", views.organigramma, name="organigramma"),
     path("notifiche/", views.notifiche, name="notifiche"),
     path("api/notifiche/<int:notifica_id>/leggi", views.api_notifica_leggi, name="api_notifica_leggi"),
+    path("api/notifiche/panel/", views.api_notifiche_panel, name="api_notifiche_panel"),
+    path("api/notifiche/mark-all-read/", views.api_notifiche_mark_all_read, name="api_notifiche_mark_all_read"),
     path("api/notifiche/popup-ack/", views.api_notifiche_popup_ack, name="api_notifiche_popup_ack"),
     path(
         "api/gestione-reparto/<int:user_id>/assegna",

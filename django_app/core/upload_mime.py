@@ -12,7 +12,7 @@ class UploadMimeValidationError(ValueError):
 # Filename normalization (path traversal / null byte hardening)
 # ---------------------------------------------------------------------------
 
-_FILENAME_INVALID_CHARS_RE = re.compile(r"[\\/\x00-\x1f\x7f]")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def safe_filename(raw_name: str | None, *, max_length: int = 200) -> str:
@@ -29,8 +29,8 @@ def safe_filename(raw_name: str | None, *, max_length: int = 200) -> str:
     name = str(raw_name or "")
     if not name:
         return ""
-    # Rimuovi null byte e caratteri di controllo
-    name = _FILENAME_INVALID_CHARS_RE.sub("", name).strip()
+    # Rimuovi null byte e caratteri di controllo (NON i separatori: servono a .name)
+    name = _CONTROL_CHARS_RE.sub("", name).strip()
     if not name:
         return ""
     # Strip path components sia POSIX sia Windows: .name su entrambi
@@ -39,7 +39,8 @@ def safe_filename(raw_name: str | None, *, max_length: int = 200) -> str:
     # Tieni il piu' corto non vuoto: se uno dei due ha "stripato" un path, e' quello.
     candidate = posix_name if (posix_name and len(posix_name) <= len(win_name)) else win_name
     candidate = candidate or posix_name or win_name
-    candidate = candidate.strip().strip(".")
+    # Rimuovi eventuali separatori residui (edge case con nomi misti)
+    candidate = candidate.replace("\\", "").replace("/", "").strip().strip(".")
     if not candidate or candidate in {".", ".."}:
         return ""
     if len(candidate) > max_length:

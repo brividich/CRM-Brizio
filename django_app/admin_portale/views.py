@@ -28,7 +28,7 @@ from django.core.files.storage import default_storage
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, Resolver404, get_resolver, resolve, reverse
@@ -56,6 +56,7 @@ from core.acl_v2 import (
     validate_permission_code,
 )
 from core.audit import log_action
+from core.exporting import export_rows_response
 from core.caporeparto_utils import (
     format_caporeparto_label,
     normalize_caporeparto_option,
@@ -7874,13 +7875,11 @@ def api_pulsanti_set_enabled(request):
 # Audit log
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@legacy_admin_required
-def audit_log_view(request):
+
+def _audit_queryset_from_request(request):
     from core.models import AuditLog
-    from django.core.paginator import Paginator
 
     qs = AuditLog.objects.all()
-
     filtro_modulo = (request.GET.get("modulo") or "").strip()
     filtro_azione = (request.GET.get("azione") or "").strip()
     filtro_data = (request.GET.get("data") or "").strip()
@@ -7891,6 +7890,32 @@ def audit_log_view(request):
         qs = qs.filter(azione__icontains=filtro_azione)
     if filtro_data:
         qs = qs.filter(created_at__date=filtro_data)
+
+    return qs, filtro_modulo, filtro_azione, filtro_data
+
+
+@legacy_admin_required
+def audit_log_view(request):
+    from core.models import AuditLog
+    from django.core.paginator import Paginator
+
+    qs, filtro_modulo, filtro_azione, filtro_data = _audit_queryset_from_request(request)
+    export_format = (request.GET.get("export") or "").strip().lower()
+    if export_format in {"csv", "xlsx"}:
+        return export_rows_response(
+            rows=qs.order_by("-created_at"),
+            columns=[
+                ("Data/Ora", "created_at"),
+                ("Utente", "utente_display"),
+                ("Legacy user ID", "legacy_user_id"),
+                ("Modulo", "modulo"),
+                ("Azione", "azione"),
+                ("IP", "ip_address"),
+                ("Dettaglio", "dettaglio"),
+            ],
+            filename="audit_log",
+            fmt=export_format,
+        )
 
     moduli_disponibili = AuditLog.objects.values_list("modulo", flat=True).distinct().order_by("modulo")
 
@@ -7904,6 +7929,80 @@ def audit_log_view(request):
         "filtro_azione": filtro_azione,
         "filtro_data": filtro_data,
         "moduli_disponibili": moduli_disponibili,
+    })
+
+
+@legacy_admin_required
+def user_activity_view(request):
+    from datetime import timedelta
+    from core.models import AuditLog
+    from django.core.paginator import Paginator
+
+    days_raw = (request.GET.get("days") or "30").strip()
+    try:
+        days = max(1, min(365, int(days_raw)))
+    except ValueError:
+        days = 30
+    since = timezone.now() - timedelta(days=days)
+    legacy_user_id = (request.GET.get("legacy_user_id") or "").strip()
+    modulo = (request.GET.get("modulo") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+
+    qs = AuditLog.objects.filter(created_at__gte=since)
+    if legacy_user_id:
+        qs = qs.filter(legacy_user_id=legacy_user_id)
+    if modulo:
+        qs = qs.filter(modulo=modulo)
+    if q:
+        qs = qs.filter(
+            Q(utente_display__icontains=q)
+            | Q(azione__icontains=q)
+            | Q(modulo__icontains=q)
+            | Q(ip_address__icontains=q)
+        )
+
+    export_format = (request.GET.get("export") or "").strip().lower()
+    if export_format in {"csv", "xlsx"}:
+        return export_rows_response(
+            rows=qs.order_by("-created_at"),
+            columns=[
+                ("Data/Ora", "created_at"),
+                ("Utente", "utente_display"),
+                ("Legacy user ID", "legacy_user_id"),
+                ("Modulo", "modulo"),
+                ("Azione", "azione"),
+                ("IP", "ip_address"),
+                ("Dettaglio", "dettaglio"),
+            ],
+            filename="attivita_utente",
+            fmt=export_format,
+        )
+
+    by_module = list(qs.values("modulo").annotate(total=Count("id")).order_by("-total", "modulo")[:12])
+    by_action = list(qs.values("azione").annotate(total=Count("id")).order_by("-total", "azione")[:12])
+    users = list(
+        AuditLog.objects.filter(created_at__gte=since)
+        .exclude(legacy_user_id__isnull=True)
+        .values("legacy_user_id", "utente_display")
+        .annotate(total=Count("id"))
+        .order_by("utente_display", "legacy_user_id")[:200]
+    )
+    moduli_disponibili = AuditLog.objects.values_list("modulo", flat=True).distinct().order_by("modulo")
+    paginator = Paginator(qs.order_by("-created_at"), 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "admin_portale/pages/user_activity.html", {
+        "page_title": "Attivita utenti",
+        "page_obj": page_obj,
+        "days": days,
+        "legacy_user_id": legacy_user_id,
+        "modulo": modulo,
+        "q": q,
+        "users": users,
+        "moduli_disponibili": moduli_disponibili,
+        "by_module": by_module,
+        "by_action": by_action,
+        "total_events": qs.count(),
     })
 
 

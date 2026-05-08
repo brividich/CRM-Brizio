@@ -6,6 +6,7 @@ urlpatterns = [
     path("", views.lista, name="lista"),
     path("nuovo/", views.nuovo, name="nuovo"),
     path("statistiche/", views.statistiche, name="statistiche"),
+    path("heatmap/", views.heatmap, name="heatmap"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
     path("export-csv/", views.export_csv, name="export_csv"),
     path("<str:sp_id>/pdf/", views.export_pdf, name="export_pdf"),

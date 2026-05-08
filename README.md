@@ -129,9 +129,9 @@ sequenceDiagram
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
-| 1 | [`core`](django_app/core/) | Core | — | Middleware ACL, navigation registry, auth backends, audit, legacy models |
+| 1 | [`core`](django_app/core/) | Core | — | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models |
 | 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home KPI personalizzabile per utente, widget, layout salvato |
-| 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, branding |
+| 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attività utente, branding |
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
@@ -145,10 +145,10 @@ sequenceDiagram
 | 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti |
 | 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
 | 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
-| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna, KPI |
-| 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni e follow-up |
-| 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions e incidenti (SharePoint source of truth) |
-| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, tracking, export CSV |
+| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna firmata, report conformita, reminder scadenze |
+| 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni, allegati privati e ispezioni periodiche |
+| 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions, near miss, incidenti, KPI sicurezza e heatmap planimetria |
+| 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, matrice formazione, quiz e export CSV |
 | 21 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI) |
 | 22 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import Power Automate |
 
@@ -169,10 +169,12 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **Fallback navigazione legacy** con deduplica visuale per modulo, cosi i restore/import non duplicano in sidebar le azioni `pulsanti` dello stesso modulo
 - **4 auth backend in cascata**: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`
 - **Audit trail** fire-and-forget via `core.audit.log_action()` su tabella `AuditLog`
+- **Centro notifiche** unificato con campanella, badge, pannello HTMX e sorgenti scadenze asset/DPI/SLA ticket
+- **Export riusabile CSV/XLSX** con `core.exporting.ExportMixin` e helper per liste filtrate
 - **Legacy models managed** su SQL Server: `Ruolo`, `UtenteLegacy`, `AnagraficaDipendente`, `Pulsante`, `Permesso`
 - **Impersonation** admin → utente con middleware dedicato e session key
 - **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
-- **Ricerca globale** Ctrl+K su 6 sorgenti (dipendenti, asset, ticket, progetti, task, procedure)
+- **Ricerca globale** Ctrl+K su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
 </details>
 
 <details open>
@@ -198,6 +200,8 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo
 - **Mappa permessi/navigazione** visuale con drill-down cliccabile e toggle live dei grant
 - **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
+- **Vista attività utente** (`/admin-portale/attivita-utenti/`) sugli ultimi 30 giorni da `AuditLog`, con filtri utente/modulo/testo e export CSV/XLSX
+- **Export audit/notifiche**: audit log, attività utente e centro notifiche mantengono i filtri GET negli export CSV/XLSX
 - **LDAP settings** + sync/import utenti AD con service account effettivo; nei deploy TEST/PROD salva sul `config/.env` persistente, non sul `.env` della release attiva
 - **Branding portale** (favicon, logo, login banner, pagina login personalizzabile)
 - **Module Manager** integrato per abilitazione moduli runtime
@@ -281,6 +285,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
 - **Categorie asset gerarchiche** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`; la tab mostra impatto operativo, contatori, preview degli asset collegati in popup e azione rapida per pubblicare la categoria nel menu laterale come lista filtrata. Il catalogo CSV/XLSX puo creare categorie padre (`famiglia`) e sottocategorie (`sottocategoria`) con `import_assets_catalog`
 - **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
+- **Documenti asset + SharePoint**: le macchine di lavoro supportano upload multipli per Specifiche/Manuali/Interventi; i file vengono validati, salvati localmente come `AssetDocument`, sincronizzati su SharePoint via Graph quando configurato e serviti tramite download autenticato `/assets/documenti/<id>/download/` se resta solo la copia locale. Review operativa: `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
 - **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, path logico `assets_admin_deadlines/<asset_tag>/<completion_id>/`, storage privato `ASSETS_PRIVATE_ROOT` e download autenticato da `/assets/scadenze/allegati/<id>/download/`; migrazione operativa file legacy: `manage.py migrate_admin_deadline_attachments_private --apply --delete-source`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
@@ -425,14 +430,16 @@ Sistema di comunicazione top-down con target per ruolo/reparto.
 
 Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 
-- **8 modelli**: CategoriaDPI (con immagine e vita utile), TipoDPI (sottocategoria), ModelloDPI (codice, produttore, immagine, vita utile override), TagliaDPI (valore taglia), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1), RichiestaDPICommento
+- **8 modelli**: CategoriaDPI (con immagine, vita utile e flag obbligatorio mansionario), TipoDPI (sottocategoria), ModelloDPI (codice, produttore, immagine, vita utile override), TagliaDPI (valore taglia), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1 con firma PNG base64), RichiestaDPICommento
 - **Gerarchia DPI**: Categoria → Tipo → Modello → Taglia gestibile da `/dpi/impostazioni/`, con immagine modello e attivazione/disattivazione record
 - **Richieste** con **card-picker grafico** per la categoria e selezione opzionale di tipo/modello/taglia; resta supportata la richiesta con sola categoria
 - **Numerazione univoca** `DPI-YYYY-NNNN`
 - **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata
 - **Approvazione** da parte del responsabile sicurezza con commenti
-- **Consegna** con firma dipendente e data
-- **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna
+- **Consegna** con firma dipendente via canvas HTML5, data e ricevuta firmata
+- **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna; lista e dettaglio mostrano il semaforo scadenza
+- **Report conformita** per dipendente su `/dpi/report-conformita/`, con filtro categorie obbligatorie e stato OK/scaduto/mancante
+- **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
 </details>
@@ -445,6 +452,7 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 - **3 modelli**: SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni
 - **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
 - **Allegati multipli** (foto, documenti) con upload hardening e **storage privato** (`DIARIO_PREPOSTO_PRIVATE_ROOT`) servito solo via download autenticato `/diario-preposto/allegato/<id>/download/` (no esposizione `/media/` pubblico)
+- **Ispezioni periodiche** in `/diario-preposto/ispezioni/` con template `ChecklistVoce`, registrazioni `ChecklistEsecuzione`/`ChecklistRisposta`, area/macchina/voce e frequenza configurabile nelle impostazioni
 - **Export Excel** testato con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, `created_at`, `updated_at`)
 - **Export PDF** per singola segnalazione con layout professionale
 - **Follow-up** con azioni correttive e verifica efficacia
@@ -461,10 +469,12 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 - **2 modelli**: RilevazioneIncidente (cache locale), SicurezzaImpostazioni
 - **CRUD via Graph API** sulla lista SharePoint configurata
 - **Cache locale** Django per performance e query offline
-- **Tipi**: incidente, mancato incidente, condizione non sicura, comportamento non sicuro
+- **Tipi normalizzati**: `incidente`, `near_miss`, `unsafe_condition`, con filtri e KPI separati rispetto alle etichette legacy SharePoint
 - **Workflow** apertura → analisi → azioni correttive → verifica → chiusura
 - **Allegati** salvati su SharePoint (foto scena, medicazioni, referti)
-- **Statistiche** per reparto, causa, gravità
+- **KPI sicurezza**: TRIR, giorni senza infortuni, headcount anagrafica e trend mensile pubblicati anche nel dashboard hub
+- **Heatmap planimetria** in `/rilevazione-incidenti/heatmap/` con FK opzionale ad area layout e overlay SVG dei punti incidente
+- **Statistiche** per reparto, causa, gravità e categoria evento
 </details>
 
 <details open>
@@ -472,13 +482,15 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 
 Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio.
 
-- **6 modelli**: ProcedureDocument, ProcedureRevision, ProcedureCampaign, ProcedureCampaignDocument, ProcedureAssignment, ProcedureReadEvent
+- **8 modelli**: ProcedureDocument, ProcedureRevision, ProcedureCampaign, ProcedureCampaignDocument, ProcedureAssignment, ProcedureReadEvent, ProcedureQuiz, ProcedureQuizAttempt
 - **Anagrafica procedure** con codice univoco, tipo MT/MTSI/ALTRO
 - **Revisioni** con sorgente SharePoint o file server, validazione URL/path
 - **Campagne** con stati draft → published → closed → archived
 - **Assegnazioni** per utente Django con stati assigned → opened → read_confirmed (o overdue/cancelled)
 - **Tracking aperture**: `open_count`, `first_opened_at`, `last_opened_at`, IP, user agent
 - **Log eventi**: opened, confirmed, reminder_sent, reassigned, exported
+- **Matrice formazione** in `/procedure-refresh/admin/report/matrice/` con completamento per reparto e export CSV audit ISO
+- **Quiz post-lettura** per revisione procedura, mostrato dopo la conferma e tracciato senza bloccare `read_confirmed`
 - **Reminder automatici** via mail configurabili
 - **Export CSV** per audit
 - **Report** copertura per reparto/procedura
@@ -829,11 +841,13 @@ python django_app\manage.py validate_deployment --settings=config.settings.test
 
 # Validazione SEC-HARDENING-03 (File Exposure, Upload Validation, Audit Logging, Deploy Hardening)
 python django_app\manage.py test diario_preposto.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test rilevazione_incidenti.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test tickets.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test dpi.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test core.test_upload_mime --settings=config.settings.test --verbosity 2
 python django_app\manage.py validate_deployment --settings=config.settings.test
-# Stato atteso: diario_preposto.tests 9 OK, tickets.tests 22 OK, dpi.tests 14 OK,
+# Stato atteso: diario_preposto.tests 11 OK, rilevazione_incidenti.tests 4 OK,
+# tickets.tests 22 OK, dpi.tests 14 OK,
 # validate_deployment OK=23 WARN=2 FAIL=4 (FAIL simulati/attesi nei test).
 # Nota: prima del deploy reale eseguire validate_deployment sull'ambiente target
 # e richiedere FAIL=0 (i test includono scenari FAIL simulati/attesi).
@@ -843,9 +857,10 @@ python django_app\manage.py test assets.tests --settings=config.settings.test --
 python django_app\manage.py test tickets.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test dpi.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test diario_preposto.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test rilevazione_incidenti.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test automazioni.tests --settings=config.settings.test --verbosity 2
 # Stato atteso: assets.tests 159 OK, tickets.tests 22 OK, dpi.tests 14 OK,
-# diario_preposto.tests 9 OK, automazioni.tests 310 OK.
+# diario_preposto.tests 11 OK, rilevazione_incidenti.tests 4 OK, automazioni.tests 310 OK.
 # Gap minore: Ticket.include_in_maintenance_register non modificabile dopo creazione.
 
 # Patch 21 guard/audit locale

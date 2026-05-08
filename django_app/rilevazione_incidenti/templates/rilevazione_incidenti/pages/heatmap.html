@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+
+{% block title %}Heatmap Incidenti | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#sic-root { display:flex; flex-direction:column; gap:20px; }
+.sic-hero { background:linear-gradient(135deg,#064e3b 0%,#065f46 100%); border-radius:16px; padding:24px 32px; color:#fff; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.sic-hero-title { font-size:24px; font-weight:900; }
+.sic-hero-sub { font-size:13px; opacity:.75; margin-top:3px; }
+.sic-btn { display:inline-flex; align-items:center; padding:8px 14px; border-radius:9px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.45); color:#fff; text-decoration:none; font-size:13px; font-weight:700; }
+.sic-filter { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+.sic-filter label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; }
+.sic-filter select { padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; min-width:220px; }
+.sic-filter button { padding:9px 16px; border:0; border-radius:8px; background:#065f46; color:#fff; font-weight:700; cursor:pointer; }
+.sic-map-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+.sic-map-wrap { position:relative; width:100%; background:#f8fafc; }
+.sic-map-wrap img { display:block; width:100%; height:auto; }
+.sic-map-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.sic-empty { padding:42px; text-align:center; color:#94a3b8; }
+.sic-point-label { font:700 12px system-ui,-apple-system,Segoe UI,sans-serif; fill:#fff; paint-order:stroke; stroke:#7f1d1d; stroke-width:3px; }
+body.theme-dark .sic-filter, body.theme-dark .sic-map-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-filter label { color:var(--text-mid); }
+body.theme-dark .sic-filter select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+  <div class="sic-hero">
+    <div>
+      <div><a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn">Torna alla lista</a></div>
+      <div class="sic-hero-title" style="margin-top:12px;">Heatmap incidenti</div>
+      <div class="sic-hero-sub">Overlay delle rilevazioni associate alle aree della planimetria attiva</div>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="sic-empty">{{ error }}</div>
+  {% endif %}
+
+  {% if layouts %}
+  <form method="get" class="sic-filter">
+    <label>Planimetria
+      <select name="layout">
+        {% for l in layouts %}
+        <option value="{{ l.pk }}"{% if layout and layout.pk == l.pk %} selected{% endif %}>{{ l.category }} - {{ l.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Aggiorna</button>
+  </form>
+  {% endif %}
+
+  {% if layout %}
+  <div class="sic-map-card">
+    <div class="sic-map-wrap">
+      <img src="{{ layout.image.url }}" alt="{{ layout.name }}">
+      <svg class="sic-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {% for p in points %}
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.radius|floatformat:1 }}" fill="#dc2626" fill-opacity=".22"></circle>
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="1.6" fill="#dc2626" stroke="#fff" stroke-width=".5"></circle>
+        <text x="{{ p.x }}" y="{{ p.label_y }}" text-anchor="middle" class="sic-point-label">{{ p.count }}</text>
+        {% endfor %}
+      </svg>
+    </div>
+    {% if not points %}
+    <div class="sic-empty">Nessuna rilevazione associata alle aree di questa planimetria.</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="sic-empty">Configura una planimetria attiva per visualizzare la heatmap.</div>
+  {% endif %}
+</div>
+{% endblock %}

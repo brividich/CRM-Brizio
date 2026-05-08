@@ -166,6 +166,16 @@ body.theme-dark .sic-btn-rspp { background:rgba(29,78,216,.2); color:#93c5fd; }
           <div class="sic-field-value">{{ f.Reparto|default:f.Reparto_txt|default:"—" }}</div>
         </div>
         <div class="sic-field-item">
+          <div class="sic-field-label">Categoria evento</div>
+          <div class="sic-field-value">{{ f.Tipo_evento_label|default:"-" }}</div>
+        </div>
+        {% if f.PlanimetriaAreaNome %}
+        <div class="sic-field-item">
+          <div class="sic-field-label">Area planimetria</div>
+          <div class="sic-field-value">{{ f.PlanimetriaAreaNome }}</div>
+        </div>
+        {% endif %}
+        <div class="sic-field-item">
           <div class="sic-field-label">Causa che ha determinato l'evento</div>
           <div class="sic-field-value">{{ f.Causa_x0020_che_x0020_ha_x0020_determinato_x0020_l_x0027_evento|default:"—" }}</div>
         </div>

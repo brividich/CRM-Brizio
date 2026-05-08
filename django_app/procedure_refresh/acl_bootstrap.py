@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v2"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -66,6 +66,22 @@ _PULSANTI_DEFINITIONS = [
         "codice": "pr_report_campaign",
         "label": "Presa Visione - Report campagna",
         "url": "/procedure-refresh/admin/report/campagna/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_report_matrix",
+        "label": "Presa Visione - Matrice formazione",
+        "url": "/procedure-refresh/admin/report/matrice/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_revision_quiz",
+        "label": "Presa Visione - Quiz revisione",
+        "url": "/procedure-refresh/admin/revisioni/",
         "visible_topbar": False,
         "ui_order": None,
     },

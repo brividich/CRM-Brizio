@@ -615,6 +615,15 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               </div>
             </div>
 
+            {# TCO cumulato (tutti gli anni) #}
+            {% if asset_maintenance_costs.tco_cumulative %}
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;">
+              <div style="font-size:12px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">TCO cumulato</div>
+              <div style="font-size:1.2rem;font-weight:800;color:#1d4ed8;margin-left:4px;">&euro;&nbsp;{{ asset_maintenance_costs.tco_cumulative|floatformat:0 }}</div>
+              <div style="font-size:11px;color:#3b82f6;margin-left:auto;">Totale manutenzioni + scadenze registrate</div>
+            </div>
+            {% endif %}
+
             {# Costi scadenze amministrative + confronto YoY #}
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
               {% if asset_maintenance_costs.deadline_cost_year %}
@@ -660,6 +669,71 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
             {% endif %}
 
+          </div>
+          {% endif %}
+
+          {# ── Budget manutenzione per categoria (AS3) ─────────────────── #}
+          {% if asset_budget_rows %}
+          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Budget manutenzione categoria</div>
+          </div>
+          <div style="padding:8px 16px 14px;display:grid;gap:8px;">
+            {% for row in asset_budget_rows %}
+            <div style="border:1px solid {% if row.over_budget %}#fecaca{% else %}#e2e8f0{% endif %};border-radius:10px;padding:10px 14px;background:{% if row.over_budget %}#fff5f5{% else %}#fcfdff{% endif %};">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <div style="font-size:12px;font-weight:700;color:#374151;">{{ row.year }}</div>
+                <div style="font-size:12px;color:#64748b;margin-left:4px;">Budget: <strong>&euro;&nbsp;{{ row.budget|floatformat:0 }}</strong></div>
+                {% if row.over_budget %}
+                <div style="margin-left:auto;font-size:11px;background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:5px;font-weight:700;">Sforato</div>
+                {% else %}
+                <div style="margin-left:auto;font-size:11px;color:#16a34a;font-weight:700;">Residuo: &euro;&nbsp;{{ row.residual|floatformat:0 }}</div>
+                {% endif %}
+              </div>
+              <div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;">
+                <div style="height:100%;border-radius:4px;background:{% if row.over_budget %}#ef4444{% elif row.pct > 80 %}#f59e0b{% else %}#22c55e{% endif %};width:{{ row.pct }}%;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                <div style="font-size:11px;color:#64748b;">Speso: &euro;&nbsp;{{ row.spent|floatformat:0 }}</div>
+                <div style="font-size:11px;color:#64748b;">{{ row.pct }}%</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {# ── Timeline storico tecnico asset (AS4) ────────────────────── #}
+          {% if timeline_tech_rows %}
+          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Storico tecnico</div>
+          </div>
+          <div style="padding:8px 16px 14px;">
+            <div style="display:grid;gap:0;position:relative;">
+              {% for row in timeline_tech_rows %}
+              <div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f8fafc;">
+                <div style="flex:0 0 26px;display:flex;flex-direction:column;align-items:center;padding-top:3px;">
+                  {% if row.tipo == "incidente" %}
+                  <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:2px solid #fecaca;flex-shrink:0;"></div>
+                  {% elif row.tipo == "workorder" %}
+                  <div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;border:2px solid #bfdbfe;flex-shrink:0;"></div>
+                  {% else %}
+                  <div style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;border:2px solid #ddd6fe;flex-shrink:0;"></div>
+                  {% endif %}
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <span style="font-size:11px;font-weight:700;
+                      {% if row.tipo == 'incidente' %}color:#b91c1c;background:#fee2e2;
+                      {% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;
+                      {% else %}color:#5b21b6;background:#ede9fe;{% endif %}
+                      padding:1px 6px;border-radius:4px;">{{ row.tipo_label }}</span>
+                    {% if row.data %}<span style="font-size:11px;color:#94a3b8;">{{ row.data|date:"d/m/Y" }}</span>{% endif %}
+                  </div>
+                  <div style="font-size:12px;color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{{ row.titolo }}</div>
+                  {% if row.dettaglio %}<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.dettaglio }}">{{ row.dettaglio }}</div>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
           </div>
           {% endif %}
 

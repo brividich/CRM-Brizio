@@ -427,6 +427,7 @@ class TaskForm(forms.ModelForm):
             "tags",
             "status",
             "priority",
+            "progress",
             "due_date",
             "next_step_text",
             "next_step_due",
@@ -439,6 +440,7 @@ class TaskForm(forms.ModelForm):
             "tags": forms.TextInput(attrs={"class": "input", "maxlength": 250, "placeholder": "es. produzione, urgente"}),
             "status": forms.Select(attrs={"class": "input"}),
             "priority": forms.Select(attrs={"class": "input"}),
+            "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
             "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
             "next_step_text": forms.TextInput(attrs={"class": "input", "maxlength": 300}),
             "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}),
@@ -1019,11 +1021,12 @@ class TaskAttachmentForm(forms.ModelForm):
 class ProjectTaskGanttUpdateForm(forms.ModelForm):
     class Meta:
         model = Task
-        fields = ["next_step_due", "due_date", "status"]
+        fields = ["next_step_due", "due_date", "status", "progress"]
         widgets = {
             "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "status": forms.Select(attrs={"class": "input"}),
+            "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
         }
 
     def clean(self):

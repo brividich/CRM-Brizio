@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from io import BytesIO
 
@@ -9,9 +10,9 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
 
-from core.models import UserOnboarding
+from core.models import ChecklistEsecuzione, ChecklistRisposta, ChecklistVoce, UserOnboarding
 
-from .models import SegnalazionePreposto
+from .models import DiarioPrepostoImpostazioni, SegnalazionePreposto
 
 
 def _aware_datetime(year: int, month: int, day: int, hour: int = 9, minute: int = 0):
@@ -163,6 +164,57 @@ class SegnalazionePrepostoExcelExportTests(TestCase):
         response = self.client.get(reverse("diario_preposto:export_excel"))
 
         self.assertEqual(response.status_code, 302)
+
+
+class IspezioniPrepostoTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="preposto",
+            email="preposto@example.com",
+            password="pwd12345",
+        )
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        self.client.force_login(self.user)
+
+    def test_ispezioni_page_creates_default_template_voci(self):
+        DiarioPrepostoImpostazioni.objects.create(
+            pk=1,
+            acl_scrittura=[],
+            ispezione_frequenza_giorni=14,
+        )
+
+        response = self.client.get(reverse("diario_preposto:ispezioni"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ispezioni periodiche")
+        self.assertEqual(
+            ChecklistVoce.objects.filter(tipo_checklist="preposto_ispezione", is_active=True).count(),
+            4,
+        )
+        self.assertContains(response, "14 gg")
+
+    def test_ispezione_nuova_creates_checklist_execution_and_answers(self):
+        self.client.get(reverse("diario_preposto:ispezioni"))
+        voci = list(ChecklistVoce.objects.filter(tipo_checklist="preposto_ispezione"))
+        data = {
+            "area": "CNC",
+            "macchina": "Tornio 1",
+            "note": "Percorsi liberi.",
+        }
+        for voce in voci:
+            if voce.tipo_campo == "check":
+                data[f"voce_{voce.pk}"] = "1"
+            elif voce.tipo_campo == "testo":
+                data[f"voce_{voce.pk}"] = "Nessuna anomalia"
+
+        response = self.client.post(reverse("diario_preposto:ispezione_nuova"), data)
+
+        self.assertRedirects(response, reverse("diario_preposto:ispezioni"))
+        esecuzione = ChecklistEsecuzione.objects.get(tipo_checklist="preposto_ispezione")
+        metadata = json.loads(esecuzione.note)
+        self.assertEqual(metadata["area"], "CNC")
+        self.assertEqual(metadata["macchina"], "Tornio 1")
+        self.assertEqual(ChecklistRisposta.objects.filter(esecuzione=esecuzione).count(), len(voci))
 
 
 class SegnalazioneAllegatoDownloadTests(TestCase):

@@ -81,6 +81,7 @@ body.theme-dark .dp-empty { color:var(--text-light); }
       <div class="dp-hero-sub">RSPP · ASPP · RLS - Registro segnalazioni sicurezza</div>
     </div>
     <div class="dp-hero-actions">
+      <a href="{% url 'diario_preposto:ispezioni' %}" class="dp-hbtn dp-hbtn-white">Ispezioni periodiche</a>
       {% if can_manage_settings %}
       <a href="{% url 'diario_preposto:impostazioni' %}" class="dp-hbtn dp-hbtn-white">&#9881; Impostazioni</a>
       {% endif %}

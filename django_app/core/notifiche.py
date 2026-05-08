@@ -49,3 +49,45 @@ def invia_notifica(
             tipo,
             legacy_user_id,
         )
+
+
+def legacy_user_ids_for_email(email: str) -> list[int]:
+    """Ritorna gli utenti legacy collegati a un indirizzo email."""
+    email_norm = str(email or "").strip().lower()
+    if not email_norm:
+        return []
+    ids: set[int] = set()
+    try:
+        from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+
+        ids.update(
+            int(value)
+            for value in UtenteLegacy.objects.filter(email__iexact=email_norm).values_list("id", flat=True)
+            if value
+        )
+        ids.update(
+            int(value)
+            for value in AnagraficaDipendente.objects.filter(email_notifica__iexact=email_norm)
+            .exclude(utente_id__isnull=True)
+            .values_list("utente_id", flat=True)
+            if value
+        )
+        ids.update(
+            int(value)
+            for value in AnagraficaDipendente.objects.filter(email__iexact=email_norm)
+            .exclude(utente_id__isnull=True)
+            .values_list("utente_id", flat=True)
+            if value
+        )
+    except Exception:
+        logger.exception("Errore risoluzione legacy_user_id per email=%s", email_norm)
+    return sorted(ids)
+
+
+def invia_notifica_email(email: str, tipo: str, messaggio: str, url_azione: str = "") -> int:
+    """Crea una notifica per tutti gli utenti legacy risolti da email."""
+    created = 0
+    for legacy_user_id in legacy_user_ids_for_email(email):
+        invia_notifica(legacy_user_id, tipo, messaggio, url_azione)
+        created += 1
+    return created

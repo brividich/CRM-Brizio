@@ -314,7 +314,7 @@
                       {% for doc in uploaded_list %}
                         <div class="wmf-upload-item">
                           <div class="wmf-upload-top">
-                            <a href="{% if doc.sharepoint_url %}{{ doc.sharepoint_url }}{% else %}{{ doc.file.url }}{% endif %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
+                            <a href="{% if doc.sharepoint_url %}{{ doc.sharepoint_url }}{% else %}{% url 'assets:asset_document_download' doc.id %}{% endif %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
                             <span class="wmf-upload-meta">
                               {{ doc.created_at|date:"d/m/Y H:i" }}
                               {% if doc.uploaded_by %} · {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}{% endif %}
@@ -343,7 +343,7 @@
                     multiple
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp"
                   >
-                  <div class="wmf-help">Upload reale nel portale. Max 20 MB per file.</div>
+                  <div class="wmf-help">Upload reale nel portale, con sync SharePoint se configurato. Max 20 MB per file.</div>
                 </div>
               </div>
             </section>

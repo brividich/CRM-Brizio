@@ -3,11 +3,49 @@ from __future__ import annotations
 from django.db import models
 
 
+class TipoEventoSicurezza(models.TextChoices):
+    UNSAFE_CONDITION = "unsafe_condition", "Unsafe condition / atto non sicuro"
+    NEAR_MISS = "near_miss", "Near miss"
+    INCIDENTE = "incidente", "Incidente"
+
+
+def normalize_tipo_evento(value: str) -> str:
+    raw = str(value or "").strip().lower().replace("-", " ").replace("_", " ")
+    if raw in {"incidente", "incident", "accident", "infortunio"} or "accident" in raw:
+        return TipoEventoSicurezza.INCIDENTE
+    if raw in {"near miss", "nearmiss", "quasi incidente"} or "near" in raw:
+        return TipoEventoSicurezza.NEAR_MISS
+    return TipoEventoSicurezza.UNSAFE_CONDITION
+
+
 class RilevazioneIncidente(models.Model):
     """Archivio locale rilevazioni sicurezza (fallback quando SharePoint non è configurato)."""
 
     nominativo = models.CharField(max_length=255)
     tipologia_scheda = models.CharField(max_length=50)  # Unsafe Condition / Unsafe Act / Near Miss / Accident
+    tipo_evento = models.CharField(
+        max_length=30,
+        choices=TipoEventoSicurezza.choices,
+        default=TipoEventoSicurezza.UNSAFE_CONDITION,
+        db_index=True,
+        help_text="Categoria normalizzata per KPI: unsafe_condition, near_miss o incidente",
+    )
+    asset = models.ForeignKey(
+        "assets.Asset",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rilevazioni_incidenti",
+        help_text="Asset coinvolto nell'evento (opzionale)",
+    )
+    planimetria_area = models.ForeignKey(
+        "assets.PlantLayoutArea",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rilevazioni_sicurezza",
+        help_text="Area della planimetria associata all'evento (opzionale)",
+    )
     reparto = models.CharField(max_length=150, blank=True)
     data_segnalazione = models.DateTimeField(null=True, blank=True)
 
@@ -51,12 +89,25 @@ class RilevazioneIncidente(models.Model):
     def __str__(self) -> str:
         return f"{self.tipologia_scheda} – {self.nominativo} ({self.data_segnalazione})"
 
+    def save(self, *args, **kwargs):
+        inferred = normalize_tipo_evento(self.tipologia_scheda)
+        if not self.tipo_evento or (
+            self.tipo_evento == TipoEventoSicurezza.UNSAFE_CONDITION
+            and inferred != TipoEventoSicurezza.UNSAFE_CONDITION
+        ):
+            self.tipo_evento = inferred
+        return super().save(*args, **kwargs)
+
     def as_sp_fields(self) -> dict:
         """Restituisce un dict con i nomi-campo SharePoint usati nei template."""
         date_str = self.data_segnalazione.isoformat() if self.data_segnalazione else ""
         return {
             "Nominativo": self.nominativo,
             "Tipologia_scheda": self.tipologia_scheda,
+            "Tipo_evento": self.tipo_evento,
+            "Tipo_evento_label": self.get_tipo_evento_display(),
+            "PlanimetriaAreaId": self.planimetria_area_id or "",
+            "PlanimetriaAreaNome": self.planimetria_area.name if self.planimetria_area_id else "",
             "Reparto": self.reparto,
             "Reparto_txt": self.reparto,
             "Data_e_ora_rilevazione": date_str,

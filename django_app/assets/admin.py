@@ -27,6 +27,7 @@ from .models import (
     PlantLayoutArea,
     PlantLayoutMarker,
     WorkMachine,
+    AssetMaintenanceBudget,
     WorkOrder,
     WorkOrderLog,
 )
@@ -354,3 +355,11 @@ class AssetMeterHistoryAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(AssetMaintenanceBudget)
+class AssetMaintenanceBudgetAdmin(admin.ModelAdmin):
+    list_display = ("asset_category", "year", "budget_eur", "updated_at")
+    list_filter = ("year", "asset_category")
+    search_fields = ("asset_category__label", "asset_category__code")
+    ordering = ("-year", "asset_category")

@@ -10,6 +10,7 @@ _TEST_DB_DIR.mkdir(parents=True, exist_ok=True)
 SECRET_KEY = "test-key"
 
 DEBUG = False
+MONITORING_ENVIRONMENT = "test"
 ALLOWED_HOSTS = default_dev_allowed_hosts()
 SETUP_WIZARD_REQUIRED = False
 SECURE_SSL_REDIRECT = False

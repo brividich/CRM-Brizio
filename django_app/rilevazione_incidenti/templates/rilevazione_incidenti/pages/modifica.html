@@ -103,6 +103,7 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
       {% endif %}
       {% endwith %}
       <input type="hidden" name="Tipologia_scheda" value="{{ f.Tipologia_scheda|default:'' }}">
+      <input type="hidden" name="tipo_evento" value="{{ f.Tipo_evento|default:'' }}">
 
       {% if can_preposto and f.stato == "APERTO" %}
       <!-- ---- SEZIONE 1: Dati evento (preposto) ---- -->
@@ -130,6 +131,18 @@ body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgb
             {% endfor %}
           </select>
         </div>
+
+        {% if planimetria_aree %}
+        <div class="sic-field">
+          <label>Area planimetria</label>
+          <select name="planimetria_area_id">
+            <option value="">Non associata</option>
+            {% for area in planimetria_aree %}
+            <option value="{{ area.pk }}"{% if f.PlanimetriaAreaId == area.pk %} selected{% endif %}>{{ area.layout.category }} - {{ area.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
 
         <div class="sic-toggle-row">
           <label for="toggle-macchina">La causa è l'uso di una macchina/attrezzatura manuale?</label>

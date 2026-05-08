@@ -70,6 +70,7 @@ urlpatterns = [
     path("assets/view-layout/", views.asset_detail_layout_admin, name="asset_detail_layout_admin"),
     path("assets/view/<int:id>/report.pdf", views.asset_report_pdf, name="asset_report_pdf"),
     path("assets/view/<int:id>/qr-label/", views.asset_qr_label, name="asset_qr_label"),
+    path("assets/documenti/<int:document_id>/download/", views.asset_document_download, name="asset_document_download"),
     path("assets/labels/", views.asset_label_designer, name="asset_label_designer"),
     path("assets/new/", views.asset_create, name="asset_create"),
     path("assets/edit/", views.asset_edit, name="asset_edit"),

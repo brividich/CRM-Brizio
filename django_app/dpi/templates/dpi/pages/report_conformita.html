@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+
+{% block title %}Report conformita DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.dpi-hero { background:linear-gradient(135deg,#0f766e 0%,#0369a1 100%); border-radius:16px; padding:24px 28px; color:#fff; }
+.dpi-hero-title { font-size:22px; font-weight:900; }
+.dpi-hero-sub { font-size:12px; opacity:.8; margin-top:2px; }
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; }
+.dpi-filters { display:grid; grid-template-columns:2fr 2fr 1.4fr auto auto; gap:10px; align-items:end; }
+.dpi-field label { display:block; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.dpi-field input, .dpi-field select { width:100%; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; }
+.dpi-check { display:flex; gap:8px; align-items:center; font-size:13px; font-weight:600; color:#475569; padding-bottom:8px; }
+.dpi-check input { width:auto; }
+.dpi-btn { padding:9px 16px; border-radius:8px; background:#0369a1; color:#fff; border:none; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; }
+.dpi-summary { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.dpi-summary-pill { padding:8px 12px; border-radius:999px; font-size:13px; font-weight:800; }
+.dpi-summary-ok { background:#dcfce7; color:#166534; }
+.dpi-summary-ko { background:#fee2e2; color:#991b1b; }
+.dpi-summary-neutral { background:#f1f5f9; color:#475569; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { text-align:left; background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:12px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.dpi-status { display:inline-flex; align-items:center; gap:6px; font-weight:800; }
+.dpi-dot { width:10px; height:10px; border-radius:50%; }
+.dpi-status-ok { color:#166534; }
+.dpi-status-ok .dpi-dot { background:#16a34a; }
+.dpi-status-scaduto { color:#92400e; }
+.dpi-status-scaduto .dpi-dot { background:#f59e0b; }
+.dpi-status-mancante { color:#991b1b; }
+.dpi-status-mancante .dpi-dot { background:#dc2626; }
+.dpi-muted { color:#94a3b8; }
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-field label, body.theme-dark .dpi-check { color:var(--text-mid); }
+body.theme-dark .dpi-field input, body.theme-dark .dpi-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
+@media (max-width:900px) { .dpi-filters { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" with is_gestore=True %}
+
+  <div class="dpi-hero">
+    <div class="dpi-hero-title">Report conformita DPI</div>
+    <div class="dpi-hero-sub">Verifica i DPI obbligatori consegnati, scaduti o mancanti per dipendente</div>
+  </div>
+
+  <div class="dpi-card">
+    <form method="get" class="dpi-filters">
+      <div class="dpi-field">
+        <label for="q">Cerca dipendente</label>
+        <input type="text" name="q" id="q" value="{{ q }}" placeholder="Nome, reparto, mansione...">
+      </div>
+      <div class="dpi-field">
+        <label for="dipendente_id">Dipendente</label>
+        <select name="dipendente_id" id="dipendente_id">
+          <option value="">Seleziona dipendente</option>
+          {% for d in dipendenti %}
+          <option value="{{ d.id }}"{% if dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.cognome }} {{ d.nome }}{% if d.reparto %} - {{ d.reparto }}{% endif %}{% if d.mansione %} / {{ d.mansione }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dpi-field">
+        <label for="categoria_id">Categoria</label>
+        <select name="categoria_id" id="categoria_id">
+          <option value="">Tutte</option>
+          {% for cat in categorie %}
+          <option value="{{ cat.pk }}"{% if categoria_id == cat.pk|stringformat:"s" %} selected{% endif %}>{{ cat.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <label class="dpi-check">
+        <input type="hidden" name="solo_obbligatorie" value="0">
+        <input type="checkbox" name="solo_obbligatorie" value="1"{% if solo_obbligatorie %} checked{% endif %}>
+        Solo obbligatorie
+      </label>
+      <button type="submit" class="dpi-btn">Aggiorna</button>
+    </form>
+  </div>
+
+  {% if dipendente %}
+  <div class="dpi-card">
+    <div class="dpi-summary">
+      {% if conforme %}
+      <span class="dpi-summary-pill dpi-summary-ok">Conforme</span>
+      {% else %}
+      <span class="dpi-summary-pill dpi-summary-ko">Non conforme</span>
+      {% endif %}
+      <span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.cognome }} {{ dipendente.nome }}</span>
+      {% if dipendente.reparto %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.reparto }}</span>{% endif %}
+      {% if dipendente.mansione %}<span class="dpi-summary-pill dpi-summary-neutral">{{ dipendente.mansione }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="dpi-card" style="padding:0; overflow-x:auto;">
+    <table class="dpi-table">
+      <thead>
+        <tr>
+          <th>Categoria obbligatoria</th>
+          <th>Stato</th>
+          <th>Ultima consegna</th>
+          <th>Scadenza</th>
+          <th>Richiesta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in righe_report %}
+        <tr>
+          <td>{{ row.categoria.nome }}</td>
+          <td>
+            <span class="dpi-status dpi-status-{{ row.stato }}">
+              <span class="dpi-dot"></span>
+              {% if row.stato == "ok" %}OK{% elif row.stato == "scaduto" %}Scaduto{% else %}Mancante{% endif %}
+            </span>
+          </td>
+          <td>{% if row.consegna %}{{ row.consegna.data_consegna|date:"d/m/Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
+          <td>{% if row.consegna.scadenza_calcolata %}{{ row.consegna.scadenza_calcolata|date:"d/m/Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
+          <td>{% if row.consegna %}<a href="{% url 'dpi:gestione_detail' row.consegna.richiesta.pk %}">{{ row.consegna.richiesta.numero }}</a>{% else %}<span class="dpi-muted">Nessuna consegna</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="dpi-muted">Nessuna categoria DPI obbligatoria configurata per il filtro corrente.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif dipendente_id %}
+  <div class="dpi-card dpi-muted">Dipendente non trovato.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -58,6 +58,17 @@
 .dpi-consegna-box { background:#d1fae5; border:1px solid #6ee7b7; border-radius:12px; padding:14px 18px; }
 .dpi-consegna-box dt { font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
 .dpi-consegna-box dd { font-size:13px; color:#065f46; margin:0 0 10px; }
+.dpi-semaforo { display:inline-flex; align-items:center; gap:6px; font-weight:700; }
+.dpi-semaforo-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.dpi-semaforo-rosso .dpi-semaforo-dot { background:#dc2626; }
+.dpi-semaforo-rosso { color:#991b1b; }
+.dpi-semaforo-arancione .dpi-semaforo-dot { background:#f59e0b; }
+.dpi-semaforo-arancione { color:#92400e; }
+.dpi-semaforo-verde .dpi-semaforo-dot { background:#16a34a; }
+.dpi-semaforo-verde { color:#166534; }
+.dpi-signature-canvas { width:100%; height:150px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; touch-action:none; display:block; }
+.dpi-signature-preview { max-width:100%; width:320px; border:1px solid #bbf7d0; border-radius:8px; background:#fff; display:block; }
+.dpi-signature-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
@@ -80,6 +91,10 @@ body.theme-dark .dpi-timeline-dot.interno { background:#f59e0b; }
 body.theme-dark .dpi-interno-badge { background:rgba(146,64,14,.25); color:#fcd34d; }
 body.theme-dark .dpi-consegna-box { background:rgba(6,95,70,.25); border-color:rgba(110,231,183,.3); }
 body.theme-dark .dpi-consegna-box dt, body.theme-dark .dpi-consegna-box dd { color:#6ee7b7; }
+body.theme-dark .dpi-semaforo-rosso { color:#fca5a5; }
+body.theme-dark .dpi-semaforo-arancione { color:#fcd34d; }
+body.theme-dark .dpi-semaforo-verde { color:#86efac; }
+body.theme-dark .dpi-signature-canvas, body.theme-dark .dpi-signature-preview { border-color:var(--border); }
 body.theme-dark .dpi-badge-INVIATA   { background:rgba(29,78,216,.2);  color:#93c5fd; }
 body.theme-dark .dpi-badge-APPROVATA { background:rgba(146,64,14,.25); color:#fcd34d; }
 body.theme-dark .dpi-badge-CONSEGNATA{ background:rgba(6,95,70,.25);   color:#6ee7b7; }
@@ -162,8 +177,17 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
           <dt>DPI</dt><dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.codice }} {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome }}</dd>{% endif %}
-          {% if consegna.data_scadenza_stimata %}<dt>Scadenza</dt><dd>{{ consegna.data_scadenza_stimata|date:"d/m/Y" }}</dd>{% endif %}
+          {% if consegna.scadenza_calcolata %}
+          <dt>Scadenza</dt>
+          <dd>
+            <span class="dpi-semaforo dpi-semaforo-{{ consegna.semaforo_scadenza }}">
+              <span class="dpi-semaforo-dot"></span>
+              {{ consegna.scadenza_calcolata|date:"d/m/Y" }}
+            </span>
+          </dd>
+          {% endif %}
           <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          {% if consegna.firma_immagine %}<dt>Firma</dt><dd><img class="dpi-signature-preview" src="{{ consegna.firma_immagine }}" alt="Firma consegna"></dd>{% endif %}
           {% if consegna.note_consegna %}<dt>Note</dt><dd>{{ consegna.note_consegna }}</dd>{% endif %}
         </dl>
       </div>
@@ -224,6 +248,14 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
             <div class="dpi-field" style="display:flex; align-items:center;">
               <input type="checkbox" name="firmato_ricevuta" id="firmato" value="1">
               <label for="firmato" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Ricevuta firmata dal dipendente</label>
+            </div>
+            <div class="dpi-field">
+              <label for="firma-canvas">Firma digitale</label>
+              <canvas id="firma-canvas" class="dpi-signature-canvas"></canvas>
+              <input type="hidden" name="firma_immagine" id="firma-immagine">
+              <div class="dpi-signature-actions">
+                <button type="button" class="dpi-btn dpi-btn-gray" id="firma-clear">Cancella firma</button>
+              </div>
             </div>
             <button type="submit" class="dpi-btn dpi-btn-blue">Registra consegna</button>
           </form>
@@ -296,4 +328,78 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
 })();
 </script>
 {% endif %}
+<script>
+(function() {
+  const canvas = document.getElementById('firma-canvas');
+  const hidden = document.getElementById('firma-immagine');
+  if (!canvas || !hidden) return;
+  const ctx = canvas.getContext('2d');
+  let drawing = false;
+  let hasInk = false;
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * scale));
+    canvas.height = Math.max(1, Math.floor(rect.height * scale));
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#0f172a';
+  }
+
+  function point(event) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = event.touches && event.touches[0] ? event.touches[0] : event;
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  }
+
+  function start(event) {
+    event.preventDefault();
+    drawing = true;
+    const p = point(event);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+
+  function move(event) {
+    if (!drawing) return;
+    event.preventDefault();
+    const p = point(event);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    hasInk = true;
+  }
+
+  function end() {
+    drawing = false;
+  }
+
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive:false });
+  canvas.addEventListener('touchmove', move, { passive:false });
+  canvas.addEventListener('touchend', end);
+
+  const clearBtn = document.getElementById('firma-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hidden.value = '';
+      hasInk = false;
+    });
+  }
+
+  const form = canvas.closest('form');
+  if (form) {
+    form.addEventListener('submit', function() {
+      hidden.value = hasInk ? canvas.toDataURL('image/png') : '';
+    });
+  }
+})();
+</script>
 {% endblock %}

@@ -61,6 +61,8 @@ from .forms import (
     task_active_users_queryset,
 )
 from .models import (
+    DependencyType,
+    GanttBaseline,
     KickoffMeeting,
     MeetingIssue,
     MeetingIssueStatus,
@@ -70,6 +72,7 @@ from .models import (
     SubTask,
     TaskAccessLevel,
     Task,
+    TaskDependency,
     TaskAttachment,
     TaskCategory,
     TaskCategoryField,
@@ -2858,18 +2861,77 @@ def project_create(request):
 
 @task_permissions_required("tasks_view")
 def project_list(request):
+    today = timezone.localdate()
     projects_base_qs = _scoped_projects_queryset(request).order_by()
-    projects = list(
-        projects_base_qs.annotate(
-            task_total=Count("tasks", distinct=True),
-            task_open=Count("tasks", filter=Q(tasks__status__in=OPEN_STATUSES), distinct=True),
-            task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
-        ).order_by("name", "id")
+
+    # ── Filtri GET ──
+    q_text   = (request.GET.get("q") or "").strip()
+    q_client = (request.GET.get("client") or "").strip()
+    q_vrf    = (request.GET.get("vrf_status") or "").strip()
+    q_sort   = request.GET.get("sort") or "name"
+
+    if q_text:
+        projects_base_qs = projects_base_qs.filter(
+            Q(name__icontains=q_text) | Q(part_number__icontains=q_text) | Q(client_name__icontains=q_text)
+        )
+    if q_client:
+        projects_base_qs = projects_base_qs.filter(client_name__icontains=q_client)
+
+    projects_qs = projects_base_qs.annotate(
+        task_total=Count("tasks", distinct=True),
+        task_open=Count("tasks", filter=Q(tasks__status__in=OPEN_STATUSES), distinct=True),
+        task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
+        task_overdue=Count(
+            "tasks",
+            filter=Q(tasks__status__in=OPEN_STATUSES, tasks__due_date__lt=today),
+            distinct=True,
+        ),
+        task_progress_avg=Count("tasks", filter=Q(tasks__progress__gt=0), distinct=True),
+        earliest_due=F("tasks__due_date"),
     )
+
+    # Ordinamento
+    if q_sort == "due":
+        projects_qs = projects_qs.order_by(
+            F("earliest_due").asc(nulls_last=True), "name", "id"
+        )
+    elif q_sort == "progress_desc":
+        projects_qs = projects_qs.order_by(
+            F("task_done").desc(nulls_last=True), "name", "id"
+        )
+    elif q_sort == "ral":
+        projects_qs = projects_qs.order_by(
+            F("task_overdue").desc(nulls_last=True), "name", "id"
+        )
+    else:
+        projects_qs = projects_qs.order_by("name", "id")
+
+    projects = list(projects_qs.distinct())
     cfg = TaskImpostazioni.get_singleton()
+
+    # ── Calcola semaforo RAL e VRF detail per ciascun progetto ──
     for p in projects:
         p.vrf_detail = _vrf_status_detail(p, cfg)
         p.can_manage = _can_manage_project(request, p)
+        overdue = getattr(p, "task_overdue", 0) or 0
+        if overdue == 0:
+            p.ral_status = "green"
+        elif overdue <= 2:
+            p.ral_status = "yellow"
+        else:
+            p.ral_status = "red"
+
+    # Filtro VRF applicato lato Python (usa vrf_detail già calcolato)
+    if q_vrf:
+        projects = [p for p in projects if p.vrf_detail.get("status") == q_vrf]
+
+    # Clienti distinti per il dropdown filtro
+    client_choices = sorted(set(
+        p.client_name for p in
+        list(_scoped_projects_queryset(request).values_list("client_name", flat=True).distinct())
+        if p
+    ))
+
     return render(
         request,
         "tasks/projects.html",
@@ -2878,6 +2940,11 @@ def project_list(request):
             "page_title": "Portfolio kickoff",
             "projects": projects,
             "is_scope_admin": _has_task_permission(request, "tasks_admin"),
+            "pf_filter_q": q_text,
+            "pf_filter_client": q_client,
+            "pf_filter_vrf": q_vrf,
+            "pf_sort": q_sort,
+            "pf_client_choices": client_choices,
         },
     )
 
@@ -3024,6 +3091,33 @@ def project_gantt(request, project_id: int):
     cfg = TaskImpostazioni.get_singleton()
     vrf_detail = _vrf_status_detail(project, cfg)
 
+    # ── Baseline Gantt ──
+    baseline = GanttBaseline.objects.filter(project=project).first()
+    for row in gantt_meta["rows"]:
+        row["baseline_delta"] = baseline.get_task_delta_days(row["task"]) if baseline else {"start": None, "end": None}
+
+    # ── Dipendenze task ──
+    task_ids = [t.id for t in tasks]
+    deps = list(
+        TaskDependency.objects.filter(
+            predecessor_id__in=task_ids,
+            successor_id__in=task_ids,
+        ).select_related("predecessor", "successor")
+    )
+    task_id_to_wbs = {row["task"].id: row["wbs"] for row in gantt_meta["rows"]}
+    deps_display = [
+        {
+            "pred_id": d.predecessor_id,
+            "succ_id": d.successor_id,
+            "pred_wbs": task_id_to_wbs.get(d.predecessor_id, "?"),
+            "succ_wbs": task_id_to_wbs.get(d.successor_id, "?"),
+            "type": d.dependency_type,
+            "lag_days": d.lag_days,
+            "dep_id": d.pk,
+        }
+        for d in deps
+    ]
+
     return render(
         request,
         "tasks/project_gantt.html",
@@ -3056,9 +3150,110 @@ def project_gantt(request, project_id: int):
             "gantt_name_width_choices": gantt_options["name_width_choices"],
             "gantt_return_qs": gantt_options["return_qs"],
             "vrf_detail": vrf_detail,
+            "gantt_baseline": baseline,
+            "gantt_deps": deps_display,
+            "dependency_type_choices": DependencyType.choices,
             "can_add_project_task": _has_task_permission(request, "tasks_create") and _can_manage_project(request, project),
         },
     )
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_gantt_fix_baseline(request, project_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, project):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+    tasks = list(project.tasks.all())
+    snapshot = {}
+    for task in tasks:
+        snapshot[str(task.pk)] = {
+            "start": task.next_step_due.isoformat() if task.next_step_due else None,
+            "end":   task.due_date.isoformat()      if task.due_date      else None,
+        }
+    GanttBaseline.objects.update_or_create(
+        project=project,
+        defaults={"snapshot": snapshot, "fixed_by": request.user},
+    )
+    log_action(request, "gantt_baseline_fixed", "tasks", {"project_id": project.pk, "task_count": len(tasks)})
+    messages.success(request, "Baseline Gantt fissata.")
+    return_qs = request.POST.get("return_qs", "")
+    base_url = reverse("tasks:project_gantt", kwargs={"project_id": project_id})
+    return redirect(f"{base_url}?{return_qs}" if return_qs else base_url)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_gantt_clear_baseline(request, project_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, project):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+    GanttBaseline.objects.filter(project=project).delete()
+    log_action(request, "gantt_baseline_cleared", "tasks", {"project_id": project.pk})
+    messages.success(request, "Baseline Gantt rimossa.")
+    return_qs = request.POST.get("return_qs", "")
+    base_url = reverse("tasks:project_gantt", kwargs={"project_id": project_id})
+    return redirect(f"{base_url}?{return_qs}" if return_qs else base_url)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_gantt_add_dependency(request, project_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "error": "Accesso negato."}, status=403)
+    pred_id  = request.POST.get("predecessor_id")
+    succ_id  = request.POST.get("successor_id")
+    dep_type = request.POST.get("dependency_type", DependencyType.FS)
+    lag      = request.POST.get("lag_days", 0)
+    if not pred_id or not succ_id:
+        return JsonResponse({"ok": False, "error": "predecessor_id e successor_id obbligatori."}, status=400)
+    if str(pred_id) == str(succ_id):
+        return JsonResponse({"ok": False, "error": "Un task non può dipendere da se stesso."}, status=400)
+    if dep_type not in dict(DependencyType.choices):
+        dep_type = DependencyType.FS
+    task_qs = Task.objects.filter(project=project)
+    pred = get_object_or_404(task_qs, pk=pred_id)
+    succ = get_object_or_404(task_qs, pk=succ_id)
+    try:
+        lag_int = int(lag)
+    except (TypeError, ValueError):
+        lag_int = 0
+    dep, created = TaskDependency.objects.get_or_create(
+        predecessor=pred,
+        successor=succ,
+        defaults={"dependency_type": dep_type, "lag_days": lag_int},
+    )
+    if not created:
+        dep.dependency_type = dep_type
+        dep.lag_days = lag_int
+        dep.save(update_fields=["dependency_type", "lag_days"])
+    log_action(request, "gantt_dependency_added", "tasks", {
+        "project_id": project.pk,
+        "predecessor_id": pred.pk,
+        "successor_id": succ.pk,
+        "type": dep_type,
+        "lag_days": lag_int,
+    })
+    return JsonResponse({"ok": True, "dep_id": dep.pk, "created": created})
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_gantt_remove_dependency(request, project_id: int, dep_id: int):
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "error": "Accesso negato."}, status=403)
+    task_ids = list(project.tasks.values_list("id", flat=True))
+    dep = get_object_or_404(
+        TaskDependency,
+        pk=dep_id,
+        predecessor_id__in=task_ids,
+        successor_id__in=task_ids,
+    )
+    dep.delete()
+    log_action(request, "gantt_dependency_removed", "tasks", {"project_id": project.pk, "dep_id": dep_id})
+    return JsonResponse({"ok": True})
 
 
 @require_POST

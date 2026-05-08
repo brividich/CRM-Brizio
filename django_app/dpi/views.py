@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 from datetime import timedelta
@@ -14,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import is_legacy_admin
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
@@ -135,6 +138,25 @@ def _validate_uploaded_dpi_image(uploaded_image, label: str) -> str | None:
     except UploadMimeValidationError as exc:
         return str(exc)
     return None
+
+
+def _clean_signature_data_uri(raw: str) -> tuple[str, str | None]:
+    value = (raw or "").strip()
+    if not value:
+        return "", None
+    prefix = "data:image/png;base64,"
+    if not value.startswith(prefix):
+        return "", "La firma deve essere acquisita in formato PNG."
+    payload = value[len(prefix):]
+    try:
+        decoded = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        return "", "La firma acquisita non e valida."
+    if not decoded.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "", "La firma acquisita non e un PNG valido."
+    if len(decoded) > 512 * 1024:
+        return "", "La firma supera la dimensione massima consentita."
+    return value, None
 
 
 def _active_catalog_options() -> dict:
@@ -413,6 +435,107 @@ def storico(request):
         "filtro_cat": filtro_cat,
     })
 
+# ---------------------------------------------------------------------------
+# Report conformita
+# ---------------------------------------------------------------------------
+
+@login_required
+def report_conformita(request):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+
+    ensure_anagrafica_schema()
+    q = request.GET.get("q", "").strip()
+    dipendente_id_raw = request.GET.get("dipendente_id", "").strip()
+    categoria_id_raw = request.GET.get("categoria_id", "").strip()
+    solo_obbligatorie = request.GET.get("solo_obbligatorie", "1") != "0"
+
+    dipendenti = fetch_anagrafica_rows(deduplicate=True)
+    dipendenti = [
+        row for row in dipendenti
+        if row.get("id") and (row.get("attivo") is None or bool(row.get("attivo")))
+    ]
+    if q:
+        q_norm = q.casefold()
+        dipendenti = [
+            row for row in dipendenti
+            if any(
+                q_norm in str(row.get(field) or "").casefold()
+                for field in ("nome", "cognome", "aliasusername", "reparto", "mansione")
+            )
+        ]
+    dipendenti = sorted(
+        dipendenti,
+        key=lambda row: (
+            str(row.get("cognome") or "").casefold(),
+            str(row.get("nome") or "").casefold(),
+            str(row.get("aliasusername") or "").casefold(),
+        ),
+    )[:100]
+
+    categorie_qs = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
+    categorie_obbligatorie = categorie_qs.filter(obbligatoria_mansionario=True)
+    categorie_report = categorie_obbligatorie if solo_obbligatorie else categorie_qs
+    if categoria_id_raw:
+        try:
+            categorie_report = categorie_report.filter(pk=int(categoria_id_raw))
+        except ValueError:
+            categorie_report = categorie_report.none()
+
+    dipendente = None
+    righe_report = []
+    conforme = None
+    oggi = timezone.localdate()
+    if dipendente_id_raw:
+        try:
+            dipendente_id = int(dipendente_id_raw)
+        except ValueError:
+            dipendente_id = None
+        for row in fetch_anagrafica_rows(deduplicate=True):
+            if str(row.get("id") or "") == dipendente_id_raw:
+                dipendente = row
+                break
+        if dipendente and dipendente_id:
+            consegne = (
+                ConsegnaDPI.objects.filter(
+                    richiesta__richiedente_legacy_id=dipendente_id,
+                    richiesta__stato=StatoRichiesta.CONSEGNATA,
+                )
+                .select_related("richiesta", "richiesta__categoria", "richiesta__tipo_dpi", "richiesta__modello_dpi", "richiesta__taglia_dpi")
+                .order_by("richiesta__categoria_id", "-data_consegna", "-created_at")
+            )
+            consegna_per_categoria = {}
+            for consegna in consegne:
+                consegna_per_categoria.setdefault(consegna.richiesta.categoria_id, consegna)
+
+            for categoria in categorie_report:
+                consegna = consegna_per_categoria.get(categoria.pk)
+                stato = "mancante"
+                if consegna:
+                    stato = "ok"
+                    if consegna.data_scadenza_stimata and consegna.data_scadenza_stimata < oggi:
+                        stato = "scaduto"
+                righe_report.append({
+                    "categoria": categoria,
+                    "consegna": consegna,
+                    "stato": stato,
+                })
+            conforme = bool(righe_report) and all(row["stato"] == "ok" for row in righe_report)
+
+    return render(request, "dpi/pages/report_conformita.html", {
+        "dipendenti": dipendenti,
+        "dipendente": dipendente,
+        "categorie": categorie_qs,
+        "categorie_obbligatorie": categorie_obbligatorie,
+        "righe_report": righe_report,
+        "conforme": conforme,
+        "q": q,
+        "dipendente_id": dipendente_id_raw,
+        "categoria_id": categoria_id_raw,
+        "solo_obbligatorie": solo_obbligatorie,
+    })
+
 
 # ---------------------------------------------------------------------------
 # Gestione — lista
@@ -424,7 +547,9 @@ def gestione_list(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
-    qs = RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi").order_by("-created_at")
+    qs = RichiestaDPI.objects.select_related(
+        "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "consegna"
+    ).order_by("-created_at")
 
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_cat = request.GET.get("categoria", "").strip()
@@ -579,6 +704,12 @@ def consegna_richiesta(request, pk: int):
     data_str = request.POST.get("data_consegna", "").strip()
     note = request.POST.get("note_consegna", "").strip()
     firmato = bool(request.POST.get("firmato_ricevuta"))
+    firma_immagine, firma_error = _clean_signature_data_uri(request.POST.get("firma_immagine", ""))
+    if firma_error:
+        messages.error(request, firma_error)
+        return redirect("dpi:gestione_detail", pk=pk)
+    if firma_immagine:
+        firmato = True
 
     if not data_str:
         messages.error(request, "Inserisci la data di consegna.")
@@ -617,6 +748,7 @@ def consegna_richiesta(request, pk: int):
             "note_consegna": note,
             "firmato_ricevuta": firmato,
             "data_scadenza_stimata": scadenza,
+            "firma_immagine": firma_immagine,
         },
     )
     richiesta.stato = StatoRichiesta.CONSEGNATA
@@ -705,6 +837,7 @@ def categoria_edit(request, pk: int | None = None):
             "descrizione": request.POST.get("descrizione", "").strip(),
             "icona_emoji": request.POST.get("icona_emoji", "🦺").strip() or "🦺",
             "vita_utile_giorni": _parse_optional_positive_int(request.POST.get("vita_utile_giorni")),
+            "obbligatoria_mansionario": bool(request.POST.get("obbligatoria_mansionario")),
             "unita_misura": request.POST.get("unita_misura", "pz").strip() or "pz",
             "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
             "is_active": bool(request.POST.get("is_active")),
@@ -957,6 +1090,7 @@ def api_categorie(request):
             "icona_emoji": c.icona_emoji,
             "immagine_url": c.immagine_url,
             "vita_utile_giorni": c.vita_utile_giorni,
+            "obbligatoria_mansionario": c.obbligatoria_mansionario,
             "unita_misura": c.unita_misura,
         }
         for c in cats

@@ -598,6 +598,13 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
           <div class="mod-sub">Traccia azioni utenti: data/ora, modulo, IP e dettaglio collassabile</div>
         </div>
       </a>
+      <a class="mod" href="{% url 'admin_portale:user_activity' %}">
+        <div class="mod-icon">📈</div>
+        <div>
+          <div class="mod-name">Attivita utenti</div>
+          <div class="mod-sub">Vista operativa degli eventi utente degli ultimi 30 giorni con export</div>
+        </div>
+      </a>
       <a class="mod" href="{% url 'admin_portale:health_check' %}">
         <div class="mod-icon">💚</div>
         <div>

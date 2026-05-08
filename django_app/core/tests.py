@@ -44,6 +44,7 @@ from core.models import (
     LegacyRedirect,
     NavigationItem,
     NavigationRoleAccess,
+    Notifica,
     PermissionDefinition,
     Profile,
     RolePermissionGrant,
@@ -2089,3 +2090,70 @@ class PortalBrandingAssetCacheBustTests(TestCase):
         branding = get_portal_branding()
 
         self.assertEqual(branding.brand_logo_full, "https://cdn.example.com/logo.png")
+
+
+class CoreBacklogCFeatureTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="cuser", password="pw", is_superuser=True)
+        self.legacy_user = UtenteLegacy.objects.create(
+            nome="Core User",
+            email="cuser@example.com",
+            password="x",
+            ruolo="admin",
+            attivo=True,
+        )
+        Profile.objects.create(user=self.user, legacy_user_id=self.legacy_user.id, legacy_ruolo="admin")
+
+    def test_notification_panel_lists_unread_notifications(self):
+        Notifica.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            tipo="ticket_sla",
+            messaggio="SLA ticket scaduto",
+            url_azione="/tickets/",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("api_notifiche_panel"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Centro notifiche")
+        self.assertContains(response, "SLA ticket scaduto")
+
+    def test_mark_all_notifications_read(self):
+        Notifica.objects.create(legacy_user_id=self.legacy_user.id, tipo="dpi_scadenza", messaggio="DPI in scadenza")
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("api_notifiche_mark_all_read"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Notifica.objects.filter(legacy_user_id=self.legacy_user.id, letta=False).exists())
+
+    def test_notification_export_csv_preserves_filtered_user(self):
+        Notifica.objects.create(legacy_user_id=self.legacy_user.id, tipo="generico", messaggio="Export me")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("notifiche"), {"export": "csv"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/csv", response["Content-Type"])
+        self.assertIn("Export me", response.content.decode("utf-8"))
+
+    def test_user_activity_view_and_export(self):
+        AuditLog.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            utente_display="Core User",
+            modulo="core",
+            azione="test_action",
+            dettaglio={"ok": True},
+        )
+        self.client.force_login(self.user)
+
+        url = reverse("admin_portale:user_activity")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "test_action")
+
+        export_response = self.client.get(url, {"export": "csv"})
+        self.assertEqual(export_response.status_code, 200)
+        self.assertIn("text/csv", export_response["Content-Type"])
+        self.assertIn("test_action", export_response.content.decode("utf-8"))

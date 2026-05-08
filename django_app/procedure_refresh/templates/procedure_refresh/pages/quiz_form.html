@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+
+{% block title %}Quiz post-lettura - {{ document.code }} | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; max-width:760px; }
+.pr-back { font-size:13px; color:#64748b; text-decoration:none; }
+.pr-doc-info { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; font-size:13px; color:#475569; }
+.pr-doc-info strong { color:#0f172a; }
+.pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:24px; }
+.pr-card-title { font-size:17px; font-weight:800; color:#0f172a; margin-bottom:18px; }
+.pr-form-group { margin-bottom:16px; }
+.pr-form-group label { display:block; font-size:13px; font-weight:700; color:#374151; margin-bottom:5px; }
+.pr-form-group input, .pr-form-group textarea, .pr-form-group select {
+  width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; color:#0f172a; background:#fff;
+}
+.pr-form-group textarea { resize:vertical; }
+.pr-question { border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:14px; background:#f8fafc; }
+.pr-question-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:12px; }
+.pr-options { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.pr-check-row { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.pr-check-row input[type=checkbox] { width:16px; height:16px; accent-color:#1d4ed8; }
+.pr-check-row label { font-size:13px; font-weight:700; color:#374151; cursor:pointer; }
+.pr-help { font-size:12px; color:#64748b; margin-top:4px; }
+.pr-btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+.pr-btn-save { padding:10px 24px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.pr-btn-cancel { padding:10px 18px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; display:inline-block; }
+.pr-message { padding:12px 16px; border-radius:10px; font-size:13px; font-weight:600; }
+@media(max-width:640px) { .pr-options { grid-template-columns:1fr; } }
+body.theme-dark .pr-doc-info, body.theme-dark .pr-card { background:var(--surface); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .pr-doc-info strong, body.theme-dark .pr-card-title, body.theme-dark .pr-question-title { color:var(--text); }
+body.theme-dark .pr-form-group label, body.theme-dark .pr-check-row label { color:var(--text-mid); }
+body.theme-dark .pr-form-group input, body.theme-dark .pr-form-group textarea, body.theme-dark .pr-form-group select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-question { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .pr-help { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  <a href="{% url 'procedure_refresh:document_list' %}" class="pr-back">Torna ai documenti</a>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="pr-message" style="background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-doc-info">
+    Documento: <strong>{{ document.code }}</strong> - {{ document.title }}
+    <span style="margin-left:8px;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">Rev. {{ revision.revision_code }}</span>
+  </div>
+
+  <div class="pr-card">
+    <div class="pr-card-title">Quiz post-lettura</div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="pr-form-group">
+        <label for="title">Titolo</label>
+        <input type="text" id="title" name="title" value="{{ quiz.title|default:'Quiz post-lettura' }}" maxlength="200">
+      </div>
+
+      <div class="pr-check-row">
+        <input type="checkbox" id="is_active" name="is_active" value="1" {% if not quiz or quiz.is_active %}checked{% endif %}>
+        <label for="is_active">Quiz attivo per questa revisione</label>
+      </div>
+
+      {% for slot in question_slots %}
+        <div class="pr-question">
+          <div class="pr-question-title">Domanda {{ slot.number }}</div>
+          <div class="pr-form-group">
+            <label for="question_{{ slot.number }}">Testo domanda</label>
+            <textarea id="question_{{ slot.number }}" name="question_{{ slot.number }}" rows="2">{{ slot.text }}</textarea>
+          </div>
+
+          <div class="pr-options">
+            {% for option in slot.options %}
+              <div class="pr-form-group">
+                <label for="question_{{ slot.number }}_option_{{ forloop.counter }}">Opzione {{ forloop.counter }}</label>
+                <input type="text" id="question_{{ slot.number }}_option_{{ forloop.counter }}" name="question_{{ slot.number }}_option_{{ forloop.counter }}" value="{{ option }}">
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="pr-form-group">
+            <label for="question_{{ slot.number }}_correct">Risposta corretta</label>
+            <select id="question_{{ slot.number }}_correct" name="question_{{ slot.number }}_correct">
+              <option value="1" {% if slot.correct_number == 1 %}selected{% endif %}>Opzione 1</option>
+              <option value="2" {% if slot.correct_number == 2 %}selected{% endif %}>Opzione 2</option>
+              <option value="3" {% if slot.correct_number == 3 %}selected{% endif %}>Opzione 3</option>
+              <option value="4" {% if slot.correct_number == 4 %}selected{% endif %}>Opzione 4</option>
+            </select>
+            <div class="pr-help">Lascia vuota l'intera scheda se non vuoi usare questa domanda.</div>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="pr-btn-row">
+        <button type="submit" class="pr-btn-save">Salva quiz</button>
+        <a href="{% url 'procedure_refresh:document_list' %}" class="pr-btn-cancel">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

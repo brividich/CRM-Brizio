@@ -299,3 +299,83 @@ class ProcedureReadEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} @ {self.event_at}"
+
+
+class ProcedureQuiz(models.Model):
+    revision = models.ForeignKey(
+        ProcedureRevision,
+        on_delete=models.CASCADE,
+        related_name="quizzes",
+        verbose_name="Revisione",
+    )
+    title = models.CharField(max_length=200, default="Quiz post-lettura", verbose_name="Titolo")
+    questions = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Domande",
+        help_text="Lista di domande a risposta multipla con opzioni e indice risposta corretta.",
+    )
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Attivo")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pr_quizzes_created",
+        verbose_name="Creato da",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_active", "-updated_at", "-id"]
+        verbose_name = "Quiz procedura"
+        verbose_name_plural = "Quiz procedure"
+
+    def __str__(self) -> str:
+        return f"{self.revision} - {self.title}"
+
+    @property
+    def question_count(self) -> int:
+        return len(self.questions or [])
+
+
+class ProcedureQuizAttempt(models.Model):
+    quiz = models.ForeignKey(
+        ProcedureQuiz,
+        on_delete=models.CASCADE,
+        related_name="attempts",
+        verbose_name="Quiz",
+    )
+    assignment = models.ForeignKey(
+        ProcedureAssignment,
+        on_delete=models.CASCADE,
+        related_name="quiz_attempts",
+        verbose_name="Assegnazione",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="procedure_quiz_attempts",
+        verbose_name="Utente",
+    )
+    answers = models.JSONField(default=list, blank=True, verbose_name="Risposte")
+    score = models.PositiveIntegerField(default=0, verbose_name="Punteggio")
+    total_questions = models.PositiveIntegerField(default=0, verbose_name="Totale domande")
+    submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="Inviato il")
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP")
+    user_agent = models.TextField(blank=True, default="", verbose_name="User agent")
+
+    class Meta:
+        ordering = ["-submitted_at"]
+        verbose_name = "Tentativo quiz procedura"
+        verbose_name_plural = "Tentativi quiz procedure"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["quiz", "assignment", "user"],
+                name="pr_unique_quiz_attempt_assignment_user",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} - {self.quiz} ({self.score}/{self.total_questions})"

@@ -2309,3 +2309,26 @@ class AssetDashboardConfig(models.Model):
             if w not in result:
                 result.append(w)
         return result
+
+
+class AssetMaintenanceBudget(models.Model):
+    """Budget annuale di manutenzione per categoria asset (AS3)."""
+
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.CASCADE,
+        related_name="maintenance_budgets",
+    )
+    year = models.PositiveSmallIntegerField(db_index=True)
+    budget_eur = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("asset_category", "year")]
+        ordering = ["-year", "asset_category"]
+        verbose_name = "Budget manutenzione categoria"
+        verbose_name_plural = "Budget manutenzione categoria"
+
+    def __str__(self) -> str:
+        return f"Budget {self.asset_category} — {self.year}: €{self.budget_eur}"

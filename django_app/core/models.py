@@ -403,6 +403,9 @@ class Notifica(models.Model):
         ("dpi_approvata", "DPI approvata"),
         ("dpi_rifiutata", "DPI rifiutata"),
         ("dpi_consegnata", "DPI consegnata"),
+        ("dpi_scadenza", "DPI in scadenza"),
+        ("ticket_sla", "SLA ticket scaduto"),
+        ("asset_scadenza", "Scadenza asset"),
         ("generico", "Generico"),
     ]
 
@@ -443,6 +446,7 @@ class UserExtraInfo(models.Model):
 _TIPI_CHECKLIST = [
     ("checkin",  "Check-in (Onboarding)"),
     ("checkout", "Check-out (Offboarding)"),
+    ("preposto_ispezione", "Ispezione periodica preposto"),
 ]
 
 _TIPI_CAMPO = [

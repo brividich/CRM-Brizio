@@ -180,6 +180,16 @@
 .tkt-urgente-row.tkt-selected td { background:#ffe4e4 !important; }
 .tkt-empty { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
 
+/* SLA badge */
+.tkt-sla-badge {
+  display:inline-block; margin-left:4px; font-size:10px;
+  padding:1px 5px; border-radius:4px; font-weight:700; vertical-align:middle;
+}
+.tkt-sla-risoluzione { background:#fee2e2; color:#dc2626; }
+.tkt-sla-risposta    { background:#fff7ed; color:#d97706; }
+body.theme-dark .tkt-sla-risoluzione { background:rgba(220,38,38,.18); color:#fca5a5; }
+body.theme-dark .tkt-sla-risposta    { background:rgba(217,119,6,.15);  color:#fcd34d; }
+
 /* Inline prendi in carico */
 .tkt-btn-pic {
   padding:4px 10px; border-radius:8px; font-size:11px; font-weight:700;
@@ -382,7 +392,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
   </div>
 
   <!-- Filtri avanzati -->
-  {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza %}
+  {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza|add:filtro_ricorrente %}
   <div class="tkt-filter-card">
     <div class="tkt-filter-header" id="tkt-filter-toggle" onclick="tktToggleFilters()">
       <div class="tkt-filter-header-left">
@@ -441,6 +451,13 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             <label class="tkt-check-wrap">
               <input type="checkbox" name="sicurezza" value="1"{% if filtro_sicurezza == '1' %} checked{% endif %}>
               <span>🔴 Solo sicurezza</span>
+            </label>
+          </label>
+          <label style="justify-content:flex-end;">
+            <span style="visibility:hidden;font-size:11px;">_</span>
+            <label class="tkt-check-wrap">
+              <input type="checkbox" name="ricorrente" value="1"{% if filtro_ricorrente == '1' %} checked{% endif %}>
+              <span>🔁 Solo ricorrenti</span>
             </label>
           </label>
         </div>
@@ -539,7 +556,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
           {% for t in tickets_it %}
           <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
             <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
-            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td>
+            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
             <td>
               <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
               {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
@@ -600,7 +617,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
           {% for t in tickets_man %}
           <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
             <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
-            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td>
+            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
             <td>
               <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
               {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
@@ -701,7 +718,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
   var icon   = document.getElementById('tkt-filter-icon');
   var stored = sessionStorage.getItem('tktFiltersOpen');
   // Se ci sono filtri attivi oppure era aperto in precedenza → aperto di default
-  var hasFilter = {% if filtro_stato or filtro_prio or filtro_cerca or filtro_ass or filtro_asset or filtro_cat or filtro_data_da or filtro_data_a or filtro_sicurezza %}true{% else %}false{% endif %};
+  var hasFilter = {% if filtro_stato or filtro_prio or filtro_cerca or filtro_ass or filtro_asset or filtro_cat or filtro_data_da or filtro_data_a or filtro_sicurezza or filtro_ricorrente %}true{% else %}false{% endif %};
   var open = hasFilter || stored === '1';
   if (!open) { body.style.display = 'none'; } else { icon.classList.add('open'); }
   window.tktToggleFilters = function() {

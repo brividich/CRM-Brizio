@@ -2445,6 +2445,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-1",
                 "vrf_description": "",
                 "vrf_esp": "02",
+                "project_manager": self.user.id,
             },
         )
         project = Project.objects.get(part_number="PN-NEW-001")
@@ -2477,6 +2478,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": "Q-SAFE",
                 "vrf_description": "",
                 "vrf_esp": "",
+                "project_manager": self.user.id,
             },
         )
 
@@ -2506,6 +2508,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "vrf_quote_number": project.vrf_quote_number,
                 "vrf_description": project.vrf_description,
                 "vrf_esp": project.vrf_esp,
+                "project_manager": self.user.id,
             },
             instance=project,
             project_queryset=Project.objects.exclude(pk=project.pk),
@@ -2519,7 +2522,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("tasks:project_create"),
-            {"client_name": "X", "part_number": "", "revisione": "A", "versione": ""},
+            {"client_name": "X", "part_number": "", "revisione": "A", "versione": "", "project_manager": self.user.id},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(
@@ -2541,6 +2544,7 @@ class ProjectCreateFlowTests(TasksBaseTestCase):
                 "part_number": "DUP-001",
                 "revisione": "B",
                 "versione": "2.0",
+                "project_manager": self.user.id,
             },
         )
         self.assertRedirects(

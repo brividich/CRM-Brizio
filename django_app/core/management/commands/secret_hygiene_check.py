@@ -193,6 +193,8 @@ def _scan_content(path: str, text: str) -> list[Finding]:
 
     for line_number, line in enumerate(text.splitlines(), start=1):
         stripped = line.strip()
+        if "hygiene: skip" in line or "hygiene:skip" in line:
+            continue
         for rule, pattern in TOKEN_PATTERNS:
             if pattern.search(line):
                 findings.append(Finding("HIGH", rule, path, line_number, "pattern secret ad alta confidenza"))

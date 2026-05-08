@@ -26,6 +26,8 @@ from .models import (
     ProcedureCampaign,
     ProcedureCampaignDocument,
     ProcedureDocument,
+    ProcedureQuiz,
+    ProcedureQuizAttempt,
     ProcedureReadEvent,
     ProcedureRevision,
     ReadEventType,
@@ -45,6 +47,169 @@ def _is_manager(request) -> bool:
 
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     return request.user.is_superuser or is_legacy_admin(legacy_user)
+
+
+def _client_ip(request) -> str:
+    ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", ""))
+    if ip and "," in ip:
+        ip = ip.split(",")[0].strip()
+    return ip or ""
+
+
+def _audit_detail(message: str, **extra) -> dict:
+    payload = {"message": message}
+    payload.update(extra)
+    return payload
+
+
+def _user_department_map(users) -> dict[int, str]:
+    user_list = list(users)
+    user_ids = [u.pk for u in user_list]
+    if not user_ids:
+        return {}
+    try:
+        from core.legacy_models import UtenteLegacy
+        from core.models import Profile, UserExtraInfo
+    except Exception:
+        return {u.pk: "Senza reparto" for u in user_list}
+
+    profile_map = {
+        row["user_id"]: row["legacy_user_id"]
+        for row in Profile.objects.filter(user_id__in=user_ids).values("user_id", "legacy_user_id")
+    }
+    legacy_ids = {profile_map.get(u.pk, u.pk) for u in user_list} | set(user_ids)
+    extra_map = {
+        row["legacy_user_id"]: (row["reparto"] or "").strip()
+        for row in UserExtraInfo.objects.filter(legacy_user_id__in=legacy_ids).values("legacy_user_id", "reparto")
+    }
+    legacy_map = {}
+    legacy_fields = {field.name for field in UtenteLegacy._meta.get_fields()}
+    if "reparto" in legacy_fields:
+        legacy_map = {
+            row["id"]: (row["reparto"] or "").strip()
+            for row in UtenteLegacy.objects.filter(id__in=legacy_ids).values("id", "reparto")
+        }
+
+    result: dict[int, str] = {}
+    for user in user_list:
+        legacy_id = profile_map.get(user.pk, user.pk)
+        reparto = extra_map.get(legacy_id) or extra_map.get(user.pk) or legacy_map.get(legacy_id) or legacy_map.get(user.pk)
+        result[user.pk] = reparto or "Senza reparto"
+    return result
+
+
+def _build_training_matrix(campaign: ProcedureCampaign) -> dict:
+    campaign_docs = list(
+        campaign.campaign_documents.select_related("revision__document").order_by("display_order", "id")
+    )
+    assignments = list(
+        ProcedureAssignment.objects.filter(campaign=campaign)
+        .exclude(status=AssignmentStatus.CANCELLED)
+        .select_related("user", "revision__document")
+        .order_by("revision__document__code", "user__last_name", "user__first_name")
+    )
+    departments_by_user = _user_department_map([a.user for a in assignments])
+    departments = sorted({departments_by_user.get(a.user_id, "Senza reparto") for a in assignments})
+    by_revision_department: dict[tuple[int, str], list[ProcedureAssignment]] = {}
+    for assignment in assignments:
+        dept = departments_by_user.get(assignment.user_id, "Senza reparto")
+        by_revision_department.setdefault((assignment.revision_id, dept), []).append(assignment)
+
+    rows = []
+    overall_total = 0
+    overall_confirmed = 0
+    for campaign_doc in campaign_docs:
+        dept_cells = []
+        row_total = 0
+        row_confirmed = 0
+        for dept in departments:
+            dept_assignments = by_revision_department.get((campaign_doc.revision_id, dept), [])
+            total = len(dept_assignments)
+            confirmed = sum(1 for a in dept_assignments if a.read_confirmed_flag or a.status == AssignmentStatus.READ_CONFIRMED)
+            percent = round((confirmed / total) * 100) if total else None
+            row_total += total
+            row_confirmed += confirmed
+            dept_cells.append({
+                "department": dept,
+                "total": total,
+                "confirmed": confirmed,
+                "percent": percent,
+            })
+        rows.append({
+            "campaign_doc": campaign_doc,
+            "cells": dept_cells,
+            "total": row_total,
+            "confirmed": row_confirmed,
+            "percent": round((row_confirmed / row_total) * 100) if row_total else None,
+        })
+        overall_total += row_total
+        overall_confirmed += row_confirmed
+
+    return {
+        "campaign": campaign,
+        "departments": departments,
+        "rows": rows,
+        "total": overall_total,
+        "confirmed": overall_confirmed,
+        "pending": overall_total - overall_confirmed,
+        "percent": round((overall_confirmed / overall_total) * 100) if overall_total else 0,
+    }
+
+
+def _parse_quiz_questions(post) -> tuple[list[dict], list[str]]:
+    questions: list[dict] = []
+    errors: list[str] = []
+    for idx in range(1, 4):
+        text = (post.get(f"question_{idx}") or "").strip()
+        options = [
+            (post.get(f"question_{idx}_option_{opt_idx}") or "").strip()
+            for opt_idx in range(1, 5)
+        ]
+        options = [opt for opt in options if opt]
+        correct_raw = (post.get(f"question_{idx}_correct") or "").strip()
+        if not text and not options:
+            continue
+        if not text:
+            errors.append(f"Domanda {idx}: testo obbligatorio.")
+            continue
+        if len(options) < 2:
+            errors.append(f"Domanda {idx}: inserire almeno due opzioni.")
+            continue
+        try:
+            correct_index = int(correct_raw) - 1
+        except (TypeError, ValueError):
+            correct_index = -1
+        if correct_index < 0 or correct_index >= len(options):
+            errors.append(f"Domanda {idx}: risposta corretta non valida.")
+            continue
+        questions.append({
+            "text": text,
+            "options": options,
+            "correct_index": correct_index,
+        })
+    if not questions:
+        errors.append("Inserire almeno una domanda.")
+    return questions, errors
+
+
+def _quiz_form_slots(quiz: ProcedureQuiz | None = None) -> list[dict]:
+    existing = list((quiz.questions if quiz else []) or [])
+    slots = []
+    for idx in range(3):
+        question = existing[idx] if idx < len(existing) and isinstance(existing[idx], dict) else {}
+        options = list(question.get("options") or [])
+        options = (options + ["", "", "", ""])[:4]
+        slots.append({
+            "number": idx + 1,
+            "text": question.get("text", ""),
+            "options": options,
+            "correct_number": int(question.get("correct_index", 0)) + 1,
+        })
+    return slots
+
+
+def _active_quiz_for_revision(revision: ProcedureRevision) -> ProcedureQuiz | None:
+    return revision.quizzes.filter(is_active=True).order_by("-updated_at", "-id").first()
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +248,64 @@ def assignment_detail(request, pk: int):
     )
 
     if request.method == "POST":
+        if request.POST.get("submit_quiz"):
+            active_quiz = _active_quiz_for_revision(assignment.revision)
+            if not active_quiz:
+                messages.error(request, "Quiz non disponibile per questa revisione.")
+                return redirect("procedure_refresh:assignment_detail", pk=pk)
+            if not assignment.read_confirmed_flag:
+                messages.error(request, "Conferma prima la presa visione, poi compila il quiz.")
+                return redirect("procedure_refresh:assignment_detail", pk=pk)
+            if active_quiz.attempts.filter(assignment=assignment, user=request.user).exists():
+                messages.info(request, "Quiz gia' inviato per questa presa visione.")
+                return redirect("procedure_refresh:assignment_detail", pk=pk)
+
+            answers = []
+            score = 0
+            questions = list(active_quiz.questions or [])
+            for idx, question in enumerate(questions):
+                options = list(question.get("options") or [])
+                selected_raw = request.POST.get(f"quiz_q_{idx}", "")
+                try:
+                    selected_index = int(selected_raw)
+                except (TypeError, ValueError):
+                    selected_index = -1
+                correct_index = int(question.get("correct_index", -1))
+                is_correct = selected_index == correct_index
+                if is_correct:
+                    score += 1
+                answers.append({
+                    "question": question.get("text", ""),
+                    "selected_index": selected_index,
+                    "selected_label": options[selected_index] if 0 <= selected_index < len(options) else "",
+                    "correct_index": correct_index,
+                    "is_correct": is_correct,
+                })
+            ProcedureQuizAttempt.objects.create(
+                quiz=active_quiz,
+                assignment=assignment,
+                user=request.user,
+                answers=answers,
+                score=score,
+                total_questions=len(questions),
+                ip_address=_client_ip(request) or None,
+                user_agent=request.META.get("HTTP_USER_AGENT", "")[:2000],
+            )
+            log_action(
+                request,
+                "quiz_submit",
+                "procedure_refresh",
+                _audit_detail(
+                    "Quiz completato",
+                    quiz_id=active_quiz.pk,
+                    assignment_id=assignment.pk,
+                    score=score,
+                    total=len(questions),
+                ),
+            )
+            messages.success(request, f"Quiz inviato: {score}/{len(questions)} risposte corrette.")
+            return redirect("procedure_refresh:assignment_detail", pk=pk)
+
         user_note = request.POST.get("user_note", "").strip()
         confirm = bool(request.POST.get("confirm_read"))
 
@@ -107,7 +330,11 @@ def assignment_detail(request, pk: int):
                 request,
                 "conferma",
                 "procedure_refresh",
-                f"Presa visione confermata: {assignment.revision}",
+                _audit_detail(
+                    "Presa visione confermata",
+                    assignment_id=assignment.pk,
+                    revision_id=assignment.revision_id,
+                ),
             )
             messages.success(request, "Presa visione confermata e registrata.")
         elif updates:
@@ -138,9 +365,7 @@ def assignment_detail(request, pk: int):
     # Record open event only on first open or every 5 opens
     if assignment.open_count == 1 or assignment.open_count % 5 == 0:
         try:
-            ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", ""))
-            if ip and "," in ip:
-                ip = ip.split(",")[0].strip()
+            ip = _client_ip(request)
             ProcedureReadEvent.objects.create(
                 assignment=assignment,
                 event_type=ReadEventType.OPENED,
@@ -150,10 +375,17 @@ def assignment_detail(request, pk: int):
         except Exception:
             pass
 
+    active_quiz = _active_quiz_for_revision(assignment.revision)
+    quiz_attempt = None
+    if active_quiz:
+        quiz_attempt = active_quiz.attempts.filter(assignment=assignment, user=request.user).first()
+
     return render(request, "procedure_refresh/pages/assignment_detail.html", {
         "assignment": assignment,
         "revision": assignment.revision,
         "document": assignment.revision.document,
+        "active_quiz": active_quiz,
+        "quiz_attempt": quiz_attempt,
     })
 
 
@@ -312,7 +544,12 @@ def document_form(request, pk: int | None = None):
                         published_by=request.user,
                     )
             action = "modifica" if pk else "crea"
-            log_action(request, action, "procedure_refresh", f"Documento {document.code}")
+            log_action(
+                request,
+                action,
+                "procedure_refresh",
+                _audit_detail("Documento salvato", document_id=document.pk, code=document.code),
+            )
             messages.success(request, "Documento salvato." if pk else "Documento e revisione creati.")
             return redirect("procedure_refresh:document_list")
 
@@ -332,7 +569,12 @@ def document_delete(request, pk: int):
     code = document.code
     document.is_active = False
     document.save(update_fields=["is_active", "updated_at"])
-    log_action(request, "disattiva", "procedure_refresh", f"Documento {code} disattivato")
+    log_action(
+        request,
+        "disattiva",
+        "procedure_refresh",
+        _audit_detail("Documento disattivato", document_id=pk, code=code),
+    )
     messages.success(request, f"Documento {code} disattivato.")
     return redirect("procedure_refresh:document_list")
 
@@ -413,7 +655,13 @@ def revision_form(request, doc_pk: int, pk: int | None = None):
             action = "modifica" if pk else "crea"
             log_action(
                 request, action, "procedure_refresh",
-                f"Revisione {document.code} rev.{revision_code}"
+                _audit_detail(
+                    "Revisione salvata",
+                    document_id=document.pk,
+                    revision_id=revision.pk,
+                    code=document.code,
+                    revision_code=revision_code,
+                )
             )
             messages.success(request, "Revisione salvata.")
             return redirect("procedure_refresh:document_list")
@@ -422,6 +670,54 @@ def revision_form(request, doc_pk: int, pk: int | None = None):
         "document": document,
         "revision": revision,
         "SourceType": SourceType,
+    })
+
+
+@login_required
+def revision_quiz(request, rev_pk: int):
+    if not _is_manager(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    revision = get_object_or_404(
+        ProcedureRevision.objects.select_related("document"),
+        pk=rev_pk,
+    )
+    quiz = revision.quizzes.order_by("-is_active", "-updated_at", "-id").first()
+
+    if request.method == "POST":
+        title = (request.POST.get("title") or "").strip() or "Quiz post-lettura"
+        is_active = bool(request.POST.get("is_active"))
+        questions, errors = _parse_quiz_questions(request.POST)
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+        else:
+            if quiz is None:
+                quiz = ProcedureQuiz(revision=revision, created_by=request.user)
+            quiz.title = title
+            quiz.questions = questions
+            quiz.is_active = is_active
+            quiz.save()
+            log_action(
+                request,
+                "quiz_save",
+                "procedure_refresh",
+                _audit_detail(
+                    "Quiz salvato",
+                    quiz_id=quiz.pk,
+                    revision_id=revision.pk,
+                    document_id=revision.document_id,
+                ),
+            )
+            messages.success(request, "Quiz salvato.")
+            return redirect("procedure_refresh:document_list")
+
+    return render(request, "procedure_refresh/pages/quiz_form.html", {
+        "revision": revision,
+        "document": revision.document,
+        "quiz": quiz,
+        "question_slots": _quiz_form_slots(quiz),
     })
 
 
@@ -487,7 +783,12 @@ def campaign_form(request, pk: int | None = None):
             campaign.due_date = due_date
             campaign.save()
             action = "modifica" if pk else "crea"
-            log_action(request, action, "procedure_refresh", f"Campagna '{name}'")
+            log_action(
+                request,
+                action,
+                "procedure_refresh",
+                _audit_detail("Campagna salvata", campaign_id=campaign.pk, name=name),
+            )
             messages.success(request, "Campagna salvata.")
             return redirect("procedure_refresh:campaign_detail", pk=campaign.pk)
 
@@ -571,7 +872,11 @@ def campaign_add_document(request, pk: int):
     if created:
         log_action(
             request, "aggiungi", "procedure_refresh",
-            f"Documento {revision} aggiunto a campagna '{campaign.name}'"
+            _audit_detail(
+                "Documento aggiunto a campagna",
+                campaign_id=campaign.pk,
+                revision_id=revision.pk,
+            )
         )
         messages.success(request, "Documento aggiunto alla campagna.")
     else:
@@ -591,7 +896,12 @@ def campaign_remove_document(request, pk: int, cd_pk: int):
     cd.delete()
     log_action(
         request, "rimuovi", "procedure_refresh",
-        f"Documento {rev_str} rimosso da campagna"
+        _audit_detail(
+            "Documento rimosso da campagna",
+            campaign_id=campaign.pk,
+            campaign_document_id=cd_pk,
+            revision=str(rev_str),
+        )
     )
     messages.success(request, "Documento rimosso dalla campagna.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
@@ -612,7 +922,12 @@ def campaign_publish(request, pk: int):
     campaign.status = CampaignStatus.PUBLISHED
     campaign.published_at = timezone.now()
     campaign.save(update_fields=["status", "published_at", "updated_at"])
-    log_action(request, "pubblica", "procedure_refresh", f"Campagna '{campaign.name}' pubblicata")
+    log_action(
+        request,
+        "pubblica",
+        "procedure_refresh",
+        _audit_detail("Campagna pubblicata", campaign_id=campaign.pk, name=campaign.name),
+    )
     messages.success(request, "Campagna pubblicata.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
@@ -632,7 +947,12 @@ def campaign_close(request, pk: int):
     campaign.status = CampaignStatus.CLOSED
     campaign.closed_at = timezone.now()
     campaign.save(update_fields=["status", "closed_at", "updated_at"])
-    log_action(request, "chiudi", "procedure_refresh", f"Campagna '{campaign.name}' chiusa")
+    log_action(
+        request,
+        "chiudi",
+        "procedure_refresh",
+        _audit_detail("Campagna chiusa", campaign_id=campaign.pk, name=campaign.name),
+    )
     messages.success(request, "Campagna chiusa.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
 
@@ -687,7 +1007,11 @@ def assign_users(request, pk: int):
 
     log_action(
         request, "assegna", "procedure_refresh",
-        f"{created_count} assegnazioni create per campagna '{campaign.name}'"
+        _audit_detail(
+            "Assegnazioni create",
+            campaign_id=campaign.pk,
+            created_count=created_count,
+        )
     )
     messages.success(request, f"{created_count} assegnazioni create.")
     return redirect("procedure_refresh:campaign_detail", pk=pk)
@@ -715,7 +1039,7 @@ def cancel_assignment(request, pk: int):
     )
     log_action(
         request, "annulla", "procedure_refresh",
-        f"Assegnazione {assignment.pk} annullata"
+        _audit_detail("Assegnazione annullata", assignment_id=assignment.pk)
     )
     messages.success(request, "Assegnazione annullata.")
     return redirect("procedure_refresh:campaign_detail", pk=assignment.campaign_id)
@@ -815,6 +1139,30 @@ def report_campaign(request):
     })
 
 
+@login_required
+def report_matrix(request):
+    if not _is_manager(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("procedure_refresh:my_assignments")
+
+    camp_id = request.GET.get("camp_id", "")
+    campaigns = ProcedureCampaign.objects.order_by("-created_at")
+    selected_camp = None
+    matrix = None
+    if camp_id:
+        try:
+            selected_camp = ProcedureCampaign.objects.get(pk=int(camp_id))
+            matrix = _build_training_matrix(selected_camp)
+        except (ProcedureCampaign.DoesNotExist, ValueError):
+            pass
+
+    return render(request, "procedure_refresh/pages/report_matrix.html", {
+        "campaigns": campaigns,
+        "selected_camp": selected_camp,
+        "matrix": matrix,
+    })
+
+
 # ---------------------------------------------------------------------------
 # CSV Export
 # ---------------------------------------------------------------------------
@@ -831,6 +1179,7 @@ def export_csv(request):
         return redirect("procedure_refresh:my_assignments")
 
     report_type = request.GET.get("type", "assignments")
+    campaign_filter = request.GET.get("camp", "").strip()
     writer = csv.writer(_Echo())
 
     if report_type == "assignments":
@@ -847,6 +1196,8 @@ def export_csv(request):
             qs = ProcedureAssignment.objects.select_related(
                 "user", "campaign", "revision__document"
             ).order_by("campaign__name", "user__last_name")
+            if campaign_filter:
+                qs = qs.filter(campaign_id=campaign_filter)
             for a in qs:
                 yield writer.writerow([
                     a.pk,
@@ -865,6 +1216,33 @@ def export_csv(request):
                     a.read_confirmed_at.strftime("%d/%m/%Y %H:%M") if a.read_confirmed_at else "",
                     a.user_note,
                 ])
+
+    elif report_type == "matrix":
+        headers = [
+            "Campagna", "Documento", "Codice doc", "Revisione",
+            "Reparto", "Assegnati", "Confermati", "Completamento %",
+        ]
+
+        def rows():
+            yield writer.writerow(headers)
+            campaigns = ProcedureCampaign.objects.order_by("-created_at")
+            if campaign_filter:
+                campaigns = campaigns.filter(pk=campaign_filter)
+            for campaign in campaigns:
+                matrix = _build_training_matrix(campaign)
+                for row in matrix["rows"]:
+                    revision = row["campaign_doc"].revision
+                    for cell in row["cells"]:
+                        yield writer.writerow([
+                            campaign.name,
+                            revision.document.title,
+                            revision.document.code,
+                            revision.revision_code,
+                            cell["department"],
+                            cell["total"],
+                            cell["confirmed"],
+                            cell["percent"] if cell["percent"] is not None else "",
+                        ])
 
     else:
         headers = [
@@ -897,7 +1275,12 @@ def export_csv(request):
     resp["Content-Disposition"] = (
         f'attachment; filename="procedure_refresh_{report_type}.csv"'
     )
-    log_action(request, "export", "procedure_refresh", f"Export CSV tipo={report_type}")
+    log_action(
+        request,
+        "export",
+        "procedure_refresh",
+        _audit_detail("Export CSV", report_type=report_type, campaign_filter=campaign_filter),
+    )
     return resp
 
 

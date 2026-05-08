@@ -10,12 +10,17 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from core.models import UserExtraInfo
+
 from .models import (
     AssignmentStatus,
     CampaignStatus,
     ProcedureAssignment,
     ProcedureCampaign,
+    ProcedureCampaignDocument,
     ProcedureDocument,
+    ProcedureQuiz,
+    ProcedureQuizAttempt,
     ProcedureRevision,
     ReadEventType,
     SourceType,
@@ -155,6 +160,11 @@ class ViewTests(TestCase):
             due_date=date(2026, 3, 31),
             created_by=self.user,
         )
+        self.campaign_doc = ProcedureCampaignDocument.objects.create(
+            campaign=self.campaign,
+            revision=self.rev,
+            is_mandatory=True,
+        )
         self.assignment = ProcedureAssignment.objects.create(
             campaign=self.campaign,
             revision=self.rev,
@@ -169,13 +179,13 @@ class ViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
 
     def test_my_assignments_authenticated(self):
-        self.client.login(username="viewuser", password="pw")
+        self.client.force_login(self.user)
         resp = self.client.get(reverse("procedure_refresh:my_assignments"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "MT-VIEW-001")
 
     def test_assignment_detail_get_tracks_open(self):
-        self.client.login(username="viewuser", password="pw")
+        self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
@@ -185,7 +195,7 @@ class ViewTests(TestCase):
         self.assertEqual(self.assignment.status, AssignmentStatus.OPENED)
 
     def test_assignment_detail_confirm_read(self):
-        self.client.login(username="viewuser", password="pw")
+        self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
         resp = self.client.post(url, {"user_note": "Ho letto.", "confirm_read": "1"})
         self.assertEqual(resp.status_code, 302)
@@ -197,22 +207,92 @@ class ViewTests(TestCase):
 
     def test_assignment_detail_cannot_access_others(self):
         other = User.objects.create_user(username="other", password="pw", is_superuser=True)
-        self.client.login(username="other", password="pw")
+        self.client.force_login(other)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 404)
 
     def test_read_event_created_on_confirm(self):
-        self.client.login(username="viewuser", password="pw")
+        self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
         self.client.post(url, {"user_note": "Ok.", "confirm_read": "1"})
         events = self.assignment.events.filter(event_type=ReadEventType.CONFIRMED)
         self.assertEqual(events.count(), 1)
 
     def test_note_saved_without_confirmation(self):
-        self.client.login(username="viewuser", password="pw")
+        self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
         self.client.post(url, {"user_note": "Nota senza conferma"})
         self.assignment.refresh_from_db()
         self.assertEqual(self.assignment.user_note, "Nota senza conferma")
         self.assertFalse(self.assignment.read_confirmed_flag)
+
+    def test_report_matrix_by_department_and_csv_export(self):
+        UserExtraInfo.objects.create(legacy_user_id=self.user.pk, reparto="Produzione")
+        self.assignment.status = AssignmentStatus.READ_CONFIRMED
+        self.assignment.read_confirmed_flag = True
+        self.assignment.save(update_fields=["status", "read_confirmed_flag", "updated_at"])
+
+        self.client.force_login(self.user)
+        url = reverse("procedure_refresh:report_matrix") + f"?camp_id={self.campaign.pk}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Matrice formazione")
+        self.assertContains(resp, "Produzione")
+        self.assertContains(resp, "1/1")
+
+        csv_url = reverse("procedure_refresh:export_csv") + f"?type=matrix&camp={self.campaign.pk}"
+        csv_resp = self.client.get(csv_url)
+        self.assertEqual(csv_resp.status_code, 200)
+        body = b"".join(csv_resp.streaming_content).decode("utf-8")
+        self.assertIn("Completamento %", body)
+        self.assertIn("Produzione", body)
+        self.assertIn("MT-VIEW-001", body)
+
+    def test_revision_quiz_manager_creates_quiz(self):
+        self.client.force_login(self.user)
+        url = reverse("procedure_refresh:revision_quiz", kwargs={"rev_pk": self.rev.pk})
+        resp = self.client.post(url, {
+            "title": "Verifica lettura",
+            "is_active": "1",
+            "question_1": "Quale documento hai letto?",
+            "question_1_option_1": "MT-VIEW-001",
+            "question_1_option_2": "Altro",
+            "question_1_correct": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        quiz = ProcedureQuiz.objects.get(revision=self.rev)
+        self.assertEqual(quiz.title, "Verifica lettura")
+        self.assertTrue(quiz.is_active)
+        self.assertEqual(quiz.question_count, 1)
+
+    def test_quiz_after_read_confirmation_is_tracked_and_non_blocking(self):
+        quiz = ProcedureQuiz.objects.create(
+            revision=self.rev,
+            title="Quiz rapido",
+            questions=[{
+                "text": "Risposta corretta?",
+                "options": ["No", "Si"],
+                "correct_index": 1,
+            }],
+            is_active=True,
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+        detail_url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})
+
+        confirm_resp = self.client.post(detail_url, {"user_note": "Letto", "confirm_read": "1"})
+        self.assertEqual(confirm_resp.status_code, 302)
+        self.assignment.refresh_from_db()
+        self.assertEqual(self.assignment.status, AssignmentStatus.READ_CONFIRMED)
+
+        get_resp = self.client.get(detail_url)
+        self.assertContains(get_resp, "Quiz rapido")
+
+        quiz_resp = self.client.post(detail_url, {"submit_quiz": "1", "quiz_q_0": "1"})
+        self.assertEqual(quiz_resp.status_code, 302)
+        attempt = ProcedureQuizAttempt.objects.get(quiz=quiz, assignment=self.assignment, user=self.user)
+        self.assertEqual(attempt.score, 1)
+        self.assertEqual(attempt.total_questions, 1)
+        self.assignment.refresh_from_db()
+        self.assertEqual(self.assignment.status, AssignmentStatus.READ_CONFIRMED)

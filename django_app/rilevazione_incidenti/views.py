@@ -9,6 +9,7 @@ from functools import wraps
 import requests
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
+from django.db import models
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
@@ -17,7 +18,8 @@ from core.graph_utils import acquire_graph_token
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
-from .models import RilevazioneIncidente, SicurezzaImpostazioni
+from .models import RilevazioneIncidente, SicurezzaImpostazioni, TipoEventoSicurezza
+from .services import EVENT_TYPE_LABELS, get_safety_kpis, normalize_tipo_evento
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,12 @@ TIPOLOGIE = [
     ("Unsafe Act", "Unsafe Act"),
     ("Near Miss", "Near Miss"),
     ("Accident", "Accident"),
+]
+
+TIPI_EVENTO_NORMALIZZATI = [
+    (TipoEventoSicurezza.UNSAFE_CONDITION, EVENT_TYPE_LABELS[TipoEventoSicurezza.UNSAFE_CONDITION]),
+    (TipoEventoSicurezza.NEAR_MISS, EVENT_TYPE_LABELS[TipoEventoSicurezza.NEAR_MISS]),
+    (TipoEventoSicurezza.INCIDENTE, EVENT_TYPE_LABELS[TipoEventoSicurezza.INCIDENTE]),
 ]
 
 REPARTI = [
@@ -89,6 +97,18 @@ def _get_reparti() -> list[str]:
 def _get_cause_evento() -> list[str]:
     cfg = _get_impostazioni()
     return list(cfg.cause_evento_custom) if cfg.cause_evento_custom else CAUSE_EVENTO
+
+
+def _planimetria_area_options():
+    try:
+        from assets.models import PlantLayoutArea
+        return (
+            PlantLayoutArea.objects.select_related("layout")
+            .filter(layout__is_active=True)
+            .order_by("layout__category", "sort_order", "name")
+        )
+    except Exception:
+        return []
 
 
 def _legacy_identity(request) -> tuple[str, str]:
@@ -250,6 +270,21 @@ def _bool_field(fields: dict, key: str) -> bool:
     return bool(val)
 
 
+def _enrich_event_fields(fields: dict) -> dict:
+    tipo = normalize_tipo_evento(fields.get("Tipo_evento") or fields.get("Tipologia_scheda"))
+    fields["Tipo_evento"] = tipo
+    fields["Tipo_evento_label"] = EVENT_TYPE_LABELS.get(tipo, tipo)
+    return fields
+
+
+def _add_local_only_fields(fields: dict, post) -> dict:
+    tipo_evento = post.get("tipo_evento") or normalize_tipo_evento(post.get("Tipologia_scheda", ""))
+    fields["Tipo_evento"] = normalize_tipo_evento(tipo_evento)
+    area_id = (post.get("planimetria_area_id") or "").strip()
+    fields["PlanimetriaAreaId"] = area_id
+    return fields
+
+
 # ---------------------------------------------------------------------------
 # Storage locale (fallback quando SharePoint non è configurato)
 # ---------------------------------------------------------------------------
@@ -258,6 +293,7 @@ def _bool_field(fields: dict, key: str) -> bool:
 _SP_TO_MODEL: dict[str, str] = {
     "Nominativo": "nominativo",
     "Tipologia_scheda": "tipologia_scheda",
+    "Tipo_evento": "tipo_evento",
     "Reparto": "reparto",
     "Reparto_txt": "reparto",
     "Data_e_ora_rilevazione": "data_segnalazione",
@@ -339,6 +375,16 @@ def _sp_fields_to_kwargs(sp_fields: dict) -> dict:
         else:
             result[model_field] = value or ""
 
+    result["tipo_evento"] = normalize_tipo_evento(
+        sp_fields.get("Tipo_evento") or sp_fields.get("Tipologia_scheda")
+    )
+    if "PlanimetriaAreaId" in sp_fields:
+        area_id = sp_fields.get("PlanimetriaAreaId")
+        try:
+            result["planimetria_area_id"] = int(area_id) if area_id else None
+        except (TypeError, ValueError):
+            result["planimetria_area_id"] = None
+
     return result
 
 
@@ -390,6 +436,7 @@ def lista(request):
                 f = item.get("fields", {})
                 f["sp_id"] = item["id"]
                 f["stato"] = _deriva_stato(f)
+                _enrich_event_fields(f)
                 items.append(f)
         except Exception as exc:
             logger.warning("rilevazione_incidenti lista: errore Graph API: %s", exc)
@@ -401,6 +448,7 @@ def lista(request):
                 f = item.get("fields", {})
                 f["sp_id"] = item["id"]
                 f["stato"] = _deriva_stato(f)
+                _enrich_event_fields(f)
                 items.append(f)
         except Exception as exc:
             logger.warning("rilevazione_incidenti lista: errore DB locale: %s", exc)
@@ -409,6 +457,7 @@ def lista(request):
     # Stats globali (prima dei filtri)
     _stati_cnt = Counter(f["stato"] for f in items)
     _tipi_cnt = Counter((f.get("Tipologia_scheda") or "").strip() for f in items)
+    _eventi_cnt = Counter(normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) for f in items)
     all_reparti = sorted({
         (f.get("Reparto") or f.get("Reparto_txt") or "").strip()
         for f in items
@@ -423,11 +472,15 @@ def lista(request):
         "unsafe_act": _tipi_cnt.get("Unsafe Act", 0),
         "near_miss": _tipi_cnt.get("Near Miss", 0),
         "accident": _tipi_cnt.get("Accident", 0),
+        "eventi_unsafe_condition": _eventi_cnt.get(TipoEventoSicurezza.UNSAFE_CONDITION, 0),
+        "eventi_near_miss": _eventi_cnt.get(TipoEventoSicurezza.NEAR_MISS, 0),
+        "eventi_incidente": _eventi_cnt.get(TipoEventoSicurezza.INCIDENTE, 0),
     }
 
     # Filtri
     search = (request.GET.get("q") or "").strip()
     tipo_filter = (request.GET.get("tipo") or "").strip()
+    evento_filter = (request.GET.get("tipo_evento") or "").strip()
     stato_filter = (request.GET.get("stato") or "").strip()
     reparto_filter = (request.GET.get("reparto") or "").strip()
 
@@ -442,6 +495,11 @@ def lista(request):
         ]
     if tipo_filter:
         items = [f for f in items if (f.get("Tipologia_scheda") or "") == tipo_filter]
+    if evento_filter:
+        items = [
+            f for f in items
+            if normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) == evento_filter
+        ]
     if stato_filter:
         items = [f for f in items if f["stato"] == stato_filter]
     if reparto_filter:
@@ -457,9 +515,11 @@ def lista(request):
         "items": items,
         "search": search,
         "tipo_filter": tipo_filter,
+        "evento_filter": evento_filter,
         "stato_filter": stato_filter,
         "reparto_filter": reparto_filter,
         "tipologie": [t[0] for t in TIPOLOGIE],
+        "tipi_evento": TIPI_EVENTO_NORMALIZZATI,
         "all_reparti": all_reparti,
         "can_create": can_create,
         "can_rspp": can_rspp,
@@ -495,6 +555,7 @@ def nuovo(request):
             cfg = _get_impostazioni()
             try:
                 if _use_local(cfg):
+                    _add_local_only_fields(fields, request.POST)
                     created = _create_item_local(fields)
                 else:
                     created = _create_item(fields)
@@ -514,6 +575,8 @@ def nuovo(request):
         "tipologie": TIPOLOGIE,
         "reparti": _get_reparti(),
         "cause_evento": _get_cause_evento(),
+        "tipo_evento": normalize_tipo_evento(tipo),
+        "planimetria_aree": _planimetria_area_options(),
         "persone_coinvolte_choices": PERSONE_COINVOLTE_CHOICES,
         "error": error,
         "form_data": form_data,
@@ -574,6 +637,7 @@ def dettaglio(request, sp_id):
             item_fields = item.get("fields", {})
             item_fields["sp_id"] = sp_id
             item_fields["stato"] = _deriva_stato(item_fields)
+            _enrich_event_fields(item_fields)
         except Exception as exc:
             logger.warning("rilevazione_incidenti dettaglio %s: %s", sp_id, exc)
             error = str(exc)
@@ -583,6 +647,7 @@ def dettaglio(request, sp_id):
             item_fields = item.get("fields", {})
             item_fields["sp_id"] = sp_id
             item_fields["stato"] = _deriva_stato(item_fields)
+            _enrich_event_fields(item_fields)
         except Exception as exc:
             logger.warning("rilevazione_incidenti dettaglio locale %s: %s", sp_id, exc)
             error = str(exc)
@@ -626,6 +691,7 @@ def modifica(request, sp_id):
             item = _fetch_item(sp_id)
         item_fields = item.get("fields", {})
         item_fields["stato"] = _deriva_stato(item_fields)
+        _enrich_event_fields(item_fields)
     except Exception as exc:
         logger.error("rilevazione_incidenti modifica GET %s: %s", sp_id, exc)
         error = str(exc)
@@ -639,6 +705,8 @@ def modifica(request, sp_id):
         fields_to_update = {}
         if can_preposto and item_fields.get("stato") == "APERTO":
             fields_to_update.update(_build_fields_from_post(request.POST, request.user))
+            if use_local:
+                _add_local_only_fields(fields_to_update, request.POST)
         if can_rspp:
             def b(key): return request.POST.get(key, "0") in ("1", "true", "on", "si", "sì")
             approvazione = request.POST.get("Approvazione_RLS", "")
@@ -682,6 +750,8 @@ def modifica(request, sp_id):
         "tipologie": TIPOLOGIE,
         "reparti": _get_reparti(),
         "cause_evento": _get_cause_evento(),
+        "tipi_evento": TIPI_EVENTO_NORMALIZZATI,
+        "planimetria_aree": _planimetria_area_options(),
         "persone_coinvolte_choices": PERSONE_COINVOLTE_CHOICES,
         "approvazione_rls_choices": APPROVAZIONE_RLS_CHOICES,
     })
@@ -726,6 +796,7 @@ def statistiche(request):
             for item in raw:
                 f = item.get("fields", {})
                 f["stato"] = _deriva_stato(f)
+                _enrich_event_fields(f)
                 items.append(f)
         except Exception as exc:
             logger.warning("rilevazione_incidenti statistiche: %s", exc)
@@ -736,6 +807,7 @@ def statistiche(request):
             for item in raw:
                 f = item.get("fields", {})
                 f["stato"] = _deriva_stato(f)
+                _enrich_event_fields(f)
                 items.append(f)
         except Exception as exc:
             logger.warning("rilevazione_incidenti statistiche locale: %s", exc)
@@ -744,6 +816,7 @@ def statistiche(request):
     # Aggregazioni
     totale = len(items)
     per_tipologia = Counter(f.get("Tipologia_scheda", "N/D") for f in items)
+    per_tipo_evento = Counter(normalize_tipo_evento(f.get("Tipo_evento") or f.get("Tipologia_scheda")) for f in items)
     per_reparto = Counter(f.get("Reparto", f.get("Reparto_txt", "N/D")) or "N/D" for f in items)
     per_stato = Counter(f["stato"] for f in items)
 
@@ -802,6 +875,7 @@ def statistiche(request):
     n_ua = per_tipologia.get("Unsafe Act", 0)
     n_nm = per_tipologia.get("Near Miss", 0)
     n_ac = per_tipologia.get("Accident", 0)
+    safety_kpis = get_safety_kpis()
     n_ap = per_stato.get("APERTO", 0)
     n_appr = per_stato.get("APPROVATO", 0)
     n_ch = per_stato.get("CHIUSO", 0)
@@ -836,6 +910,10 @@ def statistiche(request):
         "n_unsafe_act": n_ua,
         "n_near_miss": n_nm,
         "n_accident": n_ac,
+        "n_eventi_unsafe_condition": per_tipo_evento.get(TipoEventoSicurezza.UNSAFE_CONDITION, 0),
+        "n_eventi_near_miss": per_tipo_evento.get(TipoEventoSicurezza.NEAR_MISS, 0),
+        "n_eventi_incidente": per_tipo_evento.get(TipoEventoSicurezza.INCIDENTE, 0),
+        "safety_kpis": safety_kpis,
         "n_aperto": n_ap,
         "n_approvato": n_appr,
         "n_chiuso": n_ch,
@@ -850,6 +928,66 @@ def statistiche(request):
         "chart_reparti": chart_reparti,
         "chart_cause": chart_cause,
         "error": error,
+    })
+
+
+# ---------------------------------------------------------------------------
+# View: heatmap planimetria
+# ---------------------------------------------------------------------------
+
+
+def heatmap(request):
+    try:
+        from assets.models import PlantLayout, PlantLayoutArea
+    except Exception as exc:
+        return render(request, "rilevazione_incidenti/pages/heatmap.html", {
+            "error": str(exc),
+            "layouts": [],
+            "layout": None,
+            "points": [],
+        })
+
+    layout_id = (request.GET.get("layout") or "").strip()
+    layouts = PlantLayout.objects.filter(is_active=True).order_by("category", "name")
+    layout = None
+    if layout_id:
+        try:
+            layout = layouts.get(pk=int(layout_id))
+        except (PlantLayout.DoesNotExist, ValueError):
+            layout = None
+    if layout is None:
+        layout = layouts.first()
+
+    points = []
+    if layout:
+        areas = PlantLayoutArea.objects.filter(layout=layout).order_by("sort_order", "name")
+        area_counts = {
+            row["planimetria_area_id"]: row["n"]
+            for row in RilevazioneIncidente.objects.filter(planimetria_area__layout=layout)
+            .values("planimetria_area_id")
+            .annotate(n=models.Count("id"))
+        }
+        max_count = max(area_counts.values()) if area_counts else 1
+        for area in areas:
+            count = int(area_counts.get(area.pk, 0))
+            if not count:
+                continue
+            x = float(area.x_percent) + (float(area.width_percent) / 2)
+            y = float(area.y_percent) + (float(area.height_percent) / 2)
+            points.append({
+                "area": area,
+                "count": count,
+                "x": round(x, 2),
+                "y": round(y, 2),
+                "label_y": round(max(3, y - 2), 2),
+                "radius": 4 + round((count / max_count) * 8),
+            })
+
+    return render(request, "rilevazione_incidenti/pages/heatmap.html", {
+        "layouts": layouts,
+        "layout": layout,
+        "points": points,
+        "error": None,
     })
 
 
@@ -939,6 +1077,7 @@ def export_csv(request):
             f = item.get("fields", {})
             f["sp_id"] = item["id"]
             f["stato"] = _deriva_stato(f)
+            _enrich_event_fields(f)
             items.append(f)
     except Exception as exc:
         messages.error(request, f"Errore durante l'export: {exc}")
@@ -1010,6 +1149,7 @@ def export_pdf(request, sp_id):
             item = _fetch_item(sp_id)
         item_fields = item.get("fields", {})
         item_fields["stato"] = _deriva_stato(item_fields)
+        _enrich_event_fields(item_fields)
     except Exception as exc:
         logger.warning("rilevazione_incidenti export_pdf %s: %s", sp_id, exc)
         return render(request, "core/pages/forbidden.html", status=404)

@@ -584,6 +584,62 @@
   .g-legend-dot.absence     { background: #fee2e2; border: 1px solid #fca5a5; }
   .g-legend-dot.invalid     { background: repeating-linear-gradient(135deg, #fca5a5 0, #fca5a5 4px, #ef4444 4px, #ef4444 8px); }
 
+  /* ── Baseline delta badge ── */
+  .g-baseline-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .g-baseline-delta.on-time  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .g-baseline-delta.late     { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .g-baseline-delta.early    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+  body.theme-dark .g-baseline-delta.on-time  { background: rgba(22,101,52,.2);  border-color: rgba(187,247,208,.2); color: #86efac; }
+  body.theme-dark .g-baseline-delta.late     { background: rgba(153,27,27,.2);  border-color: rgba(252,165,165,.2); color: #fca5a5; }
+  body.theme-dark .g-baseline-delta.early    { background: rgba(29,78,216,.2);  border-color: rgba(191,219,254,.2); color: #93c5fd; }
+
+  /* ── Progress bar riga Gantt ── */
+  .g-row-progress {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+  }
+
+  .g-row-progress-bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+    min-width: 60px;
+    max-width: 140px;
+  }
+
+  .g-row-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #34d399 0%, #3b82f6 100%);
+    transition: width .4s ease;
+  }
+
+  .g-row-progress-pct {
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    min-width: 28px;
+    text-align: right;
+  }
+
+  body.theme-dark .g-row-progress-bar  { background: var(--border); }
+  body.theme-dark .g-row-progress-pct  { color: var(--text-light); }
+
   /* ── Quick edit floating ── */
   .quick-edit-grid { display: grid; gap: 8px; }
 
@@ -628,7 +684,7 @@
 
   .quick-edit-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
+    grid-template-columns: 1fr 1fr 1fr 80px auto;
     gap: 8px;
     align-items: end;
   }
@@ -685,6 +741,57 @@
     color: #c05621;
   }
 
+  /* ── Dipendenze ── */
+  .g-dep-panel { display: grid; gap: 12px; }
+
+  .g-dep-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .g-dep-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--g-border);
+    border-radius: 10px;
+    background: #f8fbff;
+    font-size: 12px;
+  }
+
+  .g-dep-item .g-dep-label { flex: 1; color: #0f172a; font-weight: 700; }
+  .g-dep-item .g-dep-type  { color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+  .g-dep-item .g-dep-lag   { color: #94a3b8; font-size: 10px; }
+
+  .g-dep-add-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px 80px auto;
+    gap: 8px;
+    align-items: end;
+  }
+
+  .g-dep-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  body.theme-dark .g-dep-item { background: var(--surface-alt); border-color: var(--border); }
+  body.theme-dark .g-dep-item .g-dep-label { color: var(--text); }
+
+  @media (max-width: 860px) {
+    .g-dep-add-form { grid-template-columns: 1fr 1fr; }
+    .g-dep-add-form > div:last-child { grid-column: 1 / -1; }
+  }
+
   /* ── Responsive ── */
   @media (max-width: 1180px) {
     .g-spotlight { grid-template-columns: 1fr; }
@@ -695,6 +802,7 @@
     .g-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .quick-edit-row { grid-template-columns: 1fr 1fr; }
     .quick-edit-row > div:last-child { grid-column: 1 / -1; }
+    .quick-edit-row > div:nth-child(4) { grid-column: 1 / 3; }
   }
 
   body.theme-dark .g-vrf-banner.blocked { background:rgba(153,27,27,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
@@ -932,6 +1040,19 @@
     </div>
   </div>
 
+  {# ── Banner baseline attiva ── #}
+  {% if gantt_baseline %}
+    <div class="g-vrf-banner pending">
+      <div class="g-vrf-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="g-vrf-text">
+        Baseline attiva — fissata il {{ gantt_baseline.fixed_at|date:"d/m/Y H:i" }}{% if gantt_baseline.fixed_by %} da {{ gantt_baseline.fixed_by.get_full_name|default:gantt_baseline.fixed_by.username }}{% endif %}.
+        I badge <strong>BL</strong> nelle righe mostrano lo scostamento in giorni sulla data fine.
+      </div>
+    </div>
+  {% endif %}
+
   {# ── Pannello Gantt ── #}
   <section class="ts-panel" style="overflow:visible;">
     <div class="ts-panel-head">
@@ -980,7 +1101,7 @@
       <div class="g-range-group">
         <span class="g-range-label">Zoom giorni</span>
         <div class="g-range-row">
-          <input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}">
+          <input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}" aria-label="Zoom giorni">
           <span class="g-range-val" id="id_width_val">{{ gantt_day_cell_px }}px</span>
         </div>
       </div>
@@ -988,7 +1109,7 @@
       <div class="g-range-group">
         <span class="g-range-label">Altezza righe</span>
         <div class="g-range-row">
-          <input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28">
+          <input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28" aria-label="Altezza righe">
           <span class="g-range-val" id="id_height_val">28px</span>
         </div>
       </div>
@@ -1015,6 +1136,28 @@
 
       <button type="submit" class="btn btn-sm">Applica</button>
       <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Reset</a>
+
+      {% if can_edit_schedule %}
+        <div class="g-toolbar-sep"></div>
+        {% if gantt_baseline %}
+          <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
+            <button type="submit" class="btn btn-secondary btn-sm" title="Aggiorna la baseline con le date attuali">Aggiorna baseline</button>
+          </form>
+          <form method="post" action="{% url 'tasks:project_gantt_clear_baseline' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
+            <button type="submit" class="btn btn-secondary btn-sm">Rimuovi baseline</button>
+          </form>
+        {% else %}
+          <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
+            <button type="submit" class="btn btn-secondary btn-sm" title="Salva le date attuali come baseline di riferimento">Fissa baseline</button>
+          </form>
+        {% endif %}
+      {% endif %}
 
       {# campo invisibile per sincronizzare il valueLabel legacy #}
       <div id="id_day_height_value" style="display:none;"></div>
@@ -1093,6 +1236,24 @@
                       <span>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}—{% endif %}</span>
                       {% if row.invalid_range %}<span style="color:#b91c1c;font-weight:900;">Range non valido</span>{% endif %}
                       {% if row.has_absence_conflicts %}<span style="color:#b91c1c;font-weight:900;">Assenze: {{ row.absence_days }}gg</span>{% endif %}
+                      {% for dep in gantt_deps %}{% if dep.succ_id == row.task.id %}<span class="g-dep-arrow">&#8592; WBS {{ dep.pred_wbs }} ({{ dep.type }}{% if dep.lag_days != 0 %} {{ dep.lag_days }}gg{% endif %})</span>{% endif %}{% endfor %}
+                      {% with delta=row.baseline_delta %}
+                        {% if delta.end is not None %}
+                          {% if delta.end == 0 %}
+                            <span class="g-baseline-delta on-time">BL +0gg</span>
+                          {% elif delta.end > 0 %}
+                            <span class="g-baseline-delta late">BL +{{ delta.end }}gg</span>
+                          {% else %}
+                            <span class="g-baseline-delta early">BL {{ delta.end }}gg</span>
+                          {% endif %}
+                        {% endif %}
+                      {% endwith %}
+                    </div>
+                    <div class="g-row-progress">
+                      <div class="g-row-progress-bar">
+                        <div class="g-row-progress-fill" style="width:{{ row.task.progress }}%"></div>
+                      </div>
+                      <span class="g-row-progress-pct">{{ row.task.progress }}%</span>
                     </div>
                   </td>
                   {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni calendario">{{ row.duration_working_days }}gg</td>{% endif %}
@@ -1175,12 +1336,99 @@
                     {{ row.update_form.status }}
                   </div>
                   <div class="ts-field">
+                    <label for="{{ row.update_form.progress.id_for_label }}">Avanzamento %</label>
+                    {{ row.update_form.progress }}
+                  </div>
+                  <div class="ts-field">
                     <button type="submit" class="btn btn-sm">Salva</button>
                   </div>
                 </div>
               </form>
             {% endif %}
           {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ── Dipendenze task ── #}
+  {% if gantt_rows %}
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Dipendenze tra attività</h2>
+          <p class="ts-panel-subtitle">Relazioni FS/SS/FF/SF tra le attività del kickoff. Visibili come freccia nella colonna nome.</p>
+        </div>
+        <div class="ts-panel-meta">
+          <span class="ts-chip soft">{{ gantt_deps|length }} dipendenze</span>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <div class="g-dep-panel">
+
+          {# Lista dipendenze esistenti #}
+          {% if gantt_deps %}
+            <ul class="g-dep-list">
+              {% for dep in gantt_deps %}
+                <li class="g-dep-item">
+                  <span class="g-dep-label">WBS {{ dep.pred_wbs }} → WBS {{ dep.succ_wbs }}</span>
+                  <span class="g-dep-type">{{ dep.type }}</span>
+                  {% if dep.lag_days != 0 %}<span class="g-dep-lag">lag {{ dep.lag_days }}gg</span>{% endif %}
+                  {% if can_edit_schedule %}
+                    <button class="btn btn-secondary btn-sm"
+                            data-dep-id="{{ dep.dep_id }}"
+                            data-remove-url="{% url 'tasks:project_gantt_remove_dependency' project.id dep.dep_id %}"
+                            onclick="removeDependency(this)">Rimuovi</button>
+                  {% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="quick-edit-placeholder">Nessuna dipendenza definita.</p>
+          {% endif %}
+
+          {# Form aggiunta dipendenza #}
+          {% if can_edit_schedule %}
+            <form id="dep-add-form" class="g-dep-add-form"
+                  data-add-url="{% url 'tasks:project_gantt_add_dependency' project.id %}"
+                  onsubmit="addDependency(event, this)">
+              {% csrf_token %}
+              <div class="ts-field">
+                <label for="dep-predecessor">Predecessore (WBS)</label>
+                <select id="dep-predecessor" class="input" name="predecessor_id" required>
+                  <option value="">— seleziona —</option>
+                  {% for row in gantt_rows %}
+                    <option value="{{ row.task.id }}">WBS {{ row.wbs }} — {{ row.task.title }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="ts-field">
+                <label for="dep-successor">Successore (WBS)</label>
+                <select id="dep-successor" class="input" name="successor_id" required>
+                  <option value="">— seleziona —</option>
+                  {% for row in gantt_rows %}
+                    <option value="{{ row.task.id }}">WBS {{ row.wbs }} — {{ row.task.title }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="ts-field">
+                <label for="dep-type">Tipo</label>
+                <select id="dep-type" class="input" name="dependency_type">
+                  {% for val, lbl in dependency_type_choices %}
+                    <option value="{{ val }}">{{ val }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="ts-field">
+                <label for="dep-lag">Lag (gg)</label>
+                <input id="dep-lag" class="input" type="number" name="lag_days" value="0" min="-999" max="999" aria-label="Lag giorni">
+              </div>
+              <div class="ts-field">
+                <button type="submit" class="btn btn-sm">Aggiungi</button>
+              </div>
+            </form>
+          {% endif %}
+
         </div>
       </div>
     </section>
@@ -1548,5 +1796,56 @@
   bindTaskDragShift();
   bindQuickEditAccordion();
 })();
+
+// ── Dipendenze AJAX ──────────────────────────────────
+function getCsrfToken() {
+  const el = document.querySelector("[name=csrfmiddlewaretoken]");
+  return el ? el.value : "";
+}
+
+async function addDependency(event, form) {
+  event.preventDefault();
+  const url = form.dataset.addUrl;
+  const data = new FormData(form);
+  const body = new URLSearchParams(data);
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": getCsrfToken() },
+      body: body.toString(),
+    });
+    const json = await resp.json();
+    if (json.ok) {
+      window.location.reload();
+    } else {
+      alert(json.error || "Errore nell'aggiunta della dipendenza.");
+    }
+  } catch (e) {
+    alert("Errore di rete.");
+  }
+}
+
+async function removeDependency(btn) {
+  const url = btn.dataset.removeUrl;
+  if (!url) return;
+  if (!confirm("Rimuovere questa dipendenza?")) return;
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": getCsrfToken() },
+      body: new URLSearchParams({ csrfmiddlewaretoken: getCsrfToken() }).toString(),
+    });
+    const json = await resp.json();
+    if (json.ok) {
+      window.location.reload();
+    } else {
+      alert(json.error || "Errore nella rimozione.");
+    }
+  } catch (e) {
+    alert("Errore di rete.");
+  }
+}
 </script>
 {% endblock %}

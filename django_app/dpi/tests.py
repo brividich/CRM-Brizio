@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import shutil
 from datetime import date, timedelta
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.db.models import FileField, ImageField
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -16,6 +19,12 @@ from core.models import UserOnboarding
 from core.upload_mime import UploadMimeValidationError
 from dpi.models import CategoriaDPI, ConsegnaDPI, ModelloDPI, RichiestaDPI, StatoRichiesta, TagliaDPI, TipoDPI
 from dpi.views import DPI_MIME_POLICY_FIELDS
+
+
+PNG_SIGNATURE_DATA_URI = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lx9u9QAAAABJRU5ErkJggg=="
+)
 
 
 def _reset_test_dir(name: str) -> Path:
@@ -310,6 +319,57 @@ class DpiCatalogRequestTests(TestCase):
         consegna = ConsegnaDPI.objects.get(richiesta=richiesta)
         self.assertEqual(consegna.data_scadenza_stimata, data_consegna + timedelta(days=180))
 
+    def test_delivery_saves_signature_data_uri_and_marks_signed(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            stato=StatoRichiesta.APPROVATA,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("dpi:consegna", args=[richiesta.pk]), {
+            "data_consegna": date(2026, 5, 5).isoformat(),
+            "firma_immagine": PNG_SIGNATURE_DATA_URI,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        consegna = ConsegnaDPI.objects.get(richiesta=richiesta)
+        self.assertTrue(consegna.firmato_ricevuta)
+        self.assertEqual(consegna.firma_immagine, PNG_SIGNATURE_DATA_URI)
+
+    def test_scadenza_alias_and_semaforo(self):
+        categoria, _, _, _ = self._catalogo()
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        consegna = ConsegnaDPI.objects.create(
+            richiesta=richiesta,
+            data_consegna=date.today(),
+            data_scadenza_stimata=date.today() + timedelta(days=10),
+        )
+
+        self.assertEqual(consegna.scadenza_calcolata, consegna.data_scadenza_stimata)
+        self.assertEqual(consegna.semaforo_scadenza, "arancione")
+
+    def test_report_conformita_renders_for_manager(self):
+        categoria, _, _, _ = self._catalogo()
+        categoria.obbligatoria_mansionario = True
+        categoria.save(update_fields=["obbligatoria_mansionario"])
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("dpi:report_conformita"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Report conformita DPI")
+
     def test_modello_dpi_image_mime_policy(self):
         categoria, tipo, _, _ = self._catalogo()
         self.client.force_login(self.admin)
@@ -331,3 +391,30 @@ class DpiCatalogRequestTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(mock_validate.called)
         self.assertTrue(ModelloDPI.objects.get(codice="ELM-01").immagine)
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
+class DpiExpiryReminderCommandTests(TestCase):
+    def test_command_sends_digest_for_expiring_dpi(self):
+        categoria = CategoriaDPI.objects.create(nome="Elmetto", is_active=True, vita_utile_giorni=30)
+        richiesta = RichiestaDPI.objects.create(
+            categoria=categoria,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_nome="Mario Rossi",
+        )
+        ConsegnaDPI.objects.create(
+            richiesta=richiesta,
+            data_consegna=date.today(),
+            data_scadenza_stimata=date.today() + timedelta(days=5),
+        )
+
+        out = StringIO()
+        call_command("send_dpi_expiry_reminders", "--recipients", "rsp@example.com", stdout=out)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("[DPI]", mail.outbox[0].subject)
+        self.assertIn(richiesta.numero, mail.outbox[0].body)

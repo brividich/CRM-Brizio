@@ -134,6 +134,44 @@
       </div>
       {% endif %}
 
+      {# KPI sicurezza automatici #}
+      {% if safety_kpis %}
+      <div class="hd-section">
+        <div class="hd-section-title">
+          KPI sicurezza
+          <span class="hd-section-badge">anno {{ safety_kpis.year }}</span>
+        </div>
+        <div class="hd-safety-grid">
+          <div class="hd-safety-metric">
+            <div class="hd-safety-val">{% if safety_kpis.trir != None %}{{ safety_kpis.trir }}{% else %}-{% endif %}</div>
+            <div class="hd-safety-lbl">TRIR</div>
+          </div>
+          <div class="hd-safety-metric">
+            <div class="hd-safety-val">{% if safety_kpis.giorni_senza_infortuni != None %}{{ safety_kpis.giorni_senza_infortuni }}{% else %}-{% endif %}</div>
+            <div class="hd-safety-lbl">Giorni senza infortuni</div>
+          </div>
+          <div class="hd-safety-metric">
+            <div class="hd-safety-val">{{ safety_kpis.near_miss|default:0 }}</div>
+            <div class="hd-safety-lbl">Near miss</div>
+          </div>
+          <div class="hd-safety-metric">
+            <div class="hd-safety-val hd-safety-danger">{{ safety_kpis.incidenti|default:0 }}</div>
+            <div class="hd-safety-lbl">Incidenti</div>
+          </div>
+        </div>
+        {% if safety_kpis.trend %}
+        <div class="hd-safety-trend">
+          {% for item in safety_kpis.trend %}
+          <div class="hd-safety-trend-item">
+            <span class="hd-safety-trend-count">{{ item.count }}</span>
+            <span class="hd-safety-trend-label">{{ item.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
       {# Moduli #}
       {% if modules %}
       <div class="hd-section">

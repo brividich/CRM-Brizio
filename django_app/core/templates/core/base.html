@@ -57,6 +57,19 @@
 </div>
 
 {% include "monitoring/components/report_problem_modal.html" %}
+{% if user.is_authenticated %}
+<div class="notify-center-shell" data-notification-shell>
+  <div
+    id="notify-center-panel"
+    class="notify-center-panel"
+    role="dialog"
+    aria-label="Centro notifiche"
+    hx-get="{% url 'api_notifiche_panel' %}"
+    hx-trigger="load, refresh, every 60s"
+    hx-swap="innerHTML"
+  ></div>
+</div>
+{% endif %}
 <script>
 window.portalReadJsonResponse = async function (response, opts) {
   opts = opts || {};
@@ -207,11 +220,11 @@ window.portalReadJsonResponse = async function (response, opts) {
 
   var ICONS = {
     dipendente:'&#128100;', asset:'&#128421;', ticket:'&#127914;',
-    kickoff:'&#128203;', task:'&#9989;', procedura:'&#128196;'
+    kickoff:'&#128203;', task:'&#9989;', procedura:'&#128196;', dpi:'&#129466;'
   };
   var LABELS = {
     dipendente:'Dipendenti', asset:'Asset', ticket:'Ticket',
-    kickoff:'Kickoff', task:'Attività', procedura:'Procedure'
+    kickoff:'Kickoff', task:'Attivita', procedura:'Procedure', dpi:'DPI'
   };
 
   function openOverlay() {
@@ -269,8 +282,10 @@ window.portalReadJsonResponse = async function (response, opts) {
         el.innerHTML =
           '<span class="gs-item-icon" aria-hidden="true">' + (ICONS[r.tipo]||'&#128269;') + '</span>' +
           '<span class="gs-item-body">' +
+            (r.module ? '<span class="gs-item-module">' + _esc(r.module) + '</span>' : '') +
             '<span class="gs-item-label">' + _esc(r.label) + '</span>' +
             (r.sub ? '<span class="gs-item-sub">' + _esc(r.sub) + '</span>' : '') +
+            (r.preview ? '<span class="gs-item-preview">' + _esc(r.preview) + '</span>' : '') +
           '</span>' +
           '<span class="gs-item-arrow" aria-hidden="true">&#8594;</span>';
         el.addEventListener('click', function(){ closeOverlay(); });
@@ -335,5 +350,47 @@ document.addEventListener("htmx:configRequest", function(evt) {
   }
 });
 </script>
+{% if user.is_authenticated %}
+<script>
+(function () {
+  var shell = document.querySelector('[data-notification-shell]');
+  var panel = document.getElementById('notify-center-panel');
+  if (!shell || !panel) return;
+
+  function csrf() {
+    var meta = document.querySelector("meta[name='csrf-token']");
+    return meta ? meta.getAttribute("content") : "";
+  }
+  function openPanel() { shell.classList.add('open'); }
+  function closePanel() { shell.classList.remove('open'); }
+
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-notification-toggle]')) {
+      event.preventDefault();
+      shell.classList.toggle('open');
+      if (window.htmx) window.htmx.trigger(panel, 'refresh');
+      return;
+    }
+    if (shell.classList.contains('open') && !event.target.closest('.notify-center-panel')) {
+      closePanel();
+    }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closePanel();
+  });
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-notification-mark-read]');
+    if (!btn) return;
+    btn.disabled = true;
+    fetch("{% url 'api_notifiche_mark_all_read' %}", {
+      method: "POST",
+      headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" }
+    }).then(function () {
+      if (window.htmx) window.htmx.trigger(panel, 'refresh');
+    }).finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+{% endif %}
 </body>
 </html>
