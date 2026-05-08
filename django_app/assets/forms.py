@@ -496,12 +496,27 @@ class AssetFilterForm(forms.Form):
         label="Tipo",
         choices=[("", "Tutti i tipi"), *Asset.TYPE_CHOICES],
     )
+    asset_category = forms.ModelChoiceField(
+        required=False,
+        label="Categoria",
+        queryset=AssetCategory.objects.none(),
+        empty_label="Tutte le categorie",
+    )
     reparto = forms.CharField(required=False, label="Reparto")
     vlan = forms.IntegerField(required=False, label="VLAN", min_value=1)
     ip = forms.CharField(required=False, label="IP")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        selected_category_id = self.data.get(self.add_prefix("asset_category")) or self.data.get("asset_category")
+        category_filter = Q(is_active=True)
+        if selected_category_id:
+            category_filter |= Q(pk=selected_category_id)
+        self.fields["asset_category"].queryset = AssetCategory.objects.filter(category_filter).order_by(
+            "sort_order",
+            "label",
+            "id",
+        )
         _attach_input_css(self)
 
 

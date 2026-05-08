@@ -14,5 +14,10 @@ urlpatterns = [
     path("export-excel/", views.export_excel, name="export_excel"),
     path("api/allegato/upload/", views.api_allegato_upload, name="api_allegato_upload"),
     path("api/allegato/delete/", views.api_allegato_delete, name="api_allegato_delete"),
+    path(
+        "allegato/<int:allegato_id>/download/",
+        views.allegato_download,
+        name="allegato_download",
+    ),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
 ]

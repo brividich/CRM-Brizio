@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
+from .storage import PrivateDiarioPrepostoStorage
+
 logger = logging.getLogger(__name__)
 
 CODICE_PREPOSTO_PREFIX = "DP"
@@ -110,7 +112,10 @@ class SegnalazioneAllegato(models.Model):
         related_name="allegati",
     )
     nome_file = models.CharField(max_length=300)
-    file = models.FileField(upload_to="diario_preposto/allegati/")
+    file = models.FileField(
+        upload_to="diario_preposto/allegati/",
+        storage=PrivateDiarioPrepostoStorage,
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

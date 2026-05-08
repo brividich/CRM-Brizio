@@ -38,7 +38,8 @@
 .ks { font-size: var(--fs-sm); color: #7d93b1; margin-top: 4px; }
 .bar { height: 4px; border-radius: 99px; background: #e8edf5; margin-top: 8px; overflow: hidden; }
 .fill { height: 100%; background: #1f64d8; }
-.grid { display: grid; grid-template-columns: minmax(0, 1.7fr) 320px; gap: 8px; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.stack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); overflow: hidden; }
 .ch { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .t { margin: 0; font-size: var(--fs-display-lg); color: #0f172a; }
@@ -54,10 +55,10 @@
 .col-admin { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dbe3f0; display: grid; gap: 8px; }
 .col-admin .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .tw { overflow: auto; }
-.tbl { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 980px; }
-.tbl th, .tbl td { padding: 7px 8px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
-.tbl td { font-size: var(--fs-base); line-height: 1.25; }
-.tbl th { font-size: var(--fs-2xs); text-transform: uppercase; color: #7f95b3; background: #fbfdff; position: relative; letter-spacing: .04em; }
+.tbl { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; min-width: 1180px; }
+.tbl th, .tbl td { padding: 9px 10px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
+.tbl td { font-size: var(--fs-base); line-height: 1.25; color:#24395e; }
+.tbl th { font-size: var(--fs-2xs); text-transform: uppercase; color: #6f84a3; background: #f8fbff; position: sticky; top: 0; z-index: 2; letter-spacing: .04em; }
 .tbl th[data-col] { cursor: grab; }
 .tbl th[data-col].is-dragging { opacity: .48; cursor: grabbing; }
 .tbl th[data-col].col-drop-before { box-shadow: inset 2px 0 0 #1f64d8; }
@@ -65,6 +66,13 @@
 .col-resizer { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; user-select: none; }
 .col-hidden { display: none !important; }
 .r:hover { background: #f7faff; }
+.cell-main { display:grid; gap:2px; min-width:0; }
+.cell-title { font-size:var(--fs-base); font-weight:800; color:#10233f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cell-sub { font-size:var(--fs-xs); color:#7b91af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cell-muted { color:#8a9db8; }
+.act-col { width:112px; }
+.row-action { display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 10px; border:1px solid #d8e2f2; border-radius:8px; background:#fff; color:#1f4fa3; text-decoration:none; font-size:var(--fs-sm); font-weight:800; }
+.row-action:hover { background:#eff6ff; border-color:#bfdbfe; }
 .widget-item { position: relative; }
 .widget-item.widget-hidden { display: none !important; }
 .widget-item.widget-linked { cursor: pointer; box-shadow: 0 0 0 1px rgba(31, 100, 216, .22), 0 2px 8px rgba(15, 23, 42, .05); }
@@ -97,7 +105,6 @@
 .pg-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: var(--fs-sm); font-weight: 700; min-width: 28px; text-align: center; }
 .pg-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
 .pg-btn.disabled { opacity: .45; pointer-events: none; }
-.stack { display: grid; gap: 8px; }
 .life { padding: 12px; }
 .bars { height: 120px; display: flex; align-items: flex-end; gap: 6px; }
 .b { flex: 1; min-height: 16px; border-radius: 8px 8px 0 0; background: #c9d6ea; }
@@ -200,7 +207,7 @@ body.admin-studio-open { overflow: hidden; }
   #admin-sidebar-buttons .admin-row > div:last-child,
   #admin-sidebar-buttons .admin-item-row > div:last-child { grid-column: 2; }
 }
-@media (max-width: 1200px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: 1fr; } }
+@media (max-width: 1200px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stack { grid-template-columns: 1fr; } }
 @media (max-width: 980px) { .dash { grid-template-columns: 1fr; } .side { border-right: none; border-bottom: 1px solid #dbe3f0; } .user { display: none; } }
 @media (max-width: 760px) { .top { flex-direction: column; align-items: stretch; } .kpi { grid-template-columns: 1fr; } .fg { grid-template-columns: 1fr; } .tbl { min-width: 760px; } }
 @media (max-width: 680px) {
@@ -356,6 +363,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
     <header class="top">
       <form method="get" id="quickSearchForm" style="flex:1;">
         <input type="hidden" name="asset_type" value="{{ request.GET.asset_type|default:'' }}">
+        <input type="hidden" name="asset_category" value="{{ request.GET.asset_category|default:'' }}">
         <input type="hidden" name="reparto" value="{{ request.GET.reparto|default:'' }}">
         <input type="hidden" name="vlan" value="{{ request.GET.vlan|default:'' }}">
         <input type="hidden" name="ip" value="{{ request.GET.ip|default:'' }}">
@@ -433,14 +441,14 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
     <section class="grid">
       <article class="card">
         <div class="ch">
-          <div><h3 class="t">Inventario asset</h3><div class="c"><span class="chip a">{{ asset_list_context_label }} ({{ visible_count }})</span><a class="chip" href="{% url 'assets:work_machine_list' %}" style="text-decoration:none;">Macchine di lavoro ({{ work_machine_total }})</a><span class="chip">Critici ({{ in_repair_count }})</span><span class="chip">In assegnazione ({{ assigned_count }})</span></div></div>
+          <div><h3 class="t">Inventario asset</h3><div class="c"><span class="chip a">{% if selected_asset_category %}{{ selected_asset_category.label }}{% else %}{{ asset_list_context_label }}{% endif %} ({{ visible_count }})</span><a class="chip" href="{% url 'assets:work_machine_list' %}" style="text-decoration:none;">Macchine di lavoro ({{ work_machine_total }})</a><span class="chip">Critici ({{ in_repair_count }})</span><span class="chip">In assegnazione ({{ assigned_count }})</span></div></div>
           <div class="tools">
             <a class="tool" href="{% url 'assets:reports' %}" title="Report dashboard">
               <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
             </a>
             <button class="tool tool-wide" id="toggleColumnPanel" type="button" title="Aggiungi o rimuovi colonne">
-              <span class="text-xl" style="line-height:1;">+</span>
-              <span>Colonne</span>
+              <span class="text-xl" style="line-height:1;">=</span>
+              <span>Vista</span>
             </button>
             <button class="tool" id="toggleAdvancedFilters" type="button" title="Filtri avanzati">
               <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a1 1 0 011-1h12a1 1 0 01.7 1.71L12 11.41V16a1 1 0 01-1.45.89l-2-1A1 1 0 018 15v-3.59L3.3 6.71A1 1 0 013 5z"/></svg>
@@ -460,22 +468,14 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
             <label class="checkline"><input type="checkbox" data-col-toggle="status" {% if "status" in asset_list_default_visible_columns %}checked{% endif %}> Stato</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="category" {% if "category" in asset_list_default_visible_columns %}checked{% endif %}> Categoria</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="assigned" {% if "assigned" in asset_list_default_visible_columns %}checked{% endif %}> Assegnato a</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="last_seen" {% if "last_seen" in asset_list_default_visible_columns %}checked{% endif %}> Ultimo aggiornamento</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="reparto" {% if "reparto" in asset_list_default_visible_columns %}checked{% endif %}> Reparto</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="serial_number" {% if "serial_number" in asset_list_default_visible_columns %}checked{% endif %}> Seriale</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="assignment_location" {% if "assignment_location" in asset_list_default_visible_columns %}checked{% endif %}> Collocazione</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="manufacturer" {% if "manufacturer" in asset_list_default_visible_columns %}checked{% endif %}> Produttore</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="model" {% if "model" in asset_list_default_visible_columns %}checked{% endif %}> Modello</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="vlan" {% if "vlan" in asset_list_default_visible_columns %}checked{% endif %}> VLAN</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="ip" {% if "ip" in asset_list_default_visible_columns %}checked{% endif %}> IP</label>
-            <label class="checkline"><input type="checkbox" data-col-toggle="assignment_location" {% if "assignment_location" in asset_list_default_visible_columns %}checked{% endif %}> Posizione assegnazione</label>
-            {% for field in custom_fields %}
-              {% with col_key="custom_"|add:field.code %}
-                <label class="checkline"><input type="checkbox" data-col-toggle="custom_{{ field.code }}" {% if col_key in asset_list_default_visible_columns %}checked{% endif %}> {{ field.label }}</label>
-              {% endwith %}
-            {% endfor %}
+            <label class="checkline"><input type="checkbox" data-col-toggle="serial_number" {% if "serial_number" in asset_list_default_visible_columns %}checked{% endif %}> Seriale</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="last_seen" {% if "last_seen" in asset_list_default_visible_columns %}checked{% endif %}> Ultimo aggiornamento</label>
           </div>
           <div class="muted text-sm" style="margin-top:8px;">
-            Vista suggerita per {{ asset_list_context_label }}. Puoi aggiungere o togliere manualmente le colonne con il pulsante +. Le impostazioni sono salvate nel browser per questa vista.
+            Vista standard condivisa per tutte le liste asset. I dati specialistici restano nella scheda del singolo asset.
           </div>
         </div>
 
@@ -486,7 +486,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
           <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
         </div>
 
-        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.reparto or request.GET.vlan or request.GET.ip %}open{% endif %}>
+        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.asset_category or request.GET.reparto or request.GET.vlan or request.GET.ip %}open{% endif %}>
           <summary class="text-base font-semibold" style="cursor:pointer;color:#4d6890;">Filtri avanzati</summary>
           <form method="get" style="margin-top:8px;">
             <input type="hidden" name="q" value="{{ request.GET.q|default:'' }}">
@@ -494,6 +494,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
             <input type="hidden" name="page" value="1">
             <div class="fg">
               <div class="field"><label for="{{ filters_form.asset_type.id_for_label }}">Tipo</label>{{ filters_form.asset_type }}</div>
+              <div class="field"><label for="{{ filters_form.asset_category.id_for_label }}">Categoria</label>{{ filters_form.asset_category }}</div>
               <div class="field"><label for="{{ filters_form.reparto.id_for_label }}">Reparto</label>{{ filters_form.reparto }}</div>
               <div class="field"><label for="{{ filters_form.vlan.id_for_label }}">VLAN</label>{{ filters_form.vlan }}</div>
               <div class="field"><label for="{{ filters_form.ip.id_for_label }}">IP</label>{{ filters_form.ip }}</div>
@@ -507,42 +508,32 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
             <thead>
               <tr>
                 <th style="width:42px;"><input type="checkbox" id="select-all-cb" title="Seleziona/deseleziona tutti"></th>
-                <th data-col="name">Nome asset e tag<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="name">Asset<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="status">Stato<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="category">Categoria<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="assigned">Assegnato a<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="last_seen">Ultimo aggiornamento<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="reparto">Reparto<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="serial_number">Seriale<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="assigned">Responsabile<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="assignment_location">Collocazione<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="manufacturer">Produttore<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="model">Modello<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="vlan">VLAN<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="ip">IP<span class="col-resizer" data-col-resizer></span></th>
-                <th data-col="assignment_location">Posizione assegnazione<span class="col-resizer" data-col-resizer></span></th>
-                {% for field in custom_fields %}
-                  <th data-col="custom_{{ field.code }}">{{ field.label }}<span class="col-resizer" data-col-resizer></span></th>
-                {% endfor %}
+                <th data-col="serial_number">Seriale<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="last_seen">Aggiornato<span class="col-resizer" data-col-resizer></span></th>
+                <th class="act-col">Azioni</th>
               </tr>
             </thead>
             <tbody>
               {% for asset in assets %}
                 <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
                   <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
-                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div><div class="am">{{ asset.name }}</div><div class="as">#{{ asset.asset_tag }}</div></div></div></td>
+                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}</div></div></div></td>
                   <td data-col="status">{% if asset.status == "IN_USE" %}<span class="st ok">In uso</span>{% elif asset.status == "IN_REPAIR" %}<span class="st er">Critico</span>{% elif asset.status == "IN_STOCK" %}<span class="st id">Inattivo</span>{% else %}<span class="st wg">{{ asset.get_status_display }}</span>{% endif %}</td>
-                  <td data-col="category">{{ asset.category_label }}</td>
-                  <td data-col="assigned">{% if asset.assignment_to %}<div style="font-weight:600;color:#1f3559;">{{ asset.assignment_to }}</div><div class="as">{{ asset.assignment_reparto|default:"-" }}</div>{% else %}<span class="muted">Non assegnato</span>{% endif %}</td>
-                  <td data-col="last_seen">{{ asset.updated_at|timesince }} fa</td>
-                  <td data-col="reparto">{{ asset.reparto|default:"-" }}</td>
-                  <td data-col="serial_number">{{ asset.serial_number|default:"-" }}</td>
+                  <td data-col="category"><div class="cell-main"><div class="cell-title">{{ asset.category_label }}</div><div class="cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
+                  <td data-col="assigned">{% if asset.assignment_to %}<div class="cell-main"><div class="cell-title">{{ asset.assignment_to }}</div><div class="cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="cell-muted">Non assegnato</span>{% endif %}</td>
+                  <td data-col="assignment_location"><div class="cell-main"><div class="cell-title">{% firstof asset.assignment_location asset.reparto "-" %}</div><div class="cell-sub">{{ asset.reparto|default:"-" }}</div></div></td>
                   <td data-col="manufacturer">{{ asset.manufacturer|default:"-" }}</td>
                   <td data-col="model">{{ asset.model|default:"-" }}</td>
-                  <td data-col="vlan">{{ asset.endpoint_vlan_display|default:"-" }}</td>
-                  <td data-col="ip">{{ asset.endpoint_ip_display|default:"-" }}</td>
-                  <td data-col="assignment_location">{{ asset.assignment_location|default:"-" }}</td>
-                  {% for field in custom_fields %}
-                    <td data-col="custom_{{ field.code }}">{{ asset.extra_columns|asset_custom_display:field }}</td>
-                  {% endfor %}
+                  <td data-col="serial_number">{{ asset.serial_number|default:"-" }}</td>
+                  <td data-col="last_seen"><span title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
+                  <td class="act-col"><a class="row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
                 </tr>
               {% empty %}
                 <tr><td colspan="99" class="muted" style="padding:16px;">Nessun asset trovato con i filtri correnti.</td></tr>
@@ -1576,7 +1567,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
     <div class="bulk-modal-body">
       <p class="admin-hint">Attiva il campo e imposta il valore da applicare a tutti gli asset selezionati.</p>
       <div class="bulk-field-row">
-        <input type="checkbox" id="bf-status">
+        <input type="checkbox" id="bf-status" title="Abilita modifica stato">
         <label for="bf-status">Stato</label>
         <select class="input" id="bv-status">
           <option value="IN_STOCK">In magazzino</option>
@@ -1586,25 +1577,55 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
         </select>
       </div>
       <div class="bulk-field-row">
-        <input type="checkbox" id="bf-reparto">
+        <input type="checkbox" id="bf-asset-type" title="Abilita modifica tipo asset">
+        <label for="bf-asset-type">Tipo asset</label>
+        <select class="input" id="bv-asset-type">
+          <option value="">— Seleziona tipo —</option>
+          {% for val, label in asset_category_type_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-category" title="Abilita modifica categoria">
+        <label for="bf-category">Categoria</label>
+        <select class="input" id="bv-category">
+          <option value="">— Nessuna categoria —</option>
+          {% for cat in asset_categories %}{% if cat.is_active %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-reparto" title="Abilita modifica reparto">
         <label for="bf-reparto">Reparto</label>
-        <input class="input" type="text" id="bv-reparto" list="bulk-reparto-opts" autocomplete="off">
-        <datalist id="bulk-reparto-opts">
-          {% for opt in list_options %}{% if opt.field_key == 'reparto' and opt.is_active %}<option value="{{ opt.value }}">{% endif %}{% endfor %}
-        </datalist>
+        <select class="input" id="bv-reparto">
+          <option value="">— Seleziona reparto —</option>
+          {% for opt in list_options %}{% if opt.field_key == 'reparto' and opt.is_active %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
       </div>
       <div class="bulk-field-row">
-        <input type="checkbox" id="bf-manufacturer">
+        <input type="checkbox" id="bf-manufacturer" title="Abilita modifica produttore">
         <label for="bf-manufacturer">Produttore</label>
-        <input class="input" type="text" id="bv-manufacturer">
+        <select class="input" id="bv-manufacturer">
+          <option value="">— Seleziona produttore —</option>
+          {% for opt in list_options %}{% if opt.field_key == 'manufacturer' and opt.is_active %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
       </div>
       <div class="bulk-field-row">
-        <input type="checkbox" id="bf-model">
+        <input type="checkbox" id="bf-model" title="Abilita modifica modello">
         <label for="bf-model">Modello</label>
-        <input class="input" type="text" id="bv-model">
+        <select class="input" id="bv-model">
+          <option value="">— Seleziona modello —</option>
+          {% for opt in list_options %}{% if opt.field_key == 'model' and opt.is_active %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-assignment-location" title="Abilita modifica collocazione">
+        <label for="bf-assignment-location">Collocazione</label>
+        <select class="input" id="bv-assignment-location">
+          <option value="">— Seleziona collocazione —</option>
+          {% for opt in list_options %}{% if opt.field_key == 'assignment_location' and opt.is_active %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
       </div>
       <div class="bulk-field-row" style="grid-template-columns:20px 1fr;">
-        <input type="checkbox" id="bf-notes">
+        <input type="checkbox" id="bf-notes" title="Abilita modifica note">
         <label for="bf-notes">Note (sostituisce il testo esistente)</label>
       </div>
       <textarea class="input" id="bv-notes" rows="3" style="resize:vertical;width:100%;"></textarea>
@@ -1635,17 +1656,16 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
   const DEFAULT_VISIBLE_COLUMNS = {{ asset_list_default_visible_columns_json|safe }};
   const SERVER_TABLE_LAYOUT = {{ asset_table_saved_layout_json|safe }};
   const DEFAULT_COLUMN_WIDTHS = {
-    "name": 220, "status": 90, "category": 120, "assigned": 140,
-    "last_seen": 120, "reparto": 100, "serial_number": 130,
-    "manufacturer": 110, "model": 110, "vlan": 80, "ip": 100,
-    "assignment_location": 130
+    "name": 260, "status": 110, "category": 160, "assigned": 180,
+    "assignment_location": 180, "manufacturer": 140, "model": 150,
+    "serial_number": 150, "last_seen": 120
   };
   const CAN_PERSIST_TABLE_LAYOUT = {{ asset_table_layout_can_persist|yesno:"true,false" }};
   const TABLE_LAYOUT_SAVE_URL = "{% url 'assets:asset_list' %}";
   const TABLE_LAYOUT_CONTEXT = "{{ asset_list_context_key }}";
-  const COLUMN_VIS_KEY = "assets.table.visibleColumns.v2." + TABLE_CONTEXT_KEY;
-  const COLUMN_W_KEY = "assets.table.colWidths.v2." + TABLE_CONTEXT_KEY;
-  const COLUMN_ORDER_KEY = "assets.table.columnOrder.v2." + TABLE_CONTEXT_KEY;
+  const COLUMN_VIS_KEY = "assets.table.visibleColumns.v3." + TABLE_CONTEXT_KEY;
+  const COLUMN_W_KEY = "assets.table.colWidths.v3." + TABLE_CONTEXT_KEY;
+  const COLUMN_ORDER_KEY = "assets.table.columnOrder.v3." + TABLE_CONTEXT_KEY;
   const WIDGET_LAYOUT_KEY = "assets.dashboard.widgets.v1";
   const CUSTOM_KPI_KEY = "assets.dashboard.custom_kpi.v1";
   let tableLayoutSaveTimer = null;
@@ -2612,8 +2632,13 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
     const ids = getSelectedIds();
     if (!ids.length) return;
     const fields = {};
-    [["status","bf-status","bv-status"],["reparto","bf-reparto","bv-reparto"],
-     ["manufacturer","bf-manufacturer","bv-manufacturer"],["model","bf-model","bv-model"],
+    [["status","bf-status","bv-status"],
+     ["asset_type","bf-asset-type","bv-asset-type"],
+     ["asset_category_id","bf-category","bv-category"],
+     ["reparto","bf-reparto","bv-reparto"],
+     ["manufacturer","bf-manufacturer","bv-manufacturer"],
+     ["model","bf-model","bv-model"],
+     ["assignment_location","bf-assignment-location","bv-assignment-location"],
      ["notes","bf-notes","bv-notes"]].forEach(function (triple) {
       const enabledCb = document.getElementById(triple[1]);
       const valueEl = document.getElementById(triple[2]);

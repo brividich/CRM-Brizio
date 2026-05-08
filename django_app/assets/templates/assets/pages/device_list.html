@@ -32,6 +32,21 @@
 
 /* ── Grid dispositivi ────────────────────────────────────── */
 .dv-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); padding:16px; }
+.dv-grid { display:none; }
+.dv-table-wrap { overflow:auto; }
+.dv-table { width:100%; min-width:1180px; border-collapse:separate; border-spacing:0; table-layout:fixed; }
+.dv-table th, .dv-table td { padding:9px 10px; border-bottom:1px solid #e7edf6; text-align:left; vertical-align:middle; }
+.dv-table th { position:sticky; top:0; z-index:2; background:#f8fbff; color:#6f84a3; font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.04em; }
+.dv-table td { color:#24395e; font-size:var(--fs-base); line-height:1.25; }
+.dv-row { cursor:pointer; }
+.dv-row:hover { background:#f7faff; }
+.dv-cell-main { display:grid; gap:2px; min-width:0; }
+.dv-cell-title { font-size:var(--fs-base); font-weight:800; color:#10233f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dv-cell-sub { font-size:var(--fs-xs); color:#7b91af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dv-cell-muted { color:#8a9db8; }
+.dv-act { width:112px; }
+.dv-row-action { display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 10px; border:1px solid #d8e2f2; border-radius:8px; background:#fff; color:#1f4fa3; text-decoration:none; font-size:var(--fs-sm); font-weight:800; }
+.dv-row-action:hover { background:#eff6ff; border-color:#bfdbfe; }
 
 .dv-device-card {
   border:1px solid #dbe1ea; border-radius:14px; background:#fff;
@@ -122,10 +137,80 @@ body.theme-dark .dv-dc-meta { color:var(--text-light); }
 body.theme-dark .dv-dc-user { color:var(--text-light); }
 body.theme-dark .dv-btn-sec { background:rgba(255,255,255,.05); border-color:var(--border); color:var(--text-light); }
 body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
+body.theme-dark .dv-table th, body.theme-dark .dv-table td { border-color:var(--border); }
+body.theme-dark .dv-table th { background:var(--thead-bg); color:var(--text-light); }
+body.theme-dark .dv-table td { color:var(--text-mid); }
+body.theme-dark .dv-row:hover { background:var(--tbody-hover); }
+body.theme-dark .dv-cell-title { color:var(--text); }
+body.theme-dark .dv-cell-sub, body.theme-dark .dv-cell-muted { color:var(--text-light); }
+body.theme-dark .dv-row-action { background:var(--surface); border-color:var(--border); color:#93c5fd; }
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width:900px) { .dv-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 @media (max-width:500px) { .dv-kpis { grid-template-columns:1fr; } .dv-grid { grid-template-columns:1fr; padding:10px; } }
+
+/* ── Selezione multipla / bulk ───────────────────────────── */
+.dv-row.dv-row-selected { background:#eff6ff !important; }
+.dv-row.dv-row-selected:hover { background:#dbeafe !important; }
+.dv-bulk-toolbar { display:none; align-items:center; gap:10px; padding:8px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; font-size:var(--fs-base); flex-wrap:wrap; }
+.dv-bulk-edit-btn { padding:4px 12px; font-size:var(--fs-sm); }
+.dv-bulk-select-th { width:42px; }
+.dv-bulk-count { font-weight:700; color:#1e40af; }
+.dv-bulk-close-btn { border:1px solid #d8e2f2; background:#fff; color:#4c6281; border-radius:8px; padding:5px 8px; cursor:pointer; font-size:var(--fs-sm); }
+.dv-bulk-modal-bd { position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:1600; display:none; align-items:center; justify-content:center; padding:20px; }
+.dv-bulk-modal-bd.show { display:flex; }
+.dv-bulk-modal { width:min(480px,96vw); border:1px solid #d8e2f2; border-radius:12px; background:#fff; box-shadow:0 18px 50px rgba(15,23,42,.35); overflow:hidden; }
+.dv-bulk-modal-head { background:#f8fbff; border-bottom:1px solid #dbe3f0; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; }
+.dv-bulk-modal-body { padding:14px; display:grid; gap:10px; }
+.dv-bulk-field-row { display:grid; grid-template-columns:20px 130px 1fr; gap:8px; align-items:center; font-size:var(--fs-base); }
+.dv-bulk-field-row label { font-weight:600; color:#334e77; }
+.dv-bulk-modal-foot { padding:10px 14px; border-top:1px solid #dbe3f0; display:flex; justify-content:flex-end; gap:8px; }
+body.theme-dark .dv-row.dv-row-selected { background:rgba(29,78,216,.15) !important; }
+body.theme-dark .dv-row.dv-row-selected:hover { background:rgba(29,78,216,.2) !important; }
+body.theme-dark .dv-bulk-toolbar { background:rgba(29,78,216,.15); border-color:rgba(59,130,246,.3); }
+body.theme-dark .dv-bulk-count { color:#93c5fd; }
+body.theme-dark .dv-bulk-close-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .dv-bulk-modal { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dv-bulk-modal-head { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dv-bulk-modal-foot { border-color:var(--border); }
+body.theme-dark .dv-bulk-field-row label { color:var(--text-mid); }
+.dv-bulk-hint { font-size:var(--fs-sm); color:#64748b; margin:0; }
+body.theme-dark .dv-bulk-hint { color:var(--text-light); }
+.dv-bulk-notes-row { grid-template-columns:20px 1fr; }
+.dv-bulk-notes-ta { resize:vertical; width:100%; }
+.dv-filter-form { display:grid; gap:12px; }
+.dv-filter-actions { display:flex; gap:8px; }
+.dv-dc-meta-sn { margin-top:1px; }
+.dv-serial-text { font-family:monospace; font-size:10px; color:#94a3b8; }
+.dv-footer-right { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+/* ── Striscia manutenzione in scadenza ───────────────────── */
+.dv-maint-strip { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 16px; background:#fff; border:1px solid #dbe1ea; border-radius:14px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+.dv-maint-strip-title { font-size:var(--fs-xs); font-weight:700; color:#334155; text-transform:uppercase; letter-spacing:.05em; flex-shrink:0; }
+.dv-maint-strip-hint { font-size:var(--fs-xs); font-weight:400; color:#94a3b8; text-transform:none; letter-spacing:0; }
+.dv-maint-strip-metrics { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.dv-maint-metric { display:flex; flex-direction:column; align-items:center; min-width:60px; }
+.dv-maint-val { font-size:var(--fs-display-xl); font-weight:800; line-height:1; }
+.dv-maint-lbl { font-size:var(--fs-xs); color:#64748b; margin-top:2px; }
+.dv-maint-val-neutral { color:#1e40af; }
+.dv-maint-val-ok      { color:#15803d; }
+.dv-maint-val-warn    { color:#b91c1c; }
+.dv-maint-sep { width:1px; height:32px; background:#e2e8f0; flex-shrink:0; }
+.dv-maint-bar-wrap { display:flex; align-items:center; gap:6px; min-width:100px; }
+.dv-maint-bar-track { flex:1; height:7px; border-radius:99px; background:#e2e8f0; overflow:hidden; }
+.dv-maint-bar-fill { height:100%; border-radius:99px; transition:width .3s; }
+.dv-maint-bar-green  { background:#15803d; }
+.dv-maint-bar-yellow { background:#c58a15; }
+.dv-maint-bar-red    { background:#b91c1c; }
+.dv-maint-bar-label  { font-size:var(--fs-xs); font-weight:700; color:#64748b; white-space:nowrap; }
+body.theme-dark .dv-maint-strip { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dv-maint-strip-title { color:var(--text-mid); }
+body.theme-dark .dv-maint-lbl { color:var(--text-light); }
+body.theme-dark .dv-maint-sep { background:var(--border); }
+body.theme-dark .dv-maint-bar-track { background:var(--border); }
+.dv-maint-ok-notice { font-size:var(--fs-sm); color:#15803d; font-weight:600; padding:2px 10px; background:#dcfce7; border-radius:99px; white-space:nowrap; }
+body.theme-dark .dv-maint-ok-notice { background:rgba(21,128,61,.18); color:#4ade80; }
+.dv-maint-val a { color:inherit; text-decoration:none; }
+.dv-maint-val a:hover { text-decoration:underline; }
 </style>
 {% endblock %}
 
@@ -165,13 +250,44 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
     </article>
   </section>
 
+  {# ── Striscia manutenzione in scadenza ──────────────────── #}
+  <div class="dv-maint-strip">
+    <span class="dv-maint-strip-title">Manutenzione in scadenza <span class="dv-maint-strip-hint">prossimi 90 gg · scadenze amministrative</span></span>
+    {% if maint_kpis.coinvolti %}
+    <div class="dv-maint-strip-metrics">
+      <div class="dv-maint-metric">
+        <span class="dv-maint-val dv-maint-val-neutral"><a href="{% url 'assets:asset_administrative_deadline_list' %}?family=it" title="Vedi scadenze Asset IT">{{ maint_kpis.coinvolti }}</a></span>
+        <span class="dv-maint-lbl">Coinvolti</span>
+      </div>
+      <div class="dv-maint-sep" aria-hidden="true"></div>
+      <div class="dv-maint-metric">
+        <span class="dv-maint-val dv-maint-val-ok">{{ maint_kpis.manutentati }}</span>
+        <span class="dv-maint-lbl">Manutentati</span>
+      </div>
+      <div class="dv-maint-sep" aria-hidden="true"></div>
+      <div class="dv-maint-metric">
+        <span class="dv-maint-val {% if maint_kpis.da_manutentare %}dv-maint-val-warn{% else %}dv-maint-val-ok{% endif %}"><a href="{% url 'assets:asset_administrative_deadline_list' %}?family=it&status={% if maint_kpis.da_manutentare %}overdue{% else %}all{% endif %}" title="Vedi scadenze da completare">{{ maint_kpis.da_manutentare }}</a></span>
+        <span class="dv-maint-lbl">Da manutentare</span>
+      </div>
+      <div class="dv-maint-bar-wrap" title="{{ maint_kpis.percent_done }}% eseguiti">
+        <div class="dv-maint-bar-track" data-pct="{{ maint_kpis.percent_done }}">
+          <div class="dv-maint-bar-fill {% if maint_kpis.percent_done == 100 %}dv-maint-bar-green{% elif maint_kpis.percent_done >= 50 %}dv-maint-bar-yellow{% else %}dv-maint-bar-red{% endif %}"></div>
+        </div>
+        <span class="dv-maint-bar-label">{{ maint_kpis.percent_done }}%</span>
+      </div>
+    </div>
+    {% else %}
+    <span class="dv-maint-ok-notice">Nessuna scadenza nei prossimi 90 giorni &mdash; tutto in ordine</span>
+    {% endif %}
+  </div>
+
   <!-- Filtri -->
   <article class="dv-card">
     <div class="dv-card-head">
       <div><h2>Filtra dispositivi</h2></div>
     </div>
     <div class="dv-card-body">
-      <form method="get" style="display:grid; gap:12px;">
+      <form method="get" class="dv-filter-form">
         <input type="hidden" name="rows" value="{{ rows }}">
         <input type="hidden" name="page" value="1">
         <div class="dv-filters-row">
@@ -200,7 +316,7 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
             </a>
             {% endfor %}
           </div>
-          <div style="display:flex; gap:8px;">
+          <div class="dv-filter-actions">
             <a class="btn" href="{% url 'assets:device_list' %}">Reset</a>
             <button class="btn btn-primary" type="submit">Applica</button>
           </div>
@@ -224,7 +340,64 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
       </div>
     </div>
 
-    <div class="dv-grid">
+    <div id="dv-bulk-toolbar" class="dv-bulk-toolbar">
+      <span class="dv-bulk-count"><span id="dv-bulk-count-num">0</span> selezionati</span>
+      <button type="button" class="btn dv-bulk-edit-btn" id="dv-bulk-edit-btn">&#9999; Modifica in blocco</button>
+      <button type="button" class="dv-bulk-close-btn" id="dv-bulk-deselect-btn">Deseleziona tutti</button>
+    </div>
+
+    <div class="dv-table-wrap">
+      <table class="dv-table">
+        <thead>
+          <tr>
+            <th class="dv-bulk-select-th"><input type="checkbox" id="dv-select-all" title="Seleziona/deseleziona tutti"></th>
+            <th>Asset</th>
+            <th>Stato</th>
+            <th>Categoria</th>
+            <th>Responsabile</th>
+            <th>Collocazione</th>
+            <th>Produttore</th>
+            <th>Modello</th>
+            <th>Seriale</th>
+            <th>Aggiornato</th>
+            <th class="dv-act">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in devices %}
+          <tr class="dv-row" data-href="{% url 'assets:asset_view' asset.id %}">
+            <td><input type="checkbox" class="dv-select-cb" value="{{ asset.id }}" title="Seleziona {{ asset.name }}"></td>
+            <td><div class="dv-cell-main"><div class="dv-cell-title">{{ asset.name }}</div><div class="dv-cell-sub">#{{ asset.asset_tag }}</div></div></td>
+            <td>
+              {% if asset.status == "IN_USE" %}
+                <span class="dv-status ok">In uso</span>
+              {% elif asset.status == "IN_REPAIR" %}
+                <span class="dv-status danger">Riparazione</span>
+              {% elif asset.status == "IN_STOCK" %}
+                <span class="dv-status idle">Magazzino</span>
+              {% elif asset.status == "RETIRED" %}
+                <span class="dv-status dead">Dismesso</span>
+              {% else %}
+                <span class="dv-status warn">{{ asset.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td><div class="dv-cell-main"><div class="dv-cell-title">{{ asset.category_label }}</div><div class="dv-cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
+            <td>{% if asset.assignment_to %}<div class="dv-cell-main"><div class="dv-cell-title">{{ asset.assignment_to }}</div><div class="dv-cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="dv-cell-muted">Non assegnato</span>{% endif %}</td>
+            <td><div class="dv-cell-main"><div class="dv-cell-title">{% firstof asset.assignment_location asset.reparto "-" %}</div><div class="dv-cell-sub">{{ asset.reparto|default:"-" }}</div></div></td>
+            <td>{{ asset.manufacturer|default:"-" }}</td>
+            <td>{{ asset.model|default:"-" }}</td>
+            <td>{{ asset.serial_number|default:"-" }}</td>
+            <td><span title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
+            <td class="dv-act"><a class="dv-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="11" class="dv-empty"><div class="dv-empty-text">Nessun dispositivo trovato</div><div class="dv-empty-sub">Prova a modificare i filtri di ricerca.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dv-grid" aria-hidden="true">
       {% for asset in devices %}
       <div class="dv-device-card">
 
@@ -269,8 +442,8 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
           </div>
           {% endif %}
           {% if asset.serial_number %}
-          <div class="dv-dc-meta" style="margin-top:1px;">
-            <span style="font-family:monospace; font-size:10px; color:#94a3b8;">{{ asset.serial_number }}</span>
+          <div class="dv-dc-meta dv-dc-meta-sn">
+            <span class="dv-serial-text">{{ asset.serial_number }}</span>
           </div>
           {% endif %}
         </div>
@@ -292,7 +465,7 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
 
     <div class="dv-footer">
       <div>{{ page_start }}–{{ page_end }} di {{ visible_count }} dispositivi</div>
-      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <div class="dv-footer-right">
         <div class="dv-rows">
           <span>Per pagina:</span>
           {% for item in rows_options %}
@@ -311,4 +484,223 @@ body.theme-dark .dv-btn-sec:hover { background:rgba(255,255,255,.08); }
   </article>
 
 </section>
+
+{# ── Modal modifica in blocco dispositivi ─────────────────── #}
+<div class="dv-bulk-modal-bd" id="dv-bulk-modal">
+  <div class="dv-bulk-modal">
+    <div class="dv-bulk-modal-head">
+      <strong>Modifica in blocco — <span id="dv-bulk-modal-count">0</span> dispositivi</strong>
+      <button type="button" class="dv-bulk-close-btn" id="dv-bulk-modal-close">&#x2715;</button>
+    </div>
+    <div class="dv-bulk-modal-body">
+      <p class="dv-bulk-hint">Attiva il campo e imposta il valore da applicare a tutti i dispositivi selezionati.</p>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-status" title="Abilita modifica stato">
+        <label for="dv-bf-status">Stato</label>
+        <select class="input" id="dv-bv-status">
+          <option value="IN_STOCK">In magazzino</option>
+          <option value="IN_USE">In uso</option>
+          <option value="IN_REPAIR">In riparazione</option>
+          <option value="RETIRED">Dismesso</option>
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-asset-type" title="Abilita modifica tipo asset">
+        <label for="dv-bf-asset-type">Tipo asset</label>
+        <select class="input" id="dv-bv-asset-type">
+          <option value="">— Seleziona tipo —</option>
+          {% for val, label in asset_type_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-category" title="Abilita modifica categoria">
+        <label for="dv-bf-category">Categoria</label>
+        <select class="input" id="dv-bv-category">
+          <option value="">— Nessuna categoria —</option>
+          {% for cat in bulk_asset_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-reparto" title="Abilita modifica reparto">
+        <label for="dv-bf-reparto">Reparto</label>
+        <select class="input" id="dv-bv-reparto">
+          <option value="">— Seleziona reparto —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'reparto' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-manufacturer" title="Abilita modifica produttore">
+        <label for="dv-bf-manufacturer">Produttore</label>
+        <select class="input" id="dv-bv-manufacturer">
+          <option value="">— Seleziona produttore —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'manufacturer' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-model" title="Abilita modifica modello">
+        <label for="dv-bf-model">Modello</label>
+        <select class="input" id="dv-bv-model">
+          <option value="">— Seleziona modello —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'model' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row">
+        <input type="checkbox" id="dv-bf-assignment-location" title="Abilita modifica collocazione">
+        <label for="dv-bf-assignment-location">Collocazione</label>
+        <select class="input" id="dv-bv-assignment-location">
+          <option value="">— Seleziona collocazione —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'assignment_location' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="dv-bulk-field-row dv-bulk-notes-row">
+        <input type="checkbox" id="dv-bf-notes" title="Abilita modifica note">
+        <label for="dv-bf-notes">Note (sostituisce il testo esistente)</label>
+      </div>
+      <textarea class="input dv-bulk-notes-ta" id="dv-bv-notes" rows="3"></textarea>
+    </div>
+    <div class="dv-bulk-modal-foot">
+      <button type="button" class="dv-bulk-close-btn" id="dv-bulk-modal-cancel">Annulla</button>
+      <button type="button" class="btn" id="dv-bulk-apply-btn">Applica a tutti</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var BULK_URL = "{% url 'assets:asset_bulk_update' %}";
+
+  function getCsrf() {
+    var match = document.cookie.split(";").filter(function (c) { return c.trim().startsWith("csrftoken="); });
+    return match.length ? match[0].trim().split("=")[1] : "";
+  }
+
+  // Navigazione riga
+  document.querySelectorAll(".dv-row[data-href]").forEach(function (row) {
+    row.addEventListener("click", function (event) {
+      if (event.target.closest("a,button,input,label")) return;
+      var href = row.getAttribute("data-href");
+      if (href) window.location.href = href;
+    });
+  });
+
+  // ── Selezione multipla ──────────────────────────────────────
+
+  function getSelectedIds() {
+    return Array.from(document.querySelectorAll(".dv-select-cb:checked")).map(function (cb) { return cb.value; });
+  }
+
+  function updateToolbar() {
+    var ids = getSelectedIds();
+    var toolbar = document.getElementById("dv-bulk-toolbar");
+    var countEl = document.getElementById("dv-bulk-count-num");
+    if (!toolbar) return;
+    toolbar.style.display = ids.length > 0 ? "flex" : "none";
+    if (countEl) countEl.textContent = ids.length;
+    var selectAll = document.getElementById("dv-select-all");
+    if (selectAll) {
+      var total = document.querySelectorAll(".dv-select-cb").length;
+      selectAll.checked = total > 0 && ids.length === total;
+      selectAll.indeterminate = ids.length > 0 && ids.length < total;
+    }
+  }
+
+  document.querySelectorAll(".dv-select-cb").forEach(function (cb) {
+    cb.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    cb.addEventListener("change", function () {
+      var row = cb.closest("tr");
+      if (row) row.classList.toggle("dv-row-selected", cb.checked);
+      updateToolbar();
+    });
+  });
+
+  var selectAllCb = document.getElementById("dv-select-all");
+  if (selectAllCb) {
+    selectAllCb.addEventListener("change", function () {
+      document.querySelectorAll(".dv-select-cb").forEach(function (cb) {
+        cb.checked = selectAllCb.checked;
+        var row = cb.closest("tr");
+        if (row) row.classList.toggle("dv-row-selected", cb.checked);
+      });
+      updateToolbar();
+    });
+  }
+
+  var deselectBtn = document.getElementById("dv-bulk-deselect-btn");
+  if (deselectBtn) {
+    deselectBtn.addEventListener("click", function () {
+      document.querySelectorAll(".dv-select-cb").forEach(function (cb) {
+        cb.checked = false;
+        var row = cb.closest("tr");
+        if (row) row.classList.remove("dv-row-selected");
+      });
+      updateToolbar();
+    });
+  }
+
+  // ── Modal ───────────────────────────────────────────────────
+
+  var modal = document.getElementById("dv-bulk-modal");
+  var modalCount = document.getElementById("dv-bulk-modal-count");
+
+  function openModal() {
+    var ids = getSelectedIds();
+    if (!ids.length) return;
+    if (modalCount) modalCount.textContent = ids.length;
+    if (modal) { modal.style.display = "flex"; document.body.style.overflow = "hidden"; }
+  }
+  function closeModal() {
+    if (modal) { modal.style.display = ""; document.body.style.overflow = ""; }
+  }
+
+  var editBtn = document.getElementById("dv-bulk-edit-btn");
+  if (editBtn) editBtn.addEventListener("click", openModal);
+  ["dv-bulk-modal-close", "dv-bulk-modal-cancel"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", closeModal);
+  });
+  if (modal) modal.addEventListener("click", function (ev) { if (ev.target === modal) closeModal(); });
+
+  // ── Applica ─────────────────────────────────────────────────
+
+  var applyBtn = document.getElementById("dv-bulk-apply-btn");
+  if (applyBtn) {
+    applyBtn.addEventListener("click", function () {
+      var ids = getSelectedIds();
+      if (!ids.length) return;
+      var fields = {};
+      [["status","dv-bf-status","dv-bv-status"],
+       ["asset_type","dv-bf-asset-type","dv-bv-asset-type"],
+       ["asset_category_id","dv-bf-category","dv-bv-category"],
+       ["reparto","dv-bf-reparto","dv-bv-reparto"],
+       ["manufacturer","dv-bf-manufacturer","dv-bv-manufacturer"],
+       ["model","dv-bf-model","dv-bv-model"],
+       ["assignment_location","dv-bf-assignment-location","dv-bv-assignment-location"],
+       ["notes","dv-bf-notes","dv-bv-notes"]].forEach(function (triple) {
+        var cb = document.getElementById(triple[1]);
+        var el = document.getElementById(triple[2]);
+        if (cb && cb.checked && el) fields[triple[0]] = el.value;
+      });
+      if (!Object.keys(fields).length) { alert("Seleziona almeno un campo da modificare."); return; }
+      applyBtn.disabled = true;
+      fetch(BULK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+        body: JSON.stringify({ ids: ids, fields: fields })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) { closeModal(); window.location.reload(); }
+        else { alert("Errore: " + (data.error || "sconosciuto")); applyBtn.disabled = false; }
+      })
+      .catch(function () { alert("Errore di rete. Riprova."); applyBtn.disabled = false; });
+    });
+  }
+})();
+document.querySelectorAll(".dv-maint-bar-track[data-pct]").forEach(function (t) {
+  var f = t.querySelector(".dv-maint-bar-fill");
+  if (f) f.style.width = (parseInt(t.dataset.pct, 10) || 0) + "%";
+});
+</script>
 {% endblock %}

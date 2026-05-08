@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from django import forms
 
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
+
 from .models import PNG_MAX_SIZE, RegistroTimbro, RegistroTimbroImmagine
 
 
@@ -51,10 +57,17 @@ class RegistroTimbroForm(forms.ModelForm):
         file_obj = self.cleaned_data.get(field_name)
         if not file_obj:
             return
-        if str(getattr(file_obj, "name", "") or "").lower().endswith(".png") is False:
-            raise forms.ValidationError("Sono consentiti solo file PNG.")
-        if int(getattr(file_obj, "size", 0) or 0) > PNG_MAX_SIZE:
-            raise forms.ValidationError("Dimensione massima 20 MB.")
+        try:
+            validate_extension_and_mime(
+                file_obj,
+                allowed_extensions={".png"},
+                allowed_mimes={"image/png"},
+                max_bytes=PNG_MAX_SIZE,
+                label=safe_filename(getattr(file_obj, "name", "")) or "Immagine",
+                allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            raise forms.ValidationError(str(exc))
         return file_obj
 
     def clean_image_timbro(self):

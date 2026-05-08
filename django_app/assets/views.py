@@ -24,8 +24,8 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
-from django.db.models import Avg, Count, Q
-from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
+from django.db.models import Avg, Count, Max, Q
+from django.http import FileResponse, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
@@ -97,6 +97,8 @@ from .models import (
     AssetListLayout,
     AssetListOption,
     AssetMaintenanceRuleState,
+    AssetMeter,
+    AssetMeterHistory,
     AssetCalendarEvent,
     AssistanceContract,
     AssetReportDefinition,
@@ -113,6 +115,7 @@ from .models import (
     WorkMachine,
     WorkOrder,
     WorkOrderAttachment,
+    WorkOrderChecklist,
     WorkOrderLog,
 )
 from .maintenance import (
@@ -127,11 +130,14 @@ from .maintenance import (
     upsert_asset_maintenance_rule_state,
 )
 from .services.dashboard_kpi import (
+    get_asset_maintenance_costs,
     get_downtime_by_family,
     get_families_distribution,
     get_family_dashboard_kpis,
     get_fire_safety_kpis,
     get_maintenance_by_family,
+    get_maintenance_kpis_for_types,
+    get_maintenance_performance_kpis,
 )
 
 logger = logging.getLogger(__name__)
@@ -242,6 +248,7 @@ CATEGORY_ACTIONS = {
     "create_asset_category_field",
     "update_asset_category_field",
     "delete_asset_category_field",
+    "create_sidebar_button_for_category",
 }
 
 HEADER_TOOL_ACTIONS = {"update_header_tool"}
@@ -294,14 +301,25 @@ ASSET_LIST_BASE_COLUMN_CHOICES = [
     ("status", "Stato"),
     ("category", "Categoria"),
     ("assigned", "Assegnato a"),
-    ("last_seen", "Ultimo aggiornamento"),
-    ("reparto", "Reparto"),
-    ("serial_number", "Seriale"),
+    ("assignment_location", "Collocazione"),
     ("manufacturer", "Produttore"),
     ("model", "Modello"),
+    ("serial_number", "Seriale"),
+    ("last_seen", "Ultimo aggiornamento"),
+    ("reparto", "Reparto"),
     ("vlan", "VLAN"),
     ("ip", "IP"),
-    ("assignment_location", "Posizione assegnazione"),
+]
+ASSET_LIST_COMMON_COLUMNS = [
+    "name",
+    "status",
+    "category",
+    "assigned",
+    "assignment_location",
+    "manufacturer",
+    "model",
+    "serial_number",
+    "last_seen",
 ]
 ITALIAN_MONTH_NAMES = [
     "gennaio",
@@ -2421,6 +2439,9 @@ def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "d
     desired = _clean_string(target).lower()
     if desired == "sharepoint" and _clean_string(asset.sharepoint_folder_url):
         return asset.sharepoint_folder_url, "Cartella SharePoint"
+    if desired == "landing":
+        landing_url = reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag})
+        return request.build_absolute_uri(landing_url), "Landing mobile QR"
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     return request.build_absolute_uri(detail_url), "Scheda asset"
 
@@ -2750,9 +2771,34 @@ def admin_deadline_attachment_download(request, attachment_id: int):
         pk=attachment_id,
     )
     if not _is_assets_admin(request):
+        log_action(
+            request,
+            "download_admin_deadline_attachment",
+            "assets",
+            {
+                "attachment_id": attachment.id,
+                "completion_id": attachment.completion_id,
+                "deadline_id": attachment.completion.deadline_id,
+                "asset_id": attachment.completion.deadline.asset_id,
+                "esito": "denied",
+                "motivo": "permission_denied",
+            },
+        )
         return render(request, "core/pages/forbidden.html", status=403)
     storage = attachment.file.storage
     if not attachment.file or not attachment.file.name or not storage.exists(attachment.file.name):
+        log_action(
+            request,
+            "download_admin_deadline_attachment",
+            "assets",
+            {
+                "attachment_id": attachment.id,
+                "completion_id": attachment.completion_id,
+                "deadline_id": attachment.completion.deadline_id,
+                "asset_id": attachment.completion.deadline.asset_id,
+                "esito": "not_found",
+            },
+        )
         return HttpResponse("Allegato non trovato.", status=404)
     filename = attachment.original_name or Path(attachment.file.name).name
     content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
@@ -2765,6 +2811,8 @@ def admin_deadline_attachment_download(request, attachment_id: int):
             "completion_id": attachment.completion_id,
             "deadline_id": attachment.completion.deadline_id,
             "asset_id": attachment.completion.deadline.asset_id,
+            "filename": filename,
+            "esito": "success",
         },
     )
     return FileResponse(
@@ -4680,6 +4728,8 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
         asset_list_path = "/assets/"
     if parsed.path == asset_list_path and "asset_type" not in target_qs and _clean_string(request.GET.get("asset_type")):
         return False
+    if parsed.path == asset_list_path and "asset_category" not in target_qs and _clean_string(request.GET.get("asset_category")):
+        return False
 
     for key, values in target_qs.items():
         current_value = request.GET.get(key, "")
@@ -4750,6 +4800,8 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     it_reports = f"{reports}?scope=it"
     production_reports = f"{reports}?scope=production"
     wo_list = reverse("assets:wo_list")
+    asset_quick_report = reverse("assets:asset_quick_report")
+    maintenance_todo = reverse("assets:maintenance_todo")
     current_type = _clean_string(request.GET.get("asset_type"))
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
     current_report_scope = _normalize_reports_scope(request.GET.get("scope")) if current_route == "reports" else ""
@@ -4890,6 +4942,20 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": wo_list,
             "is_subitem": False,
             "active": current_route == "wo_list",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "To-do manutenzione",
+            "url": maintenance_todo,
+            "is_subitem": True,
+            "active": current_route == "maintenance_todo",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Segnala un problema",
+            "url": asset_quick_report,
+            "is_subitem": True,
+            "active": current_route == "asset_quick_report",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5136,6 +5202,40 @@ def _default_sidebar_seed_rows() -> list[dict]:
     ]
 
 
+def _create_default_sidebar_buttons() -> int:
+    payload = _default_sidebar_seed_rows()
+    created = 0
+    created_by_code: dict[str, AssetSidebarButton] = {}
+    for row in payload:
+        button, _created = AssetSidebarButton.objects.get_or_create(
+            code=row["code"],
+            defaults={
+                "section": row["section"],
+                "label": row["label"],
+                "target_url": row["target_url"],
+                "active_match": row["active_match"],
+                "is_subitem": row["is_subitem"],
+                "sort_order": row["sort_order"],
+                "is_visible": row["is_visible"],
+            },
+        )
+        created_by_code[row["code"]] = button
+        created += 1
+    for row in payload:
+        parent_code = _clean_string(row.get("parent_code"))
+        if not parent_code:
+            continue
+        button = created_by_code.get(row["code"])
+        parent = created_by_code.get(parent_code)
+        if button is None or parent is None or button.parent_id == parent.id:
+            continue
+        button.parent = parent
+        button.is_subitem = True
+        button.section = parent.section
+        button.save(update_fields=["parent", "is_subitem", "section", "updated_at"])
+    return created
+
+
 def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     target_suggestions: list[dict[str, str]] = []
     active_match_suggestions: list[dict[str, str]] = []
@@ -5185,6 +5285,13 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
             f"Lista asset: {asset_type_label}",
         )
         add_active_match(f"asset_type={asset_type_code}", f"Filtro asset_type: {asset_type_label}")
+
+    for category in AssetCategory.objects.filter(is_active=True).only("id", "label").order_by("sort_order", "label", "id"):
+        add_target(
+            f"django:assets:asset_list?asset_category={category.id}&rows={{rows}}",
+            f"Lista categoria: {category.label}",
+        )
+        add_active_match(f"asset_category={category.id}", f"Filtro categoria: {category.label}")
 
     route_active_matches = [
         ("assets:asset_list", "Lista inventario"),
@@ -5313,6 +5420,111 @@ def _sidebar_parent_choices() -> list[AssetSidebarButton]:
         AssetSidebarButton.objects.filter(parent__isnull=True)
         .order_by("section", "sort_order", "label", "id")
     )
+
+
+def _category_sidebar_target(category_id: int) -> str:
+    return f"django:assets:asset_list?asset_category={int(category_id)}&rows={{rows}}"
+
+
+def _category_sidebar_active_match(category_id: int) -> str:
+    return f"asset_category={int(category_id)}"
+
+
+def _category_inventory_url(category_id: int, rows: int = 25) -> str:
+    return f"{reverse('assets:asset_list')}?asset_category={int(category_id)}&rows={int(rows)}"
+
+
+def _build_asset_category_admin_rows(categories: list[AssetCategory]) -> list[dict[str, object]]:
+    category_ids = [category.id for category in categories]
+    if not category_ids:
+        return []
+
+    asset_stats = {
+        row["asset_category_id"]: row
+        for row in (
+            Asset.objects.filter(asset_category_id__in=category_ids)
+            .values("asset_category_id")
+            .annotate(
+                total=Count("id"),
+                in_use=Count("id", filter=Q(status=Asset.STATUS_IN_USE)),
+                in_repair=Count("id", filter=Q(status=Asset.STATUS_IN_REPAIR)),
+                last_updated=Max("updated_at"),
+            )
+            .order_by()
+        )
+    }
+    field_stats = {
+        row["category_id"]: row
+        for row in (
+            AssetCategoryField.objects.filter(category_id__in=category_ids)
+            .values("category_id")
+            .annotate(
+                total=Count("id"),
+                active=Count("id", filter=Q(is_active=True)),
+            )
+            .order_by()
+        )
+    }
+    child_counts = {
+        row["parent_id"]: row["total"]
+        for row in AssetCategory.objects.filter(parent_id__in=category_ids).values("parent_id").annotate(total=Count("id")).order_by()
+    }
+    open_workorders = {
+        row["asset__asset_category_id"]: row["total"]
+        for row in (
+            WorkOrder.objects.filter(asset__asset_category_id__in=category_ids, status=WorkOrder.STATUS_OPEN)
+            .values("asset__asset_category_id")
+            .annotate(total=Count("id"))
+            .order_by()
+        )
+    }
+    sample_assets_by_category: dict[int, list[Asset]] = defaultdict(list)
+    for asset in (
+        Asset.objects.filter(asset_category_id__in=category_ids)
+        .select_related("asset_category")
+        .order_by("asset_category_id", "-updated_at", "name", "asset_tag")
+    ):
+        bucket = sample_assets_by_category[asset.asset_category_id]
+        if len(bucket) < 6:
+            bucket.append(asset)
+
+    sidebar_targets = {_category_sidebar_target(category_id) for category_id in category_ids}
+    sidebar_matches = {_category_sidebar_active_match(category_id) for category_id in category_ids}
+    sidebar_by_target = {
+        row.target_url: row
+        for row in AssetSidebarButton.objects.filter(target_url__in=sidebar_targets)
+    }
+    sidebar_by_match = {
+        row.active_match: row
+        for row in AssetSidebarButton.objects.filter(active_match__in=sidebar_matches)
+    }
+    type_labels = dict(Asset.TYPE_CHOICES)
+    rows: list[dict[str, object]] = []
+    for category in categories:
+        stats = asset_stats.get(category.id, {})
+        fields = field_stats.get(category.id, {})
+        sidebar_target = _category_sidebar_target(category.id)
+        sidebar_match = _category_sidebar_active_match(category.id)
+        rows.append(
+            {
+                "category": category,
+                "base_asset_type_label": type_labels.get(category.base_asset_type, category.base_asset_type),
+                "asset_count": int(stats.get("total") or 0),
+                "in_use_count": int(stats.get("in_use") or 0),
+                "in_repair_count": int(stats.get("in_repair") or 0),
+                "open_workorder_count": int(open_workorders.get(category.id) or 0),
+                "field_count": int(fields.get("total") or 0),
+                "active_field_count": int(fields.get("active") or 0),
+                "child_count": int(child_counts.get(category.id) or 0),
+                "last_updated": stats.get("last_updated"),
+                "sample_assets": sample_assets_by_category.get(category.id, []),
+                "inventory_url": _category_inventory_url(category.id),
+                "sidebar_target_url": sidebar_target,
+                "sidebar_active_match": sidebar_match,
+                "sidebar_button": sidebar_by_target.get(sidebar_target) or sidebar_by_match.get(sidebar_match),
+            }
+        )
+    return rows
 
 
 def _header_tool_visibility(is_admin: bool) -> dict[str, bool]:
@@ -5784,6 +5996,10 @@ def _default_action_buttons(asset: Asset, *, create_workorder_url: str = "") -> 
         qr_url = reverse("assets:asset_qr_label", kwargs={"id": asset.id})
     except NoReverseMatch:
         qr_url = ""
+    try:
+        qr_landing_url = reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag})
+    except NoReverseMatch:
+        qr_landing_url = ""
 
     return {
         AssetActionButton.ZONE_HEADER: [
@@ -5793,6 +6009,7 @@ def _default_action_buttons(asset: Asset, *, create_workorder_url: str = "") -> 
         AssetActionButton.ZONE_QUICK: [
             {"label": "Riassegna", "style": AssetActionButton.STYLE_DEFAULT, "href": assign_url, "data_action": "", "new_tab": False},
             {"label": "Crea intervento", "style": AssetActionButton.STYLE_DEFAULT, "href": wo_url, "data_action": "", "new_tab": False},
+            {"label": "Vista QR mobile", "style": AssetActionButton.STYLE_SECONDARY, "href": qr_landing_url, "data_action": "", "new_tab": False},
             {"label": "Aggiorna dati", "style": AssetActionButton.STYLE_SECONDARY, "href": refresh_url, "data_action": "", "new_tab": False},
             {"label": "Dismetti bene", "style": AssetActionButton.STYLE_DANGER, "href": edit_url, "data_action": "", "new_tab": False},
         ],
@@ -6343,6 +6560,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
     valid_sections = {key for key, _ in AssetDetailField.SECTION_CHOICES}
     valid_formats = {key for key, _ in AssetDetailField.FORMAT_CHOICES}
     valid_card_sizes = {key for key, _ in AssetDetailField.CARD_SIZE_CHOICES}
+    valid_sidebar_sections = {key for key, _ in AssetSidebarButton.SECTION_CHOICES}
 
     if action == "create_asset_category":
         label = _clean_string(request.POST.get("label"))
@@ -6351,9 +6569,12 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         base_asset_type = _clean_string(request.POST.get("base_asset_type")) or Asset.TYPE_OTHER
         if base_asset_type not in valid_asset_types:
             base_asset_type = Asset.TYPE_OTHER
+        parent_id = _as_int(request.POST.get("parent_id"), default=0)
+        parent = AssetCategory.objects.filter(pk=parent_id).first() if parent_id else None
         AssetCategory.objects.create(
             code=_unique_asset_category_code(label, request.POST.get("code")),
             label=label[:120],
+            parent=parent,
             base_asset_type=base_asset_type,
             description=_clean_string(request.POST.get("description")),
             detail_specs_title=_clean_string(request.POST.get("detail_specs_title"))[:120],
@@ -6377,7 +6598,12 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         base_asset_type = _clean_string(request.POST.get("base_asset_type")) or category.base_asset_type
         if base_asset_type not in valid_asset_types:
             base_asset_type = category.base_asset_type
+        parent_id = _as_int(request.POST.get("parent_id"), default=0)
+        parent = AssetCategory.objects.filter(pk=parent_id).first() if parent_id else None
+        if parent and parent.id == category.id:
+            return False, "Una categoria non puo essere padre di se stessa."
         category.label = label[:120]
+        category.parent = parent
         category.base_asset_type = base_asset_type
         category.description = _clean_string(request.POST.get("description"))
         category.detail_specs_title = _clean_string(request.POST.get("detail_specs_title"))[:120]
@@ -6390,6 +6616,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         category.save(
             update_fields=[
                 "label",
+                "parent",
                 "base_asset_type",
                 "description",
                 "detail_specs_title",
@@ -6403,6 +6630,43 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
             ]
         )
         return True, f"Categoria asset \"{category.label}\" aggiornata."
+
+    if action == "create_sidebar_button_for_category":
+        category_id = _as_int(request.POST.get("category_id"), default=0)
+        category = AssetCategory.objects.filter(pk=category_id).first()
+        if not category:
+            return False, "Categoria asset non trovata."
+        if not AssetSidebarButton.objects.exists():
+            _create_default_sidebar_buttons()
+        target_url = _category_sidebar_target(category.id)
+        active_match = _category_sidebar_active_match(category.id)
+        existing = AssetSidebarButton.objects.filter(Q(target_url=target_url) | Q(active_match=active_match)).first()
+        if existing:
+            return False, f"La categoria \"{category.label}\" ha gia una voce menu: {existing.label}."
+
+        parent_id = _as_int(request.POST.get("parent_sidebar_button_id") or request.POST.get("parent_id"), default=0)
+        parent_button = AssetSidebarButton.objects.filter(pk=parent_id).first() if parent_id else None
+        if parent_button and parent_button.parent_id:
+            return False, "La voce padre deve essere di primo livello."
+        section = _clean_string(request.POST.get("section")) or AssetSidebarButton.SECTION_MAIN
+        if section not in valid_sidebar_sections:
+            section = AssetSidebarButton.SECTION_MAIN
+        if parent_button is not None:
+            section = parent_button.section
+
+        label = _clean_string(request.POST.get("sidebar_label")) or category.label
+        AssetSidebarButton.objects.create(
+            code=_unique_sidebar_button_code(f"categoria-{category.code}", request.POST.get("code")),
+            section=section,
+            parent=parent_button,
+            label=label[:120],
+            target_url=target_url,
+            active_match=active_match,
+            is_subitem=True if parent_button is not None else bool(request.POST.get("is_subitem")),
+            sort_order=_as_int(request.POST.get("sort_order"), default=100),
+            is_visible=True,
+        )
+        return True, f"Voce menu per categoria \"{category.label}\" creata."
 
     if action == "delete_asset_category":
         category_id = _as_int(request.POST.get("category_id"), default=0)
@@ -6540,47 +6804,55 @@ def _query_url(request: HttpRequest, **overrides) -> str:
 
 
 def _asset_list_context_definitions() -> list[dict[str, object]]:
+    default_columns = list(ASSET_LIST_COMMON_COLUMNS)
     return [
         {
             "key": AssetListLayout.CONTEXT_ALL,
             "label": "Inventario completo",
             "asset_type": "",
+            "default_columns": default_columns,
             "sort_order": 100,
         },
         {
             "key": AssetListLayout.CONTEXT_DEVICES,
             "label": "Dispositivi",
             "asset_type": Asset.TYPE_HW,
+            "default_columns": default_columns,
             "sort_order": 110,
         },
         {
             "key": AssetListLayout.CONTEXT_SERVERS,
             "label": "Server",
             "asset_type": Asset.TYPE_SERVER,
+            "default_columns": default_columns,
             "sort_order": 120,
         },
         {
             "key": AssetListLayout.CONTEXT_WORKSTATIONS,
             "label": "Postazioni di lavoro",
             "asset_type": Asset.TYPE_PC,
+            "default_columns": default_columns,
             "sort_order": 130,
         },
         {
             "key": AssetListLayout.CONTEXT_NETWORK,
             "label": "Rete",
             "asset_type": Asset.TYPE_FIREWALL,
+            "default_columns": default_columns,
             "sort_order": 140,
         },
         {
             "key": AssetListLayout.CONTEXT_VIRTUAL_MACHINES,
             "label": "Macchine virtuali",
             "asset_type": Asset.TYPE_VM,
+            "default_columns": default_columns,
             "sort_order": 150,
         },
         {
             "key": AssetListLayout.CONTEXT_CCTV,
             "label": "Videosorveglianza",
             "asset_type": Asset.TYPE_CCTV,
+            "default_columns": default_columns,
             "sort_order": 160,
         },
     ]
@@ -6611,17 +6883,7 @@ def _asset_list_context(asset_type: str) -> tuple[str, str]:
 
 
 def _asset_list_default_columns(asset_type: str) -> list[str]:
-    normalized = _clean_string(asset_type).upper()
-    shared = ["name", "status", "category"]
-    if normalized == Asset.TYPE_FIREWALL:
-        return [*shared, "reparto", "serial_number", "manufacturer", "model", "vlan", "ip", "last_seen"]
-    if normalized == Asset.TYPE_SERVER:
-        return [*shared, "reparto", "serial_number", "manufacturer", "model", "ip", "assigned", "last_seen"]
-    if normalized in {Asset.TYPE_PC, Asset.TYPE_NOTEBOOK}:
-        return [*shared, "assigned", "reparto", "serial_number", "manufacturer", "model", "ip", "last_seen"]
-    if normalized == Asset.TYPE_HW:
-        return [*shared, "assigned", "reparto", "serial_number", "manufacturer", "model", "assignment_location", "last_seen"]
-    return [*shared, "assigned", "last_seen", "reparto", "serial_number", "manufacturer", "model", "assignment_location"]
+    return list(ASSET_LIST_COMMON_COLUMNS)
 
 
 def _default_asset_list_layout_rows() -> list[dict[str, object]]:
@@ -6665,6 +6927,9 @@ def _ensure_default_asset_list_layouts() -> list[AssetListLayout]:
                 if not isinstance(row.visible_columns, list) or not row.visible_columns:
                     row.visible_columns = list(item["visible_columns"])
                     row.save(update_fields=["visible_columns", "updated_at"])
+                elif not row.is_customized and row.visible_columns != list(item["visible_columns"]):
+                    row.visible_columns = list(item["visible_columns"])
+                    row.save(update_fields=["visible_columns", "updated_at"])
                 continue
             existing[context_key] = AssetListLayout.objects.create(
                 context_key=context_key,
@@ -6678,9 +6943,7 @@ def _ensure_default_asset_list_layouts() -> list[AssetListLayout]:
 
 
 def _asset_list_valid_column_keys(custom_fields: list[AssetCustomField]) -> set[str]:
-    keys = {key for key, _ in ASSET_LIST_BASE_COLUMN_CHOICES}
-    keys.update(f"custom_{field.code}" for field in custom_fields)
-    return keys
+    return set(ASSET_LIST_COMMON_COLUMNS)
 
 
 def _sanitize_asset_list_visible_columns(columns: object, valid_keys: set[str], fallback: list[str] | None = None) -> list[str]:
@@ -7231,6 +7494,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     if form.is_valid():
         q = _clean_string(form.cleaned_data.get("q"))
         asset_type = _clean_string(form.cleaned_data.get("asset_type"))
+        asset_category = form.cleaned_data.get("asset_category")
         reparto = _clean_string(form.cleaned_data.get("reparto"))
         vlan = form.cleaned_data.get("vlan")
         ip = _clean_string(form.cleaned_data.get("ip"))
@@ -7247,6 +7511,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             )
         if asset_type:
             assets = assets.filter(asset_type=asset_type)
+        if asset_category:
+            assets = assets.filter(asset_category=asset_category)
         if reparto:
             assets = assets.filter(reparto__icontains=reparto)
         if vlan is not None:
@@ -7293,6 +7559,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     prev_page_url = _query_url(request, page=page_obj.previous_page_number(), rows=rows) if page_obj.has_previous() else ""
     next_page_url = _query_url(request, page=page_obj.next_page_number(), rows=rows) if page_obj.has_next() else ""
     current_asset_type = _clean_string(request.GET.get("asset_type"))
+    selected_asset_category = form.cleaned_data.get("asset_category") if form.is_valid() else None
     asset_list_context_key, asset_list_context_label = _asset_list_context(current_asset_type)
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     all_custom_fields = list(AssetCustomField.objects.order_by("sort_order", "id"))
@@ -7303,9 +7570,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     current_list_layout = list_layouts_by_context.get(asset_list_context_key)
     valid_list_column_keys = _asset_list_valid_column_keys(custom_fields)
     user_asset_table_layout = _load_user_asset_table_layout(request, asset_list_context_key, valid_list_column_keys)
-    relevant_custom_field_codes = _asset_list_relevant_custom_columns(assets_filtered, custom_fields)
     suggested_visible_columns = _asset_list_default_columns(current_asset_type)
-    suggested_visible_columns.extend(f"custom_{code}" for code in relevant_custom_field_codes)
     suggested_visible_columns = list(dict.fromkeys(suggested_visible_columns))
     if current_list_layout and current_list_layout.is_customized:
         asset_list_default_visible_columns = _sanitize_asset_list_visible_columns(
@@ -7492,6 +7757,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "all_custom_fields": all_custom_fields,
             "asset_list_context_key": asset_list_context_key,
             "asset_list_context_label": asset_list_context_label,
+            "selected_asset_category": selected_asset_category,
             "asset_list_default_visible_columns": asset_list_default_visible_columns,
             "asset_list_default_visible_columns_json": json.dumps(asset_list_default_visible_columns),
             "asset_table_saved_layout_json": json.dumps(user_asset_table_layout),
@@ -7978,15 +8244,6 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             )
     timeline_events.sort(key=lambda item: item.get("date") or now, reverse=True)
 
-    maintenance_rows = list(
-        asset.workorders.select_related(
-            "asset",
-            "supplier",
-            "maintenance_rule",
-            "maintenance_rule__intervention_template",
-            "assistance_contract",
-        ).all()[:10]
-    )
     # Aggiungi ticket MAN inclusi nel registro manutenzione
     from assets.services.maintenance_register import collect_asset_maintenance_register
     maintenance_register = collect_asset_maintenance_register(asset, include_tickets=True)
@@ -8027,6 +8284,21 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     maintenance_rows_from_register.sort(key=lambda x: (x["executed_at"] or x["created_at"] or timezone.now()), reverse=True)
     # Limita a 10 righe
     maintenance_rows = maintenance_rows_from_register[:10]
+
+    # Timeline P1.2: completamenti scadenze amministrative per questo asset
+    deadline_completion_history = list(
+        AssetAdministrativeDeadlineCompletion.objects
+        .filter(deadline__asset=asset)
+        .select_related("deadline", "completed_by")
+        .order_by("-completed_on", "-id")[:20]
+    )
+
+    # P3.4: analisi costi manutenzione per asset
+    try:
+        asset_maintenance_costs = get_asset_maintenance_costs(asset.id, today=today)
+    except Exception:
+        asset_maintenance_costs = {"has_data": False}
+
     from tickets.models import TipoTicket
     manageable_ticket_types = {
         ticket_type
@@ -8276,6 +8548,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "timeline_events": timeline_events,
             "detail_timeline_title": detail_timeline_title,
             "maintenance_rows": maintenance_rows,
+            "deadline_completion_history": deadline_completion_history,
+            "asset_maintenance_costs": asset_maintenance_costs,
             "detail_maintenance_title": detail_maintenance_title,
             "ticket_rows": ticket_rows,
             "ticket_kpi": ticket_kpi,
@@ -8331,6 +8605,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_primary_contract": primary_contract,
             "asset_primary_contract_state": primary_contract_state,
             "asset_next_maintenance_row": next_maintenance_row,
+            "asset_schedule_rows": asset_schedule_rows,
             "asset_create_workorder_url": asset_create_workorder_url,
             "maintenance_suggestions": maintenance_suggestions,
             "can_manage_licenses": _is_assets_admin(request),
@@ -8495,6 +8770,85 @@ def asset_label_designer(request: HttpRequest) -> HttpResponse:
             "preview_asset_tag": preview_context["preview_asset_tag"],
             "preview_asset_id": preview_asset.id if preview_asset is not None else "",
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
+    """P3.3 — Landing mobile-first raggiungibile via QR code fisico sull'asset.
+    Mostra: nome asset, stato, OdL aperti, ultima manutenzione, link segnalazione.
+    """
+    asset = Asset.objects.filter(asset_tag=asset_tag).select_related("asset_category").first()
+    if asset is None:
+        return render(
+            request,
+            "assets/pages/asset_qr_landing.html",
+            {
+                "page_title": "Asset non trovato",
+                "asset": None,
+                "asset_tag": asset_tag,
+                **_assets_shell_context(request, rows=25),
+            },
+        )
+
+    today = timezone.localdate()
+
+    # OdL aperti per questo asset (max 5)
+    open_workorders = list(
+        WorkOrder.objects.filter(asset=asset, status=WorkOrder.STATUS_OPEN)
+        .select_related("maintenance_rule__intervention_template")
+        .order_by("opened_at")[:5]
+    )
+
+    # Ultimo intervento chiuso
+    last_wo = (
+        WorkOrder.objects.filter(asset=asset, status=WorkOrder.STATUS_DONE)
+        .order_by("-closed_at")
+        .values("id", "title", "closed_at", "kind")
+        .first()
+    )
+
+    # Prossima scadenza amministrativa
+    next_deadline = (
+        AssetAdministrativeDeadline.objects.filter(
+            asset=asset,
+            is_active=True,
+            completed=False,
+            expiry_date__isnull=False,
+        )
+        .order_by("expiry_date")
+        .values("id", "title", "expiry_date")
+        .first()
+    )
+
+    # Stato manutenzione: giorni dall'ultimo intervento
+    days_since_last = None
+    if last_wo and last_wo["closed_at"]:
+        closed_date = last_wo["closed_at"].date() if hasattr(last_wo["closed_at"], "date") else last_wo["closed_at"]
+        days_since_last = (today - closed_date).days
+
+    # URL azioni
+    detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
+    report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
+    wo_list_url = f"{reverse('assets:wo_list')}?asset={asset.id}"
+
+    return render(
+        request,
+        "assets/pages/asset_qr_landing.html",
+        {
+            "page_title": f"{asset.asset_tag} — {asset.name}",
+            "asset": asset,
+            "asset_tag": asset_tag,
+            "open_workorders": open_workorders,
+            "last_wo": last_wo,
+            "next_deadline": next_deadline,
+            "days_since_last": days_since_last,
+            "today": today,
+            "detail_url": detail_url,
+            "report_url": report_url,
+            "wo_list_url": wo_list_url,
+            **_assets_shell_context(request, rows=25),
         },
     )
 
@@ -9018,6 +9372,21 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     if status_filter not in {"all", "overdue", "warning", "upcoming", "inactive"}:
         status_filter = "all"
 
+    _DEADLINE_FAMILY_TYPES: dict[str, list[str]] = {
+        "it":               ["PC", "NOTEBOOK", "SERVER", "VM", "FIREWALL", "STAMPANTE", "HW", "FONIA"],
+        "produzione":       ["CNC", "WORK_MACHINE", "CARROPONTE"],
+        "videosorveglianza": ["CCTV"],
+        "altro":            ["OTHER"],
+    }
+    _DEADLINE_FAMILY_LABELS: dict[str, str] = {
+        "it": "Asset IT", "produzione": "Produzione",
+        "videosorveglianza": "Videosorveglianza", "altro": "Altro",
+    }
+    family_filter = _clean_string(request.GET.get("family")).lower()
+    if family_filter not in _DEADLINE_FAMILY_TYPES:
+        family_filter = ""
+    family_label = _DEADLINE_FAMILY_LABELS.get(family_filter, "")
+
     deadline_qs = (
         AssetAdministrativeDeadline.objects.select_related("asset", "component")
         .order_by("due_date", "asset__name", "title", "id")
@@ -9028,6 +9397,8 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
         deadline_qs = deadline_qs.filter(component_id=selected_component.id)
     if deadline_type:
         deadline_qs = deadline_qs.filter(deadline_type=deadline_type)
+    if family_filter:
+        deadline_qs = deadline_qs.filter(asset__asset_type__in=_DEADLINE_FAMILY_TYPES[family_filter])
     if q:
         deadline_qs = deadline_qs.filter(
             Q(title__icontains=q)
@@ -9132,6 +9503,8 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
             "calendar_user_choices": calendar_user_choices,
             "today_iso": today.isoformat(),
+            "family_filter": family_filter,
+            "family_label": family_label,
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -11142,6 +11515,9 @@ def device_list(request: HttpRequest) -> HttpResponse:
     prev_page_url = _query_url(request, page=page_obj.previous_page_number(), rows=rows) if page_obj.has_previous() else ""
     next_page_url = _query_url(request, page=page_obj.next_page_number(), rows=rows) if page_obj.has_next() else ""
 
+    bulk_list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
+    bulk_asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
+    maint_kpis = get_maintenance_kpis_for_types(IT_DEVICE_TYPES)
     return render(request, "assets/pages/device_list.html", {
         "page_title": "Dispositivi IT",
         "filters_form": form,
@@ -11159,6 +11535,10 @@ def device_list(request: HttpRequest) -> HttpResponse:
         "next_page_url": next_page_url,
         "page_start": page_start,
         "page_end": page_end,
+        "bulk_list_options": bulk_list_options,
+        "bulk_asset_categories": bulk_asset_categories,
+        "asset_type_choices": Asset.TYPE_CHOICES,
+        "maint_kpis": maint_kpis,
         **_assets_shell_context(
             request,
             rows=rows,
@@ -11315,6 +11695,8 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
     machine_ids = [m.pk for m in machines]
     availability_map = _machine_availability_map(machine_ids)
 
+    wm_bulk_list_options = list(AssetListOption.objects.filter(is_active=True).order_by("field_key", "sort_order", "value", "id"))
+    wm_bulk_asset_categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"))
     return render(
         request,
         "assets/pages/work_machine_list.html",
@@ -11342,6 +11724,9 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
             "page_end": page_end,
             "active_layout": active_layout,
             "plant_layout_payload": plant_layout_payload,
+            "bulk_list_options": wm_bulk_list_options,
+            "bulk_asset_categories": wm_bulk_asset_categories,
+            "asset_type_choices": Asset.TYPE_CHOICES,
             **_assets_shell_context(
                 request,
                 rows=rows,
@@ -11536,6 +11921,29 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         .order_by("reparto")
     )
 
+    _wmd_overdue = len(overdue_maintenance)
+    _wmd_missing = len(missing_maintenance)
+    _wmd_da_fare = _wmd_overdue + _wmd_missing
+    _wmd_manutentati = max(0, total_machines - _wmd_da_fare)
+    wmd_maint_kpis = {
+        "coinvolti": total_machines,
+        "manutentati": _wmd_manutentati,
+        "da_manutentare": _wmd_da_fare,
+        "percent_done": int(_wmd_manutentati / total_machines * 100) if total_machines else 0,
+    }
+
+    # P3.5 — Contatori macchine: precarica AssetMeter per le macchine con almeno un contatore
+    machine_ids = [asset.id for asset in machine_rows]
+    meters_by_asset_id: dict[int, list] = {}
+    if machine_ids:
+        for meter in AssetMeter.objects.filter(asset_id__in=machine_ids).select_related("updated_by").order_by("meter_type"):
+            meters_by_asset_id.setdefault(meter.asset_id, []).append(meter)
+    # Solo macchine con almeno un contatore configurato
+    machines_with_meters = [
+        asset for asset in machine_rows
+        if asset.id in meters_by_asset_id
+    ]
+
     return render(
         request,
         "assets/pages/work_machine_dashboard.html",
@@ -11562,6 +11970,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
             "missing_maintenance": missing_maintenance[:12],
             "missing_maintenance_count": len(missing_maintenance),
             "due_count": len(overdue_maintenance) + len(warning_maintenance),
+            "maint_kpis": wmd_maint_kpis,
             "maintenance_month_count": maintenance_month_dataset["total_count"],
             "maintenance_month_label": maintenance_month_dataset["month_label"],
             "maintenance_month_code": maintenance_month_dataset["month_code"],
@@ -11570,6 +11979,8 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
                 reparto_filter=reparto_filter,
             ),
             "today": today,
+            "machines_with_meters": machines_with_meters,
+            "meters_by_asset_id": meters_by_asset_id,
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -11946,6 +12357,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             "due_verification_count": sum(
                 1 for row in verification_rows if row["state"]["status"] in {"overdue", "warning"}
             ),
+            "legacy_verification_count": sum(1 for row in verification_rows if row["verification"].is_legacy),
             "selected_asset": selected_asset,
             "selected_asset_linked_count": selected_asset_linked_count,
             "execution_window": execution_window,
@@ -12594,6 +13006,8 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
 
     logs = workorder.logs.select_related("author").all()
     attachments = workorder.attachments.all()
+    checklist_items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
+    checklist_done_count = sum(1 for it in checklist_items if it.is_done)
     return render(
         request,
         "assets/pages/workorder_detail.html",
@@ -12602,6 +13016,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "workorder": workorder,
             "logs": logs,
             "attachments": attachments,
+            "checklist_items": checklist_items,
+            "checklist_done_count": checklist_done_count,
+            "checklist_total": len(checklist_items),
+            "is_open": workorder.status == WorkOrder.STATUS_OPEN,
             "workorder_asset_url": reverse("assets:asset_view", kwargs={"id": workorder.asset_id}),
             "workorder_rule_url": (
                 _asset_maintenance_rule_list_page_url(
@@ -12629,6 +13047,69 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
+
+
+def _render_checklist_fragment(request: HttpRequest, workorder: WorkOrder) -> HttpResponse:
+    items = list(workorder.checklist_items.select_related("done_by").order_by("step_number", "id"))
+    done_count = sum(1 for it in items if it.is_done)
+    return render(
+        request,
+        "assets/components/workorder_checklist.html",
+        {
+            "workorder": workorder,
+            "checklist_items": items,
+            "checklist_done_count": done_count,
+            "checklist_total": len(items),
+            "is_open": workorder.status == WorkOrder.STATUS_OPEN,
+        },
+    )
+
+
+@login_required
+def workorder_checklist_add(request: HttpRequest, id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    description = _clean_string(request.POST.get("description"))
+    if not description:
+        return _render_checklist_fragment(request, workorder)
+    max_step = (
+        WorkOrderChecklist.objects.filter(work_order=workorder)
+        .order_by("-step_number")
+        .values_list("step_number", flat=True)
+        .first()
+    ) or 0
+    WorkOrderChecklist.objects.create(
+        work_order=workorder,
+        step_number=max_step + 1,
+        description=description,
+    )
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
+def workorder_checklist_toggle(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    item = get_object_or_404(WorkOrderChecklist, pk=item_id, work_order=workorder)
+    item.toggle(request.user)
+    return _render_checklist_fragment(request, workorder)
+
+
+@login_required
+def workorder_checklist_delete(request: HttpRequest, id: int, item_id: int) -> HttpResponse:
+    workorder = get_object_or_404(WorkOrder, pk=id)
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return HttpResponseForbidden("OdL non aperto.")
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    WorkOrderChecklist.objects.filter(pk=item_id, work_order=workorder).delete()
+    return _render_checklist_fragment(request, workorder)
 
 
 @login_required
@@ -12712,6 +13193,301 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 contract=workorder.assistance_contract,
             ),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
+        },
+    )
+
+
+@login_required
+def asset_meter_update(request: HttpRequest, asset_id: int) -> HttpResponse:
+    """P2.2 — Aggiornamento rapido contatore (ore/km/cicli) di un asset.
+
+    GET: restituisce il partial HTML con i contatori correnti e il form inline.
+    POST: aggiorna il valore del contatore selezionato e restituisce lo stesso partial.
+    Usato via HTMX (hx-post + hx-swap='outerHTML') dalla asset_detail e dalla work_machine_dashboard.
+    """
+    asset = get_object_or_404(Asset, pk=asset_id)
+    meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
+    error = None
+    success_message = None
+
+    if request.method == "POST":
+        meter_id = _as_int(request.POST.get("meter_id"), default=0)
+        new_value_raw = request.POST.get("new_value", "").strip()
+        try:
+            new_value = Decimal(new_value_raw.replace(",", "."))
+            if new_value < 0:
+                raise ValueError("Il valore non può essere negativo.")
+        except Exception:
+            error = "Valore non valido. Inserire un numero positivo."
+            new_value = None
+
+        if new_value is not None and meter_id:
+            try:
+                meter = AssetMeter.objects.get(pk=meter_id, asset=asset)
+                meter.update_value(new_value, request.user)
+                from core.audit import log_action
+                log_action(
+                    request.user,
+                    "asset_meter_update",
+                    f"Contatore {meter.get_meter_type_display()} aggiornato: {meter.current_value} ({asset.asset_tag})",
+                    asset,
+                )
+                meters = list(AssetMeter.objects.filter(asset=asset).order_by("meter_type"))
+                success_message = f"Contatore aggiornato a {new_value}."
+            except AssetMeter.DoesNotExist:
+                error = "Contatore non trovato."
+
+    recent_history = (
+        AssetMeterHistory.objects
+        .filter(meter__asset=asset)
+        .select_related("meter", "recorded_by")
+        .order_by("-recorded_at")[:10]
+    )
+
+    ctx = {
+        "asset": asset,
+        "meters": meters,
+        "recent_history": recent_history,
+        "error": error,
+        "success_message": success_message,
+    }
+    return render(request, "assets/components/asset_meter_panel.html", ctx)
+
+
+@login_required
+def asset_quick_report(request: HttpRequest) -> HttpResponse:
+    """P3.2 — Form segnalazione rapida per operatori non-admin.
+    Crea un Ticket MAN precompilato con asset, descrizione e priorità.
+    """
+    from tickets.models import TipoTicket, StatoTicket, PrioritaTicket, Ticket, get_categorie
+
+    # Pre-selezione asset da querystring (es. da landing QR)
+    preselected_asset_id = _as_int(request.GET.get("asset"), default=0)
+    preselected_asset = None
+    if preselected_asset_id:
+        preselected_asset = Asset.objects.filter(pk=preselected_asset_id).only("id", "asset_tag", "name", "reparto", "asset_type").first()
+
+    # Asset selezionabili: macchine e asset di produzione (no IT puro)
+    asset_choices = list(
+        Asset.objects
+        .filter(status=Asset.STATUS_IN_USE)
+        .exclude(asset_type__in=IT_DEVICE_TYPES)
+        .order_by("reparto", "name", "asset_tag")
+        .values("id", "asset_tag", "name", "reparto")
+    )
+
+    categorie_man = get_categorie(TipoTicket.MAN)
+    priorita_choices = list(PrioritaTicket.choices)
+
+    error: str = ""
+    success_ticket_id: int | None = None
+
+    if request.method == "POST":
+        asset_id = _as_int(request.POST.get("asset_id"), default=0)
+        asset_libera = _clean_string(request.POST.get("asset_descrizione_libera"))
+        categoria = _clean_string(request.POST.get("categoria"))
+        titolo = _clean_string(request.POST.get("titolo"))
+        descrizione = _clean_string(request.POST.get("descrizione"))
+        priorita = _clean_string(request.POST.get("priorita")) or PrioritaTicket.MEDIA
+        incide_sicurezza = request.POST.get("incide_sicurezza") == "1"
+
+        if not titolo or not descrizione:
+            error = "Titolo e descrizione sono obbligatori."
+        elif not categoria:
+            error = "Seleziona una categoria."
+        elif not asset_id and not asset_libera:
+            error = "Seleziona un asset o descrivi il punto di intervento."
+        else:
+            if priorita not in dict(priorita_choices):
+                priorita = PrioritaTicket.MEDIA
+
+            asset_obj = None
+            if asset_id:
+                asset_obj = Asset.objects.filter(pk=asset_id).only("id").first()
+
+            # Identità richiedente dal legacy user o dall'utente Django
+            from anagrafica.models import UserExtraInfo
+            legacy_user = getattr(request, "legacy_user", None)
+            if legacy_user is None:
+                try:
+                    extra = UserExtraInfo.objects.filter(user=request.user).select_related("user").first()
+                    legacy_user = extra
+                except Exception:
+                    legacy_user = None
+
+            if legacy_user and hasattr(legacy_user, "nome"):
+                req_name = (_clean_string(getattr(legacy_user, "nome", "")) or request.user.get_full_name() or request.user.get_username())
+                req_email = (_clean_string(getattr(legacy_user, "email", "")) or request.user.email or "").lower()
+                req_legacy_id = getattr(legacy_user, "id", None)
+            else:
+                req_name = request.user.get_full_name() or request.user.get_username()
+                req_email = (request.user.email or "").lower()
+                req_legacy_id = None
+
+            ticket = Ticket(
+                tipo=TipoTicket.MAN,
+                titolo=titolo,
+                descrizione=descrizione,
+                categoria=categoria,
+                priorita=priorita,
+                incide_sicurezza=incide_sicurezza,
+                asset=asset_obj,
+                asset_descrizione_libera=asset_libera if not asset_obj else "",
+                richiedente_nome=req_name,
+                richiedente_email=req_email,
+                richiedente_legacy_user_id=req_legacy_id,
+                include_in_maintenance_register=True,
+            )
+            try:
+                ticket.save()
+                log_action(
+                    request,
+                    "asset_quick_report_create",
+                    "assets",
+                    {
+                        "ticket_id": ticket.id,
+                        "ticket_numero": ticket.numero_ticket,
+                        "asset_id": asset_id,
+                        "categoria": categoria,
+                        "priorita": priorita,
+                    },
+                )
+                success_ticket_id = ticket.id
+                # Reset form su successo
+                preselected_asset = None
+                asset_id = 0
+            except Exception as exc:
+                error = f"Errore nella creazione del ticket: {exc}"
+
+    return render(
+        request,
+        "assets/pages/asset_quick_report.html",
+        {
+            "page_title": "Segnala un problema",
+            "asset_choices": asset_choices,
+            "preselected_asset": preselected_asset,
+            "categorie_man": categorie_man,
+            "priorita_choices": priorita_choices,
+            "error": error,
+            "success_ticket_id": success_ticket_id,
+            **_assets_shell_context(request, rows=25),
+        },
+    )
+
+
+@login_required
+def maintenance_todo(request: HttpRequest) -> HttpResponse:
+    """P2.3 — Vista "To-do manutenzione" che aggrega in un'unica pagina tutto ciò
+    che richiede attenzione: OdL aperti, scadenze imminenti, verifiche periodiche,
+    work machine con manutenzione in ritardo.
+    """
+    from datetime import timedelta
+    today = timezone.localdate()
+    horizon_30 = today + timedelta(days=30)
+    horizon_14 = today + timedelta(days=14)
+    overdue_threshold = today - timedelta(days=21)
+
+    is_admin = _is_assets_admin(request)
+    reparto_filter = _clean_string(request.GET.get("reparto"))
+
+    # --- 1. OdL aperti ---
+    wo_qs = (
+        WorkOrder.objects
+        .filter(status=WorkOrder.STATUS_OPEN)
+        .select_related("asset", "executed_by", "maintenance_rule__intervention_template")
+        .order_by("opened_at")
+    )
+    if not is_admin:
+        wo_qs = wo_qs.filter(executed_by=request.user)
+    if reparto_filter:
+        wo_qs = wo_qs.filter(asset__reparto=reparto_filter)
+    open_workorders = list(wo_qs[:50])
+
+    wo_overdue = [wo for wo in open_workorders if wo.opened_at and wo.opened_at.date() <= overdue_threshold]
+    wo_recent = [wo for wo in open_workorders if wo not in wo_overdue]
+
+    # --- 2. Scadenze amministrative in scadenza entro 30 gg ---
+    deadline_qs = (
+        AssetAdministrativeDeadline.objects
+        .filter(is_active=True, due_date__gte=today, due_date__lte=horizon_30)
+        .select_related("asset")
+        .order_by("due_date")
+    )
+    if reparto_filter:
+        deadline_qs = deadline_qs.filter(asset__reparto=reparto_filter)
+    upcoming_deadlines = list(deadline_qs[:30])
+
+    # --- 3. Verifiche periodiche in scadenza entro 30 gg ---
+    pv_qs = (
+        PeriodicVerification.objects
+        .filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30)
+        .order_by("next_verification_date")
+    )
+    upcoming_verifications = list(pv_qs[:20])
+
+    # --- 4. Work machine con manutenzione in ritardo o prossima (14 gg) ---
+    from .models import WorkMachine
+    wm_qs = (
+        WorkMachine.objects
+        .filter(next_maintenance_date__isnull=False, next_maintenance_date__lte=horizon_14)
+        .select_related("asset")
+        .order_by("next_maintenance_date")
+    )
+    if reparto_filter:
+        wm_qs = wm_qs.filter(asset__reparto=reparto_filter)
+    machines_due = list(wm_qs[:20])
+    machines_overdue = [m for m in machines_due if m.next_maintenance_date <= today]
+    machines_warning = [m for m in machines_due if m.next_maintenance_date > today]
+
+    # --- 5. Ticket MAN aperti (integrazione modulo tickets) ---
+    man_tickets = []
+    try:
+        from assets.services.dashboard_kpi import _base_ticket_man_qs, _ticket_open_statuses
+        man_qs = _base_ticket_man_qs().filter(stato__in=_ticket_open_statuses())
+        if not is_admin:
+            man_qs = man_qs.filter(assegnato_a=request.user)
+        if reparto_filter:
+            pass  # ticket non hanno reparto diretto — skip filter
+        man_tickets = list(man_qs.order_by("data_apertura")[:20])
+    except Exception:
+        pass
+
+    # Opzioni reparto per filtro
+    reparto_options = list(
+        Asset.objects.exclude(reparto="")
+        .order_by("reparto")
+        .values_list("reparto", flat=True)
+        .distinct()
+    )
+
+    return render(
+        request,
+        "assets/pages/maintenance_todo.html",
+        {
+            "page_title": "To-do manutenzione",
+            "today": today,
+            "is_admin": is_admin,
+            "reparto_filter": reparto_filter,
+            "reparto_options": reparto_options,
+            # OdL
+            "wo_overdue": wo_overdue,
+            "wo_recent": wo_recent,
+            "wo_total": len(open_workorders),
+            # Scadenze
+            "upcoming_deadlines": upcoming_deadlines,
+            # Verifiche periodiche
+            "upcoming_verifications": upcoming_verifications,
+            # Macchine
+            "machines_overdue": machines_overdue,
+            "machines_warning": machines_warning,
+            # Ticket MAN
+            "man_tickets": man_tickets,
+            # URLs
+            "wo_list_url": reverse("assets:wo_list"),
+            "wo_create_url": reverse("assets:wo_create"),
+            "deadline_list_url": reverse("assets:asset_administrative_deadline_list"),
+            "verifications_url": reverse("assets:periodic_verifications"),
+            "work_machine_list_url": reverse("assets:work_machine_list"),
         },
     )
 
@@ -13432,8 +14208,11 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
 
     asset_categories = []
     asset_category_fields = []
+    asset_category_rows = []
     if tab == "categorie":
-        asset_categories = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
+        asset_categories = list(
+            AssetCategory.objects.select_related("parent").prefetch_related("category_fields").order_by("sort_order", "label", "id")
+        )
         asset_category_fields = list(
             AssetCategoryField.objects.select_related("category").order_by(
                 "category__sort_order",
@@ -13443,6 +14222,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 "id",
             )
         )
+        asset_category_rows = _build_asset_category_admin_rows(asset_categories)
 
     # --- Categorie ticket (solo tab ticket) ---
     from tickets.models import CategoriaTicket as _CategoriaTicket, TipoTicket as _TipoTicket
@@ -13509,6 +14289,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "sidebar_active_match_suggestions": sidebar_active_match_suggestions,
             "sharepoint_admin_config": _sharepoint_admin_config(),
             "asset_categories": asset_categories,
+            "asset_category_rows": asset_category_rows,
             "asset_category_fields": asset_category_fields,
             "asset_category_type_choices": _ui_choices(Asset.TYPE_CHOICES),
             "asset_category_field_type_choices": _ui_choices(AssetCategoryField.TYPE_CHOICES),
@@ -13540,16 +14321,41 @@ def asset_bulk_update(request: HttpRequest) -> JsonResponse:
     if not fields:
         return JsonResponse({"ok": False, "error": "Nessun campo da aggiornare"}, status=400)
 
-    _ALLOWED_BULK_FIELDS = {"status", "reparto", "notes", "manufacturer", "model"}
+    _ALLOWED_BULK_FIELDS = {
+        "status", "asset_type", "asset_category_id",
+        "reparto", "manufacturer", "model",
+        "assignment_to", "assignment_reparto", "assignment_location",
+        "notes",
+    }
     _valid_statuses = {k for k, _ in Asset.STATUS_CHOICES}
+    _valid_asset_types = {k for k, _ in Asset.TYPE_CHOICES}
 
-    update_kwargs: dict[str, str] = {}
+    update_kwargs: dict = {}
     for field, value in fields.items():
         if field not in _ALLOWED_BULK_FIELDS:
             continue
-        if field == "status" and value not in _valid_statuses:
-            return JsonResponse({"ok": False, "error": f"Stato non valido: {value}"}, status=400)
-        update_kwargs[field] = str(value)
+        if field == "status":
+            if value not in _valid_statuses:
+                return JsonResponse({"ok": False, "error": f"Stato non valido: {value}"}, status=400)
+            update_kwargs[field] = str(value)
+        elif field == "asset_type":
+            if value not in _valid_asset_types:
+                return JsonResponse({"ok": False, "error": f"Tipo asset non valido: {value}"}, status=400)
+            update_kwargs[field] = str(value)
+        elif field == "asset_category_id":
+            str_value = str(value).strip()
+            if str_value in ("", "0", "null", "None"):
+                update_kwargs["asset_category_id"] = None
+            else:
+                try:
+                    cat_id = int(str_value)
+                except (ValueError, TypeError):
+                    return JsonResponse({"ok": False, "error": "ID categoria non valido"}, status=400)
+                if not AssetCategory.objects.filter(pk=cat_id).exists():
+                    return JsonResponse({"ok": False, "error": "Categoria non trovata"}, status=400)
+                update_kwargs["asset_category_id"] = cat_id
+        else:
+            update_kwargs[field] = str(value)
 
     if not update_kwargs:
         return JsonResponse({"ok": False, "error": "Nessun campo valido da aggiornare"}, status=400)
@@ -13713,6 +14519,14 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     maintenance_by_family = get_maintenance_by_family(today=today)
     downtime_by_family = get_downtime_by_family(today=today)
     fire_safety_kpis = get_fire_safety_kpis(today=today)
+    try:
+        maintenance_perf = get_maintenance_performance_kpis(today=today)
+    except Exception:
+        maintenance_perf = {
+            "mttr_hours": 0, "downtime_hours_month": 0, "maintenance_cost_month": 0,
+            "wo_open_by_kind": {}, "wo_open_total": 0, "ticket_man_open": 0,
+            "wo_closed_month": 0, "has_data": False,
+        }
 
     # Categorie asset attive (solo principali, per i link in cima)
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
@@ -13749,6 +14563,7 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "maintenance_by_family": maintenance_by_family,
         "downtime_by_family": downtime_by_family,
         "fire_safety_kpis": fire_safety_kpis,
+        "maintenance_perf": maintenance_perf,
         "branding": branding,
         "page_title": "Dashboard Assets",
     })

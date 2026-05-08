@@ -140,3 +140,15 @@ Note sicurezza:
 - `PSW BIOS` viene importato solo come flag booleano `bios_pwd_set`.
 - Altri campi sensibili vengono salvati solo come flag di presenza (`... (presente)`), mai come valore originale.
 - Eventuali riferimenti sicuri possono essere tracciati in `vault_ref` (testuale).
+
+## Import catalogo asset CSV/XLSX
+Command dedicato per liste normalizzate con `famiglia` e `sottocategoria`:
+
+```bash
+python manage.py import_assets_catalog "lista_asset_normalizzata_import_portale.csv" --dry-run
+python manage.py import_assets_catalog "lista_asset_normalizzata_import_portale.xlsx" --commit
+```
+
+Il comando crea categorie padre da `famiglia`, sottocategorie figlie da `sottocategoria` e asset collegati alla sottocategoria. Supporta CSV UTF-8 con fallback `cp1252`, separatori `;`/`,` e XLSX via `openpyxl`.
+
+Dettagli operativi: [docs/assets/IMPORT_ASSETS.md](../../docs/assets/IMPORT_ASSETS.md).

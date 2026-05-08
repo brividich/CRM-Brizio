@@ -34,7 +34,22 @@
 .wm-checks label { display:inline-flex; align-items:center; gap:6px; color:#334155; font-size:var(--fs-base); font-weight:600; }
 
 /* ── Grid macchine ───────────────────────────────────────── */
-.wm-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); padding:16px; }
+.wm-grid { display:none; gap:12px; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); padding:16px; }
+
+.wm-table-wrap { overflow:auto; }
+.wm-table { width:100%; min-width:1080px; border-collapse:separate; border-spacing:0; }
+.wm-table th,
+.wm-table td { padding:10px 12px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:middle; }
+.wm-table th { position:sticky; top:0; z-index:1; background:#f8fafc; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; font-weight:800; letter-spacing:.04em; }
+.wm-table tbody tr { cursor:pointer; transition:background .15s; }
+.wm-table tbody tr:hover { background:#f8fbff; }
+.wm-cell-main { display:grid; gap:2px; min-width:0; }
+.wm-cell-title { color:#0f172a; font-size:var(--fs-base); font-weight:800; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wm-cell-sub { color:#64748b; font-size:var(--fs-xs); font-weight:650; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wm-cell-muted { color:#94a3b8; font-size:var(--fs-xs); font-weight:650; white-space:nowrap; }
+.wm-act { width:88px; text-align:right; }
+.wm-row-action { display:inline-flex; align-items:center; justify-content:center; min-width:56px; padding:6px 10px; border-radius:8px; background:#2563eb; color:#fff; font-size:var(--fs-sm); font-weight:800; text-decoration:none; }
+.wm-row-action:hover { background:#1d4ed8; color:#fff; }
 
 .wm-machine-card {
   border:1px solid #dbe1ea; border-radius:14px; background:#fff;
@@ -136,6 +151,12 @@ body.theme-dark .wm-mc-name { color:var(--text); }
 body.theme-dark .wm-mc-meta { color:var(--text-light); }
 body.theme-dark .wm-btn-sec { background:rgba(255,255,255,.05); border-color:var(--border); color:var(--text-light); }
 body.theme-dark .wm-btn-sec:hover { background:rgba(255,255,255,.08); }
+body.theme-dark .wm-table th { background:rgba(255,255,255,.04); color:var(--text-light); }
+body.theme-dark .wm-table th,
+body.theme-dark .wm-table td { border-bottom-color:var(--border); }
+body.theme-dark .wm-table tbody tr:hover { background:rgba(37,99,235,.08); }
+body.theme-dark .wm-cell-title { color:var(--text); }
+body.theme-dark .wm-cell-sub { color:var(--text-light); }
 
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width:900px) {
@@ -145,6 +166,36 @@ body.theme-dark .wm-btn-sec:hover { background:rgba(255,255,255,.08); }
   .wm-kpis { grid-template-columns:1fr; }
   .wm-grid { grid-template-columns:1fr; padding:10px; }
 }
+
+/* ── Selezione multipla / bulk ───────────────────────────── */
+.wm-row.wm-row-selected { background:#eff6ff !important; }
+.wm-row.wm-row-selected:hover { background:#dbeafe !important; }
+.wm-bulk-toolbar { display:none; align-items:center; gap:10px; padding:8px 14px; background:#eff6ff; border-bottom:1px solid #bfdbfe; font-size:var(--fs-base); flex-wrap:wrap; }
+.wm-bulk-edit-btn { padding:4px 12px; font-size:var(--fs-sm); }
+.wm-bulk-select-th { width:42px; }
+.wm-bulk-count { font-weight:700; color:#1e40af; }
+.wm-bulk-close-btn { border:1px solid #d8e2f2; background:#fff; color:#4c6281; border-radius:8px; padding:5px 8px; cursor:pointer; font-size:var(--fs-sm); }
+.wm-bulk-modal-bd { position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:1600; display:none; align-items:center; justify-content:center; padding:20px; }
+.wm-bulk-modal-bd.show { display:flex; }
+.wm-bulk-modal { width:min(480px,96vw); border:1px solid #d8e2f2; border-radius:12px; background:#fff; box-shadow:0 18px 50px rgba(15,23,42,.35); overflow:hidden; }
+.wm-bulk-modal-head { background:#f8fbff; border-bottom:1px solid #dbe3f0; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; }
+.wm-bulk-modal-body { padding:14px; display:grid; gap:10px; }
+.wm-bulk-field-row { display:grid; grid-template-columns:20px 130px 1fr; gap:8px; align-items:center; font-size:var(--fs-base); }
+.wm-bulk-field-row label { font-weight:600; color:#334e77; }
+.wm-bulk-modal-foot { padding:10px 14px; border-top:1px solid #dbe3f0; display:flex; justify-content:flex-end; gap:8px; }
+.wm-bulk-hint { font-size:var(--fs-sm); color:#64748b; margin:0; }
+body.theme-dark .wm-row.wm-row-selected { background:rgba(29,78,216,.15) !important; }
+body.theme-dark .wm-row.wm-row-selected:hover { background:rgba(29,78,216,.2) !important; }
+body.theme-dark .wm-bulk-toolbar { background:rgba(29,78,216,.15); border-color:rgba(59,130,246,.3); }
+body.theme-dark .wm-bulk-count { color:#93c5fd; }
+body.theme-dark .wm-bulk-close-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .wm-bulk-modal { background:var(--surface); border-color:var(--border); }
+body.theme-dark .wm-bulk-modal-head { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .wm-bulk-modal-foot { border-color:var(--border); }
+body.theme-dark .wm-bulk-field-row label { color:var(--text-mid); }
+body.theme-dark .wm-bulk-hint { color:var(--text-light); }
+.wm-bulk-notes-row { grid-template-columns:20px 1fr; }
+.wm-bulk-notes-ta { resize:vertical; width:100%; }
 
 /* ── Mappa inline (invariata) ────────────────────────────── */
 .wm-map-details summary { list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; cursor:pointer; border-bottom:1px solid transparent; }
@@ -334,7 +385,95 @@ body.theme-dark .wm-btn-sec:hover { background:rgba(255,255,255,.08); }
       </div>
     </div>
 
-    <div class="wm-grid">
+    <div id="wm-bulk-toolbar" class="wm-bulk-toolbar">
+      <span class="wm-bulk-count"><span id="wm-bulk-count-num">0</span> selezionate</span>
+      <button type="button" class="btn wm-bulk-edit-btn" id="wm-bulk-edit-btn">&#9999; Modifica in blocco</button>
+      <button type="button" class="wm-bulk-close-btn" id="wm-bulk-deselect-btn">Deseleziona tutte</button>
+    </div>
+
+    <div class="wm-table-wrap">
+      <table class="wm-table">
+        <thead>
+          <tr>
+            <th class="wm-bulk-select-th"><input type="checkbox" id="wm-select-all" title="Seleziona/deseleziona tutte"></th>
+            <th>Asset</th>
+            <th>Stato</th>
+            <th>Categoria</th>
+            <th>Responsabile</th>
+            <th>Collocazione</th>
+            <th>Produttore</th>
+            <th>Modello</th>
+            <th>Seriale</th>
+            <th>Aggiornato</th>
+            <th class="wm-act">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in machines %}
+          <tr class="wm-row" data-href="{% url 'assets:asset_view' asset.id %}">
+            <td><input type="checkbox" class="wm-select-cb" value="{{ asset.id }}" title="Seleziona {{ asset.name }}"></td>
+            <td>
+              <div class="wm-cell-main">
+                <div class="wm-cell-title">{{ asset.name }}</div>
+                <div class="wm-cell-sub">{{ asset.asset_tag|default:"-" }}</div>
+              </div>
+            </td>
+            <td>
+              <div class="wm-cell-main">
+                <div>
+                  {% with stato=availability_map|get_item:asset.pk %}
+                    {% if stato == "occupata" %}
+                      <span class="wm-status warn">Occupata</span>
+                    {% elif stato == "manutenzione" %}
+                      <span class="wm-status danger">Manutenzione</span>
+                    {% else %}
+                      <span class="wm-status ok">Libera</span>
+                    {% endif %}
+                  {% endwith %}
+                </div>
+                <div class="wm-cell-sub">{{ asset.get_status_display|default:asset.status|default:"-" }}</div>
+              </div>
+            </td>
+            <td>
+              <div class="wm-cell-main">
+                <div class="wm-cell-title">{{ asset.category_label|default:"-" }}</div>
+                <div class="wm-cell-sub">{{ asset.get_asset_type_display|default:"Macchina" }}</div>
+              </div>
+            </td>
+            <td>
+              <div class="wm-cell-main">
+                <div class="wm-cell-title">{{ asset.assignment_to|default:"Non assegnato" }}</div>
+                <div class="wm-cell-sub">{{ asset.assignment_reparto|default:"-" }}</div>
+              </div>
+            </td>
+            <td>
+              <div class="wm-cell-main">
+                <div class="wm-cell-title">{% firstof asset.assignment_location asset.reparto "-" %}</div>
+                <div class="wm-cell-sub">{{ asset.reparto|default:"-" }}</div>
+              </div>
+            </td>
+            <td>{{ asset.manufacturer|default:"-" }}</td>
+            <td>{{ asset.model|default:"-" }}</td>
+            <td><span class="wm-cell-muted">{{ asset.serial_number|default:"-" }}</span></td>
+            <td><span class="wm-cell-muted" title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|date:"d/m/Y" }}</span></td>
+            <td class="wm-act"><a class="wm-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="11">
+              <div class="wm-empty">
+                <div class="wm-empty-icon">N/A</div>
+                <div class="wm-empty-text">Nessuna macchina trovata</div>
+                <div class="wm-empty-sub">Prova a modificare i filtri di ricerca.</div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="wm-grid" aria-hidden="true">
       {% for asset in machines %}
       {% with machine=asset.work_machine %}
       <div class="wm-machine-card">
@@ -451,11 +590,212 @@ body.theme-dark .wm-btn-sec:hover { background:rgba(255,255,255,.08); }
   </article>
 
 </section>
+
+{# ── Modal modifica in blocco macchine ────────────────────── #}
+<div class="wm-bulk-modal-bd" id="wm-bulk-modal">
+  <div class="wm-bulk-modal">
+    <div class="wm-bulk-modal-head">
+      <strong>Modifica in blocco — <span id="wm-bulk-modal-count">0</span> macchine</strong>
+      <button type="button" class="wm-bulk-close-btn" id="wm-bulk-modal-close">&#x2715;</button>
+    </div>
+    <div class="wm-bulk-modal-body">
+      <p class="wm-bulk-hint">Attiva il campo e imposta il valore da applicare a tutte le macchine selezionate.</p>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-status" title="Abilita modifica stato">
+        <label for="wm-bf-status">Stato</label>
+        <select class="input" id="wm-bv-status">
+          <option value="IN_STOCK">In magazzino</option>
+          <option value="IN_USE">In uso</option>
+          <option value="IN_REPAIR">In riparazione</option>
+          <option value="RETIRED">Dismessa</option>
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-asset-type" title="Abilita modifica tipo asset">
+        <label for="wm-bf-asset-type">Tipo asset</label>
+        <select class="input" id="wm-bv-asset-type">
+          <option value="">— Seleziona tipo —</option>
+          {% for val, label in asset_type_choices %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-category" title="Abilita modifica categoria">
+        <label for="wm-bf-category">Categoria</label>
+        <select class="input" id="wm-bv-category">
+          <option value="">— Nessuna categoria —</option>
+          {% for cat in bulk_asset_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-reparto" title="Abilita modifica reparto">
+        <label for="wm-bf-reparto">Reparto</label>
+        <select class="input" id="wm-bv-reparto">
+          <option value="">— Seleziona reparto —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'reparto' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-manufacturer" title="Abilita modifica produttore">
+        <label for="wm-bf-manufacturer">Produttore</label>
+        <select class="input" id="wm-bv-manufacturer">
+          <option value="">— Seleziona produttore —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'manufacturer' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-model" title="Abilita modifica modello">
+        <label for="wm-bf-model">Modello</label>
+        <select class="input" id="wm-bv-model">
+          <option value="">— Seleziona modello —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'model' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row">
+        <input type="checkbox" id="wm-bf-assignment-location" title="Abilita modifica collocazione">
+        <label for="wm-bf-assignment-location">Collocazione</label>
+        <select class="input" id="wm-bv-assignment-location">
+          <option value="">— Seleziona collocazione —</option>
+          {% for opt in bulk_list_options %}{% if opt.field_key == 'assignment_location' %}<option value="{{ opt.value }}">{{ opt.value }}</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="wm-bulk-field-row wm-bulk-notes-row">
+        <input type="checkbox" id="wm-bf-notes" title="Abilita modifica note">
+        <label for="wm-bf-notes">Note (sostituisce il testo esistente)</label>
+      </div>
+      <textarea class="input wm-bulk-notes-ta" id="wm-bv-notes" rows="3"></textarea>
+    </div>
+    <div class="wm-bulk-modal-foot">
+      <button type="button" class="wm-bulk-close-btn" id="wm-bulk-modal-cancel">Annulla</button>
+      <button type="button" class="btn" id="wm-bulk-apply-btn">Applica a tutte</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block assets_shell_scripts %}
 <script>
 (function () {
+  var BULK_URL = "{% url 'assets:asset_bulk_update' %}";
+
+  function getCsrf() {
+    var match = document.cookie.split(";").filter(function (c) { return c.trim().startsWith("csrftoken="); });
+    return match.length ? match[0].trim().split("=")[1] : "";
+  }
+
+  // ── Selezione multipla ──────────────────────────────────────
+
+  function getSelectedIds() {
+    return Array.from(document.querySelectorAll(".wm-select-cb:checked")).map(function (cb) { return cb.value; });
+  }
+
+  function updateToolbar() {
+    var ids = getSelectedIds();
+    var toolbar = document.getElementById("wm-bulk-toolbar");
+    var countEl = document.getElementById("wm-bulk-count-num");
+    if (!toolbar) return;
+    toolbar.style.display = ids.length > 0 ? "flex" : "none";
+    if (countEl) countEl.textContent = ids.length;
+    var selectAll = document.getElementById("wm-select-all");
+    if (selectAll) {
+      var total = document.querySelectorAll(".wm-select-cb").length;
+      selectAll.checked = total > 0 && ids.length === total;
+      selectAll.indeterminate = ids.length > 0 && ids.length < total;
+    }
+  }
+
+  document.querySelectorAll(".wm-select-cb").forEach(function (cb) {
+    cb.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    cb.addEventListener("change", function () {
+      var row = cb.closest("tr");
+      if (row) row.classList.toggle("wm-row-selected", cb.checked);
+      updateToolbar();
+    });
+  });
+
+  var selectAllCb = document.getElementById("wm-select-all");
+  if (selectAllCb) {
+    selectAllCb.addEventListener("change", function () {
+      document.querySelectorAll(".wm-select-cb").forEach(function (cb) {
+        cb.checked = selectAllCb.checked;
+        var row = cb.closest("tr");
+        if (row) row.classList.toggle("wm-row-selected", cb.checked);
+      });
+      updateToolbar();
+    });
+  }
+
+  var deselectBtn = document.getElementById("wm-bulk-deselect-btn");
+  if (deselectBtn) {
+    deselectBtn.addEventListener("click", function () {
+      document.querySelectorAll(".wm-select-cb").forEach(function (cb) {
+        cb.checked = false;
+        var row = cb.closest("tr");
+        if (row) row.classList.remove("wm-row-selected");
+      });
+      updateToolbar();
+    });
+  }
+
+  // ── Modal ───────────────────────────────────────────────────
+
+  var modal = document.getElementById("wm-bulk-modal");
+  var modalCount = document.getElementById("wm-bulk-modal-count");
+
+  function openModal() {
+    var ids = getSelectedIds();
+    if (!ids.length) return;
+    if (modalCount) modalCount.textContent = ids.length;
+    if (modal) { modal.style.display = "flex"; document.body.style.overflow = "hidden"; }
+  }
+  function closeModal() {
+    if (modal) { modal.style.display = ""; document.body.style.overflow = ""; }
+  }
+
+  var editBtn = document.getElementById("wm-bulk-edit-btn");
+  if (editBtn) editBtn.addEventListener("click", openModal);
+  ["wm-bulk-modal-close", "wm-bulk-modal-cancel"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", closeModal);
+  });
+  if (modal) modal.addEventListener("click", function (ev) { if (ev.target === modal) closeModal(); });
+
+  // ── Applica ─────────────────────────────────────────────────
+
+  var applyBtn = document.getElementById("wm-bulk-apply-btn");
+  if (applyBtn) {
+    applyBtn.addEventListener("click", function () {
+      var ids = getSelectedIds();
+      if (!ids.length) return;
+      var fields = {};
+      [["status","wm-bf-status","wm-bv-status"],
+       ["asset_type","wm-bf-asset-type","wm-bv-asset-type"],
+       ["asset_category_id","wm-bf-category","wm-bv-category"],
+       ["reparto","wm-bf-reparto","wm-bv-reparto"],
+       ["manufacturer","wm-bf-manufacturer","wm-bv-manufacturer"],
+       ["model","wm-bf-model","wm-bv-model"],
+       ["assignment_location","wm-bf-assignment-location","wm-bv-assignment-location"],
+       ["notes","wm-bf-notes","wm-bv-notes"]].forEach(function (triple) {
+        var cb = document.getElementById(triple[1]);
+        var el = document.getElementById(triple[2]);
+        if (cb && cb.checked && el) fields[triple[0]] = el.value;
+      });
+      if (!Object.keys(fields).length) { alert("Seleziona almeno un campo da modificare."); return; }
+      applyBtn.disabled = true;
+      fetch(BULK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrf() },
+        body: JSON.stringify({ ids: ids, fields: fields })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) { closeModal(); window.location.reload(); }
+        else { alert("Errore: " + (data.error || "sconosciuto")); applyBtn.disabled = false; }
+      })
+      .catch(function () { alert("Errore di rete. Riprova."); applyBtn.disabled = false; });
+    });
+  }
+
+  // Navigazione riga (mantenuta dopo bulk per evitare conflitti)
   document.querySelectorAll(".wm-row[data-href]").forEach(function (row) {
     row.addEventListener("click", function (event) {
       if (event.target.closest("a,button,input,label")) return;

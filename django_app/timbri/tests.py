@@ -427,3 +427,80 @@ class TimbriAnagraficaIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Apri timbri")
         self.assertContains(response, reverse("timbri:operatore_detail_by_legacy", args=[self.legacy_id]))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TimbriDownloadAuditTests(TestCase):
+    """Verifica che il download di immagini timbri sia tracciato in AuditLog (Patch 21H)."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser(
+            username="timbri-audit-admin",
+            email="timbri-audit-admin@test.local",
+            password="pass12345",
+        )
+        self.basic_user = User.objects.create_user(
+            username="timbri-audit-basic",
+            password="pass12345",
+        )
+        self.operatore = OperatoreTimbri.objects.create(nome="Audit", cognome="Test", matricola="AUD1")
+        self.registro = RegistroTimbro.objects.create(operatore=self.operatore, codice_timbro="CNO AUD1")
+
+    def test_serve_timbri_image_authorized_creates_success_audit(self):
+        from core.models import AuditLog
+
+        private_root = _make_workspace_tempdir("timbri-audit-private")
+        try:
+            with override_settings(TIMBRI_PRIVATE_ROOT=str(private_root)):
+                image = RegistroTimbroImmagine(
+                    registro=self.registro,
+                    variante=RegistroTimbroImmagine.VARIANTE_TIMBRO,
+                    image=_png_upload("audit.png"),
+                )
+                image.save()
+                self.client.force_login(self.admin)
+                before = AuditLog.objects.count()
+                response = self.client.get(reverse("timbri:serve_image", args=[image.pk]))
+                self.assertEqual(response.status_code, 200)
+                created = AuditLog.objects.filter(
+                    azione="download_timbri_image", modulo="timbri",
+                ).order_by("-id").first()
+                self.assertIsNotNone(created)
+                self.assertEqual(AuditLog.objects.count(), before + 1)
+                payload = created.dettaglio or {}
+                self.assertEqual(payload.get("esito"), "success")
+                self.assertEqual(payload.get("image_id"), image.id)
+                serialized = repr(payload)
+                self.assertNotIn(str(private_root), serialized)
+        finally:
+            shutil.rmtree(private_root, ignore_errors=True)
+
+    def test_serve_timbri_image_denied_creates_denied_audit_without_path(self):
+        from core.models import AuditLog
+
+        private_root = _make_workspace_tempdir("timbri-audit-private-denied")
+        try:
+            with override_settings(TIMBRI_PRIVATE_ROOT=str(private_root)):
+                image = RegistroTimbroImmagine(
+                    registro=self.registro,
+                    variante=RegistroTimbroImmagine.VARIANTE_TIMBRO,
+                    image=_png_upload("denied.png"),
+                )
+                image.save()
+                self.client.force_login(self.basic_user)
+                response = self.client.get(reverse("timbri:serve_image", args=[image.pk]))
+                self.assertEqual(response.status_code, 403)
+                created = AuditLog.objects.filter(
+                    azione="download_timbri_image", modulo="timbri",
+                ).order_by("-id").first()
+                self.assertIsNotNone(created)
+                payload = created.dettaglio or {}
+                self.assertEqual(payload.get("esito"), "denied")
+                self.assertEqual(payload.get("motivo"), "permission_denied")
+                serialized = repr(payload)
+                self.assertNotIn(str(private_root), serialized)
+                # Su denied non viene esposto neanche il nome file fisico
+                self.assertNotIn("denied.png", serialized)
+        finally:
+            shutil.rmtree(private_root, ignore_errors=True)

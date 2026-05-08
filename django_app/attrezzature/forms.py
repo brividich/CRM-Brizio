@@ -3,6 +3,12 @@ from __future__ import annotations
 from django import forms
 from django.contrib.auth import get_user_model
 
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
+
 from .models import Attrezzatura, AttrezzaturaNota, AttrezzaturaTask
 
 User = get_user_model()
@@ -112,6 +118,29 @@ class NotaForm(forms.ModelForm):
 
 class ImportUploadForm(forms.Form):
     file = forms.FileField(widget=forms.ClearableFileInput(attrs={"class": "input", "accept": ".xls,.xlsx"}))
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data.get("file")
+        if not uploaded_file:
+            return uploaded_file
+        try:
+            validate_extension_and_mime(
+                uploaded_file,
+                allowed_extensions={".xls", ".xlsx"},
+                allowed_mimes={
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel",
+                    "application/octet-stream",
+                    "application/zip",
+                    "application/x-zip-compressed",
+                },
+                max_bytes=15 * 1024 * 1024,
+                label=safe_filename(getattr(uploaded_file, "name", "")) or "Import",
+                allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            raise forms.ValidationError(str(exc))
+        return uploaded_file
 
 
 class EmbeddedPreviewForm(forms.Form):

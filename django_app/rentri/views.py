@@ -27,6 +27,26 @@ from core.audit import log_action
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+from core.upload_mime import safe_filename, validate_filename, UploadMimeValidationError
+
+
+_RENTRI_CSV_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _validate_rentri_csv(uploaded_file):
+    """Valida un upload CSV import RENTRI: nome, estensione, dimensione."""
+    try:
+        filename = validate_filename(getattr(uploaded_file, "name", ""), label="CSV")
+    except UploadMimeValidationError as exc:
+        return str(exc)
+    if not filename.lower().endswith(".csv"):
+        return f"{filename}: formato non consentito. Attesa estensione .csv."
+    size = int(getattr(uploaded_file, "size", 0) or 0)
+    if size <= 0:
+        return f"{filename}: file vuoto."
+    if size > _RENTRI_CSV_MAX_BYTES:
+        return f"{filename}: supera il limite di 5 MB."
+    return None
 
 from .models import RegistroRifiuti, RentriImpostazioni
 
@@ -696,10 +716,13 @@ def import_preview(request):
     csv_file = request.FILES.get("csv_file")
     if not csv_file:
         return JsonResponse({"ok": False, "error": "Nessun file selezionato"}, status=400)
+    err = _validate_rentri_csv(csv_file)
+    if err:
+        return JsonResponse({"ok": False, "error": err}, status=400)
     try:
         content = csv_file.read().decode("utf-8-sig")
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": f"Errore lettura file: {exc}"}, status=400)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Errore lettura file CSV (atteso UTF-8)."}, status=400)
 
     rows, errors = _parse_csv_rows(content)
     nuovi = sum(1 for r in rows if not r["esiste"])
@@ -721,10 +744,13 @@ def import_confirm(request):
     csv_file = request.FILES.get("csv_file")
     if not csv_file:
         return JsonResponse({"ok": False, "error": "Nessun file"}, status=400)
+    err = _validate_rentri_csv(csv_file)
+    if err:
+        return JsonResponse({"ok": False, "error": err}, status=400)
     try:
         content = csv_file.read().decode("utf-8-sig")
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Errore lettura file CSV (atteso UTF-8)."}, status=400)
 
     rows, parse_errors = _parse_csv_rows(content)
     created = 0

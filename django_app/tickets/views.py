@@ -933,11 +933,43 @@ def ticket_download_allegato(request, allegato_id: int):
     allegato = get_object_or_404(TicketAllegato.objects.select_related("ticket"), pk=allegato_id)
     access = _ticket_access_flags(request, allegato.ticket)
     if not (access["is_richiedente"] or access["is_gestore"] or access["is_admin"]):
+        log_action(
+            request,
+            "download_allegato",
+            "tickets",
+            {
+                "allegato_id": allegato.id,
+                "ticket_id": allegato.ticket_id,
+                "esito": "denied",
+                "motivo": "permission_denied",
+            },
+        )
         return render(request, "core/pages/forbidden.html", status=403)
     storage = allegato.file.storage
     if not allegato.file or not allegato.file.name or not storage.exists(allegato.file.name):
+        log_action(
+            request,
+            "download_allegato",
+            "tickets",
+            {
+                "allegato_id": allegato.id,
+                "ticket_id": allegato.ticket_id,
+                "esito": "not_found",
+            },
+        )
         return HttpResponse("Allegato non trovato.", status=404)
     content_type = allegato.tipo_mime or mimetypes.guess_type(allegato.nome_originale)[0] or "application/octet-stream"
+    log_action(
+        request,
+        "download_allegato",
+        "tickets",
+        {
+            "allegato_id": allegato.id,
+            "ticket_id": allegato.ticket_id,
+            "filename": allegato.nome_originale,
+            "esito": "success",
+        },
+    )
     return FileResponse(
         storage.open(allegato.file.name, "rb"),
         as_attachment=True,

@@ -121,6 +121,50 @@ def _database_name_for_report(raw_name: Any) -> str:
     return name
 
 
+def _is_prod_environment() -> bool:
+    """Rileva se siamo in profilo prod basandosi su DJANGO_SETTINGS_MODULE.
+
+    Usato per scalare la severita' dei check da WARN (test/dev) a FAIL (prod).
+    """
+    settings_module = _text(os.environ.get("DJANGO_SETTINGS_MODULE")).lower()
+    if "prod" in settings_module:
+        return True
+    env_name = _text(getattr(settings, "MONITORING_ENVIRONMENT", "")).lower()
+    return env_name in {"prod", "production"}
+
+
+def _severity_for_env(prod_severity: str, non_prod_severity: str = WARN) -> str:
+    """Restituisce la severita' adatta all'ambiente corrente.
+
+    In prod: severita' maggiore (di solito FAIL). Altrove: WARN per non rompere
+    test/dev locali in cui possono mancare valorizzazioni produttive.
+    """
+    return prod_severity if _is_prod_environment() else non_prod_severity
+
+
+def _path_under(child: Path, parent: Path) -> bool:
+    """True se ``child`` e' lo stesso path di ``parent`` o un suo discendente.
+
+    Confronto su path risolti per neutralizzare componenti relativi (..,
+    symlink, ecc.) ed evitare bypass banali del containment check.
+    """
+    try:
+        child_resolved = child.resolve()
+        parent_resolved = parent.resolve()
+    except (OSError, RuntimeError):
+        # Path non risolvibili (directory mancante): fallback su confronto
+        # testuale normalizzato che mantiene il check conservativo.
+        child_resolved = Path(os.path.normcase(os.path.normpath(str(child))))
+        parent_resolved = Path(os.path.normcase(os.path.normpath(str(parent))))
+    if child_resolved == parent_resolved:
+        return True
+    try:
+        child_resolved.relative_to(parent_resolved)
+    except ValueError:
+        return False
+    return True
+
+
 def _path_state(path_value: Any) -> tuple[str, str]:
     path_text = _text(path_value)
     if not path_text:
@@ -213,9 +257,12 @@ class DeploymentValidator:
         debug = bool(getattr(settings, "DEBUG", False))
         environment = settings_module or _text(getattr(settings, "MONITORING_ENVIRONMENT", ""))
         lowered_env = environment.lower()
+        is_prod = _is_prod_environment()
 
         if "prod" in lowered_env and debug:
-            self.add("django", "DEBUG", WARN, "DEBUG=True in un ambiente che sembra prod.", environment=environment)
+            # In prod DEBUG=True espone tracebacks e dati interni: deve fallire,
+            # non solo avvisare.
+            self.add("django", "DEBUG", FAIL, "DEBUG=True in un ambiente che sembra prod.", environment=environment)
         elif "dev" in lowered_env and not debug:
             self.add("django", "DEBUG", WARN, "DEBUG=False in un ambiente che sembra dev.", environment=environment)
         elif "test" in lowered_env and debug:
@@ -226,14 +273,60 @@ class DeploymentValidator:
         secret_key = _text(getattr(settings, "SECRET_KEY", ""))
         if _is_placeholder(secret_key):
             self.add("django", "SECRET_KEY", FAIL, "SECRET_KEY assente o placeholder.")
+        elif secret_key.lower().startswith("django-insecure-"):
+            # Default generato da `startproject`: utile in dev, vietato in prod.
+            severity = _severity_for_env(FAIL, WARN)
+            self.add(
+                "django",
+                "SECRET_KEY",
+                severity,
+                "SECRET_KEY usa il prefisso 'django-insecure-' tipico delle chiavi di sviluppo.",
+            )
+        elif len(secret_key) < 50:
+            severity = _severity_for_env(FAIL, WARN)
+            self.add(
+                "django",
+                "SECRET_KEY",
+                severity,
+                "SECRET_KEY troppo corta (richiesti almeno 50 caratteri per entropia adeguata).",
+                length=len(secret_key),
+            )
         else:
             self.add("django", "SECRET_KEY", OK, "SECRET_KEY configurata.", SECRET_KEY=secret_key)
 
         allowed_hosts = list(getattr(settings, "ALLOWED_HOSTS", []) or [])
+        wildcard_hosts = [host for host in allowed_hosts if _text(host) == "*"]
         if not debug and not allowed_hosts:
             self.add("django", "ALLOWED_HOSTS", FAIL, "ALLOWED_HOSTS vuoto con DEBUG=False.")
+        elif wildcard_hosts:
+            # Wildcard accetta qualunque Host header: in prod e' un rischio
+            # concreto (Host header poisoning). Tollerato fuori prod.
+            severity = _severity_for_env(FAIL, WARN)
+            self.add(
+                "django",
+                "ALLOWED_HOSTS",
+                severity,
+                "ALLOWED_HOSTS contiene wildcard '*': accetta qualunque Host header.",
+                count=len(allowed_hosts),
+            )
         else:
             self.add("django", "ALLOWED_HOSTS", OK, "ALLOWED_HOSTS configurato.", count=len(allowed_hosts))
+
+        # DJANGO_LOG_DIR: in prod base.py gia' fa raise se manca, ma quando si
+        # esegue validate_deployment con --settings=config.settings.test contro
+        # un .env di prod e' utile loggare anche qui un FAIL per coerenza.
+        log_dir = _text(os.environ.get("DJANGO_LOG_DIR"))
+        if is_prod and not log_dir:
+            self.add(
+                "django",
+                "DJANGO_LOG_DIR",
+                FAIL,
+                "DJANGO_LOG_DIR obbligatorio in produzione (no fallback su temp).",
+            )
+        elif log_dir:
+            self.add("django", "DJANGO_LOG_DIR", OK, "DJANGO_LOG_DIR configurato.", path=log_dir)
+        else:
+            self.add("django", "DJANGO_LOG_DIR", OK, "DJANGO_LOG_DIR non richiesto fuori prod.")
 
         timezone = _text(getattr(settings, "TIME_ZONE", ""))
         if timezone:
@@ -314,6 +407,49 @@ class DeploymentValidator:
             self.add("static_media", "MEDIA_ROOT", severity, message, path=str(media_root))
         else:
             self.add("static_media", "MEDIA_ROOT", WARN, "MEDIA_ROOT non configurato.")
+
+        # Storage privati (allegati asset/ticket): non devono mai vivere sotto
+        # MEDIA_ROOT, altrimenti vengono serviti dal web server senza ACL.
+        # Vedere docs/ai/05_SECURITY_BOUNDARIES.md.
+        assets_private = getattr(settings, "ASSETS_PRIVATE_ROOT", "")
+        is_prod = _is_prod_environment()
+        if _text(assets_private):
+            severity, message = _path_state(assets_private)
+            self.add("static_media", "ASSETS_PRIVATE_ROOT", severity, message, path=str(assets_private))
+            if _text(media_root):
+                if _path_under(Path(str(assets_private)), Path(str(media_root))):
+                    # Esposizione web di file privati: in prod deve fallire,
+                    # in dev/test resta WARN per non rompere setup minimi.
+                    containment_severity = _severity_for_env(FAIL, WARN)
+                    self.add(
+                        "static_media",
+                        "ASSETS_PRIVATE_ROOT_containment",
+                        containment_severity,
+                        "ASSETS_PRIVATE_ROOT non deve essere contenuto in MEDIA_ROOT (esposizione web).",
+                        assets_private=str(assets_private),
+                        media_root=str(media_root),
+                    )
+                else:
+                    self.add(
+                        "static_media",
+                        "ASSETS_PRIVATE_ROOT_containment",
+                        OK,
+                        "ASSETS_PRIVATE_ROOT correttamente fuori da MEDIA_ROOT.",
+                    )
+        elif is_prod:
+            self.add(
+                "static_media",
+                "ASSETS_PRIVATE_ROOT",
+                FAIL,
+                "ASSETS_PRIVATE_ROOT obbligatorio in prod per allegati asset/ticket privati.",
+            )
+        else:
+            self.add(
+                "static_media",
+                "ASSETS_PRIVATE_ROOT",
+                WARN,
+                "ASSETS_PRIVATE_ROOT non configurato (default base.py: media_private/).",
+            )
 
     def check_cache(self) -> None:
         caches = getattr(settings, "CACHES", {}) or {}
@@ -437,8 +573,9 @@ class DeploymentValidator:
     def check_security(self) -> None:
         settings_module = _text(os.environ.get("DJANGO_SETTINGS_MODULE"))
         debug = bool(getattr(settings, "DEBUG", False))
+        is_prod = _is_prod_environment()
         if "prod" in settings_module.lower() and debug:
-            self.add("security", "DEBUG", WARN, "DEBUG=True usando settings prod.")
+            self.add("security", "DEBUG", FAIL, "DEBUG=True usando settings prod.")
         else:
             self.add("security", "DEBUG", OK, "Nessun mismatch prod/DEBUG rilevato.", debug=debug)
 
@@ -447,6 +584,90 @@ class DeploymentValidator:
             self.add("security", "SECRET_KEY", FAIL, "SECRET_KEY contiene un placeholder o valore vuoto.")
         else:
             self.add("security", "SECRET_KEY", OK, "SECRET_KEY non sembra un placeholder.", SECRET_KEY=secret_key)
+
+        # Cookie sicuri: in prod devono essere veri (HTTPS-only). Fuori prod
+        # restano WARN perche' dev locale gira tipicamente su HTTP.
+        session_secure = bool(getattr(settings, "SESSION_COOKIE_SECURE", False))
+        csrf_secure = bool(getattr(settings, "CSRF_COOKIE_SECURE", False))
+        if is_prod and not session_secure:
+            self.add(
+                "security",
+                "SESSION_COOKIE_SECURE",
+                FAIL,
+                "SESSION_COOKIE_SECURE=False in prod: i cookie di sessione viaggerebbero in chiaro.",
+            )
+        elif not session_secure:
+            self.add(
+                "security",
+                "SESSION_COOKIE_SECURE",
+                WARN,
+                "SESSION_COOKIE_SECURE=False (accettabile in dev locale su HTTP).",
+            )
+        else:
+            self.add("security", "SESSION_COOKIE_SECURE", OK, "SESSION_COOKIE_SECURE attivo.")
+
+        if is_prod and not csrf_secure:
+            self.add(
+                "security",
+                "CSRF_COOKIE_SECURE",
+                FAIL,
+                "CSRF_COOKIE_SECURE=False in prod: il cookie CSRF viaggerebbe in chiaro.",
+            )
+        elif not csrf_secure:
+            self.add(
+                "security",
+                "CSRF_COOKIE_SECURE",
+                WARN,
+                "CSRF_COOKIE_SECURE=False (accettabile in dev locale su HTTP).",
+            )
+        else:
+            self.add("security", "CSRF_COOKIE_SECURE", OK, "CSRF_COOKIE_SECURE attivo.")
+
+        # CSRF_TRUSTED_ORIGINS: wildcard '*' o equivalenti '*://*' azzerano la
+        # protezione contro CSRF cross-origin. Bloccante in prod.
+        csrf_trusted = list(getattr(settings, "CSRF_TRUSTED_ORIGINS", []) or [])
+        wildcard_origins = [
+            origin
+            for origin in csrf_trusted
+            if _text(origin) in {"*", "*://*"} or _text(origin).startswith("*://*.")
+        ]
+        if wildcard_origins:
+            severity = _severity_for_env(FAIL, WARN)
+            self.add(
+                "security",
+                "CSRF_TRUSTED_ORIGINS",
+                severity,
+                "CSRF_TRUSTED_ORIGINS contiene wildcard '*': azzera la protezione CSRF.",
+                count=len(csrf_trusted),
+            )
+        else:
+            self.add(
+                "security",
+                "CSRF_TRUSTED_ORIGINS",
+                OK,
+                "CSRF_TRUSTED_ORIGINS senza wildcard.",
+                count=len(csrf_trusted),
+            )
+
+        # AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED: applica direttamente DDL
+        # generata dall'editor regole alla DB. Default OFF; in prod l'attivazione
+        # va tracciata esplicitamente (toggle elevato di privilegio).
+        trigger_apply = bool(getattr(settings, "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED", False))
+        if is_prod and trigger_apply:
+            self.add(
+                "security",
+                "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED",
+                WARN,
+                "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED=1 in prod: l'apply DDL diretto al DB e' attivo.",
+            )
+        else:
+            self.add(
+                "security",
+                "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED",
+                OK,
+                "AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED disabilitato (default sicuro).",
+                enabled=trigger_apply,
+            )
 
         self.add("security", "public_repo", WARN, "Controllo repository pubblico non eseguito: web check non applicabile.")
 

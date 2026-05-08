@@ -163,3 +163,92 @@ class SegnalazionePrepostoExcelExportTests(TestCase):
         response = self.client.get(reverse("diario_preposto:export_excel"))
 
         self.assertEqual(response.status_code, 302)
+
+
+class SegnalazioneAllegatoDownloadTests(TestCase):
+    """Verifica che gli allegati delle segnalazioni siano accessibili
+    solo agli utenti autenticati (e non via URL pubblico /media/)."""
+
+    def setUp(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from .models import SegnalazioneAllegato
+
+        self.user = get_user_model().objects.create_user(
+            username="dp_user",
+            email="dp_user@example.com",
+            password="pwd12345",
+        )
+        # Crea onboarding completato per evitare redirect
+        from core.models import UserOnboarding, Profile
+        UserOnboarding.objects.create(user=self.user, completed=True, skipped=True)
+        # Crea legacy_user per ACL
+        from core.legacy_models import UtenteLegacy, Ruolo
+        role = Ruolo.objects.create(id=999, nome="Test Role")
+        legacy_user = UtenteLegacy.objects.create(
+            id=999,
+            nome="Test User",
+            email="dp_user@example.com",
+            password="hash",
+            ruolo=role.nome,
+            ruolo_id=role.id,
+            attivo=True,
+        )
+        # Crea Profile per collegare l'utente Django al legacy_user
+        Profile.objects.create(user=self.user, legacy_user_id=legacy_user.id, legacy_ruolo_id=role.id, legacy_ruolo=role.nome)
+        self.segnalazione = SegnalazionePreposto.objects.create(
+            titolo="Segn allegato",
+            data_segnalazione=_aware_datetime(2026, 1, 10),
+            descrizione="Test allegato",
+        )
+        self.allegato = SegnalazioneAllegato.objects.create(
+            segnalazione=self.segnalazione,
+            nome_file="prova.txt",
+            file=SimpleUploadedFile("prova.txt", b"contenuto riservato", content_type="text/plain"),
+        )
+
+    def tearDown(self):
+        # Rimuove il file temporaneo creato dal test dallo storage privato.
+        try:
+            if self.allegato.file and self.allegato.file.name:
+                self.allegato.file.storage.delete(self.allegato.file.name)
+        except Exception:
+            pass
+
+    def test_allegato_download_requires_login(self):
+        url = reverse("diario_preposto:allegato_download", args=[self.allegato.pk])
+        response = self.client.get(url)
+        # Utente anonimo: redirect verso login (non 200, non file).
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("contenuto riservato", response.content.decode(errors="ignore"))
+
+    def test_allegato_download_authenticated_returns_file(self):
+        self.client.force_login(self.user)
+        url = reverse("diario_preposto:allegato_download", args=[self.allegato.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment;", response["Content-Disposition"])
+        body = b"".join(response.streaming_content) if response.streaming else response.content
+        self.assertEqual(body, b"contenuto riservato")
+
+    def test_allegato_download_authenticated_creates_audit_log(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.user)
+        before = AuditLog.objects.count()
+        url = reverse("diario_preposto:allegato_download", args=[self.allegato.pk])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        created = AuditLog.objects.filter(
+            azione="download_allegato", modulo="diario_preposto",
+        ).order_by("-id").first()
+        self.assertIsNotNone(created)
+        self.assertEqual(AuditLog.objects.count(), before + 1)
+        payload = created.dettaglio or {}
+        self.assertEqual(payload.get("esito"), "success")
+        self.assertEqual(payload.get("allegato_id"), self.allegato.id)
+        self.assertEqual(payload.get("segnalazione_id"), self.segnalazione.id)
+        # Nessun contenuto file nel payload audit
+        serialized = repr(payload)
+        self.assertNotIn("contenuto riservato", serialized)

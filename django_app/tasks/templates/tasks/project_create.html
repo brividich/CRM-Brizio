@@ -58,6 +58,8 @@
     background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;
     color: #9a3412; font-size: 12px;
   }
+  .kc-required { color: #b91c1c; }
+  .kc-required-hint { font-size: 11px; font-weight: 400; color: #64748b; }
 
   body.theme-dark .kc-wizard-steps { background:var(--surface); border-color:var(--border); }
   body.theme-dark .kc-step { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
@@ -113,7 +115,7 @@
         {% if form.non_field_errors %}<div class="err">{{ form.non_field_errors }}</div>{% endif %}
         <div class="kc-form-grid">
           <div class="field span-2">
-            <label for="{{ form.client_name.id_for_label }}">Cliente</label>
+            <label for="{{ form.client_name.id_for_label }}">Cliente <span class="kc-required">*</span></label>
             {{ form.client_name }}
             {% if form.client_name.errors %}<div class="err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
           </div>
@@ -167,7 +169,7 @@
           </div>
         </div>
 
-        <div class="kc-section-title">Team di progetto</div>
+        <div class="kc-section-title">Team di progetto <span class="kc-required">*</span> <span class="kc-required-hint">(almeno uno obbligatorio)</span></div>
         <div class="kc-form-grid">
           <div class="field">
             <label for="{{ form.project_manager.id_for_label }}">Project manager</label>

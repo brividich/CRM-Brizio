@@ -95,6 +95,45 @@
     {# Colonna principale #}
     <div class="hd-board-main">
 
+      {# Manutenzione in scadenza per famiglia #}
+      {% if maintenance_by_family %}
+      <div class="hd-section">
+        <div class="hd-section-title">
+          Manutenzione in scadenza
+          <span class="hd-section-badge hd-maint-badge">prossimi 90 gg</span>
+        </div>
+        <div class="hd-table-wrap">
+          <table class="hd-table hd-maint-table">
+            <thead>
+              <tr>
+                <th>Famiglia</th>
+                <th class="hd-maint-th-num">Coinvolti</th>
+                <th class="hd-maint-th-num">Manutentati</th>
+                <th class="hd-maint-th-num">Da manutentare</th>
+                <th class="hd-maint-th-bar">Avanzamento</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for fam in maintenance_by_family %}
+              <tr>
+                <td class="hd-maint-family">{{ fam.label }}</td>
+                <td class="hd-maint-td-num hd-maint-coinvolti">{{ fam.coinvolti }}</td>
+                <td class="hd-maint-td-num hd-maint-done">{{ fam.manutentati }}</td>
+                <td class="hd-maint-td-num {% if fam.da_manutentare %}hd-maint-todo{% else %}hd-maint-done{% endif %}">{{ fam.da_manutentare }}</td>
+                <td class="hd-maint-td-bar">
+                  <div class="hd-maint-bar-track" data-pct="{{ fam.percent_done }}">
+                    <div class="hd-maint-bar-fill {% if fam.percent_done == 100 %}hd-maint-bar-green{% elif fam.percent_done >= 50 %}hd-maint-bar-yellow{% else %}hd-maint-bar-red{% endif %}"></div>
+                  </div>
+                  <span class="hd-maint-bar-label">{{ fam.percent_done }}%</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
       {# Moduli #}
       {% if modules %}
       <div class="hd-section">
@@ -304,4 +343,12 @@
   </footer>
 
 </div>{# .hd-wrap #}
+<script>
+(function () {
+  document.querySelectorAll(".hd-maint-bar-track[data-pct]").forEach(function (track) {
+    var fill = track.querySelector(".hd-maint-bar-fill");
+    if (fill) fill.style.width = (parseInt(track.dataset.pct, 10) || 0) + "%";
+  });
+})();
+</script>
 {% endblock %}

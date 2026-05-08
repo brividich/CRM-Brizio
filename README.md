@@ -136,7 +136,7 @@ sequenceDiagram
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
-| 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione (card grid), work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
+| 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
 | 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
 | 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
@@ -273,16 +273,18 @@ Anagrafica master del portale, integrata con Active Directory e tabelle legacy.
 
 Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT, infrastruttura, software.
 
-- **27+ modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
+- **35+ modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log/Checklist, WorkOrderChecklist, PeriodicVerification, MaintenanceRule, MaintenanceRuleAssetOverride, MaintenanceInterventionTemplate, AssetMeter, AssetMeterHistory, AssetMaintenanceRuleState, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
 - **Tipi asset**: PC, Portatile, Server, VM, Firewall, Stampante, Dispositivo, Fonia, CNC, Macchina di lavoro, Carroponte, Videosorveglianza, Altro
-- **Inventario IT** su `/assets/dispositivi/` — card grid con filtri per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
-- **Inventario produzione** su `/assets/work-machines/` — card grid con foto, badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
+- **Inventari asset** su `/assets/lista/`, `/assets/dispositivi/` e `/assets/work-machines/` con tabelle operative allineate sulle colonne comuni **Asset, Stato, Categoria, Responsabile, Collocazione, Produttore, Modello, Seriale, Aggiornato**. I dati specialistici (IP/VLAN, capability macchina, foto, manutenzioni, campi dinamici e note tecniche) restano nella scheda del singolo asset, così le liste rimangono confrontabili e leggere
+- **Inventario IT** su `/assets/dispositivi/` — tabella filtrabile per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
+- **Inventario produzione** su `/assets/work-machines/` — tabella con badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
-- **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
+- **Categorie asset gerarchiche** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`; la tab mostra impatto operativo, contatori, preview degli asset collegati in popup e azione rapida per pubblicare la categoria nel menu laterale come lista filtrata. Il catalogo CSV/XLSX puo creare categorie padre (`famiglia`) e sottocategorie (`sottocategoria`) con `import_assets_catalog`
 - **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
 - **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, path logico `assets_admin_deadlines/<asset_tag>/<completion_id>/`, storage privato `ASSETS_PRIVATE_ROOT` e download autenticato da `/assets/scadenze/allegati/<id>/download/`; migrazione operativa file legacy: `manage.py migrate_admin_deadline_attachments_private --apply --delete-source`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
+- **Audit log download** allegati sensibili (non loggati path fisici, contenuto file, token o segreti)
 - **Scadenzario unificato** su `/assets/manutenzione/prossime/`: oltre alle regole manutenzione giorni-base, la pagina elenca anche le **verifiche periodiche pianificate** (sezione dedicata sopra lo scadenzario regole) con stato `Scaduta / In scadenza / Pianificata`, filtri condivisi (asset, status, ricerca) e link diretti al piano. I KPI di sintesi sommano regole + verifiche periodiche
 - **Planimetrie** con marker posizionabili, aree, officine, TVCC
 - **Calendario asset** su `/assets/calendario/` — vista mensile (FullCalendar) + Gantt (frappe-gantt) con filtri macchina/reparto
@@ -295,6 +297,16 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Registro manutenzione unificato** su dettaglio asset: unisce WorkOrder (interventi esterni) e ticket MAN (manutenzioni straordinarie interne con `include_in_maintenance_register=True`) in un unico elenco ordinato per data, con badge distinti per sorgente, tecnico/fornitore appropriato e stati localizzati (PATCH 21E)
 - **Generazione massiva WorkOrder** da regola/categoria: service `generate_workorders_for_rule(rule, user=None)` crea un WorkOrder per ogni asset della categoria con `reference_batch` comune non vuoto, `origin=PERIODIC`, `kind=PREVENTIVE` e prevenzione duplicati nello stesso batch (PATCH 21A-FINAL)
 - **Test completi registro manutenzione**: 10 test dedicati per creazione WorkOrder manuale, registro manutenzione asset, generazione massiva, `reference_batch`, verifica cross-asset, upload allegati rapportino, visibilita allegati, registro unificato PERIODIC/MANUAL/TICKET, esclusione ticket IT e ticket MAN con flag (PATCH 21A-FINAL)
+- **Piano ammodernamento manutenzione** (P1–P3 completato):
+  - **Checklist OdL** (`/assets/workorders/<id>/checklist/`): step-by-step spuntabili con toggle HTMX e audit `done_at`/`done_by`. Modello `WorkOrderChecklist`
+  - **Segnalazione rapida operatore** (`/assets/segnala/`): form semplificato per aprire un ticket MAN con asset precompilato da QR code
+  - **Landing mobile QR code** (`/assets/qr/<asset_tag>/`): pagina mobile-first scansionabile da QR fisico su macchina — stato, OdL aperti, ultima manutenzione, CTA segnalazione
+  - **Contatori macchine** (`AssetMeter`): tracciamento ore/km/cicli per asset con storico aggiornamenti. Aggiornamento rapido HTMX dalla scheda asset e dalla dashboard officina. Il command `generate_scheduled_workorders` usa i contatori come trigger per le regole `HOURS/KM/CYCLES`
+  - **Report costi per asset**: sezione "Analisi costi" nella scheda asset — costo mese/trimestre/anno, breakdown per tipo intervento con progress bar, delta YoY, costi scadenze amministrative incluse
+  - **Vista to-do manutenzione** (`/assets/manutenzione/todo/`): OdL aperti, scadenze imminenti, verifiche periodiche, macchine utensili e ticket MAN in un'unica pagina con filtro reparto
+  - **Consolidamento `PeriodicVerification` → `MaintenanceRule`**: campo `is_legacy` + management command `migrate_periodic_to_rules` per migrazione guidata con `--dry-run`/`--apply`
+  - **Command schedulabile** `generate_scheduled_workorders`: genera OdL preventivi automaticamente da `MaintenanceRule` attive (DAYS/HOURS/KM/CYCLES), idempotente, con `--dry-run`/`--category`/`--limit`
+
 </details>
 
 <details open>
@@ -314,7 +326,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Impostazioni** tab `Configurazione`, `Riepilogo`, `Ruoli operativi`, `Accessi`, `Promemoria`, `Record`, `Log attivita`; legacy `/tasks/gestione/` → redirect a `Riepilogo`
 - **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
 - **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
-- **Import Excel** massivo per bulk creation
+- **Import Excel/catalogo** massivo per bulk creation: `import_assets_excel` per inventory IT multi-foglio e `import_assets_catalog <file> --dry-run|--commit` per CSV/XLSX normalizzati famiglia/sottocategoria
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 </details>
 
@@ -375,6 +387,7 @@ Sistema ticket per richieste interne con capabilities analitiche avanzate.
 - **Categorie ticket** configurabili con SLA
 - **Upload allegati hardening** con validazione MIME reale (non solo estensione)
 - **Download autenticato** via view Django (non da `/media/tickets/` diretto)
+- **Audit log download** allegati sensibili (non loggati path fisici, contenuto file, token o segreti)
 - **Integrazione registro manutenzione asset**: i ticket MAN con flag `include_in_maintenance_register=True` e asset collegato compaiono nel registro manutenzione dell'asset come interventi straordinari (PATCH 21E)
 </details>
 
@@ -431,7 +444,7 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 
 - **3 modelli**: SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni
 - **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
-- **Allegati multipli** (foto, documenti) con upload hardening
+- **Allegati multipli** (foto, documenti) con upload hardening e **storage privato** (`DIARIO_PREPOSTO_PRIVATE_ROOT`) servito solo via download autenticato `/diario-preposto/allegato/<id>/download/` (no esposizione `/media/` pubblico)
 - **Export Excel** testato con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, `created_at`, `updated_at`)
 - **Export PDF** per singola segnalazione con layout professionale
 - **Follow-up** con azioni correttive e verifica efficacia
@@ -480,6 +493,7 @@ Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Naz
 - **Movimenti** con codice CER, quantità, destinazione, formulario
 - **Formulari** di identificazione rifiuto
 - **Report periodico** per MUD e adempimenti
+- **Audit log download** allegati sensibili (non loggati path fisici, contenuto file, token o segreti)
 </details>
 
 ---
@@ -652,7 +666,7 @@ powershell tools\install-git-hooks.ps1
 | Cache | `DatabaseCache` su SQL Server (prod), `LocMemCache` (dev) |
 | Background | Windows Scheduled Tasks (queue processor, mailbox poll, backup) |
 | Osservabilità | `SafeTimedRotatingFileHandler` multi-process, SQL logging, audit DB |
-| Hardening | `django-axes` rate-limit login, `axes` lockout template, upload MIME validation, CSRF, allowlist SQL |
+| Hardening | `django-axes` rate-limit login, `axes` lockout template, upload MIME validation, CSRF, allowlist SQL, storage privato allegati sensibili, audit log download, `validate_deployment` check logs/secrets/deployment |
 
 Dipendenze: [`django_app/requirements.in`](django_app/requirements.in) (sorgente) → [`django_app/requirements.txt`](django_app/requirements.txt) (generato da pip-compile)
 
@@ -810,8 +824,29 @@ python django_app\manage.py makemigrations --check --dry-run --settings=config.s
 python django_app\manage.py test assets.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py test automazioni.tests --settings=config.settings.test --verbosity 2
 python django_app\manage.py validate_deployment --settings=config.settings.test
-# Stato atteso: assets.tests 157 OK, automazioni.tests 310 OK,
-# validate_deployment OK=19 WARN=3 FAIL=0.
+# Stato atteso: assets.tests 159 OK, automazioni.tests 310 OK,
+# validate_deployment OK=23 WARN=2 FAIL=4 (FAIL simulati/attesi nei test).
+
+# Validazione SEC-HARDENING-03 (File Exposure, Upload Validation, Audit Logging, Deploy Hardening)
+python django_app\manage.py test diario_preposto.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test tickets.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test dpi.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test core.test_upload_mime --settings=config.settings.test --verbosity 2
+python django_app\manage.py validate_deployment --settings=config.settings.test
+# Stato atteso: diario_preposto.tests 9 OK, tickets.tests 22 OK, dpi.tests 14 OK,
+# validate_deployment OK=23 WARN=2 FAIL=4 (FAIL simulati/attesi nei test).
+# Nota: prima del deploy reale eseguire validate_deployment sull'ambiente target
+# e richiedere FAIL=0 (i test includono scenari FAIL simulati/attesi).
+
+# Validazione PATCH21-VALIDATION (registro manutenzione, ticket MAN, KPI famiglia, Antincendio, DPI, Diario Preposto export)
+python django_app\manage.py test assets.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test tickets.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test dpi.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test diario_preposto.tests --settings=config.settings.test --verbosity 2
+python django_app\manage.py test automazioni.tests --settings=config.settings.test --verbosity 2
+# Stato atteso: assets.tests 159 OK, tickets.tests 22 OK, dpi.tests 14 OK,
+# diario_preposto.tests 9 OK, automazioni.tests 310 OK.
+# Gap minore: Ticket.include_in_maintenance_register non modificabile dopo creazione.
 
 # Patch 21 guard/audit locale
 .\scripts\patch21_guard.ps1

@@ -2263,6 +2263,13 @@ def dashboard_hub_preview(request):
     except Exception:
         pass
 
+    maintenance_by_family: list = []
+    try:
+        from assets.services.dashboard_kpi import get_maintenance_status_by_family
+        maintenance_by_family = get_maintenance_status_by_family()
+    except Exception:
+        pass
+
     ctx.update({
         "page_title": "Hub Preview",
         "greeting_name": display_name,
@@ -2273,5 +2280,6 @@ def dashboard_hub_preview(request):
         "pending_approvals": ctx.get("ctx_widget", {}),
         "hub_branding": hub_branding,
         "hub_is_staff": request.user.is_staff,
+        "maintenance_by_family": maintenance_by_family,
     })
     return render(request, "core/pages/dashboard_hub_preview.html", ctx)

@@ -2,6 +2,173 @@
 
 ## [Unreleased]
 
+### Fix branding — silenzio 404 logo compresso mancante
+
+- **[fix] `core/branding.py`**: aggiunta funzione `_local_media_url_exists(url)` che verifica se un path `/media/...` esiste fisicamente su disco prima di restituirlo come URL. I campi `brand_logo_full`, `brand_logo_compact` e `brand_favicon` vengono resettati a stringa vuota se il file non esiste; i template mostrano il monogramma fallback e non viene mai emessa la richiesta HTTP → nessun 404 nei log. URL esterni (http/https) e path non-media non sono interessati dal controllo. Importati `pathlib.Path` e `django.conf.settings`.
+
+### P3.5 — Aggiornamento contatori macchina da tablet
+
+- **[feat] `assets/views.py:work_machine_dashboard`**: aggiunta precarica batch di tutti gli `AssetMeter` delle macchine presenti nella dashboard (`meters_by_asset_id`); calcolata la lista `machines_with_meters` (macchine con almeno un contatore configurato). Aggiunte le due chiavi al context del render.
+- **[feat] `assets/templates/assets/pages/work_machine_dashboard.html`**: aggiunta sezione "Contatori macchine" (visibile solo se `machines_with_meters` non è vuoto). Per ogni macchina con contatori mostra nome/tag/reparto e carica via `hx-trigger="load"` il partial `asset_meter_panel.html` già realizzato in P2.2 — form di aggiornamento ore/km/cicli con feedback immediato HTMX senza navigare alla scheda asset.
+
+### P2.2 — Soglie ore/km/cicli operative (`AssetMeter`)
+
+- **[feat] `assets/models.py:AssetMeter`**: nuovo modello per tracciare i contatori ore/km/cicli/altro di ogni asset. Campi: `asset` FK, `meter_type` (HOURS/KM/CYCLES/OTHER), `current_value` DecimalField, `unit_label`, `updated_by` FK, `notes`. Constraint unique su `(asset, meter_type)`. Metodo `update_value(new_value, user)` che aggiorna il valore e crea automaticamente un record `AssetMeterHistory`.
+- **[feat] `assets/models.py:AssetMeterHistory`**: nuovo modello di audit trail per ogni aggiornamento contatore. Campi: `meter` FK, `old_value`, `new_value`, `recorded_by`, `recorded_at`.
+- **[feat] `assets/models.py:WorkOrder`**: aggiunto campo `meter_value_at_close` (DecimalField nullable) per registrare il valore del contatore al momento della chiusura di un OdL periodico — usato dal command `generate_scheduled_workorders` per calcolare il delta dall'ultimo intervento.
+- **[feat] `assets/migrations/0064_assetmeter_assetmeterhistory_and_more.py`**: migrazione per `AssetMeter`, `AssetMeterHistory` e constraint `uniq_asset_meter_type`.
+- **[feat] `assets/migrations/0065_workorder_meter_value_at_close.py`**: migrazione per `WorkOrder.meter_value_at_close`.
+- **[feat] `assets/admin.py`**: registrazione `AssetMeterAdmin` con inline `AssetMeterHistoryInline` (storico sola lettura) e `AssetMeterHistoryAdmin` (sola lettura, no add).
+- **[feat] `assets/views.py:asset_meter_update`**: nuova view `@login_required` a `/assets/<asset_id>/meters/`. GET carica il partial HTMX con i contatori e lo storico recente. POST aggiorna il contatore selezionato, crea un record di storico e loga l'azione con `log_action`. Restituisce il partial `asset_meter_panel.html` per swap `outerHTML` senza reload.
+- **[feat] `assets/urls.py`**: URL `assets/<int:asset_id>/meters/` con name `asset_meter_update`.
+- **[feat] `assets/templates/assets/components/asset_meter_panel.html`**: nuovo template partial HTMX con `id="asset-meter-panel"`. Mostra le card valore corrente per ogni contatore, form di aggiornamento rapido (select contatore + input valore), storico aggiornamenti in `<details>`. Dark mode via `body.theme-dark`. Fallback nativo POST se HTMX non disponibile.
+- **[feat] `assets/templates/assets/pages/asset_detail.html`**: pannello contatori inserito nella card MAINTENANCE dopo la sezione "Analisi costi". Caricato via `hx-trigger="load"` al montaggio della pagina.
+- **[feat] `assets/management/commands/generate_scheduled_workorders.py`**: esteso per gestire `threshold_type=HOURS/KM/CYCLES`. Per ogni regola non-DAYS: cerca il contatore `AssetMeter` dell'asset del tipo corretto; calcola il delta rispetto al `meter_value_at_close` dell'ultimo OdL periodico chiuso; genera l'OdL se `delta >= threshold * (1 - warning_days/threshold)`. Salta senza errori se l'asset non ha il contatore del tipo richiesto (`skipped_no_meter`). Summary aggiornato con contatore `SenzaContatore`.
+
+### P3.4 — Report costi manutenzione per asset/periodo
+
+- **[feat] `assets/services/dashboard_kpi.py:get_asset_maintenance_costs`**: nuova funzione che aggrega i costi di manutenzione per un asset su tre orizzonti temporali (mese corrente, trimestre corrente, anno corrente). Calcola: costi OdL per periodo (`Sum("cost_eur")` suddiviso per tipo intervento), costi scadenze amministrative (`AssetAdministrativeDeadlineCompletion.cost_eur`), breakdown per `kind` (etichetta, costo, percentuale, progress bar width), delta YoY (anno corrente vs anno precedente) con badge colorato verde/rosso/neutro. Restituisce `has_data=False` se non ci sono dati per nascondere la sezione. Tutti i `Sum` in try/except indipendenti per compatibilità mssql-django (nessun `ExpressionWrapper`/`DurationField`).
+- **[feat] `assets/views.py:asset_detail`**: aggiunta chiamata a `get_asset_maintenance_costs(asset.id, today=today)` con guard `try/except` globale per robustezza su DB mssql. Context key `asset_maintenance_costs` passato al template.
+- **[feat] `assets/templates/assets/pages/asset_detail.html`**: aggiunta sezione "Analisi costi" nel card MAINTENANCE, dopo il blocco `deadline_completion_history`. Racchiusa in `{% if asset_maintenance_costs.has_data %}`. Struttura: griglia KPI 3 colonne (mese/trimestre/anno con costo + numero OdL), riga scadenze + totale combinato + badge YoY, breakdown per tipo con barra progress colorata, percentuale e costo assoluto. Dark mode via `body.theme-dark`.
+
+### P3.3 — Landing mobile-first da QR code
+
+- **[feat] `assets/views.py:asset_qr_landing`**: nuova view `@login_required` a `/assets/qr/<asset_tag>/`, accessibile scansionando il QR fisico sull'asset. Mostra: header colorato con nome/tag/reparto, stato asset con badge, giorni dall'ultimo intervento chiuso, prossima scadenza amministrativa, lista OdL aperti (max 5). Usa `asset_tag` come chiave lookup (univoca sul QR fisico). Gestisce il caso asset non trovato con pagina di errore friendly.
+- **[feat] `assets/urls.py`**: URL `assets/qr/<str:asset_tag>/` con name `asset_qr_landing`.
+- **[feat] `assets/templates/assets/pages/asset_qr_landing.html`**: template mobile-first che estende `core/base.html` (no sidebar, layout a colonna singola, max-width 480px). CTA primaria "Segnala un problema" (→ P3.2 con `?asset=` precompilato), CTA secondarie "Interventi" e "Scheda completa". Dark mode via `prefers-color-scheme`.
+- **[feat] `assets/views.py:_asset_qr_target_url`**: aggiunto target `landing` per puntare il QR al `/assets/qr/<asset_tag>/` invece della scheda admin completa — configurabile dal designer etichette.
+- **[ux] `assets/views.py` (action buttons)**: aggiunto pulsante "Vista QR mobile" nella zona quick actions della `asset_detail`.
+
+### P3.2 — Form segnalazione rapida operatore
+
+- **[feat] `assets/views.py:asset_quick_report`**: nuova view `@login_required` a `/assets/segnala/`. Mostra un form semplificato per operatori non-admin: seleziona asset (filtrati su non-IT, `status=IN_USE`) oppure descrive il punto di intervento in testo libero; compila titolo, descrizione, categoria MAN, priorità e flag sicurezza. Al POST crea un `Ticket(tipo=MAN, include_in_maintenance_register=True)` con l'identità del richiedente derivata dal `legacy_user` o dal profilo Django. Loga l'azione con `log_action`. Modelli `tickets` importati localmente inside-function. Su successo mostra banner verde con link al ticket creato.
+- **[feat] `assets/urls.py`**: URL `assets/segnala/` con name `asset_quick_report`.
+- **[feat] `assets/templates/assets/pages/asset_quick_report.html`**: template con form a colonna singola, pre-selezione asset da querystring `?asset=<id>` (utile per link da QR code), categorie MAN dinamiche, radio priorità, checkbox sicurezza, banner successo/errore. CSS `.qr-*` con dark mode.
+- **[ux] `assets/views.py:_default_sidebar_buttons`**: aggiunte voci "To-do manutenzione" e "Segnala un problema" come sub-item della sezione Interventi nella sidebar assets.
+
+### P3.1 — Checklist step-by-step in OdL
+
+- **[feat] `assets/models.py:WorkOrderChecklist`**: nuovo modello con `work_order` FK, `step_number`, `description`, `is_done`, `done_at`, `done_by`. Metodo `toggle(user)` che segna/deseleziona lo step aggiornando timestamp e autore.
+- **[feat] `assets/migrations/0063_workorderchecklist.py`**: migrazione Django per il nuovo modello.
+- **[feat] `assets/views.py`**: tre nuove view HTMX — `workorder_checklist_add` (POST aggiunge step), `workorder_checklist_toggle` (POST inverte `is_done`), `workorder_checklist_delete` (POST elimina step). Tutte restituiscono il partial `workorder_checklist.html` per aggiornamento `outerHTML` senza reload pagina. Aggiunto `HttpResponseForbidden` all'import da `django.http`. View `workorder_detail` arricchita con `checklist_items`, `checklist_done_count`, `checklist_total`, `is_open`.
+- **[feat] `assets/urls.py`**: tre nuove URL — `wo_checklist_add`, `wo_checklist_toggle`, `wo_checklist_delete`.
+- **[feat] `assets/templates/assets/components/workorder_checklist.html`**: nuovo template partial HTMX con `id="wod-checklist-section"`. Mostra badge progresso (n/tot), lista step con toggle/delete, form aggiunta step inline. Toggle e delete usano `hx-post` + `hx-swap="outerHTML"` per aggiornamento reattivo senza JS custom. Fallback nativo se HTMX non caricato.
+- **[ux] `assets/templates/assets/pages/workorder_detail.html`**: incluso il partial `workorder_checklist.html` tra la card principale e la card allegati. Aggiunte classi CSS `.wod-cl-*` con dark mode.
+
+### P2.4 — Consolidamento `PeriodicVerification` → `MaintenanceRule`
+
+- **[feat] `assets/models.py:PeriodicVerification`**: aggiunto campo `is_legacy = BooleanField(default=False, db_index=True)`. Se `True` indica che il trigger temporale è stato migrato a una `MaintenanceRule`; il record rimane come riferimento fornitore/contratto e non genera nuovi OdL automatici.
+- **[feat] `assets/migrations/0062_periodicverification_is_legacy.py`**: migrazione Django per il nuovo campo.
+- **[feat] `assets/management/commands/migrate_periodic_to_rules.py`** (nuovo file): command Django per la migrazione dati. Per ogni `PeriodicVerification` attiva e non-legacy con tutti gli asset nella stessa `AssetCategory`: converte `frequency_months` in giorni (×30), trova o crea il `MaintenanceInterventionTemplate` equivalente, trova o crea la `MaintenanceRule` corrispondente, poi imposta `is_legacy=True`. Supporta `--dry-run`, `--apply`, `--pv-id` (singolo piano), `--only-legacy` (mostra piani già migrati). Idempotente: esecuzioni multiple non creano duplicati. Salta piani senza asset o con categorie miste.
+- **[ux] `assets/templates/assets/pages/periodic_verification_list.html`**: aggiunto banner giallo "Sezione in transizione" con spiegazione del percorso di migrazione. Mostra dinamicamente il conteggio piani già migrati (`is_legacy=True`). Aggiunte classi CSS `.pv-banner-deprecation` con dark mode.
+- **[feat] `assets/views.py:periodic_verification_list`**: aggiunto `legacy_verification_count` al contesto (sum dei piani `is_legacy=True` tra i risultati visualizzati).
+
+### P2.3 — Vista "To-do manutenzione" per tecnico/reparto
+
+- **[feat] `assets/views.py:maintenance_todo`**: nuova view `@login_required` alla URL `/assets/manutenzione/todo/`. Aggrega in un'unica pagina: OdL aperti (distinti in ritardo/recenti, filtro per esecutore se non admin), scadenze amministrative in scadenza entro 30 gg, verifiche periodiche in scadenza entro 30 gg, macchine utensili con `next_maintenance_date` nei prossimi 14 gg. Integrazione con modulo `tickets` per mostrare ticket MAN aperti. Filtro per reparto. KPI chips nell'header con conteggi e link alle view di dettaglio.
+- **[feat] `assets/templates/assets/pages/maintenance_todo.html`**: template con 5 sezioni (OdL / Scadenze / Verifiche / Macchine / Ticket MAN), colori semantici rosso/ambra/verde per priorità, tabelle responsive, dark mode. Sezione ticket MAN condizionale (visibile solo se ci sono ticket).
+- **[feat] `assets/urls.py`**: aggiunta URL `assets/manutenzione/todo/` con name `maintenance_todo`.
+
+### P2.1 — Management command `generate_scheduled_workorders`
+
+- **[feat] `assets/management/commands/generate_scheduled_workorders.py`** (nuovo file): comando Django che genera automaticamente `WorkOrder` periodici da `MaintenanceRule` attive con `threshold_type=DAYS`. Per ogni coppia (asset, rule): salta se override `is_disabled=True`; salta se esiste già un WO OPEN per quella coppia; calcola `next_due = last_wo_done.closed_at + threshold_days` (o `today` se mai eseguito); crea OdL se `next_due <= today + rule.warning_days`. Rispetta `MaintenanceRuleAssetOverride` per soglia e template. Idempotente: nessun duplicato su esecuzioni multiple. Supporta `--dry-run`, `--category` (filtra per categoria), `--limit`. Precarica override e OdL aperti in batch per evitare N+1.
+
+### P1.4 — Management command `send_maintenance_reminders`
+
+- **[feat] `assets/management/commands/send_maintenance_reminders.py`** (nuovo file): comando Django schedulabile via Windows Task Scheduler. Controlla 3 fonti: `AssetAdministrativeDeadline` in scadenza entro N giorni (default 30), `PeriodicVerification` in scadenza entro N giorni, `WorkOrder` aperti da più di 21 giorni. Destinatari configurabili via `SiteConfig.assets_reminder_emails`, altrimenti `settings.ADMINS`, altrimenti superuser con email. Soglia giorni configurabile via `SiteConfig.assets_reminder_days` o `--deadline-days`. Supporta `--dry-run` e `--recipients`. Invio via `django.core.mail.send_mail` (SMTP già configurato nel progetto).
+
+### P1.3 — Auto-aggiornamento `next_maintenance_date` alla chiusura OdL periodico
+
+- **[feat] `assets/models.py:WorkOrder.close()`**: dopo il `save()` dell'OdL, se `status=DONE`, `origin=PERIODIC` e `maintenance_rule_id` è valorizzato, tenta di ricalcolare `WorkMachine.next_maintenance_date = closed_date + timedelta(days=rule.threshold_value)` sulla macchina utensile collegata (`asset.work_machine`). Condizionato a `threshold_type=DAYS` (gli altri tipi non sono ancora operativi). L'aggiornamento è silenzioso in caso di errore (try/except) per non bloccare la chiusura OdL. Nessun effetto su OdL correttivi/manuali.
+
+### P1.2 — Timeline scadenze amministrative eseguite nella scheda asset
+
+- **[feat] `assets/views.py:asset_detail`**: aggiunta query `deadline_completion_history` che recupera i `AssetAdministrativeDeadlineCompletion` dell'asset con `select_related("deadline", "completed_by")`, ordinati per `-completed_on, -id`, limite 20. Il risultato è esposto al template come `deadline_completion_history`.
+- **[feat] `assets/templates/assets/pages/asset_detail.html`**: nella card `MAINTENANCE`, dopo la tabella "Storico interventi", aggiunta sezione condizionale "Scadenze amministrative eseguite" — tabella con colonne Data / Tipo (badge) / Scadenza (link) / Eseguita da / Costo / Stato (badge verde "Completato"). Sezione visibile solo se esistono completamenti. Nessuna query N+1 grazie a `select_related`.
+
+### P1.1 — KPI performance manutenzione: dashboard asset arricchita con MTTR, downtime, costi, backlog
+
+- **[feat] `assets/services/dashboard_kpi.py`**: aggiunto `Avg` all'import. Nuova funzione `get_maintenance_performance_kpis(today, lookback_days=30)` che calcola `mttr_hours` (media ore OdL correttivi chiusi), `downtime_hours_month`, `maintenance_cost_month`, `wo_open_by_kind` con `percent` relativo al totale, `wo_open_total`, `ticket_man_open`, `wo_closed_month`, `has_data`. Ogni aggregazione in try/except indipendente; compatibile con mssql-django (no ExpressionWrapper/DurationField).
+- **[feat] `assets/views.py:asset_dashboard`**: importata e chiamata `get_maintenance_performance_kpis`; risultato passato al template come `maintenance_perf` (wrappato in try/except esterno).
+- **[feat] `assets/templates/assets/pages/asset_dashboard.html`**: aggiunta sezione "Performance manutenzione" con panel `.ad-perf` contenente: 4 card (MTTR, downtime ore, costo mese, ticket MAN); 2 panel minibar (OdL per tipo con link filtrati + riepilogo mese). Sezione condizionale su `maintenance_perf.has_data`. Numeri cliccabili verso `assets:wo_list` e `tickets:gestione_list?tipo=MAN`. Aggiunte classi CSS `.ad-perf`, `.ad-perf-grid`, `.ad-perf-panel-row`, `.ad-perf-val-link` con dark mode.
+- **[feat] `docs/ai/10_MAINTENANCE_MODERNIZATION.md`**: creato documento checklist operativa del piano di ammodernamento manutenzione (P1.1→P3.5) con stato aggiornabile da agenti AI.
+- **[chore] `docs/ai/00_INDEX.md`**: aggiunto riferimento al nuovo file `10_MAINTENANCE_MODERNIZATION.md`.
+
+### Dashboard famiglie asset — striscia manutenzione: avviso "tutto in ordine" e numeri cliccabili
+
+- **[ux] `assets/views.py:asset_administrative_deadline_list`**: aggiunti `family_filter` e `family_label` al context del render (erano calcolati ma non esposti al template).
+- **[ux] `assets/templates/assets/pages/device_list.html`**: la striscia `.dv-maint-strip` è ora sempre visibile; quando `maint_kpis.coinvolti == 0` mostra un avviso verde "Nessuna scadenza nei prossimi 90 giorni — tutto in ordine"; il numero "Coinvolti" linka a `asset_administrative_deadline_list?family=it`; il numero "Da manutentare" linka alla stessa pagina con `status=overdue` (o `all` se zero). Aggiunte classi CSS `.dv-maint-ok-notice` e override link su `.dv-maint-val a`.
+- **[ux] `assets/templates/assets/pages/work_machine_dashboard.html`**: stessa logica con classi `wmd-`; il numero "Coinvolti" linka a `work_machine_list`; "Da manutentare" linka a `#wmd-reminder` (anchor sulla card reminder nella stessa pagina); aggiunto `id="wmd-reminder"` all'article della card Reminder manutenzione.
+
+### Dashboard famiglie asset — striscia manutenzione in scadenza
+
+- **[feat] `assets/services/dashboard_kpi.py:get_maintenance_kpis_for_types`**: nuova funzione single-family che riceve una lista di `asset_type` e restituisce `coinvolti / manutentati / da_manutentare / percent_done` con 2 query su `AssetAdministrativeDeadline` (finestra 90 gg) e `AssetAdministrativeDeadlineCompletion` (lookback 365 gg).
+- **[feat] `assets/views.py:device_list`**: aggiunta chiamata a `get_maintenance_kpis_for_types(IT_DEVICE_TYPES)`; risultato passato al template come `maint_kpis`.
+- **[feat] `assets/views.py:work_machine_dashboard`**: derivati `coinvolti / manutentati / da_manutentare / percent_done` dai valori già presenti in contesto senza query aggiuntive; passati come `maint_kpis`.
+- **[feat] `assets/templates/assets/pages/device_list.html`**: aggiunta striscia `.dv-maint-strip` con 3 indicatori + barra di avanzamento colorata dopo i KPI; fix 5 inline style preesistenti estratti in classi CSS.
+- **[feat] `assets/templates/assets/pages/work_machine_dashboard.html`**: stessa striscia con classi `wmd-maint-*`; barre `.wmd-progress-fill` migrate da `style="width:X%"` a `data-pct` + JS; fix inline style cella vuota → `wmd-td-empty`.
+
+### Registro manutenzione asset — manutenzione pianificata nel dettaglio singolo asset
+
+- **[fix] `assets/views.py:asset_detail`**: rimosso codice morto (prima assegnazione di `maintenance_rows` da `asset.workorders.select_related(...).all()[:10]` che veniva immediatamente sovrascritta dal registro unificato `collect_asset_maintenance_register`).
+- **[feat] `assets/views.py:asset_detail`**: aggiunta `asset_schedule_rows` al contesto del template; la variabile è già calcolata da `build_day_based_maintenance_schedule_rows` ma non era esposta alla view.
+- **[feat] `assets/templates/assets/pages/asset_detail.html`**: nella card `MAINTENANCE` aggiunta sezione "Manutenzione pianificata" (tabella regole periodiche con colonne Intervento / Cadenza / Ultima esecuzione / Prossima scadenza / Stato e badge colorati per stato scadenza) prima della sezione "Storico interventi". Se l'asset non ha regole attive, viene mostrato un messaggio esplicativo.
+- **[ux] `assets/templates/assets/pages/asset_detail.html`**: aggiunto pulsante "Scadenzario" (link a `asset_maintenance_schedule_url`) nell'header della card `MAINTENANCE`, accanto a "Regole manutenzione" e "Manutenzione periodica".
+
+### Dashboard — widget manutenzione in scadenza per famiglia asset
+
+- **[feat] `assets/services/dashboard_kpi.py:get_maintenance_status_by_family`**: nuova funzione che raggruppa asset per famiglia di `asset_type` (IT, Produzione, Videosorveglianza, Altro) e per ogni famiglia calcola — in 2 query — `coinvolti` (asset con scadenza attiva entro 90 gg), `manutentati` (sottoinsieme con almeno un'esecuzione negli ultimi 365 gg) e `da_manutentare`. Aggiunta anche costante `_ASSET_TYPE_FAMILY_MAP` e dizionario `_TYPE_TO_FAMILY` per il mapping tipo→famiglia. Aggiunta import di `AssetAdministrativeDeadlineCompletion` alle importazioni del modulo.
+- **[feat] `dashboard/views.py:dashboard_hub_preview`**: aggiunta chiamata a `get_maintenance_status_by_family()` con risultato passato al template come `maintenance_by_family`; wrappato in `try/except` per non bloccare la dashboard in caso di errore.
+- **[feat] `core/templates/core/pages/dashboard_hub_preview.html`**: aggiunta sezione "Manutenzione in scadenza" nella colonna principale del Hub Preview, prima dei moduli; tabella con righe per famiglia (Coinvolti, Manutentati, Da manutentare) + barra di avanzamento colorata (verde ≥100%, giallo ≥50%, rosso <50%); larghezza barra impostata via JS da attributo `data-pct` per evitare inline style; sezione nascosta se `maintenance_by_family` è vuoto.
+- **[feat] `core/static/core/css/hub_dashboard.css`**: aggiunte classi `.hd-maint-*` per la tabella, i valori numerici colorati e la barra di avanzamento; responsive: colonna barra nascosta sotto 700px.
+
+### Selezione multipla e modifica massiva asset (bulk edit) — dropdown reali e campi aggiuntivi
+
+- **[feat] `assets/templates/assets/pages/asset_list.html`**: completato il JS `applyBulkBtn` aggiungendo i campi `asset_type` e `assignment_location` alla lista di triple campo/checkbox/valore; tutti e 8 i campi del modal ora vengono correttamente inviati alla view.
+- **[feat] `assets/templates/assets/pages/device_list.html`**: modal bulk edit completamente riscritto — reparto, produttore, modello, collocazione ora usano `<select>` alimentati da `AssetListOption` (context `bulk_list_options`); aggiunti campi tipo asset (da `asset_type_choices`), categoria (da `bulk_asset_categories`), collocazione e note; JS aggiornato con le 8 triple; stili inline estratti in classi CSS `.dv-bulk-notes-row` e `.dv-bulk-notes-ta`.
+- **[feat] `assets/templates/assets/pages/work_machine_list.html`**: stesso intervento di `device_list.html` con prefisso `wm-`; classi CSS `.wm-bulk-notes-row` e `.wm-bulk-notes-ta` aggiunte al blocco stile.
+- **[feat] `assets/views.py:asset_bulk_update`**: aggiunto supporto a `asset_category_id` tra i campi modificabili in blocco; la validazione verifica che l'ID sia un intero e che la categoria esista, oppure accetta stringa vuota per rimuovere la categoria.
+
+### Validazione obbligatoria form Nuovo kickoff (`tasks/projects/new/`)
+
+- **[fix] `tasks/forms.py:ProjectKickoffForm.__init__`**: rimosso `client_name` dalla lista dei campi `required=False`; il campo "Cliente" è ora obbligatorio a livello di form Django.
+- **[fix] `tasks/forms.py:ProjectKickoffForm.clean`**: aggiunta validazione che almeno uno tra `project_manager`, `capo_commessa` e `programmer` sia compilato; in caso contrario viene sollevato un `ValidationError` con messaggio esplicito sul team di progetto.
+- **[ux] `tasks/templates/tasks/project_create.html`**: aggiunti indicatori visivi obbligatorietà (`*` rosso su "Cliente", `*` + hint su "Team di progetto"); stili estratti in classi CSS `.kc-required` e `.kc-required-hint` nel blocco `<style>` del template.
+
+### Fix ProgrammingError SQL Server — ORDER BY senza GROUP BY in `_build_asset_category_admin_rows`
+
+- **[fix] `assets/views.py:_build_asset_category_admin_rows`**: aggiunto `.order_by()` alle 4 query aggregate (`asset_stats`, `field_stats`, `child_counts`, `open_workorders`) che usano `.values().annotate()` senza ordinamento esplicito. Su SQL Server, `mssql-django` applicava automaticamente il `Meta.ordering` del modello all'`ORDER BY` senza aggiungerlo al `GROUP BY`, producendo l'errore 8127 (`assets_asset.name` non valido in ORDER BY). La pagina `/assets/impostazioni/?tab=categorie` ora funziona correttamente.
+
+### Audit log download allegati sensibili (Agent 3 — download audit logging)
+
+- **[security] Audit trail download allegati ticket** (`tickets/views.py:ticket_download_allegato`): aggiunto `log_action(request, "download_allegato", "tickets", ...)` con `esito` `success`/`denied`/`not_found`. Su success vengono loggati `allegato_id`, `ticket_id` e `filename` logico (mai path fisico, token o contenuto file). Su `denied` (utente non richiedente/gestore/admin) viene loggato `motivo: permission_denied` senza esporre il nome del file.
+- **[security] Audit trail download allegati Diario Preposto** (`diario_preposto/views.py:allegato_download`): aggiunto `log_action(request, "download_allegato", "diario_preposto", ...)` su success/not_found con `allegato_id`, `segnalazione_id`, `filename`. Il payload non contiene path fisici.
+- **[security] Audit trail download immagini timbri** (`timbri/views.py:serve_timbri_image`): aggiunto `log_action(request, "download_timbri_image", "timbri", ...)` con `esito` `success`/`denied`/`not_found`. Su denied (utente senza permessi ACL) viene loggato `permission_denied` senza esporre il nome file fisico.
+- **[security] Audit trail esteso download deadline asset** (`assets/views.py:admin_deadline_attachment_download`): l'azione `download_admin_deadline_attachment` ora copre anche i percorsi `denied` (non admin) e `not_found`, oltre al success preesistente. Aggiunto `filename` logico al payload success.
+- **[test] Copertura audit download** (`tickets/tests.py:TicketDownloadAuditTests`, `diario_preposto/tests.py:test_allegato_download_authenticated_creates_audit_log`, `assets/tests.py:test_admin_deadline_attachment_download_creates_audit_log`/`test_admin_deadline_attachment_denied_creates_audit_without_path`, `timbri/tests.py:TimbriDownloadAuditTests`): aggiunti test che verificano (1) creazione `AuditLog` con `esito=success` su download autorizzato, (2) audit con `esito=denied`/`motivo=permission_denied` su accesso non autorizzato, (3) assenza nel payload audit di path fisici (`MEDIA_ROOT`/`ASSETS_PRIVATE_ROOT`/`TIMBRI_PRIVATE_ROOT`), contenuto file e nome file fisico in caso di denied.
+
+### Diario Preposto — Storage privato allegati segnalazioni (Agent 1 — file exposure audit)
+
+- **[security] Allegati Diario Preposto non piu' esposti via /media/ pubblico** (`diario_preposto/storage.py`, `diario_preposto/models.py`, `diario_preposto/migrations/0005_private_storage.py`, `config/settings/base.py`): introdotto `PrivateDiarioPrepostoStorage` (stesso pattern di `tickets/storage.py` e `assets/storage.py`). Il `FileField` di `SegnalazioneAllegato` usa ora `DIARIO_PREPOSTO_PRIVATE_ROOT` (default `BASE_DIR/media_private`). I file legacy gia' presenti in `MEDIA_ROOT` restano leggibili come fallback solo tramite la view di download protetta (mai via URL diretto). Lo storage solleva `NotImplementedError` se qualcuno richiama `.url` sull'allegato.
+- **[security] Nuova view di download autenticata** (`diario_preposto/views.py:allegato_download`, `diario_preposto/urls.py`): aggiunta `GET /diario-preposto/allegato/<id>/download/` con `@login_required`. Restituisce `FileResponse` `as_attachment=True` con `Content-Type` derivato dal nome originale; risponde `404` se il file e' assente. Le segnalazioni di sicurezza non sono piu' raggiungibili anonimamente via URL `/media/diario_preposto/...`.
+- **[security] API e cancellazioni non leggono piu' `.path`/`.url`** (`diario_preposto/views.py:api_allegato_upload`, `api_allegato_delete`, `elimina`): l'upload risponde ora con `reverse('diario_preposto:allegato_download', ...)` invece di `allegato.file.url`; le rimozioni usano `allegato.file.storage.delete(name)` invece di `os.remove(allegato.file.path)`, supportando sia il nuovo storage privato sia i path legacy in `MEDIA_ROOT`.
+- **[security] Template aggiornati al download protetto** (`diario_preposto/templates/diario_preposto/pages/dettaglio.html`, `form.html`): i link "Scarica" puntano a `{% url 'diario_preposto:allegato_download' a.pk %}` (rimosso `target="_blank"` su URL autenticato per evitare apertura in nuova tab gestita dal browser senza redirect login).
+- **[test] Copertura download autenticato** (`diario_preposto/tests.py:SegnalazioneAllegatoDownloadTests`): aggiunti `test_allegato_download_requires_login` (anonimo riceve redirect login, contenuto file non leakato) e `test_allegato_download_authenticated_returns_file` (utente autenticato scarica il file con `Content-Disposition: attachment`).
+
+### Deployment hardening — `validate_deployment` (Agent 4)
+
+- **[security] Check DJANGO_SECRET_KEY rafforzato** (`core/management/commands/validate_deployment.py:check_django_settings`): oltre al placeholder, ora si segnalano: prefisso `django-insecure-` (chiave da `startproject`) e lunghezza inferiore a 50 caratteri. Severita' FAIL in prod, WARN in dev/test.
+- **[security] DEBUG=True in prod ora e' FAIL** (`core/management/commands/validate_deployment.py:check_django_settings`, `check_security`): non piu' WARN, in coerenza con esposizione tracebacks.
+- **[security] ALLOWED_HOSTS wildcard '*'** (`core/management/commands/validate_deployment.py:check_django_settings`): nuovo check che blocca in prod (FAIL) e avvisa in dev/test (WARN) sull'host header poisoning.
+- **[security] DJANGO_LOG_DIR obbligatorio in prod** (`core/management/commands/validate_deployment.py:check_django_settings`): allineamento al guard di `config/settings/base.py` (resta loggato come check esplicito anche quando si esegue il comando con `--settings=config.settings.test` contro un `.env` produttivo).
+- **[security] ASSETS_PRIVATE_ROOT containment check** (`core/management/commands/validate_deployment.py:check_static_media`, helper `_path_under`): nuovo check FAIL/WARN che impedisce di posizionare lo storage privato sotto `MEDIA_ROOT` (esposizione web). Aggiunta anche presenza obbligatoria in prod.
+- **[security] SESSION_COOKIE_SECURE / CSRF_COOKIE_SECURE** (`core/management/commands/validate_deployment.py:check_security`): nuovi check con severita' adattata all'ambiente (FAIL in prod, WARN altrove).
+- **[security] CSRF_TRUSTED_ORIGINS no-wildcard** (`core/management/commands/validate_deployment.py:check_security`): rileva valori `*`, `*://*` e prefissi wildcard (FAIL in prod, WARN altrove).
+- **[security] AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED** (`core/management/commands/validate_deployment.py:check_security`): warning esplicito in prod quando attivato (privilegio elevato: DDL diretta su DB).
+- **[infra] Helper severita'** (`core/management/commands/validate_deployment.py:_is_prod_environment`, `_severity_for_env`, `_path_under`): nuove utility che rilevano l'ambiente da `DJANGO_SETTINGS_MODULE`/`MONITORING_ENVIRONMENT` e scelgono FAIL in prod / WARN altrove. Mantengono la compatibilita' di `--settings=config.settings.test`.
+- **[test] Copertura nuovi check** (`core/test_validate_deployment.py`): aggiunti test per `SECRET_KEY` corta (`test_short_secret_key_warns_outside_prod`), prefisso `django-insecure-` (`test_django_insecure_prefix_warns_outside_prod`), `ALLOWED_HOSTS=['*']` (`test_wildcard_allowed_hosts_warn_outside_prod`), `ASSETS_PRIVATE_ROOT` sotto `MEDIA_ROOT` (`test_assets_private_root_under_media_root_warns`), `CSRF_TRUSTED_ORIGINS=['*']` (`test_csrf_trusted_origins_wildcard_warns`).
+- **[docs] `.env.example`** (`.env.example`, `django_app/.env.example`): aggiunti commenti sui requisiti di `DJANGO_SECRET_KEY` (lunghezza, no `django-insecure-`), `DJANGO_ALLOWED_HOSTS` (no wildcard), `DJANGO_LOG_DIR` (obbligatorio in prod), `ASSETS_PRIVATE_ROOT` (no sotto `MEDIA_ROOT`), `AUTOMAZIONI_TRIGGER_DB_APPLY_ENABLED` (warning in prod) e nuovo placeholder `DJANGO_CSRF_TRUSTED_ORIGINS`.
+
 ### Hub Preview — Gestione pulsanti, branding e dashboard principale
 
 - **[feat] Pulsanti Manager** (`hub_tools/views.py`, `hub_tools/urls.py`, `hub_tools/templates/hub_tools/pulsanti_manager.html`): nuova sezione admin `/admin-portale/hub/pulsanti/` per la gestione completa dei pulsanti hub. Permette inserimento, modifica, cambio logo (upload file PNG/JPG/SVG/WebP max 2 MB), abilitazione/disabilitazione e cancellazione. I loghi vengono salvati in `media/hub_pulsanti_logos/` e la path aggiornata in `ui_pulsanti_meta.card_image`. Include API endpoints JSON: `save`, `logo`, `toggle`, `delete`.
@@ -36,7 +203,7 @@
 
 - **[fix] Icone corrotte nel catalogo guide nascoste invece di comparire come testo sporco**: `hub_tools/views.py` svuota ora le icone con encoding sospetto e i template `guide_list.html` / `guide_view.html` renderizzano l'icona solo se valida, evitando prefissi tipo `ðŸ...` davanti ai titoli delle card e del visualizzatore.
 
-### Modulo Automazioni
+### Modulo Automazioni — Fix queue e schema SQL Server
 
 - **[fix] Queue automazioni compatibile con schema legacy senza `execute_after`**: `process_automation_queue` non va piu in crash sui database dove `dbo.automation_event_queue` non e' ancora stata riallineata. Il fetch degli eventi `pending` degrada automaticamente senza il filtro schedulato, cosi trigger `INSERT`/`UPDATE` come quelli di `assenze` tornano processabili.
 - **[fix] `assenze -> send_approval` riallineato a `capi_reparto.id`**: l'arricchimento runtime del payload automazioni risolve ora `capo_email` prima dal record locale `capi_reparto` (campo `indirizzo_email`, con fallback `utente_id`), invece di trattare sempre `capo_reparto_id` come `utenti.id`. Le regole di approvazione sulle nuove richieste assenza tornano quindi a inviare l'email al responsabile corretto.

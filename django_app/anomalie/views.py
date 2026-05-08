@@ -28,6 +28,11 @@ from config.env_config import get_first_env_value, load_env_file_values, resolve
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns, sync_django_user_from_legacy
 from core.models import AuditLog, Notifica, Profile
@@ -2825,9 +2830,33 @@ def api_anomalie_config_logo(request):
     uploaded = request.FILES.get("logo")
     if not uploaded:
         return JsonResponse({"success": False, "error": "Nessun file ricevuto"}, status=400)
-    ext = Path(uploaded.name).suffix.lower()
-    if ext not in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}:
-        return JsonResponse({"success": False, "error": f"Formato non supportato: {ext}"}, status=400)
+    safe_name = safe_filename(uploaded.name)
+    ext = Path(safe_name).suffix.lower() if safe_name else ""
+    # Per il logo, usiamo whitelist allargata che include SVG (testuale) e
+    # validazione MIME via libmagic per i formati binari. Bloccato fail-closed.
+    binary_exts = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    if ext == ".svg":
+        size = int(getattr(uploaded, "size", 0) or 0)
+        if size <= 0:
+            return JsonResponse({"success": False, "error": "Logo: file vuoto"}, status=400)
+        if size > 2 * 1024 * 1024:
+            return JsonResponse({"success": False, "error": "Logo: supera il limite di 2 MB"}, status=400)
+    elif ext in binary_exts:
+        try:
+            validate_extension_and_mime(
+                uploaded,
+                allowed_extensions=binary_exts,
+                allowed_mimes={
+                    "image/png", "image/jpeg", "image/gif", "image/webp",
+                },
+                max_bytes=2 * 1024 * 1024,
+                label=safe_name or "Logo",
+                allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            return JsonResponse({"success": False, "error": str(exc)}, status=400)
+    else:
+        return JsonResponse({"success": False, "error": f"Formato non supportato: {ext or 'sconosciuto'}"}, status=400)
     logo_dir = Path(settings.MEDIA_ROOT) / "anomalie_logo"
     logo_dir.mkdir(parents=True, exist_ok=True)
     logo_path = logo_dir / f"menu_logo{ext}"

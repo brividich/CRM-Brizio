@@ -808,6 +808,74 @@ body.theme-dark .hub-page .hd-admin-btn:hover {
   color: var(--hub-ink);
 }
 
+/* ── Widget manutenzione in scadenza per famiglia ───────────────────────── */
+.hub-page .hd-maint-badge {
+  background: rgba(197,138,21,.12);
+  color: var(--hub-warning);
+}
+
+.hub-page .hd-maint-table th,
+.hub-page .hd-maint-table td { vertical-align: middle; }
+
+.hub-page .hd-maint-th-num,
+.hub-page .hd-maint-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+  width: 90px;
+}
+
+.hub-page .hd-maint-th-bar { width: 140px; }
+.hub-page .hd-maint-td-bar { width: 140px; padding-right: 12px; }
+
+.hub-page .hd-maint-family { font-weight: 600; color: var(--hub-ink); }
+
+.hub-page .hd-maint-coinvolti { color: var(--hub-blue-2); }
+.hub-page .hd-maint-done      { color: var(--hub-success); }
+.hub-page .hd-maint-todo      { color: var(--hub-danger); }
+
+.hub-page .hd-maint-td-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hub-page .hd-maint-bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--hub-line);
+  overflow: hidden;
+}
+
+.hub-page .hd-maint-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .3s;
+}
+
+.hub-page .hd-maint-bar-green  { background: var(--hub-success); }
+.hub-page .hd-maint-bar-yellow { background: var(--hub-warning); }
+.hub-page .hd-maint-bar-red    { background: var(--hub-danger); }
+
+.hub-page .hd-maint-bar-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--hub-muted);
+  min-width: 28px;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .hub-page .hd-maint-th-bar,
+  .hub-page .hd-maint-td-bar { display: none; }
+  .hub-page .hd-maint-th-num,
+  .hub-page .hd-maint-td-num { width: auto; }
+}
+
+/* ── Fine widget manutenzione ───────────────────────────────────────────── */
+
 .hub-page .hd-footer-meta {
   display: flex;
   gap: 14px;

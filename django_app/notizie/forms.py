@@ -3,7 +3,54 @@ from __future__ import annotations
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
+
 from .models import Notizia, NotiziaAllegato, NotiziaAudience
+
+
+# Allegati notizie: documenti, immagini, e file Office. 25 MB.
+NOTIZIE_ALLEGATO_MAX_BYTES = 25 * 1024 * 1024
+NOTIZIE_ALLEGATO_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".txt",
+    ".csv",
+    ".zip",
+}
+NOTIZIE_ALLEGATO_MIMES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/octet-stream",
+}
 
 
 class NotiziaForm(forms.ModelForm):
@@ -81,8 +128,22 @@ class NotiziaAllegatoForm(forms.ModelForm):
         if not file_obj and not url_esterno:
             raise forms.ValidationError("Inserisci un file o un URL esterno.")
 
+        if file_obj:
+            try:
+                validate_extension_and_mime(
+                    file_obj,
+                    allowed_extensions=NOTIZIE_ALLEGATO_EXTENSIONS,
+                    allowed_mimes=NOTIZIE_ALLEGATO_MIMES,
+                    max_bytes=NOTIZIE_ALLEGATO_MAX_BYTES,
+                    label=safe_filename(getattr(file_obj, "name", "")) or "Allegato",
+                    allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                raise forms.ValidationError(str(exc))
+
         if not nome_file and file_obj:
-            cleaned["nome_file"] = str(getattr(file_obj, "name", "allegato")).strip()[:300]
+            safe_name = safe_filename(getattr(file_obj, "name", ""))
+            cleaned["nome_file"] = (safe_name or "allegato")[:300]
 
         if not cleaned.get("nome_file"):
             raise forms.ValidationError("Inserisci un nome allegato.")

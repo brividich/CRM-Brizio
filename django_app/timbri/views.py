@@ -1525,11 +1525,41 @@ def serve_timbri_image(request, image_id: int):
     I file sono in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
     """
     if not _can_view_timbri(request):
+        log_action(
+            request,
+            "download_timbri_image",
+            "timbri",
+            {
+                "image_id": int(image_id),
+                "esito": "denied",
+                "motivo": "permission_denied",
+            },
+        )
         return HttpResponseForbidden("Accesso non autorizzato.")
     img = get_object_or_404(RegistroTimbroImmagine, pk=image_id)
     storage = img.image.storage
     if not img.image or not img.image.name or not storage.exists(img.image.name):
+        log_action(
+            request,
+            "download_timbri_image",
+            "timbri",
+            {
+                "image_id": img.id,
+                "registro_id": getattr(img, "registro_id", None),
+                "esito": "not_found",
+            },
+        )
         return HttpResponse("Immagine non trovata.", status=404)
     ext = Path(img.image.name).suffix.lower()
     content_type = "image/png" if ext == ".png" else "image/jpeg" if ext in {".jpg", ".jpeg"} else "application/octet-stream"
+    log_action(
+        request,
+        "download_timbri_image",
+        "timbri",
+        {
+            "image_id": img.id,
+            "registro_id": getattr(img, "registro_id", None),
+            "esito": "success",
+        },
+    )
     return FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)

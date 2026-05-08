@@ -146,7 +146,7 @@ body.theme-dark .dp-btn-pdf     { background:rgba(15,118,110,.2); color:#2dd4bf;
           <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
             <div class="dp-allegato-icon">[file]</div>
             <div class="dp-allegato-name">{{ a.nome_file }}</div>
-            <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
+            <a href="{% url 'diario_preposto:allegato_download' a.pk %}" rel="noopener" class="dp-allegato-link">Scarica</a>
             {% if can_write %}
             <button
               class="dp-allegato-del"

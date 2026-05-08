@@ -8,7 +8,53 @@ from django.db import DatabaseError
 from django.db.models import Q
 
 from core.legacy_models import UtenteLegacy
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
 from attrezzature.models import Attrezzatura
+
+
+# Allegati task/progetto: 30 MB, formati office/immagini/PDF.
+TASKS_ATTACHMENT_MAX_BYTES = 30 * 1024 * 1024
+TASKS_ATTACHMENT_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".txt",
+    ".csv",
+    ".zip",
+}
+TASKS_ATTACHMENT_MIMES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/octet-stream",
+}
 
 from .models import (
     KickoffMeeting, Project, ProjectComment, SubTask, Task, TaskAttachment,
@@ -135,7 +181,7 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["project_manager"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         self.fields["capo_commessa"].queryset   = _users_for_role(TaskRoleType.CAPO_COMMESSA)
         self.fields["programmer"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
-        for name in ("client_name", "part_number", "revisione", "versione",
+        for name in ("part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
                      "vrf_description", "vrf_esp"):
             self.fields[name].required = False
@@ -145,6 +191,20 @@ class ProjectKickoffForm(forms.ModelForm):
         part_number = (cleaned.get("part_number") or "").strip()
         revisione   = (cleaned.get("revisione") or "").strip()
         versione    = (cleaned.get("versione") or "").strip()
+
+        client_name = (cleaned.get("client_name") or "").strip()
+        if not client_name:
+            self.add_error("client_name", "Il campo Cliente è obbligatorio.")
+
+        team_filled = any([
+            cleaned.get("project_manager"),
+            cleaned.get("capo_commessa"),
+            cleaned.get("programmer"),
+        ])
+        if not team_filled:
+            raise forms.ValidationError(
+                "Almeno un membro del team di progetto (Project manager, Capocommessa o Programmatore) è obbligatorio."
+            )
 
         if (revisione or versione) and not part_number:
             raise forms.ValidationError(
@@ -930,6 +990,19 @@ class TaskAttachmentForm(forms.ModelForm):
         attach_to = cleaned_data.get("attach_to")
         if attach_to == self.TARGET_PROJECT and (not self.task or not self.task.project_id):
             self.add_error("attach_to", "L'attivita non e collegata a un kickoff.")
+        uploaded_file = cleaned_data.get("file")
+        if uploaded_file:
+            try:
+                validate_extension_and_mime(
+                    uploaded_file,
+                    allowed_extensions=TASKS_ATTACHMENT_EXTENSIONS,
+                    allowed_mimes=TASKS_ATTACHMENT_MIMES,
+                    max_bytes=TASKS_ATTACHMENT_MAX_BYTES,
+                    label=safe_filename(getattr(uploaded_file, "name", "")) or "Allegato",
+                    allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                self.add_error("file", str(exc))
         return cleaned_data
 
     def _post_clean(self):

@@ -57,6 +57,7 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     "/api/gestione-reparto/",
     "/api/employee-board/widget/",
     "/gestione_utenti/modifica/",
+    "/diario-preposto/allegato/",
 )
 
 
@@ -82,7 +83,6 @@ def _path_matches_prefixes(path: str, prefixes: tuple[str, ...]) -> bool:
     return False
 
 
-@lru_cache(maxsize=4)
 def _route_names_to_paths(route_names: tuple[str, ...]) -> frozenset[str]:
     paths: set[str] = set()
     for route_name in route_names:

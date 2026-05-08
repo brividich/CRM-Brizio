@@ -325,6 +325,7 @@ STATIC_ROOT = Path(env("STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
 MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
+DEV_SERVE_STATIC_AND_MEDIA = False
 
 # ── Backup automatico ────────────────────────────────────────────────────────
 # BACKUP_DIR: directory radice dove vengono salvati i backup automatici.
@@ -341,6 +342,9 @@ TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 ASSETS_PRIVATE_ROOT = Path(env("ASSETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Allegati Diario Preposto (segnalazioni di sicurezza): storage privato con
+# fallback compatibile sui file legacy in MEDIA_ROOT.
+DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

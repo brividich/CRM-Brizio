@@ -157,7 +157,7 @@ body.theme-dark .dp-btn-outline { background:var(--surface-alt); color:var(--tex
             <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
               <span>[file]</span>
               <span class="dp-allegato-name">{{ a.nome_file }}</span>
-              <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
+              <a href="{% url 'diario_preposto:allegato_download' a.pk %}" rel="noopener" class="dp-allegato-link">Scarica</a>
               <button type="button" class="dp-allegato-del"
                       onclick="deleteAllegato({{ a.pk }}, this)"
                       title="Rimuovi">X</button>

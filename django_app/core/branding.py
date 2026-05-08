@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
 
+from django.conf import settings
 from django.db import DatabaseError
 from core.models import SiteConfig
 
@@ -109,6 +111,22 @@ def _normalize_bool(value: str | int | bool, default: bool = False) -> bool:
     return default
 
 
+def _local_media_url_exists(url: str) -> bool:
+    """Ritorna False se il path punta a /media/... ma il file non esiste su disco.
+    Per URL esterni (http/https) e path non-media ritorna sempre True."""
+    cleaned = str(url or "").strip()
+    if not cleaned:
+        return False
+    if not cleaned.startswith("/media/"):
+        return True
+    relative = cleaned.split("?")[0][len("/media/"):]
+    try:
+        media_root = Path(settings.MEDIA_ROOT)
+        return (media_root / relative).is_file()
+    except Exception:
+        return True
+
+
 def _append_asset_cache_bust(url: str, version_token: str) -> str:
     cleaned = str(url or "").strip()
     token = str(version_token or "").strip()
@@ -137,17 +155,23 @@ def get_portal_branding() -> PortalBranding:
             asset_versions[chiave] = str(int(updated_at.timestamp()))
     portal_name = str(values.get("portal_name") or "").strip()
     portal_subtitle = str(values.get("portal_subtitle") or "").strip()
-    brand_logo_full = _append_asset_cache_bust(
-        str(values.get("brand_logo_full") or "").strip(),
-        asset_versions.get("brand_logo_full", ""),
+    _logo_full_raw = str(values.get("brand_logo_full") or "").strip()
+    brand_logo_full = (
+        _append_asset_cache_bust(_logo_full_raw, asset_versions.get("brand_logo_full", ""))
+        if _local_media_url_exists(_logo_full_raw)
+        else ""
     )
-    brand_logo_compact = _append_asset_cache_bust(
-        str(values.get("brand_logo_compact") or "").strip(),
-        asset_versions.get("brand_logo_compact", ""),
+    _logo_compact_raw = str(values.get("brand_logo_compact") or "").strip()
+    brand_logo_compact = (
+        _append_asset_cache_bust(_logo_compact_raw, asset_versions.get("brand_logo_compact", ""))
+        if _local_media_url_exists(_logo_compact_raw)
+        else ""
     )
-    brand_favicon = _append_asset_cache_bust(
-        str(values.get("brand_favicon") or "").strip(),
-        asset_versions.get("brand_favicon", ""),
+    _favicon_raw = str(values.get("brand_favicon") or "").strip()
+    brand_favicon = (
+        _append_asset_cache_bust(_favicon_raw, asset_versions.get("brand_favicon", ""))
+        if _local_media_url_exists(_favicon_raw)
+        else ""
     )
     brand_logo_full_height = _normalize_int(
         values.get("brand_logo_full_height", PORTAL_BRANDING_DEFAULTS["brand_logo_full_height"]),

@@ -377,6 +377,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 {% if can_manage_asset_maintenance_rules %}
                   <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Regole manutenzione</a>
                 {% endif %}
+                <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_schedule_url }}">Scadenzario</a>
                 <a class="af-btn af-btn-ghost" href="{{ periodic_verification_manage_url }}">Manutenzione periodica</a>
                 <a class="af-btn af-btn-primary" href="{% url 'assets:wo_create' asset.id %}?kind=CORRECTIVE&source=asset_detail">+ Nuova manutenzione straordinaria</a>
               </div>
@@ -422,6 +423,54 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </ol>
           </div>
         {% elif card.code == "MAINTENANCE" %}
+          <!-- Manutenzione pianificata (regole periodiche per questo asset) -->
+          <div style="padding:12px 16px 0;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Manutenzione pianificata</div>
+          </div>
+          {% if asset_schedule_rows %}
+            <div class="af-table-wrap">
+              <table class="af-table">
+                <thead>
+                  <tr>
+                    <th>Intervento</th>
+                    <th>Cadenza</th>
+                    <th>Ultima esecuzione</th>
+                    <th>Prossima scadenza</th>
+                    <th>Stato</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in asset_schedule_rows %}
+                    <tr>
+                      <td>{{ row.effective_intervention_template.label|default:row.base_rule.code|default:"—" }}</td>
+                      <td style="white-space:nowrap;">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}</td>
+                      <td>
+                        {% if row.last_execution_date %}
+                          {{ row.last_execution_date|date:"d/m/Y" }}
+                        {% else %}
+                          <span style="color:#94a3b8;font-size:11px;">—</span>
+                        {% endif %}
+                      </td>
+                      <td style="white-space:nowrap;">
+                        {% if row.due_date %}
+                          {{ row.due_date|date:"d/m/Y" }}
+                        {% else %}
+                          <span style="color:#94a3b8;">—</span>
+                        {% endif %}
+                      </td>
+                      <td><span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div style="padding:4px 16px 12px;font-size:13px;color:#94a3b8;">Nessuna regola manutenzione pianificata per questo asset.</div>
+          {% endif %}
+          <!-- Storico interventi -->
+          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Storico interventi</div>
+          </div>
           <div class="af-table-wrap">
             <table class="af-table">
               <thead>
@@ -489,6 +538,141 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               </tbody>
             </table>
           </div>
+
+          {# ── Scadenze eseguite (completamenti amministrativi) ──────── #}
+          {% if deadline_completion_history %}
+          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Scadenze amministrative eseguite</div>
+          </div>
+          <div class="af-table-wrap">
+            <table class="af-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Scadenza</th>
+                  <th>Eseguita da</th>
+                  <th>Costo</th>
+                  <th>Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for comp in deadline_completion_history %}
+                <tr>
+                  <td style="white-space:nowrap;">{{ comp.completed_on|date:"d/m/Y" }}</td>
+                  <td>
+                    <span class="as-badge as-badge--muted">{{ comp.deadline.get_deadline_type_display }}</span>
+                  </td>
+                  <td>
+                    <a href="{{ asset_administrative_deadline_list_url }}" style="color:#1d4ed8;text-decoration:none;">{{ comp.deadline.title }}</a>
+                    {% if comp.deadline.reference_code %}
+                      <span style="font-size:11px;color:#94a3b8;margin-left:4px;">{{ comp.deadline.reference_code }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if comp.completed_by %}{{ comp.completed_by.get_full_name|default:comp.completed_by.username }}{% else %}&mdash;{% endif %}
+                  </td>
+                  <td style="white-space:nowrap;">
+                    {% if comp.cost_eur %}&euro;&nbsp;{{ comp.cost_eur|floatformat:2 }}{% else %}&mdash;{% endif %}
+                  </td>
+                  <td><span class="as-badge as-badge--ok">Completato</span></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+
+          {# ── Analisi costi manutenzione (P3.4) ─────────────────────── #}
+          {% if asset_maintenance_costs.has_data %}
+          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Analisi costi manutenzione</div>
+          </div>
+          <div style="padding:10px 16px 14px;display:grid;gap:10px;">
+
+            {# KPI per periodo #}
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
+                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Mese</div>
+                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+                  {% if asset_maintenance_costs.cost_month %}&euro;&nbsp;{{ asset_maintenance_costs.cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_month }} intervento/i</div>
+              </div>
+              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
+                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">{{ asset_maintenance_costs.quarter_label }}</div>
+                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+                  {% if asset_maintenance_costs.cost_quarter %}&euro;&nbsp;{{ asset_maintenance_costs.cost_quarter|floatformat:0 }}{% else %}&mdash;{% endif %}
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_quarter }} intervento/i</div>
+              </div>
+              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
+                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Anno {{ asset_maintenance_costs.year }}</div>
+                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+                  {% if asset_maintenance_costs.cost_year %}&euro;&nbsp;{{ asset_maintenance_costs.cost_year|floatformat:0 }}{% else %}&mdash;{% endif %}
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_year }} intervento/i</div>
+              </div>
+            </div>
+
+            {# Costi scadenze amministrative + confronto YoY #}
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+              {% if asset_maintenance_costs.deadline_cost_year %}
+              <div style="font-size:12px;color:#475569;">
+                Scadenze amm. {{ asset_maintenance_costs.year }}: <strong>&euro;&nbsp;{{ asset_maintenance_costs.deadline_cost_year|floatformat:0 }}</strong>
+                &nbsp;&middot;&nbsp; Totale: <strong>&euro;&nbsp;{{ asset_maintenance_costs.total_cost_year|floatformat:0 }}</strong>
+              </div>
+              {% endif %}
+              {% if asset_maintenance_costs.yoy_pct is not None %}
+              <div style="margin-left:auto;">
+                {% if asset_maintenance_costs.yoy_delta > 0 %}
+                  <span style="background:#fee2e2;color:#991b1b;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
+                    +{{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}
+                  </span>
+                {% elif asset_maintenance_costs.yoy_delta < 0 %}
+                  <span style="background:#dcfce7;color:#166534;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
+                    {{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}
+                  </span>
+                {% else %}
+                  <span style="background:#f1f5f9;color:#475569;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
+                    Invariato vs {{ asset_maintenance_costs.prev_year }}
+                  </span>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+
+            {# Breakdown per tipo (anno corrente) #}
+            {% if asset_maintenance_costs.kind_breakdown %}
+            <div style="display:grid;gap:4px;">
+              {% for row in asset_maintenance_costs.kind_breakdown %}
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="font-size:12px;color:#475569;min-width:90px;">{{ row.label }}</div>
+                <div style="flex:1;background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden;">
+                  <div style="height:100%;background:#3b82f6;border-radius:4px;width:{{ row.percent }}%;"></div>
+                </div>
+                <div style="font-size:12px;color:#0f172a;font-weight:700;min-width:70px;text-align:right;">
+                  {% if row.cost %}&euro;&nbsp;{{ row.cost|floatformat:0 }}{% else %}&mdash;{% endif %}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;min-width:32px;text-align:right;">{{ row.percent }}%</div>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+          </div>
+          {% endif %}
+
+          {# ── Contatori asset (P2.2) — ore/km/cicli ────────────────────── #}
+          <div style="border-top:1px solid #f1f5f9;padding:4px 16px 4px;">
+            <div id="asset-meter-panel"
+                 hx-get="{% url 'assets:asset_meter_update' asset.pk %}"
+                 hx-trigger="load"
+                 hx-swap="outerHTML">
+              <span style="font-size:.82rem;color:#aaa;">Caricamento contatori…</span>
+            </div>
+          </div>
+
         {% elif card.code == "TICKETS" %}
           <!-- Azioni rapide ticket / intervento -->
           <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid #f1f5f9;align-items:center;">

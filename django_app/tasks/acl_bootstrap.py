@@ -273,8 +273,13 @@ def _bootstrap_canonical_acl(*, seed_role_grants: bool = False) -> bool:
                 binding.save(update_fields=[*updates, "updated_at"])
                 changed = True
 
+        existing_nav_item = (
+            NavigationItem.objects.filter(section="topbar", route_name="tasks:list")
+            .order_by("id")
+            .first()
+        )
         nav_item, created = NavigationItem.objects.update_or_create(
-            code="tasks",
+            code=existing_nav_item.code if existing_nav_item else "tasks",
             defaults={
                 "label": "KICK-OFF",
                 "route_name": "tasks:list",

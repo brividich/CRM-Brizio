@@ -625,3 +625,108 @@ class TicketMaintenanceRegisterTests(TestCase):
         ticket_ids = [row["ticket"].id for row in ticket_rows]
         self.assertNotIn(ticket_excluded.id, ticket_ids)
         self.assertNotIn(ticket_it.id, ticket_ids)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketDownloadAuditTests(TestCase):
+    """Verifica che i download di allegati siano tracciati in AuditLog (Patch 21H)."""
+
+    def setUp(self):
+        super().setUp()
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="ticket-audit-user",
+            password="pass12345",
+            email="ticket-audit@example.com",
+        )
+        self.other_user = User.objects.create_user(
+            username="ticket-audit-other",
+            password="pass12345",
+            email="ticket-audit-other@example.com",
+        )
+        _complete_onboarding(self.user)
+        _complete_onboarding(self.other_user)
+        self.ticket = Ticket.objects.create(
+            tipo="IT",
+            titolo="Ticket Audit",
+            descrizione="Audit download allegati",
+            categoria="PC",
+            priorita=PrioritaTicket.MEDIA,
+            richiedente_nome=self.user.username,
+            richiedente_email=self.user.email,
+        )
+
+    def _make_attachment(self, media_root: Path):
+        rel = Path("tickets/allegati/2026/05/audit.txt")
+        full = media_root / rel
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_bytes(b"audit content")
+        return TicketAllegato.objects.create(
+            ticket=self.ticket,
+            file=str(rel).replace("\\", "/"),
+            nome_originale="audit.txt",
+            tipo_mime="text/plain",
+            uploaded_by_nome=self.user.username,
+        )
+
+    def test_authorized_download_creates_success_audit(self):
+        from core.models import AuditLog
+
+        test_dir = _reset_test_dir("tickets_audit_success")
+        media_root = test_dir / "media"
+        private_root = test_dir / "media_private"
+        media_root.mkdir(parents=True, exist_ok=True)
+        private_root.mkdir(parents=True, exist_ok=True)
+        try:
+            with override_settings(MEDIA_ROOT=media_root, TICKETS_PRIVATE_ROOT=private_root):
+                allegato = self._make_attachment(media_root)
+                self.client.force_login(self.user)
+                before = AuditLog.objects.count()
+                response = self.client.get(reverse("tickets:download_allegato", args=[allegato.pk]))
+                self.assertEqual(response.status_code, 200)
+                created = AuditLog.objects.filter(
+                    azione="download_allegato", modulo="tickets",
+                ).order_by("-id").first()
+                self.assertIsNotNone(created)
+                self.assertEqual(AuditLog.objects.count(), before + 1)
+                payload = created.dettaglio or {}
+                self.assertEqual(payload.get("esito"), "success")
+                self.assertEqual(payload.get("allegato_id"), allegato.id)
+                self.assertEqual(payload.get("ticket_id"), self.ticket.id)
+                # Nessun path fisico, token o contenuto file nel payload
+                serialized = repr(payload)
+                self.assertNotIn(str(media_root), serialized)
+                self.assertNotIn(str(private_root), serialized)
+                self.assertNotIn("audit content", serialized)
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)
+
+    def test_denied_download_audits_without_sensitive_details(self):
+        from core.models import AuditLog
+
+        test_dir = _reset_test_dir("tickets_audit_denied")
+        media_root = test_dir / "media"
+        private_root = test_dir / "media_private"
+        media_root.mkdir(parents=True, exist_ok=True)
+        private_root.mkdir(parents=True, exist_ok=True)
+        try:
+            with override_settings(MEDIA_ROOT=media_root, TICKETS_PRIVATE_ROOT=private_root):
+                allegato = self._make_attachment(media_root)
+                self.client.force_login(self.other_user)
+                response = self.client.get(reverse("tickets:download_allegato", args=[allegato.pk]))
+                self.assertEqual(response.status_code, 403)
+                created = AuditLog.objects.filter(
+                    azione="download_allegato", modulo="tickets",
+                ).order_by("-id").first()
+                self.assertIsNotNone(created)
+                payload = created.dettaglio or {}
+                self.assertEqual(payload.get("esito"), "denied")
+                self.assertEqual(payload.get("motivo"), "permission_denied")
+                serialized = repr(payload)
+                self.assertNotIn(str(media_root), serialized)
+                self.assertNotIn(str(private_root), serialized)
+                self.assertNotIn("audit content", serialized)
+                # Nessun nome file fisico esposto su denied
+                self.assertNotIn("audit.txt", serialized)
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)

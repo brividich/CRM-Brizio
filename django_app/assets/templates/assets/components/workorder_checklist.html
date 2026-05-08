@@ -1,0 +1,69 @@
+{# Partial HTMX: sezione checklist OdL. hx-swap="outerHTML" su #wod-checklist-section #}
+<section class="wod-card" id="wod-checklist-section">
+  <div class="wod-card-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+      <h3 class="wod-section-title" style="margin:0;">
+        Checklist operativa
+        {% if checklist_total %}
+          <span class="wod-cl-badge {% if checklist_done_count == checklist_total %}wod-cl-badge--done{% else %}wod-cl-badge--partial{% endif %}">
+            {{ checklist_done_count }}/{{ checklist_total }}
+          </span>
+        {% endif %}
+      </h3>
+    </div>
+
+    {% if checklist_items %}
+      <div class="wod-cl-list">
+        {% for item in checklist_items %}
+          <div class="wod-cl-item {% if item.is_done %}wod-cl-item--done{% endif %}">
+            <div class="wod-cl-left">
+              <span class="wod-cl-num">{{ item.step_number }}</span>
+              <span class="wod-cl-desc">{{ item.description }}</span>
+            </div>
+            <div class="wod-cl-actions">
+              {% if is_open %}
+                <form method="post" action="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
+                      hx-post="{% url 'assets:wo_checklist_toggle' workorder.id item.id %}"
+                      hx-target="#wod-checklist-section"
+                      hx-swap="outerHTML">
+                  {% csrf_token %}
+                  <button class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" type="submit" title="{% if item.is_done %}Segna come da fare{% else %}Segna come fatto{% endif %}">
+                    {% if item.is_done %}&#10003;{% else %}&#9675;{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
+                      hx-post="{% url 'assets:wo_checklist_delete' workorder.id item.id %}"
+                      hx-target="#wod-checklist-section"
+                      hx-swap="outerHTML">
+                  {% csrf_token %}
+                  <button class="wod-cl-del" type="submit" title="Elimina step">&#10005;</button>
+                </form>
+              {% else %}
+                <span class="wod-cl-toggle {% if item.is_done %}wod-cl-toggle--undo{% endif %}" style="cursor:default;">
+                  {% if item.is_done %}&#10003;{% else %}&#9675;{% endif %}
+                </span>
+              {% endif %}
+            </div>
+            {% if item.is_done and item.done_by %}
+              <div class="wod-cl-meta">Fatto da {{ item.done_by.get_full_name|default:item.done_by.username }}{% if item.done_at %} il {{ item.done_at|date:"d/m/Y H:i" }}{% endif %}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="as-note" style="margin:0 0 12px;">Nessuno step nella checklist.</p>
+    {% endif %}
+
+    {% if is_open %}
+      <form method="post" action="{% url 'assets:wo_checklist_add' workorder.id %}"
+            hx-post="{% url 'assets:wo_checklist_add' workorder.id %}"
+            hx-target="#wod-checklist-section"
+            hx-swap="outerHTML"
+            class="wod-cl-add-form">
+        {% csrf_token %}
+        <input type="text" name="description" placeholder="Nuovo step..." maxlength="255" autocomplete="off" class="wod-cl-add-input">
+        <button class="btn btn-primary" type="submit">Aggiungi</button>
+      </form>
+    {% endif %}
+  </div>
+</section>

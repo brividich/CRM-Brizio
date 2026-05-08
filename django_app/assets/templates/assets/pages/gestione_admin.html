@@ -81,7 +81,48 @@
 .sidebar-editor-check { display:inline-flex; align-items:center; gap:8px; font-size:var(--fs-base); color:#0f172a; text-transform:none; }
 .sidebar-editor-check input { margin:0; }
 .sidebar-editor-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.cat-intro { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); gap:14px; align-items:stretch; }
+.cat-create-grid { display:grid; grid-template-columns:minmax(220px,1.2fr) minmax(180px,.8fr) minmax(180px,.8fr) 110px 110px; gap:10px; align-items:end; }
+.cat-help-panel { border:1px solid #dbe3f0; border-radius:11px; background:#f8fbff; padding:12px; display:grid; gap:8px; }
+.cat-workbench { display:grid; gap:12px; }
+.cat-card { border:1px solid #dbe3f0; border-radius:12px; background:#fff; box-shadow:0 2px 6px rgba(15,23,42,.04); overflow:hidden; }
+.cat-card-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:12px 14px; border-bottom:1px solid #e5ecf6; }
+.cat-title-wrap { display:grid; gap:5px; min-width:0; }
+.cat-title-line { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+.cat-title { margin:0; color:#0f172a; font-size:var(--fs-lg); font-weight:800; line-height:1.2; }
+.cat-code { color:#64748b; font-size:var(--fs-xs); font-weight:700; }
+.cat-actions { display:flex; gap:7px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+.cat-body { padding:12px 14px; display:grid; gap:12px; }
+.cat-metrics { display:grid; grid-template-columns:repeat(5, minmax(120px,1fr)); gap:8px; }
+.cat-metric { border:1px solid #edf2f8; border-radius:10px; background:#fbfdff; padding:9px 10px; }
+.cat-metric-label { color:#7e94b2; font-size:var(--fs-xs); text-transform:uppercase; font-weight:800; }
+.cat-metric-value { margin-top:2px; color:#0f172a; font-size:var(--fs-lg); font-weight:800; }
+.cat-split { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,.72fr); gap:10px; align-items:start; }
+.cat-impact { border:1px solid #edf2f8; border-radius:10px; padding:10px; display:grid; gap:8px; }
+.cat-menu-box { border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; padding:10px; display:grid; gap:8px; }
+.cat-menu-box.is-linked { background:#f0fdf4; border-color:#bbf7d0; }
+.cat-menu-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.cat-edit-panel { border-top:1px solid #eef3f9; }
+.cat-edit-panel summary { cursor:pointer; padding:10px 14px; color:#1f64d8; font-weight:800; list-style:none; }
+.cat-edit-panel summary::-webkit-details-marker { display:none; }
+.cat-edit-grid { padding:0 14px 14px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:end; }
+.cat-create-grid .full,
+.cat-edit-grid .full { grid-column:1/-1; }
+.cat-delete-row { display:flex; justify-content:flex-end; padding:0 14px 14px; }
+.cat-preview { width:min(880px, calc(100vw - 36px)); border:none; border-radius:14px; padding:0; box-shadow:0 24px 60px rgba(15,23,42,.25); }
+.cat-preview::backdrop { background:rgba(15,23,42,.38); }
+.cat-preview-head { padding:14px 16px; border-bottom:1px solid #e5ecf6; display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.cat-preview-title { margin:0; color:#0f172a; font-size:var(--fs-xl); font-weight:800; }
+.cat-preview-body { padding:14px 16px; display:grid; gap:12px; }
+.cat-asset-table { width:100%; border-collapse:separate; border-spacing:0; }
+.cat-asset-table th,.cat-asset-table td { padding:8px 10px; border-bottom:1px solid #edf2f8; text-align:left; }
+.cat-asset-table th { color:#7e94b2; font-size:var(--fs-xs); text-transform:uppercase; font-weight:800; background:#f8fbff; }
 @media (max-width: 1000px) {
+  .cat-intro,
+  .cat-split { grid-template-columns:1fr; }
+  .cat-create-grid,
+  .cat-edit-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .cat-metrics { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   .sidebar-editor-grid.meta,
   .sidebar-editor-grid.routes,
   .admin-row,
@@ -94,8 +135,13 @@
 @media (max-width: 640px) {
   .sidebar-editor-grid.meta,
   .sidebar-editor-grid.routes,
+  .cat-create-grid,
+  .cat-edit-grid,
+  .cat-menu-grid,
   .admin-row,
   .admin-item-row { grid-template-columns: 1fr; }
+  .cat-card-head { flex-direction:column; }
+  .cat-actions { justify-content:flex-start; }
   .sidebar-editor-footer { align-items:stretch; }
   .sidebar-editor-actions { width:100%; }
 }
@@ -123,11 +169,56 @@ body.theme-dark .admin-hint { color:var(--text-light); }
 body.theme-dark .muted-note { color:var(--text-light); }
 body.theme-dark .sidebar-editor { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sidebar-editor-check { color:var(--text); }
+body.theme-dark .cat-help-panel,
+body.theme-dark .cat-metric,
+body.theme-dark .cat-impact { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .cat-card,
+body.theme-dark .cat-preview { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .cat-card-head,
+body.theme-dark .cat-edit-panel,
+body.theme-dark .cat-preview-head { border-color:var(--border); }
+body.theme-dark .cat-title,
+body.theme-dark .cat-metric-value,
+body.theme-dark .cat-preview-title { color:var(--text); }
+body.theme-dark .cat-code { color:var(--text-light); }
+body.theme-dark .cat-menu-box { background:rgba(37,99,235,.14); border-color:rgba(147,197,253,.25); }
+body.theme-dark .cat-menu-box.is-linked { background:rgba(21,128,61,.14); border-color:rgba(134,239,172,.25); }
+body.theme-dark .cat-asset-table th { background:var(--thead-bg); color:var(--text-light); }
+body.theme-dark .cat-asset-table th,
+body.theme-dark .cat-asset-table td { border-color:var(--border); }
 body.theme-dark .chip-soft.blue { background:rgba(29,78,216,.25); color:#93c5fd; }
 body.theme-dark .chip-soft.green { background:rgba(21,128,61,.25); color:#86efac; }
 body.theme-dark .chip-soft.slate { background:rgba(255,255,255,.1); color:var(--text-mid); }
 body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 </style>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  document.querySelectorAll("[data-cat-dialog]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var dialog = document.getElementById(button.getAttribute("data-cat-dialog"));
+      if (!dialog) return;
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "open");
+    });
+  });
+  document.querySelectorAll("[data-cat-dialog-close]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var dialog = button.closest("dialog");
+      if (!dialog) return;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    });
+  });
+  document.querySelectorAll(".cat-preview").forEach(function (dialog) {
+    dialog.addEventListener("click", function (event) {
+      if (event.target === dialog && typeof dialog.close === "function") dialog.close();
+    });
+  });
+})();
+</script>
 {% endblock %}
 
 {% block assets_shell_title %}Impostazioni {{ module_branding_display_label }} <span class="ga-badge">Admin</span>{% endblock %}
@@ -358,7 +449,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:14px;">
+  <div class="card" id="asset-sidebar-menu" style="margin-bottom:14px;">
     <div class="card-head"><h3 class="card-title">Menu laterale inventario</h3></div>
     <div class="card-body" style="display:grid;gap:14px;">
       <div class="muted-note">
@@ -807,33 +898,28 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-body" style="display:grid;gap:10px;">
-      <div>
-        <div class="text-heading" style="font-size:var(--fs-lg);font-weight:800;">Categorie asset e campi dinamici</div>
-        <div class="muted-note">Questo e il punto canonico per configurare categorie business come TVCC, allarmi o pompe di calore e i campi dedicati senza passare dallo studio amministratore dell'inventario.</div>
+  <div class="cat-intro" style="margin-bottom:14px;">
+    <section class="card" style="margin-bottom:0;">
+      <div class="card-head">
+        <h3 class="card-title">Nuova categoria</h3>
+        <span class="chip-soft blue">Form asset + dettaglio + menu</span>
       </div>
-      <div class="inline-actions">
-        <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-sm">Apri inventario</a>
-        <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-secondary btn-sm">Regole manutenzione</a>
-        <a href="#asset-category-fields" class="btn btn-secondary btn-sm">Vai ai campi dinamici</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head">
-      <h3 class="card-title">Categorie asset</h3>
-      <span class="chip-soft blue">{{ asset_categories|length }} totali</span>
-    </div>
-    <div class="card-body" style="display:grid;gap:14px;">
-      <div class="admin-form">
-        <form method="post" class="admin-row">
+      <div class="card-body">
+        <form method="post" class="cat-create-grid">
           {% csrf_token %}
           <input type="hidden" name="action" value="create_asset_category">
           <div class="field">
             <label>Nome categoria</label>
             <input class="input" type="text" name="label" placeholder="Es. Sistema allarme" required>
+          </div>
+          <div class="field">
+            <label>Categoria padre</label>
+            <select class="input" name="parent_id">
+              <option value="">Nessuna</option>
+              {% for category_item in asset_categories %}
+                <option value="{{ category_item.id }}">{{ category_item.label }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div class="field">
             <label>Famiglia tecnica</label>
@@ -851,7 +937,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
             <label>Attiva</label>
             <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> S&igrave;</label>
           </div>
-          <div class="field" style="grid-column:1/-1;">
+          <div class="field full">
             <label>Descrizione</label>
             <textarea class="input" name="description" rows="2" placeholder="Nota interna per l'uso della categoria."></textarea>
           </div>
@@ -880,69 +966,231 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           </div>
         </form>
       </div>
+    </section>
 
-      <div class="admin-list">
-        {% for category_item in asset_categories %}
-          <form method="post" class="admin-item">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="update_asset_category">
-            <input type="hidden" name="category_id" value="{{ category_item.id }}">
-            <div class="admin-item-row">
+    <aside class="cat-help-panel">
+      <div>
+        <div class="card-title" style="margin-bottom:4px;">Impatto categoria</div>
+        <div class="muted-note">La categoria decide quali campi dedicati compaiono nel form asset, quali sezioni del dettaglio prendono titoli specifici e quale lista filtrata puoi esporre nel menu laterale.</div>
+      </div>
+      <div class="inline-actions">
+        <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-sm">Inventario</a>
+        <a href="{% url 'assets:gestione_admin' %}?tab=config#asset-sidebar-menu" class="btn btn-secondary btn-sm">Menu laterale</a>
+        <a href="#asset-category-fields" class="btn btn-secondary btn-sm">Campi dinamici</a>
+      </div>
+      <div class="muted-note">Prima di eliminare una categoria controlla gli asset collegati: se ci sono asset associati, il backend blocca la cancellazione.</div>
+    </aside>
+  </div>
+
+  <div class="card" id="asset-category-workbench" style="margin-bottom:14px;">
+    <div class="card-head">
+      <h3 class="card-title">Categorie asset</h3>
+      <span class="chip-soft blue">{{ asset_category_rows|length }} totali</span>
+    </div>
+    <div class="card-body">
+      <div class="cat-workbench">
+        {% for row in asset_category_rows %}
+        <article class="cat-card">
+          <div class="cat-card-head">
+            <div class="cat-title-wrap">
+              <div class="cat-title-line">
+                <h4 class="cat-title">{{ row.category.label }}</h4>
+                <span class="chip-soft {% if row.category.is_active %}green{% else %}slate{% endif %}">
+                  {% if row.category.is_active %}Attiva{% else %}Disattiva{% endif %}
+                </span>
+                {% if row.category.parent %}
+                  <span class="chip-soft slate">Figlia di {{ row.category.parent.label }}</span>
+                {% endif %}
+              </div>
+              <div class="cat-code">codice {{ row.category.code }} · famiglia {{ row.base_asset_type_label }}</div>
+            </div>
+            <div class="cat-actions">
+              <a class="btn btn-secondary btn-sm" href="{{ row.inventory_url }}">Apri lista</a>
+              <button class="btn btn-secondary btn-sm" type="button" data-cat-dialog="category-preview-{{ row.category.id }}">Asset collegati</button>
+              <a class="btn btn-secondary btn-sm" href="#asset-category-fields">Campi</a>
+            </div>
+          </div>
+
+          <div class="cat-body">
+            <div class="cat-metrics">
+              <div class="cat-metric"><div class="cat-metric-label">Asset</div><div class="cat-metric-value">{{ row.asset_count }}</div></div>
+              <div class="cat-metric"><div class="cat-metric-label">In uso</div><div class="cat-metric-value">{{ row.in_use_count }}</div></div>
+              <div class="cat-metric"><div class="cat-metric-label">Riparazione</div><div class="cat-metric-value">{{ row.in_repair_count }}</div></div>
+              <div class="cat-metric"><div class="cat-metric-label">OdL aperti</div><div class="cat-metric-value">{{ row.open_workorder_count }}</div></div>
+              <div class="cat-metric"><div class="cat-metric-label">Campi attivi</div><div class="cat-metric-value">{{ row.active_field_count }}/{{ row.field_count }}</div></div>
+            </div>
+
+            <div class="cat-split">
+              <div class="cat-impact">
+                <div>
+                  <strong>Descrizione</strong>
+                  <div class="muted-note">{{ row.category.description|default:"Nessuna descrizione impostata." }}</div>
+                </div>
+                <div class="inline-actions">
+                  {% if row.category.detail_specs_title %}<span class="chip-soft blue">Specifiche: {{ row.category.detail_specs_title }}</span>{% endif %}
+                  {% if row.category.detail_profile_title %}<span class="chip-soft blue">Profilo: {{ row.category.detail_profile_title }}</span>{% endif %}
+                  {% if row.category.detail_assignment_title %}<span class="chip-soft blue">Responsabile: {{ row.category.detail_assignment_title }}</span>{% endif %}
+                  {% if row.category.detail_timeline_title %}<span class="chip-soft blue">Timeline: {{ row.category.detail_timeline_title }}</span>{% endif %}
+                  {% if row.category.detail_maintenance_title %}<span class="chip-soft blue">Manutenzione: {{ row.category.detail_maintenance_title }}</span>{% endif %}
+                  {% if not row.category.detail_specs_title and not row.category.detail_profile_title and not row.category.detail_assignment_title and not row.category.detail_timeline_title and not row.category.detail_maintenance_title %}
+                    <span class="chip-soft slate">Titoli dettaglio standard</span>
+                  {% endif %}
+                  {% if row.child_count %}<span class="chip-soft slate">{{ row.child_count }} sottocategorie</span>{% endif %}
+                  {% if row.last_updated %}<span class="chip-soft slate">Ultimo asset {{ row.last_updated|date:"d/m/Y" }}</span>{% endif %}
+                </div>
+              </div>
+
+              <div class="cat-menu-box {% if row.sidebar_button %}is-linked{% endif %}">
+                <div>
+                  <strong>Menu laterale</strong>
+                  {% if row.sidebar_button %}
+                    <div class="muted-note">Collegata come "{{ row.sidebar_button.label }}".</div>
+                  {% else %}
+                    <div class="muted-note">Crea una voce sidebar che apre l'inventario filtrato su questa categoria.</div>
+                  {% endif %}
+                </div>
+                {% if row.sidebar_button %}
+                  <div class="inline-actions">
+                    <span class="chip-soft green">Visibile nel menu</span>
+                    <a class="btn btn-secondary btn-sm" href="{% url 'assets:gestione_admin' %}?tab=config#asset-sidebar-menu">Modifica voce</a>
+                  </div>
+                  <code style="font-size:var(--fs-xs);color:#64748b;">{{ row.sidebar_target_url }}</code>
+                {% else %}
+                  <form method="post" class="cat-menu-grid">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_sidebar_button_for_category">
+                    <input type="hidden" name="category_id" value="{{ row.category.id }}">
+                    <div class="field">
+                      <label>Etichetta menu</label>
+                      <input class="input" type="text" name="sidebar_label" value="{{ row.category.label }}">
+                    </div>
+                    <div class="field">
+                      <label>Voce padre</label>
+                      <select class="input" name="parent_sidebar_button_id">
+                        <option value="">Primo livello</option>
+                        {% for parent_item in sidebar_parent_choices %}
+                          <option value="{{ parent_item.id }}">{{ parent_item.label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Sezione</label>
+                      <select class="input" name="section">
+                        {% for section_code, section_label in sidebar_section_choices %}
+                          <option value="{{ section_code }}">{{ section_label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Ordine</label>
+                      <input class="input" type="number" name="sort_order" value="100">
+                    </div>
+                    <div style="align-self:end;">
+                      <button class="btn btn-primary btn-sm" type="submit">Aggiungi al menu</button>
+                    </div>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <details class="cat-edit-panel">
+            <summary>Modifica categoria e titoli dettaglio</summary>
+            <form method="post" class="cat-edit-grid">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="update_asset_category">
+              <input type="hidden" name="category_id" value="{{ row.category.id }}">
               <div class="field">
                 <label>Nome categoria</label>
-                <input class="input" type="text" name="label" value="{{ category_item.label }}" required>
+                <input class="input" type="text" name="label" value="{{ row.category.label }}" required>
+              </div>
+              <div class="field">
+                <label>Categoria padre</label>
+                <select class="input" name="parent_id">
+                  <option value="">Nessuna</option>
+                  {% for parent_item in asset_categories %}
+                    {% if parent_item.id != row.category.id %}
+                      <option value="{{ parent_item.id }}" {% if row.category.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.label }}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
               </div>
               <div class="field">
                 <label>Famiglia tecnica</label>
                 <select class="input" name="base_asset_type">
                   {% for type_code, type_label in asset_category_type_choices %}
-                    <option value="{{ type_code }}" {% if category_item.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                    <option value="{{ type_code }}" {% if row.category.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
                   {% endfor %}
                 </select>
               </div>
               <div class="field">
                 <label>Ordine</label>
-                <input class="input" type="number" name="sort_order" value="{{ category_item.sort_order }}">
+                <input class="input" type="number" name="sort_order" value="{{ row.category.sort_order }}">
               </div>
               <div class="field">
                 <label>Attiva</label>
-                <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_item.is_active %}checked{% endif %}> S&igrave;</label>
+                <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if row.category.is_active %}checked{% endif %}> S&igrave;</label>
               </div>
-              <div class="field" style="grid-column:1/-1;">
+              <div class="field full">
                 <label>Descrizione</label>
-                <textarea class="input" name="description" rows="2">{{ category_item.description }}</textarea>
+                <textarea class="input" name="description" rows="2">{{ row.category.description }}</textarea>
               </div>
-              <div class="field">
-                <label>Titolo specifiche</label>
-                <input class="input" type="text" name="detail_specs_title" value="{{ category_item.detail_specs_title }}">
+              <div class="field"><label>Titolo specifiche</label><input class="input" type="text" name="detail_specs_title" value="{{ row.category.detail_specs_title }}"></div>
+              <div class="field"><label>Titolo profilo</label><input class="input" type="text" name="detail_profile_title" value="{{ row.category.detail_profile_title }}"></div>
+              <div class="field"><label>Titolo responsabile</label><input class="input" type="text" name="detail_assignment_title" value="{{ row.category.detail_assignment_title }}"></div>
+              <div class="field"><label>Titolo timeline</label><input class="input" type="text" name="detail_timeline_title" value="{{ row.category.detail_timeline_title }}"></div>
+              <div class="field"><label>Titolo manutenzione</label><input class="input" type="text" name="detail_maintenance_title" value="{{ row.category.detail_maintenance_title }}"></div>
+              <div style="align-self:end;">
+                <button class="btn btn-primary btn-sm" type="submit">Salva categoria</button>
               </div>
-              <div class="field">
-                <label>Titolo profilo</label>
-                <input class="input" type="text" name="detail_profile_title" value="{{ category_item.detail_profile_title }}">
-              </div>
-              <div class="field">
-                <label>Titolo responsabile</label>
-                <input class="input" type="text" name="detail_assignment_title" value="{{ category_item.detail_assignment_title }}">
-              </div>
-              <div class="field">
-                <label>Titolo timeline</label>
-                <input class="input" type="text" name="detail_timeline_title" value="{{ category_item.detail_timeline_title }}">
-              </div>
-              <div class="field">
-                <label>Titolo manutenzione</label>
-                <input class="input" type="text" name="detail_maintenance_title" value="{{ category_item.detail_maintenance_title }}">
-              </div>
-              <div>
-                <button class="btn btn-primary btn-sm" type="submit">Salva</button>
-              </div>
+            </form>
+            <div class="cat-delete-row">
+              <form method="post" onsubmit="return confirm('Eliminare la categoria {{ row.category.label|escapejs }}?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_asset_category">
+                <input type="hidden" name="category_id" value="{{ row.category.id }}">
+                <button class="btn btn-danger btn-sm" type="submit" {% if row.asset_count %}disabled title="Categoria collegata ad asset esistenti"{% endif %}>Elimina categoria</button>
+              </form>
             </div>
-          </form>
-          <form method="post" onsubmit="return confirm('Eliminare la categoria {{ category_item.label|escapejs }}?');">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="delete_asset_category">
-            <input type="hidden" name="category_id" value="{{ category_item.id }}">
-            <button class="btn btn-secondary btn-sm" type="submit">Elimina categoria</button>
-          </form>
+          </details>
+
+          <dialog class="cat-preview" id="category-preview-{{ row.category.id }}">
+            <div class="cat-preview-head">
+              <div>
+                <h3 class="cat-preview-title">{{ row.category.label }}</h3>
+                <div class="muted-note">{{ row.asset_count }} asset collegati · {{ row.active_field_count }} campi attivi · {{ row.open_workorder_count }} OdL aperti</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" type="button" data-cat-dialog-close>Chiudi</button>
+            </div>
+            <div class="cat-preview-body">
+              <div class="inline-actions">
+                <a class="btn btn-primary btn-sm" href="{{ row.inventory_url }}">Apri lista completa</a>
+                {% if row.sidebar_button %}<span class="chip-soft green">Voce menu: {{ row.sidebar_button.label }}</span>{% else %}<span class="chip-soft slate">Non ancora nel menu laterale</span>{% endif %}
+              </div>
+              {% if row.sample_assets %}
+              <div style="overflow:auto;">
+                <table class="cat-asset-table">
+                  <thead><tr><th>Asset</th><th>Stato</th><th>Reparto</th><th>Responsabile</th><th>Aggiornato</th><th></th></tr></thead>
+                  <tbody>
+                    {% for asset in row.sample_assets %}
+                    <tr>
+                      <td><strong>{{ asset.name }}</strong><br><span class="muted-note">{{ asset.asset_tag|default:"-" }}</span></td>
+                      <td>{{ asset_status_labels|get_item:asset.status|default:asset.status }}</td>
+                      <td>{{ asset.reparto|default:"-" }}</td>
+                      <td>{{ asset.assignment_to|default:"-" }}</td>
+                      <td>{{ asset.updated_at|date:"d/m/Y" }}</td>
+                      <td><a class="btn btn-secondary btn-sm" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+                <div class="admin-hint">Nessun asset collegato a questa categoria.</div>
+              {% endif %}
+            </div>
+          </dialog>
+        </article>
         {% empty %}
           <div class="admin-hint">Nessuna categoria asset configurata.</div>
         {% endfor %}

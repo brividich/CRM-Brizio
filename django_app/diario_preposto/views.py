@@ -1,27 +1,88 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
 from functools import wraps
 from io import BytesIO
+from pathlib import Path
 from xml.sax.saxutils import escape
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
 
 from .forms import SegnalazioneForm
 from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Validazione allegati segnalazioni
+# ---------------------------------------------------------------------------
+
+DIARIO_ALLEGATO_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+DIARIO_ALLEGATO_EXTENSIONS = {
+    ".pdf",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".txt",
+    ".csv",
+}
+DIARIO_ALLEGATO_MIMES = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+    # Alcuni server identificano i CSV come text/plain, gia' coperto.
+    "application/octet-stream",  # fallback per documenti firmati / formati legacy
+}
+
+
+def _validate_diario_allegato(uploaded_file):
+    """Valida un allegato del Diario Preposto. Ritorna nome sicuro o solleva."""
+    safe_name = safe_filename(getattr(uploaded_file, "name", ""))
+    label = safe_name or "Allegato"
+    validate_extension_and_mime(
+        uploaded_file,
+        allowed_extensions=DIARIO_ALLEGATO_EXTENSIONS,
+        allowed_mimes=DIARIO_ALLEGATO_MIMES,
+        max_bytes=DIARIO_ALLEGATO_MAX_BYTES,
+        label=label,
+        allow_empty=False,
+    )
+    return safe_name or "allegato"
 
 
 # ---------------------------------------------------------------------------
@@ -158,12 +219,21 @@ def nuovo(request):
             segnalazione.preposto = nome
             segnalazione.chi_segnala = nome
             segnalazione.save()
+            errori_allegati: list[str] = []
             for uploaded_file in request.FILES.getlist("allegati"):
+                try:
+                    safe_name = _validate_diario_allegato(uploaded_file)
+                except UploadMimeValidationError as exc:
+                    errori_allegati.append(str(exc))
+                    continue
                 SegnalazioneAllegato.objects.create(
                     segnalazione=segnalazione,
-                    nome_file=uploaded_file.name,
+                    nome_file=safe_name,
                     file=uploaded_file,
                 )
+            if errori_allegati:
+                for err in errori_allegati:
+                    messages.warning(request, err)
             messages.success(request, "Segnalazione inserita con successo.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:
@@ -192,12 +262,21 @@ def modifica(request, pk):
         form = SegnalazioneForm(request.POST, instance=segnalazione)
         if form.is_valid():
             form.save()
+            errori_allegati: list[str] = []
             for uploaded_file in request.FILES.getlist("allegati"):
+                try:
+                    safe_name = _validate_diario_allegato(uploaded_file)
+                except UploadMimeValidationError as exc:
+                    errori_allegati.append(str(exc))
+                    continue
                 SegnalazioneAllegato.objects.create(
                     segnalazione=segnalazione,
-                    nome_file=uploaded_file.name,
+                    nome_file=safe_name,
                     file=uploaded_file,
                 )
+            if errori_allegati:
+                for err in errori_allegati:
+                    messages.warning(request, err)
             messages.success(request, "Segnalazione aggiornata.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:
@@ -225,8 +304,8 @@ def elimina(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
     for allegato in segnalazione.allegati.all():
         try:
-            if allegato.file and os.path.isfile(allegato.file.path):
-                os.remove(allegato.file.path)
+            if allegato.file and allegato.file.name:
+                allegato.file.storage.delete(allegato.file.name)
         except Exception:
             pass
     segnalazione.delete()
@@ -567,9 +646,13 @@ def api_allegato_upload(request):
     uploaded_file = request.FILES.get("file")
     if not uploaded_file:
         return _json_err("Nessun file ricevuto")
+    try:
+        safe_name = _validate_diario_allegato(uploaded_file)
+    except UploadMimeValidationError as exc:
+        return _json_err(str(exc))
     allegato = SegnalazioneAllegato.objects.create(
         segnalazione=segnalazione,
-        nome_file=uploaded_file.name,
+        nome_file=safe_name,
         file=uploaded_file,
     )
     return JsonResponse(
@@ -577,7 +660,7 @@ def api_allegato_upload(request):
             "ok": True,
             "id": allegato.pk,
             "nome_file": allegato.nome_file,
-            "url": allegato.file.url,
+            "url": reverse("diario_preposto:allegato_download", args=[allegato.pk]),
         }
     )
 
@@ -590,12 +673,71 @@ def api_allegato_delete(request):
         return _json_err("allegato_id obbligatorio")
     allegato = get_object_or_404(SegnalazioneAllegato, pk=pk)
     try:
-        if allegato.file and os.path.isfile(allegato.file.path):
-            os.remove(allegato.file.path)
+        if allegato.file and allegato.file.name:
+            allegato.file.storage.delete(allegato.file.name)
     except Exception:
         pass
     allegato.delete()
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Download protetto allegati segnalazioni (sostituisce l'esposizione via /media/)
+# ---------------------------------------------------------------------------
+
+@login_required
+def allegato_download(request, allegato_id: int):
+    """Serve l'allegato di una segnalazione richiedendo l'autenticazione.
+
+    L'autorizzazione segue la stessa visibilita' della scheda dettaglio
+    (utenti autenticati): le segnalazioni di sicurezza non devono essere
+    accessibili anonimamente via URL diretto come avveniva con /media/.
+    """
+    from core.audit import log_action
+
+    allegato = get_object_or_404(
+        SegnalazioneAllegato.objects.select_related("segnalazione"),
+        pk=allegato_id,
+    )
+    storage = allegato.file.storage
+    if (
+        not allegato.file
+        or not allegato.file.name
+        or not storage.exists(allegato.file.name)
+    ):
+        log_action(
+            request,
+            "download_allegato",
+            "diario_preposto",
+            {
+                "allegato_id": allegato.id,
+                "segnalazione_id": allegato.segnalazione_id,
+                "esito": "not_found",
+            },
+        )
+        return HttpResponse("Allegato non trovato.", status=404)
+
+    filename = allegato.nome_file or Path(allegato.file.name).name
+    content_type = (
+        mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    )
+    log_action(
+        request,
+        "download_allegato",
+        "diario_preposto",
+        {
+            "allegato_id": allegato.id,
+            "segnalazione_id": allegato.segnalazione_id,
+            "filename": filename,
+            "esito": "success",
+        },
+    )
+    return FileResponse(
+        storage.open(allegato.file.name, "rb"),
+        as_attachment=True,
+        filename=filename,
+        content_type=content_type,
+    )
 
 
 @login_required

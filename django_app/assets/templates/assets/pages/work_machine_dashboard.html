@@ -50,6 +50,35 @@
 @media (max-width: 760px) {
   .wmd-kpis { grid-template-columns:1fr; }
 }
+/* ── Striscia manutenzione in scadenza ───────────────────── */
+.wmd-maint-strip { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 16px; background:#fff; border:1px solid #dbe1ea; border-radius:14px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+.wmd-maint-strip-title { font-size:var(--fs-xs); font-weight:700; color:#334155; text-transform:uppercase; letter-spacing:.05em; flex-shrink:0; }
+.wmd-maint-strip-hint { font-size:var(--fs-xs); font-weight:400; color:#94a3b8; text-transform:none; letter-spacing:0; }
+.wmd-maint-strip-metrics { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.wmd-maint-metric { display:flex; flex-direction:column; align-items:center; min-width:60px; }
+.wmd-maint-val { font-size:var(--fs-display-xl); font-weight:800; line-height:1; }
+.wmd-maint-lbl { font-size:var(--fs-xs); color:#64748b; margin-top:2px; }
+.wmd-maint-val-neutral { color:#1e40af; }
+.wmd-maint-val-ok      { color:#15803d; }
+.wmd-maint-val-warn    { color:#b91c1c; }
+.wmd-maint-sep { width:1px; height:32px; background:#e2e8f0; flex-shrink:0; }
+.wmd-maint-bar-wrap { display:flex; align-items:center; gap:6px; min-width:100px; }
+.wmd-maint-bar-track { flex:1; height:7px; border-radius:99px; background:#e2e8f0; overflow:hidden; }
+.wmd-maint-bar-fill { height:100%; border-radius:99px; transition:width .3s; }
+.wmd-maint-bar-green  { background:#15803d; }
+.wmd-maint-bar-yellow { background:#c58a15; }
+.wmd-maint-bar-red    { background:#b91c1c; }
+.wmd-maint-bar-label  { font-size:var(--fs-xs); font-weight:700; color:#64748b; white-space:nowrap; }
+body.theme-dark .wmd-maint-strip { background:var(--surface); border-color:var(--border); }
+body.theme-dark .wmd-maint-strip-title { color:var(--text-mid); }
+body.theme-dark .wmd-maint-lbl { color:var(--text-light); }
+body.theme-dark .wmd-maint-sep { background:var(--border); }
+body.theme-dark .wmd-maint-bar-track { background:var(--border); }
+.wmd-maint-ok-notice { font-size:var(--fs-sm); color:#15803d; font-weight:600; padding:2px 10px; background:#dcfce7; border-radius:99px; white-space:nowrap; }
+body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4ade80; }
+.wmd-maint-val a { color:inherit; text-decoration:none; }
+.wmd-maint-val a:hover { text-decoration:underline; }
+.wmd-td-empty { color:#64748b; }
 </style>
 {% endblock %}
 
@@ -111,8 +140,39 @@
     </article>
   </section>
 
+  {# ── Striscia manutenzione in scadenza ──────────────────── #}
+  <div class="wmd-maint-strip">
+    <span class="wmd-maint-strip-title">Manutenzione macchine <span class="wmd-maint-strip-hint">stato pianificazione · prossima data impostata</span></span>
+    {% if maint_kpis.coinvolti %}
+    <div class="wmd-maint-strip-metrics">
+      <div class="wmd-maint-metric">
+        <span class="wmd-maint-val wmd-maint-val-neutral"><a href="{% url 'assets:work_machine_list' %}" title="Vedi elenco macchine">{{ maint_kpis.coinvolti }}</a></span>
+        <span class="wmd-maint-lbl">Coinvolti</span>
+      </div>
+      <div class="wmd-maint-sep" aria-hidden="true"></div>
+      <div class="wmd-maint-metric">
+        <span class="wmd-maint-val wmd-maint-val-ok">{{ maint_kpis.manutentati }}</span>
+        <span class="wmd-maint-lbl">Manutentati</span>
+      </div>
+      <div class="wmd-maint-sep" aria-hidden="true"></div>
+      <div class="wmd-maint-metric">
+        <span class="wmd-maint-val {% if maint_kpis.da_manutentare %}wmd-maint-val-warn{% else %}wmd-maint-val-ok{% endif %}"><a href="#wmd-reminder" title="Vedi reminder manutenzione">{{ maint_kpis.da_manutentare }}</a></span>
+        <span class="wmd-maint-lbl">Da manutentare</span>
+      </div>
+      <div class="wmd-maint-bar-wrap" title="{{ maint_kpis.percent_done }}% pianificato">
+        <div class="wmd-maint-bar-track" data-pct="{{ maint_kpis.percent_done }}">
+          <div class="wmd-maint-bar-fill {% if maint_kpis.percent_done == 100 %}wmd-maint-bar-green{% elif maint_kpis.percent_done >= 50 %}wmd-maint-bar-yellow{% else %}wmd-maint-bar-red{% endif %}"></div>
+        </div>
+        <span class="wmd-maint-bar-label">{{ maint_kpis.percent_done }}%</span>
+      </div>
+    </div>
+    {% else %}
+    <span class="wmd-maint-ok-notice">Nessuna macchina senza pianificazione &mdash; tutto in ordine</span>
+    {% endif %}
+  </div>
+
   <section class="wmd-grid">
-    <article class="wmd-card">
+    <article class="wmd-card" id="wmd-reminder">
       <div class="wmd-card-head">
         <div>
           <h2>Reminder manutenzione</h2>
@@ -165,7 +225,7 @@
                 </tr>
               {% endfor %}
               {% if not overdue_maintenance and not warning_maintenance %}
-                <tr><td colspan="5" style="color:#64748b;">Nessun reminder attivo sulle date manutenzione.</td></tr>
+                <tr><td colspan="5" class="wmd-td-empty">Nessun reminder attivo sulle date manutenzione.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -262,6 +322,43 @@
     </article>
   </section>
 
+  {# ── P3.5 — Aggiornamento contatori macchine ────────────────── #}
+  {% if machines_with_meters %}
+  <section style="display:grid;gap:14px;">
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Contatori macchine</h2>
+          <p>Aggiornamento rapido ore / km / cicli direttamente dall'officina.</p>
+        </div>
+        <span class="wmd-pill ok">{{ machines_with_meters|length }} macchine</span>
+      </div>
+      <div class="wmd-card-body" style="gap:0;padding:0;">
+        {% for asset in machines_with_meters %}
+          <div style="border-bottom:1px solid #f1f5f9;padding:12px 16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+              <div>
+                <strong style="font-size:.95rem;color:#0f172a;">{{ asset.name }}</strong>
+                <span class="wmd-list-meta" style="margin-left:8px;">{{ asset.asset_tag }}</span>
+                {% if asset.reparto %}<span class="wmd-list-meta">&middot; {{ asset.reparto }}</span>{% endif %}
+              </div>
+              <a href="{% url 'assets:asset_detail' asset.pk %}" class="wmd-link" style="font-size:.82rem;white-space:nowrap;">Scheda</a>
+            </div>
+            {# Pannello contatori HTMX per questa macchina #}
+            <div id="asset-meter-panel-{{ asset.pk }}"
+                 hx-get="{% url 'assets:asset_meter_update' asset.pk %}"
+                 hx-trigger="load"
+                 hx-target="#asset-meter-panel-{{ asset.pk }}"
+                 hx-swap="outerHTML">
+              <span style="font-size:.82rem;color:#aaa;">Caricamento…</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+  {% endif %}
+
   <section class="wmd-grid">
     <article class="wmd-card">
       <div class="wmd-card-head">
@@ -277,8 +374,8 @@
               <span>Manuali macchina</span>
               <span>{{ manuals_count }}/{{ total_machines }}</span>
             </div>
-            <div class="wmd-progress-track">
-              <div class="wmd-progress-fill" style="width:{% if total_machines %}{% widthratio manuals_count total_machines 100 %}{% else %}0{% endif %}%;"></div>
+            <div class="wmd-progress-track" data-pct="{% if total_machines %}{% widthratio manuals_count total_machines 100 %}{% else %}0{% endif %}">
+              <div class="wmd-progress-fill"></div>
             </div>
           </div>
           <div class="wmd-progress-row">
@@ -286,8 +383,8 @@
               <span>Specifiche tecniche</span>
               <span>{{ specs_count }}/{{ total_machines }}</span>
             </div>
-            <div class="wmd-progress-track">
-              <div class="wmd-progress-fill" style="width:{% if total_machines %}{% widthratio specs_count total_machines 100 %}{% else %}0{% endif %}%;"></div>
+            <div class="wmd-progress-track" data-pct="{% if total_machines %}{% widthratio specs_count total_machines 100 %}{% else %}0{% endif %}">
+              <div class="wmd-progress-fill"></div>
             </div>
           </div>
           <div class="wmd-list-meta">
@@ -298,4 +395,13 @@
     </article>
   </section>
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+document.querySelectorAll(".wmd-progress-track[data-pct],.wmd-maint-bar-track[data-pct]").forEach(function (t) {
+  var f = t.querySelector(".wmd-progress-fill,.wmd-maint-bar-fill");
+  if (f) f.style.width = (parseInt(t.dataset.pct, 10) || 0) + "%";
+});
+</script>
 {% endblock %}

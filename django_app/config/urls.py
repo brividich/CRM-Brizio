@@ -15,9 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.staticfiles import views as staticfiles_views
 from django.urls import include, path
+from django.urls import re_path
+from django.views.static import serve as media_serve
 from monitoring import views as monitoring_views
 from tasks import views as task_views
 
@@ -62,5 +64,16 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG or getattr(settings, "DEV_SERVE_STATIC_AND_MEDIA", False):
+    urlpatterns += [
+        re_path(
+            rf"^{settings.STATIC_URL.lstrip('/')}(?P<path>.*)$",
+            staticfiles_views.serve,
+            {"insecure": True},
+        ),
+        re_path(
+            rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
+            media_serve,
+            {"document_root": settings.MEDIA_ROOT},
+        ),
+    ]

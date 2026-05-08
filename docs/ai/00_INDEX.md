@@ -17,6 +17,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [07_PATCH_HISTORY.md](07_PATCH_HISTORY.md) | Patch workflow, version/changelog rules, release-history maintenance. |
 | [08_ROADMAP.md](08_ROADMAP.md) | Current product direction, migration goals, technical debt, Security Center AI direction. |
 | [09_PROMPT_LIBRARY.md](09_PROMPT_LIBRARY.md) | Reusable task prompts for future AI sessions. |
+| [10_MAINTENANCE_MODERNIZATION.md](10_MAINTENANCE_MODERNIZATION.md) | Checklist operativa del piano di ammodernamento sezione manutenzione (P1.1→P3.5). Aggiornare i checkbox a ogni completamento. |
 
 ## Rule Of Thumb
 

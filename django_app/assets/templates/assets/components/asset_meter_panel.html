@@ -1,0 +1,99 @@
+{% load i18n %}
+{# P2.2 — Pannello contatori asset (ore/km/cicli). Usato via HTMX outerHTML swap. #}
+<div id="asset-meter-panel" class="am-panel">
+  <style>
+    .am-panel { margin: 1.2rem 0; }
+    .am-panel h4 { font-size: .95rem; font-weight: 600; margin: 0 0 .7rem; color: var(--text-primary, #1a1a1a); }
+    .am-meter-grid { display: flex; flex-wrap: wrap; gap: .7rem; margin-bottom: .9rem; }
+    .am-meter-card {
+      flex: 1 1 160px; min-width: 140px; max-width: 220px;
+      border: 1px solid var(--border, #ddd); border-radius: 8px;
+      padding: .65rem .9rem; background: var(--bg-card, #fff);
+    }
+    .am-meter-card .am-label { font-size: .75rem; color: #888; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .15rem; }
+    .am-meter-card .am-value { font-size: 1.4rem; font-weight: 700; color: var(--text-primary, #1a1a1a); line-height: 1.1; }
+    .am-meter-card .am-unit { font-size: .8rem; color: #666; }
+    .am-meter-card .am-updated { font-size: .72rem; color: #aaa; margin-top: .2rem; }
+    .am-form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: .8rem; }
+    .am-form select, .am-form input[type=number] {
+      border: 1px solid #ccc; border-radius: 5px; padding: .35rem .6rem;
+      font-size: .9rem; background: #fff; color: #1a1a1a;
+    }
+    .am-form input[type=number] { width: 110px; }
+    .am-form button {
+      background: #0d6efd; color: #fff; border: none; border-radius: 5px;
+      padding: .38rem .9rem; font-size: .88rem; cursor: pointer;
+    }
+    .am-form button:hover { background: #0b5ed7; }
+    .am-alert { padding: .45rem .8rem; border-radius: 6px; font-size: .88rem; margin-bottom: .6rem; }
+    .am-alert.error { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+    .am-alert.success { background: #e6f4ea; color: #1b5e20; border: 1px solid #c3e6cb; }
+    .am-history { font-size: .82rem; color: #555; }
+    .am-history summary { cursor: pointer; font-weight: 600; color: #444; margin-bottom: .3rem; }
+    .am-history table { width: 100%; border-collapse: collapse; margin-top: .3rem; }
+    .am-history td { padding: .25rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .am-empty { color: #aaa; font-size: .88rem; font-style: italic; }
+    body.theme-dark .am-meter-card { background: #1e2229; border-color: #333; }
+    body.theme-dark .am-form select,
+    body.theme-dark .am-form input[type=number] { background: #1e2229; color: #e0e0e0; border-color: #444; }
+    body.theme-dark .am-history td { border-color: #2a2a2a; }
+    @media (prefers-color-scheme: dark) {
+      .am-meter-card { background: #1e2229; border-color: #333; }
+    }
+  </style>
+
+  <h4>Contatori</h4>
+
+  {% if error %}<div class="am-alert error">{{ error }}</div>{% endif %}
+  {% if success_message %}<div class="am-alert success">{{ success_message }}</div>{% endif %}
+
+  {% if meters %}
+    <div class="am-meter-grid">
+      {% for m in meters %}
+        <div class="am-meter-card">
+          <div class="am-label">{{ m.get_meter_type_display }}</div>
+          <div class="am-value">{{ m.current_value|floatformat:0 }}</div>
+          <div class="am-unit">{{ m.unit_label|default:m.get_meter_type_display }}</div>
+          {% if m.updated_at %}<div class="am-updated">agg. {{ m.updated_at|date:"d/m/Y H:i" }}{% if m.updated_by %} da {{ m.updated_by.get_full_name|default:m.updated_by.username }}{% endif %}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <form class="am-form"
+          hx-post="{% url 'assets:asset_meter_update' asset.pk %}"
+          hx-target="#asset-meter-panel"
+          hx-swap="outerHTML">
+      {% csrf_token %}
+      <select name="meter_id">
+        {% for m in meters %}
+          <option value="{{ m.pk }}">{{ m.get_meter_type_display }} ({{ m.unit_label|default:m.get_meter_type_display }})</option>
+        {% endfor %}
+      </select>
+      <input type="number" name="new_value" min="0" step="0.01" placeholder="Nuovo valore" required>
+      <button type="submit">Aggiorna</button>
+    </form>
+
+    {% if recent_history %}
+      <details class="am-history">
+        <summary>Storico aggiornamenti (ultimi {{ recent_history|length }})</summary>
+        <table>
+          <thead><tr><td><strong>Data</strong></td><td><strong>Tipo</strong></td><td><strong>Da</strong></td><td><strong>A</strong></td><td><strong>Utente</strong></td></tr></thead>
+          <tbody>
+            {% for h in recent_history %}
+              <tr>
+                <td>{{ h.recorded_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ h.meter.get_meter_type_display }}</td>
+                <td>{{ h.old_value|floatformat:0 }}</td>
+                <td>{{ h.new_value|floatformat:0 }}</td>
+                <td>{{ h.recorded_by.get_full_name|default:h.recorded_by.username|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+    {% endif %}
+
+  {% else %}
+    <p class="am-empty">Nessun contatore configurato per questo asset.</p>
+  {% endif %}
+</div>

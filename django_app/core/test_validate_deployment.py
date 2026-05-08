@@ -120,3 +120,118 @@ class ValidateDeploymentCommandTests(TestCase):
         self.assertNotIn(secret, rendered)
         self.assertNotIn(email_password, rendered)
         self.assertIn("<set>", rendered)
+
+    def test_short_secret_key_warns_outside_prod(self):
+        out = StringIO()
+
+        # 32 caratteri, nessun placeholder ne' prefisso 'django-insecure-':
+        # fuori prod il check deve produrre WARN (non rompe test/dev).
+        with override_settings(SECRET_KEY="abcd1234" * 4):
+            call_command(
+                "validate_deployment", "--format", "json", "--no-fail-on-fail", stdout=out
+            )
+
+        payload = json.loads(out.getvalue())
+        secret_checks = [
+            item
+            for item in payload["checks"]
+            if item["section"] == "django" and item["name"] == "SECRET_KEY"
+        ]
+        self.assertTrue(secret_checks)
+        self.assertEqual(secret_checks[0]["severity"], "WARN")
+        self.assertIn("corta", secret_checks[0]["message"].lower())
+
+    def test_django_insecure_prefix_warns_outside_prod(self):
+        out = StringIO()
+
+        # SAFE_SECRET (default override) usa 'django-insecure-' prefix:
+        # in test deve essere WARN ma il comando non deve sollevare CommandError
+        # con --no-fail-on-fail.
+        call_command(
+            "validate_deployment", "--format", "json", "--no-fail-on-fail", stdout=out
+        )
+
+        payload = json.loads(out.getvalue())
+        secret_checks = [
+            item
+            for item in payload["checks"]
+            if item["section"] == "django"
+            and item["name"] == "SECRET_KEY"
+            and item["severity"] == "WARN"
+        ]
+        self.assertTrue(secret_checks)
+        self.assertIn("django-insecure", secret_checks[0]["message"].lower())
+
+    def test_wildcard_allowed_hosts_warn_outside_prod(self):
+        out = StringIO()
+
+        with override_settings(ALLOWED_HOSTS=["*"]):
+            call_command(
+                "validate_deployment", "--format", "json", "--no-fail-on-fail", stdout=out
+            )
+
+        payload = json.loads(out.getvalue())
+        host_checks = [
+            item
+            for item in payload["checks"]
+            if item["section"] == "django" and item["name"] == "ALLOWED_HOSTS"
+        ]
+        self.assertTrue(host_checks)
+        self.assertEqual(host_checks[0]["severity"], "WARN")
+        self.assertIn("wildcard", host_checks[0]["message"].lower())
+
+    def test_assets_private_root_under_media_root_warns(self):
+        import os
+        from pathlib import Path
+
+        out = StringIO()
+        media_dir = Path(tempfile.gettempdir()) / "novicrom-media-test"
+        private_dir = media_dir / "private"
+        media_dir.mkdir(parents=True, exist_ok=True)
+        private_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with override_settings(
+                MEDIA_ROOT=str(media_dir),
+                ASSETS_PRIVATE_ROOT=str(private_dir),
+            ):
+                call_command(
+                    "validate_deployment", "--format", "json", "--no-fail-on-fail", stdout=out
+                )
+        finally:
+            # cleanup best-effort
+            try:
+                private_dir.rmdir()
+                media_dir.rmdir()
+            except OSError:
+                pass
+
+        payload = json.loads(out.getvalue())
+        containment = [
+            item
+            for item in payload["checks"]
+            if item["section"] == "static_media"
+            and item["name"] == "ASSETS_PRIVATE_ROOT_containment"
+        ]
+        self.assertTrue(containment)
+        # Fuori prod il containment violato resta WARN (vincolo sandbox).
+        self.assertEqual(containment[0]["severity"], "WARN")
+        self.assertIn("media_root", containment[0]["message"].lower())
+
+    def test_csrf_trusted_origins_wildcard_warns(self):
+        out = StringIO()
+
+        with override_settings(CSRF_TRUSTED_ORIGINS=["*"]):
+            call_command(
+                "validate_deployment", "--format", "json", "--no-fail-on-fail", stdout=out
+            )
+
+        payload = json.loads(out.getvalue())
+        csrf_checks = [
+            item
+            for item in payload["checks"]
+            if item["section"] == "security" and item["name"] == "CSRF_TRUSTED_ORIGINS"
+        ]
+        self.assertTrue(csrf_checks)
+        self.assertEqual(csrf_checks[0]["severity"], "WARN")
+        self.assertIn("wildcard", csrf_checks[0]["message"].lower())

@@ -184,6 +184,13 @@ class AssetCustomField(models.Model):
 class AssetCategory(models.Model):
     code = models.SlugField(max_length=80, unique=True)
     label = models.CharField(max_length=120)
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
     base_asset_type = models.CharField(max_length=20, choices=Asset.TYPE_CHOICES, default=Asset.TYPE_OTHER, db_index=True)
     description = models.TextField(blank=True, default="")
     detail_specs_title = models.CharField(max_length=120, blank=True, default="")
@@ -198,6 +205,9 @@ class AssetCategory(models.Model):
 
     class Meta:
         ordering = ["sort_order", "label", "id"]
+        indexes = [
+            models.Index(fields=["parent", "label"], name="assetcat_parent_label_idx"),
+        ]
 
     def __str__(self) -> str:
         return self.label
@@ -1215,6 +1225,15 @@ class PeriodicVerification(models.Model):
     assets = models.ManyToManyField(Asset, related_name="periodic_verifications", blank=True)
     notes = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True, db_index=True)
+    # Deprecation marker: True = gestita via MaintenanceRule/generate_scheduled_workorders
+    is_legacy = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=(
+            "Se True, il trigger temporale è gestito da MaintenanceRule. "
+            "Questo record rimane come riferimento fornitore/contratto."
+        ),
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1732,6 +1751,15 @@ class WorkOrder(models.Model):
         blank=True,
         default=None,
     )
+    meter_value_at_close = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Valore del contatore (ore/km/cicli) al momento della chiusura dell'OdL. "
+                  "Compilato automaticamente dalla view di chiusura se l'asset ha un AssetMeter.",
+    )
 
     class Meta:
         ordering = ["-opened_at", "-id"]
@@ -1826,6 +1854,23 @@ class WorkOrder(models.Model):
                 "cost_eur",
             ]
         )
+        # P1.3 — aggiorna next_maintenance_date sulla WorkMachine collegata quando l'OdL è periodico
+        if (
+            status == self.STATUS_DONE
+            and self.origin == self.ORIGIN_PERIODIC
+            and self.maintenance_rule_id
+        ):
+            from datetime import timedelta
+            try:
+                rule = self.maintenance_rule
+                if rule.threshold_type == MaintenanceRule.THRESHOLD_DAYS and rule.threshold_value:
+                    wm = getattr(self.asset, "work_machine", None)
+                    if wm is not None:
+                        closed_date = self.closed_at.date() if self.closed_at else timezone.localdate()
+                        wm.next_maintenance_date = closed_date + timedelta(days=rule.threshold_value)
+                        wm.save(update_fields=["next_maintenance_date"])
+            except Exception:
+                pass
 
 
 def _workorder_attachment_upload_to(instance, filename: str) -> str:
@@ -1891,6 +1936,41 @@ class WorkOrderLog(models.Model):
         return f"WOLog<{self.work_order_id} {self.ts:%Y-%m-%d %H:%M}>"
 
 
+class WorkOrderChecklist(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="checklist_items")
+    step_number = models.PositiveSmallIntegerField()
+    description = models.CharField(max_length=255)
+    is_done = models.BooleanField(default=False, db_index=True)
+    done_at = models.DateTimeField(null=True, blank=True)
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorder_checklist_done",
+    )
+
+    class Meta:
+        ordering = ["work_order", "step_number", "id"]
+        verbose_name = "Step checklist OdL"
+        verbose_name_plural = "Step checklist OdL"
+
+    def __str__(self) -> str:
+        return f"WOChecklist<wo={self.work_order_id} step={self.step_number}>"
+
+    def toggle(self, user) -> None:
+        from django.utils import timezone as tz
+        if self.is_done:
+            self.is_done = False
+            self.done_at = None
+            self.done_by = None
+        else:
+            self.is_done = True
+            self.done_at = tz.now()
+            self.done_by = user
+        self.save(update_fields=["is_done", "done_at", "done_by_id"])
+
+
 class AssetMaintenanceRuleState(models.Model):
     asset = models.ForeignKey(
         Asset,
@@ -1941,6 +2021,91 @@ class AssetMaintenanceRuleState(models.Model):
             raise ValidationError({"base_rule": "La regola selezionata non appartiene alla categoria dell'asset."})
         if self.last_work_order_id and getattr(self.last_work_order, "asset_id", None) != self.asset_id:
             raise ValidationError({"last_work_order": "Il work order collegato appartiene a un asset diverso."})
+
+
+class AssetMeter(models.Model):
+    METER_HOURS = "HOURS"
+    METER_KM = "KM"
+    METER_CYCLES = "CYCLES"
+    METER_OTHER = "OTHER"
+    METER_TYPE_CHOICES = [
+        (METER_HOURS, "Ore"),
+        (METER_KM, "Km"),
+        (METER_CYCLES, "Cicli"),
+        (METER_OTHER, "Altro"),
+    ]
+
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name="meters",
+    )
+    meter_type = models.CharField(max_length=20, choices=METER_TYPE_CHOICES, db_index=True)
+    current_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    unit_label = models.CharField(max_length=30, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_asset_meters",
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["asset__name", "meter_type", "id"]
+        verbose_name = "Contatore asset"
+        verbose_name_plural = "Contatori asset"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["asset", "meter_type"],
+                name="uniq_asset_meter_type",
+            )
+        ]
+
+    def __str__(self) -> str:
+        label = self.unit_label or self.get_meter_type_display()
+        return f"{self.asset} — {label}: {self.current_value}"
+
+    def update_value(self, new_value, user) -> "AssetMeterHistory":
+        old_value = self.current_value
+        self.current_value = new_value
+        self.updated_by = user
+        self.save(update_fields=["current_value", "updated_by_id", "updated_at"])
+        return AssetMeterHistory.objects.create(
+            meter=self,
+            old_value=old_value,
+            new_value=new_value,
+            recorded_by=user,
+        )
+
+
+class AssetMeterHistory(models.Model):
+    meter = models.ForeignKey(
+        AssetMeter,
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+    old_value = models.DecimalField(max_digits=12, decimal_places=2)
+    new_value = models.DecimalField(max_digits=12, decimal_places=2)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_meter_history_entries",
+    )
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-recorded_at", "id"]
+        verbose_name = "Storico contatore asset"
+        verbose_name_plural = "Storico contatori asset"
+
+    def __str__(self) -> str:
+        return f"{self.meter} @ {self.recorded_at:%Y-%m-%d %H:%M}: {self.old_value} -> {self.new_value}"
 
 
 class AssetCalendarEvent(models.Model):

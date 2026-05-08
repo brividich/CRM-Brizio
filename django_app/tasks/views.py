@@ -28,6 +28,11 @@ from core.legacy_utils import legacy_table_columns
 from core.legacy_utils import sync_django_user_from_legacy
 from core.models import AuditLog, Notifica, Profile
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_extension_and_mime,
+)
 from attrezzature.models import (
     Attrezzatura,
     AttrezzaturaNota,
@@ -4563,9 +4568,23 @@ def project_vrf_upload(request, project_id: int):
             messages.error(request, "Nessun file selezionato.")
             return redirect(request.get_full_path())
 
-        ext = uploaded.name.rsplit(".", 1)[-1].lower() if "." in uploaded.name else ""
-        if ext not in {"xlsx", "xls"}:
-            messages.error(request, "Formato non valido. Carica un file .xlsx o .xls.")
+        try:
+            validate_extension_and_mime(
+                uploaded,
+                allowed_extensions={".xlsx", ".xls"},
+                allowed_mimes={
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel",
+                    "application/octet-stream",
+                    "application/zip",  # xlsx e' uno zip
+                    "application/x-zip-compressed",
+                },
+                max_bytes=20 * 1024 * 1024,
+                label=safe_filename(uploaded.name) or "Documento VRF",
+                allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            messages.error(request, str(exc))
             return redirect(request.get_full_path())
 
         try:
@@ -5004,6 +5023,24 @@ def import_excel(request):
     # --- STEP 1: upload file e anteprima ---
     if "file" in request.FILES and "confirm" not in request.POST:
         uploaded = request.FILES["file"]
+        try:
+            validate_extension_and_mime(
+                uploaded,
+                allowed_extensions={".xlsx", ".xls"},
+                allowed_mimes={
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel",
+                    "application/octet-stream",
+                    "application/zip",
+                    "application/x-zip-compressed",
+                },
+                max_bytes=20 * 1024 * 1024,
+                label=safe_filename(uploaded.name) or "Import Excel",
+                allow_empty=False,
+            )
+        except UploadMimeValidationError as exc:
+            messages.error(request, str(exc))
+            return redirect("tasks:import_excel")
         try:
             wb = openpyxl.load_workbook(io.BytesIO(uploaded.read()), read_only=True, data_only=True)
         except Exception:

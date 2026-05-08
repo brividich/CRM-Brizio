@@ -1,0 +1,277 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}
+  {% if asset %}{{ asset.asset_tag }} — {{ asset.name }}{% else %}Asset non trovato{% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+* { box-sizing: border-box; }
+.qrl-body {
+  font-family: 'Outfit', sans-serif;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  min-height: 100vh;
+}
+.qrl-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--primary, #1d4ed8);
+  color: #fff;
+}
+.qrl-header-tag {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: .8;
+}
+.qrl-header-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 2px 0 0;
+}
+.qrl-header-sub {
+  font-size: .85rem;
+  opacity: .75;
+  margin: 0;
+}
+.qrl-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.qrl-card {
+  border: 1px solid #dbe1ea;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+.qrl-card-title {
+  font-size: .7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #64748b;
+  padding: 10px 14px 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.qrl-card-body { padding: 12px 14px; }
+.qrl-wo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #f1f5f9;
+}
+.qrl-wo-item:first-child { border-top: none; padding-top: 0; }
+.qrl-wo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.qrl-wo-dot--urgente { background: #dc2626; }
+.qrl-wo-title { font-size: .9rem; font-weight: 600; color: #0f172a; }
+.qrl-wo-meta { font-size: .75rem; color: #64748b; margin-top: 2px; }
+.qrl-kv { display: grid; gap: 8px; }
+.qrl-kv-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.qrl-kv-label { font-size: .8rem; color: #64748b; }
+.qrl-kv-value { font-size: .85rem; font-weight: 600; color: #0f172a; text-align: right; }
+.qrl-badge {
+  display: inline-block;
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: .7rem;
+  font-weight: 700;
+}
+.qrl-badge--ok    { background: #dcfce7; color: #166534; }
+.qrl-badge--warn  { background: #fef9c3; color: #854d0e; }
+.qrl-badge--alert { background: #fee2e2; color: #991b1b; }
+.qrl-badge--info  { background: #eff6ff; color: #1e40af; }
+.qrl-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+.qrl-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: 14px;
+  font-size: .85rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+}
+.qrl-btn--primary  { background: var(--primary, #1d4ed8); color: #fff; grid-column: 1 / -1; font-size: 1rem; padding: 16px; }
+.qrl-btn--secondary { background: #f1f5f9; color: #0f172a; }
+.qrl-btn--detail   { background: #f8fafc; color: #334155; border: 1px solid #dbe1ea; }
+.qrl-btn-icon { font-size: 1.4rem; }
+.qrl-empty { color: #94a3b8; font-size: .85rem; font-style: italic; }
+.qrl-not-found {
+  text-align: center;
+  padding: 40px 20px;
+  color: #475569;
+}
+.qrl-not-found h2 { font-size: 1.3rem; color: #0f172a; margin: 10px 0 6px; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .qrl-card { background: #1e293b; border-color: #334155; }
+  .qrl-card-title { color: #94a3b8; border-bottom-color: #334155; }
+  .qrl-wo-item { border-top-color: #334155; }
+  .qrl-wo-title { color: #f1f5f9; }
+  .qrl-kv-label { color: #94a3b8; }
+  .qrl-kv-value { color: #f1f5f9; }
+  .qrl-btn--secondary { background: #1e293b; color: #f1f5f9; border: 1px solid #334155; }
+  .qrl-btn--detail { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+  .qrl-not-found { color: #94a3b8; }
+  .qrl-not-found h2 { color: #f1f5f9; }
+}
+</style>
+
+<div class="qrl-body">
+
+{% if not asset %}
+  <div class="qrl-not-found">
+    <div style="font-size:3rem;">&#10067;</div>
+    <h2>Asset non trovato</h2>
+    <p>Il tag <strong>{{ asset_tag }}</strong> non corrisponde ad alcun asset registrato.</p>
+    <a href="{% url 'assets:asset_list' %}" class="qrl-btn qrl-btn--secondary" style="display:inline-block;margin-top:12px;padding:10px 20px;border-radius:10px;text-decoration:none;">
+      Vai al catalogo asset
+    </a>
+  </div>
+
+{% else %}
+
+  {# Header #}
+  <header class="qrl-header">
+    <div class="qrl-icon">
+      {% if asset.asset_type == 'CNC' or asset.asset_type == 'WORK_MACHINE' %}&#9881;
+      {% elif asset.asset_type == 'CARROPONTE' %}&#127967;
+      {% else %}&#128295;{% endif %}
+    </div>
+    <div>
+      <div class="qrl-header-tag">{{ asset.asset_tag }}</div>
+      <div class="qrl-header-name">{{ asset.name }}</div>
+      <p class="qrl-header-sub">
+        {% if asset.reparto %}{{ asset.reparto }}{% endif %}
+        {% if asset.asset_category %} · {{ asset.asset_category.label }}{% endif %}
+      </p>
+    </div>
+  </header>
+
+  {# Stato asset #}
+  <div class="qrl-card">
+    <div class="qrl-card-title">Stato</div>
+    <div class="qrl-card-body">
+      <div class="qrl-kv">
+        <div class="qrl-kv-row">
+          <span class="qrl-kv-label">Stato asset</span>
+          <span class="qrl-kv-value">
+            {% if asset.status == 'IN_USE' %}
+              <span class="qrl-badge qrl-badge--ok">In uso</span>
+            {% elif asset.status == 'IN_REPAIR' %}
+              <span class="qrl-badge qrl-badge--alert">In riparazione</span>
+            {% elif asset.status == 'RETIRED' %}
+              <span class="qrl-badge qrl-badge--warn">Dismesso</span>
+            {% else %}
+              <span class="qrl-badge qrl-badge--info">{{ asset.get_status_display }}</span>
+            {% endif %}
+          </span>
+        </div>
+        {% if days_since_last is not None %}
+          <div class="qrl-kv-row">
+            <span class="qrl-kv-label">Ultimo intervento</span>
+            <span class="qrl-kv-value">
+              {% if days_since_last == 0 %}oggi
+              {% elif days_since_last == 1 %}ieri
+              {% else %}{{ days_since_last }} giorni fa{% endif %}
+              {% if last_wo %}&nbsp;<span class="qrl-badge qrl-badge--info" style="font-size:.65rem;">{{ last_wo.title|truncatechars:30 }}</span>{% endif %}
+            </span>
+          </div>
+        {% else %}
+          <div class="qrl-kv-row">
+            <span class="qrl-kv-label">Ultimo intervento</span>
+            <span class="qrl-kv-value qrl-empty">Nessun intervento registrato</span>
+          </div>
+        {% endif %}
+        {% if next_deadline %}
+          <div class="qrl-kv-row">
+            <span class="qrl-kv-label">Prossima scadenza</span>
+            <span class="qrl-kv-value">
+              {{ next_deadline.expiry_date|date:"d/m/Y" }}
+              {% if next_deadline.expiry_date <= today %}
+                <span class="qrl-badge qrl-badge--alert">Scaduta</span>
+              {% elif next_deadline.expiry_date|timeuntil <= "7 giorni" %}
+                <span class="qrl-badge qrl-badge--warn">Imminente</span>
+              {% endif %}
+            </span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# OdL aperti #}
+  <div class="qrl-card">
+    <div class="qrl-card-title">Interventi aperti{% if open_workorders %} ({{ open_workorders|length }}){% endif %}</div>
+    <div class="qrl-card-body">
+      {% if open_workorders %}
+        {% for wo in open_workorders %}
+          <div class="qrl-wo-item">
+            <div class="qrl-wo-dot {% if wo.kind == 'CORRECTIVE' %}qrl-wo-dot--urgente{% endif %}"></div>
+            <div>
+              <div class="qrl-wo-title">{{ wo.title|truncatechars:60 }}</div>
+              <div class="qrl-wo-meta">
+                {{ wo.get_kind_display }}
+                &nbsp;·&nbsp; aperto il {{ wo.opened_at|date:"d/m/Y" }}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+        <div style="margin-top:10px;">
+          <a href="{{ wo_list_url }}" style="font-size:.8rem;color:#1d4ed8;font-weight:600;text-decoration:none;">
+            Vedi tutti gli interventi &rarr;
+          </a>
+        </div>
+      {% else %}
+        <p class="qrl-empty">Nessun intervento aperto.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Azioni principali #}
+  <div class="qrl-actions">
+    <a href="{{ report_url }}" class="qrl-btn qrl-btn--primary">
+      <span class="qrl-btn-icon">&#9888;</span>
+      Segnala un problema
+    </a>
+    <a href="{{ wo_list_url }}" class="qrl-btn qrl-btn--secondary">
+      <span class="qrl-btn-icon">&#128295;</span>
+      Interventi
+    </a>
+    <a href="{{ detail_url }}" class="qrl-btn qrl-btn--detail">
+      <span class="qrl-btn-icon">&#128196;</span>
+      Scheda completa
+    </a>
+  </div>
+
+{% endif %}
+</div>
+{% endblock %}

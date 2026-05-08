@@ -16,6 +16,8 @@ from .models import (
     AssetLabelTemplate,
     AssetListLayout,
     AssetListOption,
+    AssetMeter,
+    AssetMeterHistory,
     AssetSidebarButton,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
@@ -129,10 +131,10 @@ class AssetListLayoutAdmin(admin.ModelAdmin):
 
 @admin.register(AssetCategory)
 class AssetCategoryAdmin(admin.ModelAdmin):
-    list_display = ("label", "code", "base_asset_type", "sort_order", "is_active")
-    list_filter = ("base_asset_type", "is_active")
-    search_fields = ("label", "code", "description")
-    ordering = ("sort_order", "label")
+    list_display = ("label", "code", "parent", "base_asset_type", "sort_order", "is_active")
+    list_filter = ("base_asset_type", "parent", "is_active")
+    search_fields = ("label", "code", "description", "parent__label", "parent__code")
+    ordering = ("parent__label", "sort_order", "label")
 
 
 @admin.register(AssetCategoryField)
@@ -322,3 +324,33 @@ class WorkOrderAdmin(admin.ModelAdmin):
 class WorkOrderLogAdmin(admin.ModelAdmin):
     list_display = ("work_order", "ts", "author")
     search_fields = ("work_order__asset__asset_tag", "work_order__title", "note", "author__username")
+
+
+class AssetMeterHistoryInline(admin.TabularInline):
+    model = AssetMeterHistory
+    extra = 0
+    readonly_fields = ("old_value", "new_value", "recorded_by", "recorded_at")
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AssetMeter)
+class AssetMeterAdmin(admin.ModelAdmin):
+    list_display = ("asset", "meter_type", "current_value", "unit_label", "updated_at", "updated_by")
+    list_filter = ("meter_type",)
+    search_fields = ("asset__asset_tag", "asset__name", "unit_label")
+    readonly_fields = ("updated_at", "created_at")
+    inlines = [AssetMeterHistoryInline]
+
+
+@admin.register(AssetMeterHistory)
+class AssetMeterHistoryAdmin(admin.ModelAdmin):
+    list_display = ("meter", "old_value", "new_value", "recorded_by", "recorded_at")
+    list_filter = ("meter__meter_type",)
+    search_fields = ("meter__asset__asset_tag", "meter__asset__name")
+    readonly_fields = ("meter", "old_value", "new_value", "recorded_by", "recorded_at")
+
+    def has_add_permission(self, request):
+        return False

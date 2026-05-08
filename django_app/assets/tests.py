@@ -15,6 +15,7 @@ from django.conf import settings
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import DatabaseError, connection
 from django.http import HttpResponse
@@ -434,7 +435,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ubicazione Rack")
 
-    def test_asset_list_firewall_context_shows_only_relevant_default_columns(self):
+    def test_asset_list_firewall_context_uses_common_default_columns(self):
         firewall_asset = Asset.objects.create(
             asset_tag="IT-FW-001",
             name="Firewall bordo rete",
@@ -458,14 +459,16 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:asset_list") + "?asset_type=FIREWALL")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Colonne")
+        self.assertContains(response, "Vista")
         self.assertContains(response, 'assets.list.network', html=False)
-        self.assertContains(response, 'data-col-toggle="vlan" checked', html=False)
-        self.assertContains(response, 'data-col-toggle="ip" checked', html=False)
-        self.assertContains(response, 'data-col-toggle="custom_rack_label" checked', html=False)
-        self.assertNotContains(response, 'data-col-toggle="custom_x_mm" checked', html=False)
-        self.assertContains(response, "192.0.2.10")
-        self.assertContains(response, "23")
+        self.assertContains(response, 'data-col-toggle="assignment_location" checked', html=False)
+        self.assertContains(response, 'data-col-toggle="serial_number" checked', html=False)
+        self.assertNotContains(response, 'data-col-toggle="vlan"', html=False)
+        self.assertNotContains(response, 'data-col-toggle="ip"', html=False)
+        self.assertNotContains(response, 'data-col-toggle="custom_rack_label"', html=False)
+        self.assertContains(response, "Firewall bordo rete")
+        self.assertContains(response, "FGT123456")
+        self.assertNotContains(response, "192.0.2.10")
 
     def test_asset_dashboard_redirects_legacy_filtered_list_urls(self):
         self.client.force_login(self.user)
@@ -507,7 +510,31 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("assets:work_machine_list"))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="wm-table"', html=False)
+        self.assertContains(response, "Responsabile")
+        self.assertContains(response, "Collocazione")
         self.assertContains(response, "Tornio parallelo")
+
+    def test_device_list_uses_common_asset_table_columns(self):
+        Asset.objects.create(
+            asset_tag="IT-PC-001",
+            name="Notebook amministrazione",
+            asset_type=Asset.TYPE_PC,
+            reparto="CED",
+            assignment_to="Mario Rossi",
+            assignment_location="Ufficio IT",
+            manufacturer="Lenovo",
+            model="T14",
+            serial_number="SN-PC-001",
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:device_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="dv-table"', html=False)
+        self.assertContains(response, "Responsabile")
+        self.assertContains(response, "Collocazione")
+        self.assertContains(response, "Notebook amministrazione")
+        self.assertContains(response, "SN-PC-001")
 
     def test_work_machine_dashboard_200_when_logged(self):
         asset = Asset.objects.create(
@@ -1329,6 +1356,14 @@ class AssetsRoutingTests(TestCase):
             base_asset_type=Asset.TYPE_OTHER,
             is_active=True,
         )
+        Asset.objects.create(
+            asset_tag="ALM-001",
+            name="Centrale allarme reparto 1",
+            asset_type=Asset.TYPE_OTHER,
+            asset_category=category,
+            status=Asset.STATUS_IN_USE,
+            reparto="SIC",
+        )
         AssetCategoryField.objects.create(
             category=category,
             code="matricola_centrale",
@@ -1351,9 +1386,13 @@ class AssetsRoutingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
-        self.assertIn("Categorie asset e campi dinamici", content)
+        self.assertIn("Nuova categoria", content)
+        self.assertIn("Asset collegati", content)
+        self.assertIn(f"asset_category={category.id}", content)
+        self.assertIn(f"category-preview-{category.id}", content)
         self.assertIn("Campi dinamici di categoria", content)
         self.assertIn("Sistema allarme", content)
+        self.assertIn("Centrale allarme reparto 1", content)
         self.assertIn("Matricola centrale", content)
 
     def test_gestione_admin_can_create_asset_category_from_categories_tab(self):
@@ -1422,6 +1461,75 @@ class AssetsRoutingTests(TestCase):
                 label="NVR principale",
             ).exists()
         )
+
+    def test_gestione_admin_can_create_sidebar_button_for_asset_category(self):
+        AssetSidebarButton.objects.all().delete()
+        category = AssetCategory.objects.create(
+            code="tvcc",
+            label="TVCC",
+            base_asset_type=Asset.TYPE_CCTV,
+            is_active=True,
+        )
+        request = self.factory.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": "create_sidebar_button_for_category",
+                "category_id": str(category.id),
+                "sidebar_label": "TVCC impianti",
+                "section": AssetSidebarButton.SECTION_MAIN,
+                "sort_order": "90",
+            },
+        )
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('assets:gestione_admin')}?tab=categorie")
+        self.assertTrue(AssetSidebarButton.objects.filter(code="dashboard").exists())
+        sidebar_item = AssetSidebarButton.objects.get(label="TVCC impianti")
+        self.assertEqual(
+            sidebar_item.target_url,
+            f"django:assets:asset_list?asset_category={category.id}&rows={{rows}}",
+        )
+        self.assertEqual(sidebar_item.active_match, f"asset_category={category.id}")
+
+    def test_asset_list_filters_by_asset_category(self):
+        category = AssetCategory.objects.create(
+            code="allarmi",
+            label="Allarmi",
+            base_asset_type=Asset.TYPE_OTHER,
+            is_active=True,
+        )
+        other_category = AssetCategory.objects.create(
+            code="tvcc",
+            label="TVCC",
+            base_asset_type=Asset.TYPE_CCTV,
+            is_active=True,
+        )
+        Asset.objects.create(
+            asset_tag="ALM-100",
+            name="Centrale allarme",
+            asset_type=Asset.TYPE_OTHER,
+            asset_category=category,
+        )
+        Asset.objects.create(
+            asset_tag="CAM-100",
+            name="Telecamera ingresso",
+            asset_type=Asset.TYPE_CCTV,
+            asset_category=other_category,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_list"), {"asset_category": category.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Centrale allarme")
+        self.assertContains(response, "Allarmi (1)")
+        self.assertNotContains(response, "Telecamera ingresso")
 
     def test_gestione_admin_can_seed_sidebar_buttons(self):
         AssetSidebarButton.objects.all().delete()
@@ -2609,6 +2717,139 @@ class ImportAssetsExcelTests(TestCase):
             asset = Asset.objects.get()
             self.assertEqual(asset.name, "SIM-VOICE-01")
             self.assertEqual(asset.serial_number, "ICCID-0001")
+
+
+class ImportAssetsCatalogTests(TestCase):
+    def _write_catalog_csv(self, path: Path, rows: list[list[str]]) -> None:
+        lines = ["asset_id;famiglia;sottocategoria;descrizione;nome;ubicazione;matricola;stato"]
+        lines.extend(";".join(row) for row in rows)
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def test_creates_parent_category_from_famiglia(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertTrue(AssetCategory.objects.filter(label="Sollevamento", parent__isnull=True).exists())
+
+    def test_creates_subcategory_under_parent(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            parent = AssetCategory.objects.get(label="Sollevamento", parent__isnull=True)
+            subcategory = AssetCategory.objects.get(label="Carroponte", parent=parent)
+            self.assertEqual(subcategory.base_asset_type, Asset.TYPE_CARROPONTE)
+
+    def test_creates_asset_with_explicit_asset_id(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "CP 142", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            asset = Asset.objects.get(asset_tag="APLCP142-MATR.PI-I-2286")
+            self.assertEqual(asset.name, "CP 142")
+            self.assertEqual(asset.serial_number, "M-2286")
+            self.assertEqual(asset.asset_category.label, "Carroponte")
+
+    def test_double_import_is_idempotent(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "CP 142", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertEqual(Asset.objects.filter(asset_tag="APLCP142-MATR.PI-I-2286").count(), 1)
+            self.assertEqual(AssetCategory.objects.filter(label="Sollevamento", parent__isnull=True).count(), 1)
+            self.assertEqual(AssetCategory.objects.filter(label="Carroponte").count(), 1)
+
+    def test_dry_run_does_not_write(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "CP 142", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), dry_run=True)
+
+            self.assertEqual(Asset.objects.count(), 0)
+            self.assertEqual(AssetCategory.objects.count(), 0)
+
+    def test_missing_famiglia_is_blocking_error(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "", "Carroponte", "Linea A", "CP 142", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            with self.assertRaisesMessage(CommandError, "Import annullato"):
+                call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertEqual(Asset.objects.count(), 0)
+
+    def test_missing_sottocategoria_is_blocking_error(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "", "Linea A", "CP 142", "Reparto A", "M-2286", "In uso"]],
+            )
+
+            with self.assertRaisesMessage(CommandError, "Import annullato"):
+                call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertEqual(Asset.objects.count(), 0)
+
+    def test_updates_existing_asset_without_duplicate(self):
+        Asset.objects.create(asset_tag="APLCP142-MATR.PI-I-2286", name="Vecchio nome", asset_type=Asset.TYPE_OTHER)
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["APLCP142-MATR.PI-I-2286", "Sollevamento", "Carroponte", "Linea A", "CP aggiornato", "Reparto B", "M-2286", "In riparazione"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertEqual(Asset.objects.filter(asset_tag="APLCP142-MATR.PI-I-2286").count(), 1)
+            asset = Asset.objects.get(asset_tag="APLCP142-MATR.PI-I-2286")
+            self.assertEqual(asset.name, "CP aggiornato")
+            self.assertEqual(asset.reparto, "Reparto B")
+            self.assertEqual(asset.status, Asset.STATUS_IN_REPAIR)
+
+    def test_generic_cn_asset_is_imported_as_real_asset(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.csv"
+            self._write_catalog_csv(
+                file_path,
+                [["CN-ANT", "Generici CN", "Asset generico", "Antincendio generale", "", "Stabilimento", "", "Attivo"]],
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            asset = Asset.objects.get(asset_tag="CN-ANT")
+            self.assertEqual(asset.notes, "Asset generico CN")
+            self.assertIs(asset.extra_columns.get("is_generic_asset"), True)
 
 
 class ImportWorkMachinesExcelTests(TestCase):
@@ -4387,6 +4628,83 @@ class AssetMaintenanceStepThreeTests(TestCase):
 
             self.assertEqual(response.status_code, 404)
             self.assertTrue(outside.exists())
+
+    def test_admin_deadline_attachment_download_creates_audit_log(self):
+        from core.models import AuditLog
+
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale audit",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=date(2026, 4, 15),
+        )
+        with _workspace_temporary_directory("assets-private-") as private_root, override_settings(ASSETS_PRIVATE_ROOT=private_root):
+            attachment = AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                completion=completion,
+                file=SimpleUploadedFile("verbale-audit.pdf", b"%PDF-AUDIT", content_type="application/pdf"),
+                original_name="verbale-audit.pdf",
+            )
+            self.client.force_login(self.admin)
+            before = AuditLog.objects.count()
+            response = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
+            self.assertEqual(response.status_code, 200)
+            created = AuditLog.objects.filter(
+                azione="download_admin_deadline_attachment", modulo="assets",
+            ).order_by("-id").first()
+            self.assertIsNotNone(created)
+            self.assertEqual(AuditLog.objects.count(), before + 1)
+            payload = created.dettaglio or {}
+            self.assertEqual(payload.get("esito"), "success")
+            self.assertEqual(payload.get("attachment_id"), attachment.id)
+            self.assertEqual(payload.get("asset_id"), self.asset.id)
+            serialized = repr(payload)
+            self.assertNotIn(str(private_root), serialized)
+            self.assertNotIn("%PDF-AUDIT", serialized)
+
+    def test_admin_deadline_attachment_denied_creates_audit_without_path(self):
+        from core.models import AuditLog
+
+        user = User.objects.create_user(username="asset-audit-basic", password="pass12345")
+        UserOnboarding.objects.update_or_create(
+            user=user,
+            defaults={"completed": True, "skipped": False, "completed_at": timezone.now()},
+        )
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+            title="Verbale audit denied",
+            due_date=date(2026, 5, 15),
+            is_active=True,
+        )
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=date(2026, 4, 15),
+        )
+        with _workspace_temporary_directory("assets-private-") as private_root, override_settings(ASSETS_PRIVATE_ROOT=private_root):
+            attachment = AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                completion=completion,
+                file=SimpleUploadedFile("riservato.pdf", b"%PDF-RISERVATO", content_type="application/pdf"),
+                original_name="riservato.pdf",
+            )
+            self.client.force_login(user)
+            response = self.client.get(reverse("assets:admin_deadline_attachment_download", args=[attachment.id]))
+            self.assertEqual(response.status_code, 403)
+            created = AuditLog.objects.filter(
+                azione="download_admin_deadline_attachment", modulo="assets",
+            ).order_by("-id").first()
+            self.assertIsNotNone(created)
+            payload = created.dettaglio or {}
+            self.assertEqual(payload.get("esito"), "denied")
+            self.assertEqual(payload.get("motivo"), "permission_denied")
+            serialized = repr(payload)
+            self.assertNotIn(str(private_root), serialized)
+            self.assertNotIn("%PDF-RISERVATO", serialized)
+            self.assertNotIn("riservato.pdf", serialized)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

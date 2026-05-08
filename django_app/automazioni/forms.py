@@ -6,6 +6,12 @@ from typing import Any
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from core.upload_mime import (
+    UploadMimeValidationError,
+    safe_filename,
+    validate_filename,
+)
+
 from .models import (
     AutomationAction,
     AutomationActionType,
@@ -1651,9 +1657,18 @@ class AutomationPackageUploadForm(forms.Form):
 
     def clean_package_file(self):
         uploaded_file = self.cleaned_data["package_file"]
-        filename = str(getattr(uploaded_file, "name", "") or "").strip().lower()
-        if not (filename.endswith(".automation_package.json") or filename.endswith(".json")):
+        try:
+            filename = validate_filename(getattr(uploaded_file, "name", ""), label="Package")
+        except UploadMimeValidationError as exc:
+            raise forms.ValidationError(str(exc))
+        lower = filename.lower()
+        if not (lower.endswith(".automation_package.json") or lower.endswith(".json")):
             raise forms.ValidationError("Carica un file `.automation_package.json` o `.json` compatibile.")
+        size = int(getattr(uploaded_file, "size", 0) or 0)
+        if size <= 0:
+            raise forms.ValidationError("Package vuoto: caricamento bloccato.")
+        if size > 10 * 1024 * 1024:
+            raise forms.ValidationError("Package: supera il limite di 10 MB.")
         return uploaded_file
 
 
@@ -1705,9 +1720,18 @@ class PowerAutomateFlowUploadForm(forms.Form):
 
     def clean_flow_file(self):
         uploaded_file = self.cleaned_data["flow_file"]
-        filename = str(getattr(uploaded_file, "name", "") or "").strip().lower()
-        if not (filename.endswith(".zip") or filename.endswith(".json")):
+        try:
+            filename = validate_filename(getattr(uploaded_file, "name", ""), label="Flow")
+        except UploadMimeValidationError as exc:
+            raise forms.ValidationError(str(exc))
+        lower = filename.lower()
+        if not (lower.endswith(".zip") or lower.endswith(".json")):
             raise forms.ValidationError("Carica un export Power Automate `.zip` oppure un file `.json`.")
+        size = int(getattr(uploaded_file, "size", 0) or 0)
+        if size <= 0:
+            raise forms.ValidationError("File vuoto: caricamento bloccato.")
+        if size > 25 * 1024 * 1024:
+            raise forms.ValidationError("Flow: supera il limite di 25 MB.")
         return uploaded_file
 
 

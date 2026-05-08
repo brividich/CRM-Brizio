@@ -83,11 +83,18 @@ urlpatterns = [
     path("assets/workorders/view/<int:id>/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/close/", views.workorder_close, name="wo_close"),
     path("assets/workorders/close/<int:id>/", views.workorder_close, name="wo_close"),
+    path("assets/workorders/<int:id>/checklist/add/", views.workorder_checklist_add, name="wo_checklist_add"),
+    path("assets/workorders/<int:id>/checklist/<int:item_id>/toggle/", views.workorder_checklist_toggle, name="wo_checklist_toggle"),
+    path("assets/workorders/<int:id>/checklist/<int:item_id>/delete/", views.workorder_checklist_delete, name="wo_checklist_delete"),
     path("assets/manutenzione/verifiche/", views.periodic_verification_list, name="periodic_verifications"),
     path(
         "assets/verifiche-periodiche/",
         RedirectView.as_view(pattern_name="assets:periodic_verifications", permanent=False),
     ),
+    path("assets/manutenzione/todo/", views.maintenance_todo, name="maintenance_todo"),
+    path("assets/<int:asset_id>/meters/", views.asset_meter_update, name="asset_meter_update"),
+    path("assets/segnala/", views.asset_quick_report, name="asset_quick_report"),
+    path("assets/qr/<str:asset_tag>/", views.asset_qr_landing, name="asset_qr_landing"),
     path("assets/reports/", views.reports_dashboard, name="reports"),
     path("assets/reports/manage/", views.report_template_admin, name="report_template_admin"),
     path(

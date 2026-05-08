@@ -211,6 +211,17 @@ body.theme-dark .ad-witem.active { background:rgba(29,78,216,.1); border-color:#
 body.theme-dark .ad-witem-name { color:var(--text); }
 body.theme-dark .ad-witem-toggle { background:var(--surface); border-color:var(--border); }
 body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; color:#fff; }
+/* ── Sezione performance manutenzione ───────────────────────────── */
+.ad-perf { border:1px solid #bfdbfe; background:#f0f6ff; border-radius:8px; padding:14px; margin-top:8px; }
+.ad-perf .ad-family-metric { border-color:#bfdbfe; }
+.ad-perf-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+.ad-perf-panel-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ad-perf-val-link { color:inherit; text-decoration:none; font-weight:800; }
+.ad-perf-val-link:hover { text-decoration:underline; }
+body.theme-dark .ad-perf { background:rgba(29,78,216,.07); border-color:rgba(99,149,255,.3); }
+body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
+@media (max-width:1100px) { .ad-perf-grid { grid-template-columns:repeat(2,1fr); } .ad-perf-panel-row { grid-template-columns:1fr; } }
+@media (max-width:500px)  { .ad-perf-grid { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -596,6 +607,86 @@ body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; colo
     </div>
     {% endif %}
   </section>
+
+  {# ── Sezione Performance Manutenzione ───────────────────────────────── #}
+  {% if maintenance_perf.has_data %}
+  <section class="ad-family-section">
+    <div class="ad-section-head">
+      <div>
+        <h2 class="ad-section-title">Performance manutenzione</h2>
+        <p class="ad-section-sub">Metriche operative del mese corrente · OdL, downtime, costi, ticket</p>
+      </div>
+      <a class="ad-btn" href="{% url 'assets:wo_list' %}">Tutti gli OdL</a>
+    </div>
+
+    <div class="ad-perf">
+      {# 4 metric card principali #}
+      <div class="ad-perf-grid">
+        <div class="ad-family-metric">
+          <div class="ad-family-label">MTTR medio (ore correttive)</div>
+          <div class="ad-family-value">{% if maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }}h{% else %}&mdash;{% endif %}</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Downtime mese (ore)</div>
+          <div class="ad-family-value {% if maintenance_perf.downtime_hours_month %}ad-w-val warn{% endif %}">{{ maintenance_perf.downtime_hours_month|floatformat:1 }}h</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Costo manutenzione (mese)</div>
+          <div class="ad-family-value">{% if maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div>
+        </div>
+        <div class="ad-family-metric">
+          <div class="ad-family-label">Ticket MAN aperti</div>
+          <div class="ad-family-value {% if maintenance_perf.ticket_man_open %}ad-w-val warn{% else %}ad-w-val ok{% endif %}">
+            <a class="ad-perf-val-link" href="{% url 'tickets:gestione_list' %}?tipo=MAN" title="Vedi ticket manutenzione aperti">{{ maintenance_perf.ticket_man_open }}</a>
+          </div>
+        </div>
+      </div>
+
+      {# Panel barre: OdL per tipo + riepilogo mese #}
+      <div class="ad-perf-panel-row">
+        <div class="ad-family-panel">
+          <h3 class="ad-panel-title">OdL aperti per tipo &mdash; {{ maintenance_perf.wo_open_total }} totali</h3>
+          {% if maintenance_perf.wo_open_by_kind %}
+          <div class="ad-mini-bars">
+            {% for kind_code, kind_data in maintenance_perf.wo_open_by_kind.items %}
+            <div class="ad-mini-row">
+              <span class="ad-mini-label">
+                <a href="{% url 'assets:wo_list' %}?kind={{ kind_code }}&status=OPEN">{{ kind_data.label }}</a>
+              </span>
+              <span class="ad-mini-track"><span class="ad-mini-fill {% if kind_code == 'CORRECTIVE' %}orange{% elif kind_code == 'PREVENTIVE' %}green{% else %}blue{% endif %}" style="width:{{ kind_data.percent|default:0 }}%;"></span></span>
+              <span class="ad-mini-count">{{ kind_data.count }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="ad-empty">Nessun OdL aperto</p>
+          {% endif %}
+        </div>
+
+        <div class="ad-family-panel">
+          <h3 class="ad-panel-title">Riepilogo mese</h3>
+          <div class="ad-mini-bars">
+            <div class="ad-mini-row">
+              <span class="ad-mini-label">OdL chiusi</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill green" style="width:100%;"></span></span>
+              <span class="ad-mini-count"><a href="{% url 'assets:wo_list' %}?status=DONE">{{ maintenance_perf.wo_closed_month }}</a></span>
+            </div>
+            <div class="ad-mini-row">
+              <span class="ad-mini-label">OdL aperti</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill orange" style="width:{% if maintenance_perf.wo_closed_month %}{{ maintenance_perf.wo_open_total|floatformat:0 }}{% else %}100{% endif %}%;"></span></span>
+              <span class="ad-mini-count"><a href="{% url 'assets:wo_list' %}?status=OPEN">{{ maintenance_perf.wo_open_total }}</a></span>
+            </div>
+            <div class="ad-mini-row">
+              <span class="ad-mini-label">Ticket MAN</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill blue" style="width:{% if maintenance_perf.ticket_man_open %}60{% else %}0{% endif %}%;"></span></span>
+              <span class="ad-mini-count"><a href="{% url 'tickets:gestione_list' %}?tipo=MAN">{{ maintenance_perf.ticket_man_open }}</a></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
 
   {# Pulsante "Aggiungi widget" a piede griglia #}
   <div style="text-align:center;margin-top:8px;">
