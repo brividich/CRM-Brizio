@@ -209,9 +209,13 @@
         <div class="wmf-fields">
           {% for field in form %}
             {% if field.name in assignment_field_names %}
-              <div class="wmf-field {% if field.name == 'notes' %}wide{% endif %}">
+              <div class="wmf-field {% if field.name == 'notes' or field.name == 'assignment_mode' %}wide{% endif %}" data-assignment-field="{{ field.name }}">
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
+                {% if field.name == 'assignment_mode' %}
+                  <div style="display:flex;gap:14px;flex-wrap:wrap;">{{ field }}</div>
+                {% else %}
+                  {{ field }}
+                {% endif %}
                 {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
                 {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
               </div>
@@ -258,16 +262,27 @@
         <div class="wmf-fields">
           {% for field in form %}
             {% if field.name in sharepoint_field_names %}
-              <div class="wmf-field {% if field.name == 'sharepoint_folder_url' %}wide{% endif %}">
+              {% if field.name == 'sharepoint_auto_folder' or field.name == 'include_in_plant_layout' %}
+                <label class="wmf-check" for="{{ field.id_for_label }}">
+                  {{ field }}
+                  <span>{{ field.label }}</span>
+                </label>
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              {% else %}
+              <div class="wmf-field {% if field.name == 'sharepoint_folder_url' %}wide{% endif %}" data-sharepoint-advanced>
                 <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
                 {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
                 {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
               </div>
+              {% endif %}
             {% endif %}
           {% endfor %}
         </div>
-        <div class="wmf-inline-note">Il percorso consente di sincronizzare gli upload nelle sottocartelle SharePoint per categoria. L'URL apre direttamente la cartella dal dettaglio macchina.</div>
+        <div class="wmf-inline-note">Con la cartella automatica basta salvare: il portale usa root macchine, reparto e ID asset. I campi manuali servono solo per eccezioni.</div>
+        <div class="wmf-inline-note" style="padding:10px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#f8fafc;">
+          Percorso previsto: <code data-sharepoint-preview>-</code>
+        </div>
         {% if asset %}
           <div class="wmf-inline-actions">
             <a class="btn btn-secondary" href="{% url 'assets:asset_qr_label' asset.id %}" target="_blank" rel="noopener">QR scheda</a>
@@ -367,10 +382,19 @@
       </datalist>
     {% endif %}
   {% endfor %}
+  {% if assignment_department_choices %}
+    <datalist id="list_assignment_departments">
+      {% for value in assignment_department_choices %}
+        <option value="{{ value }}"></option>
+      {% endfor %}
+    </datalist>
+  {% endif %}
 </section>
 {% endblock %}
 
 {% block assets_shell_scripts %}
+{{ assignment_employee_details|json_script:"asset-assignment-employees" }}
+{{ sharepoint_preview_config|json_script:"asset-sharepoint-preview-config" }}
 <script>
 (function () {
   const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
@@ -490,6 +514,111 @@
     categorySelect.addEventListener("change", toggleCategoryGroups);
     toggleCategoryGroups();
   }
+
+  const modeInputs = Array.from(document.querySelectorAll('input[name="assignment_mode"]'));
+  const employeeWrap = document.querySelector('[data-assignment-field="assignment_employee_id"]');
+  const departmentWrap = document.querySelector('[data-assignment-field="assignment_department_value"]');
+  const employeeSelect = document.getElementById("id_assignment_employee_id");
+  const departmentInput = document.getElementById("id_assignment_department_value");
+  const assignedTo = document.getElementById("id_assignment_to");
+  const assignedReparto = document.getElementById("id_assignment_reparto");
+  const assignedLocation = document.getElementById("id_assignment_location");
+  const dataNode = document.getElementById("asset-assignment-employees");
+  const employeeData = dataNode ? JSON.parse(dataNode.textContent || "{}") : {};
+
+  function currentMode() {
+    const selected = modeInputs.find(function (input) { return input.checked; });
+    return selected ? selected.value : "employee";
+  }
+  function toggleAssignmentMode() {
+    const mode = currentMode();
+    if (employeeWrap) employeeWrap.style.display = mode === "employee" ? "" : "none";
+    if (departmentWrap) departmentWrap.style.display = mode === "department" ? "" : "none";
+  }
+  function applyEmployee() {
+    if (!employeeSelect) return;
+    const details = employeeData[employeeSelect.value] || {};
+    if (assignedTo && details.display_name) assignedTo.value = details.display_name;
+    if (assignedReparto && details.reparto) assignedReparto.value = details.reparto;
+    if (assignedLocation && details.reparto && !assignedLocation.value) assignedLocation.value = details.reparto;
+  }
+  function applyDepartment() {
+    if (!departmentInput) return;
+    const reparto = (departmentInput.value || "").trim();
+    if (!reparto) return;
+    if (assignedTo) assignedTo.value = "Reparto " + reparto;
+    if (assignedReparto) assignedReparto.value = reparto;
+    if (assignedLocation && !assignedLocation.value) assignedLocation.value = reparto;
+  }
+  function attachSelectSearch(select) {
+    if (!select || select.dataset.searchBound) return;
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "input";
+    search.placeholder = "Cerca per nome, reparto o mansione...";
+    search.style.marginBottom = "6px";
+    const allOptions = Array.from(select.options).map(function (option) {
+      return { value: option.value, text: option.textContent || "" };
+    });
+    search.addEventListener("input", function () {
+      const q = (search.value || "").trim().toLowerCase();
+      const current = select.value;
+      select.innerHTML = "";
+      allOptions.forEach(function (option) {
+        if (option.value && q && option.text.toLowerCase().indexOf(q) === -1) return;
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.text;
+        if (option.value === current) el.selected = true;
+        select.appendChild(el);
+      });
+    });
+    select.parentElement.insertBefore(search, select);
+    select.dataset.searchBound = "1";
+  }
+  modeInputs.forEach(function (input) {
+    input.addEventListener("change", function () {
+      toggleAssignmentMode();
+      if (currentMode() === "employee") applyEmployee();
+      else applyDepartment();
+    });
+  });
+  if (employeeSelect) employeeSelect.addEventListener("change", applyEmployee);
+  attachSelectSearch(employeeSelect);
+  if (departmentInput) departmentInput.addEventListener("change", applyDepartment);
+  toggleAssignmentMode();
+
+  const autoSharePoint = document.getElementById("id_sharepoint_auto_folder");
+  const advancedSharePoint = Array.from(document.querySelectorAll("[data-sharepoint-advanced]"));
+  const previewNode = document.querySelector("[data-sharepoint-preview]");
+  const previewConfigNode = document.getElementById("asset-sharepoint-preview-config");
+  const previewConfig = previewConfigNode ? JSON.parse(previewConfigNode.textContent || "{}") : {};
+  const repartoInput = document.getElementById("id_reparto");
+  const assetId = "{{ asset.id|default:'' }}";
+  function cleanSegment(value, fallback) {
+    const cleaned = String(value || "").replace(/[\\/:*?"<>|#%{}~&]+/g, "-").trim().replace(/^\.+|\.+$/g, "");
+    return cleaned || fallback || "";
+  }
+  function refreshSharePointPreview() {
+    if (!previewNode) return;
+    const root = String(previewConfig.root_path || "").replace(/^\/+|\/+$/g, "");
+    const reparto = cleanSegment(repartoInput ? repartoInput.value : "", previewConfig.fallback_reparto || "Senza reparto");
+    const folderName = cleanSegment(assetId, previewConfig.fallback_asset_id || "id-generato");
+    previewNode.textContent = [root, reparto, folderName].filter(Boolean).join("/");
+  }
+  function toggleSharePointAdvanced() {
+    const hidden = autoSharePoint && autoSharePoint.checked;
+    advancedSharePoint.forEach(function (node) { node.style.display = hidden ? "none" : ""; });
+    refreshSharePointPreview();
+  }
+  if (autoSharePoint) {
+    autoSharePoint.addEventListener("change", toggleSharePointAdvanced);
+    toggleSharePointAdvanced();
+  }
+  [repartoInput].forEach(function (input) {
+    if (input) input.addEventListener("input", refreshSharePointPreview);
+  });
+  refreshSharePointPreview();
 })();
 </script>
 {% endblock %}

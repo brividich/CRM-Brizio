@@ -281,6 +281,9 @@ def build_sqlserver_database() -> dict:
     # In produzione lasciare non impostato o DB_TRUST_CERT=0 per verificare il certificato SSL.
     trust_cert = env_bool("DB_TRUST_CERT", False)
     extra_params = f"TrustServerCertificate={'yes' if trust_cert else 'no'};"
+    db_encrypt = env("DB_ENCRYPT", "").strip()
+    if db_encrypt:
+        extra_params += f"Encrypt={'yes' if env_bool('DB_ENCRYPT', True) else 'no'};"
     if not db_user:
         extra_params += "Trusted_Connection=yes;"
 

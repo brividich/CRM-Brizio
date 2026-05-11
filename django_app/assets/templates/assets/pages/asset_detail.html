@@ -442,7 +442,13 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 <tbody>
                   {% for row in asset_schedule_rows %}
                     <tr>
-                      <td>{{ row.effective_intervention_template.label|default:row.base_rule.code|default:"—" }}</td>
+                      <td>
+                        {% if row.effective_intervention_template %}
+                          {{ row.effective_intervention_template.label }}
+                        {% else %}
+                          {{ row.base_rule.intervention_template.label|default:"—" }}
+                        {% endif %}
+                      </td>
                       <td style="white-space:nowrap;">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}</td>
                       <td>
                         {% if row.last_execution_date %}

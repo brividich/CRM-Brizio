@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import io
 from pathlib import Path
 import shutil
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
@@ -1471,10 +1472,11 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.client.force_login(self.user)
         task = Task.objects.create(title="Task allegato", created_by=self.user)
         file_obj = SimpleUploadedFile("task-note.txt", b"contenuto allegato task", content_type="text/plain")
-        response = self.client.post(
-            reverse("tasks:add_attachment", args=[task.id]),
-            {"attach_to": "task", "file": file_obj},
-        )
+        with patch("tasks.forms.validate_extension_and_mime", return_value="text/plain"):
+            response = self.client.post(
+                reverse("tasks:add_attachment", args=[task.id]),
+                {"attach_to": "task", "file": file_obj},
+            )
         self.assertEqual(response.status_code, 302)
 
         attachment = TaskAttachment.objects.get(task=task)
@@ -1489,10 +1491,11 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         project = Project.objects.create(name="Project Attach", created_by=self.user)
         task = Task.objects.create(title="Task con progetto allegato", created_by=self.user, project=project)
         file_obj = SimpleUploadedFile("project-note.txt", b"contenuto allegato progetto", content_type="text/plain")
-        response = self.client.post(
-            reverse("tasks:add_attachment", args=[task.id]),
-            {"attach_to": "project", "file": file_obj},
-        )
+        with patch("tasks.forms.validate_extension_and_mime", return_value="text/plain"):
+            response = self.client.post(
+                reverse("tasks:add_attachment", args=[task.id]),
+                {"attach_to": "project", "file": file_obj},
+            )
         self.assertEqual(response.status_code, 302)
 
         attachment = TaskAttachment.objects.get(project=project, task__isnull=True)
@@ -2378,8 +2381,6 @@ class TaskOutlookReminderTests(TasksBaseTestCase):
         self.assertEqual(form.initial["outlook_target_email"], "planner@example.com")
 
     def test_sync_task_outlook_event_access_denied_message_is_actionable(self):
-        from unittest.mock import patch
-
         from .outlook_reminder import sync_task_outlook_event
 
         self.user.email = "outlook.user@cnovicrom.local"

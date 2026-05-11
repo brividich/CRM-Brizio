@@ -27,7 +27,7 @@ from types import SimpleNamespace
 from PIL import Image
 
 from anagrafica.models import Fornitore, FornitoreDocumento
-from core.legacy_models import Pulsante, UtenteLegacy
+from core.legacy_models import AnagraficaDipendente, Pulsante, UtenteLegacy
 from core.models import UserDashboardLayout, UserOnboarding
 from core.upload_mime import UploadMimeValidationError
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
@@ -1019,6 +1019,233 @@ class AssetsRoutingTests(TestCase):
         self.assertTrue(remote_name.endswith("manuale- rischio-.pdf"))
         self.assertNotIn(":", remote_name)
         self.assertNotIn("?", remote_name)
+
+    def test_default_sharepoint_path_sanitizes_folder_segments(self):
+        asset = Asset.objects.create(
+            name="Centro path sicuro",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto='CN5/Linea?#%{}~&',
+            source_key="manual-wm-sp-path-safe",
+        )
+
+        path = asset_views._default_asset_sharepoint_path(asset)
+
+        self.assertIn(f"/CN5-Linea-/{asset.id}", path)
+        for char in '\\:*?"<>|#%{}~&':
+            self.assertNotIn(char, path)
+
+    def test_asset_edit_assignment_from_anagrafica_autofills_department_and_location(self):
+        self.client.force_login(self.user)
+        legacy_user = UtenteLegacy.objects.create(
+            nome="Bova Luca",
+            email="l.bova@example.local",
+            password="x",
+            attivo=True,
+        )
+        anagrafica = AnagraficaDipendente.objects.create(
+            nome="Luca",
+            cognome="Bova",
+            reparto="CED",
+            mansione="IT",
+            email="l.bova@example.local",
+            email_notifica="l.bova@example.com",
+            utente=legacy_user,
+        )
+        asset = Asset.objects.create(
+            asset_tag="IT-AUTOASSIGN",
+            name="Firewall assegnazione",
+            asset_type=Asset.TYPE_FIREWALL,
+            reparto="CED",
+            status=Asset.STATUS_IN_USE,
+            source_key="asset-autoassign",
+        )
+
+        response = self.client.post(
+            reverse("assets:asset_edit", args=[asset.id]),
+            {
+                "asset_tag": asset.asset_tag,
+                "name": asset.name,
+                "asset_type": asset.asset_type,
+                "reparto": asset.reparto,
+                "manufacturer": "",
+                "model": "M270",
+                "serial_number": "FW-1",
+                "status": Asset.STATUS_IN_USE,
+                "assignment_mode": "employee",
+                "assignment_employee_id": str(anagrafica.id),
+                "assignment_to": "",
+                "assignment_reparto": "",
+                "assignment_location": "",
+                "sharepoint_auto_folder": "on",
+                "notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        asset.refresh_from_db()
+        self.assertEqual(asset.assignment_to, "Bova Luca")
+        self.assertEqual(asset.assignment_reparto, "CED")
+        self.assertEqual(asset.assignment_location, "CED")
+        self.assertEqual(asset.assigned_legacy_user_id, legacy_user.id)
+
+    def test_asset_assignment_payload_does_not_expose_employee_email(self):
+        self.client.force_login(self.user)
+        legacy_user = UtenteLegacy.objects.create(
+            nome="Privacy Test",
+            email="privacy@example.local",
+            password="x",
+            attivo=True,
+        )
+        AnagraficaDipendente.objects.create(
+            nome="Privacy",
+            cognome="Test",
+            reparto="CED",
+            mansione="IT",
+            email="privacy@example.local",
+            email_notifica="privacy@example.com",
+            utente=legacy_user,
+        )
+        asset = Asset.objects.create(
+            asset_tag="IT-PRIVACY",
+            name="Asset privacy",
+            asset_type=Asset.TYPE_FIREWALL,
+            reparto="CED",
+            status=Asset.STATUS_IN_USE,
+            source_key="asset-privacy",
+        )
+
+        response = self.client.get(reverse("assets:asset_edit", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Test Privacy")
+        self.assertNotContains(response, "privacy@example.local")
+        self.assertNotContains(response, "privacy@example.com")
+
+    def test_asset_edit_rejects_unknown_assignment_employee_id(self):
+        self.client.force_login(self.user)
+        asset = Asset.objects.create(
+            asset_tag="IT-BADASSIGN",
+            name="Firewall assegnazione invalida",
+            asset_type=Asset.TYPE_FIREWALL,
+            reparto="CED",
+            status=Asset.STATUS_IN_USE,
+            source_key="asset-badassign",
+        )
+
+        response = self.client.post(
+            reverse("assets:asset_edit", args=[asset.id]),
+            {
+                "asset_tag": asset.asset_tag,
+                "name": asset.name,
+                "asset_type": asset.asset_type,
+                "reparto": asset.reparto,
+                "manufacturer": "",
+                "model": "",
+                "serial_number": "",
+                "status": Asset.STATUS_IN_USE,
+                "assignment_mode": "employee",
+                "assignment_employee_id": "999999",
+                "assignment_to": "",
+                "assignment_reparto": "",
+                "assignment_location": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Seleziona un dipendente valido dall&#x27;anagrafica.")
+        asset.refresh_from_db()
+        self.assertEqual(asset.assigned_legacy_user_id, None)
+        self.assertEqual(asset.assignment_to, "")
+
+    def test_asset_edit_rejects_department_assignment_without_department(self):
+        self.client.force_login(self.user)
+        legacy_user = UtenteLegacy.objects.create(
+            nome="Mario Rossi",
+            email="m.rossi@example.local",
+            password="x",
+            attivo=True,
+        )
+        asset = Asset.objects.create(
+            asset_tag="IT-DEPTEMPTY",
+            name="Asset reparto vuoto",
+            asset_type=Asset.TYPE_FIREWALL,
+            reparto="CED",
+            status=Asset.STATUS_IN_USE,
+            assigned_legacy_user_id=legacy_user.id,
+            assignment_to="Mario Rossi",
+            assignment_reparto="CED",
+            source_key="asset-dept-empty",
+        )
+
+        response = self.client.post(
+            reverse("assets:asset_edit", args=[asset.id]),
+            {
+                "asset_tag": asset.asset_tag,
+                "name": asset.name,
+                "asset_type": asset.asset_type,
+                "reparto": asset.reparto,
+                "manufacturer": "",
+                "model": "",
+                "serial_number": "",
+                "status": Asset.STATUS_IN_USE,
+                "assignment_mode": "department",
+                "assignment_employee_id": "",
+                "assignment_department_value": "",
+                "assignment_to": asset.assignment_to,
+                "assignment_reparto": asset.assignment_reparto,
+                "assignment_location": "",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Indica il reparto da assegnare.")
+        asset.refresh_from_db()
+        self.assertEqual(asset.assigned_legacy_user_id, legacy_user.id)
+        self.assertEqual(asset.assignment_to, "Mario Rossi")
+
+    def test_work_machine_department_assignment_creates_marker_and_auto_sharepoint_path(self):
+        self.client.force_login(self.user)
+        with _workspace_temporary_directory("assets-layout-upload-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                layout = PlantLayout.objects.create(
+                    category="Officina",
+                    name="Layout officina",
+                    image=_valid_png_upload(),
+                    is_active=True,
+                )
+                response = self.client.post(
+                    reverse("assets:work_machine_create"),
+                    {
+                        "asset_tag": "ML-AUTODEPT",
+                        "name": "Totem reparto",
+                        "asset_category": "",
+                        "reparto": "CN5",
+                        "manufacturer": "",
+                        "model": "",
+                        "serial_number": "TOTEM-1",
+                        "status": Asset.STATUS_IN_USE,
+                        "assignment_mode": "department",
+                        "assignment_employee_id": "",
+                        "assignment_department_value": "CN5",
+                        "assignment_to": "",
+                        "assignment_reparto": "",
+                        "assignment_location": "",
+                        "sharepoint_auto_folder": "on",
+                        "include_in_plant_layout": "on",
+                        "notes": "",
+                        "documents_specs_payload": json.dumps([]),
+                        "documents_manuals_payload": json.dumps([]),
+                        "documents_interventions_payload": json.dumps([]),
+                    },
+                )
+        self.assertEqual(response.status_code, 302)
+        asset = Asset.objects.get(asset_tag="ML-AUTODEPT")
+        self.assertEqual(asset.assignment_to, "Reparto CN5")
+        self.assertEqual(asset.assignment_reparto, "CN5")
+        self.assertEqual(asset.assignment_location, "CN5")
+        self.assertEqual(asset.sharepoint_folder_path, f"Macchine/CN5/{asset.id}")
+        self.assertTrue(PlantLayoutMarker.objects.filter(layout=layout, asset=asset, is_visible=True).exists())
 
     def test_asset_detail_shows_sharepoint_actions(self):
         asset = Asset.objects.create(

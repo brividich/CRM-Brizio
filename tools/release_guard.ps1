@@ -72,8 +72,10 @@ function Invoke-GuardCommand {
     Write-GuardInfo "Eseguo ${Label}: $PythonExe $ManagePy $($Arguments -join ' ')"
     Push-Location $SourcePath
     $previousErrorActionPreference = $ErrorActionPreference
-    $stdoutPath = [System.IO.Path]::GetTempFileName()
-    $stderrPath = [System.IO.Path]::GetTempFileName()
+    $tempRoot = Join-Path $SourcePath ".tmp_tests\release_guard"
+    New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+    $stdoutPath = Join-Path $tempRoot ("stdout-{0}.log" -f ([guid]::NewGuid().ToString("N")))
+    $stderrPath = Join-Path $tempRoot ("stderr-{0}.log" -f ([guid]::NewGuid().ToString("N")))
     try {
         $ErrorActionPreference = "Continue"
         & $PythonExe $ManagePy @Arguments 1> $stdoutPath 2> $stderrPath
@@ -83,7 +85,11 @@ function Invoke-GuardCommand {
         $output = @($stdout + $stderr)
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
-        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+        foreach ($tempPath in @($stdoutPath, $stderrPath)) {
+            if ($tempPath -and (Test-Path -LiteralPath $tempPath)) {
+                Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+            }
+        }
         Pop-Location
     }
 
@@ -491,19 +497,19 @@ if (-not $pythonExe) {
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `
         -ManagePy $djangoManage `
-        -Arguments @("bootstrap_acl_v2", "--dry-run", "--settings=config.settings.dev") `
-        -Label "bootstrap_acl_v2 --dry-run")
+        -Arguments @("bootstrap_acl_v2", "--apply", "--settings=config.settings.test") `
+        -Label "bootstrap_acl_v2 --apply (test DB)")
 
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `
         -ManagePy $djangoManage `
-        -Arguments @("acl_coverage_report", "--max-missing", "$AclMaxMissing") `
+        -Arguments @("acl_coverage_report", "--max-missing", "$AclMaxMissing", "--settings=config.settings.test") `
         -Label "acl_coverage_report --max-missing $AclMaxMissing")
 
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `
         -ManagePy $djangoManage `
-        -Arguments @("acl_coverage_report", "--format", "json") `
+        -Arguments @("acl_coverage_report", "--format", "json", "--settings=config.settings.test") `
         -Label "acl_coverage_report JSON artifact" `
         -ArtifactPath $aclArtifact)
 

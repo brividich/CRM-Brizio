@@ -2229,8 +2229,12 @@ def _sharepoint_assets_defaults() -> dict[str, str]:
     dotenv_values = load_env_file_values()
     return {
         "library_url": _clean_string(dotenv_values.get("ASSETS_SHAREPOINT_LIBRARY_URL", ""))[:1000],
-        "asset_root_path": _normalize_sharepoint_path(dotenv_values.get("ASSETS_SHAREPOINT_ASSET_ROOT_PATH", "")),
-        "work_machine_root_path": _normalize_sharepoint_path(dotenv_values.get("ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH", "")),
+        "asset_root_path": _normalize_sharepoint_path(
+            dotenv_values.get("ASSETS_SHAREPOINT_ASSET_ROOT_PATH", "") or "Asset/Inventario"
+        ),
+        "work_machine_root_path": _normalize_sharepoint_path(
+            dotenv_values.get("ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH", "") or "Macchine"
+        ),
     }
 
 
@@ -2266,7 +2270,8 @@ def _sharepoint_admin_config() -> dict[str, object]:
 
 
 def _sanitize_sharepoint_segment(value: str | None) -> str:
-    row = _clean_string(value).replace("\\", "-").replace("/", "-")
+    row = re.sub(r'[\\/:*?"<>|#%{}~&]+', "-", _clean_string(value))
+    row = re.sub(r"\s+", " ", row)
     return row.strip(" .")
 
 
@@ -2299,8 +2304,8 @@ def _default_asset_sharepoint_path(asset: Asset) -> str:
     reparto = _sanitize_sharepoint_segment(asset.reparto)
     if reparto:
         parts.append(reparto)
-    if asset.asset_tag:
-        parts.append(asset.asset_tag)
+    if asset.pk:
+        parts.append(str(asset.pk))
     return _normalize_sharepoint_path("/".join(parts))
 
 
@@ -3200,6 +3205,104 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
             "reparto": reparto,
         }
     return options, details
+
+
+def _anagrafica_assignment_options() -> tuple[list[tuple[str, str]], dict[str, dict[str, str]], list[str]]:
+    try:
+        rows = list(
+            AnagraficaDipendente.objects.all()
+            .order_by("cognome", "nome", "id")[:1000]
+        )
+    except DatabaseError:
+        return [], {}, []
+
+    choices: list[tuple[str, str]] = []
+    details: dict[str, dict[str, str]] = {}
+    departments: set[str] = set()
+    for row in rows:
+        display_name = " ".join(
+            [
+                _clean_string(getattr(row, "cognome", "")),
+                _clean_string(getattr(row, "nome", "")),
+            ]
+        ).strip() or _clean_string(getattr(row, "aliasusername", "")) or f"Dipendente #{row.id}"
+        reparto = _clean_string(getattr(row, "reparto", ""))
+        mansione = _clean_string(getattr(row, "mansione", ""))
+        label_bits = [display_name]
+        if reparto:
+            label_bits.append(reparto)
+            departments.add(reparto)
+        if mansione:
+            label_bits.append(mansione)
+        label = " - ".join(label_bits)
+        key = str(row.id)
+        choices.append((key, label))
+        details[key] = {
+            "display_name": display_name,
+            "reparto": reparto,
+            "mansione": mansione,
+            "legacy_user_id": str(getattr(row, "utente_id", "") or ""),
+        }
+
+    for value in (
+        Asset.objects.exclude(reparto="")
+        .values_list("reparto", flat=True)
+        .distinct()[:300]
+    ):
+        cleaned = _clean_string(value)
+        if cleaned:
+            departments.add(cleaned)
+    return choices, details, sorted(departments, key=lambda row: row.lower())
+
+
+def _assignment_form_kwargs(asset: Asset | None = None) -> dict[str, object]:
+    employee_choices, employee_details, department_choices = _anagrafica_assignment_options()
+    include_in_layout = bool(asset and PlantLayoutMarker.objects.filter(asset=asset).exists())
+    return {
+        "assignment_employee_choices": employee_choices,
+        "assignment_employee_details": employee_details,
+        "assignment_department_choices": department_choices,
+        "default_include_in_plant_layout": include_in_layout,
+        "default_sharepoint_auto": not bool(asset and _clean_string(asset.sharepoint_folder_path)),
+    }
+
+
+def _sharepoint_form_preview_config(*, is_work_machine: bool = False) -> dict[str, str]:
+    defaults = _sharepoint_assets_defaults()
+    return {
+        "root_path": defaults["work_machine_root_path"] if is_work_machine else defaults["asset_root_path"],
+        "fallback_reparto": "Senza reparto",
+        "fallback_asset_id": "id-generato",
+    }
+
+
+def _ensure_asset_plant_layout_marker(asset: Asset) -> str:
+    layout = (
+        PlantLayout.objects.filter(is_active=True)
+        .order_by("category", "name", "id")
+        .first()
+    )
+    if layout is None:
+        return "Asset salvato, ma non inserito in piantina: nessuna planimetria attiva disponibile."
+    marker, created = PlantLayoutMarker.objects.get_or_create(
+        layout=layout,
+        asset=asset,
+        defaults={
+            "label": asset.name[:120],
+            "x_percent": 50,
+            "y_percent": 50,
+            "is_visible": True,
+            "sort_order": 100,
+        },
+    )
+    if not created and not marker.is_visible:
+        marker.is_visible = True
+        marker.save(update_fields=["is_visible", "updated_at"])
+    return ""
+
+
+def _asset_sharepoint_requested(form, asset: Asset) -> bool:
+    return bool(form.cleaned_data.get("sharepoint_auto_folder") or _clean_string(asset.sharepoint_folder_path))
 
 
 def _outlook_calendar_graph_settings() -> dict[str, str]:
@@ -9048,16 +9151,22 @@ def asset_create(request: HttpRequest) -> HttpResponse:
         return redirect("assets:work_machine_create")
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     list_suggestions = _build_asset_list_suggestions()
+    assignment_kwargs = _assignment_form_kwargs()
     if request.method == "POST":
-        form = AssetForm(request.POST, custom_fields=custom_fields, list_suggestions=list_suggestions)
+        form = AssetForm(request.POST, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid():
             asset = form.save()
-            for warning in _ensure_asset_sharepoint_folder(asset):
-                messages.warning(request, warning)
+            if form.cleaned_data.get("include_in_plant_layout"):
+                marker_warning = _ensure_asset_plant_layout_marker(asset)
+                if marker_warning:
+                    messages.warning(request, marker_warning)
+            if _asset_sharepoint_requested(form, asset):
+                for warning in _ensure_asset_sharepoint_folder(asset):
+                    messages.warning(request, warning)
             messages.success(request, "Asset creato correttamente.")
             return redirect("assets:asset_view", id=asset.id)
     else:
-        form = AssetForm(custom_fields=custom_fields, list_suggestions=list_suggestions)
+        form = AssetForm(custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
     return render(
         request,
         "assets/pages/asset_form.html",
@@ -9071,6 +9180,11 @@ def asset_create(request: HttpRequest) -> HttpResponse:
             "dynamic_field_names": form.dynamic_field_names,
             "verification_field_names": form.verification_field_names,
             "list_suggestions": list_suggestions,
+            "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
+            "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
+            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=False),
+            "sharepoint_auto_field_names": ["sharepoint_auto_folder"],
+            "plant_layout_field_names": ["include_in_plant_layout"],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
@@ -9085,21 +9199,28 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
         return redirect("assets:work_machine_edit", id=asset.id)
     custom_fields = list(AssetCustomField.objects.filter(is_active=True).order_by("sort_order", "id"))
     list_suggestions = _build_asset_list_suggestions()
+    assignment_kwargs = _assignment_form_kwargs(asset)
     if request.method == "POST":
         form = AssetForm(
             request.POST,
             instance=asset,
             custom_fields=custom_fields,
             list_suggestions=list_suggestions,
+            **assignment_kwargs,
         )
         if form.is_valid():
             asset = form.save()
-            for warning in _ensure_asset_sharepoint_folder(asset):
-                messages.warning(request, warning)
+            if form.cleaned_data.get("include_in_plant_layout"):
+                marker_warning = _ensure_asset_plant_layout_marker(asset)
+                if marker_warning:
+                    messages.warning(request, marker_warning)
+            if _asset_sharepoint_requested(form, asset):
+                for warning in _ensure_asset_sharepoint_folder(asset):
+                    messages.warning(request, warning)
             messages.success(request, "Asset aggiornato.")
             return redirect("assets:asset_view", id=asset.id)
     else:
-        form = AssetForm(instance=asset, custom_fields=custom_fields, list_suggestions=list_suggestions)
+        form = AssetForm(instance=asset, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
     return render(
         request,
         "assets/pages/asset_form.html",
@@ -9114,6 +9235,11 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "dynamic_field_names": form.dynamic_field_names,
             "verification_field_names": form.verification_field_names,
             "list_suggestions": list_suggestions,
+            "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
+            "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
+            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=False),
+            "sharepoint_auto_field_names": ["sharepoint_auto_folder"],
+            "plant_layout_field_names": ["include_in_plant_layout"],
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
@@ -10740,7 +10866,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 for error in upload_errors:
                     messages.error(request, error)
                 return redirect(redirect_url)
-            template_label = (getattr(base_rule.intervention_template, "label", "") or base_rule.code or "Manutenzione").strip()
+            template_label = (getattr(base_rule.intervention_template, "label", "") or "Manutenzione").strip()
             attachments_total = 0
             try:
                 with transaction.atomic():
@@ -12740,12 +12866,17 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
 @login_required
 def work_machine_create(request: HttpRequest) -> HttpResponse:
     list_suggestions = _build_asset_list_suggestions()
+    assignment_kwargs = _assignment_form_kwargs()
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request)
-        form = WorkMachineAssetForm(request.POST, list_suggestions=list_suggestions)
+        form = WorkMachineAssetForm(request.POST, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid() and not upload_errors:
             asset = form.save()
-            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset)
+            if form.cleaned_data.get("include_in_plant_layout"):
+                marker_warning = _ensure_asset_plant_layout_marker(asset)
+                if marker_warning:
+                    messages.warning(request, marker_warning)
+            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset) if _asset_sharepoint_requested(form, asset) else []
             sharepoint_warnings.extend(
                 _apply_asset_document_changes(asset, uploads=uploads, remove_ids=set(), actor=request.user)
             )
@@ -12759,6 +12890,7 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
         form = WorkMachineAssetForm(
             initial={"status": Asset.STATUS_IN_USE},
             list_suggestions=list_suggestions,
+            **assignment_kwargs,
         )
 
     return render(
@@ -12769,6 +12901,9 @@ def work_machine_create(request: HttpRequest) -> HttpResponse:
             "form": form,
             "is_edit": False,
             "list_suggestions": list_suggestions,
+            "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
+            "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
+            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=True),
             "asset_field_names": form.asset_field_names,
             "category_field_groups": form.category_field_groups,
             "category_dynamic_field_names": form.category_dynamic_field_names,
@@ -12802,6 +12937,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
         asset_type__in=PRODUCTION_ASSET_TYPES,
     )
     list_suggestions = _build_asset_list_suggestions()
+    assignment_kwargs = _assignment_form_kwargs(asset)
 
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request)
@@ -12812,9 +12948,14 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
             instance=asset,
             work_machine=getattr(asset, "work_machine", None),
             list_suggestions=list_suggestions,
+            **assignment_kwargs,
         )
         if form.is_valid() and not upload_errors:
             asset = form.save()
+            if form.cleaned_data.get("include_in_plant_layout"):
+                marker_warning = _ensure_asset_plant_layout_marker(asset)
+                if marker_warning:
+                    messages.warning(request, marker_warning)
             wm = getattr(asset, "work_machine", None)
             if wm:
                 if request.POST.get("clear_photo") == "1":
@@ -12825,7 +12966,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
                 elif "photo" in request.FILES:
                     wm.photo = request.FILES["photo"]
                     wm.save(update_fields=["photo"])
-            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset)
+            sharepoint_warnings = _ensure_asset_sharepoint_folder(asset) if _asset_sharepoint_requested(form, asset) else []
             sharepoint_warnings.extend(
                 _apply_asset_document_changes(asset, uploads=uploads, remove_ids=remove_ids, actor=request.user)
             )
@@ -12840,6 +12981,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
             instance=asset,
             work_machine=getattr(asset, "work_machine", None),
             list_suggestions=list_suggestions,
+            **assignment_kwargs,
         )
 
     return render(
@@ -12851,6 +12993,9 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
             "asset": asset,
             "is_edit": True,
             "list_suggestions": list_suggestions,
+            "assignment_department_choices": assignment_kwargs["assignment_department_choices"],
+            "assignment_employee_details": assignment_kwargs["assignment_employee_details"],
+            "sharepoint_preview_config": _sharepoint_form_preview_config(is_work_machine=True),
             "asset_field_names": form.asset_field_names,
             "category_field_groups": form.category_field_groups,
             "category_dynamic_field_names": form.category_dynamic_field_names,
@@ -14072,8 +14217,8 @@ def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
     client_id = _clean_string(request.POST.get("sharepoint_client_id"))[:200]
     site_id = _clean_string(request.POST.get("sharepoint_site_id"))[:500]
     client_secret = _clean_string(request.POST.get("sharepoint_client_secret"))
-    asset_root_path = _normalize_sharepoint_path(request.POST.get("sharepoint_asset_root_path"))[:500]
-    work_machine_root_path = _normalize_sharepoint_path(request.POST.get("sharepoint_work_machine_root_path"))[:500]
+    asset_root_path = (_normalize_sharepoint_path(request.POST.get("sharepoint_asset_root_path")) or "Asset/Inventario")[:500]
+    work_machine_root_path = (_normalize_sharepoint_path(request.POST.get("sharepoint_work_machine_root_path")) or "Macchine")[:500]
     library_url = _clean_string(request.POST.get("sharepoint_library_url"))[:1000]
 
     try:

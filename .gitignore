@@ -123,6 +123,7 @@ celerybeat.pid
 
 # Tooling caches
 .cache
+.playwright-mcp/
 .dmypy.json
 dmypy.json
 .pyre/
@@ -169,6 +170,11 @@ django_app/topbar_dev.json
 django_app/acl_report*.json
 django_app/deployment_validation*.json
 
+# Local external checkouts / operational imports
+agent-flow/
+docs/assets/asset_import_start_*.csv
+docs/assets/asset_import_start_*.xlsx
+
 # OS / misc
 Thumbs.db
 Desktop.ini
@@ -206,3 +212,5 @@ deployment/MANUALE_DEPLOY_PORTALE_NOVICROM.html
 deployment/avvia_wizard_DEV.bat
 .gitignore
 deployment/avvia_wizard_TEST.bat
+db_schema.html
+tools/db_documentazione.html

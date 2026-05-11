@@ -36,11 +36,106 @@ from .models import (
 )
 
 
+ASSIGNMENT_MODE_EMPLOYEE = "employee"
+ASSIGNMENT_MODE_DEPARTMENT = "department"
+ASSIGNMENT_MODE_CHOICES = [
+    (ASSIGNMENT_MODE_EMPLOYEE, "Dipendente anagrafica"),
+    (ASSIGNMENT_MODE_DEPARTMENT, "Reparto"),
+]
+
+
 def _attach_input_css(form: forms.Form | forms.ModelForm) -> None:
     for field in form.fields.values():
         widget = field.widget
         css = widget.attrs.get("class", "")
         widget.attrs["class"] = f"{css} input".strip()
+
+
+class AssetAssignmentChooserMixin(forms.Form):
+    assignment_mode = forms.ChoiceField(
+        required=False,
+        label="Tipo assegnazione",
+        choices=ASSIGNMENT_MODE_CHOICES,
+        initial=ASSIGNMENT_MODE_EMPLOYEE,
+        widget=forms.RadioSelect,
+    )
+    assignment_employee_id = forms.CharField(required=False, label="Dipendente anagrafica")
+    assignment_department_value = forms.CharField(required=False, label="Reparto")
+    sharepoint_auto_folder = forms.BooleanField(required=False, label="Cartella SharePoint automatica")
+    include_in_plant_layout = forms.BooleanField(required=False, label="Inserisci nella piantina")
+
+    def _pop_assignment_kwargs(self, kwargs) -> None:
+        self.assignment_employee_choices = kwargs.pop("assignment_employee_choices", None) or []
+        self.assignment_employee_details = kwargs.pop("assignment_employee_details", None) or {}
+        self.assignment_department_choices = kwargs.pop("assignment_department_choices", None) or []
+        self.default_sharepoint_auto = bool(kwargs.pop("default_sharepoint_auto", True))
+        self.default_include_in_plant_layout = bool(kwargs.pop("default_include_in_plant_layout", False))
+
+    def _setup_assignment_chooser_fields(self) -> None:
+        if "assignment_employee_id" in self.fields:
+            self.fields["assignment_employee_id"].widget = forms.Select(
+                choices=[("", "Cerca e seleziona dipendente..."), *self.assignment_employee_choices],
+                attrs={"data-assignment-employee": "1"},
+            )
+            self.fields["assignment_employee_id"].help_text = (
+                "I nominativi arrivano dall'anagrafica dipendenti; la selezione compila assegnatario e reparto."
+            )
+        if "assignment_department_value" in self.fields:
+            self.fields["assignment_department_value"].widget.attrs.update(
+                {
+                    "list": "list_assignment_departments",
+                    "placeholder": "Es. CN5, CED, Produzione",
+                    "data-assignment-department": "1",
+                }
+            )
+            self.fields["assignment_department_value"].help_text = (
+                "Usalo per macchine, totem o asset condivisi da un reparto intero."
+            )
+        if "assignment_mode" in self.fields:
+            current_mode = ASSIGNMENT_MODE_DEPARTMENT if self.initial.get("assignment_department_value") else ASSIGNMENT_MODE_EMPLOYEE
+            self.initial.setdefault("assignment_mode", current_mode)
+        self.initial.setdefault("sharepoint_auto_folder", self.default_sharepoint_auto)
+        self.initial.setdefault("include_in_plant_layout", self.default_include_in_plant_layout)
+
+    def _validate_assignment_chooser(self, cleaned_data: dict) -> dict:
+        mode = cleaned_data.get("assignment_mode") or ASSIGNMENT_MODE_EMPLOYEE
+        employee_id = str(cleaned_data.get("assignment_employee_id") or "").strip()
+        if mode == ASSIGNMENT_MODE_EMPLOYEE and employee_id and employee_id not in self.assignment_employee_details:
+            self.add_error("assignment_employee_id", "Seleziona un dipendente valido dall'anagrafica.")
+        if mode == ASSIGNMENT_MODE_DEPARTMENT:
+            reparto = str(cleaned_data.get("assignment_department_value") or "").strip()
+            if not reparto:
+                self.add_error("assignment_department_value", "Indica il reparto da assegnare.")
+        return cleaned_data
+
+    def _apply_assignment_chooser(self, instance: Asset) -> None:
+        mode = self.cleaned_data.get("assignment_mode") or ASSIGNMENT_MODE_EMPLOYEE
+        if mode == ASSIGNMENT_MODE_EMPLOYEE:
+            employee_id = str(self.cleaned_data.get("assignment_employee_id") or "").strip()
+            details = self.assignment_employee_details.get(employee_id, {})
+            if employee_id and details:
+                instance.assignment_to = str(details.get("display_name") or "").strip()[:200]
+                instance.assignment_reparto = str(details.get("reparto") or "").strip()[:120]
+                if not (self.cleaned_data.get("assignment_location") or "").strip():
+                    instance.assignment_location = instance.assignment_reparto
+                legacy_user_id = details.get("legacy_user_id")
+                instance.assigned_legacy_user_id = int(legacy_user_id) if str(legacy_user_id or "").isdigit() else None
+            elif not employee_id:
+                instance.assigned_legacy_user_id = None
+        else:
+            reparto = str(self.cleaned_data.get("assignment_department_value") or "").strip()[:120]
+            if reparto:
+                instance.assignment_to = f"Reparto {reparto}"[:200]
+                instance.assignment_reparto = reparto
+                if not (self.cleaned_data.get("assignment_location") or "").strip():
+                    instance.assignment_location = reparto
+                instance.assigned_legacy_user_id = None
+            else:
+                instance.assigned_legacy_user_id = None
+
+        if self.cleaned_data.get("sharepoint_auto_folder"):
+            instance.sharepoint_folder_path = ""
+            instance.sharepoint_folder_url = ""
 
 
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -227,7 +322,7 @@ class AssetCategoryFieldMixin:
         return next_extra
 
 
-class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
+class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False)
     periodic_verification_ids = forms.ModelMultipleChoiceField(
         required=False,
@@ -367,6 +462,7 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
 
         next_extra = self._apply_category_values(next_extra, self.cleaned_data)
         instance.extra_columns = next_extra
+        self._apply_assignment_chooser(instance)
         if commit:
             instance.save()
             self.save_m2m()
@@ -376,6 +472,7 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         custom_fields = kwargs.pop("custom_fields", None)
         list_suggestions = kwargs.pop("list_suggestions", None) or {}
+        self._pop_assignment_kwargs(kwargs)
         super().__init__(*args, **kwargs)
         self.custom_fields = list(
             custom_fields
@@ -397,6 +494,17 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
             self.initial["periodic_verification_ids"] = list(
                 self.instance.periodic_verifications.order_by("name", "id").values_list("id", flat=True)
             )
+            selected_employee = ""
+            if self.instance.assigned_legacy_user_id:
+                for key, details in self.assignment_employee_details.items():
+                    if str(details.get("legacy_user_id") or "") == str(self.instance.assigned_legacy_user_id):
+                        selected_employee = key
+                        break
+            if selected_employee:
+                self.initial.setdefault("assignment_employee_id", selected_employee)
+            elif self.instance.assignment_reparto and self.instance.assignment_to.startswith("Reparto "):
+                self.initial.setdefault("assignment_mode", ASSIGNMENT_MODE_DEPARTMENT)
+                self.initial.setdefault("assignment_department_value", self.instance.assignment_reparto)
 
         for field_def in self.custom_fields:
             field_name = self._custom_field_form_name(field_def.code)
@@ -436,14 +544,22 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
                 self.fields[field_name].widget.attrs["list"] = f"list_{field_name}"
 
         if "sharepoint_folder_url" in self.fields:
-            self.fields["sharepoint_folder_url"].help_text = "Link completo alla cartella asset su SharePoint."
+            self.fields["sharepoint_folder_url"].help_text = "Avanzato: link completo alla cartella asset, compilato automaticamente quando Graph crea la cartella."
         if "sharepoint_folder_path" in self.fields:
-            self.fields["sharepoint_folder_path"].help_text = "Percorso relativo usato per l'eventuale sync file."
+            self.fields["sharepoint_folder_path"].help_text = "Avanzato: percorso relativo nel drive. Se lasci automatico viene calcolato da reparto e tag asset."
+
+        self._setup_assignment_chooser_fields()
 
         _attach_input_css(self)
+        if "assignment_mode" in self.fields:
+            self.fields["assignment_mode"].widget.attrs["class"] = ""
+        for field_name in ["sharepoint_auto_folder", "include_in_plant_layout"]:
+            if field_name in self.fields:
+                self.fields[field_name].widget.attrs["class"] = ""
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data = self._validate_assignment_chooser(cleaned_data)
         selected_category = cleaned_data.get("asset_category")
         if selected_category:
             if selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE:
@@ -1094,7 +1210,7 @@ class MaintenanceRuleAssetOverrideForm(forms.ModelForm):
         return cleaned_data
 
 
-class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
+class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False, label="Tag bene")
     sharepoint_folder_url = forms.CharField(required=False, label="URL cartella SharePoint", max_length=1000)
     sharepoint_folder_path = forms.CharField(required=False, label="Percorso cartella SharePoint", max_length=500)
@@ -1174,6 +1290,8 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
         "status",
     ]
     sharepoint_field_names = [
+        "sharepoint_auto_folder",
+        "include_in_plant_layout",
         "sharepoint_folder_url",
         "sharepoint_folder_path",
     ]
@@ -1194,6 +1312,9 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
         "five_axes",
     ]
     assignment_field_names = [
+        "assignment_mode",
+        "assignment_employee_id",
+        "assignment_department_value",
         "assignment_to",
         "assignment_reparto",
         "assignment_location",
@@ -1290,6 +1411,7 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         list_suggestions = kwargs.pop("list_suggestions", None) or {}
         work_machine = kwargs.pop("work_machine", None)
+        self._pop_assignment_kwargs(kwargs)
         super().__init__(*args, **kwargs)
         self.list_suggestions = list_suggestions
         self.work_machine = work_machine or getattr(self.instance, "work_machine", None)
@@ -1328,10 +1450,27 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
             self.initial["periodic_verification_ids"] = list(
                 self.instance.periodic_verifications.order_by("name", "id").values_list("id", flat=True)
             )
+            selected_employee = ""
+            if self.instance.assigned_legacy_user_id:
+                for key, details in self.assignment_employee_details.items():
+                    if str(details.get("legacy_user_id") or "") == str(self.instance.assigned_legacy_user_id):
+                        selected_employee = key
+                        break
+            if selected_employee:
+                self.initial.setdefault("assignment_employee_id", selected_employee)
+            elif self.instance.assignment_reparto and self.instance.assignment_to.startswith("Reparto "):
+                self.initial.setdefault("assignment_mode", ASSIGNMENT_MODE_DEPARTMENT)
+                self.initial.setdefault("assignment_department_value", self.instance.assignment_reparto)
 
+        self._setup_assignment_chooser_fields()
         _attach_input_css(self)
         for field_name in ["tcr_enabled", "cnc_controlled", "five_axes"]:
             self.fields[field_name].widget.attrs["class"] = ""
+        if "assignment_mode" in self.fields:
+            self.fields["assignment_mode"].widget.attrs["class"] = ""
+        for field_name in ["sharepoint_auto_folder", "include_in_plant_layout"]:
+            if field_name in self.fields:
+                self.fields[field_name].widget.attrs["class"] = ""
 
     def clean_maintenance_reminder_days(self):
         value = self.cleaned_data.get("maintenance_reminder_days")
@@ -1341,6 +1480,7 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        cleaned_data = self._validate_assignment_chooser(cleaned_data)
         selected_category = cleaned_data.get("asset_category")
         if selected_category and selected_category.base_asset_type != Asset.TYPE_WORK_MACHINE:
             self.add_error("asset_category", "Questa categoria non appartiene alle macchine di lavoro.")
@@ -1371,6 +1511,7 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
             next_extra.pop("documents", None)
         next_extra = self._apply_category_values(next_extra, self.cleaned_data)
         asset.extra_columns = next_extra
+        self._apply_assignment_chooser(asset)
 
         if not commit:
             return asset

@@ -465,6 +465,8 @@ class TaskForm(forms.ModelForm):
         self.fields["assigned_to"].queryset = users_qs
         self.fields["subscribers"].required = False
         self.fields["subscribers"].queryset = users_qs
+        self.fields["progress"].required = False
+        self.fields["progress"].initial = 0
         self.fields["project_choice"].queryset = project_qs
         self.fields["category"].queryset = TaskCategory.objects.filter(is_active=True).order_by("order_index", "name")
         self.fields["project_new_manager"].queryset       = _users_for_role(TaskRoleType.PROJECT_MANAGER)
@@ -574,6 +576,8 @@ class TaskForm(forms.ModelForm):
         self.auto_raised_priority = False
         self.matched_existing_project = None
         cleaned_data = super().clean()
+        if cleaned_data.get("progress") in (None, ""):
+            cleaned_data["progress"] = 0
         if self.locked_project is not None:
             cleaned_data["task_scope"] = self.TASK_SCOPE_PROJECT
             cleaned_data["project_link_mode"] = self.PROJECT_LINK_EXISTING
@@ -1029,8 +1033,14 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
             "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["progress"].required = False
+
     def clean(self):
         cleaned_data = super().clean()
+        if cleaned_data.get("progress") in (None, ""):
+            cleaned_data["progress"] = getattr(self.instance, "progress", 0) or 0
         due_date = cleaned_data.get("due_date")
         next_step_due = cleaned_data.get("next_step_due")
         if due_date and next_step_due and due_date < next_step_due:

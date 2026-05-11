@@ -710,17 +710,20 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
             <input type="password" name="sharepoint_client_secret" value="" placeholder="{% if sharepoint_admin_config.client_secret_configured %}Lascia vuoto per mantenere{% else %}Inserisci secret{% endif %}">
           </div>
           <div class="form-group">
-            <label>Root path asset</label>
+            <label>Cartella base asset</label>
             <input type="text" name="sharepoint_asset_root_path" value="{{ sharepoint_admin_config.asset_root_path }}" placeholder="Asset/Inventario">
+            <div class="help">Default usato per asset generici: base / reparto / tag.</div>
           </div>
           <div class="form-group">
-            <label>Root path macchine</label>
+            <label>Cartella base macchine</label>
             <input type="text" name="sharepoint_work_machine_root_path" value="{{ sharepoint_admin_config.work_machine_root_path }}" placeholder="Macchine">
+            <div class="help">Default usato per macchine: base / reparto / tag.</div>
           </div>
         </div>
         <div class="form-group" style="max-width:none;">
-          <label>URL libreria documentale</label>
+          <label>URL libreria documentale (opzionale)</label>
           <input type="text" name="sharepoint_library_url" value="{{ sharepoint_admin_config.library_url }}" placeholder="https://contoso.sharepoint.com/sites/example">
+          <div class="help">Serve come riferimento amministrativo; il sync usa Graph tenant/client/secret/site id.</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button type="submit" class="btn btn-primary">Salva configurazione SharePoint</button>
