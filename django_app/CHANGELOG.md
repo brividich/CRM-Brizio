@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### QR label assets verso SharePoint
+
+- **[ux] `assets/views.py:asset_qr_label`**: la stampa PDF `/assets/view/<id>/qr-label/` ora genera di default un QR verso la cartella SharePoint dell'asset quando `sharepoint_folder_url` e' valorizzato; resta il fallback alla scheda asset se il link SharePoint manca e resta disponibile `?target=detail` per forzare la scheda.
+- **[test] `assets/tests.py`**: aggiunti test mirati per verificare il target SharePoint predefinito e la compatibilita del target esplicito `detail`.
+- **[docs] `README.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`**: aggiornata la documentazione del modulo assets per chiarire il comportamento predefinito delle etichette QR.
+
 ### Fix branding — silenzio 404 logo compresso mancante
 
 - **[fix] `core/branding.py`**: aggiunta funzione `_local_media_url_exists(url)` che verifica se un path `/media/...` esiste fisicamente su disco prima di restituirlo come URL. I campi `brand_logo_full`, `brand_logo_compact` e `brand_favicon` vengono resettati a stringa vuota se il file non esiste; i template mostrano il monogramma fallback e non viene mai emessa la richiesta HTTP → nessun 404 nei log. URL esterni (http/https) e path non-media non sono interessati dal controllo. Importati `pathlib.Path` e `django.conf.settings`.

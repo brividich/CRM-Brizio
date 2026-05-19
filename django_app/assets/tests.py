@@ -1351,6 +1351,45 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
 
+    def test_asset_qr_label_defaults_to_sharepoint_folder_when_available(self):
+        asset = Asset.objects.create(
+            name="Macchina QR SharePoint",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CNC",
+            sharepoint_folder_url="https://contoso.sharepoint.com/sites/assets/Shared%20Documents/ASSET%20CN/ML-QR",
+            source_key="manual-wm-qr-sharepoint",
+        )
+        WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-sharepoint")
+        self.client.force_login(self.user)
+
+        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+            response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(draw_label.call_args.kwargs["target_url"], asset.sharepoint_folder_url)
+        self.assertEqual(draw_label.call_args.kwargs["target_label"], "Cartella SharePoint")
+
+    def test_asset_qr_label_detail_target_still_points_to_asset_detail(self):
+        asset = Asset.objects.create(
+            name="Macchina QR dettaglio",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CNC",
+            sharepoint_folder_url="https://contoso.sharepoint.com/sites/assets/Shared%20Documents/ASSET%20CN/ML-DET",
+            source_key="manual-wm-qr-detail",
+        )
+        WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-detail")
+        self.client.force_login(self.user)
+
+        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+            response = self.client.get(f"{reverse('assets:asset_qr_label', kwargs={'id': asset.id})}?target=detail")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            draw_label.call_args.kwargs["target_url"],
+            response.wsgi_request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id})),
+        )
+        self.assertEqual(draw_label.call_args.kwargs["target_label"], "Scheda asset")
+
     def test_non_admin_cannot_open_asset_label_designer(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("assets:asset_label_designer"))

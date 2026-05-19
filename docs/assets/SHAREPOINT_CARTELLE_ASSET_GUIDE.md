@@ -31,6 +31,12 @@ Se Microsoft Graph e configurato, il portale crea la cartella su SharePoint se n
 
 Se Graph non e configurato, il percorso puo restare salvato sul record asset ma i file rimangono nel portale e vengono serviti tramite download autenticato.
 
+## Etichette QR
+
+Il PDF `/assets/view/<id>/qr-label/` genera di default un QR verso la cartella SharePoint dell'asset quando `URL cartella SharePoint` e valorizzato.
+
+Se l'URL SharePoint non e ancora disponibile, il QR rimanda alla scheda asset del portale. Per forzare sempre la scheda asset usare `?target=detail`.
+
 ## Configurazione minima
 
 Da `/assets/impostazioni/`, sezione SharePoint:

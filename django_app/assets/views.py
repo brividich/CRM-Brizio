@@ -9118,7 +9118,7 @@ def asset_qr_label(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
         return redirect("assets:asset_list")
     asset = get_object_or_404(Asset, pk=id)
-    target_value = _clean_string(request.GET.get("target")).lower() or "detail"
+    target_value = _clean_string(request.GET.get("target")).lower() or "sharepoint"
     target_url, target_label = _asset_qr_target_url(request, asset, target=target_value)
     template = _resolve_asset_label_template(asset)
     width = float(template.page_width_mm or 100) * mm
