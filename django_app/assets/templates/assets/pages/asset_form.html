@@ -75,7 +75,7 @@
             {% endif %}
           {% endfor %}
         </div>
-        <div class="as-help" style="margin-top:8px;">Con SharePoint automatico basta salvare: il portale usa root configurata, reparto e ID asset. I campi manuali restano per casi particolari.</div>
+        <div class="as-help" style="margin-top:8px;">Con SharePoint automatico basta salvare: il portale crea "ASSET CN/&lt;tag asset&gt;" con le sottocartelle manuali, specifiche e interventi. I campi manuali restano per casi particolari.</div>
         <div class="as-note" style="margin-top:8px;padding:10px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#f8fafc;">
           Percorso previsto: <code data-sharepoint-preview>-</code>
         </div>
@@ -310,7 +310,7 @@
   const previewConfigNode = document.getElementById("asset-sharepoint-preview-config");
   const previewConfig = previewConfigNode ? JSON.parse(previewConfigNode.textContent || "{}") : {};
   const repartoInput = document.getElementById("id_reparto");
-  const assetId = "{{ asset.id|default:'' }}";
+  const assetTag = "{{ asset.asset_tag|default:'' }}";
   function cleanSegment(value, fallback) {
     const cleaned = String(value || "").replace(/[\\/:*?"<>|#%{}~&]+/g, "-").trim().replace(/^\.+|\.+$/g, "");
     return cleaned || fallback || "";
@@ -318,9 +318,8 @@
   function refreshSharePointPreview() {
     if (!previewNode) return;
     const root = String(previewConfig.root_path || "").replace(/^\/+|\/+$/g, "");
-    const reparto = cleanSegment(repartoInput ? repartoInput.value : "", previewConfig.fallback_reparto || "Senza reparto");
-    const folderName = cleanSegment(assetId, previewConfig.fallback_asset_id || "id-generato");
-    previewNode.textContent = [root, reparto, folderName].filter(Boolean).join("/");
+    const folderName = cleanSegment(assetTag, previewConfig.fallback_asset_tag || "tag-asset");
+    previewNode.textContent = [root, folderName].filter(Boolean).join("/");
   }
   function toggleSharePointAdvanced() {
     const hidden = autoSharePoint && autoSharePoint.checked;

@@ -26,6 +26,8 @@ COLUMN_ALIASES = {
     "ubicazione": {"ubicazione", "location", "posizione", "sede", "reparto", "assignment location"},
     "matricola": {"matricola", "seriale", "serial", "serial number", "s/n", "sn"},
     "stato": {"stato", "status"},
+    "manufacturer": {"produttore", "manufacturer", "marca", "costruttore", "brand"},
+    "model": {"modello", "model"},
 }
 
 
@@ -50,6 +52,69 @@ def normalize_key(value: Any) -> str:
 
 def compact_key(value: Any) -> str:
     return normalize_key(value).replace(" ", "")
+
+
+# Regole euristiche nome categoria/sottocategoria -> tipo asset.
+# Ordine significativo: vince la prima voce il cui keyword compare nel nome
+# compattato (minuscolo, senza spazi ne accenti). Le voci piu specifiche
+# vanno prima di quelle generiche (es. "macchinavirtuale" prima di "macchina").
+# I keyword usano la radice (stem) per intercettare singolare e plurale sul
+# nome compattato: es. "portatil" copre "portatile"/"portatili".
+_ASSET_TYPE_KEYWORD_RULES: tuple[tuple[str, str], ...] = (
+    ("carropont", Asset.TYPE_CARROPONTE),
+    ("carripont", Asset.TYPE_CARROPONTE),
+    ("videosorveglianz", Asset.TYPE_CCTV),
+    ("telecamer", Asset.TYPE_CCTV),
+    ("tvcc", Asset.TYPE_CCTV),
+    ("cctv", Asset.TYPE_CCTV),
+    ("firewall", Asset.TYPE_FIREWALL),
+    ("switch", Asset.TYPE_FIREWALL),
+    ("router", Asset.TYPE_FIREWALL),
+    ("accesspoint", Asset.TYPE_FIREWALL),
+    ("rete", Asset.TYPE_FIREWALL),
+    ("reti", Asset.TYPE_FIREWALL),
+    ("server", Asset.TYPE_SERVER),
+    ("virtual", Asset.TYPE_VM),
+    ("hypervisor", Asset.TYPE_VM),
+    ("cnc", Asset.TYPE_CNC),
+    ("utensil", Asset.TYPE_WORK_MACHINE),
+    ("tornio", Asset.TYPE_WORK_MACHINE),
+    ("torni", Asset.TYPE_WORK_MACHINE),
+    ("fresa", Asset.TYPE_WORK_MACHINE),
+    ("frese", Asset.TYPE_WORK_MACHINE),
+    ("rettific", Asset.TYPE_WORK_MACHINE),
+    ("macchin", Asset.TYPE_WORK_MACHINE),
+    ("portatil", Asset.TYPE_NOTEBOOK),
+    ("notebook", Asset.TYPE_NOTEBOOK),
+    ("laptop", Asset.TYPE_NOTEBOOK),
+    ("stampant", Asset.TYPE_STAMPANTE),
+    ("plotter", Asset.TYPE_STAMPANTE),
+    ("multifunzion", Asset.TYPE_STAMPANTE),
+    ("fonia", Asset.TYPE_FONIA),
+    ("telefon", Asset.TYPE_FONIA),
+    ("centralin", Asset.TYPE_FONIA),
+    ("voip", Asset.TYPE_FONIA),
+    ("desktop", Asset.TYPE_PC),
+    ("workstation", Asset.TYPE_PC),
+    ("computer", Asset.TYPE_PC),
+    ("pc", Asset.TYPE_PC),
+)
+
+
+def classify_asset_type(label: str) -> str:
+    """Deduce un tipo asset dal nome categoria/sottocategoria.
+
+    Euristica a parole chiave: ritorna ``Asset.TYPE_OTHER`` se nessuna regola
+    corrisponde. Pensata per import e riallineamento, non come fonte
+    autoritativa: l'esito va sempre verificato (es. con ``--dry-run``).
+    """
+    key = compact_key(label)
+    if not key:
+        return Asset.TYPE_OTHER
+    for keyword, asset_type in _ASSET_TYPE_KEYWORD_RULES:
+        if keyword in key:
+            return asset_type
+    return Asset.TYPE_OTHER
 
 
 def category_code(label: str, parent: AssetCategory | None = None) -> str:
@@ -110,7 +175,8 @@ class AssetCodeGenerator:
 
 @dataclass
 class RowError:
-    row_number: int
+    # Localizzatore riga gia descrittivo (es. "riga 5" oppure "foglio 'IT' riga 5").
+    row_number: str
     message: str
 
 
@@ -139,7 +205,7 @@ class AssetCatalogImporter:
     def __init__(self, code_generator: AssetCodeGenerator | None = None):
         self.code_generator = code_generator or AssetCodeGenerator()
 
-    def load_rows(self, file_path: str | Path) -> list[tuple[int, dict[str, str]]]:
+    def load_rows(self, file_path: str | Path) -> list[tuple[str, dict[str, str]]]:
         path = Path(file_path)
         suffix = path.suffix.lower()
         if suffix == ".csv":
@@ -176,7 +242,7 @@ class AssetCatalogImporter:
                 self._update_asset(asset, payload)
         return preview
 
-    def _plan(self, loaded_rows: list[tuple[int, dict[str, str]]]) -> ImportPreview:
+    def _plan(self, loaded_rows: list[tuple[str, dict[str, str]]]) -> ImportPreview:
         preview = ImportPreview()
         parent_ids_by_key = {
             normalize_key(label): category_id
@@ -255,7 +321,7 @@ class AssetCatalogImporter:
     def _row_is_valid(self, row: dict[str, str]) -> bool:
         return bool(row.get("famiglia") and row.get("sottocategoria"))
 
-    def _normalize_row(self, raw_row: dict[str, str]) -> dict[str, str]:
+    def _normalize_row(self, raw_row: dict[str, str]) -> dict[str, Any]:
         return {
             "asset_id": normalize_spaces(raw_row.get("asset_id")).upper(),
             "famiglia": normalize_spaces(raw_row.get("famiglia")),
@@ -265,18 +331,27 @@ class AssetCatalogImporter:
             "ubicazione": normalize_spaces(raw_row.get("ubicazione")),
             "matricola": normalize_spaces(raw_row.get("matricola")),
             "stato": normalize_spaces(raw_row.get("stato")),
+            "manufacturer": normalize_spaces(raw_row.get("manufacturer")),
+            "model": normalize_spaces(raw_row.get("model")),
+            "extra": {
+                key[len("extra:") :]: normalize_spaces(value)
+                for key, value in raw_row.items()
+                if key.startswith("extra:") and normalize_spaces(value)
+            },
         }
 
     def _asset_payload(
         self,
-        row: dict[str, str],
+        row: dict[str, Any],
         subcategory: AssetCategory,
         asset_id: str,
         source_key: str,
     ) -> dict[str, Any]:
         is_generic_cn = self._is_generic_cn(asset_id)
         notes = "Asset generico CN" if is_generic_cn else ""
-        extra_columns = {"is_generic_asset": True} if is_generic_cn else {}
+        extra_columns: dict[str, Any] = {"is_generic_asset": True} if is_generic_cn else {}
+        # Le colonne non standard del file confluiscono in extra_columns.
+        extra_columns.update(row.get("extra") or {})
         description = row["descrizione"]
         return {
             "asset_tag": asset_id,
@@ -284,6 +359,8 @@ class AssetCatalogImporter:
             "asset_type": self._asset_type_for_subcategory(row["sottocategoria"]),
             "asset_category": subcategory,
             "reparto": row["ubicazione"][:120],
+            "manufacturer": row["manufacturer"][:120] or None,
+            "model": row["model"][:120] or None,
             "serial_number": row["matricola"][:120] or None,
             "status": self._status(row["stato"]),
             "notes": notes,
@@ -298,6 +375,8 @@ class AssetCatalogImporter:
             "asset_type",
             "asset_category",
             "reparto",
+            "manufacturer",
+            "model",
             "serial_number",
             "status",
             "source_key",
@@ -342,14 +421,7 @@ class AssetCatalogImporter:
         )[0]
 
     def _asset_type_for_subcategory(self, label: str) -> str:
-        key = compact_key(label)
-        if "carroponte" in key:
-            return Asset.TYPE_CARROPONTE
-        if "cnc" in key or "macchina" in key:
-            return Asset.TYPE_WORK_MACHINE
-        if "fonia" in key or "telefono" in key:
-            return Asset.TYPE_FONIA
-        return Asset.TYPE_OTHER
+        return classify_asset_type(label)
 
     def _status(self, value: str) -> str:
         key = normalize_key(value)
@@ -366,19 +438,30 @@ class AssetCatalogImporter:
     def _is_generic_cn(self, asset_id: str) -> bool:
         return bool(re.match(r"^CN-[A-Z0-9]+$", asset_id))
 
-    def _load_xlsx(self, path: Path) -> list[tuple[int, dict[str, str]]]:
+    def _load_xlsx(self, path: Path) -> list[tuple[str, dict[str, str]]]:
         workbook = load_workbook(filename=str(path), read_only=True, data_only=True)
-        ws = workbook[workbook.sheetnames[0]]
-        rows = list(ws.iter_rows(values_only=True))
-        if not rows:
-            return []
-        headers = self._map_headers(rows[0])
-        return [
-            (idx, {canonical: normalize_spaces(values[col_idx]) if col_idx < len(values) else "" for col_idx, canonical in headers.items()})
-            for idx, values in enumerate(rows[1:], start=2)
-        ]
+        loaded: list[tuple[str, dict[str, str]]] = []
+        try:
+            for sheet_name in workbook.sheetnames:
+                ws = workbook[sheet_name]
+                rows = list(ws.iter_rows(values_only=True))
+                if not rows:
+                    continue
+                headers = self._map_headers(rows[0])
+                if not headers:
+                    # Foglio senza intestazioni riconoscibili (es. legenda): saltato.
+                    continue
+                for idx, values in enumerate(rows[1:], start=2):
+                    row = {
+                        canonical: normalize_spaces(values[col_idx]) if col_idx < len(values) else ""
+                        for col_idx, canonical in headers.items()
+                    }
+                    loaded.append((f"foglio '{sheet_name}' riga {idx}", row))
+        finally:
+            workbook.close()
+        return loaded
 
-    def _load_csv(self, path: Path) -> list[tuple[int, dict[str, str]]]:
+    def _load_csv(self, path: Path) -> list[tuple[str, dict[str, str]]]:
         raw = path.read_bytes()
         text = None
         for encoding in ("utf-8-sig", "utf-8", "cp1252"):
@@ -404,7 +487,7 @@ class AssetCatalogImporter:
         loaded = []
         for idx, values in enumerate(reader, start=2):
             loaded.append(
-                (idx, {canonical: normalize_spaces(values[col_idx]) if col_idx < len(values) else "" for col_idx, canonical in headers.items()})
+                (f"riga {idx}", {canonical: normalize_spaces(values[col_idx]) if col_idx < len(values) else "" for col_idx, canonical in headers.items()})
             )
         return loaded
 
@@ -413,9 +496,18 @@ class AssetCatalogImporter:
         for canonical, aliases in COLUMN_ALIASES.items():
             for alias in aliases:
                 alias_to_canonical[compact_key(alias)] = canonical
-        mapped = {}
+        mapped: dict[int, str] = {}
+        used_canonical: set[str] = set()
         for idx, header in enumerate(headers):
+            label = normalize_spaces(header)
+            if not label:
+                continue
             canonical = alias_to_canonical.get(compact_key(header))
-            if canonical and canonical not in mapped.values():
-                mapped[idx] = canonical
+            if canonical:
+                if canonical not in used_canonical:
+                    mapped[idx] = canonical
+                    used_canonical.add(canonical)
+            else:
+                # Colonna non standard: il valore confluisce in extra_columns.
+                mapped[idx] = f"extra:{label}"
         return mapped

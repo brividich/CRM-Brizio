@@ -65,6 +65,7 @@ _CERTIFICA_PRESENZA_MARKER = "[CERTIFICA_PRESENZA]"
 _CONSENSI = {"In attesa", "Approvato", "Rifiutato", "Bozza", "Programmato"}
 _MOD_TO_CONSENSO = {"0": "Approvato", "1": "Rifiutato", "2": "In attesa", "3": "Bozza", "4": "Programmato"}
 _CONSENSO_TO_MOD = {"Approvato": 0, "Rifiutato": 1, "In attesa": 2, "Bozza": 3, "Programmato": 4}
+_APPROVAZIONE_DATETIME_COL = "approvazione_datetime"
 _FORM_TOKEN_SALT = "assenze.form_submit"
 
 
@@ -361,6 +362,29 @@ def _status_from_moderation(value, *, default_pending: bool = False) -> tuple[in
     if parsed is None:
         return None, "N/D"
     return parsed, _MOD_TO_CONSENSO.get(str(parsed), "N/D")
+
+
+def _approval_timestamp_update(consenso, current: dict | None = None) -> dict:
+    if not _has_assenze_column(_APPROVAZIONE_DATETIME_COL):
+        return {}
+    next_status = _norm_consenso(consenso)
+    current_status = ""
+    if current:
+        _current_mod, current_label = _effective_status(
+            current.get("consenso"),
+            current.get("moderation_status"),
+            default_pending=True,
+        )
+        current_status = current_label
+    if next_status == "Approvato":
+        if current_status != "Approvato":
+            return {_APPROVAZIONE_DATETIME_COL: timezone.now()}
+        return {}
+    if not current:
+        return {_APPROVAZIONE_DATETIME_COL: None}
+    if current_status == "Approvato":
+        return {_APPROVAZIONE_DATETIME_COL: None}
+    return {}
 
 
 def _table_exists(name: str) -> bool:
@@ -1097,6 +1121,7 @@ def _find_inserted_assenza_id(row: dict) -> int | None:
         "salta_approvazione",
         "consenso",
         "moderation_status",
+        _APPROVAZIONE_DATETIME_COL,
     ]
     clauses: list[str] = []
     params: list[object] = []
@@ -1170,6 +1195,7 @@ def _get_assenza(item_id: int) -> dict | None:
         "salta_approvazione",
         "consenso",
         "moderation_status",
+        _APPROVAZIONE_DATETIME_COL,
         "note_gestione",
     ]
     selected = [col for col in wanted if col in cols]
@@ -3127,14 +3153,16 @@ def api_car_aggiorna_consenso(request, item_id: int):
     note_gestione = str(note_raw or "").strip()
 
     moderation_status = _CONSENSO_TO_MOD.get(consenso, 2)
+    updates = {
+        "consenso": consenso,
+        "moderation_status": moderation_status,
+        "note_gestione": note_gestione,
+        "modified_datetime": timezone.now(),
+    }
+    updates.update(_approval_timestamp_update(consenso, current))
     ok = _update_assenza(
         item_id,
-        {
-            "consenso": consenso,
-            "moderation_status": moderation_status,
-            "note_gestione": note_gestione,
-            "modified_datetime": timezone.now(),
-        },
+        updates,
     )
     if not ok:
         return _json_error("Aggiornamento non eseguito.", status=500)
@@ -3312,19 +3340,19 @@ def api_evento_update(request, item_id: int | None = None):
     if err_msg:
         return _json_error(err_msg, status=400)
 
-    ok = _update_assenza(
-        target_id,
-        {
-            "tipo_assenza": tipo,
-            "consenso": consenso,
-            "moderation_status": moderation_status,
-            "data_inizio": dt_start,
-            "data_fine": dt_end,
-            "motivazione_richiesta": motivazione,
-            "certificato_medico": certificato_medico,
-            "modified_datetime": timezone.now(),
-        },
-    )
+    updates = {
+        "tipo_assenza": tipo,
+        "consenso": consenso,
+        "moderation_status": moderation_status,
+        "data_inizio": dt_start,
+        "data_fine": dt_end,
+        "motivazione_richiesta": motivazione,
+        "certificato_medico": certificato_medico,
+        "modified_datetime": timezone.now(),
+    }
+    if perms.get("can_update_any"):
+        updates.update(_approval_timestamp_update(consenso, current))
+    ok = _update_assenza(target_id, updates)
     if not ok:
         return _json_error("Aggiornamento non eseguito", status=500)
 
@@ -3554,13 +3582,15 @@ def aggiorna_consenso_placeholder(request, item_id: int):
     if not _assenze_permissions(request).get("can_update_any"):
         return _json_error("Permessi insufficienti: aggiornamento consenso non consentito.", status=403)
     consenso = _norm_consenso(request.POST.get("consenso"))
+    updates = {
+        "consenso": consenso,
+        "moderation_status": _CONSENSO_TO_MOD.get(consenso, 2),
+        "modified_datetime": timezone.now(),
+    }
+    updates.update(_approval_timestamp_update(consenso))
     ok = _update_assenza(
         item_id,
-        {
-            "consenso": consenso,
-            "moderation_status": _CONSENSO_TO_MOD.get(consenso, 2),
-            "modified_datetime": timezone.now(),
-        },
+        updates,
     )
     if ok and _graph_configured():
         _sync_one_to_sharepoint(item_id, force_update=True)
@@ -3969,6 +3999,7 @@ def certificazione_presenza(request):
                     #     e tenta push a SharePoint (flusso Power Automate) ---
                     if _table_exists("assenze"):
                         try:
+                            now = timezone.now()
                             dt_start = datetime.combine(data_v, em_v)
                             dt_end   = datetime.combine(data_v, um_v)
                             assenza_payload = {
@@ -3987,8 +4018,9 @@ def certificazione_presenza(request):
                                 "salta_approvazione": True,
                                 "consenso":           "Approvato",
                                 "moderation_status":  0,
-                                "created_datetime":   timezone.now(),
-                                "modified_datetime":  timezone.now(),
+                                "approvazione_datetime": now,
+                                "created_datetime":   now,
+                                "modified_datetime":  now,
                             }
                             with transaction.atomic():
                                 local_id = _insert_assenza(assenza_payload)

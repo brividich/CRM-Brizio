@@ -336,6 +336,19 @@ window.portalReadJsonResponse = async function (response, opts) {
     if (e.key === 'Escape' && overlay.classList.contains('gs-open')) closeOverlay();
   });
 })();
+/* Alt+A globale → naviga all'assistente AI */
+(function () {
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || (e.key !== 'a' && e.key !== 'A')) return;
+    /* non interferire con campi di testo */
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    /* se siamo già nella chat, non rinavigare */
+    if (document.querySelector('[data-ai-chat]')) return;
+    e.preventDefault();
+    window.location.href = "{% url 'ai_assistant:chat' %}";
+  });
+})();
 </script>
 {% endif %}
 {% load django_htmx %}

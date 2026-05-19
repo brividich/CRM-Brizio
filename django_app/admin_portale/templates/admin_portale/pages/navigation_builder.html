@@ -5,7 +5,7 @@
 
 {% block extra_head %}
   <style>
-    .content { max-width: none; }
+    /* La pagina resta centrata alla larghezza standard del portale (.content). */
     .nav-builder .admin-form-grid {
       grid-template-columns: repeat(12, minmax(0, 1fr));
       align-items: end;
@@ -19,7 +19,7 @@
       flex-wrap: wrap;
       align-items: flex-end;
     }
-    .nav-builder .input.input-sm { min-width: 90px; }
+    .nav-builder .input.input-sm { min-width: 0; }
     .nav-builder .field-help {
       font-size: 11px;
       color: var(--color-muted, #888);
@@ -53,6 +53,57 @@
     .nav-builder details[open] > summary::before { transform: rotate(90deg); }
     .nav-builder select[multiple] { min-height: 78px; }
     .nav-builder .table-wrap { overflow-x: auto; }
+
+    /* Tabelle voci/redirect: occupano tutta la larghezza della card, niente scroll orizzontale. */
+    .nav-builder #nav-items-table,
+    .nav-builder #legacy-redirect-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+    .nav-builder #nav-items-table th,
+    .nav-builder #nav-items-table td,
+    .nav-builder #legacy-redirect-table th,
+    .nav-builder #legacy-redirect-table td {
+      padding: 6px 5px;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    .nav-builder #nav-items-table .input,
+    .nav-builder #nav-items-table select,
+    .nav-builder #legacy-redirect-table .input {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    .nav-builder #nav-items-table .admin-inline-actions,
+    .nav-builder #legacy-redirect-table .admin-inline-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-builder #nav-items-table .admin-inline-actions .btn,
+    .nav-builder #legacy-redirect-table .admin-inline-actions .btn {
+      width: 100%;
+    }
+    .nav-builder #nav-items-table .nav-icon-picker-inline { min-width: 0; }
+    .nav-builder #nav-items-table .nav-icon-picker-inline .nav-icon-picker-row {
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .nav-builder #nav-items-table .nav-icon-picker-inline .nav-icon-preview {
+      width: 30px;
+      height: 30px;
+    }
+    .nav-builder #nav-items-table .nav-icon-picker-inline .input.input-sm[data-icon-input] {
+      min-width: 0;
+      flex: 1 1 56px;
+    }
+    .nav-builder #nav-items-table .nav-icon-picker-inline .btn {
+      flex: 1 1 auto;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
     .nav-builder .sortable-ghost { opacity: .4; background: #e0f2fe; }
     .nav-builder .drag-handle:hover { color: #3b82f6; cursor: grab; }
     .nav-builder .drag-handle:active { cursor: grabbing; }
@@ -708,9 +759,15 @@
         {# Tabella voci #}
         <div class="table-wrap">
           <table class="admin-table" id="nav-items-table">
+            <colgroup>
+              <col style="width:2%"><col style="width:3%"><col style="width:8%"><col style="width:10%">
+              <col style="width:7%"><col style="width:6%"><col style="width:4%"><col style="width:12%">
+              <col style="width:10%"><col style="width:8%"><col style="width:9%"><col style="width:7%">
+              <col style="width:3%"><col style="width:3%"><col style="width:3%"><col style="width:5%">
+            </colgroup>
             <thead>
               <tr>
-                <th title="Trascina per riordinare" style="width:28px;"></th>
+                <th title="Trascina per riordinare"></th>
                 <th title="ID univoco record">ID</th>
                 <th title="Codice slug univoco della voce">Codice</th>
                 <th title="Etichetta visualizzata nel menu">Label</th>
@@ -744,8 +801,8 @@
                       <option value="page" {% if row.section == "page" %}selected{% endif %}>page</option>
                     </select>
                   </td>
-                  <td><input class="input input-sm" type="text" data-name="parent_code" value="{{ row.parent_code }}" placeholder="es. assenze" title="Gruppo subnav" style="min-width:90px;"></td>
-                  <td><input class="input input-sm" type="number" data-name="order" value="{{ row.order }}" style="width:62px;" title="Ordine"></td>
+                  <td><input class="input input-sm" type="text" data-name="parent_code" value="{{ row.parent_code }}" placeholder="es. assenze" title="Gruppo subnav"></td>
+                  <td><input class="input input-sm" type="number" data-name="order" value="{{ row.order }}" title="Ordine"></td>
                   <td>
                     <div class="nav-icon-picker nav-icon-picker-inline" data-nav-icon-picker data-fallback-name="label">
                       <div class="nav-icon-picker-row">
@@ -759,10 +816,10 @@
                   <td>
                     <input class="input input-sm" type="text" data-name="route_name"
                            value="{{ row.route_name }}" list="route-catalog-options"
-                           title="Route Django — digita o scegli dalla lista" style="min-width:160px;">
+                           title="Route Django — digita o scegli dalla lista">
                   </td>
                   <td><input class="input input-sm" type="text" data-name="url_path" value="{{ row.url_path }}" title="URL path"></td>
-                  <td><input class="input input-sm" type="text" data-name="required_permission_code" value="{{ row.required_permission_code }}" title="Permission code richiesto" style="min-width:170px;"></td>
+                  <td><input class="input input-sm" type="text" data-name="required_permission_code" value="{{ row.required_permission_code }}" title="Permission code richiesto"></td>
                   <td>
                     <select class="input input-sm" data-name="role_ids_csv" multiple size="3"
                             title="Fallback legacy per voci senza permission code canonico.">
@@ -886,6 +943,10 @@
 
         <div class="table-wrap">
           <table class="admin-table" id="legacy-redirect-table">
+            <colgroup>
+              <col style="width:5%"><col style="width:24%"><col style="width:26%">
+              <col style="width:24%"><col style="width:8%"><col style="width:13%">
+            </colgroup>
             <thead>
               <tr>
                 <th>ID</th>
@@ -904,7 +965,7 @@
                   <td>
                     <input class="input input-sm" type="text" data-name="target_route_name"
                            value="{{ r.target_route_name }}" list="route-catalog-options"
-                           title="Route Django — digita o scegli dalla lista" style="min-width:180px;">
+                           title="Route Django — digita o scegli dalla lista">
                   </td>
                   <td><input class="input input-sm" type="text" data-name="target_url_path" value="{{ r.target_url_path }}"></td>
                   <td><input type="checkbox" data-name="is_enabled" {% if r.is_enabled %}checked{% endif %}></td>

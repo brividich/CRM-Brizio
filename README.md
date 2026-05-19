@@ -125,12 +125,13 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
-### Tutti i 22 moduli custom a colpo d'occhio
+### Tutti i 23 moduli custom a colpo d'occhio
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
 | 1 | [`core`](django_app/core/) | Core | — | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models |
 | 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home KPI personalizzabile per utente, widget, layout salvato |
+| 2b | [`ai_assistant`](django_app/ai_assistant/) | Core | `/assistente-ai/` | Chatbot interno autenticato con console admin AI e backend Ollama/Open WebUI configurabile |
 | 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attività utente, branding |
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
@@ -138,7 +139,7 @@ sequenceDiagram
 | 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
-| 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
+| 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, timeline eventi leggibile, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
 | 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
 | 12 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint |
 | 13 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Segnalazione e gestione anomalie produzione |
@@ -187,6 +188,29 @@ Workspace personale dell'utente autenticato. Widget multi-modulo con layout salv
 - **Template iniziale globale** definibile dagli admin + ripristino rapido
 - **Shell viewport-aware** a tutta altezza, no bande vuote in fondo al viewport
 - Route legacy `/scheda-dipendente` mantenuto come alias compat
+</details>
+
+<details open>
+<summary><b>2b. <code>ai_assistant</code> — chatbot interno via Ollama</b></summary>
+
+Superficie minima ed estendibile per chat AI locale, servita da Django e protetta da autenticazione.
+
+- Endpoint `/assistente-ai/` con UI chat ridisegnata: bubble con avatar, indicatore di caricamento animato, effetto typewriter sulle risposte, fonti RAG/live come chip colorati (verdi = dati live `tool:*`, blu = documentazione), domande suggerite contestuali dopo ogni risposta, contatore caratteri con avviso visivo e scorciatoia `Ctrl+Enter` per inviare. L'API JSON `/assistente-ai/api/chat/` restituisce ora anche `suggested_questions`.
+- Console **Admin Portale -> Gestione AI** (`/admin-portale/ai/`) per provider, runtime, stato componenti, knowledge base RAG e FAQ curate; la Config SRV (`/admin-portale/ldap/`) mantiene la card rapida di configurazione
+- Backend Ollama/Open WebUI configurabile dalla console admin oppure via `.env`: `OLLAMA_BASE_URL`, `OLLAMA_CHAT_MODEL`, timeout, temperatura e limiti prompt/storico
+- Provider selezionabile: Ollama diretto (`OLLAMA_API_PROVIDER=ollama`, URL tipico `http://host:11434`) oppure Open WebUI (`OLLAMA_API_PROVIDER=openwebui`, URL tipico `http://host:3000`, `OPENWEBUI_API_KEY` da Settings -> Account)
+- Se il test Open WebUI restituisce HTTP 401/403, rigenerare la API key in Open WebUI e incollarla nella console: la key salvata non viene mostrata e un nuovo valore la sostituisce.
+- La console admin include test connessione a `/api/version` + `/api/tags` per Ollama diretto oppure `/api/models` per Open WebUI
+- Se `/api/version` risponde ma `/api/tags` non restituisce JSON valido, la connessione Ollama resta considerata riuscita: il portale avvisa solo che non ha potuto verificare automaticamente il catalogo modelli.
+- Per modelli grandi o non gia' caricati in memoria, usare un timeout chat piu' ampio (`OLLAMA_REQUEST_TIMEOUT_SECONDS=180` o fino a 300 dalla console admin) per evitare 502 durante il primo avvio del modello.
+- RAG documentale locale configurabile dalla console admin (`OLLAMA_RAG_ENABLED=1`) sui percorsi allowlist `OLLAMA_RAG_SOURCE_PATHS` (default `README.md,docs/ai`): il portale recupera i passaggi rilevanti e li passa a Ollama con fonti citabili
+- Tool runtime autorizzati tramite registry estendibile: la chat puo' agganciare piccoli provider server-side per ogni dominio, sempre filtrati dai permessi dell'utente. Gia' disponibili: catalogo moduli visibili in navigazione, Assenze per domande come "chi e' assente domani/oggi?", Ticket per riepiloghi personali o di gestione IT/MAN (aperti, urgenti, risolti), KICK-OFF/Tasks per progetti, attivita' aperte, scadenze, assegnazioni e ritardi visibili, Assets per asset assegnati/visibili, scadenze, OdL, verifiche e stato operativo, DPI per richieste/consegne/scadenze con separazione utente/gestore, Anomalie per riepiloghi autorizzati di segnalazioni aperte/in carico, Procedure Refresh per campagne/prese visione/quiz autorizzati, Notizie pubblicate visibili all'utente e Sicurezza per soli KPI aggregati di Diario Preposto/Rilevazione Incidenti. Il router cross-dominio riconosce domande operative come "cosa devo fare oggi?", consulta i tool pertinenti in ordine di priorita' (sicurezza/compliance, scadenze, ticket urgenti, task in ritardo), applica limiti globali di righe/caratteri e registra audit metadata-only per ogni tool eseguito, autorizzato, negato o non disponibile. I tool passano all'LLM solo campi sintetici consentiti e mai motivazioni, descrizioni complete, note interne, seriali, firme, allegati, path file, URL SharePoint, hash, risposte quiz, report nominativi HR o budget.
+- La console **Gestione AI -> Tool live** mostra il catalogo runtime per dominio, stato abilitato/disabilitato, indicatori di chiamate/errori/latenza/contesto, audit filtrabile per tool/esito/periodo, test admin metadata-only con utente simulato e pulsante per svuotare la cache RAG/runtime. Il test non mostra il contenuto live del contesto, solo fonti, tool attivati, scope e conteggi.
+- La console **Gestione AI -> Governance** (Fase 5) permette di revisionare la privacy di ogni tool runtime: stato (Da revisionare / Approvato / Uso limitato / Bloccato), campi ammessi/vietati, retention personalizzata, note interne non trasmesse al modello e tracciatura revisore/data. La policy di retention default e' 90 giorni per l'audit AI metadata-only. Il documento [docs/ai/13_AI_GOVERNANCE.md](docs/ai/13_AI_GOVERNANCE.md) contiene la matrice campi per modulo, le policy di retention e il runbook operativo (API key Open WebUI, diagnostica Ollama, ciclo di vita tool).
+- Piano di estensione tool live in [docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md](docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md): checklist per aggiungere nuovi domini con ACL e audit metadata-only; Timbri/Anagrafica restano rimandati a revisione privacy HR dedicata.
+- Apprendimento controllato: gli admin possono salvare dalla chat o dalla console admin una coppia domanda/risposta nella FAQ AI, poi indicizzata dal RAG senza salvare automaticamente le conversazioni
+- Le richieste partono dal server Django verso Ollama; il browser non parla direttamente con la workstation
+- Audit trail solo su metadati tecnici (modello, lunghezze, latenza, errori), senza salvare prompt o risposte
 </details>
 
 <details open>
@@ -240,6 +264,7 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 - Fail-fast: se venv/pip/migrate/collectstatic falliscono, release **non** attivata
 - FinishPage mostra banner rosso "Installazione Incompleta" con countdown 60s
 - Server Dashboard integrato con start/stop/restart IIS, reset password live e terminale TEST/PROD con preset Django/ACL
+- **Release Manager** (`--mode release`) con quattro operazioni: **Crea Release** (`.zip` completo da DEV), **Promuovi Release** (deploy `.zip` su TEST/PROD) e il flusso **Hotfix** a due fasi — **Crea Hotfix** (`--mode hotfix-create`, rileva i file modificati via git e li impacchetta in un `hotfix-*.zip` leggero) e **Applica Hotfix** (`--mode hotfix-apply`, estrae il pacchetto hotfix sul release attivo `current\`, esegue eventuali management command e ricicla IIS, senza nuova release)
 </details>
 
 <details open>
@@ -283,11 +308,11 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario IT** su `/assets/dispositivi/` — tabella filtrabile per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
 - **Inventario produzione** su `/assets/work-machines/` — tabella con badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
-- **Categorie asset gerarchiche** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`; la tab mostra impatto operativo, contatori, preview degli asset collegati in popup e azione rapida per pubblicare la categoria nel menu laterale come lista filtrata. Il catalogo CSV/XLSX puo creare categorie padre (`famiglia`) e sottocategorie (`sottocategoria`) con `import_assets_catalog`
+- **Categorie asset gerarchiche** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`; la tab mostra impatto operativo, contatori, preview degli asset collegati in popup e azione rapida per pubblicare la categoria nel menu laterale come lista filtrata. Il catalogo CSV/XLSX puo creare categorie padre (`famiglia`) e sottocategorie (`sottocategoria`) con `import_assets_catalog` (per i file XLSX vengono elaborati tutti i fogli; `produttore`/`modello` finiscono nei campi dedicati, le altre colonne non standard in `extra_columns`)
 - **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
 - **Assegnazione asset guidata**: nei form asset/macchine l'assegnatario puo essere scelto da anagrafica dipendenti con ricerca oppure come reparto intero; reparto e collocazione vengono precompilati e restano modificabili.
 - **Etichette QR asset**: il PDF `/assets/view/<id>/qr-label/` genera di default un QR verso la cartella SharePoint dell'asset quando `sharepoint_folder_url` e' valorizzato; se il link manca resta il fallback alla scheda asset, e `?target=detail` forza ancora la scheda.
-- **Documenti asset + SharePoint**: le macchine di lavoro supportano upload multipli per Specifiche/Manuali/Interventi; i file vengono validati, salvati localmente come `AssetDocument`, sincronizzati su SharePoint via Graph quando configurato e serviti tramite download autenticato `/assets/documenti/<id>/download/` se resta solo la copia locale. La cartella SharePoint puo essere lasciata in modalita automatica: root configurata + reparto + ID asset, con preview nel form; se non esiste viene creata via Graph. Guide operative: `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`
+- **Documenti asset + SharePoint**: le macchine di lavoro supportano upload multipli per Specifiche/Manuali/Interventi anche dalla card Documenti del dettaglio asset; prima del caricamento l'utente sceglie se lasciare i nuovi file solo in locale nel portale oppure sincronizzarli su SharePoint via Graph. I file vengono validati, salvati come `AssetDocument` e serviti tramite download autenticato `/assets/documenti/<id>/download/` quando resta solo la copia locale. La cartella SharePoint puo essere lasciata in modalita automatica con percorso fisso `ASSET CN/<tag asset>` e le tre sottocartelle distinte `manuali`, `specifiche`, `interventi` predisposte automaticamente, con preview nel form; se non esistono vengono create via Graph. Le cartelle asset e ogni file caricato su SharePoint ricevono colonne metadato per l'indicizzazione (`AssetTag`, `AssetCategoria`, `AssetSottocategoria`, `AssetProduttore`, `AssetModello`, `AssetMatricola`, `AssetStato`, `AssetReparto`, `AssetTipoDocumento`), create automaticamente nella libreria se mancanti. Dalla card Documenti ogni file portale ha un pulsante **cestino** che ne elimina il record, la copia locale e — se sincronizzata — anche la copia su SharePoint. Sono supportati anche i file `.msg` (messaggi Outlook) e l'**upload di un'intera cartella** (pulsante "Carica cartella", input `webkitdirectory`): su SharePoint viene mantenuta la struttura relativa della cartella selezionata e delle sottocartelle dentro la categoria attiva, mentre i file di sistema vengono ignorati. Il **sync inverso** SharePoint → portale è gestito dal management command `sync_asset_documents_from_sharepoint [--asset <tag>] [--dry-run]` (schedulabile): importa come riferimento i file aggiunti direttamente su SharePoint, rimuove dal portale quelli cancellati su SharePoint e aggiorna i link modificati, senza toccare i documenti solo-locali. Guide operative: `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
 - **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, path logico `assets_admin_deadlines/<asset_tag>/<completion_id>/`, storage privato `ASSETS_PRIVATE_ROOT` e download autenticato da `/assets/scadenze/allegati/<id>/download/`; migrazione operativa file legacy: `manage.py migrate_admin_deadline_attachments_private --apply --delete-source`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
@@ -324,6 +349,8 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Modelli operativi KICK-OFF**: Project, Task/SubTask, commenti, allegati, VRF, ruoli/accessi, `KickoffMeeting`, `MeetingIssue`, `MeetingRoom` + singleton `TaskImpostazioni`
 - **Kickoff = progetto** con numerazione automatica `KICK-OFF <progressivo>`
 - **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
+- **Timeline eventi attività**: il dettaglio task mostra una storia operativa leggibile (stato, date, assegnatari, subtask, allegati) con payload tecnico ancora consultabile in disclosure audit
+- **Gantt KICK-OFF**: drag al centro della barra per spostare inizio/fine insieme; drag sui bordi per allungare o accorciare solo inizio/fine mantenendo separata la durata dallo shift date
 - **VRF upload workflow**: dopo creazione kickoff, redirect a `/tasks/projects/<id>/vrf/` per caricare il MOD.073 Excel
 - **Parsing automatico** celle fisse del .xlsx (B3=P/N, I3=Descrizione, P3=Esp, O2=Preventivo, P2=Versione, B4=Cliente) con anteprima
 - **Blocco progressivo VRF**: warning dopo `vrf_reminder_days` (default 7g), **bloccante** dopo `vrf_blocking_days` (default 30g) — guardati da `task_create` e `task_edit`
@@ -334,6 +361,8 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
 - **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
 - **Import Excel/catalogo** massivo per bulk creation: `import_assets_excel` per inventory IT multi-foglio e `import_assets_catalog <file> --dry-run|--commit` per CSV/XLSX normalizzati famiglia/sottocategoria
+- **Tipo bene unificato alla categoria**: il form asset non ha piu il campo "Tipo bene" separato; `asset_type` e derivato automaticamente dalla `Categoria asset`. Il command `realign_asset_types [--dry-run] [--skip-categories] [--include-classified]` riallinea `asset_type` degli asset esistenti a partire dalla categoria, ri-deducendo opzionalmente `base_asset_type` delle categorie dal nome
+- **Pagina "Dispositivi IT"** limitata ai soli tipi IT (PC, portatili, server, VM, firewall/rete, stampanti, fonia, TVCC, dispositivi generici): gli asset "Altro" (impianto/non-IT) non vi compaiono piu
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 </details>
 
@@ -362,6 +391,7 @@ Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`
 - **Sync bidirezionale** con lista SharePoint via Graph API (intervallo configurabile `ASSENZE_SP_PULL_INTERVAL_SECONDS`)
 - **Capo reparto** risolto verso FK `capi_reparto.id` leggendo `indirizzo_email` (email_notifica/email fallback)
 - **Tipo assenza canonico** `Flessibilità` (allineamento da legacy `Infortunio` via management command idempotente)
+- **Timestamp approvazione** salvato in `assenze.approvazione_datetime` quando il CAR approva una richiesta ferie/permessi
 - **Export CSV** tracciato in AuditLog (`export_csv`)
 - **URL canonico**: menu, nuova richiesta, gestione personale, calendario, certificazione, impostazioni
 </details>
@@ -677,6 +707,7 @@ powershell tools\install-git-hooks.ps1
 | Database prod | **SQL Server** via `mssql-django` + `pyodbc 5.2` (driver 18/17/13) |
 | Auth cascata | `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend` |
 | Frontend | **SSR** con Django templates, CSS custom, nessun framework JS |
+| LLM locale | **Ollama** opzionale via HTTP API (`ai_assistant`, nessuna dipendenza Python aggiuntiva) |
 | Cache | `DatabaseCache` su SQL Server (prod), `LocMemCache` (dev) |
 | Background | Windows Scheduled Tasks (queue processor, mailbox poll, backup) |
 | Osservabilità | `SafeTimedRotatingFileHandler` multi-process, SQL logging, audit DB |
@@ -728,6 +759,13 @@ DJANGO_DEBUG=1
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 DB_ENGINE=sqlite
 ACL_LOG_LEGACY_FALLBACK=1
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_API_PROVIDER=ollama
+OLLAMA_CHAT_MODEL=llama3.1
+OPENWEBUI_API_KEY=
+OLLAMA_RAG_ENABLED=1
+OLLAMA_RAG_SOURCE_PATHS=README.md,docs/ai
+OLLAMA_RAG_MAX_DB_ENTRIES=200
 ```
 
 ### 3. Migra e avvia
@@ -749,6 +787,8 @@ non serve CSS/SVG/HTMX e la UI appare senza stili.
 | URL | Descrizione |
 |---|---|
 | http://127.0.0.1:8000/ | Dashboard personale |
+| http://127.0.0.1:8000/assistente-ai/ | Assistente AI locale via Ollama |
+| http://127.0.0.1:8000/admin-portale/ai/ | Gestione AI: provider, RAG e FAQ curate |
 | http://127.0.0.1:8000/assenze/ | Modulo assenze unificato |
 | http://127.0.0.1:8000/assets/ | Inventario e manutenzioni |
 | http://127.0.0.1:8000/tickets/ | Ticket interni |
@@ -938,6 +978,87 @@ automaticamente tutti i documenti supportati. Per consultazione da repo:
 - 👥 [Guida gestione permessi (HTML/PDF)](doc/GUIDA_GESTIONE_PERMESSI.html)
 - 🤝 [Guida Teams approvazioni (HTML)](doc/GUIDA_TEAMS_APPROVAZIONI.html)
 - 🏭 [Note modulo assets](django_app/assets/README.md)
+
+---
+
+## 🤝 Modalità Shared Workspace / Agent Control
+
+NOVICROM HUB supporta una modalità di lavoro su **cartella condivisa**, senza Git e senza GitHub.
+Questa modalità è pensata per consentire a più persone o agenti AI di lavorare sulla stessa
+istanza del progetto (es. cartella di rete o OneDrive condivisa) in modo coordinato e sicuro.
+
+### Perché esiste questa modalità
+
+In ambienti dove la sincronizzazione avviene tramite cartella condivisa (e non tramite Git),
+le modifiche sono immediate e visibili a tutti. Senza coordinamento, due agenti possono
+sovrascrivere lo stesso file o modificare aree critiche senza controllo.
+Il protocollo Agent Control risolve questo con sessioni, lock, manifest e tracciamento file critici.
+
+**File critici non vietati: file critici tracciati obbligatoriamente.**
+
+### Come funziona
+
+1. **Solo Brizio** avvia formalmente le sessioni tramite script PowerShell.
+2. Lo script apre una sessione, apre VS Code con `--wait` e al termine chiude la sessione ed esegue diff.
+3. La struttura `_AGENT_CONTROL/` contiene lo stato di sessione, i lock per area, l'elenco dei file critici e il changelog operativo degli agenti.
+
+### Metodo raccomandato — apertura sessione Collega HR
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\open-agent-workspace.ps1 -Owner "Collega HR" -Agent "Claude" -Area "django_app/anagrafica"
+```
+
+In alternativa, doppio clic su `scripts\open-collega-hr-workspace.bat`.
+
+### Comandi di gestione sessione
+
+```powershell
+# Status sessione corrente (include stale-session detection)
+powershell -ExecutionPolicy Bypass -File .\scripts\agent-session.ps1 status
+
+# Diff (confronta stato attuale con manifest baseline)
+powershell -ExecutionPolicy Bypass -File .\scripts\agent-session.ps1 diff
+
+# Chiusura normale di emergenza
+powershell -ExecutionPolicy Bypass -File .\scripts\agent-session.ps1 end -Owner "Collega HR" -RunChecks -CheckDocs
+
+# Chiusura forzata (sessione bloccata, VS Code chiuso)
+powershell -ExecutionPolicy Bypass -File .\scripts\agent-session.ps1 force-end -Owner "Brizio" -Force
+
+# Reset d'emergenza (ACTIVE_SESSION.md incoerente)
+powershell -ExecutionPolicy Bypass -File .\scripts\agent-session.ps1 reset -Force
+```
+
+### Recupero sessione bloccata
+
+Se `agent-session.ps1 status` mostra `| Stato | IN_CORSO |` ma VS Code è stato chiuso o la sessione non è più reale:
+
+```powershell
+cd "Y:\Portale Novicrom"
+.\scripts\agent-session.ps1 force-end -Owner "Brizio" -Force
+```
+
+Il comando `status` segnala automaticamente sessioni stale (avvio > 8 ore: avviso rosso; > 2 ore: avviso giallo) ma non chiude mai automaticamente la sessione.
+
+### Regole operative
+
+- Non aprire VS Code direttamente: usare sempre il wrapper `open-agent-workspace.ps1`.
+- A inizio chat leggere `session_checkpoint.md`: per `CHANGELOG.md` fermarsi alla prima voce gia' nota, per `_AGENT_CONTROL/AGENT_CHANGELOG.md` leggere solo le voci successive al checkpoint.
+- Leggere `_AGENT_CONTROL/ACTIVE_SESSION.md` e `WORK_LOCKS.md` prima di qualsiasi modifica.
+- I file critici (core, config, admin_portale, ACL, middleware) non sono vietati ma devono essere modificati solo se necessario e documentati obbligatoriamente in `_AGENT_CONTROL/AGENT_CHANGELOG.md`.
+- `CRITICAL_CHANGE_REQUESTS.md` serve solo per modifiche dubbie, invasive o da verificare da parte di Brizio.
+- Se la modifica riguarda ACL, middleware, settings, routing globale, autenticazione o navigazione globale, chiedere conferma verbale a Brizio prima di procedere.
+- Aggiornare `_AGENT_CONTROL/AGENT_CHANGELOG.md` a fine sessione.
+- Aggiornare `session_checkpoint.md` a fine sessione con le nuove voci viste o aggiunte.
+- Aggiornare `README.md` e `CHANGELOG.md` se cambia il comportamento operativo.
+- Brizio supervisiona la sessione tramite il wrapper `open-agent-workspace.ps1`.
+
+### Perimetri
+
+| Agente/Utente | Area consentita | Note |
+| --- | --- | --- |
+| Collega HR | `django_app/anagrafica/**` | Solo con sessione aperta da Brizio |
+| Brizio | tutto | Autorizza modifiche critiche |
 
 ---
 

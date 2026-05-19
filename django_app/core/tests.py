@@ -2157,3 +2157,32 @@ class CoreBacklogCFeatureTests(TestCase):
         self.assertEqual(export_response.status_code, 200)
         self.assertIn("text/csv", export_response["Content-Type"])
         self.assertIn("test_action", export_response.content.decode("utf-8"))
+
+
+class ValidateDeploymentSecurityChecksTests(SimpleTestCase):
+    """Copre i check di sicurezza del comando validate_deployment."""
+
+    def _run_security_checks(self):
+        from core.management.commands.validate_deployment import DeploymentValidator
+
+        validator = DeploymentValidator()
+        validator.check_security()
+        return {result.name: result for result in validator.results}
+
+    @override_settings(SQL_LOG_ENABLED=False)
+    def test_sql_log_disabled_is_ok(self):
+        results = self._run_security_checks()
+        self.assertIn("SQL_LOG_ENABLED", results)
+        self.assertEqual(results["SQL_LOG_ENABLED"].severity, "OK")
+
+    @override_settings(SQL_LOG_ENABLED=True, MONITORING_ENVIRONMENT="production")
+    def test_sql_log_enabled_in_prod_fails(self):
+        results = self._run_security_checks()
+        self.assertIn("SQL_LOG_ENABLED", results)
+        self.assertEqual(results["SQL_LOG_ENABLED"].severity, "FAIL")
+
+    @override_settings(SQL_LOG_ENABLED=True, MONITORING_ENVIRONMENT="development")
+    def test_sql_log_enabled_outside_prod_warns(self):
+        results = self._run_security_checks()
+        self.assertIn("SQL_LOG_ENABLED", results)
+        self.assertEqual(results["SQL_LOG_ENABLED"].severity, "WARN")

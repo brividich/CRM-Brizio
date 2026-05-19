@@ -47,6 +47,8 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "api_employee_board_data",
     "employee_board_pdf",
     "api_debug_ui_meta",
+    "ai_assistant:chat",
+    "ai_assistant:api_chat",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

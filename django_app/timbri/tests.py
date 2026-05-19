@@ -504,3 +504,61 @@ class TimbriDownloadAuditTests(TestCase):
                 self.assertNotIn("denied.png", serialized)
         finally:
             shutil.rmtree(private_root, ignore_errors=True)
+
+
+class TimbriDownloadImageHostAllowlistTests(TestCase):
+    """SEC-PREPROD-02 (M2): il token Graph non deve raggiungere host arbitrari."""
+
+    @staticmethod
+    def _png_bytes() -> bytes:
+        buffer = io.BytesIO()
+        Image.new("RGB", (4, 4), (255, 255, 255)).save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def _ok_response(self):
+        return SimpleNamespace(
+            status_code=200,
+            content=self._png_bytes(),
+            raise_for_status=lambda: None,
+        )
+
+    def test_trusted_graph_host_receives_authorization(self):
+        with patch("timbri.views._graph_token", return_value="tok-abc"), patch(
+            "timbri.views.requests.get", return_value=self._ok_response()
+        ) as mock_get:
+            timbri_views._download_image("https://graph.microsoft.com/v1.0/sites/x/img")
+        self.assertEqual(mock_get.call_count, 1)
+        _, kwargs = mock_get.call_args
+        self.assertEqual(kwargs["headers"].get("Authorization"), "Bearer tok-abc")
+
+    def test_trusted_sharepoint_host_receives_authorization(self):
+        with patch("timbri.views._graph_token", return_value="tok-abc"), patch(
+            "timbri.views.requests.get", return_value=self._ok_response()
+        ) as mock_get:
+            timbri_views._download_image("https://contoso.sharepoint.com/sites/x/img.png")
+        self.assertEqual(mock_get.call_count, 1)
+        _, kwargs = mock_get.call_args
+        self.assertEqual(kwargs["headers"].get("Authorization"), "Bearer tok-abc")
+
+    def test_untrusted_host_is_not_downloaded(self):
+        with patch("timbri.views._graph_token", return_value="tok-abc"), patch(
+            "timbri.views.requests.get"
+        ) as mock_get:
+            with self.assertRaises(RuntimeError):
+                timbri_views._download_image("https://attacker.local/img.png")
+        mock_get.assert_not_called()
+
+    def test_sharepoint_in_query_only_is_rejected(self):
+        with patch("timbri.views._graph_token", return_value="tok-abc"), patch(
+            "timbri.views.requests.get"
+        ) as mock_get:
+            with self.assertRaises(RuntimeError):
+                timbri_views._download_image("https://attacker.local/?ref=sharepoint.com")
+        mock_get.assert_not_called()
+
+    def test_missing_scheme_or_host_is_rejected(self):
+        for bad_url in ("", "graph.microsoft.com/v1.0/x", "ftp://graph.microsoft.com/x", "/relative/img.png"):
+            with patch("timbri.views.requests.get") as mock_get:
+                with self.assertRaises(RuntimeError):
+                    timbri_views._download_image(bad_url)
+            mock_get.assert_not_called()

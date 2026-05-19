@@ -845,6 +845,30 @@ class TaskAuditTrailTests(TasksBaseTestCase):
         rollup_events = TaskEvent.objects.filter(task=self.task, type=TaskEventType.STATUS_CHANGE)
         self.assertTrue(any((event.payload or {}).get("source") == "subtask_rollup" for event in rollup_events))
 
+    def test_detail_timeline_renders_semantic_event_story(self):
+        TaskEvent.objects.create(
+            task=self.task,
+            actor=self.user,
+            type=TaskEventType.EDIT,
+            payload={
+                "changes": {
+                    "next_step_due": {"from": "2026-03-10", "to": "2026-03-12"},
+                    "due_date": {"from": "2026-03-15", "to": "2026-03-18"},
+                }
+            },
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
+
+        self.assertContains(response, "Scheda attivita modificata")
+        self.assertContains(response, "Campi aggiornati: data inizio, data fine.")
+        self.assertContains(response, "Data inizio")
+        self.assertContains(response, "10/03/2026")
+        self.assertContains(response, "12/03/2026")
+        self.assertContains(response, "Payload tecnico")
+        self.assertNotContains(response, "{&#x27;changes&#x27;:")
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TaskListFiltersTests(TasksBaseTestCase):
@@ -1312,6 +1336,18 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertContains(response, "Copia VRF")
         self.assertContains(response, "Copia senza P/N")
 
+    def test_project_list_builds_client_filter_from_distinct_names(self):
+        self.client.force_login(self.user)
+        Project.objects.create(name="Kickoff Alfa", client_name="Cliente Alfa", created_by=self.user)
+        Project.objects.create(name="Kickoff Beta", client_name="Cliente Beta", created_by=self.user)
+        Project.objects.create(name="Kickoff vuoto", client_name="", created_by=self.user)
+
+        response = self.client.get(reverse("tasks:project_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cliente Alfa")
+        self.assertContains(response, "Cliente Beta")
+
     def test_copy_project_with_vrf_duplicates_kickoff_metadata_and_file(self):
         self.client.force_login(self.user)
         project_manager = User.objects.create_user(username="copy_pm", password="pass12345")
@@ -1616,6 +1652,38 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         self.assertEqual(self.task.due_date, old_due + timedelta(days=3))
         edit_events = TaskEvent.objects.filter(task=self.task, type=TaskEventType.EDIT)
         self.assertTrue(any("due_date" in (event.payload or {}).get("changes", {}) for event in edit_events))
+
+    def test_project_gantt_resize_end_extends_due_date_only(self):
+        self.client.force_login(self.assignee)
+        old_next = self.task.next_step_due
+        old_due = self.task.due_date
+        response = self.client.post(
+            reverse("tasks:project_gantt_shift_task", args=[self.project.id, self.task.id]),
+            {"mode": "resize_end", "shift_days": "2", "cascade": "0"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["mode"], "resize_end")
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.next_step_due, old_next)
+        self.assertEqual(self.task.due_date, old_due + timedelta(days=2))
+
+    def test_project_gantt_resize_start_moves_start_date_only(self):
+        self.client.force_login(self.assignee)
+        old_next = self.task.next_step_due
+        old_due = self.task.due_date
+        response = self.client.post(
+            reverse("tasks:project_gantt_shift_task", args=[self.project.id, self.task.id]),
+            {"mode": "resize_start", "shift_days": "1", "cascade": "0"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["mode"], "resize_start")
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.next_step_due, old_next + timedelta(days=1))
+        self.assertEqual(self.task.due_date, old_due)
 
     def test_project_gantt_shift_days_denied_for_non_assignee(self):
         self.client.force_login(self.viewer)

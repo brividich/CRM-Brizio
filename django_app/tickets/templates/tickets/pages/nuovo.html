@@ -426,8 +426,12 @@ body.theme-dark .tkt-error { background:rgba(220,38,38,.12); border-color:rgba(2
   {% endif %}
 </div>
 
+{{ assets_list|json_script:"assets-list-data" }}
 <script>
-const ASSETS = {{ assets_list|safe }};
+const ASSETS = (function () {
+  try { return JSON.parse(document.getElementById("assets-list-data").textContent) || []; }
+  catch (e) { return []; }
+})();
 {% if initial_asset %}
 const INITIAL_ASSET = { id: {{ initial_asset.pk }}, name: "{{ initial_asset.name|escapejs }} [{{ initial_asset.asset_tag|escapejs }}]" };
 {% else %}

@@ -9,6 +9,7 @@ DEFAULT_APP_VERSION = "1.0.1"
 MODULE_ENV_KEYS_BY_CODE: dict[str, str] = {
     "core": "APP_VERSION_CORE",
     "dashboard": "APP_VERSION_DASHBOARD",
+    "ai_assistant": "APP_VERSION_AI_ASSISTANT",
     "assenze": "APP_VERSION_ASSENZE",
     "anomalie": "APP_VERSION_ANOMALIE",
     "assets": "APP_VERSION_ASSETS",
@@ -49,4 +50,3 @@ def load_app_version(default: str = DEFAULT_APP_VERSION) -> str:
 def build_module_version_env_block(app_version: str) -> str:
     version = _normalize(app_version, load_app_version())
     return "\n".join(f"{env_key}={version}" for env_key in MODULE_VERSION_ENV_KEYS)
-

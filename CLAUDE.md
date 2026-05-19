@@ -100,3 +100,4 @@ No tests are required for documentation-only changes unless project files outsid
 - Keep automation approvals fail-closed, deduplicated, auditable, and portable across email/Teams/Graph paths.
 - Keep Setup Wizard and Windows/IIS deployment flows fail-fast and reproducible.
 - For Security Center AI, prioritize safety/compliance workflows, privacy, auditability, and synthetic test/demo data.
+

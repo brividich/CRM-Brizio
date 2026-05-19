@@ -639,6 +639,13 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         </div>
       </a>
       {% endif %}
+      <a class="mod" href="{% url 'admin_portale:ai_settings' %}">
+        <div class="mod-icon">AI</div>
+        <div>
+          <div class="mod-name">Gestione AI</div>
+          <div class="mod-sub">Provider, RAG e FAQ curate per l'assistente interno</div>
+        </div>
+      </a>
       <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
         <div class="mod-icon">🌐</div>
         <div>

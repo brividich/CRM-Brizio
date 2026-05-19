@@ -121,6 +121,13 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 aliases=["ModerationStatus", "{ModerationStatus}", "status_approvazione"],
             ),
             _field(
+                name="approvazione_datetime",
+                label="Data/ora approvazione",
+                data_type="datetime",
+                description="Data e ora in cui la richiesta ferie/permessi e' stata approvata.",
+                aliases=["data_approvazione", "approval_datetime", "approved_at"],
+            ),
+            _field(
                 name="capo_reparto_id",
                 label="Capo reparto",
                 data_type="int",

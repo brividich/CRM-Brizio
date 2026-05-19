@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare LDAP / Active Directory e SMTP. La sezione LDAP espone i valori effettivi con precedenza ambiente processo -> .env -> default." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare LDAP / Active Directory, SMTP e Assistente AI/Ollama. La sezione LDAP espone i valori effettivi con precedenza ambiente processo -> .env -> default." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div class="card">
@@ -237,6 +237,103 @@
       <div class="cell-muted" style="margin-top:10px;">
         Nota: se salvi la configurazione SMTP in <code>{{ dotenv_target_label }}</code>, poi serve <strong>riavviare il server</strong>
         per far rileggere i settings Django. Il test connessione qui sopra usa invece i valori del form, senza riavvio.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Assistente AI / Ollama" card_subtitle="Configura la workstation Ollama usata dal chatbot interno autenticato." %}
+    <div class="card-body">
+      <div class="notice" style="margin-bottom:12px;">
+        Il browser degli utenti non contatta Ollama direttamente: Django chiama l'endpoint configurato qui.
+        Scegli se parlare con Ollama diretto oppure con Open WebUI tramite API.
+        Il test usa i valori del form senza riavvio; il salvataggio aggiorna <code>{{ dotenv_target_label }}</code>.
+      </div>
+
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <div class="field">
+          <label>Provider AI</label>
+          <select class="input" name="ollama_provider">
+            <option value="ollama" {% if ollama_cfg.provider == "ollama" %}selected{% endif %}>Ollama diretto</option>
+            <option value="openwebui" {% if ollama_cfg.provider == "openwebui" %}selected{% endif %}>Open WebUI</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>URL provider</label>
+          <input class="input" type="url" name="ollama_base_url" value="{{ ollama_cfg.base_url }}" placeholder="http://127.0.0.1:11434">
+        </div>
+        <div class="field">
+          <label>Modello</label>
+          <input class="input" type="text" name="ollama_model" value="{{ ollama_cfg.model }}" placeholder="llama3.1">
+        </div>
+        <div class="field">
+          <label>API key Open WebUI</label>
+          <input class="input" type="password" name="openwebui_api_key" value="" placeholder="{% if ollama_cfg.openwebui_api_key_configured %}gia configurata{% else %}sk-...{% endif %}" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Timeout (s)</label>
+          <input class="input" type="number" min="1" max="300" name="ollama_timeout" value="{{ ollama_cfg.timeout|default:60 }}">
+        </div>
+        <div class="field">
+          <label>Temperatura</label>
+          <input class="input" type="number" min="0" max="2" step="0.1" name="ollama_temperature" value="{{ ollama_cfg.temperature|default:'0.2' }}">
+        </div>
+        <div class="field">
+          <label>Max prompt (caratteri)</label>
+          <input class="input" type="number" min="500" max="20000" name="ollama_max_prompt_chars" value="{{ ollama_cfg.max_prompt_chars|default:4000 }}">
+        </div>
+        <div class="field">
+          <label>Max storico (messaggi)</label>
+          <input class="input" type="number" min="0" max="30" name="ollama_max_history_messages" value="{{ ollama_cfg.max_history_messages|default:10 }}">
+        </div>
+        <div class="field">
+          <label>Percorsi knowledge base RAG</label>
+          <input class="input" type="text" name="ollama_rag_source_paths" value="{{ ollama_cfg.rag_source_paths }}" placeholder="README.md,docs/ai">
+        </div>
+        <div class="field">
+          <label>Max chunk RAG</label>
+          <input class="input" type="number" min="1" max="10" name="ollama_rag_max_chunks" value="{{ ollama_cfg.rag_max_chunks|default:4 }}">
+        </div>
+        <div class="field">
+          <label>Max contesto RAG (caratteri)</label>
+          <input class="input" type="number" min="1000" max="20000" name="ollama_rag_max_context_chars" value="{{ ollama_cfg.rag_max_context_chars|default:5000 }}">
+        </div>
+        <div class="field">
+          <label>Cache RAG (s)</label>
+          <input class="input" type="number" min="0" max="3600" name="ollama_rag_cache_seconds" value="{{ ollama_cfg.rag_cache_seconds|default:300 }}">
+        </div>
+        <div class="field">
+          <label>Max FAQ AI indicizzate</label>
+          <input class="input" type="number" min="0" max="1000" name="ollama_rag_max_db_entries" value="{{ ollama_cfg.rag_max_db_entries|default:200 }}">
+        </div>
+        <div class="field field-checks">
+          <label class="checkline"><input type="checkbox" name="ollama_enabled" {% if ollama_cfg.enabled %}checked{% endif %}> Assistente AI abilitato</label>
+          <label class="checkline"><input type="checkbox" name="ollama_rag_enabled" {% if ollama_cfg.rag_enabled %}checked{% endif %}> Knowledge base RAG abilitata</label>
+        </div>
+        <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
+          <button class="btn btn-secondary" type="submit" name="action" value="test_ollama_config">Test Ollama</button>
+          <button class="btn" type="submit" name="action" value="save_ollama_config">Salva config AI</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:ai_settings' %}">Gestione AI</a>
+          <a class="btn btn-secondary" href="{% url 'ai_assistant:chat' %}">Apri assistente AI</a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:ai_knowledge' %}">FAQ AI</a>
+        </div>
+      </form>
+
+      {% if result_ollama %}
+        <div class="notice{% if result_ollama.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {{ result_ollama.message }}
+        </div>
+      {% endif %}
+
+      <div class="cell-muted" style="margin-top:10px;">
+        Stato corrente: {% if ollama_cfg.enabled %}<strong>abilitato</strong>{% else %}<strong>disabilitato</strong>{% endif %},
+        provider <code>{{ ollama_cfg.provider|default:"ollama" }}</code>,
+        URL <code>{{ ollama_cfg.base_url|default:"(non configurato)" }}</code>,
+        modello <code>{{ ollama_cfg.model|default:"(non configurato)" }}</code>,
+        RAG {% if ollama_cfg.rag_enabled %}<strong>abilitato</strong>{% else %}<strong>disabilitato</strong>{% endif %}
+        su <code>{{ ollama_cfg.rag_source_paths|default:"(non configurato)" }}</code>.
+        Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django.
       </div>
     </div>
   </div>

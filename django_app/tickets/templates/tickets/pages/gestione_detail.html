@@ -397,8 +397,10 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
     </aside>
   </div>
 </div>
+{{ assets_list|json_script:"assets-list-data" }}
 <script>
-const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",API_COMPONENTE="{% url 'tickets:api_componente' %}",API_CREA_WORKORDER="{% url 'tickets:api_crea_workorder' %}",ASSETS={{ assets_list|safe }},DETAIL_TAB_KEY="tickets:gestione-detail:tab";
+const ASSETS=(function(){try{return JSON.parse(document.getElementById("assets-list-data").textContent)||[]}catch(e){return[]}})();
+const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",API_COMPONENTE="{% url 'tickets:api_componente' %}",API_CREA_WORKORDER="{% url 'tickets:api_crea_workorder' %}",DETAIL_TAB_KEY="tickets:gestione-detail:tab";
 function escapeHtml(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function activateTicketTab(t){document.querySelectorAll(".tkt-tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll(".tkt-tab-panel").forEach(p=>p.classList.toggle("active",p.dataset.panel===t));sessionStorage.setItem(DETAIL_TAB_KEY,t)}
 document.querySelectorAll(".tkt-tab-btn").forEach(btn=>btn.addEventListener("click",()=>activateTicketTab(btn.dataset.tab)));(()=>{const tabs=[...document.querySelectorAll(".tkt-tab-btn")].map(b=>b.dataset.tab),stored=sessionStorage.getItem(DETAIL_TAB_KEY),fallback=tabs.includes("activity")?"activity":tabs[0];activateTicketTab(tabs.includes(stored)?stored:fallback)})();

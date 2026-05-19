@@ -131,6 +131,39 @@ def _can_manage_settings(request) -> bool:
     return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
 
 
+def _can_view(request) -> bool:
+    """Verifica l'accesso al modulo Diario Preposto per il download allegati.
+
+    SEC-AUDIT-002: l'URL ``/diario-preposto/allegato/`` è registrato in
+    ``_ACL_SHARED_PREFIXES`` (core/middleware.py) e quindi *bypassa* il
+    middleware ACL. La vista di download deve perciò verificare da sé
+    l'accesso al modulo, riusando la stessa decisione ACL che protegge la
+    scheda dettaglio (``diario_preposto:lista``). Nessuna nuova policy:
+    si applica la visibilità di modulo già esistente.
+    """
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return False
+    if getattr(user, "is_superuser", False) or _can_write(request):
+        return True
+    from core.legacy_utils import legacy_auth_enabled
+    if not legacy_auth_enabled():
+        return True
+    from core.acl_v2 import resolve_acl_access
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    try:
+        decision = resolve_acl_access(
+            path=reverse("diario_preposto:lista"),
+            legacy_user=legacy_user,
+            django_user=user,
+            request=request,
+            include_legacy_diagnostic=False,
+        )
+    except Exception:
+        return False
+    return bool(decision.get("allowed", False))
+
+
 def _write_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
@@ -859,11 +892,25 @@ def api_allegato_delete(request):
 def allegato_download(request, allegato_id: int):
     """Serve l'allegato di una segnalazione richiedendo l'autenticazione.
 
-    L'autorizzazione segue la stessa visibilita' della scheda dettaglio
-    (utenti autenticati): le segnalazioni di sicurezza non devono essere
-    accessibili anonimamente via URL diretto come avveniva con /media/.
+    L'autorizzazione segue la stessa visibilita' della scheda dettaglio:
+    l'utente deve avere accesso al modulo Diario Preposto (vedi _can_view).
+    Il controllo permessi precede il lookup dell'oggetto per non rivelare
+    l'esistenza di un allegato a chi non è autorizzato al modulo.
     """
     from core.audit import log_action
+
+    if not _can_view(request):
+        log_action(
+            request,
+            "download_allegato",
+            "diario_preposto",
+            {
+                "allegato_id": allegato_id,
+                "esito": "denied",
+                "motivo": "permission_denied",
+            },
+        )
+        return render(request, "core/pages/forbidden.html", status=403)
 
     allegato = get_object_or_404(
         SegnalazioneAllegato.objects.select_related("segnalazione"),

@@ -4,7 +4,23 @@
 
 {% block extra_head %}
   <style>
-    .content { max-width: none; }
+    /* La pagina resta centrata alla larghezza standard del portale (.content). */
+    #topbar-live-table {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+    #topbar-live-table th,
+    #topbar-live-table td {
+      padding: 6px 5px;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+    #topbar-live-table .input {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
     .topbar-live-grid {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -94,6 +110,11 @@
       </div>
       <div class="table-wrap">
         <table class="admin-table" id="topbar-live-table">
+          <colgroup>
+            <col style="width:4%"><col style="width:20%"><col style="width:18%"><col style="width:9%">
+            <col style="width:9%"><col style="width:6%"><col style="width:5%"><col style="width:5%">
+            <col style="width:12%"><col style="width:12%">
+          </colgroup>
           <thead>
             <tr>
               <th>ID</th>

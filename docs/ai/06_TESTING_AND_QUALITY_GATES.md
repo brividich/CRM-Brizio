@@ -98,6 +98,13 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - Il wizard interno `/admin-portale/hub/setup-wizard/` deve normalizzare i booleani del `.env` (`True`/`False`, `yes`/`no`, `1`/`0`) prima del render e preservare `DB_TRUST_CERT` quando si salvano solo LDAP/SMTP; non deve mai spegnere `TrustServerCertificate` per differenze di formato tra wizard desktop e web.
 - Se falliscono `venv`, `pip install`, `collectstatic`, `migrate` o `ensure_legacy_schema`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
 
+### Release Manager (`--mode release` / `create` / `promote` / `hotfix-create` / `hotfix-apply`)
+
+- Quattro operazioni nel Gestore Release (`ReleaseApp`): `create` (zip completo da DEV), `promote` (deploy zip su TEST/PROD) e il flusso Hotfix a due fasi `hotfix-create` + `hotfix-apply`.
+- `hotfix-create` (`ReleaseConfigHotfixCreate` + `ReleaseRunPage._run_hotfix_create`, lato DEV): rileva i file modificati/nuovi con git tramite l'helper `_git_changed_files` (`git diff --name-only HEAD` + `git ls-files --others --exclude-standard`) e li impacchetta in un `hotfix-vX.Y.Z-<timestamp>.zip` con verifica di integrità.
+- `hotfix-apply` (`ReleaseConfigHotfixApply` + `ReleaseRunPage._run_hotfix_apply`, lato server): estrae il pacchetto hotfix sul release attivo `current\` con guard anti zip-slip, esegue eventuali management command Django con `--settings` coerente e ricicla l'App Pool IIS, senza creare una nuova release né aggiornare la junction.
+- Flusso: su DEV `hotfix-create` → copia del pacchetto sul server → `hotfix-apply` su TEST/PROD. Per migration, dipendenze o nuovi statici resta obbligatorio `promote`. L'hotfix non aggiorna la junction e va sempre riportato nel `.zip` di release successivo.
+
 ### Selezione moduli (ModulesPage â€” step 11)
 
 - `MODULE_REGISTRY` (costante di modulo in `setup_wizard.py`): lista di dict con campi `key`, `label`, `description`, `app_label`, `required`, `default`, `depends_on`, `has_migrations`, `tier`.

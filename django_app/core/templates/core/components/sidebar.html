@@ -73,6 +73,12 @@
         </a>
       {% endfor %}
     {% endfor %}
+    {% if user.is_authenticated %}
+      <a class="sb-item" href="{% url 'ai_assistant:chat' %}" title="Assistente AI">
+        <span class="sb-icon" aria-hidden="true">AI</span>
+        <span class="sb-label">Assistente AI</span>
+      </a>
+    {% endif %}
   </nav>
 
   <div class="sb-search-wrap">

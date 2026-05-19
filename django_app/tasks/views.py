@@ -138,6 +138,53 @@ GANTT_NAME_WIDTH_OPTIONS = (
     (360, "Media"),
     (460, "Ampia"),
 )
+TASK_EVENT_TONE_BY_TYPE = {
+    TaskEventType.STATUS_CHANGE: "blue",
+    TaskEventType.ASSIGNMENT_CHANGE: "amber",
+    TaskEventType.EDIT: "slate",
+    TaskEventType.COMMENT_ADDED: "teal",
+    TaskEventType.SUBTASK_ADDED: "green",
+    TaskEventType.SUBTASK_STATUS_CHANGE: "purple",
+    TaskEventType.ATTACHMENT_ADDED: "indigo",
+}
+TASK_EVENT_TITLE_BY_TYPE = {
+    TaskEventType.STATUS_CHANGE: "Stato aggiornato",
+    TaskEventType.ASSIGNMENT_CHANGE: "Assegnazione aggiornata",
+    TaskEventType.EDIT: "Scheda attivita modificata",
+    TaskEventType.COMMENT_ADDED: "Commento aggiunto",
+    TaskEventType.SUBTASK_ADDED: "Subtask creata",
+    TaskEventType.SUBTASK_STATUS_CHANGE: "Subtask aggiornata",
+    TaskEventType.ATTACHMENT_ADDED: "Allegato caricato",
+}
+TASK_EVENT_DESCRIPTION_BY_TYPE = {
+    TaskEventType.STATUS_CHANGE: "Lo stato operativo dell'attivita e cambiato.",
+    TaskEventType.ASSIGNMENT_CHANGE: "La responsabilita dell'attivita e stata aggiornata.",
+    TaskEventType.EDIT: "Sono stati modificati dati principali dell'attivita.",
+    TaskEventType.COMMENT_ADDED: "E stato registrato un nuovo commento nella conversazione.",
+    TaskEventType.SUBTASK_ADDED: "E stata aggiunta una nuova sotto-attivita operativa.",
+    TaskEventType.SUBTASK_STATUS_CHANGE: "Lo stato di una subtask e stato aggiornato.",
+    TaskEventType.ATTACHMENT_ADDED: "E stato caricato un documento collegato all'attivita.",
+}
+TASK_FIELD_LABELS = {
+    "title": "Titolo",
+    "priority": "Priorita",
+    "due_date": "Data fine",
+    "next_step_text": "Prossima azione",
+    "next_step_due": "Data inizio",
+    "tags": "Tag",
+    "project_id": "Kickoff",
+}
+TASK_STATUS_LABELS_IT = {
+    TaskStatus.TODO: "Da fare",
+    TaskStatus.IN_PROGRESS: "In corso",
+    TaskStatus.DONE: "Completata",
+    TaskStatus.CANCELED: "Annullata",
+}
+TASK_PRIORITY_LABELS_IT = {
+    TaskPriority.LOW: "Bassa",
+    TaskPriority.MEDIUM: "Media",
+    TaskPriority.HIGH: "Alta",
+}
 TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi")
 TASK_ACCESS_LEVEL_ORDER = {
     TaskAccessLevel.NONE: 0,
@@ -1031,6 +1078,193 @@ def _task_notify_users_queryset(task: Task):
     return User.objects.filter(id__in=user_ids).order_by("first_name", "last_name", "username")
 
 
+def _display_user(user) -> str:
+    if not user:
+        return "Sistema"
+    full_name = user.get_full_name()
+    return full_name or user.username
+
+
+def _looks_like_iso_date(value) -> bool:
+    if not isinstance(value, str) or len(value) != 10:
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _display_event_value(field_name: str, value, *, users_by_id: dict[int, object], projects_by_id: dict[int, Project]) -> str:
+    if value in (None, ""):
+        return "non impostato"
+    if isinstance(value, date):
+        return value.strftime("%d/%m/%Y")
+    if field_name in {"due_date", "next_step_due"} and _looks_like_iso_date(value):
+        return date.fromisoformat(value).strftime("%d/%m/%Y")
+    if field_name in {"status", "from", "to"} and value in TASK_STATUS_LABELS_IT:
+        return TASK_STATUS_LABELS_IT[value]
+    if field_name == "priority" and value in TASK_PRIORITY_LABELS_IT:
+        return TASK_PRIORITY_LABELS_IT[value]
+    if field_name in {"assigned_to_id", "from_user_id", "to_user_id", "target_user_id"}:
+        try:
+            user_id = int(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return _display_user(users_by_id.get(user_id)) if user_id else "non assegnato"
+    if field_name == "project_id":
+        try:
+            project_id = int(value)
+        except (TypeError, ValueError):
+            return str(value)
+        project = projects_by_id.get(project_id)
+        return project.name if project else f"Kickoff #{project_id}"
+    return str(value)
+
+
+def _safe_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _collect_timeline_lookup_ids(events: list[TaskEvent]) -> tuple[set[int], set[int], set[int]]:
+    user_ids: set[int] = set()
+    project_ids: set[int] = set()
+    subtask_ids: set[int] = set()
+
+    for event in events:
+        payload = event.payload or {}
+        for key in ("from_user_id", "to_user_id", "target_user_id"):
+            user_id = _safe_int(payload.get(key))
+            if user_id:
+                user_ids.add(user_id)
+
+        subtask_id = _safe_int(payload.get("subtask_id"))
+        if subtask_id:
+            subtask_ids.add(subtask_id)
+
+        project_change = (payload.get("changes") or {}).get("project_id") or {}
+        if isinstance(project_change, dict):
+            for raw_project_id in (project_change.get("from"), project_change.get("to")):
+                project_id = _safe_int(raw_project_id)
+                if project_id:
+                    project_ids.add(project_id)
+
+    return user_ids, project_ids, subtask_ids
+
+
+def _timeline_detail(label: str, before: str | None = None, after: str | None = None, note: str | None = None) -> dict:
+    return {
+        "label": label,
+        "before": before,
+        "after": after,
+        "note": note,
+    }
+
+
+def _build_task_timeline_events(task: Task) -> list[dict]:
+    events = list(task.events.all())
+    user_ids, project_ids, subtask_ids = _collect_timeline_lookup_ids(events)
+    users_by_id = User.objects.in_bulk(user_ids) if user_ids else {}
+    projects_by_id = Project.objects.in_bulk(project_ids) if project_ids else {}
+    subtasks_by_id = SubTask.objects.in_bulk(subtask_ids) if subtask_ids else {}
+
+    timeline = []
+    for event in events:
+        payload = event.payload or {}
+        title = TASK_EVENT_TITLE_BY_TYPE.get(event.type, event.get_type_display())
+        description = TASK_EVENT_DESCRIPTION_BY_TYPE.get(event.type, "Evento registrato dal sistema.")
+        details: list[dict] = []
+
+        if event.type == TaskEventType.STATUS_CHANGE:
+            details.append(
+                _timeline_detail(
+                    "Stato",
+                    _display_event_value("status", payload.get("from"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    _display_event_value("status", payload.get("to"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                )
+            )
+            if payload.get("source") == "subtask_rollup":
+                description = "Stato riallineato automaticamente in base alle subtask."
+
+        elif event.type == TaskEventType.ASSIGNMENT_CHANGE:
+            details.append(
+                _timeline_detail(
+                    "Assegnatario",
+                    _display_event_value("from_user_id", payload.get("from_user_id"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    _display_event_value("to_user_id", payload.get("to_user_id"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                )
+            )
+
+        elif event.type == TaskEventType.EDIT:
+            changes = payload.get("changes") or {}
+            changed_labels = []
+            for field_name, change in changes.items():
+                if not isinstance(change, dict):
+                    continue
+                label = TASK_FIELD_LABELS.get(field_name, field_name.replace("_", " ").title())
+                changed_labels.append(label.lower())
+                details.append(
+                    _timeline_detail(
+                        label,
+                        _display_event_value(field_name, change.get("from"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                        _display_event_value(field_name, change.get("to"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    )
+                )
+            if changed_labels:
+                description = "Campi aggiornati: " + ", ".join(changed_labels) + "."
+
+        elif event.type == TaskEventType.COMMENT_ADDED:
+            if payload.get("target_user_id"):
+                details.append(
+                    _timeline_detail(
+                        "Notifica",
+                        note=_display_event_value("target_user_id", payload.get("target_user_id"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    )
+                )
+
+        elif event.type == TaskEventType.SUBTASK_ADDED:
+            details.append(_timeline_detail("Subtask", note=payload.get("title") or f"Subtask #{payload.get('subtask_id')}"))
+            if payload.get("status"):
+                details.append(
+                    _timeline_detail(
+                        "Stato iniziale",
+                        note=_display_event_value("status", payload.get("status"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    )
+                )
+
+        elif event.type == TaskEventType.SUBTASK_STATUS_CHANGE:
+            subtask = subtasks_by_id.get(_safe_int(payload.get("subtask_id")))
+            details.append(_timeline_detail("Subtask", note=subtask.title if subtask else f"Subtask #{payload.get('subtask_id')}"))
+            details.append(
+                _timeline_detail(
+                    "Stato",
+                    _display_event_value("status", payload.get("from"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                    _display_event_value("status", payload.get("to"), users_by_id=users_by_id, projects_by_id=projects_by_id),
+                )
+            )
+
+        elif event.type == TaskEventType.ATTACHMENT_ADDED:
+            target = "Kickoff" if payload.get("target") == "project" else "Attivita"
+            details.append(_timeline_detail("Documento", note=payload.get("file_name") or f"Allegato #{payload.get('attachment_id')}"))
+            details.append(_timeline_detail("Collegato a", note=target))
+
+        timeline.append(
+            {
+                "event": event,
+                "title": title,
+                "description": description,
+                "details": details,
+                "tone": TASK_EVENT_TONE_BY_TYPE.get(event.type, "slate"),
+                "actor_name": _display_user(event.actor),
+                "technical_payload": json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) if payload else "",
+            }
+        )
+    return timeline
+
+
 def _project_notify_users_queryset(project: Project):
     task_rows = project.tasks.values_list("created_by_id", "assigned_to_id")
     user_ids: set[int] = {project.created_by_id}
@@ -1852,6 +2086,7 @@ def task_detail(request, task_id: int):
             "task_status_choices": TaskStatus.choices,
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
+            "task_timeline_events": _build_task_timeline_events(task),
             "attrezzatura_embedded_context": _build_task_attrezzatura_context(task),
         },
     )
@@ -2927,9 +3162,9 @@ def project_list(request):
 
     # Clienti distinti per il dropdown filtro
     client_choices = sorted(set(
-        p.client_name for p in
-        list(_scoped_projects_queryset(request).values_list("client_name", flat=True).distinct())
-        if p
+        client_name
+        for client_name in _scoped_projects_queryset(request).values_list("client_name", flat=True).distinct()
+        if client_name
     ))
 
     return render(
@@ -3300,6 +3535,10 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
     if not _can_manage_task(request, task):
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
+    mode = str(request.POST.get("mode") or "shift").strip()
+    if mode not in {"shift", "resize_start", "resize_end"}:
+        return JsonResponse({"ok": False, "error": "invalid_mode"}, status=400)
+
     try:
         shift_days = int(str(request.POST.get("shift_days", "0")).strip())
     except (TypeError, ValueError):
@@ -3310,6 +3549,7 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             {
                 "ok": True,
                 "task_id": task.id,
+                "mode": mode,
                 "shift_days": 0,
                 "next_step_due": task.next_step_due.isoformat() if task.next_step_due else None,
                 "due_date": task.due_date.isoformat() if task.due_date else None,
@@ -3322,7 +3562,7 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
     # Vincolo predecessore implicito (WBS order): il task non può iniziare prima della fine
     # del task precedente. Il clamp garantisce la coerenza anche se il frontend è bypassato.
     predecessor = Task.objects.filter(project=project, id__lt=task.id).order_by("-id").first()
-    if predecessor:
+    if mode in {"shift", "resize_start"} and predecessor:
         pred_end = predecessor.due_date or predecessor.next_step_due
         if pred_end:
             orig_start = task.next_step_due or task.due_date
@@ -3330,15 +3570,30 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
                 min_shift = (pred_end + timedelta(days=1) - orig_start).days
                 shift_days = max(shift_days, min_shift)
 
-    # Salva la data originale di start PRIMA dello spostamento (per il cascade)
-    original_active_start = task.next_step_due or task.due_date
+    start_date = task.next_step_due or task.due_date
+    end_date = task.due_date or task.next_step_due
+    if mode == "resize_start" and start_date and end_date:
+        shift_days = min(shift_days, (end_date - start_date).days)
+    elif mode == "resize_end" and start_date and end_date:
+        shift_days = max(shift_days, (start_date - end_date).days)
 
     before = _task_snapshot(task)
 
-    if task.next_step_due:
-        task.next_step_due = task.next_step_due + timedelta(days=shift_days)
-    if task.due_date:
-        task.due_date = task.due_date + timedelta(days=shift_days)
+    if mode == "resize_start":
+        if task.next_step_due:
+            task.next_step_due = task.next_step_due + timedelta(days=shift_days)
+        elif task.due_date:
+            task.next_step_due = task.due_date + timedelta(days=shift_days)
+    elif mode == "resize_end":
+        if task.due_date:
+            task.due_date = task.due_date + timedelta(days=shift_days)
+        elif task.next_step_due:
+            task.due_date = task.next_step_due + timedelta(days=shift_days)
+    else:
+        if task.next_step_due:
+            task.next_step_due = task.next_step_due + timedelta(days=shift_days)
+        if task.due_date:
+            task.due_date = task.due_date + timedelta(days=shift_days)
     task.save(update_fields=["next_step_due", "due_date", "updated_at"])
     _log_task_update_events(task, request.user, before)
 
@@ -3346,7 +3601,7 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
     # ogni task inizi DOPO la fine della precedente nella sequenza.
     cascade = str(request.POST.get("cascade", "1")).strip() != "0"
     cascade_count = 0
-    if cascade:
+    if cascade and mode in {"shift", "resize_end"}:
         # Tutte le task del progetto in ordine WBS (id asc = ordine di creazione)
         all_project_tasks = list(Task.objects.filter(project=project).order_by("id"))
 
@@ -3406,6 +3661,7 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
         {
             "ok": True,
             "task_id": task.id,
+            "mode": mode,
             "shift_days": shift_days,
             "cascade_count": cascade_count,
             "next_step_due": task.next_step_due.isoformat() if task.next_step_due else None,

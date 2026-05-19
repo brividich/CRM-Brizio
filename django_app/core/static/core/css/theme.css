@@ -52,6 +52,7 @@ body.theme-dark .notify-banner-item-link:hover{background:rgba(29,78,216,.3)}
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:100%}
 body{font-family:"Outfit",sans-serif;font-size:var(--fs-base);line-height:var(--lh-base);background:var(--bg);color:var(--text);min-height:100vh}
+body.login-page{background:transparent}.login-page .main-wrap{background:transparent!important}
 h1,h2,h3,h4,h5,h6{font-size:var(--fs-heading);line-height:var(--lh-tight);color:var(--text)}a{color:inherit}small{font-size:var(--fs-xs)}
 button,input,select,textarea{font:inherit}p,span,label{font-size:var(--fs-base)}p,li,label,input,select,textarea,button,td,th{line-height:inherit}
 input,select,textarea{font-size:var(--fs-input);line-height:var(--lh-base)}
@@ -284,6 +285,19 @@ body.fs-xl{--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-base:17px;--fs-md:18px;-
   :root{--content-pad-y:18px;--content-pad-x:14px}
   .subnav{overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
   .field-actions{flex-wrap:wrap}.page-header{flex-wrap:wrap}.page-header-actions{width:100%}
+}
+@media (max-width:1400px){
+  .nav-a{padding:0 8px;font-size:var(--fs-sm)}
+  .nav-dropdown-btn{padding:0 8px;font-size:var(--fs-sm)}
+  .logo-txt .co{display:none}
+}
+@media (max-width:1100px){
+  .nav-a span:not(.nav-item-icon):not(.dot){display:none}
+  .nav-dropdown-btn span:not(.nav-item-icon):not(.nav-caret){display:none}
+  .nav-a{padding:0 6px}
+  .nav-dropdown-btn{padding:0 6px}
+  .nav-item-icon{width:20px;font-size:var(--fs-lg)}
+  .logo-txt{display:none}
 }
 @media (max-width:640px){
   .topnav{padding:0 16px}.nav-hamburger{display:inline-flex}

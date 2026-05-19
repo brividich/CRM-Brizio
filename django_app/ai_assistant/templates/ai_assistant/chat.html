@@ -1,0 +1,1118 @@
+{% extends "core/base.html" %}
+
+{% block title %}Assistente AI | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Shell ───────────────────────────────────────────────────────── */
+.ai-shell {
+  max-width: 1060px;
+  margin: 0 auto;
+  min-height: calc(100vh - 170px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+}
+
+/* ── Hero header ─────────────────────────────────────────────────── */
+.ai-hero {
+  background: linear-gradient(130deg, #002b5c 0%, #1e40af 55%, #0e6a3c 100%);
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 10px rgba(0,43,92,.18);
+  position: relative;
+  overflow: hidden;
+}
+.ai-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+}
+.ai-hero-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+.ai-hero-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.13);
+  border: 1px solid rgba(255,255,255,.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.ai-hero-text h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.2;
+}
+.ai-hero-text p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.72);
+}
+.ai-hero-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.ai-hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: opacity .15s, background .15s;
+}
+.ai-hero-btn:hover { opacity: .88; }
+.ai-hero-btn-primary {
+  background: #ff6b00;
+  color: #fff;
+}
+.ai-hero-btn-secondary {
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.22);
+  color: rgba(255,255,255,.92);
+}
+
+/* ── Status chips ─────────────────────────────────────────────────── */
+.ai-status-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  align-items: center;
+}
+.ai-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.16);
+  color: rgba(255,255,255,.85);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ai-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+  box-shadow: 0 0 5px #4ade80;
+}
+.ai-status-dot.off {
+  background: #94a3b8;
+  box-shadow: none;
+}
+.ai-session-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.11);
+  color: rgba(255,255,255,.65);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* ── Chat panel ──────────────────────────────────────────────────── */
+.ai-panel {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 1px 8px rgba(0,0,0,.06);
+}
+
+/* ── Log ─────────────────────────────────────────────────────────── */
+.ai-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  scroll-behavior: smooth;
+  min-height: 320px;
+  max-height: 560px;
+}
+
+/* ── System notice ───────────────────────────────────────────────── */
+.ai-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 auto;
+  max-width: 700px;
+  width: 100%;
+}
+.ai-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+/* ── Message row ─────────────────────────────────────────────────── */
+.ai-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.ai-row.user { flex-direction: row-reverse; }
+
+/* ── Avatar ──────────────────────────────────────────────────────── */
+.ai-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.ai-avatar.bot {
+  background: linear-gradient(135deg, #002b5c 0%, #1e40af 100%);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0,43,92,.25);
+}
+.ai-avatar.me {
+  background: var(--accent, #ff6b00);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(255,107,0,.22);
+}
+
+/* ── Bubble ──────────────────────────────────────────────────────── */
+.ai-bubble {
+  max-width: min(680px, 82%);
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.ai-bubble.bot {
+  background: #f1f5f9;
+  color: var(--text, #0f172a);
+  border-bottom-left-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+.ai-bubble.me {
+  background: linear-gradient(135deg, #002b5c 0%, #1e40af 100%);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+/* ── Typing indicator ────────────────────────────────────────────── */
+.ai-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 4px;
+}
+.ai-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  animation: ai-bounce 1.2s ease-in-out infinite;
+}
+.ai-typing span:nth-child(2) { animation-delay: .2s; }
+.ai-typing span:nth-child(3) { animation-delay: .4s; }
+.ai-typing span { will-change: transform, opacity; }
+@keyframes ai-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: .5; }
+  40%           { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ── Sources ─────────────────────────────────────────────────────── */
+.ai-sources {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.ai-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  cursor: default;
+  white-space: nowrap;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-source-chip.live {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+/* ── Meta (model / time) ─────────────────────────────────────────── */
+.ai-meta {
+  font-size: 11px;
+  color: var(--text-light, #64748b);
+  margin-top: 5px;
+  padding: 0 4px;
+}
+.ai-row.user .ai-meta { text-align: right; }
+
+/* ── Suggested questions ─────────────────────────────────────────── */
+.ai-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ai-suggestion-btn {
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface, #fff);
+  color: var(--primary, #002b5c);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  text-align: left;
+}
+.ai-suggestion-btn:hover {
+  background: #eef4ff;
+  border-color: #93c5fd;
+}
+
+/* ── Input area ──────────────────────────────────────────────────── */
+.ai-form {
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding: 12px 14px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.ai-textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 140px;
+  resize: vertical;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text, #0f172a);
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+  line-height: 1.5;
+}
+.ai-textarea:focus {
+  outline: none;
+  border-color: #6ea3d8;
+  box-shadow: 0 0 0 3px rgba(30,64,175,.12);
+}
+.ai-send {
+  min-height: 44px;
+  min-width: 82px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, #002b5c 0%, #1e40af 100%);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity .15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0,43,92,.2);
+}
+.ai-send:hover:not(:disabled) { opacity: .88; }
+.ai-send:disabled { opacity: .5; cursor: wait; }
+.ai-send-icon { font-size: 16px; }
+.ai-learn {
+  min-height: 44px;
+  border: 1px solid #002b5c;
+  border-radius: 10px;
+  padding: 0 14px;
+  background: var(--surface, #fff);
+  color: #002b5c;
+  font-weight: 800;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: opacity .15s, background .15s;
+  white-space: nowrap;
+}
+.ai-learn:hover:not(:disabled) {
+  background: #eef4ff;
+}
+.ai-learn:disabled { opacity: .45; cursor: default; }
+.ai-form-hint {
+  font-size: 11px;
+  color: var(--text-light, #64748b);
+  padding: 0 2px;
+}
+
+/* ── Char counter ────────────────────────────────────────────────── */
+.ai-char-counter {
+  font-size: 11px;
+  color: var(--text-light, #64748b);
+  text-align: right;
+}
+.ai-char-counter.warn { color: #ff6b00; }
+
+/* ── Form footer row ─────────────────────────────────────────────── */
+.ai-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ai-kbd {
+  font: inherit;
+  background: #e2e8f0;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+/* ── Notice variants ─────────────────────────────────────────────── */
+.ai-notice-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+.ai-notice-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+/* ── Disabled state card ─────────────────────────────────────────── */
+.ai-disabled-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+}
+.ai-disabled-card-icon {
+  font-size: 36px;
+  opacity: .5;
+}
+.ai-disabled-card-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text, #0f172a);
+}
+.ai-disabled-card-sub {
+  font-size: 13px;
+  color: var(--text-light, #64748b);
+  max-width: 400px;
+}
+.ai-disabled-card code {
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: #991b1b;
+}
+
+/* ── Disabled card link ──────────────────────────────────────────── */
+.ai-disabled-link {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+/* ── Feedback thumbs ─────────────────────────────────────────────── */
+.ai-feedback-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.ai-feedback-btn {
+  background: none;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  line-height: 1.4;
+}
+.ai-feedback-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.ai-feedback-btn:disabled { opacity: .45; cursor: default; }
+.ai-feedback-correction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+}
+.ai-feedback-correction textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 160px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.ai-feedback-correction textarea:focus {
+  outline: none;
+  border-color: #6ea3d8;
+  box-shadow: 0 0 0 3px rgba(30,64,175,.12);
+}
+.ai-feedback-submit {
+  align-self: flex-start;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 14px;
+  background: linear-gradient(135deg, #002b5c 0%, #1e40af 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.ai-feedback-submit:hover { opacity: .88; }
+.ai-feedback-submit:disabled { opacity: .5; cursor: wait; }
+.ai-feedback-thanks {
+  font-size: 12px;
+  color: #166534;
+  font-weight: 600;
+}
+body.theme-dark .ai-feedback-btn {
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark .ai-feedback-btn:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+body.theme-dark .ai-feedback-correction textarea {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* ── Dark mode ───────────────────────────────────────────────────── */
+body.theme-dark .ai-hero {
+  background: linear-gradient(130deg, #001a38 0%, #1a2f6b 55%, #0a4228 100%);
+}
+body.theme-dark .ai-panel { background: var(--surface); border-color: var(--border); }
+body.theme-dark .ai-bubble.bot {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text);
+}
+body.theme-dark .ai-form { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .ai-textarea { background: var(--surface); color: var(--text); border-color: var(--border); }
+body.theme-dark .ai-learn { background: var(--surface-alt); color: #93c5fd; border-color: #1e40af; }
+body.theme-dark .ai-learn:hover:not(:disabled) { background: var(--surface); }
+body.theme-dark .ai-suggestion-btn {
+  background: var(--surface-alt);
+  color: #93c5fd;
+  border-color: var(--border);
+}
+body.theme-dark .ai-suggestion-btn:hover { background: var(--surface); }
+body.theme-dark .ai-status-chip { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
+body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: #fca5a5; }
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ai-shell { min-height: calc(100vh - 130px); }
+  .ai-hero-text h1 { font-size: 17px; }
+  .ai-form-row { flex-wrap: wrap; }
+  .ai-send, .ai-learn { width: 100%; min-width: unset; }
+  .ai-bubble { max-width: 92%; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div
+  class="ai-shell"
+  data-ai-chat
+  data-api-url="{% url 'ai_assistant:api_chat' %}"
+  data-save-url="{% url 'ai_assistant:api_save_knowledge' %}"
+  data-max-prompt-chars="{{ max_prompt_chars }}"
+  data-username="{{ request.user.get_full_name|default:request.user.username|truncatechars:2|upper }}"
+>
+
+  <!-- Hero header -->
+  <div class="ai-hero">
+    <div class="ai-hero-left">
+      <div class="ai-hero-icon">&#x1F916;</div>
+      <div class="ai-hero-text">
+        <h1>Assistente AI</h1>
+        <p>Chat interna &mdash; contesto filtrato server-side con i tuoi permessi ACL.</p>
+        <div class="ai-status-bar">
+          <span class="ai-status-chip">
+            <span class="ai-status-dot{% if not ollama_enabled %} off{% endif %}"></span>
+            {% if ollama_enabled %}Attivo{% else %}Disabilitato{% endif %}
+          </span>
+          {% if ollama_model %}
+            <span class="ai-status-chip">&#x1F9E0; {{ ollama_model }}</span>
+          {% endif %}
+          {% if ollama_base_url_host %}
+            <span class="ai-status-chip">{{ ollama_provider }} &middot; {{ ollama_base_url_host }}</span>
+          {% endif %}
+          <span class="ai-status-chip">&#x23F1; {{ ollama_timeout }}s</span>
+          <span class="ai-session-chip" data-ai-session-info>&#x1F4AC; 0 messaggi</span>
+        </div>
+      </div>
+    </div>
+    <div class="ai-hero-actions">
+      <button class="ai-hero-btn ai-hero-btn-secondary" type="button" data-ai-new-chat title="Nuova conversazione (cancella la sessione corrente)">
+        &#x1F504; Nuova chat
+      </button>
+      {% if can_manage_knowledge %}
+        <a class="ai-hero-btn ai-hero-btn-primary" href="{% url 'admin_portale:ai_settings' %}" title="Apri la console di gestione AI (solo admin)">
+          &#x2699;&#xFE0F; Gestione AI
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Chat panel -->
+  <section class="ai-panel" aria-label="Conversazione assistente AI">
+    <div class="ai-log" data-ai-log>
+      {% if not ollama_enabled %}
+        <div class="ai-disabled-card">
+          <div class="ai-disabled-card-icon">&#x1F6AB;</div>
+          <div class="ai-disabled-card-title">Assistente AI disabilitato</div>
+          <div class="ai-disabled-card-sub">
+            L&rsquo;assistente non &egrave; attivo in questo ambiente.<br>
+            {% if can_manage_knowledge %}
+              Vai in <a href="{% url 'admin_portale:ai_settings' %}" class="ai-disabled-link">Gestione AI</a> per abilitarlo, oppure imposta <code>OLLAMA_CHAT_ENABLED=1</code> nell&rsquo;ambiente runtime.
+            {% else %}
+              Contatta un amministratore per abilitare l&rsquo;assistente.
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="ai-notice" role="note">
+          <span class="ai-notice-icon">&#x26A0;&#xFE0F;</span>
+          <span>Evita di inserire password, token o dati personali non necessari. Le risposte transitano dal server del portale verso il provider AI sulla rete aziendale.</span>
+        </div>
+      {% endif %}
+    </div>
+
+    <form class="ai-form" data-ai-form>
+      <div class="ai-form-row">
+        <textarea
+          class="ai-textarea"
+          data-ai-input
+          maxlength="{{ max_prompt_chars }}"
+          placeholder="Scrivi una domanda&hellip;"
+          aria-label="Messaggio per l'assistente"
+          rows="1"
+          {% if not ollama_enabled %}disabled{% endif %}
+        ></textarea>
+        <button class="ai-send" type="submit" {% if not ollama_enabled %}disabled{% endif %}>
+          <span class="ai-send-icon">&#x27A4;</span> Invia
+        </button>
+        {% if can_manage_knowledge %}
+          <button class="ai-learn" type="button" data-ai-learn disabled title="Salva ultima risposta nella FAQ AI">+ FAQ</button>
+        {% endif %}
+      </div>
+      <div class="ai-form-footer">
+        <span class="ai-form-hint">Invio per inviare &middot; <kbd class="ai-kbd">Ctrl+Enter</kbd> per andare a capo</span>
+        <span class="ai-char-counter" data-ai-counter>0 / {{ max_prompt_chars }}</span>
+      </div>
+    </form>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  "use strict";
+
+  var root     = document.querySelector("[data-ai-chat]");
+  if (!root) return;
+
+  var form     = root.querySelector("[data-ai-form]");
+  var input    = root.querySelector("[data-ai-input]");
+  var log      = root.querySelector("[data-ai-log]");
+  var sendBtn  = root.querySelector(".ai-send");
+  var learnBtn = root.querySelector("[data-ai-learn]");
+  var counter  = root.querySelector("[data-ai-counter]");
+  var apiUrl   = root.dataset.apiUrl;
+  var saveUrl  = root.dataset.saveUrl;
+  var feedbackUrl = "{% url 'ai_assistant:api_feedback' %}";
+  var maxChars = parseInt(root.dataset.maxPromptChars, 10) || 4000;
+  var username = root.dataset.username || "TU";
+
+  var history      = [];
+  var lastPair     = null;
+  var msgCount     = 0;
+  var sessionStart = Date.now();
+  var sessionChip  = root.querySelector("[data-ai-session-info]");
+  var newChatBtn   = root.querySelector("[data-ai-new-chat]");
+
+  /* ── CSRF ────────────────────────────────────────────────────── */
+  function csrf() {
+    var m = document.querySelector("meta[name='csrf-token']");
+    return m ? m.getAttribute("content") : "";
+  }
+
+  /* ── Auto-resize textarea ───────────────────────────────────── */
+  function autoResize() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 140) + "px";
+  }
+  input && input.addEventListener("input", function () {
+    autoResize();
+    updateCounter();
+  });
+
+  /* ── Char counter ───────────────────────────────────────────── */
+  function updateCounter() {
+    if (!counter || !input) return;
+    var len = (input.value || "").length;
+    counter.textContent = len + " / " + maxChars;
+    counter.classList.toggle("warn", len > maxChars * 0.85);
+  }
+
+  /* ── Session chip ───────────────────────────────────────────── */
+  function updateSessionChip() {
+    if (!sessionChip) return;
+    var elapsed = Math.floor((Date.now() - sessionStart) / 1000);
+    var timeStr;
+    if (elapsed < 60) {
+      timeStr = elapsed + "s";
+    } else {
+      var m = Math.floor(elapsed / 60);
+      var s = elapsed % 60;
+      timeStr = m + "m" + (s > 0 ? s + "s" : "");
+    }
+    var label = msgCount === 0 ? "0 messaggi" : (msgCount === 1 ? "1 messaggio" : msgCount + " messaggi");
+    sessionChip.textContent = "\u{1F4AC} " + label + " · " + timeStr;
+  }
+  setInterval(updateSessionChip, 10000);
+
+  /* ── Reset / nuova conversazione ────────────────────────────── */
+  function resetSession() {
+    history = [];
+    lastPair = null;
+    msgCount = 0;
+    sessionStart = Date.now();
+    updateSessionChip();
+    if (learnBtn) learnBtn.disabled = true;
+    /* mantieni solo il primo figlio del log (il notice/disclaimer) */
+    var children = Array.from(log.children);
+    children.slice(1).forEach(function (el) { el.remove(); });
+    /* aggiungi conferma visiva */
+    var notice = document.createElement("div");
+    notice.className = "ai-notice ai-notice-success";
+    notice.innerHTML = '<span class="ai-notice-icon">&#x1F504;</span><span>Nuova conversazione avviata. La sessione precedente è stata cancellata.</span>';
+    log.appendChild(notice);
+    setTimeout(function () { if (notice.parentNode) notice.remove(); }, 3500);
+    scrollDown();
+    if (input) { input.value = ""; autoResize(); updateCounter(); input.focus(); }
+  }
+  newChatBtn && newChatBtn.addEventListener("click", function () {
+    if (msgCount === 0) return;
+    if (!confirm("Cancellare la conversazione corrente e iniziarne una nuova?")) return;
+    resetSession();
+  });
+
+  /* ── Enter to send, Ctrl+Enter for newline ──────────────────── */
+  input && input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendBtn.disabled) form.dispatchEvent(new Event("submit", { cancelable: true }));
+    }
+    /* Ctrl+Enter / Shift+Enter → newline (default textarea behavior) */
+  });
+
+  /* ── Scroll to bottom ───────────────────────────────────────── */
+  function scrollDown() {
+    log.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+  }
+
+  /* ── Create message row ─────────────────────────────────────── */
+  function createRow(role) {
+    var row = document.createElement("div");
+    row.className = "ai-row " + role;
+
+    var av = document.createElement("div");
+    av.className = "ai-avatar " + (role === "user" ? "me" : "bot");
+    av.textContent = role === "user" ? username.slice(0, 2) : "AI";
+
+    var bubble = document.createElement("div");
+    bubble.className = "ai-bubble " + (role === "user" ? "me" : "bot");
+
+    row.appendChild(av);
+    row.appendChild(bubble);
+    log.appendChild(row);
+    scrollDown();
+    return { row: row, bubble: bubble };
+  }
+
+  /* ── Typing indicator ───────────────────────────────────────── */
+  function showTyping() {
+    var parts = createRow("bot");
+    parts.bubble.innerHTML = '<div class="ai-typing"><span></span><span></span><span></span></div>';
+    scrollDown();
+    return parts;
+  }
+
+  /* ── Typewriter effect ──────────────────────────────────────── */
+  function typewrite(bubble, text, onDone) {
+    bubble.textContent = "";
+    var i = 0;
+    var chunkSize = 12;
+    var delay = 5;
+    function tick() {
+      if (i < text.length) {
+        bubble.textContent += text.slice(i, i + chunkSize);
+        i += chunkSize;
+        scrollDown();
+        setTimeout(tick, delay);
+      } else {
+        bubble.textContent = text;
+        if (onDone) onDone();
+      }
+    }
+    tick();
+  }
+
+  /* ── Render sources ─────────────────────────────────────────── */
+  function renderSources(sources) {
+    if (!sources || !sources.length) return null;
+    var wrap = document.createElement("div");
+    wrap.className = "ai-sources";
+    sources.forEach(function (s) {
+      var chip = document.createElement("span");
+      chip.className = "ai-source-chip" + (s.startsWith("tool:") ? " live" : "");
+      chip.textContent = s.startsWith("tool:") ? s : s.split(">").pop().trim();
+      chip.title = s;
+      wrap.appendChild(chip);
+    });
+    return wrap;
+  }
+
+  /* ── Render suggestions ─────────────────────────────────────── */
+  function renderSuggestions(questions, onPick) {
+    if (!questions || !questions.length) return null;
+    var wrap = document.createElement("div");
+    wrap.className = "ai-suggestions";
+    questions.forEach(function (q) {
+      var btn = document.createElement("button");
+      btn.className = "ai-suggestion-btn";
+      btn.type = "button";
+      btn.textContent = q;
+      btn.addEventListener("click", function () { onPick(q); });
+      wrap.appendChild(btn);
+    });
+    return wrap;
+  }
+
+  /* ── Meta line ──────────────────────────────────────────────── */
+  function renderMeta(role, model, elapsedMs) {
+    var el = document.createElement("div");
+    el.className = "ai-meta";
+    var parts = [];
+    if (role === "bot" && model) parts.push(model);
+    if (elapsedMs) parts.push((elapsedMs / 1000).toFixed(1) + "s");
+    el.textContent = parts.join(" · ");
+    return el;
+  }
+
+  /* ── Render feedback bar ────────────────────────────────────────── */
+  function renderFeedback(promptText, answerText) {
+    var bar = document.createElement("div");
+    bar.className = "ai-feedback-bar";
+
+    var upBtn = document.createElement("button");
+    upBtn.className = "ai-feedback-btn";
+    upBtn.type = "button";
+    upBtn.title = "Risposta utile";
+    upBtn.textContent = "👍";
+
+    var downBtn = document.createElement("button");
+    downBtn.className = "ai-feedback-btn";
+    downBtn.type = "button";
+    downBtn.title = "Risposta non utile";
+    downBtn.textContent = "👎";
+
+    bar.appendChild(upBtn);
+    bar.appendChild(downBtn);
+
+    var correctionWrap = document.createElement("div");
+    correctionWrap.className = "ai-feedback-correction";
+    correctionWrap.style.display = "none";
+
+    var corrTA = document.createElement("textarea");
+    corrTA.placeholder = "Scrivi la risposta corretta (opzionale)";
+    corrTA.rows = 3;
+
+    var submitBtn = document.createElement("button");
+    submitBtn.className = "ai-feedback-submit";
+    submitBtn.type = "button";
+    submitBtn.textContent = "Invia feedback";
+
+    correctionWrap.appendChild(corrTA);
+    correctionWrap.appendChild(submitBtn);
+    bar.appendChild(correctionWrap);
+
+    function disableAll() {
+      upBtn.disabled = true;
+      downBtn.disabled = true;
+      submitBtn.disabled = true;
+      corrTA.disabled = true;
+      correctionWrap.style.display = "none";
+      var thanks = document.createElement("span");
+      thanks.className = "ai-feedback-thanks";
+      thanks.textContent = "Grazie per il feedback";
+      bar.appendChild(thanks);
+    }
+
+    async function sendFeedback(rating, correction) {
+      try {
+        await fetch(feedbackUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-CSRFToken": csrf(),
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: JSON.stringify({
+            prompt: (promptText || "").slice(0, 500),
+            response: (answerText || "").slice(0, 2000),
+            rating: rating,
+            correction: (correction || "").slice(0, 6000)
+          })
+        });
+      } catch (_) { /* fire-and-forget */ }
+      disableAll();
+    }
+
+    upBtn.addEventListener("click", function () { sendFeedback("up", ""); });
+
+    downBtn.addEventListener("click", function () {
+      var visible = correctionWrap.style.display !== "none";
+      correctionWrap.style.display = visible ? "none" : "flex";
+      correctionWrap.style.flexDirection = "column";
+      if (!visible) corrTA.focus();
+    });
+
+    submitBtn.addEventListener("click", function () { sendFeedback("down", corrTA.value.trim()); });
+
+    return bar;
+  }
+
+  /* ── Append user message ────────────────────────────────────── */
+  function appendUser(text) {
+    var parts = createRow("user");
+    parts.bubble.textContent = text;
+    log.appendChild(renderMeta("user", null, null));
+    scrollDown();
+  }
+
+  /* ── History ────────────────────────────────────────────────── */
+  function remember(role, content) {
+    history.push({ role: role, content: content });
+    if (history.length > 10) history = history.slice(history.length - 10);
+  }
+
+  /* ── Main submit ────────────────────────────────────────────── */
+  form && form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var text = (input.value || "").trim();
+    if (!text || sendBtn.disabled) return;
+
+    input.value = "";
+    autoResize();
+    updateCounter();
+    appendUser(text);
+    remember("user", text);
+    lastPair = null;
+    msgCount += 1;
+    updateSessionChip();
+    if (learnBtn) learnBtn.disabled = true;
+    sendBtn.disabled = true;
+
+    var typingParts = showTyping();
+
+    try {
+      var response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-CSRFToken": csrf(),
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify({ message: text, history: history.slice(0, -1) })
+      });
+
+      var data = await window.portalReadJsonResponse(response);
+      var answer = data.message || "";
+      var sources = Array.isArray(data.sources) ? data.sources : [];
+      var suggestions = Array.isArray(data.suggested_questions) ? data.suggested_questions : [];
+      var model = data.model || "";
+      var elapsedMs = data.elapsed_ms || 0;
+
+      typingParts.bubble.innerHTML = "";
+      typingParts.bubble.className = "ai-bubble bot";
+
+      var capturedText = text;
+      typewrite(typingParts.bubble, answer, function () {
+        var srcEl = renderSources(sources);
+        if (srcEl) typingParts.row.querySelector(".ai-bubble").appendChild(srcEl);
+
+        var metaEl = renderMeta("bot", model, elapsedMs);
+        log.appendChild(metaEl);
+
+        var suggEl = renderSuggestions(suggestions, function (q) {
+          input.value = q;
+          autoResize();
+          updateCounter();
+          input.focus();
+          form.dispatchEvent(new Event("submit", { cancelable: true }));
+        });
+        if (suggEl) log.appendChild(suggEl);
+
+        /* Feedback thumbs bar */
+        if (answer) {
+          var feedbackEl = renderFeedback(capturedText, answer);
+          log.appendChild(feedbackEl);
+        }
+
+        scrollDown();
+        if (learnBtn && answer) learnBtn.disabled = false;
+      });
+
+      remember("assistant", answer);
+      lastPair = { question: text, answer: answer };
+
+    } catch (err) {
+      typingParts.bubble.className = "ai-bubble bot";
+      typingParts.bubble.innerHTML =
+        '<span style="color:#dc2626;">&#x26A0;&#xFE0F; ' + (err.message || "Errore durante la risposta dell'assistente.") + "</span>";
+      scrollDown();
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  });
+
+  /* ── Save to FAQ ────────────────────────────────────────────── */
+  learnBtn && learnBtn.addEventListener("click", async function () {
+    if (!lastPair || learnBtn.disabled) return;
+    learnBtn.disabled = true;
+    var orig = learnBtn.textContent;
+    learnBtn.textContent = "&#x23F3;";
+    try {
+      var response = await fetch(saveUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-CSRFToken": csrf(),
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(lastPair)
+      });
+      var data = await window.portalReadJsonResponse(response);
+      var notice = document.createElement("div");
+      notice.className = "ai-notice ai-notice-success";
+      notice.innerHTML = '<span class="ai-notice-icon">&#x2705;</span><span>' + (data.message || "Conoscenza salvata.") + "</span>";
+      log.appendChild(notice);
+      scrollDown();
+      lastPair = null;
+    } catch (err) {
+      var notice = document.createElement("div");
+      notice.className = "ai-notice";
+      notice.innerHTML = '<span class="ai-notice-icon">&#x274C;</span><span>' + (err.message || "Errore durante il salvataggio.") + "</span>";
+      log.appendChild(notice);
+      scrollDown();
+      learnBtn.disabled = false;
+    } finally {
+      learnBtn.textContent = orig;
+    }
+  });
+})();
+</script>
+<script>
+/* Alt+A — focus sul campo di input quando si è già nella chat */
+(function () {
+  document.addEventListener("keydown", function (e) {
+    if (e.altKey && (e.key === "a" || e.key === "A")) {
+      var input = document.querySelector("[data-ai-input]");
+      if (!input || input.disabled) return;
+      e.preventDefault();
+      input.focus();
+    }
+  });
+})();
+</script>
+{% endblock %}

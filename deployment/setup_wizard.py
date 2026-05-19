@@ -539,7 +539,9 @@ class Config:
             ("DB_TRUSTED_CONNECTION=yes" if self.db_trusted
              else f"DB_USER={self.db_user}\nDB_PASSWORD={self.db_password}"),
             f"\nDJANGO_CSRF_TRUSTED_ORIGINS={p}://{h}{pt}",
-            f"SECURE_SSL_REDIRECT={'True' if self.iis_https else 'False'}",
+            f"SECURE_SSL_REDIRECT=False",
+            f"SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https",
+            f"USE_X_FORWARDED_HOST=True",
             f"SESSION_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
             f"CSRF_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
             f"\nSTATIC_ROOT={ep}\\static",
@@ -3714,6 +3716,7 @@ Write-Host "OK $taskName"
         <environmentVariable name="DJANGO_SETTINGS_MODULE" value="{settings}" />
         <environmentVariable name="PYTHONPATH" value="{app}" />
         <environmentVariable name="PYTHONUNBUFFERED" value="1" />
+        <environmentVariable name="HTTP_X_FORWARDED_PROTO" value="https" />
       </environmentVariables>
     </httpPlatform>
   </system.webServer>
@@ -4255,7 +4258,7 @@ class WizardApp:
 
 class ReleaseConfig:
     def __init__(self):
-        self.mode         = "promote"       # "create" | "promote"
+        self.mode         = "promote"       # "create" | "promote" | "hotfix-create" | "hotfix-apply"
         # Crea release (DEV)
         self.source_dir   = r"C:\Dev\Portale Novicrom"
         self.output_dir   = ""
@@ -4264,6 +4267,11 @@ class ReleaseConfig:
         self.environment  = "test"
         self.acl_seed_uat = True
         self.base_dir     = r"C:\PortaleNovicrom"
+        # Hotfix (DEV crea il pacchetto -> server lo applica)
+        self.hotfix_files   = []    # file selezionati per il pacchetto (Crea Hotfix)
+        self.hotfix_package = ""    # percorso del pacchetto hotfix .zip (Applica Hotfix)
+        self.hotfix_manage  = []    # management command opzionali dopo l'applicazione
+        self.hotfix_recycle = True  # riciclo App Pool IIS dopo l'applicazione
 
     @property
     def env_path(self): return Path(self.base_dir) / self.environment
@@ -4289,6 +4297,14 @@ class ReleaseModeSelector(Page):
              "Crea Release  ←  DEV",
              "Pacchettizza il codice sorgente dal PC di sviluppo in un file .zip",
              (GREEN_BG, GREEN_BD, "#166534")),
+            ("hotfix-create",
+             "Crea Hotfix  ←  DEV",
+             "Rileva i file modificati con git e crea un piccolo pacchetto .zip di soli quelli",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+            ("hotfix-apply",
+             "Applica Hotfix  →  TEST / PROD",
+             "Applica un pacchetto hotfix .zip sul release attivo e ricicla IIS — senza nuova release",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
         ]
         self._sel = CardSelector(b, opts, initial="promote",
                                   on_change=lambda v: setattr(cfg, "mode", v))
@@ -4299,7 +4315,9 @@ class ReleaseModeSelector(Page):
         info = frame(b, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
         info.pack(fill="x", padx=32)
         tk.Label(info,
-                 text="Flusso tipico: Crea Release sul PC di sviluppo  →  copia .zip sul server  →  Promuovi Release sul server",
+                 text="Release completa: Crea Release su DEV  →  copia .zip sul server  →  "
+                      "Promuovi Release.\nHotfix: Crea Hotfix su DEV (rileva i file con git)  →  "
+                      "copia il pacchetto sul server  →  Applica Hotfix.",
                  font=FSM, bg=GRAY50, fg=GRAY500, wraplength=560, justify="left"
                  ).pack(anchor="w", padx=14, pady=10)
 
@@ -4500,6 +4518,324 @@ class ReleaseConfigPromote(Page):
         return bool(self.cfg.base_dir)
 
 
+def _git_changed_files(repo: str):
+    """File modificati/nuovi rilevati da git. Ritorna (lista_relpath, errore)."""
+    repo_path = Path(repo)
+    if not (repo_path / ".git").exists():
+        return [], "La cartella indicata non è un repository git (.git assente)."
+    files = []
+    try:
+        for args in (["diff", "--name-only", "HEAD"],
+                     ["ls-files", "--others", "--exclude-standard"]):
+            r = subprocess.run(
+                ["git", "-C", str(repo_path), *args],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", creationflags=subprocess.CREATE_NO_WINDOW)
+            if r.returncode == 0:
+                for line in r.stdout.splitlines():
+                    s = line.strip().replace("\\", "/")
+                    if s and s not in files:
+                        files.append(s)
+            elif not files:
+                err = (r.stderr or "").strip()
+                return [], f"git: {err[:200]}" if err else "git ha restituito un errore."
+    except FileNotFoundError:
+        return [], "git non trovato nel PATH di sistema."
+    except Exception as e:
+        return [], f"Errore git: {e}"
+    return sorted(files), ""
+
+
+def find_latest_hotfix_zip(base_dir):
+    d = Path(base_dir) / "shared" / "packages"
+    if d.exists():
+        zips = sorted(d.glob("hotfix-*.zip"), reverse=True)
+        if zips:
+            return str(zips[0])
+    return ""
+
+
+class ReleaseConfigHotfixCreate(Page):
+    """Crea Hotfix (DEV): rileva i file modificati con git e li impacchetta in un .zip."""
+
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Crea Hotfix",
+                         "Rileva i file modificati con git e crea un piccolo pacchetto .zip")
+        self.cfg = cfg
+        self._src = tk.StringVar(value=cfg.source_dir or r"C:\Dev\Portale Novicrom")
+        self._out = tk.StringVar(value=cfg.output_dir or "")
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Cartella sorgente (repo git)", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(sec)
+        row.pack(fill="x")
+        tk.Entry(row, textvariable=self._src, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ", self._browse_repo).pack(side="left", padx=(8,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        hdr = frame(sec)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="File da includere nell'hotfix",
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(side="left")
+        SecondaryButton(hdr, "  + Aggiungi file…  ", self._browse_files).pack(side="right")
+        SecondaryButton(hdr, "  ⟳ Rileva da git  ",
+                        lambda: self._detect_git(silent=False)).pack(side="right", padx=(0,6))
+
+        txt_wrap = frame(sec, highlightthickness=1, highlightbackground=GRAY200)
+        txt_wrap.pack(fill="x", pady=(6,0))
+        self._files = tk.Text(txt_wrap, font=FMO, height=8, bg=GRAY50, fg=GRAY800,
+                              relief="flat", padx=8, pady=6, wrap="none")
+        self._files.pack(fill="x")
+        self._status = tk.Label(sec, text="", font=FSM, fg=GRAY400, bg="white")
+        self._status.pack(anchor="w", pady=(3,0))
+
+        warn = frame(sec, bg=YELLOW_BG, highlightthickness=1, highlightbackground=YELLOW_BD)
+        warn.pack(fill="x", pady=(10,0))
+        tk.Label(warn,
+                 text="⚠  L'hotfix è solo per file applicativi (.py, template, .sql, .css/.js). "
+                      "Se tra i file compaiono migration o requirements.txt usa Crea Release.",
+                 font=FSM, bg=YELLOW_BG, fg=YELLOW_TX,
+                 wraplength=520, justify="left").pack(anchor="w", padx=14, pady=10)
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Cartella output (dove salvare il pacchetto hotfix)",
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row2 = frame(sec)
+        row2.pack(fill="x")
+        tk.Entry(row2, textvariable=self._out, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row2, "  Sfoglia  ",
+                        lambda: self._out.set(filedialog.askdirectory() or self._out.get())
+                        ).pack(side="left", padx=(8,0))
+
+        self.sf.show_scrollbar(True)
+
+    def on_enter(self):
+        if not self._out.get():
+            self._out.set(str(Path(r"C:\PortaleNovicrom") / "shared" / "packages"))
+        src = self._src.get().strip()
+        if not self._parsed_files() and src and Path(src).exists():
+            self._detect_git(silent=True)
+
+    def _browse_repo(self):
+        d = filedialog.askdirectory()
+        if d:
+            self._src.set(d)
+            self._detect_git(silent=True)
+
+    def _detect_git(self, silent=True):
+        repo = self._src.get().strip()
+        if not repo or not Path(repo).exists():
+            if not silent:
+                messagebox.showerror("Errore", "Cartella repo non trovata.")
+            return
+        files, err = _git_changed_files(repo)
+        if err:
+            self._status.configure(text=err, fg="#b45309")
+            if not silent:
+                messagebox.showwarning("git", err)
+            return
+        if not files:
+            self._status.configure(text="Nessuna modifica rilevata da git.", fg=GRAY400)
+            return
+        existing = {l.strip() for l in self._files.get("1.0", "end").splitlines() if l.strip()}
+        added = 0
+        for f in files:
+            if f not in existing:
+                self._files.insert("end", f + "\n")
+                existing.add(f)
+                added += 1
+        self._status.configure(
+            text=f"{len(files)} file rilevati da git · {added} aggiunti all'elenco.", fg=GREEN)
+
+    def _browse_files(self):
+        repo = self._src.get().strip()
+        init = repo if repo and Path(repo).exists() else None
+        paths = filedialog.askopenfilenames(
+            title="Seleziona i file da includere", initialdir=init)
+        if not paths:
+            return
+        existing = {l.strip() for l in self._files.get("1.0", "end").splitlines() if l.strip()}
+        for p in paths:
+            rel = p
+            if repo:
+                try:
+                    rel = str(Path(p).resolve().relative_to(Path(repo).resolve()))
+                except Exception:
+                    rel = p
+            rel = rel.replace("\\", "/")
+            if rel not in existing:
+                self._files.insert("end", rel + "\n")
+                existing.add(rel)
+
+    def _parsed_files(self):
+        out = []
+        for line in self._files.get("1.0", "end").splitlines():
+            s = line.strip()
+            if s and not s.startswith("#"):
+                out.append(s.replace("\\", "/"))
+        return out
+
+    def validate(self):
+        src = self._src.get().strip()
+        if not Path(src).exists():
+            messagebox.showerror("Errore", "Cartella sorgente non trovata.")
+            return False
+        files = self._parsed_files()
+        if not files:
+            messagebox.showerror(
+                "Errore",
+                "Nessun file da includere. Usa 'Rileva da git' o aggiungi i file manualmente.")
+            return False
+        self.cfg.source_dir   = src
+        self.cfg.output_dir   = self._out.get().strip() or str(Path(src).parent)
+        self.cfg.hotfix_files = files
+        return True
+
+
+class ReleaseConfigHotfixApply(Page):
+    """Applica Hotfix (server): estrae un pacchetto hotfix .zip nel release attivo."""
+
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Applica Hotfix",
+                         "Applica un pacchetto hotfix .zip sul release attivo")
+        self.cfg = cfg
+        self._pkg     = tk.StringVar()
+        self._base    = tk.StringVar(value=cfg.base_dir or r"C:\PortaleNovicrom")
+        self._manage  = tk.StringVar()
+        self._recycle = tk.BooleanVar(value=True)
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        warn = frame(sec, bg=YELLOW_BG, highlightthickness=1, highlightbackground=YELLOW_BD)
+        warn.pack(fill="x")
+        tk.Label(warn,
+                 text="⚠  L'hotfix sovrascrive i file nel release attivo (current\\): "
+                      "non crea una nuova release e non aggiorna la junction. "
+                      "Per migration, dipendenze o nuovi statici usa Promuovi Release.",
+                 font=FSM, bg=YELLOW_BG, fg=YELLOW_TX,
+                 wraplength=520, justify="left").pack(anchor="w", padx=14, pady=10)
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Pacchetto hotfix .zip", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(sec)
+        row.pack(fill="x")
+        tk.Entry(row, textvariable=self._pkg, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ", self._browse).pack(side="left", padx=(8,0))
+        self._pkg_info = tk.Label(sec, text="", font=FSM, fg=GREEN, bg="white")
+        self._pkg_info.pack(anchor="w", pady=(3,8))
+        self._pkg.trace_add("write", self._on_pkg)
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=(4,12))
+
+        tk.Label(sec, text="Ambiente destinazione", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,6))
+        env_opts = [
+            ("test", "TEST",
+             "Windows Server · SQL Server TEST · IIS porta 8080",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+            ("prod", "PROD",
+             "Windows Server · SQL Server PROD · IIS porta 80 · utenti reali",
+             (GREEN_BG, GREEN_BD, "#166534")),
+        ]
+        self._env_sel = CardSelector(sec, env_opts, initial="test")
+        self._env_sel.pack(fill="x")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Management command Django dopo l'applicazione "
+                           "(opzionale, separati da virgola)",
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        tk.Entry(sec, textvariable=self._manage, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(fill="x", ipady=7, ipadx=8)
+        tk.Label(sec, text="Esempio:  apply_sql_triggers, collectstatic --noinput",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w", pady=(3,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Checkbutton(sec,
+                       text="  Riavvia l'App Pool IIS al termine",
+                       variable=self._recycle, font=(SF,9,"bold"),
+                       bg="white", fg=GRAY700, activebackground="white",
+                       selectcolor="white", anchor="w").pack(anchor="w")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Directory base server", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row2 = frame(sec)
+        row2.pack(fill="x")
+        tk.Entry(row2, textvariable=self._base, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row2, "  Sfoglia  ",
+                        lambda: self._base.set(filedialog.askdirectory() or self._base.get())
+                        ).pack(side="left", padx=(8,0))
+
+        self.sf.show_scrollbar(True)
+
+    def on_enter(self):
+        if not self._pkg.get():
+            z = find_latest_hotfix_zip(self._base.get())
+            if z:
+                self._pkg.set(z)
+
+    def _browse(self):
+        p = filedialog.askopenfilename(
+            title="Seleziona pacchetto hotfix",
+            filetypes=[("Zip files", "*.zip"), ("All", "*.*")])
+        if p:
+            self._pkg.set(p)
+
+    def _on_pkg(self, *_):
+        val = self._pkg.get().strip()
+        if val and Path(val).exists():
+            n  = Path(val).name
+            sz = round(Path(val).stat().st_size / 1024, 1)
+            self._pkg_info.configure(text=f"  ✓  {n}   ·   {sz} KB", fg=GREEN)
+        else:
+            self._pkg_info.configure(text="")
+
+    def validate(self):
+        pkg = self._pkg.get().strip()
+        if not pkg or not Path(pkg).exists():
+            messagebox.showerror("Errore", "Seleziona un pacchetto hotfix .zip valido.")
+            return False
+        base = self._base.get().strip()
+        if not base:
+            messagebox.showerror("Errore", "Directory base server obbligatoria.")
+            return False
+        self.cfg.hotfix_package = pkg
+        self.cfg.environment    = self._env_sel.value
+        self.cfg.base_dir       = base
+        self.cfg.hotfix_manage  = [c.strip() for c in self._manage.get().split(",") if c.strip()]
+        self.cfg.hotfix_recycle = bool(self._recycle.get())
+        return True
+
+
 class ReleaseRunPage(Page):
     """Pagina di esecuzione con log per Crea / Promuovi release."""
 
@@ -4554,12 +4890,13 @@ class ReleaseRunPage(Page):
             log_dir = base / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            op = "create" if self.cfg.mode == "create" else "promote"
-            self._log_path = log_dir / f"release_{op}_{ts}.log"
+            op = self.cfg.mode if self.cfg.mode in (
+                "create", "promote", "hotfix-create", "hotfix-apply") else "promote"
+            self._log_path = log_dir / f"release_{op.replace('-', '_')}_{ts}.log"
             self._log_file = open(self._log_path, "w", encoding="utf-8")
             self._log_file.write(f"Portale Novicrom — Release Manager ({op})\n")
             self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
-            if self.cfg.mode == "promote":
+            if self.cfg.mode in ("promote", "hotfix-apply"):
                 self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
             self._log_file.write("=" * 60 + "\n\n")
             self._log_file.flush()
@@ -4631,6 +4968,10 @@ class ReleaseRunPage(Page):
         try:
             if self.cfg.mode == "create":
                 self._run_create()
+            elif self.cfg.mode == "hotfix-create":
+                self._run_hotfix_create()
+            elif self.cfg.mode == "hotfix-apply":
+                self._run_hotfix_apply()
             else:
                 self._run_promote()
         except Exception as e:
@@ -5124,6 +5465,211 @@ class ReleaseRunPage(Page):
             except: pass
         self._log.after(800, self._on_done)
 
+    # ── Crea Hotfix (DEV) ────────────────────────────────────
+
+    def _run_hotfix_create(self):
+        cfg = self.cfg
+        src     = Path(cfg.source_dir)
+        out_dir = Path(cfg.output_dir)
+        ver = _read_release_version(src, APP_VERSION)
+        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_name = f"hotfix-v{ver}-{tag}.zip"
+        out_path = out_dir / out_name
+        files = list(cfg.hotfix_files)
+        N = 3; errors = []
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        step(1, "Preparazione", 8)
+        self._log_line(f"  Versione rilevata    : v{ver}", "ok")
+        self._log_line(f"  File da impacchettare: {len(files)}", "dim")
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            self._log_line(f"  Output: {out_path}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        step(2, f"Creazione {out_name}", 30)
+        added = skipped = 0
+        try:
+            with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+                for rel in files:
+                    rel_norm = rel.replace("/", os.sep)
+                    fp = src / rel_norm
+                    if not fp.exists():
+                        self._log_line(f"  [MANCANTE] {rel}", "warn")
+                        skipped += 1
+                        continue
+                    if "migrations" in rel.split("/") or rel.endswith("requirements.txt"):
+                        self._log_line(
+                            f"  ⚠ {rel} — migration/dipendenza in un hotfix: valuta Crea Release",
+                            "warn")
+                    zf.write(fp, rel.replace("\\", "/"))
+                    self._log_line(f"  ✓ {rel}", "ok")
+                    added += 1
+            if added == 0:
+                errors.append("nessun file incluso")
+                self._log_line("  ✗ Nessun file incluso nel pacchetto", "err")
+            else:
+                sz = round(out_path.stat().st_size / 1024, 1)
+                self._log_line(f"  ✓ {added} file · {sz} KB · {skipped} non trovati", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        step(3, "Verifica integrità zip", 92)
+        if out_path.exists():
+            try:
+                with zipfile.ZipFile(out_path, "r") as zf:
+                    bad = zf.testzip()
+                if bad:
+                    errors.append(f"zip corrotto: {bad}")
+                    self._log_line(f"  ✗ File corrotto: {bad}", "err")
+                else:
+                    self._log_line("  ✓ Pacchetto integro", "ok")
+                    cfg.output_dir = str(out_path)
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        self._set_progress(100, "Hotfix creato!")
+        self._finish_hotfix(errors)
+
+    # ── Applica Hotfix (server) ──────────────────────────────
+
+    def _run_hotfix_apply(self):
+        cfg = self.cfg
+        ep  = cfg.env_path
+        current    = ep / "current"
+        venv_py    = ep / "venv" / "Scripts" / "python.exe"
+        django_app = current / "django_app"
+        settings   = _django_settings(cfg.environment)
+        pkg = Path(cfg.hotfix_package)
+        N = 3; errors = []
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        self._log_line(f"  Ambiente      : {cfg.environment.upper()}", "dim")
+        self._log_line(f"  Release attivo: {current}", "dim")
+        self._log_line(f"  Pacchetto     : {pkg}", "dim")
+
+        if not current.exists():
+            self._log_line(f"  ✗ Release attiva non trovata: {current}", "err")
+            self._log_line("  Esegui prima Promuovi Release per attivare un release.", "warn")
+            self._set_progress(100, "Errore — release attiva mancante")
+            self._finish_hotfix(["release attiva mancante"])
+            return
+        if not pkg.exists():
+            self._log_line(f"  ✗ Pacchetto hotfix non trovato: {pkg}", "err")
+            self._set_progress(100, "Errore — pacchetto mancante")
+            self._finish_hotfix(["pacchetto mancante"])
+            return
+
+        # 1. Applicazione file
+        step(1, "Applicazione file hotfix", 12)
+        applied = 0
+        current_resolved = str(current.resolve())
+        try:
+            with zipfile.ZipFile(pkg, "r") as zf:
+                for member in zf.infolist():
+                    if member.is_dir():
+                        continue
+                    name = member.filename
+                    dest = (current / name).resolve()
+                    if not str(dest).startswith(current_resolved):
+                        self._append_error(errors, f"percorso non valido: {name}")
+                        self._log_line(f"  ✗ Percorso fuori da current\\ ignorato: {name}", "err")
+                        continue
+                    try:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        with zf.open(member) as srcf, open(dest, "wb") as dstf:
+                            shutil.copyfileobj(srcf, dstf)
+                        self._log_line(f"  ✓ {name}", "ok")
+                        applied += 1
+                    except Exception as e:
+                        self._append_error(errors, f"scrittura {name}")
+                        self._log_line(f"  ✗ {name}: {e}", "err")
+            self._log_line(f"  {applied} file applicati nel release attivo.", "dim")
+            if applied == 0:
+                self._append_error(errors, "nessun file applicato")
+        except Exception as e:
+            self._append_error(errors, str(e))
+            self._log_line(f"  ✗ Estrazione hotfix fallita: {e}", "err")
+
+        # 2. Management command Django
+        step(2, "Management command Django", 50)
+        manage = list(cfg.hotfix_manage)
+        if not manage:
+            self._log_line("  Nessun comando da eseguire — saltato.", "dim")
+        elif not venv_py.exists():
+            self._log_line(f"  ✗ Virtualenv non trovato: {venv_py}", "err")
+            self._append_error(errors, "venv mancante")
+        elif not (django_app / "manage.py").exists():
+            self._log_line(f"  ✗ manage.py non trovato in {django_app}", "err")
+            self._append_error(errors, "manage.py mancante")
+        else:
+            env_vars = {**os.environ,
+                        "DJANGO_SETTINGS_MODULE": settings,
+                        "PYTHONPATH": str(django_app),
+                        "STATIC_ROOT": str(ep / "static"),
+                        "MEDIA_ROOT": str(ep / "media"),
+                        "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1"}
+            for cmd in manage:
+                parts = cmd.split()
+                full  = [str(venv_py), "manage.py", *parts, f"--settings={settings}"]
+                ok = self._cmd(full, cwd=django_app, env=env_vars)
+                if ok:
+                    self._log_line(f"  ✓ {cmd}", "ok")
+                else:
+                    self._append_error(errors, f"manage {parts[0]}")
+                    self._log_line(f"  ✗ {cmd} fallito", "err")
+
+        # 3. Riciclo App Pool IIS
+        step(3, "Riavvio App Pool IIS", 85)
+        if not cfg.hotfix_recycle:
+            self._log_line("  Skip — riciclo IIS disattivato.", "dim")
+        else:
+            site_name = f"PortaleNovicrom-{cfg.environment.upper()}"
+            ps = (f"Restart-WebAppPool -Name '{cfg.app_pool_name}' -ErrorAction SilentlyContinue; "
+                  f"Start-Website -Name '{site_name}' -ErrorAction SilentlyContinue")
+            try:
+                r = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                if r.returncode == 0:
+                    self._log_line(f"  ✓ App Pool {cfg.app_pool_name} riciclato", "ok")
+                else:
+                    self._append_error(errors, "iis recycle")
+                    self._log_line(f"  ✗ IIS: {(r.stderr or r.stdout)[:200]}", "err")
+            except Exception as e:
+                self._append_error(errors, "iis recycle")
+                self._log_line(f"  ✗ IIS recycle: {e}", "err")
+
+        self._set_progress(100, "Hotfix applicato!")
+        self._finish_hotfix(errors)
+
+    def _finish_hotfix(self, errors):
+        create = self.cfg.mode == "hotfix-create"
+        self._log_line("\n" + "─"*50, "step")
+        if errors:
+            self._log_line(f"  Completato con {len(errors)} errori/avvisi:", "warn")
+            for e in errors: self._log_line(f"  · {e}", "warn")
+        elif create:
+            self._log_line("  Pacchetto hotfix creato!", "ok")
+            self._log_line("  Copialo sul server e usa  Applica Hotfix.", "ok")
+        else:
+            self._log_line(f"  Hotfix applicato su {self.cfg.environment.upper()}!", "ok")
+        self._log_line("─"*50, "step")
+        if self._log_path:
+            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+        if self._log_file:
+            try: self._log_file.close()
+            except: pass
+        self._log.after(800, self._on_done)
+
 
 class ReleaseDonePage(Page):
     def __init__(self, parent, cfg, on_close=None):
@@ -5153,6 +5699,20 @@ class ReleaseDonePage(Page):
                 "Copia il .zip nella cartella  shared\\packages\\  del server TEST",
                 "Apri Gestione Release sul server → Promuovi Release → TEST",
                 "Dopo la validazione, ripeti → Promuovi Release → PROD (stesso .zip)",
+            ]
+        elif self.cfg.mode == "hotfix-create":
+            self._msg.configure(text=f"Pacchetto hotfix salvato in:\n{self.cfg.output_dir}")
+            hints = [
+                "Copia il pacchetto hotfix sul server (rete, OneDrive, USB…)",
+                "Apri Gestione Release sul server → Applica Hotfix",
+                "Verifica che le modifiche siano già committate per il prossimo .zip di release",
+            ]
+        elif self.cfg.mode == "hotfix-apply":
+            self._msg.configure(text=f"Hotfix applicato su {self.cfg.environment.upper()}!")
+            hints = [
+                "Verifica subito i file modificati nel browser",
+                "Controlla i log in  ENV\\logs\\  per eventuali avvisi",
+                "L'hotfix non aggiorna la junction: resterà attivo fino al prossimo deploy",
             ]
         else:
             self._msg.configure(text=f"Release deployata su {self.cfg.environment.upper()}!")
@@ -5222,18 +5782,22 @@ class ReleaseApp:
          self.btn_next, self.btn_finish) = _build_bottom_bar(
             right, self._back, self._cancel, self._next, self._close)
 
-        self._p_mode    = ReleaseModeSelector(self.container, self.cfg)
-        self._p_create  = ReleaseConfigCreate(self.container, self.cfg)
-        self._p_promote = ReleaseConfigPromote(self.container, self.cfg)
-        self._p_run     = ReleaseRunPage(self.container, self.cfg, self._on_done)
-        self._p_done    = ReleaseDonePage(self.container, self.cfg, self._close)
+        self._p_mode      = ReleaseModeSelector(self.container, self.cfg)
+        self._p_create    = ReleaseConfigCreate(self.container, self.cfg)
+        self._p_promote   = ReleaseConfigPromote(self.container, self.cfg)
+        self._p_hf_create = ReleaseConfigHotfixCreate(self.container, self.cfg)
+        self._p_hf_apply  = ReleaseConfigHotfixApply(self.container, self.cfg)
+        self._p_run       = ReleaseRunPage(self.container, self.cfg, self._on_done)
+        self._p_done      = ReleaseDonePage(self.container, self.cfg, self._close)
 
     def _config_page(self):
-        return self._p_create if self.cfg.mode == "create" else self._p_promote
+        return {"create":        self._p_create,
+                "hotfix-create": self._p_hf_create,
+                "hotfix-apply":  self._p_hf_apply}.get(self.cfg.mode, self._p_promote)
 
     def _all_pages(self):
         return [self._p_mode, self._p_create, self._p_promote,
-                self._p_run, self._p_done]
+                self._p_hf_create, self._p_hf_apply, self._p_run, self._p_done]
 
     def _show(self, idx):
         for p in self._all_pages(): p.place_forget()
@@ -6932,7 +7496,8 @@ class LauncherApp:
              "#f0fdf4", "#86efac", "#166534"),
             ("release",
              "📦  Gestione Release",
-             "Crea un pacchetto .zip da DEV o promuovi una release su TEST / PROD",
+             "Crea/promuovi una release completa, oppure crea e applica un hotfix "
+             "leggero dei soli file modificati",
              GREEN_BG, GREEN_BD, "#166534"),
             ("uninstall",
              "🗑  Disinstalla ambiente",
@@ -7023,8 +7588,9 @@ def main():
         _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
         UninstallApp(); return
 
-    if mode in ("release", "create", "promote"):
-        ReleaseApp(initial_mode=mode if mode in ("create","promote") else None); return
+    _release_modes = ("create", "promote", "hotfix-create", "hotfix-apply")
+    if mode in ("release", *_release_modes):
+        ReleaseApp(initial_mode=mode if mode in _release_modes else None); return
 
     if mode == "dashboard":
         ServerDashboard(); return

@@ -34,6 +34,7 @@ urlpatterns = [
     path("tasks/projects/", task_views.project_list, name="project_list"),
     path("tasks/projects/<int:project_id>/gantt/", task_views.project_gantt, name="project_gantt"),
     path("", include("dashboard.urls")),
+    path("assistente-ai/", include(("ai_assistant.urls", "ai_assistant"), namespace="ai_assistant")),
     path("", include("assenze.urls")),
     path("", include("anomalie.urls")),
     path("", include(("assets.urls", "assets"), namespace="assets")),

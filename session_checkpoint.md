@@ -4,6 +4,8 @@ Data: 2026-05-19
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-19 - Codex` (hotfix `hotfix-v1.0.1-20260519_120132.zip`)
+- `hotfix/hotfix-v1.0.1-20260519_120132.zip` -> creato per metadati cartelle asset SharePoint
 - `django_app/CHANGELOG.md` -> `[Unreleased]` -> `Metadati SharePoint sulle cartelle asset`
 - `CHANGELOG.md` -> `[Unreleased]` -> `ASSETS - SharePoint - Metadati sulle cartelle asset`
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-19 - Codex` (metadati cartelle asset SharePoint)

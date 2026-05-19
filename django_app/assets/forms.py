@@ -337,7 +337,6 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "asset_tag",
             "name",
             "asset_category",
-            "asset_type",
             "reparto",
             "manufacturer",
             "model",
@@ -354,7 +353,6 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "asset_tag": "Tag bene",
             "name": "Nome bene",
             "asset_category": "Categoria asset",
-            "asset_type": "Tipo bene",
             "reparto": "Reparto",
             "manufacturer": "Produttore",
             "model": "Modello",
@@ -442,6 +440,9 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
 
     def save(self, commit=True):
         instance: Asset = super().save(commit=False)
+        selected_category = self.cleaned_data.get("asset_category")
+        if selected_category and selected_category.base_asset_type != Asset.TYPE_WORK_MACHINE:
+            instance.asset_type = selected_category.base_asset_type
         next_extra: dict[str, object] = {}
         for key, value in self._original_extra_columns.items():
             keep_key = True
@@ -561,11 +562,8 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         cleaned_data = super().clean()
         cleaned_data = self._validate_assignment_chooser(cleaned_data)
         selected_category = cleaned_data.get("asset_category")
-        if selected_category:
-            if selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE:
-                self.add_error("asset_category", "Per questa categoria usa il form Macchine di lavoro.")
-            else:
-                cleaned_data["asset_type"] = selected_category.base_asset_type
+        if selected_category and selected_category.base_asset_type == Asset.TYPE_WORK_MACHINE:
+            self.add_error("asset_category", "Per questa categoria usa il form Macchine di lavoro.")
         return self._validate_category_fields(cleaned_data)
 
 
@@ -655,6 +653,9 @@ class WorkMachineFilterForm(forms.Form):
             self.fields[field_name].widget.attrs["class"] = ""
 
 
+# Tipi che popolano la pagina "Dispositivi IT". TYPE_OTHER e' escluso di
+# proposito: gli asset generici/di impianto (es. bruciatori) non sono IT e non
+# devono comparire qui. Per l'hardware IT generico usare TYPE_HW ("Dispositivo").
 IT_DEVICE_TYPES = [
     Asset.TYPE_PC,
     Asset.TYPE_NOTEBOOK,
@@ -665,7 +666,6 @@ IT_DEVICE_TYPES = [
     Asset.TYPE_HW,
     Asset.TYPE_FONIA,
     Asset.TYPE_CCTV,
-    Asset.TYPE_OTHER,
 ]
 
 PRODUCTION_ASSET_TYPES = [

@@ -2,6 +2,17 @@
 
 ## 2026-05-19 - Codex
 
+- Area: `hotfix`
+- Richiesta: creare un nuovo pacchetto hotfix per la correzione metadati SharePoint sulle cartelle asset.
+- File modificati/creati: `hotfix/hotfix-v1.0.1-20260519_120132.zip`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non era presente nella workspace.
+- Motivo tecnico: predisporre un pacchetto overlay leggero applicabile dal Release Manager senza nuova release completa.
+- Modifica: creato zip hotfix con `django_app/assets/views.py`.
+- Impatto previsto: applicando lo zip al release attivo viene distribuito il fix che valorizza i metadati SharePoint anche sulle cartelle asset.
+- Rischi residui: il pacchetto contiene il file runtime completo `django_app/assets/views.py` nello stato corrente della workspace; non include test o documentazione.
+- Test/check: contenuto zip verificato (`django_app/assets/views.py`); SHA256 `C53140A7AC88B1845F8D76B616577CF78E06A41D96A783EE58BD4110488F3880`.
+- Note: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non erano presenti all'avvio.
+
 - Area: `django_app/assets`
 - Richiesta: colonne metadato SharePoint create ma non compilate sulle cartelle asset.
 - File modificati: `django_app/assets/views.py`, `django_app/assets/tests.py`, `django_app/CHANGELOG.md`, `CHANGELOG.md`, `README.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

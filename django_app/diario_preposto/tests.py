@@ -4,8 +4,10 @@ import json
 from datetime import datetime
 from io import BytesIO
 
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
@@ -304,3 +306,86 @@ class SegnalazioneAllegatoDownloadTests(TestCase):
         # Nessun contenuto file nel payload audit
         serialized = repr(payload)
         self.assertNotIn("contenuto riservato", serialized)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=True, SECURE_SSL_REDIRECT=False)
+class AllegatoDownloadModuleAuthTests(TestCase):
+    """SEC-AUDIT-002: l'URL /diario-preposto/allegato/ è registrato in
+    _ACL_SHARED_PREFIXES (core/middleware.py) e quindi bypassa il middleware
+    ACL. La vista allegato_download deve perciò verificare da sé l'accesso al
+    modulo (helper _can_view), riusando la decisione ACL della scheda dettaglio.
+    """
+
+    def setUp(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from core.models import UserOnboarding
+
+        from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato
+
+        User = get_user_model()
+        # acl_scrittura non vuota che esclude gli utenti di test: _can_write False,
+        # così il gate dipende solo dalla decisione ACL di modulo.
+        DiarioPrepostoImpostazioni.objects.create(acl_scrittura=["altro-utente"])
+
+        self.user = User.objects.create_user(
+            username="dp_reader", email="dp_reader@example.com",
+        )
+        UserOnboarding.objects.create(user=self.user, completed=True, skipped=True)
+        self.superuser = User.objects.create_superuser(
+            username="dp_admin", email="dp_admin@example.com", password="pwd12345",
+        )
+
+        self.segnalazione = SegnalazionePreposto.objects.create(
+            titolo="Segn riservata",
+            data_segnalazione=_aware_datetime(2026, 1, 10),
+            descrizione="Test SEC-AUDIT-002",
+        )
+        self.allegato = SegnalazioneAllegato.objects.create(
+            segnalazione=self.segnalazione,
+            nome_file="riservato.txt",
+            file=SimpleUploadedFile(
+                "riservato.txt", b"dati riservati", content_type="text/plain"
+            ),
+        )
+
+    def tearDown(self):
+        try:
+            if self.allegato.file and self.allegato.file.name:
+                self.allegato.file.storage.delete(self.allegato.file.name)
+        except Exception:
+            pass
+
+    def _url(self, pk=None):
+        return reverse("diario_preposto:allegato_download", args=[pk or self.allegato.pk])
+
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True})
+    def test_authorized_module_user_can_download(self, _mock):
+        """1. Utente con accesso al modulo (decisione ACL allow) scarica l'allegato."""
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False})
+    def test_unauthorized_module_user_forbidden(self, _mock):
+        """2. Utente senza accesso al modulo riceve 403, anche su id inesistente."""
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 403)
+        # 403 anche su id inesistente: il controllo permessi precede il lookup,
+        # così non si rivela l'esistenza dell'allegato a chi non è autorizzato.
+        resp_missing = self.client.get(self._url(pk=999999))
+        self.assertEqual(resp_missing.status_code, 403)
+
+    def test_superuser_can_download(self):
+        """3. Il superuser accede sempre (nessuna dipendenza dalla decisione ACL)."""
+        self.client.force_login(self.superuser)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    @patch("core.acl_v2.resolve_acl_access", return_value={"allowed": True})
+    def test_missing_attachment_returns_404_for_authorized_user(self, _mock):
+        """4. Per un utente autorizzato, un allegato inesistente resta 404."""
+        self.client.force_login(self.user)
+        resp = self.client.get(self._url(pk=999999))
+        self.assertEqual(resp.status_code, 404)

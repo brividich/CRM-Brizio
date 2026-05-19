@@ -24,6 +24,7 @@ BEGIN
         -- Approvazione
         [consenso]                  nvarchar(50)    NULL DEFAULT 'In attesa',
         [moderation_status]         int             NULL,
+        [approvazione_datetime]     datetime2       NULL,
         [salta_approvazione]        bit             NOT NULL DEFAULT 0,
 
         -- Capo reparto (FK locale + lookup SharePoint)
@@ -77,6 +78,12 @@ BEGIN
         WHERE object_id = OBJECT_ID(N'dbo.assenze') AND name = 'moderation_status'
     )
         ALTER TABLE [dbo].[assenze] ADD [moderation_status] int NULL;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID(N'dbo.assenze') AND name = 'approvazione_datetime'
+    )
+        ALTER TABLE [dbo].[assenze] ADD [approvazione_datetime] datetime2 NULL;
 
     IF NOT EXISTS (
         SELECT 1 FROM sys.columns

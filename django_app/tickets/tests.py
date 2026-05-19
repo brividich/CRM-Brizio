@@ -165,6 +165,37 @@ class TicketAssetSearchDataTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketNuovoAssetsJsonScriptTests(TestCase):
+    """Verifica che il catalogo asset sia serializzato con json_script (no XSS)."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="ticket-jsonscript-user",
+            password="pass12345",
+            email="ticket-jsonscript@example.com",
+        )
+        _complete_onboarding(self.user)
+        self.client.force_login(self.user)
+
+    def test_asset_name_with_script_tag_does_not_break_out(self):
+        Asset.objects.create(
+            asset_tag="IT-XSS-01",
+            name="</script><script>window.__xss=1</script>",
+            asset_type=Asset.TYPE_PC,
+            status=Asset.STATUS_IN_USE,
+        )
+        with patch("tickets.views._can_open_tickets", return_value=True):
+            response = self.client.get(reverse("tickets:nuovo"), {"tipo": "IT"})
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        # json_script escapa '<' in '<': il payload non deve comparire grezzo.
+        self.assertIn('id="assets-list-data"', html)
+        self.assertNotIn("</script><script>window.__xss=1</script>", html)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TicketDashboardTests(TestCase):
     def setUp(self):
         super().setUp()
@@ -730,3 +761,115 @@ class TicketDownloadAuditTests(TestCase):
                 self.assertNotIn("audit.txt", serialized)
         finally:
             shutil.rmtree(test_dir, ignore_errors=True)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketApiObjectLevelAuthTests(TestCase):
+    """SEC-AUDIT-004: le API di gestione interventi/componenti/workorder
+    devono verificare l'accesso object-level allo specifico ticket collegato,
+    non solo che l'utente sia gestore di un tipo qualsiasi.
+
+    Scenario: ``man-manager`` è gestore solo dei ticket MAN. Il decoratore
+    ``_tickets_gestione_required`` lo lascia entrare in tutte le API; il
+    guard object-level deve negargli l'accesso ai ticket IT.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from tickets.models import TicketComponenteSostituito, TicketImpostazioni
+
+        self.man_manager = get_user_model().objects.create_user(
+            username="man-manager",
+            email="man@example.com",
+            first_name="Man",
+            last_name="Manager",
+        )
+        _complete_onboarding(self.man_manager)
+        TicketImpostazioni.objects.create(tipo="MAN", acl_gestione=["man-manager"])
+        TicketImpostazioni.objects.create(tipo="IT", acl_gestione=["it-manager"])
+
+        self.category = AssetCategory.objects.create(code="CNC", label="Macchine CNC")
+        self.asset = Asset.objects.create(
+            name="CNC Test",
+            asset_tag="CNC-001",
+            asset_type="CNC",
+            asset_category=self.category,
+            status="IN_USE",
+        )
+        self.man_ticket = Ticket.objects.create(
+            tipo="MAN", titolo="MAN ticket", descrizione="x",
+            categoria="MECCANICA", priorita="MEDIA", asset=self.asset,
+            richiedente_nome="R", richiedente_email="r@example.com",
+        )
+        self.it_ticket = Ticket.objects.create(
+            tipo="IT", titolo="IT ticket", descrizione="x",
+            categoria="PC", priorita="MEDIA", asset=self.asset,
+            richiedente_nome="R", richiedente_email="r@example.com",
+        )
+        self.man_interv = TicketIntervento.objects.create(
+            ticket=self.man_ticket, tecnico_nome="T",
+            data_inizio=timezone.now(), esito="IN_CORSO",
+        )
+        self.it_interv = TicketIntervento.objects.create(
+            ticket=self.it_ticket, tecnico_nome="T",
+            data_inizio=timezone.now(), esito="IN_CORSO",
+        )
+        self.it_comp = TicketComponenteSostituito.objects.create(
+            intervento=self.it_interv, nome="Cuscinetto",
+        )
+
+    def _send(self, method, urlname, payload):
+        import json
+        fn = getattr(self.client, method)
+        return fn(
+            reverse(urlname),
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+
+    def test_authorized_manager_can_update_intervento_in_scope(self):
+        """1. Il gestore MAN può modificare un intervento di un ticket MAN."""
+        self.client.force_login(self.man_manager)
+        resp = self._send("patch", "tickets:api_intervento",
+                           {"id": self.man_interv.id, "note": "aggiornato"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json().get("ok"))
+        self.man_interv.refresh_from_db()
+        self.assertEqual(self.man_interv.note, "aggiornato")
+
+    def test_manager_forbidden_on_intervento_out_of_scope(self):
+        """2. Il gestore MAN riceve 403 su un intervento di ticket IT e nulla cambia."""
+        self.client.force_login(self.man_manager)
+        resp = self._send("patch", "tickets:api_intervento",
+                           {"id": self.it_interv.id, "note": "hack"})
+        self.assertEqual(resp.status_code, 403)
+        self.it_interv.refresh_from_db()
+        self.assertNotEqual(self.it_interv.note, "hack")
+
+    def test_manager_forbidden_on_componente_out_of_scope(self):
+        """3. Il gestore MAN riceve 403 eliminando un componente di ticket IT."""
+        from tickets.models import TicketComponenteSostituito
+
+        self.client.force_login(self.man_manager)
+        resp = self._send("delete", "tickets:api_componente", {"id": self.it_comp.id})
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(
+            TicketComponenteSostituito.objects.filter(id=self.it_comp.id).exists()
+        )
+
+    def test_manager_forbidden_on_workorder_from_ticket_out_of_scope(self):
+        """4. Il gestore MAN riceve 403 creando un workorder da un ticket IT."""
+        from assets.models import WorkOrder
+
+        self.client.force_login(self.man_manager)
+        resp = self._send("post", "tickets:api_crea_workorder",
+                           {"ticket_id": self.it_ticket.id})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(WorkOrder.objects.filter(ticket=self.it_ticket).exists())
+
+    def test_happy_path_delete_intervento_in_scope_unchanged(self):
+        """5. Happy path invariato: delete di un intervento in scope funziona."""
+        self.client.force_login(self.man_manager)
+        resp = self._send("delete", "tickets:api_intervento", {"id": self.man_interv.id})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(TicketIntervento.objects.filter(id=self.man_interv.id).exists())

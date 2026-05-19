@@ -8,7 +8,10 @@ from assets.services.asset_catalog_import import AssetCatalogImporter, ImportPre
 
 
 class Command(BaseCommand):
-    help = "Importa catalogo asset da CSV/XLSX con preview dry-run e commit atomico."
+    help = (
+        "Importa catalogo asset da CSV/XLSX con preview dry-run e commit atomico. "
+        "Per i file XLSX vengono elaborati tutti i fogli."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument("file", help="Path file .csv o .xlsx da importare.")
@@ -51,7 +54,7 @@ class Command(BaseCommand):
         if preview.errors:
             self.stdout.write(self.style.ERROR("Errori riga per riga:"))
             for error in preview.errors:
-                self.stdout.write(self.style.ERROR(f"- Riga {error.row_number}: {error.message}"))
+                self.stdout.write(self.style.ERROR(f"- {error.row_number.capitalize()}: {error.message}"))
         elif dry_run:
             self.stdout.write(self.style.WARNING("DRY-RUN: nessuna modifica e stata salvata nel database."))
         else:

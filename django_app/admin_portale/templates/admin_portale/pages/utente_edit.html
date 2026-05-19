@@ -622,6 +622,8 @@
   </div>
 
   {# ════════════════ SCRIPT ════════════════ #}
+  {{ anagrafica_risposte_map|json_script:"anagrafica-risposte-data" }}
+  {{ overrides_map|json_script:"overrides-map-data" }}
   <script>
   (function () {
     "use strict";
@@ -638,11 +640,14 @@
     const EXTRA_URL     = "{% url 'admin_portale:api_user_extra_info' utente_obj.id %}";
     const ASSET_ASSIGN_URL = "{% url 'admin_portale:api_user_asset_assignments' utente_obj.id %}";
     const RISPOSTE_URL  = "{% url 'admin_portale:api_anagrafica_risposte_save' utente_obj.id %}";
-    const RISPOSTE_INIT = (function () { try { return JSON.parse({{ anagrafica_risposte_json|safe }}); } catch (e) { return {}; } })();
+    const RISPOSTE_INIT = (function () {
+      try { return JSON.parse(document.getElementById("anagrafica-risposte-data").textContent) || {}; }
+      catch (e) { return {}; }
+    })();
 
     // ── Carica override iniziali ──
     let overrides = {};
-    try { overrides = JSON.parse({{ overrides_map_json|safe }}); } catch (e) {}
+    try { overrides = JSON.parse(document.getElementById("overrides-map-data").textContent) || {}; } catch (e) {}
 
     // ── Tab switching ──
     const tabs   = document.querySelectorAll(".scheda-tab");

@@ -293,6 +293,16 @@ ALIGNMENT_STEPS = [
         END
         """,
     ),
+    SqlStep(
+        "assenze_approvazione_datetime",
+        """
+        IF OBJECT_ID(N'dbo.assenze', N'U') IS NOT NULL
+           AND COL_LENGTH(N'dbo.assenze', N'approvazione_datetime') IS NULL
+        BEGIN
+            ALTER TABLE dbo.assenze ADD approvazione_datetime DATETIME2 NULL;
+        END
+        """,
+    ),
 ]
 
 

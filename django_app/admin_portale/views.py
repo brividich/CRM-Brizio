@@ -10,10 +10,14 @@ import socket
 import subprocess
 import tempfile
 import threading
+import time
+import urllib.error
+import urllib.request
 from collections import deque
 from dataclasses import dataclass
 from io import BytesIO, StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 from django.apps import apps as django_apps
@@ -47,6 +51,9 @@ from automazioni.approval_mailbox_runtime import (
     run_approval_imap_poll_now,
     save_approval_imap_settings,
 )
+from ai_assistant.models import AiChatFeedback, AiKnowledgeEntry, AiToolPrivacyReview
+from ai_assistant.services import clear_knowledge_cache
+from ai_assistant.tools import build_runtime_context, get_runtime_tool_catalog
 from core.acl import diagnose_permesso_for_context
 from core.acl_v2 import (
     diagnose_acl_access,
@@ -1446,6 +1453,375 @@ def _smtp_diag_defaults() -> dict[str, str | bool | int]:
         "test_to": "",
     }
 
+
+def _ollama_diag_defaults() -> dict[str, str | bool | int]:
+    rag_source_paths = getattr(settings, "OLLAMA_RAG_SOURCE_PATHS", ["README.md", "docs/ai"]) or []
+    if isinstance(rag_source_paths, str):
+        rag_source_paths_default = rag_source_paths
+    else:
+        rag_source_paths_default = ",".join(str(item).strip() for item in rag_source_paths if str(item).strip())
+    return {
+        "enabled": _effective_env_bool("OLLAMA_CHAT_ENABLED", bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True))),
+        "provider": _effective_env_value(
+            "OLLAMA_API_PROVIDER",
+            str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama"),
+        ).lower(),
+        "base_url": _effective_env_value("OLLAMA_BASE_URL", str(getattr(settings, "OLLAMA_BASE_URL", "") or "")),
+        "model": _effective_env_value("OLLAMA_CHAT_MODEL", str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "")),
+        "openwebui_api_key_configured": bool(
+            _effective_env_value("OPENWEBUI_API_KEY", str(getattr(settings, "OPENWEBUI_API_KEY", "") or ""))
+        ),
+        "timeout": _effective_env_int(
+            "OLLAMA_REQUEST_TIMEOUT_SECONDS",
+            int(getattr(settings, "OLLAMA_REQUEST_TIMEOUT_SECONDS", 60) or 60),
+        ),
+        "temperature": _effective_env_value(
+            "OLLAMA_CHAT_TEMPERATURE",
+            str(getattr(settings, "OLLAMA_CHAT_TEMPERATURE", "0.2") or "0.2"),
+        ),
+        "max_prompt_chars": _effective_env_int(
+            "OLLAMA_CHAT_MAX_PROMPT_CHARS",
+            int(getattr(settings, "OLLAMA_CHAT_MAX_PROMPT_CHARS", 4000) or 4000),
+        ),
+        "max_history_messages": _effective_env_int(
+            "OLLAMA_CHAT_MAX_HISTORY_MESSAGES",
+            int(getattr(settings, "OLLAMA_CHAT_MAX_HISTORY_MESSAGES", 10) or 10),
+        ),
+        "rag_enabled": _effective_env_bool("OLLAMA_RAG_ENABLED", bool(getattr(settings, "OLLAMA_RAG_ENABLED", True))),
+        "rag_source_paths": _effective_env_value("OLLAMA_RAG_SOURCE_PATHS", rag_source_paths_default),
+        "rag_max_chunks": _effective_env_int(
+            "OLLAMA_RAG_MAX_CHUNKS",
+            int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4),
+        ),
+        "rag_max_context_chars": _effective_env_int(
+            "OLLAMA_RAG_MAX_CONTEXT_CHARS",
+            int(getattr(settings, "OLLAMA_RAG_MAX_CONTEXT_CHARS", 5000) or 5000),
+        ),
+        "rag_cache_seconds": _effective_env_int(
+            "OLLAMA_RAG_CACHE_SECONDS",
+            int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 300),
+        ),
+        "rag_max_db_entries": _effective_env_int(
+            "OLLAMA_RAG_MAX_DB_ENTRIES",
+            int(getattr(settings, "OLLAMA_RAG_MAX_DB_ENTRIES", 200) or 200),
+        ),
+    }
+
+
+def _ollama_posted_config(post_data, defaults: dict[str, object]) -> dict[str, object]:
+    def posted_or_default(field_name: str, default: object) -> str:
+        raw_value = post_data.get(field_name)
+        if raw_value in (None, ""):
+            return str(default or "").strip()
+        return str(raw_value).strip()
+
+    return {
+        "enabled": _bool_from_any(post_data.get("ollama_enabled")),
+        "provider": posted_or_default("ollama_provider", defaults.get("provider") or "ollama").lower(),
+        "base_url": (post_data.get("ollama_base_url") or str(defaults.get("base_url") or "")).strip(),
+        "model": (post_data.get("ollama_model") or str(defaults.get("model") or "")).strip(),
+        "openwebui_api_key": str(post_data.get("openwebui_api_key") or "").strip(),
+        "openwebui_api_key_configured": bool(defaults.get("openwebui_api_key_configured")),
+        "timeout": posted_or_default("ollama_timeout", defaults.get("timeout") or 60),
+        "temperature": posted_or_default("ollama_temperature", defaults.get("temperature") or "0.2"),
+        "max_prompt_chars": posted_or_default("ollama_max_prompt_chars", defaults.get("max_prompt_chars") or 4000),
+        "max_history_messages": posted_or_default(
+            "ollama_max_history_messages",
+            defaults.get("max_history_messages") or 10,
+        ),
+        "rag_enabled": _bool_from_any(post_data.get("ollama_rag_enabled")),
+        "rag_source_paths": posted_or_default(
+            "ollama_rag_source_paths",
+            defaults.get("rag_source_paths") or "README.md,docs/ai",
+        ),
+        "rag_max_chunks": posted_or_default("ollama_rag_max_chunks", defaults.get("rag_max_chunks") or 4),
+        "rag_max_context_chars": posted_or_default(
+            "ollama_rag_max_context_chars",
+            defaults.get("rag_max_context_chars") or 5000,
+        ),
+        "rag_cache_seconds": posted_or_default(
+            "ollama_rag_cache_seconds",
+            defaults.get("rag_cache_seconds") or 300,
+        ),
+        "rag_max_db_entries": posted_or_default(
+            "ollama_rag_max_db_entries",
+            defaults.get("rag_max_db_entries") or 200,
+        ),
+    }
+
+
+def _ollama_validate_config(config: dict[str, object]) -> tuple[bool, dict[str, object], str]:
+    enabled = bool(config.get("enabled"))
+    provider = str(config.get("provider") or "ollama").strip().lower()
+    base_url = str(config.get("base_url") or "").strip().rstrip("/")
+    model = str(config.get("model") or "").strip()
+    if provider not in {"ollama", "openwebui"}:
+        return False, config, "Provider AI non valido: scegli Ollama diretto oppure Open WebUI."
+
+    if enabled:
+        if not base_url:
+            return False, config, "URL Ollama obbligatorio quando l'assistente AI e' abilitato."
+        parsed = urlsplit(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return False, config, "URL Ollama non valido: usa http://host:porta oppure https://host:porta."
+        if not model:
+            return False, config, "Modello Ollama obbligatorio quando l'assistente AI e' abilitato."
+        if provider == "openwebui" and not (
+            str(config.get("openwebui_api_key") or "").strip() or bool(config.get("openwebui_api_key_configured"))
+        ):
+            return False, config, "API key Open WebUI obbligatoria: creala da Open WebUI > Settings > Account."
+    elif base_url:
+        parsed = urlsplit(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return False, config, "URL Ollama non valido: usa http://host:porta oppure https://host:porta."
+
+    try:
+        timeout = int(str(config.get("timeout") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Timeout Ollama non valido: usa un valore tra 1 e 300 secondi."
+    if timeout < 1 or timeout > 300:
+        return False, config, "Timeout Ollama non valido: usa un valore tra 1 e 300 secondi."
+
+    try:
+        temperature = float(str(config.get("temperature") or "0.2").replace(",", "."))
+    except (TypeError, ValueError):
+        return False, config, "Temperatura Ollama non valida: usa un numero tra 0 e 2."
+    if temperature < 0 or temperature > 2:
+        return False, config, "Temperatura Ollama non valida: usa un numero tra 0 e 2."
+
+    try:
+        max_prompt_chars = int(str(config.get("max_prompt_chars") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Max prompt non valido: usa un valore tra 500 e 20000 caratteri."
+    if max_prompt_chars < 500 or max_prompt_chars > 20000:
+        return False, config, "Max prompt non valido: usa un valore tra 500 e 20000 caratteri."
+
+    try:
+        max_history_messages = int(str(config.get("max_history_messages") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Max storico non valido: usa un valore tra 0 e 30 messaggi."
+    if max_history_messages < 0 or max_history_messages > 30:
+        return False, config, "Max storico non valido: usa un valore tra 0 e 30 messaggi."
+
+    rag_enabled = bool(config.get("rag_enabled"))
+    rag_source_paths = str(config.get("rag_source_paths") or "").strip()
+    if rag_enabled and not rag_source_paths:
+        return False, config, "Percorsi knowledge base obbligatori quando il RAG e' abilitato."
+    if len(rag_source_paths) > 1000:
+        return False, config, "Percorsi knowledge base troppo lunghi: usa massimo 1000 caratteri."
+    forbidden_path_tokens = {".env", "media_private", "logs", "sqlite", ".db", "secrets"}
+    lowered_paths = rag_source_paths.lower()
+    if any(token in lowered_paths for token in forbidden_path_tokens):
+        return False, config, "Percorsi knowledge base non validi: non indicizzare env, log, database o aree private."
+
+    try:
+        rag_max_chunks = int(str(config.get("rag_max_chunks") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Max chunk RAG non valido: usa un valore tra 1 e 10."
+    if rag_max_chunks < 1 or rag_max_chunks > 10:
+        return False, config, "Max chunk RAG non valido: usa un valore tra 1 e 10."
+
+    try:
+        rag_max_context_chars = int(str(config.get("rag_max_context_chars") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Max contesto RAG non valido: usa un valore tra 1000 e 20000 caratteri."
+    if rag_max_context_chars < 1000 or rag_max_context_chars > 20000:
+        return False, config, "Max contesto RAG non valido: usa un valore tra 1000 e 20000 caratteri."
+
+    try:
+        rag_cache_seconds = int(str(config.get("rag_cache_seconds") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Cache RAG non valida: usa un valore tra 0 e 3600 secondi."
+    if rag_cache_seconds < 0 or rag_cache_seconds > 3600:
+        return False, config, "Cache RAG non valida: usa un valore tra 0 e 3600 secondi."
+
+    try:
+        rag_max_db_entries = int(str(config.get("rag_max_db_entries") or "").strip())
+    except (TypeError, ValueError):
+        return False, config, "Max FAQ AI non valido: usa un valore tra 0 e 1000."
+    if rag_max_db_entries < 0 or rag_max_db_entries > 1000:
+        return False, config, "Max FAQ AI non valido: usa un valore tra 0 e 1000."
+
+    normalized = {
+        "enabled": enabled,
+        "provider": provider,
+        "base_url": base_url,
+        "model": model,
+        "openwebui_api_key": str(config.get("openwebui_api_key") or "").strip(),
+        "openwebui_api_key_configured": bool(config.get("openwebui_api_key_configured")),
+        "timeout": timeout,
+        "temperature": str(temperature).rstrip("0").rstrip(".") if "." in str(temperature) else str(temperature),
+        "max_prompt_chars": max_prompt_chars,
+        "max_history_messages": max_history_messages,
+        "rag_enabled": rag_enabled,
+        "rag_source_paths": rag_source_paths,
+        "rag_max_chunks": rag_max_chunks,
+        "rag_max_context_chars": rag_max_context_chars,
+        "rag_cache_seconds": rag_cache_seconds,
+        "rag_max_db_entries": rag_max_db_entries,
+    }
+    return True, normalized, ""
+
+
+def _ollama_endpoint_hint(base_url: str, *, http_status: int | None = None) -> str:
+    try:
+        parsed = urlsplit(base_url)
+        port = parsed.port
+        host = parsed.hostname or "host"
+    except ValueError:
+        port = None
+        host = "host"
+    if port in {3000, 8080, 8081} or http_status in {404, 405}:
+        return (
+            "L'URL configurato sembra non essere l'API nativa di Ollama. "
+            "Non usare l'indirizzo di Open WebUI: configura l'endpoint Ollama, "
+            f"per esempio http://{host}:11434."
+        )
+    return "Verifica che l'URL punti all'API nativa di Ollama, non a Open WebUI."
+
+
+def _ollama_json_get(url: str, timeout: int, *, headers: dict[str, str] | None = None) -> dict:
+    request_headers = {"Accept": "application/json"}
+    request_headers.update(headers or {})
+    request = urllib.request.Request(url, headers=request_headers, method="GET")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+    raw = raw.strip()
+    return json.loads(raw or "{}")
+
+
+def _ollama_catalog_warning(exc: Exception) -> str:
+    if isinstance(exc, json.JSONDecodeError):
+        return "Catalogo modelli non verificato: /api/tags non ha restituito JSON valido."
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"Catalogo modelli non verificato: /api/tags ha risposto HTTP {exc.code}."
+    if isinstance(exc, TimeoutError):
+        return "Catalogo modelli non verificato: timeout su /api/tags."
+    if isinstance(exc, urllib.error.URLError):
+        return f"Catalogo modelli non verificato: /api/tags non raggiungibile ({getattr(exc, 'reason', exc)})."
+    return "Catalogo modelli non verificato: risposta /api/tags non leggibile."
+
+
+def _ollama_test_connect(config: dict[str, object]) -> tuple[bool, str, dict[str, object]]:
+    ok, normalized, error = _ollama_validate_config(config)
+    if not ok:
+        return False, error, {}
+    if not normalized["enabled"]:
+        return False, "Assistente AI disabilitato: abilitalo per eseguire il test Ollama.", {}
+
+    base_url = str(normalized["base_url"])
+    provider = str(normalized["provider"])
+    model = str(normalized["model"])
+    timeout = int(normalized["timeout"])
+    if provider == "openwebui":
+        api_key = str(normalized.get("openwebui_api_key") or "").strip() or _effective_env_value(
+            "OPENWEBUI_API_KEY",
+            str(getattr(settings, "OPENWEBUI_API_KEY", "") or ""),
+        )
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        try:
+            models_payload = _ollama_json_get(f"{base_url}/api/models", timeout, headers=headers)
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                return False, (
+                    f"Open WebUI ha risposto HTTP {exc.code}: API key mancante, non valida o scaduta. "
+                    "Rigenera la key in Open WebUI > Settings > Account, incollala nel campo API key Open WebUI "
+                    "e premi Test connessione o Salva configurazione."
+                ), {}
+            return False, f"Open WebUI non ha accettato il test modelli (HTTP {exc.code}). Verifica URL e API key.", {}
+        except urllib.error.URLError as exc:
+            return False, f"Open WebUI non raggiungibile: {getattr(exc, 'reason', exc)}", {}
+        except TimeoutError:
+            return False, "Timeout durante il test connessione Open WebUI.", {}
+        except (OSError, json.JSONDecodeError) as exc:
+            return False, f"Test Open WebUI fallito: {exc}", {}
+        models = models_payload.get("data") if isinstance(models_payload, dict) else []
+        names = {
+            str(item.get("id") or item.get("name") or "").strip()
+            for item in models
+            if isinstance(item, dict) and str(item.get("id") or item.get("name") or "").strip()
+        }
+        model_available = model in names or model in {name.removesuffix(":latest") for name in names}
+        metadata = {"version": "openwebui", "model_available": model_available}
+        if model_available is False:
+            return False, f"Open WebUI raggiunto, ma modello '{model}' non trovato in /api/models.", metadata
+        return True, f"Open WebUI raggiunto. Modello '{model}' disponibile.", metadata
+    try:
+        version_payload = _ollama_json_get(f"{base_url}/api/version", timeout)
+    except urllib.error.HTTPError as exc:
+        return False, f"Endpoint Ollama non compatibile (HTTP {exc.code}). {_ollama_endpoint_hint(base_url, http_status=exc.code)}", {}
+    except urllib.error.URLError as exc:
+        return False, f"Ollama non raggiungibile: {getattr(exc, 'reason', exc)}", {}
+    except TimeoutError:
+        return False, "Timeout durante il test connessione Ollama.", {}
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f"Test Ollama fallito: {exc}", {}
+
+    tags_note = "Catalogo modelli non verificato."
+    model_available = None
+    try:
+        tags_payload = _ollama_json_get(f"{base_url}/api/tags", timeout)
+        models = tags_payload.get("models") if isinstance(tags_payload, dict) else []
+        names = {
+            str(item.get("name") or "").strip()
+            for item in models
+            if isinstance(item, dict) and str(item.get("name") or "").strip()
+        }
+        names_without_latest = {name.removesuffix(":latest") for name in names}
+        model_available = model in names or model in names_without_latest
+        tags_note = f"Modello '{model}' disponibile." if model_available else f"Modello '{model}' non trovato in /api/tags."
+    except Exception as exc:
+        tags_note = _ollama_catalog_warning(exc)
+
+    metadata = {
+        "version": str(version_payload.get("version") or "") if isinstance(version_payload, dict) else "",
+        "model_available": model_available,
+    }
+    if model_available is False:
+        return False, f"Connessione Ollama riuscita, ma {tags_note}", metadata
+    version_label = metadata["version"] or "versione non dichiarata"
+    return True, f"Connessione Ollama riuscita ({version_label}). {tags_note}", metadata
+
+
+def _ollama_save_settings(config: dict[str, object]) -> tuple[bool, str, dict[str, object]]:
+    ok, normalized, error = _ollama_validate_config(config)
+    if not ok:
+        return False, error, config
+    saved, message = _update_dotenv_assignments(
+        {
+            "OLLAMA_CHAT_ENABLED": "1" if normalized["enabled"] else "0",
+            "OLLAMA_API_PROVIDER": str(normalized["provider"]),
+            "OLLAMA_BASE_URL": str(normalized["base_url"]),
+            "OLLAMA_CHAT_MODEL": str(normalized["model"]),
+            "OLLAMA_REQUEST_TIMEOUT_SECONDS": str(normalized["timeout"]),
+            "OLLAMA_CHAT_TEMPERATURE": str(normalized["temperature"]),
+            "OLLAMA_CHAT_MAX_PROMPT_CHARS": str(normalized["max_prompt_chars"]),
+            "OLLAMA_CHAT_MAX_HISTORY_MESSAGES": str(normalized["max_history_messages"]),
+            "OLLAMA_RAG_ENABLED": "1" if normalized["rag_enabled"] else "0",
+            "OLLAMA_RAG_SOURCE_PATHS": str(normalized["rag_source_paths"]),
+            "OLLAMA_RAG_MAX_CHUNKS": str(normalized["rag_max_chunks"]),
+            "OLLAMA_RAG_MAX_CONTEXT_CHARS": str(normalized["rag_max_context_chars"]),
+            "OLLAMA_RAG_CACHE_SECONDS": str(normalized["rag_cache_seconds"]),
+            "OLLAMA_RAG_MAX_DB_ENTRIES": str(normalized["rag_max_db_entries"]),
+            **(
+                {"OPENWEBUI_API_KEY": str(normalized["openwebui_api_key"])}
+                if str(normalized.get("openwebui_api_key") or "").strip()
+                else {}
+            ),
+        }
+    )
+    if not saved:
+        return False, message, normalized
+    return True, "Configurazione Assistente AI salvata. Riavvia il server per applicare.", normalized
+
+
+def _clean_ai_knowledge_text(value: object, *, limit: int) -> str:
+    text = str(value or "").replace("\x00", "").strip()
+    if len(text) > limit:
+        text = text[:limit].rstrip()
+    return text
+
+
 def _update_dotenv_assignments(values: dict[str, str], *, delete_keys: list[str] | None = None) -> tuple[bool, str]:
     dotenv_path = _dotenv_path()
     try:
@@ -1455,6 +1831,684 @@ def _update_dotenv_assignments(values: dict[str, str], *, delete_keys: list[str]
     return True, (
         f"Configurazione salvata in {_dotenv_target_label(dotenv_path)}. "
         "La sync da questa pagina usa subito i valori salvati; il runtime li applica dopo reload/deploy."
+    )
+
+
+def _handle_ai_knowledge_post(request: HttpRequest, *, redirect_to: str):
+    action = (request.POST.get("action") or "").strip()
+    entry_id = request.POST.get("entry_id")
+    entry = AiKnowledgeEntry.objects.filter(id=entry_id).first() if entry_id else None
+
+    if action == "save_knowledge":
+        question = _clean_ai_knowledge_text(request.POST.get("question"), limit=500)
+        answer = _clean_ai_knowledge_text(request.POST.get("answer"), limit=6000)
+        source_label = _clean_ai_knowledge_text(request.POST.get("source_label") or "FAQ Portale", limit=120)
+        is_active = _bool_from_any(request.POST.get("is_active"))
+        if not question or not answer:
+            messages.error(request, "Domanda e risposta sono obbligatorie.")
+            return None, entry
+
+        if entry is None:
+            entry = AiKnowledgeEntry(created_by=request.user)
+            audit_action = "ai_knowledge_create"
+        else:
+            audit_action = "ai_knowledge_update"
+        entry.question = question
+        entry.answer = answer
+        entry.source_label = source_label or "FAQ Portale"
+        entry.is_active = is_active
+        entry.updated_by = request.user
+        entry.save()
+        clear_knowledge_cache()
+        log_action(
+            request,
+            audit_action,
+            "ai_assistant",
+            {
+                "entry_id": entry.id,
+                "question_chars": len(question),
+                "answer_chars": len(answer),
+                "source_label": entry.source_label,
+                "is_active": entry.is_active,
+            },
+        )
+        messages.success(request, "FAQ AI salvata.")
+        return redirect(redirect_to), None
+
+    if action in {"toggle_knowledge", "delete_knowledge"} and entry:
+        if action == "toggle_knowledge":
+            entry.is_active = not entry.is_active
+            entry.updated_by = request.user
+            entry.save(update_fields=["is_active", "updated_by", "updated_at"])
+            clear_knowledge_cache()
+            log_action(
+                request,
+                "ai_knowledge_toggle",
+                "ai_assistant",
+                {"entry_id": entry.id, "is_active": entry.is_active},
+            )
+            messages.success(request, "Stato FAQ AI aggiornato.")
+        else:
+            deleted_id = entry.id
+            entry.delete()
+            clear_knowledge_cache()
+            log_action(request, "ai_knowledge_delete", "ai_assistant", {"entry_id": deleted_id})
+            messages.success(request, "FAQ AI eliminata.")
+        return redirect(redirect_to), None
+
+    if action:
+        messages.error(request, "Azione FAQ AI non valida.")
+    return None, entry
+
+
+def _safe_int(value, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    if minimum is not None:
+        parsed = max(minimum, parsed)
+    if maximum is not None:
+        parsed = min(maximum, parsed)
+    return parsed
+
+
+def _ai_runtime_catalog_index() -> dict[str, object]:
+    return {spec.key: spec for spec in get_runtime_tool_catalog()}
+
+
+def _ai_runtime_tool_names(detail: dict) -> list[str]:
+    tools = detail.get("runtime_tools")
+    if isinstance(tools, list):
+        return [str(item) for item in tools if str(item or "").strip()]
+    details = detail.get("runtime_tools_detail")
+    if isinstance(details, list):
+        return [
+            str(item.get("tool") or "")
+            for item in details
+            if isinstance(item, dict) and str(item.get("tool") or "").strip()
+        ]
+    return []
+
+
+def _ai_runtime_allowed_values(detail: dict, selected_tool: str = "") -> list[object]:
+    tools = _ai_runtime_tool_names(detail)
+    allowed = detail.get("runtime_tools_allowed")
+    values = allowed if isinstance(allowed, list) else []
+    if not selected_tool:
+        return values
+    return [
+        values[index]
+        for index, tool in enumerate(tools)
+        if tool == selected_tool and index < len(values)
+    ]
+
+
+def _ai_runtime_outcome(action: str, detail: dict, selected_tool: str = "") -> str:
+    if action == "ai_chat_error":
+        return "error"
+    allowed_values = _ai_runtime_allowed_values(detail, selected_tool)
+    if any(value is False for value in allowed_values):
+        return "denied"
+    if allowed_values:
+        return "allowed"
+    return "metadata"
+
+
+def _ai_runtime_sanitized_tools(audit: dict | None) -> list[dict[str, object]]:
+    audit = audit if isinstance(audit, dict) else {}
+    raw_tools = audit.get("tools") if isinstance(audit.get("tools"), list) else None
+    if raw_tools is None and audit.get("tool"):
+        raw_tools = [audit]
+    result: list[dict[str, object]] = []
+    for item in raw_tools or []:
+        if not isinstance(item, dict):
+            continue
+        tool = str(item.get("tool") or "").strip()
+        if not tool:
+            continue
+        result.append(
+            {
+                "tool": tool,
+                "allowed": item.get("allowed"),
+                "reason": str(item.get("reason") or ""),
+                "scope": item.get("scope"),
+                "row_count": item.get("row_count"),
+                "filters": item.get("filters"),
+            }
+        )
+    return result
+
+
+def _ai_runtime_metrics(days: int = 30) -> dict[str, dict[str, object]]:
+    from datetime import timedelta
+    from core.models import AuditLog
+
+    since = timezone.now() - timedelta(days=max(1, days))
+    metrics: dict[str, dict[str, object]] = {}
+    qs = (
+        AuditLog.objects.filter(
+            modulo="ai_assistant",
+            azione__in=["ai_chat", "ai_chat_error", "ai_runtime_tool_test"],
+            created_at__gte=since,
+        )
+        .order_by("-created_at")
+        .only("azione", "dettaglio", "created_at")
+    )
+    for event in qs[:1000]:
+        detail = event.dettaglio if isinstance(event.dettaglio, dict) else {}
+        tools = _ai_runtime_tool_names(detail)
+        elapsed_ms = _safe_int(detail.get("elapsed_ms"), 0, minimum=0)
+        context_chars = _safe_int(detail.get("runtime_context_chars"), 0, minimum=0)
+        for tool in tools:
+            bucket = metrics.setdefault(
+                tool,
+                {
+                    "calls": 0,
+                    "errors": 0,
+                    "denied": 0,
+                    "elapsed_total": 0,
+                    "elapsed_count": 0,
+                    "context_total": 0,
+                    "context_count": 0,
+                },
+            )
+            bucket["calls"] = int(bucket["calls"]) + 1
+            if event.azione == "ai_chat_error":
+                bucket["errors"] = int(bucket["errors"]) + 1
+            if _ai_runtime_outcome(event.azione, detail, selected_tool=tool) == "denied":
+                bucket["denied"] = int(bucket["denied"]) + 1
+            if elapsed_ms:
+                bucket["elapsed_total"] = int(bucket["elapsed_total"]) + elapsed_ms
+                bucket["elapsed_count"] = int(bucket["elapsed_count"]) + 1
+            if context_chars:
+                bucket["context_total"] = int(bucket["context_total"]) + context_chars
+                bucket["context_count"] = int(bucket["context_count"]) + 1
+
+    for bucket in metrics.values():
+        elapsed_count = int(bucket.pop("elapsed_count"))
+        elapsed_total = int(bucket.pop("elapsed_total"))
+        context_count = int(bucket.pop("context_count"))
+        context_total = int(bucket.pop("context_total"))
+        bucket["avg_elapsed_ms"] = round(elapsed_total / elapsed_count) if elapsed_count else 0
+        bucket["avg_context_chars"] = round(context_total / context_count) if context_count else 0
+    return metrics
+
+
+def _ai_runtime_catalog_with_metrics(days: int = 30) -> list[dict[str, object]]:
+    metrics = _ai_runtime_metrics(days=days)
+    rows: list[dict[str, object]] = []
+    for spec in get_runtime_tool_catalog():
+        metric = metrics.get(spec.audit_tool, {})
+        rows.append(
+            {
+                "key": spec.key,
+                "label": spec.label,
+                "domain": spec.domain,
+                "audit_tool": spec.audit_tool,
+                "source_prefix": spec.source_prefix,
+                "status": spec.status,
+                "status_label": "abilitato" if spec.status == "enabled" else "disabilitato",
+                "enabled": spec.status == "enabled",
+                "sample_prompt": spec.sample_prompt,
+                "privacy_note": spec.privacy_note,
+                "calls": metric.get("calls", 0),
+                "errors": metric.get("errors", 0),
+                "denied": metric.get("denied", 0),
+                "avg_elapsed_ms": metric.get("avg_elapsed_ms", 0),
+                "avg_context_chars": metric.get("avg_context_chars", 0),
+            }
+        )
+    return rows
+
+
+def _ai_runtime_audit_rows(request: HttpRequest, *, catalog: list[dict[str, object]]) -> tuple[list[dict[str, object]], dict[str, object]]:
+    from datetime import timedelta
+    from core.models import AuditLog
+
+    valid_tools = sorted({str(item["audit_tool"]) for item in catalog if item.get("audit_tool")})
+    selected_tool = (request.GET.get("runtime_tool") or "").strip()
+    if selected_tool not in valid_tools:
+        selected_tool = ""
+    outcome = (request.GET.get("runtime_outcome") or "").strip()
+    if outcome not in {"allowed", "denied", "error", "metadata"}:
+        outcome = ""
+    days = _safe_int(request.GET.get("runtime_days"), 30, minimum=1, maximum=365)
+    since = timezone.now() - timedelta(days=days)
+
+    qs = (
+        AuditLog.objects.filter(
+            modulo="ai_assistant",
+            azione__in=["ai_chat", "ai_chat_error", "ai_runtime_tool_test"],
+            created_at__gte=since,
+        )
+        .order_by("-created_at")
+        .only("azione", "utente_display", "created_at", "dettaglio")
+    )
+    rows: list[dict[str, object]] = []
+    for event in qs[:300]:
+        detail = event.dettaglio if isinstance(event.dettaglio, dict) else {}
+        tools = _ai_runtime_tool_names(detail)
+        if selected_tool and selected_tool not in tools:
+            continue
+        row_outcome = _ai_runtime_outcome(event.azione, detail, selected_tool=selected_tool)
+        if outcome and row_outcome != outcome:
+            continue
+        rows.append(
+            {
+                "created_at": event.created_at,
+                "utente_display": event.utente_display or "-",
+                "azione": event.azione,
+                "tools": tools,
+                "outcome": row_outcome,
+                "elapsed_ms": _safe_int(detail.get("elapsed_ms"), 0, minimum=0),
+                "runtime_context_chars": _safe_int(detail.get("runtime_context_chars"), 0, minimum=0),
+                "runtime_sources_count": _safe_int(detail.get("runtime_sources_count"), 0, minimum=0),
+                "prompt_chars": _safe_int(detail.get("prompt_chars"), 0, minimum=0),
+            }
+        )
+        if len(rows) >= 50:
+            break
+    return rows, {
+        "tool": selected_tool,
+        "outcome": outcome,
+        "days": days,
+        "tool_options": valid_tools,
+    }
+
+
+def _ai_runtime_user_label(user) -> str:
+    full_name = ""
+    if hasattr(user, "get_full_name"):
+        full_name = str(user.get_full_name() or "").strip()
+    return full_name or str(getattr(user, "username", "") or getattr(user, "email", "") or user.pk)
+
+
+def _ai_runtime_tool_test(request: HttpRequest) -> dict[str, object]:
+    catalog_index = _ai_runtime_catalog_index()
+    tool_key = (request.POST.get("runtime_tool_key") or "").strip()
+    spec = catalog_index.get(tool_key) or next(iter(catalog_index.values()))
+    prompt = _clean_ai_knowledge_text(request.POST.get("runtime_test_prompt"), limit=500)
+    if not prompt:
+        prompt = spec.sample_prompt
+
+    User = get_user_model()
+    simulated_user = request.user
+    simulated_user_id = request.POST.get("runtime_simulated_user") or ""
+    if simulated_user_id:
+        target = User.objects.filter(pk=simulated_user_id, is_active=True).first()
+        if target is None:
+            messages.error(request, "Utente simulato non trovato o non attivo.")
+            return {"ok": False, "error": "Utente simulato non trovato o non attivo."}
+        simulated_user = target
+
+    simulated_request = SimpleNamespace(
+        user=simulated_user,
+        legacy_user=None,
+        path=request.path,
+        META=getattr(request, "META", {}),
+    )
+    started = time.monotonic()
+    runtime_context = build_runtime_context(simulated_request, prompt)
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    sanitized_tools = _ai_runtime_sanitized_tools(runtime_context.audit)
+    result = {
+        "ok": True,
+        "tool_key": spec.key,
+        "tool_label": spec.label,
+        "simulated_user_id": simulated_user.pk,
+        "simulated_user_label": _ai_runtime_user_label(simulated_user),
+        "prompt_chars": len(prompt),
+        "elapsed_ms": elapsed_ms,
+        "runtime_context_chars": len(runtime_context.text),
+        "runtime_context_lines": len(runtime_context.text.splitlines()),
+        "source_count": len(runtime_context.sources),
+        "sources": list(runtime_context.sources)[:8],
+        "tools": sanitized_tools,
+    }
+    _audit_safe(
+        request,
+        "ai_runtime_tool_test",
+        "ai_assistant",
+        {
+            "selected_tool": spec.audit_tool,
+            "selected_key": spec.key,
+            "simulated_user_id": simulated_user.pk,
+            "prompt_chars": len(prompt),
+            "elapsed_ms": elapsed_ms,
+            "runtime_context_chars": len(runtime_context.text),
+            "runtime_context_lines": len(runtime_context.text.splitlines()),
+            "runtime_sources_count": len(runtime_context.sources),
+            "runtime_tools": [item["tool"] for item in sanitized_tools],
+            "runtime_tools_allowed": [item.get("allowed") for item in sanitized_tools if "allowed" in item],
+            "runtime_tools_detail": sanitized_tools,
+        },
+    )
+    messages.success(request, "Test tool live completato in modalita metadata-only.")
+    return result
+
+
+@legacy_admin_required
+def ai_settings(request: HttpRequest):
+    ollama_defaults = _ollama_diag_defaults()
+    result_ollama = None
+    edit_entry = None
+    runtime_test_result = None
+    active_tab = (request.GET.get("tab") or "runtime").strip() or "runtime"
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        active_tab = (request.POST.get("tab") or active_tab).strip() or active_tab
+        if action in ("test_ollama_config", "save_ollama_config"):
+            ollama_defaults = _ollama_posted_config(request.POST, ollama_defaults)
+            if action == "test_ollama_config":
+                ok, msg, metadata = _ollama_test_connect(ollama_defaults)
+                result_ollama = {"ok": ok, "message": msg}
+                _audit_safe(
+                    request,
+                    "ollama_config_test",
+                    "admin_portale",
+                    {
+                        "ok": ok,
+                        "provider": str(ollama_defaults.get("provider") or "ollama"),
+                        "base_url_host": urlsplit(str(ollama_defaults.get("base_url") or "")).netloc,
+                        "model": str(ollama_defaults.get("model") or ""),
+                        "rag_enabled": bool(ollama_defaults.get("rag_enabled")),
+                        "version": metadata.get("version") if isinstance(metadata, dict) else "",
+                        "model_available": metadata.get("model_available") if isinstance(metadata, dict) else None,
+                    },
+                )
+            else:
+                ok, msg, normalized = _ollama_save_settings(ollama_defaults)
+                result_ollama = {"ok": ok, "message": msg}
+                ollama_defaults = _ollama_diag_defaults() if ok else normalized
+                _audit_safe(
+                    request,
+                    "ollama_config_save",
+                    "admin_portale",
+                    {
+                        "ok": ok,
+                        "enabled": bool(ollama_defaults.get("enabled")),
+                        "provider": str(ollama_defaults.get("provider") or "ollama"),
+                        "base_url_host": urlsplit(str(ollama_defaults.get("base_url") or "")).netloc,
+                        "model": str(ollama_defaults.get("model") or ""),
+                        "rag_enabled": bool(ollama_defaults.get("rag_enabled")),
+                        "rag_max_chunks": ollama_defaults.get("rag_max_chunks"),
+                        "rag_max_db_entries": ollama_defaults.get("rag_max_db_entries"),
+                    },
+                )
+        elif action in {"save_knowledge", "toggle_knowledge", "delete_knowledge"}:
+            response, edit_entry = _handle_ai_knowledge_post(request, redirect_to="admin_portale:ai_settings")
+            if response is not None:
+                return response
+        elif action == "test_ai_runtime_tool":
+            active_tab = "tools"
+            runtime_test_result = _ai_runtime_tool_test(request)
+        elif action == "clear_ai_runtime_cache":
+            clear_knowledge_cache()
+            _audit_safe(
+                request,
+                "ai_runtime_cache_clear",
+                "ai_assistant",
+                {"cache": "rag_runtime", "scope": "metadata_only"},
+            )
+            messages.success(request, "Cache RAG/runtime svuotata.")
+            return redirect(f"{reverse('admin_portale:ai_settings')}?tab=tools")
+        elif action == "save_governance_review":
+            active_tab = "governance"
+            tool_key = (request.POST.get("tool_key") or "").strip()[:80]
+            privacy_status = (request.POST.get("privacy_status") or "pending").strip()
+            if privacy_status not in {"pending", "approved", "restricted", "blocked"}:
+                privacy_status = "pending"
+            allowed_fields = (request.POST.get("allowed_fields") or "").strip()[:1000]
+            blocked_fields = (request.POST.get("blocked_fields") or "").strip()[:1000]
+            notes = (request.POST.get("notes") or "").strip()[:2000]
+            retention_raw = (request.POST.get("retention_days") or "").strip()
+            retention_days = None
+            if retention_raw:
+                try:
+                    retention_days = max(1, min(3650, int(retention_raw)))
+                except (ValueError, TypeError):
+                    retention_days = None
+            catalog_keys = {spec.key for spec in get_runtime_tool_catalog()}
+            if not tool_key or tool_key not in catalog_keys:
+                messages.error(request, "Chiave tool non valida.")
+            else:
+                spec = next((s for s in get_runtime_tool_catalog() if s.key == tool_key), None)
+                review, _ = AiToolPrivacyReview.objects.get_or_create(tool_key=tool_key)
+                review.tool_label = spec.label if spec else tool_key
+                review.privacy_status = privacy_status
+                review.allowed_fields = allowed_fields
+                review.blocked_fields = blocked_fields
+                review.notes = notes
+                review.retention_days = retention_days
+                review.reviewed_by = request.user
+                review.reviewed_at = timezone.now()
+                review.save()
+                _audit_safe(
+                    request,
+                    "ai_governance_review_save",
+                    "ai_assistant",
+                    {
+                        "tool_key": tool_key,
+                        "privacy_status": privacy_status,
+                        "has_allowed_fields": bool(allowed_fields),
+                        "has_blocked_fields": bool(blocked_fields),
+                        "has_retention": retention_days is not None,
+                    },
+                )
+                messages.success(request, f"Revisione privacy per '{tool_key}' salvata.")
+                return redirect(f"{reverse('admin_portale:ai_settings')}?tab=governance")
+        elif action:
+            messages.error(request, "Azione Gestione AI non valida.")
+
+    edit_id = request.GET.get("edit")
+    if edit_id and edit_entry is None:
+        edit_entry = AiKnowledgeEntry.objects.filter(id=edit_id).first()
+
+    q = (request.GET.get("q") or "").strip()
+    active = (request.GET.get("active") or "").strip()
+    entries = AiKnowledgeEntry.objects.select_related("created_by", "updated_by").all()
+    if q:
+        entries = entries.filter(Q(question__icontains=q) | Q(answer__icontains=q) | Q(source_label__icontains=q))
+    if active == "1":
+        entries = entries.filter(is_active=True)
+    elif active == "0":
+        entries = entries.filter(is_active=False)
+
+    page_obj = Paginator(entries, 10).get_page(request.GET.get("page"))
+    runtime_metric_days = _safe_int(request.GET.get("runtime_days"), 30, minimum=1, maximum=365)
+    runtime_catalog = _ai_runtime_catalog_with_metrics(days=runtime_metric_days)
+    runtime_audit_rows, runtime_audit_filters = _ai_runtime_audit_rows(request, catalog=runtime_catalog)
+    User = get_user_model()
+
+    # Governance tab context
+    governance_reviews = {r.tool_key: r for r in AiToolPrivacyReview.objects.select_related("reviewed_by").all()}
+    governance_rows = [
+        {"spec": spec, "review": governance_reviews.get(spec.key)}
+        for spec in get_runtime_tool_catalog()
+    ]
+    governance_edit_key = (request.GET.get("edit_review") or "").strip()[:80] or None
+    catalog_keys = {spec.key for spec in get_runtime_tool_catalog()}
+    if governance_edit_key and governance_edit_key not in catalog_keys:
+        governance_edit_key = None
+    governance_edit_review = governance_reviews.get(governance_edit_key) if governance_edit_key else None
+
+    # Feedback tab context
+    feedback_filter = (request.GET.get("feedback_filter") or "pending").strip()
+    feedback_qs = AiChatFeedback.objects.select_related("user", "knowledge_entry").order_by("-created_at")
+    if feedback_filter == "pending":
+        feedback_qs = feedback_qs.filter(is_reviewed=False)
+    feedback_page_obj = Paginator(feedback_qs, 20).get_page(request.GET.get("feedback_page"))
+    feedback_pending_count = AiChatFeedback.objects.filter(is_reviewed=False).count()
+
+    # Suggerimenti tab context: aggregazione statistica ultimi 30 giorni
+    from core.models import AuditLog
+    import datetime as _dt
+    thirty_days_ago = timezone.now() - _dt.timedelta(days=30)
+    ai_chat_logs = AuditLog.objects.filter(
+        azione="ai_chat",
+        created_at__gte=thirty_days_ago,
+    )
+    total_chat_sessions = ai_chat_logs.count()
+    # Sessioni senza dati: nessun tool live (runtime_sources_count=0) e nessun RAG (rag_sources_count=0)
+    # I valori sono in dettaglio (JSONField). Conta le sessioni con entrambi a 0.
+    no_data_sessions = 0
+    prompt_short = 0   # < 50 char
+    prompt_medium = 0  # 50-200 char
+    prompt_long = 0    # > 200 char
+    for log_row in ai_chat_logs.iterator():
+        detail = log_row.dettaglio or {}
+        runtime_cnt = detail.get("runtime_sources_count", None)
+        rag_cnt = detail.get("rag_sources_count", None)
+        prompt_chars = detail.get("prompt_chars", 0) or 0
+        if runtime_cnt == 0 and rag_cnt == 0:
+            no_data_sessions += 1
+        if prompt_chars < 50:
+            prompt_short += 1
+        elif prompt_chars <= 200:
+            prompt_medium += 1
+        else:
+            prompt_long += 1
+
+    # Correzioni pendenti ad alta priorità per i suggerimenti
+    pending_corrections = AiChatFeedback.objects.filter(
+        rating="down",
+        is_reviewed=False,
+    ).exclude(correction="").select_related("user").order_by("-created_at")[:20]
+
+    return render(
+        request,
+        "admin_portale/pages/ai_settings.html",
+        {
+            "ollama_cfg": ollama_defaults,
+            "result_ollama": result_ollama,
+            "dotenv_target_label": _dotenv_target_label(_dotenv_path()),
+            "page_obj": page_obj,
+            "edit_entry": edit_entry,
+            "q": q,
+            "active": active,
+            "active_count": AiKnowledgeEntry.objects.filter(is_active=True).count(),
+            "total_count": AiKnowledgeEntry.objects.count(),
+            "active_tab": active_tab,
+            "runtime_catalog": runtime_catalog,
+            "runtime_audit_rows": runtime_audit_rows,
+            "runtime_audit_filters": runtime_audit_filters,
+            "runtime_test_result": runtime_test_result,
+            "runtime_simulated_users": User.objects.filter(is_active=True).order_by("username")[:100],
+            "governance_rows": governance_rows,
+            "governance_edit_key": governance_edit_key,
+            "governance_edit_review": governance_edit_review,
+            "governance_doc_url": "../../docs/ai/13_AI_GOVERNANCE.md",
+            # Feedback tab
+            "feedback_page_obj": feedback_page_obj,
+            "feedback_filter": feedback_filter,
+            "feedback_pending_count": feedback_pending_count,
+            # Suggerimenti tab
+            "no_data_sessions": no_data_sessions,
+            "total_chat_sessions": total_chat_sessions,
+            "prompt_short": prompt_short,
+            "prompt_medium": prompt_medium,
+            "prompt_long": prompt_long,
+            "pending_corrections": pending_corrections,
+        },
+    )
+
+
+@legacy_admin_required
+def ai_knowledge(request: HttpRequest):
+    edit_entry = None
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        entry_id = request.POST.get("entry_id")
+        entry = AiKnowledgeEntry.objects.filter(id=entry_id).first() if entry_id else None
+
+        if action == "save":
+            question = _clean_ai_knowledge_text(request.POST.get("question"), limit=500)
+            answer = _clean_ai_knowledge_text(request.POST.get("answer"), limit=6000)
+            source_label = _clean_ai_knowledge_text(request.POST.get("source_label") or "FAQ Portale", limit=120)
+            is_active = _bool_from_any(request.POST.get("is_active"))
+            if not question or not answer:
+                messages.error(request, "Domanda e risposta sono obbligatorie.")
+                if entry:
+                    edit_entry = entry
+            else:
+                if entry is None:
+                    entry = AiKnowledgeEntry(created_by=request.user)
+                    audit_action = "ai_knowledge_create"
+                else:
+                    audit_action = "ai_knowledge_update"
+                entry.question = question
+                entry.answer = answer
+                entry.source_label = source_label or "FAQ Portale"
+                entry.is_active = is_active
+                entry.updated_by = request.user
+                entry.save()
+                clear_knowledge_cache()
+                log_action(
+                    request,
+                    audit_action,
+                    "ai_assistant",
+                    {
+                        "entry_id": entry.id,
+                        "question_chars": len(question),
+                        "answer_chars": len(answer),
+                        "source_label": entry.source_label,
+                        "is_active": entry.is_active,
+                    },
+                )
+                messages.success(request, "FAQ AI salvata.")
+                return redirect("admin_portale:ai_knowledge")
+        elif action in {"toggle", "delete"} and entry:
+            if action == "toggle":
+                entry.is_active = not entry.is_active
+                entry.updated_by = request.user
+                entry.save(update_fields=["is_active", "updated_by", "updated_at"])
+                clear_knowledge_cache()
+                log_action(
+                    request,
+                    "ai_knowledge_toggle",
+                    "ai_assistant",
+                    {"entry_id": entry.id, "is_active": entry.is_active},
+                )
+                messages.success(request, "Stato FAQ AI aggiornato.")
+            else:
+                deleted_id = entry.id
+                entry.delete()
+                clear_knowledge_cache()
+                log_action(request, "ai_knowledge_delete", "ai_assistant", {"entry_id": deleted_id})
+                messages.success(request, "FAQ AI eliminata.")
+            return redirect("admin_portale:ai_knowledge")
+        elif action:
+            messages.error(request, "Azione FAQ AI non valida.")
+
+    edit_id = request.GET.get("edit")
+    if edit_id and edit_entry is None:
+        edit_entry = AiKnowledgeEntry.objects.filter(id=edit_id).first()
+
+    q = (request.GET.get("q") or "").strip()
+    active = (request.GET.get("active") or "").strip()
+    entries = AiKnowledgeEntry.objects.select_related("created_by", "updated_by").all()
+    if q:
+        entries = entries.filter(Q(question__icontains=q) | Q(answer__icontains=q) | Q(source_label__icontains=q))
+    if active == "1":
+        entries = entries.filter(is_active=True)
+    elif active == "0":
+        entries = entries.filter(is_active=False)
+
+    paginator = Paginator(entries, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "admin_portale/pages/ai_knowledge.html",
+        {
+            "page_obj": page_obj,
+            "edit_entry": edit_entry,
+            "q": q,
+            "active": active,
+            "active_count": AiKnowledgeEntry.objects.filter(is_active=True).count(),
+            "total_count": AiKnowledgeEntry.objects.count(),
+        },
     )
 
 
@@ -2535,12 +3589,14 @@ def ldap_diagnostica(request):
     }
     ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
     smtp_defaults = _smtp_diag_defaults()
+    ollama_defaults = _ollama_diag_defaults()
     approval_imap_status = get_approval_imap_status()
     approval_imap_form = get_approval_imap_form_defaults()
     result_connect = None
     result_bind = None
     result_service = None
     result_smtp = None
+    result_ollama = None
     result_approval_imap = None
     sync_result = None
     bind_username = ""
@@ -2682,6 +3738,49 @@ def ldap_diagnostica(request):
                     default_from_email=smtp_from_email,
                 )
                 result_smtp = {"ok": ok, "message": msg}
+                (messages.success if ok else messages.error)(request, msg)
+        elif action in ("test_ollama_config", "save_ollama_config"):
+            ollama_defaults = _ollama_posted_config(request.POST, ollama_defaults)
+            if action == "test_ollama_config":
+                ok, msg, metadata = _ollama_test_connect(ollama_defaults)
+                result_ollama = {"ok": ok, "message": msg}
+                _audit_safe(
+                    request,
+                    "ollama_config_test",
+                    "admin_portale",
+                    {
+                        "ok": ok,
+                        "provider": str(ollama_defaults.get("provider") or "ollama"),
+                        "base_url_host": urlsplit(str(ollama_defaults.get("base_url") or "")).netloc,
+                        "model": str(ollama_defaults.get("model") or ""),
+                        "rag_enabled": bool(ollama_defaults.get("rag_enabled")),
+                        "version": metadata.get("version") if isinstance(metadata, dict) else "",
+                        "model_available": metadata.get("model_available") if isinstance(metadata, dict) else None,
+                    },
+                )
+                (messages.success if ok else messages.error)(request, msg)
+            else:
+                ok, msg, normalized = _ollama_save_settings(ollama_defaults)
+                result_ollama = {"ok": ok, "message": msg}
+                if ok:
+                    ollama_defaults = _ollama_diag_defaults()
+                else:
+                    ollama_defaults = normalized
+                _audit_safe(
+                    request,
+                    "ollama_config_save",
+                    "admin_portale",
+                    {
+                        "ok": ok,
+                        "enabled": bool(ollama_defaults.get("enabled")),
+                        "provider": str(ollama_defaults.get("provider") or "ollama"),
+                        "base_url_host": urlsplit(str(ollama_defaults.get("base_url") or "")).netloc,
+                        "model": str(ollama_defaults.get("model") or ""),
+                        "rag_enabled": bool(ollama_defaults.get("rag_enabled")),
+                        "rag_max_chunks": ollama_defaults.get("rag_max_chunks"),
+                        "rag_max_db_entries": ollama_defaults.get("rag_max_db_entries"),
+                    },
+                )
                 (messages.success if ok else messages.error)(request, msg)
         elif action == "save_approval_imap_config":
             posted_port = (request.POST.get("approval_imap_port") or "").strip()
@@ -2847,12 +3946,14 @@ def ldap_diagnostica(request):
             "ldap_sync_cfg": ldap_sync_cfg,
             "dotenv_target_label": dotenv_target_label,
             "smtp_cfg": smtp_defaults,
+            "ollama_cfg": ollama_defaults,
             "approval_imap_status": approval_imap_status,
             "approval_imap_form": approval_imap_form,
             "result_connect": result_connect,
             "result_bind": result_bind,
             "result_service": result_service,
             "result_smtp": result_smtp,
+            "result_ollama": result_ollama,
             "result_approval_imap": result_approval_imap,
             "bind_username": bind_username,
             "sync_result": sync_result,
@@ -4470,6 +5571,7 @@ def utente_edit(request, user_id: int):
             "roles": roles,
             "flag_names": flag_names,
             "grouped_perm_rows": grouped_perm_rows,
+            "overrides_map": overrides_map,
             "overrides_map_json": json.dumps(overrides_map),
             "dash_by_module": dash_by_module,
             "module_vis_json": json.dumps(module_vis_map),
@@ -9918,4 +11020,60 @@ def api_release_terminal_command(request):
         },
         status=200,
     )
+
+
+# ── AI Feedback admin actions ──────────────────────────────────────────────────
+
+
+@require_POST
+@legacy_admin_required
+def ai_feedback_approva(request: HttpRequest, feedback_id: int):
+    """Approva un feedback negativo: attiva la AiKnowledgeEntry collegata e marca il feedback come reviewed."""
+    from ai_assistant.views import _can_manage_knowledge
+
+    if not _can_manage_knowledge(request):
+        return JsonResponse({"ok": False, "error": "Permessi insufficienti."}, status=403)
+
+    feedback = get_object_or_404(AiChatFeedback, id=feedback_id)
+    if feedback.knowledge_entry_id:
+        entry = feedback.knowledge_entry
+        entry.is_active = True
+        entry.updated_by = request.user
+        entry.save(update_fields=["is_active", "updated_by", "updated_at"])
+        clear_knowledge_cache()
+        _audit_safe(
+            request,
+            "ai_feedback_approva",
+            "ai_assistant",
+            {
+                "feedback_id": feedback.id,
+                "knowledge_entry_id": entry.id,
+            },
+        )
+    feedback.is_reviewed = True
+    feedback.save(update_fields=["is_reviewed"])
+    messages.success(request, "Feedback approvato: FAQ AI attivata.")
+    return redirect(f"{reverse('admin_portale:ai_settings')}?tab=feedback")
+
+
+@require_POST
+@legacy_admin_required
+def ai_feedback_scarta(request: HttpRequest, feedback_id: int):
+    """Scarta un feedback: lo marca come reviewed senza attivare la FAQ bozza."""
+    from ai_assistant.views import _can_manage_knowledge
+
+    if not _can_manage_knowledge(request):
+        return JsonResponse({"ok": False, "error": "Permessi insufficienti."}, status=403)
+
+    feedback = get_object_or_404(AiChatFeedback, id=feedback_id)
+    feedback.is_reviewed = True
+    feedback.save(update_fields=["is_reviewed"])
+    _audit_safe(
+        request,
+        "ai_feedback_scarta",
+        "ai_assistant",
+        {"feedback_id": feedback.id},
+    )
+    messages.success(request, "Feedback scartato.")
+    return redirect(f"{reverse('admin_portale:ai_settings')}?tab=feedback")
 

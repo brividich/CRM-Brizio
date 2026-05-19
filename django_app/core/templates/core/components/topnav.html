@@ -89,6 +89,10 @@
         <span aria-hidden="true">&#128269;</span>
       </button>
 
+      <a href="{% url 'ai_assistant:chat' %}" class="nav-icon" title="Assistente AI (Alt+A)" aria-label="Assistente AI">
+        <span aria-hidden="true">AI</span>
+      </a>
+
       <button type="button" class="nav-icon nav-notify-btn" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}" data-notification-toggle>
         <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}

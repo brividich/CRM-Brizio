@@ -469,6 +469,7 @@
 
   /* Drag */
   .task-row.is-shiftable .g-cell.is-active { cursor: grab; touch-action: none; user-select: none; }
+  .task-row.is-shiftable .g-cell.is-active[data-gantt-edge] { cursor: ew-resize; }
   .task-row.is-dragging .g-cell.is-active { opacity: .22; }
   .g-cell.is-active { background: #fff !important; }
   .g-cell.is-active.is-weekend { background: #f0f4f8 !important; }
@@ -1166,7 +1167,9 @@
 
     {% if can_edit_schedule and gantt_rows %}
     <div class="g-hint-bar">
-      <span class="g-hint"><span class="g-hint-key">drag</span> barra per spostare date</span>
+      <span class="g-hint"><span class="g-hint-key">drag</span> centro barra per spostare date</span>
+      <span class="g-hint" style="opacity:.5;margin:0 2px;">Â·</span>
+      <span class="g-hint"><span class="g-hint-key">drag</span> bordo barra per allungare/accorciare</span>
       <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
       <span class="g-hint"><span class="g-hint-key">clic</span> riga per quick edit</span>
       <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
@@ -1262,6 +1265,7 @@
                   {% for cell in row.cells %}
                     <td class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}"
                         data-day-index="{{ forloop.counter0 }}"
+                        {% if forloop.counter0 == row.start_index and forloop.counter0 == row.end_index %}data-gantt-edge="both"{% elif forloop.counter0 == row.start_index %}data-gantt-edge="start"{% elif forloop.counter0 == row.end_index %}data-gantt-edge="end"{% endif %}
                         {% if cell.title %}title="{{ cell.title }}"{% endif %}>
                       {% if cell.marker %}<span class="absence-x">{{ cell.marker }}</span>{% endif %}
                     </td>
@@ -1682,6 +1686,33 @@
       return d;
     }
 
+    function clampResizeStartDelta(rawDelta, startIndex, endIndex, prevEndIndex) {
+      let d = rawDelta;
+      d = Math.max(d, -startIndex);
+      d = Math.min(d, endIndex - startIndex);
+      if (prevEndIndex >= 0) d = Math.max(d, prevEndIndex + 1 - startIndex);
+      return d;
+    }
+
+    function clampResizeEndDelta(rawDelta, startIndex, endIndex) {
+      let d = rawDelta;
+      d = Math.max(d, startIndex - endIndex);
+      if (totalDays > 0) d = Math.min(d, totalDays - 1 - endIndex);
+      return d;
+    }
+
+    function dragModeFromPointer(cell, event, startIndex, endIndex) {
+      const edge = cell.dataset.ganttEdge || "";
+      if (!edge) return "shift";
+      const dayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
+      const rect = cell.getBoundingClientRect();
+      const edgeZone = Math.max(6, Math.min(12, rect.width * 0.35));
+      const x = event.clientX - rect.left;
+      if ((edge === "start" || edge === "both") && dayIndex === startIndex && x <= edgeZone) return "resize_start";
+      if ((edge === "end" || edge === "both") && dayIndex === endIndex && x >= rect.width - edgeZone) return "resize_end";
+      return "shift";
+    }
+
     /* Stile cursore globale durante il drag */
     var dragStyle = null;
     function setCursorGrabbing() {
@@ -1706,7 +1737,8 @@
       const prevEndIndex = parseInt(row.dataset.prevEndIndex || "-1", 10);
 
       event.preventDefault();
-      gesture = { row, pointerId: event.pointerId, anchorDayIndex, startIndex, endIndex, prevEndIndex, delta: 0 };
+      const mode = dragModeFromPointer(cell, event, startIndex, endIndex);
+      gesture = { row, pointerId: event.pointerId, mode, anchorDayIndex, startIndex, endIndex, prevEndIndex, delta: 0 };
       paintRowPreview(row, startIndex, endIndex);
       setCursorGrabbing();
       document.addEventListener("pointermove", onPointerMove);
@@ -1717,12 +1749,25 @@
     function onPointerMove(moveEvent) {
       if (!gesture || moveEvent.pointerId !== gesture.pointerId) return;
       autoScrollWrap(moveEvent.clientX);
-      const { anchorDayIndex, startIndex, endIndex, prevEndIndex, row } = gesture;
+      const { anchorDayIndex, startIndex, endIndex, prevEndIndex, row, mode } = gesture;
       const hoveredDay = dayIndexAt(moveEvent.clientX);
-      const delta = clampDelta(hoveredDay - anchorDayIndex, startIndex, endIndex, prevEndIndex);
+      let delta = hoveredDay - anchorDayIndex;
+      let previewStart = startIndex;
+      let previewEnd = endIndex;
+      if (mode === "resize_start") {
+        delta = clampResizeStartDelta(hoveredDay - startIndex, startIndex, endIndex, prevEndIndex);
+        previewStart = startIndex + delta;
+      } else if (mode === "resize_end") {
+        delta = clampResizeEndDelta(hoveredDay - endIndex, startIndex, endIndex);
+        previewEnd = endIndex + delta;
+      } else {
+        delta = clampDelta(delta, startIndex, endIndex, prevEndIndex);
+        previewStart = startIndex + delta;
+        previewEnd = endIndex + delta;
+      }
       if (delta !== gesture.delta) {
         gesture.delta = delta;
-        paintRowPreview(row, startIndex + delta, endIndex + delta);
+        paintRowPreview(row, previewStart, previewEnd);
       }
     }
 
@@ -1732,7 +1777,7 @@
       document.removeEventListener("pointercancel", onPointerCancel);
       clearCursorGrabbing();
       if (!gesture) return;
-      const { row, delta } = gesture;
+      const { row, delta, mode } = gesture;
       gesture = null;
       if (!shouldSubmit || delta === 0) { clearRowPreview(row); return; }
       shiftRequestPending = true;
@@ -1740,6 +1785,7 @@
         const cascadeCheckbox = document.getElementById("id_cascade_shift");
         const doCascade = (!cascadeCheckbox || cascadeCheckbox.checked) ? "1" : "0";
         const body = new URLSearchParams();
+        body.set("mode", mode);
         body.set("shift_days", String(delta));
         body.set("cascade", doCascade);
         const response = await fetch(row.dataset.shiftUrl, {

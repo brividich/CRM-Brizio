@@ -110,12 +110,25 @@
 }
 .af-doc-tab.is-active { color: #2563eb; border-bottom-color: #2563eb; }
 .af-doc-body { padding: 12px 14px; display: grid; gap: 8px; }
+.af-doc-upload { display:grid; gap:8px; }
+.af-doc-storage { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.af-doc-choice {
+  border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:7px 10px;
+  display:inline-flex; align-items:center; gap:7px; color:#334155; font-size:var(--fs-sm); font-weight:700; cursor:pointer;
+}
 .af-drop {
   border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 12px; text-align: center; color: #64748b; font-size: var(--fs-base); background: #f8fafc;
+  display:block; cursor:pointer;
 }
+.af-drop.is-dragging { border-color:#2563eb; background:#eff6ff; color:#1d4ed8; }
+.af-file-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.af-doc-upload-actions { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
+.af-doc-file-status { color:#64748b; font-size:var(--fs-sm); }
 .af-doc-item {
   border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: center;
 }
+.af-doc-item-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.af-doc-delete { display:inline; margin:0; }
 .af-doc-name { font-weight: 600; color: #0f172a; font-size: var(--fs-md); }
 .af-doc-meta { color: #64748b; font-size: var(--fs-sm); }
 .af-doc-empty { color: #64748b; font-size: var(--fs-base); margin: 0; }
@@ -200,7 +213,9 @@ body.theme-dark .af-cust-row span:first-child { color:var(--text-light); }
 body.theme-dark .af-doc-tabs { border-color:var(--border); }
 body.theme-dark .af-doc-tab { color:var(--text-light); }
 body.theme-dark .af-doc-tab.is-active { color:#93c5fd; border-bottom-color:#93c5fd; }
+body.theme-dark .af-doc-choice { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .af-drop { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .af-drop.is-dragging { border-color:#93c5fd; background:rgba(37,99,235,.14); color:#bfdbfe; }
 body.theme-dark .af-doc-item { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .af-doc-name { color:var(--text); }
 body.theme-dark .af-doc-meta, body.theme-dark .af-doc-empty, body.theme-dark .af-note { color:var(--text-light); }
@@ -1048,7 +1063,47 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 
           {% for key, label in doc_category_labels.items %}
             <div class="af-doc-body" data-doc-panel="{{ key }}" {% if not forloop.first %}style="display:none;"{% endif %}>
-              <div class="af-drop">Clicca per caricare o trascina i file (massimo 10 MB)</div>
+              <form class="af-doc-upload" method="post" enctype="multipart/form-data" data-doc-upload>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="upload_asset_documents">
+                <div class="af-doc-storage" aria-label="Destinazione upload">
+                  <label class="af-doc-choice">
+                    <input type="radio" name="asset_document_storage" value="local">
+                    Locale
+                  </label>
+                  <label class="af-doc-choice">
+                    <input type="radio" name="asset_document_storage" value="sharepoint" checked>
+                    SharePoint
+                  </label>
+                </div>
+                <label class="af-drop" data-doc-drop>
+                  <input
+                    class="af-file-input"
+                    type="file"
+                    name="{{ document_upload_field_map|dict_get:key }}"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp,.msg"
+                    data-doc-file
+                  >
+                  <span data-doc-drop-text>Clicca per caricare o trascina i file (massimo 20 MB)</span>
+                </label>
+                <input
+                  class="af-file-input"
+                  type="file"
+                  name="{{ document_upload_field_map|dict_get:key }}"
+                  multiple
+                  webkitdirectory
+                  directory
+                  data-doc-folder
+                >
+                <div class="af-doc-upload-actions">
+                  <span class="af-doc-file-status" data-doc-file-status>Nessun file selezionato.</span>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="af-btn af-btn-secondary" type="button" data-doc-folder-trigger>Carica cartella</button>
+                    <button class="af-btn af-btn-secondary" type="submit">Carica</button>
+                  </div>
+                </div>
+              </form>
               {% with docs=documents_by_category|dict_get:key %}
                 {% if docs %}
                   {% for doc in docs %}
@@ -1062,11 +1117,21 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                           {% if doc.meta %} | {{ doc.meta }}{% endif %}
                         </div>
                       </div>
-                      {% if doc.url %}
-                        <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
-                      {% else %}
-                        <button class="af-btn" type="button" disabled>Apri</button>
-                      {% endif %}
+                      <div class="af-doc-item-actions">
+                        {% if doc.url %}
+                          <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
+                        {% else %}
+                          <button class="af-btn" type="button" disabled>Apri</button>
+                        {% endif %}
+                        {% if doc.id %}
+                          <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale{% if doc.sharepoint %} e da SharePoint{% endif %}.');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_asset_document">
+                            <input type="hidden" name="document_id" value="{{ doc.id }}">
+                            <button class="af-btn af-btn-danger" type="submit" title="Elimina documento" aria-label="Elimina documento">&#128465;</button>
+                          </form>
+                        {% endif %}
+                      </div>
                     </div>
                   {% endfor %}
                 {% else %}
@@ -1216,6 +1281,88 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
       activate(tab.getAttribute("data-doc-tab"));
+    });
+  });
+
+  document.querySelectorAll("[data-doc-upload]").forEach(function (form) {
+    const input = form.querySelector("[data-doc-file]");
+    const folderInput = form.querySelector("[data-doc-folder]");
+    const folderTrigger = form.querySelector("[data-doc-folder-trigger]");
+    const drop = form.querySelector("[data-doc-drop]");
+    const status = form.querySelector("[data-doc-file-status]");
+    if (!input || !drop || !status) return;
+    const relativePathName = input.name + "_relative_path";
+
+    function clearRelativePathInputs() {
+      form.querySelectorAll('input[data-doc-relative-path]').forEach(function (node) {
+        node.remove();
+      });
+    }
+
+    function appendRelativePath(value) {
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = relativePathName;
+      hidden.value = value || "";
+      hidden.setAttribute("data-doc-relative-path", "1");
+      form.appendChild(hidden);
+    }
+
+    function totalFiles() {
+      let count = input.files ? input.files.length : 0;
+      if (folderInput && folderInput.files) count += folderInput.files.length;
+      return count;
+    }
+
+    function updateStatus() {
+      const count = totalFiles();
+      if (count === 0) { status.textContent = "Nessun file selezionato."; return; }
+      if (count === 1) {
+        const single = (input.files && input.files.length) ? input.files[0] : folderInput.files[0];
+        status.textContent = single.name;
+        return;
+      }
+      status.textContent = count + " file selezionati.";
+    }
+
+    input.addEventListener("change", updateStatus);
+    if (folderInput) folderInput.addEventListener("change", updateStatus);
+    if (folderTrigger && folderInput) {
+      folderTrigger.addEventListener("click", function () { folderInput.click(); });
+    }
+    ["dragenter", "dragover"].forEach(function (eventName) {
+      drop.addEventListener(eventName, function (event) {
+        event.preventDefault();
+        drop.classList.add("is-dragging");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (eventName) {
+      drop.addEventListener(eventName, function () {
+        drop.classList.remove("is-dragging");
+      });
+    });
+    drop.addEventListener("drop", function (event) {
+      event.preventDefault();
+      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+        input.files = event.dataTransfer.files;
+        updateStatus();
+      }
+    });
+    form.addEventListener("submit", function (event) {
+      if (totalFiles() === 0) {
+        event.preventDefault();
+        status.textContent = "Seleziona almeno un file.";
+        return;
+      }
+      clearRelativePathInputs();
+      Array.from(input.files || []).forEach(function () {
+        appendRelativePath("");
+      });
+      if (folderInput) {
+        Array.from(folderInput.files || []).forEach(function (file) {
+          appendRelativePath(file.webkitRelativePath || file.name || "");
+        });
+      }
     });
   });
 

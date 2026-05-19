@@ -272,6 +272,28 @@ def _get_username(request) -> str:
     return ""
 
 
+def _can_manage_rentri(request) -> bool:
+    """SEC-PREPROD-02 (M3): gate scrittura registro RENTRI (dato a valenza legale).
+
+    Consentito a superuser e amministratori legacy; gli altri utenti con accesso
+    al modulo restano in sola lettura.
+    """
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = get_legacy_user(request.user)
+    return bool(legacy_user and is_legacy_admin(legacy_user))
+
+
+def _require_rentri_manager(request):
+    """Ritorna una JsonResponse 403 se l'utente non puo' gestire il registro, altrimenti None."""
+    if _can_manage_rentri(request):
+        return None
+    return JsonResponse(
+        {"ok": False, "error": "Permessi insufficienti per modificare il registro RENTRI."},
+        status=403,
+    )
+
+
 def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list[str]:
     """Populate registro fields from POST data dict; return list of error strings."""
     errors = []
@@ -356,6 +378,9 @@ def _handle_form(request, tipo: str, template: str):
         return render(request, template, {"tipo": tipo})
 
     # POST — expect JSON
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
     data = _parse_json_body(request)
     registro = RegistroRifiuti()
     registro.inserito_da = _get_username(request)
@@ -578,6 +603,9 @@ def modifica(request, pk: int):
         return render(request, template, {"registro": registro, "edit_mode": True})
 
     # POST or PATCH — accept JSON
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
     data = _parse_json_body(request)
     errors = _populate_registro(registro, data, registro.tipo)
 
@@ -596,6 +624,9 @@ def modifica(request, pk: int):
 @login_required
 @require_POST
 def elimina(request, pk: int):
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
     registro = get_object_or_404(RegistroRifiuti, pk=pk)
     sp_id = registro.sharepoint_item_id
     registro.delete()
@@ -741,6 +772,9 @@ def import_preview(request):
 @require_POST
 def import_confirm(request):
     """POST: importa effettivamente il CSV nel DB."""
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
     csv_file = request.FILES.get("csv_file")
     if not csv_file:
         return JsonResponse({"ok": False, "error": "Nessun file"}, status=400)
@@ -1019,6 +1053,9 @@ def export_pdf(request):
 @require_POST
 def api_sync_pull(request):
     """Pull all items from SharePoint and upsert locally."""
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
     if not _graph_configured():
         return JsonResponse({"ok": False, "error": "Configurazione Graph non disponibile."}, status=503)
 

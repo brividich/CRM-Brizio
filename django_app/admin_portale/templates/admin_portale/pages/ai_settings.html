@@ -1,0 +1,1081 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione AI | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+.ai-admin-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ai-admin-hero {
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef6ff 52%, #f3fbf7 100%);
+  padding: 18px;
+}
+.ai-admin-hero-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.ai-admin-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  color: #0f172a;
+}
+.ai-admin-subtitle {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.ai-admin-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ai-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.ai-kpi {
+  min-height: 72px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: rgba(255,255,255,.74);
+  padding: 12px;
+}
+.ai-kpi-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.ai-kpi-value {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+.ai-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr);
+  gap: 16px;
+  align-items: start;
+}
+.ai-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+  overflow: hidden;
+}
+.ai-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.ai-card-title {
+  font-weight: 900;
+  color: #0f172a;
+}
+.ai-card-subtitle {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+.ai-card-body {
+  padding: 16px;
+}
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  border: 1px solid #dbe4ef;
+  color: #475569;
+  background: #fff;
+  white-space: nowrap;
+}
+.ai-badge.ok {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+.ai-badge.warn {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+.ai-badge.blue {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+.ai-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.ai-form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+.ai-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ai-field-note {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 11px;
+}
+.ai-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-faq-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+.ai-faq-title {
+  font-weight: 900;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.ai-faq-answer {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ai-faq-meta {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ai-inline-form {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ai-compact-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.ai-compact-filter .input {
+  min-height: 36px;
+}
+.ai-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ai-tab {
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.ai-tab.active {
+  color: #0f172a;
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+.ai-tools-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, .75fr);
+  gap: 16px;
+  align-items: start;
+}
+.ai-table-wrap {
+  overflow-x: auto;
+}
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ai-table th,
+.ai-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.ai-table th {
+  color: #475569;
+  font-size: 11px;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+.ai-tool-result {
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 12px;
+  margin-top: 12px;
+}
+body.theme-dark .ai-admin-hero,
+body.theme-dark .ai-card,
+body.theme-dark .ai-faq-item,
+body.theme-dark .ai-kpi,
+body.theme-dark .ai-tab,
+body.theme-dark .ai-tool-result {
+  background: var(--surface);
+  border-color: var(--border);
+}
+body.theme-dark .ai-card-head {
+  background: var(--surface-alt);
+  border-color: var(--border);
+}
+body.theme-dark .ai-admin-title,
+body.theme-dark .ai-card-title,
+body.theme-dark .ai-kpi-value,
+body.theme-dark .ai-faq-title {
+  color: var(--text);
+}
+@media (max-width: 980px) {
+  .ai-grid,
+  .ai-tools-grid,
+  .ai-form-grid,
+  .ai-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="ai-admin-shell">
+  <div class="ai-admin-hero">
+    <div class="ai-admin-hero-row">
+      <div>
+        <h1 class="ai-admin-title">Gestione AI</h1>
+        <p class="ai-admin-subtitle">Console operativa per provider, knowledge base, FAQ curate e assistente interno.</p>
+      </div>
+      <div class="ai-admin-actions">
+        <a class="btn btn-secondary" href="{% url 'ai_assistant:chat' %}">Apri assistente</a>
+        <a class="btn btn-secondary" href="{% url 'admin_portale:ldap_diagnostica' %}">Config SRV</a>
+        <a class="btn btn-secondary" href="{% url 'admin_portale:ai_knowledge' %}">Vista FAQ</a>
+      </div>
+    </div>
+    <div class="ai-kpis">
+      <div class="ai-kpi">
+        <div class="ai-kpi-label">Provider</div>
+        <div class="ai-kpi-value">{{ ollama_cfg.provider|default:"ollama" }}</div>
+      </div>
+      <div class="ai-kpi">
+        <div class="ai-kpi-label">Modello</div>
+        <div class="ai-kpi-value">{{ ollama_cfg.model|default:"non configurato" }}</div>
+      </div>
+      <div class="ai-kpi">
+        <div class="ai-kpi-label">RAG</div>
+        <div class="ai-kpi-value">{% if ollama_cfg.rag_enabled %}abilitato{% else %}disabilitato{% endif %}</div>
+      </div>
+      <div class="ai-kpi">
+        <div class="ai-kpi-label">FAQ AI</div>
+        <div class="ai-kpi-value">{{ active_count }} / {{ total_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {% if result_ollama %}
+    <div class="notice{% if result_ollama.ok %} notice-success{% else %} notice-danger{% endif %}">
+      {{ result_ollama.message }}
+    </div>
+  {% endif %}
+
+  <nav class="ai-tabs" aria-label="Sezioni Gestione AI">
+    <a class="ai-tab{% if active_tab == 'runtime' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=runtime">Runtime</a>
+    <a class="ai-tab{% if active_tab == 'tools' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=tools">Tool live</a>
+    <a class="ai-tab{% if active_tab == 'faq' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=faq">FAQ</a>
+    <a class="ai-tab{% if active_tab == 'feedback' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=feedback">
+      Feedback{% if feedback_pending_count %} <span class="ai-badge warn">{{ feedback_pending_count }}</span>{% endif %}
+    </a>
+    <a class="ai-tab{% if active_tab == 'suggerimenti' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=suggerimenti">Suggerimenti FAQ</a>
+    <a class="ai-tab{% if active_tab == 'governance' %} active{% endif %}" href="{% url 'admin_portale:ai_settings' %}?tab=governance">Governance</a>
+  </nav>
+
+  <div class="ai-grid">
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Provider e Runtime</div>
+          <div class="ai-card-subtitle">Endpoint, modello e parametri di generazione.</div>
+        </div>
+        <span class="ai-badge{% if ollama_cfg.enabled %} ok{% else %} warn{% endif %}">
+          {% if ollama_cfg.enabled %}Attivo{% else %}Disabilitato{% endif %}
+        </span>
+      </div>
+      <div class="ai-card-body">
+        <form method="post" class="ai-form-grid">
+          {% csrf_token %}
+          <div class="field">
+            <label>Provider AI</label>
+            <select class="input" name="ollama_provider">
+              <option value="ollama" {% if ollama_cfg.provider == "ollama" %}selected{% endif %}>Ollama diretto</option>
+              <option value="openwebui" {% if ollama_cfg.provider == "openwebui" %}selected{% endif %}>Open WebUI</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>URL provider</label>
+            <input class="input" type="url" name="ollama_base_url" value="{{ ollama_cfg.base_url }}" placeholder="http://10.0.0.34:3000">
+          </div>
+          <div class="field">
+            <label>Modello</label>
+            <input class="input" type="text" name="ollama_model" value="{{ ollama_cfg.model }}" placeholder="llama3.1">
+          </div>
+          <div class="field">
+            <label>API key Open WebUI</label>
+            <input class="input" type="password" name="openwebui_api_key" value="" placeholder="{% if ollama_cfg.openwebui_api_key_configured %}gia configurata{% else %}sk-...{% endif %}" autocomplete="new-password">
+            <div class="ai-field-note">La key salvata non viene mostrata. Incolla una nuova key per sostituirla, soprattutto dopo un HTTP 401.</div>
+          </div>
+          <div class="field">
+            <label>Timeout (s)</label>
+            <input class="input" type="number" min="1" max="300" name="ollama_timeout" value="{{ ollama_cfg.timeout|default:60 }}">
+          </div>
+          <div class="field">
+            <label>Temperatura</label>
+            <input class="input" type="number" min="0" max="2" step="0.1" name="ollama_temperature" value="{{ ollama_cfg.temperature|default:'0.2' }}">
+          </div>
+          <div class="field">
+            <label>Max prompt</label>
+            <input class="input" type="number" min="500" max="20000" name="ollama_max_prompt_chars" value="{{ ollama_cfg.max_prompt_chars|default:4000 }}">
+          </div>
+          <div class="field">
+            <label>Max storico</label>
+            <input class="input" type="number" min="0" max="30" name="ollama_max_history_messages" value="{{ ollama_cfg.max_history_messages|default:10 }}">
+          </div>
+
+          <div class="field span-2" style="border-top:1px solid #e2e8f0;padding-top:12px;">
+            <label>Knowledge base RAG</label>
+            <input class="input" type="text" name="ollama_rag_source_paths" value="{{ ollama_cfg.rag_source_paths }}" placeholder="README.md,docs/ai">
+            <div class="ai-field-note">Percorsi repo separati da virgola. Sono esclusi env, log, database e aree private.</div>
+          </div>
+          <div class="field">
+            <label>Max chunk RAG</label>
+            <input class="input" type="number" min="1" max="10" name="ollama_rag_max_chunks" value="{{ ollama_cfg.rag_max_chunks|default:4 }}">
+          </div>
+          <div class="field">
+            <label>Max contesto RAG</label>
+            <input class="input" type="number" min="1000" max="20000" name="ollama_rag_max_context_chars" value="{{ ollama_cfg.rag_max_context_chars|default:5000 }}">
+          </div>
+          <div class="field">
+            <label>Cache RAG (s)</label>
+            <input class="input" type="number" min="0" max="3600" name="ollama_rag_cache_seconds" value="{{ ollama_cfg.rag_cache_seconds|default:300 }}">
+          </div>
+          <div class="field">
+            <label>Max FAQ indicizzate</label>
+            <input class="input" type="number" min="0" max="1000" name="ollama_rag_max_db_entries" value="{{ ollama_cfg.rag_max_db_entries|default:200 }}">
+          </div>
+          <div class="field span-2 field-checks">
+            <label class="checkline"><input type="checkbox" name="ollama_enabled" {% if ollama_cfg.enabled %}checked{% endif %}> Assistente AI abilitato</label>
+            <label class="checkline"><input type="checkbox" name="ollama_rag_enabled" {% if ollama_cfg.rag_enabled %}checked{% endif %}> RAG abilitato</label>
+          </div>
+          <div class="span-2 ai-form-actions">
+            <button class="btn btn-secondary" type="submit" name="action" value="test_ollama_config">Test connessione</button>
+            <button class="btn" type="submit" name="action" value="save_ollama_config">Salva configurazione</button>
+            <span class="cell-muted">Target: <code>{{ dotenv_target_label }}</code>. Riavvio richiesto per applicare.</span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <aside class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Stato Componenti</div>
+          <div class="ai-card-subtitle">Quadro rapido della configurazione corrente.</div>
+        </div>
+      </div>
+      <div class="ai-card-body">
+        <div class="ai-mini-list">
+          <div class="ai-faq-item">
+            <div class="ai-faq-meta" style="margin-top:0;">
+              <strong>Chat</strong>
+              <span class="ai-badge{% if ollama_cfg.enabled %} ok{% else %} warn{% endif %}">{% if ollama_cfg.enabled %}abilitata{% else %}off{% endif %}</span>
+            </div>
+            <div class="ai-faq-answer">{{ ollama_cfg.base_url|default:"URL non configurato" }}</div>
+          </div>
+          <div class="ai-faq-item">
+            <div class="ai-faq-meta" style="margin-top:0;">
+              <strong>Provider</strong>
+              <span class="ai-badge blue">{{ ollama_cfg.provider|default:"ollama" }}</span>
+            </div>
+            <div class="ai-faq-answer">Modello <code>{{ ollama_cfg.model|default:"non configurato" }}</code></div>
+          </div>
+          <div class="ai-faq-item">
+            <div class="ai-faq-meta" style="margin-top:0;">
+              <strong>RAG documentale</strong>
+              <span class="ai-badge{% if ollama_cfg.rag_enabled %} ok{% else %} warn{% endif %}">{% if ollama_cfg.rag_enabled %}attivo{% else %}off{% endif %}</span>
+            </div>
+            <div class="ai-faq-answer"><code>{{ ollama_cfg.rag_source_paths|default:"nessun percorso" }}</code></div>
+          </div>
+          <div class="ai-faq-item">
+            <div class="ai-faq-meta" style="margin-top:0;">
+              <strong>Open WebUI key</strong>
+              <span class="ai-badge{% if ollama_cfg.openwebui_api_key_configured %} ok{% else %} warn{% endif %}">{% if ollama_cfg.openwebui_api_key_configured %}presente{% else %}assente{% endif %}</span>
+            </div>
+            <div class="ai-faq-answer">Richiesta solo con provider Open WebUI.</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="ai-card" id="tool-live">
+    <div class="ai-card-head">
+      <div>
+        <div class="ai-card-title">Tool live</div>
+        <div class="ai-card-subtitle">Stato runtime per dominio, test metadata-only e audit operativo.</div>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="tab" value="tools">
+        <button class="btn btn-secondary btn-sm" type="submit" name="action" value="clear_ai_runtime_cache">Svuota cache RAG/runtime</button>
+      </form>
+    </div>
+    <div class="ai-card-body">
+      <div class="ai-tools-grid">
+        <div>
+          <div class="ai-table-wrap">
+            <table class="ai-table">
+              <thead>
+                <tr>
+                  <th>Dominio</th>
+                  <th>Tool</th>
+                  <th>Stato</th>
+                  <th>Utilizzo {{ runtime_audit_filters.days }}g</th>
+                  <th>Privacy</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for tool in runtime_catalog %}
+                  <tr>
+                    <td>{{ tool.domain }}</td>
+                    <td>
+                      <strong>{{ tool.label }}</strong><br>
+                      <code>{{ tool.audit_tool }}</code><br>
+                      <span class="cell-muted">{{ tool.source_prefix }}</span>
+                    </td>
+                    <td>
+                      <span class="ai-badge{% if tool.enabled %} ok{% else %} warn{% endif %}">{{ tool.status_label }}</span>
+                    </td>
+                    <td>
+                      {{ tool.calls }} chiamate<br>
+                      {{ tool.errors }} errori / {{ tool.denied }} negati<br>
+                      {{ tool.avg_elapsed_ms }} ms medi, {{ tool.avg_context_chars }} char contesto
+                    </td>
+                    <td>{{ tool.privacy_note }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="cell-muted">Nessun tool runtime registrato.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside>
+          <form method="post" class="ai-form-grid">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="test_ai_runtime_tool">
+            <input type="hidden" name="tab" value="tools">
+            <div class="field span-2">
+              <label>Tool atteso</label>
+              <select class="input" name="runtime_tool_key">
+                {% for tool in runtime_catalog %}
+                  <option value="{{ tool.key }}">{{ tool.label }} - {{ tool.status_label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field span-2">
+              <label>Utente simulato</label>
+              <select class="input" name="runtime_simulated_user">
+                <option value="">Admin corrente</option>
+                {% for sim_user in runtime_simulated_users %}
+                  <option value="{{ sim_user.pk }}">{{ sim_user.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field span-2">
+              <label>Prompt test</label>
+              <input class="input" type="text" name="runtime_test_prompt" maxlength="500" placeholder="Lascia vuoto per usare il prompt campione del tool">
+              <div class="ai-field-note">Il risultato mostra solo metadati: fonti, tool attivati, conteggi e dimensione contesto.</div>
+            </div>
+            <div class="span-2 ai-form-actions">
+              <button class="btn" type="submit">Esegui test metadata-only</button>
+            </div>
+          </form>
+
+          {% if runtime_test_result %}
+            <div class="ai-tool-result">
+              {% if runtime_test_result.ok %}
+                <strong>{{ runtime_test_result.tool_label }}</strong> testato per {{ runtime_test_result.simulated_user_label }} in {{ runtime_test_result.elapsed_ms }} ms.
+                <div class="ai-field-note">{{ runtime_test_result.runtime_context_chars }} char, {{ runtime_test_result.runtime_context_lines }} righe, {{ runtime_test_result.source_count }} fonti. Contenuto runtime non mostrato.</div>
+                <div style="margin-top:8px;">
+                  {% for source in runtime_test_result.sources %}
+                    <span class="ai-badge blue">{{ source }}</span>
+                  {% empty %}
+                    <span class="cell-muted">Nessuna fonte attivata.</span>
+                  {% endfor %}
+                </div>
+                <div class="ai-mini-list" style="margin-top:10px;">
+                  {% for item in runtime_test_result.tools %}
+                    <div class="ai-faq-item">
+                      <div class="ai-faq-meta" style="margin-top:0;">
+                        <strong>{{ item.tool }}</strong>
+                        <span class="ai-badge{% if item.allowed %} ok{% else %} warn{% endif %}">{% if item.allowed %}allowed{% else %}denied{% endif %}</span>
+                      </div>
+                      <div class="ai-faq-answer">Scope: {{ item.scope|default:"-" }} | Righe: {{ item.row_count|default:"-" }} | Reason: {{ item.reason|default:"-" }}</div>
+                    </div>
+                  {% empty %}
+                    <div class="cell-muted">Nessun tool attivato dal prompt.</div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <strong>Test non eseguito</strong>
+                <div class="ai-field-note">{{ runtime_test_result.error }}</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        </aside>
+      </div>
+
+      <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:16px;">
+        <form method="get" class="ai-compact-filter">
+          <input type="hidden" name="tab" value="tools">
+          <div>
+            <label>Tool audit</label>
+            <select class="input" name="runtime_tool">
+              <option value="">Tutti</option>
+              {% for audit_tool in runtime_audit_filters.tool_options %}
+                <option value="{{ audit_tool }}" {% if runtime_audit_filters.tool == audit_tool %}selected{% endif %}>{{ audit_tool }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Esito</label>
+            <select class="input" name="runtime_outcome">
+              <option value="" {% if runtime_audit_filters.outcome == "" %}selected{% endif %}>Tutti</option>
+              <option value="allowed" {% if runtime_audit_filters.outcome == "allowed" %}selected{% endif %}>allowed</option>
+              <option value="denied" {% if runtime_audit_filters.outcome == "denied" %}selected{% endif %}>denied</option>
+              <option value="error" {% if runtime_audit_filters.outcome == "error" %}selected{% endif %}>error</option>
+              <option value="metadata" {% if runtime_audit_filters.outcome == "metadata" %}selected{% endif %}>metadata</option>
+            </select>
+          </div>
+          <div>
+            <label>Periodo</label>
+            <input class="input" type="number" min="1" max="365" name="runtime_days" value="{{ runtime_audit_filters.days }}">
+          </div>
+          <button class="btn btn-secondary" type="submit">Filtra audit</button>
+        </form>
+        <div class="ai-table-wrap">
+          <table class="ai-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Utente</th>
+                <th>Azione</th>
+                <th>Tool</th>
+                <th>Esito</th>
+                <th>Indicatori</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in runtime_audit_rows %}
+                <tr>
+                  <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
+                  <td>{{ row.utente_display }}</td>
+                  <td><code>{{ row.azione }}</code></td>
+                  <td>{{ row.tools|join:", " }}</td>
+                  <td><span class="ai-badge{% if row.outcome == 'allowed' %} ok{% elif row.outcome == 'error' %} warn{% else %} blue{% endif %}">{{ row.outcome }}</span></td>
+                  <td>{{ row.elapsed_ms }} ms | {{ row.runtime_context_chars }} char | {{ row.runtime_sources_count }} fonti | prompt {{ row.prompt_chars }} char</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="cell-muted">Nessun audit AI nel periodo selezionato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ai-grid">
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">{% if edit_entry %}Modifica FAQ AI{% else %}Nuova FAQ AI{% endif %}</div>
+          <div class="ai-card-subtitle">Conoscenza approvata e indicizzata dal RAG.</div>
+        </div>
+        <span class="ai-badge blue">{{ active_count }} attive</span>
+      </div>
+      <div class="ai-card-body">
+        <form method="post" class="ai-form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_knowledge">
+          {% if edit_entry %}<input type="hidden" name="entry_id" value="{{ edit_entry.id }}">{% endif %}
+          <div class="field">
+            <label>Domanda</label>
+            <input class="input" type="text" name="question" maxlength="500" value="{{ edit_entry.question|default:'' }}" placeholder="Domanda ricorrente">
+          </div>
+          <div class="field">
+            <label>Fonte / categoria</label>
+            <input class="input" type="text" name="source_label" maxlength="120" value="{{ edit_entry.source_label|default:'FAQ Portale' }}">
+          </div>
+          <div class="field span-2">
+            <label>Risposta approvata</label>
+            <textarea class="input" name="answer" rows="7" maxlength="6000" placeholder="Risposta verificata da rendere disponibile all'assistente.">{{ edit_entry.answer|default:'' }}</textarea>
+          </div>
+          <div class="field span-2 field-checks">
+            <label class="checkline"><input type="checkbox" name="is_active" {% if not edit_entry or edit_entry.is_active %}checked{% endif %}> Indicizza nel RAG</label>
+          </div>
+          <div class="span-2 ai-form-actions">
+            <button class="btn" type="submit">Salva FAQ AI</button>
+            {% if edit_entry %}<a class="btn btn-secondary" href="{% url 'admin_portale:ai_settings' %}">Nuova FAQ</a>{% endif %}
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">FAQ Curate</div>
+          <div class="ai-card-subtitle">{{ page_obj.paginator.count }} risultati nella base curata.</div>
+        </div>
+      </div>
+      <div class="ai-card-body">
+        <form method="get" class="ai-compact-filter">
+          <div>
+            <label>Cerca</label>
+            <input class="input" type="text" name="q" value="{{ q }}" placeholder="testo">
+          </div>
+          <div>
+            <label>Stato</label>
+            <select class="input" name="active">
+              <option value="" {% if active == "" %}selected{% endif %}>Tutte</option>
+              <option value="1" {% if active == "1" %}selected{% endif %}>Attive</option>
+              <option value="0" {% if active == "0" %}selected{% endif %}>Disattivate</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" type="submit">Filtra</button>
+        </form>
+        <div class="ai-mini-list">
+          {% for entry in page_obj %}
+            <div class="ai-faq-item">
+              <div class="ai-faq-title">{{ entry.question }}</div>
+              <div class="ai-faq-answer">{{ entry.answer|truncatechars:190 }}</div>
+              <div class="ai-faq-meta">
+                <span>
+                  <code>{{ entry.source_label }}</code>
+                  {% if entry.is_active %}
+                    <span class="ai-badge ok">attiva</span>
+                  {% else %}
+                    <span class="ai-badge warn">off</span>
+                  {% endif %}
+                </span>
+                <div class="ai-inline-form">
+                  <a class="btn btn-secondary btn-sm" href="?edit={{ entry.id }}">Modifica</a>
+                  <form method="post" class="ai-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="entry_id" value="{{ entry.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="toggle_knowledge">{% if entry.is_active %}Disattiva{% else %}Attiva{% endif %}</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="delete_knowledge" onclick="return confirm('Eliminare questa FAQ AI?');">Elimina</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="cell-muted">Nessuna FAQ AI trovata.</div>
+          {% endfor %}
+        </div>
+        {% if page_obj.has_other_pages %}
+          <div class="ai-form-actions" style="justify-content:center;margin-top:12px;">
+            {% if page_obj.has_previous %}
+              <a class="btn btn-secondary" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&active={{ active }}">Prec</a>
+            {% endif %}
+            <span class="cell-muted">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+              <a class="btn btn-secondary" href="?page={{ page_obj.next_page_number }}&q={{ q }}&active={{ active }}">Succ</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  {% if active_tab == 'feedback' %}
+  <section class="ai-card">
+    <div class="ai-card-head">
+      <div>
+        <div class="ai-card-title">Feedback chat AI</div>
+        <div class="ai-card-subtitle">Valutazioni degli utenti sulle risposte dell&rsquo;assistente. Le correzioni con rating negativo generano una FAQ bozza da approvare.</div>
+      </div>
+      <span class="ai-badge{% if feedback_pending_count %} warn{% endif %}">{{ feedback_pending_count }} da revisionare</span>
+    </div>
+    <div class="ai-card-body">
+      <form method="get" class="ai-compact-filter">
+        <input type="hidden" name="tab" value="feedback">
+        <div>
+          <label>Filtro</label>
+          <select class="input" name="feedback_filter">
+            <option value="pending" {% if feedback_filter == 'pending' %}selected{% endif %}>Da revisionare</option>
+            <option value="all" {% if feedback_filter == 'all' %}selected{% endif %}>Tutti</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="submit">Filtra</button>
+      </form>
+      <div class="ai-table-wrap">
+        <table class="ai-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Utente</th>
+              <th>Prompt</th>
+              <th>Rating</th>
+              <th>Correzione proposta</th>
+              <th>Stato</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for fb in feedback_page_obj %}
+              <tr>
+                <td style="white-space:nowrap;">{{ fb.created_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ fb.user.username|default:"—" }}</td>
+                <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ fb.prompt }}">{{ fb.prompt|truncatechars:100 }}</td>
+                <td>
+                  {% if fb.rating == 'up' %}
+                    <span class="ai-badge ok">👍 Positivo</span>
+                  {% else %}
+                    <span class="ai-badge warn">👎 Negativo</span>
+                  {% endif %}
+                </td>
+                <td style="max-width:240px;">
+                  {% if fb.correction %}
+                    <span style="font-size:12px;color:#334155;">{{ fb.correction|truncatechars:120 }}</span>
+                    {% if fb.knowledge_entry %}
+                      <br><span class="ai-badge{% if fb.knowledge_entry.is_active %} ok{% endif %}">
+                        FAQ #{{ fb.knowledge_entry.id }} {% if fb.knowledge_entry.is_active %}attiva{% else %}bozza{% endif %}
+                      </span>
+                    {% endif %}
+                  {% else %}
+                    <span class="cell-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if fb.is_reviewed %}
+                    <span class="ai-badge ok">Revisionato</span>
+                  {% else %}
+                    <span class="ai-badge">Pendente</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if not fb.is_reviewed %}
+                    <div class="ai-inline-form">
+                      {% if fb.knowledge_entry and not fb.knowledge_entry.is_active %}
+                        <form method="post" action="{% url 'admin_portale:ai_feedback_approva' fb.id %}" class="ai-inline-form">
+                          {% csrf_token %}
+                          <button class="btn btn-sm" type="submit" title="Attiva la FAQ bozza collegata">Approva</button>
+                        </form>
+                      {% endif %}
+                      <form method="post" action="{% url 'admin_portale:ai_feedback_scarta' fb.id %}" class="ai-inline-form">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary btn-sm" type="submit">Scarta</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    <span class="cell-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="cell-muted">Nessun feedback trovato.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if feedback_page_obj.has_other_pages %}
+        <div class="ai-form-actions" style="justify-content:center;margin-top:12px;">
+          {% if feedback_page_obj.has_previous %}
+            <a class="btn btn-secondary" href="?tab=feedback&feedback_filter={{ feedback_filter }}&feedback_page={{ feedback_page_obj.previous_page_number }}">Prec</a>
+          {% endif %}
+          <span class="cell-muted">{{ feedback_page_obj.number }} / {{ feedback_page_obj.paginator.num_pages }}</span>
+          {% if feedback_page_obj.has_next %}
+            <a class="btn btn-secondary" href="?tab=feedback&feedback_filter={{ feedback_filter }}&feedback_page={{ feedback_page_obj.next_page_number }}">Succ</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'suggerimenti' %}
+  <section class="ai-card">
+    <div class="ai-card-head">
+      <div>
+        <div class="ai-card-title">Suggerimenti FAQ</div>
+        <div class="ai-card-subtitle">Analisi statistica degli ultimi 30 giorni e correzioni pendenti ad alta priorità.</div>
+      </div>
+    </div>
+    <div class="ai-card-body">
+      <div class="ai-mini-list">
+        <div class="ai-faq-item" style="background:#fffbeb;border-color:#fde68a;">
+          <div class="ai-faq-title" style="color:#92400e;">Sessioni senza dati contestuali</div>
+          <div class="ai-faq-answer">
+            Negli ultimi 30 giorni ci sono state <strong>{{ no_data_sessions }}</strong> sessioni su <strong>{{ total_chat_sessions }}</strong> totali senza alcun dato disponibile
+            (nessun tool live, nessun RAG attivo).
+            {% if no_data_sessions > 0 %}
+              Considera di aggiungere FAQ curate per coprire le domande più frequenti senza risposta.
+            {% endif %}
+          </div>
+        </div>
+        <div class="ai-faq-item">
+          <div class="ai-faq-title">Distribuzione prompt per lunghezza (ultimi 30 giorni)</div>
+          <div class="ai-faq-answer">
+            <strong>Corti (&lt; 50 char):</strong> {{ prompt_short }} &mdash;
+            <strong>Medi (50&ndash;200 char):</strong> {{ prompt_medium }} &mdash;
+            <strong>Lunghi (&gt; 200 char):</strong> {{ prompt_long }}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;">
+        <div class="ai-card-title" style="margin-bottom:10px;">Correzioni pendenti ad alta priorità</div>
+        {% if pending_corrections %}
+          <div class="ai-mini-list">
+            {% for fb in pending_corrections %}
+              <div class="ai-faq-item">
+                <div class="ai-faq-title">{{ fb.prompt|truncatechars:120 }}</div>
+                <div class="ai-faq-answer">
+                  <strong>Correzione proposta:</strong><br>{{ fb.correction|truncatechars:300 }}
+                </div>
+                <div class="ai-faq-meta">
+                  <span class="cell-muted">{{ fb.user.username|default:"anonimo" }} &middot; {{ fb.created_at|date:"d/m/Y" }}</span>
+                  {% if fb.knowledge_entry and not fb.knowledge_entry.is_active %}
+                    <div class="ai-inline-form">
+                      <form method="post" action="{% url 'admin_portale:ai_feedback_approva' fb.id %}" class="ai-inline-form">
+                        {% csrf_token %}
+                        <button class="btn btn-sm" type="submit">Approva e attiva FAQ</button>
+                      </form>
+                      <form method="post" action="{% url 'admin_portale:ai_feedback_scarta' fb.id %}" class="ai-inline-form">
+                        {% csrf_token %}
+                        <button class="btn btn-secondary btn-sm" type="submit">Scarta</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    <a class="btn btn-sm" href="{% url 'admin_portale:ai_settings' %}?tab=faq&q={{ fb.prompt|urlencode }}">Crea FAQ manuale</a>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="cell-muted">Nessuna correzione pendente. Ottimo lavoro!</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'governance' %}
+  <div class="ai-grid" style="grid-template-columns:1fr;">
+
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Revisione Privacy Tool AI</div>
+          <div class="ai-card-subtitle">Stato approvazione per ogni tool runtime. Le note non vengono trasmesse al modello.</div>
+        </div>
+        <a class="ai-badge blue" href="{{ governance_doc_url }}" target="_blank" rel="noopener">docs/ai/13_AI_GOVERNANCE.md</a>
+      </div>
+      <div class="ai-card-body">
+        {% if governance_result %}
+          <div class="notice{% if governance_result.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-bottom:12px;">{{ governance_result.message }}</div>
+        {% endif %}
+        <div class="ai-table-wrap">
+          <table class="ai-table">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Dominio</th>
+                <th>Stato privacy</th>
+                <th>Campi ammessi</th>
+                <th>Campi vietati</th>
+                <th>Retention (gg)</th>
+                <th>Revisore</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in governance_rows %}
+                <tr>
+                  <td><strong>{{ row.spec.label }}</strong><br><code style="font-size:10px;">{{ row.spec.key }}</code></td>
+                  <td>{{ row.spec.domain }}</td>
+                  <td>
+                    {% if row.review %}
+                      {% if row.review.privacy_status == 'approved' %}
+                        <span class="ai-badge ok">Approvato</span>
+                      {% elif row.review.privacy_status == 'restricted' %}
+                        <span class="ai-badge warn">Limitato</span>
+                      {% elif row.review.privacy_status == 'blocked' %}
+                        <span class="ai-badge" style="color:#7f1d1d;background:#fee2e2;border-color:#fca5a5;">Bloccato</span>
+                      {% else %}
+                        <span class="ai-badge">Da revisionare</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="ai-badge">Da revisionare</span>
+                    {% endif %}
+                  </td>
+                  <td style="font-size:11px;max-width:180px;word-break:break-word;">
+                    {% if row.review and row.review.allowed_fields %}{{ row.review.allowed_fields }}{% else %}<span class="cell-muted">—</span>{% endif %}
+                  </td>
+                  <td style="font-size:11px;max-width:180px;word-break:break-word;">
+                    {% if row.review and row.review.blocked_fields %}{{ row.review.blocked_fields }}{% else %}<span class="cell-muted">—</span>{% endif %}
+                  </td>
+                  <td>
+                    {% if row.review and row.review.retention_days %}{{ row.review.retention_days }}{% else %}<span class="cell-muted">globale</span>{% endif %}
+                  </td>
+                  <td style="font-size:11px;">
+                    {% if row.review and row.review.reviewed_by %}
+                      {{ row.review.reviewed_by.username }}<br>{{ row.review.reviewed_at|date:"d/m/Y" }}
+                    {% else %}
+                      <span class="cell-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a class="btn btn-secondary btn-sm" href="?tab=governance&edit_review={{ row.spec.key }}">Revisiona</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8" class="cell-muted">Nessun tool nel catalogo.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    {% if governance_edit_key %}
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Revisiona: {{ governance_edit_key }}</div>
+          <div class="ai-card-subtitle">Compila la revisione privacy per questo tool. Le note non vengono trasmesse al modello AI.</div>
+        </div>
+      </div>
+      <div class="ai-card-body">
+        <form method="post" class="ai-form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_governance_review">
+          <input type="hidden" name="tab" value="governance">
+          <input type="hidden" name="tool_key" value="{{ governance_edit_key }}">
+
+          <div class="field">
+            <label>Stato revisione privacy</label>
+            <select class="input" name="privacy_status">
+              <option value="pending" {% if not governance_edit_review or governance_edit_review.privacy_status == 'pending' %}selected{% endif %}>Da revisionare</option>
+              <option value="approved" {% if governance_edit_review and governance_edit_review.privacy_status == 'approved' %}selected{% endif %}>Approvato</option>
+              <option value="restricted" {% if governance_edit_review and governance_edit_review.privacy_status == 'restricted' %}selected{% endif %}>Uso limitato</option>
+              <option value="blocked" {% if governance_edit_review and governance_edit_review.privacy_status == 'blocked' %}selected{% endif %}>Bloccato</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Retention (giorni)</label>
+            <input class="input" type="number" name="retention_days" min="1" max="3650"
+              value="{{ governance_edit_review.retention_days|default:'' }}"
+              placeholder="vuoto = policy globale (90 gg)">
+          </div>
+
+          <div class="field span-2">
+            <label>Campi ammessi nel contesto AI</label>
+            <input class="input" type="text" name="allowed_fields" maxlength="1000"
+              value="{{ governance_edit_review.allowed_fields|default:'' }}"
+              placeholder="es. nome, tipo_assenza, stato, periodo">
+            <div class="ai-field-note">Separati da virgola. Questi campi possono comparire nel contesto inviato al modello.</div>
+          </div>
+
+          <div class="field span-2">
+            <label>Campi vietati</label>
+            <input class="input" type="text" name="blocked_fields" maxlength="1000"
+              value="{{ governance_edit_review.blocked_fields|default:'' }}"
+              placeholder="es. note, allegati, dati_sanitari">
+            <div class="ai-field-note">Separati da virgola. Non devono mai comparire nel contesto AI.</div>
+          </div>
+
+          <div class="field span-2">
+            <label>Note di revisione (interne, non trasmesse al modello)</label>
+            <textarea class="input" name="notes" rows="4" maxlength="2000"
+              placeholder="Motivazione della decisione, eventuali restrizioni attive, data prossima revisione.">{{ governance_edit_review.notes|default:'' }}</textarea>
+          </div>
+
+          <div class="span-2 ai-form-actions">
+            <button class="btn" type="submit">Salva revisione</button>
+            <a class="btn btn-secondary" href="?tab=governance">Annulla</a>
+          </div>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="ai-card">
+      <div class="ai-card-head">
+        <div>
+          <div class="ai-card-title">Policy di Retention Audit AI</div>
+          <div class="ai-card-subtitle">Riepilogo policy attive. La retention effettiva per tool si configura nella tabella sopra.</div>
+        </div>
+      </div>
+      <div class="ai-card-body">
+        <div class="ai-mini-list" style="gap:8px;">
+          <div><strong>Audit tool runtime</strong> — retention default <strong>90 giorni</strong>. Solo metadati: tool, esito, ambito, conteggi, filtri, errore sintetico. Nessun dato di prompt o risposta.</div>
+          <div><strong>FAQ curate</strong> — voci disattivate conservate per auditability. Eliminazione fisica solo su richiesta esplicita.</div>
+          <div><strong>Conversazioni chat</strong> — nessun salvataggio in database. Cronologia solo in-memory per sessione.</div>
+          <div><strong>Note di revisione privacy</strong> — salvate in database, non trasmesse al modello AI, visibili solo agli amministratori.</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

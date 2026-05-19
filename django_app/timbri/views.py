@@ -5,7 +5,7 @@ import io
 import logging
 import os
 import re
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 from datetime import datetime
 from pathlib import Path
 
@@ -46,6 +46,27 @@ _TIMBRI_REQUIRED_TABLES = {
     "timbri_timbriimportissue",
 }
 _GUID_RE = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
+
+# SEC-PREPROD-02 (M2): host attendibili a cui è consentito inviare il bearer
+# token Graph quando si scaricano immagini referenziate dalla lista SharePoint.
+_GRAPH_TRUSTED_HOSTS = {"graph.microsoft.com"}
+_GRAPH_TRUSTED_HOST_SUFFIXES = (".graph.microsoft.com", ".sharepoint.com")
+
+
+def _is_graph_trusted_host(url: str) -> bool:
+    """True solo se l'URL punta a un host Microsoft Graph/SharePoint via http(s)."""
+    try:
+        parsed = urlparse(str(url or ""))
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return False
+    if host in _GRAPH_TRUSTED_HOSTS:
+        return True
+    return any(host.endswith(suffix) for suffix in _GRAPH_TRUSTED_HOST_SUFFIXES)
 
 TIMBRI_CONFIG_FIELDS = [
     ("list_id", "List ID SharePoint", "GUID della lista SharePoint 'Registro timbri'."),
@@ -650,6 +671,10 @@ def _extract_image_url(value) -> str:
 def _download_image(url: str) -> bytes:
     if not url:
         raise RuntimeError("URL immagine mancante")
+    # SEC-PREPROD-02 (M2): non inviare mai il token Graph — né scaricare
+    # contenuti — verso host fuori dall'allowlist Microsoft Graph/SharePoint.
+    if not _is_graph_trusted_host(url):
+        raise RuntimeError("URL immagine non attendibile: host non in allowlist Graph/SharePoint.")
     token = None
     try:
         token = _graph_token()

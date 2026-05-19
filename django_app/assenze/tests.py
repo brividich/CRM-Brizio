@@ -922,6 +922,53 @@ class GestioneAssenzeDeleteApiTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeCarConsensoTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser(
+            username="assenze-car-user",
+            email="assenze-car@example.com",
+            password="pass12345",
+        )
+        self.client.force_login(self.user)
+
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._has_assenze_column", return_value=True)
+    @patch("assenze.views._update_assenza", return_value=True)
+    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._assenze_permissions", return_value={"can_update_any": True, "can_update_owned": False})
+    def test_car_approval_stores_approval_datetime(
+        self,
+        _mock_perms,
+        mock_get_assenza,
+        mock_update,
+        _mock_has_column,
+        _mock_graph_configured,
+    ):
+        mock_get_assenza.return_value = {
+            "id": 42,
+            "email_esterna": "",
+            "consenso": "In attesa",
+            "moderation_status": 2,
+        }
+
+        before = timezone.now()
+        response = self.client.post(
+            reverse("assenze_api_car_consenso", args=[42]),
+            content_type="application/json",
+            data='{"consenso":"Approvato"}',
+        )
+        after = timezone.now()
+
+        self.assertEqual(response.status_code, 200)
+        updates = mock_update.call_args.args[1]
+        self.assertEqual(updates["consenso"], "Approvato")
+        self.assertEqual(updates["moderation_status"], 0)
+        self.assertIn("approvazione_datetime", updates)
+        self.assertGreaterEqual(updates["approvazione_datetime"], before)
+        self.assertLessEqual(updates["approvazione_datetime"], after)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class MiaAssenzaUpdateTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="assenze-update-user", password="pass12345")

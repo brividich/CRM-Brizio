@@ -23,6 +23,23 @@ CSRF_TRUSTED_ORIGINS = env_list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     ["https://app.example.local"],
 )
+
+# ── Guard CSRF_TRUSTED_ORIGINS ─────────────────────────────────────────────────
+# Blocca l'avvio se CSRF_TRUSTED_ORIGINS è vuoto o contiene ancora il valore
+# placeholder di default: in produzione le POST cross-origin dal dominio reale
+# verrebbero rifiutate e il placeholder non rappresenta un origin attendibile.
+_CSRF_PLACEHOLDER_HOSTS = ("app.example.local", "example.local")
+if not CSRF_TRUSTED_ORIGINS or any(
+    placeholder in str(origin).lower()
+    for origin in CSRF_TRUSTED_ORIGINS
+    for placeholder in _CSRF_PLACEHOLDER_HOSTS
+):
+    raise ImproperlyConfigured(
+        "DJANGO_CSRF_TRUSTED_ORIGINS non impostata o ancora sul valore placeholder. "
+        "Impostare il dominio reale del server, es. "
+        'DJANGO_CSRF_TRUSTED_ORIGINS="https://cnhub-costruzioninovicrom.msappproxy.net" '
+        "nel file .env."
+    )
 DATABASES = {"default": build_database_from_env("sqlserver")}
 
 # ── Cache condivisa tra worker ─────────────────────────────────────────────────
@@ -67,3 +84,9 @@ CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", SECURE_SSL_REDIRECT)
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = "Lax"
+
+# Header di sicurezza HTTP aggiuntivi
+# - nosniff: impedisce il MIME-sniffing del browser sugli allegati serviti dal portale
+# - referrer-policy: evita di esporre URL interni a destinazioni esterne
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"

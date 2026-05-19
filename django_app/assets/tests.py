@@ -40,6 +40,7 @@ from .forms import (
     MaintenanceRuleForm,
 )
 from .maintenance import build_day_based_maintenance_schedule_rows, resolve_asset_maintenance_rules
+from .services.asset_catalog_import import AssetCatalogImporter
 from .models import (
     Asset,
     AssetActionButton,
@@ -979,6 +980,7 @@ class AssetsRoutingTests(TestCase):
                             "documents_specs_payload": json.dumps([]),
                             "documents_manuals_payload": json.dumps([]),
                             "documents_interventions_payload": json.dumps([]),
+                            "asset_document_storage": "local",
                             "upload_manuals_files": manual_file,
                         },
                     )
@@ -997,6 +999,139 @@ class AssetsRoutingTests(TestCase):
                 self.assertEqual(download.status_code, 200)
                 self.assertEqual(download["Content-Type"], "application/pdf")
                 self.assertEqual(b"".join(download.streaming_content), b"%PDF-1.4 test")
+
+    def test_asset_detail_upload_can_target_local_archive(self):
+        self.client.force_login(self.user)
+        asset = Asset.objects.create(
+            name="Centro upload dettaglio",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            status=Asset.STATUS_IN_USE,
+        )
+        WorkMachine.objects.create(asset=asset, source_key="detail-local-upload")
+        with _workspace_temporary_directory("assets-detail-upload-") as tmpdir:
+            specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                    with patch("assets.views._upload_asset_document_to_sharepoint") as upload_to_sharepoint:
+                        response = self.client.post(
+                            reverse("assets:asset_view", args=[asset.id]),
+                            {
+                                "action": "upload_asset_documents",
+                                "asset_document_storage": "local",
+                                "upload_specs_files": specs_file,
+                            },
+                        )
+        self.assertEqual(response.status_code, 302)
+        document = AssetDocument.objects.get(asset=asset, category=AssetDocument.CATEGORY_SPECIFICHE)
+        self.assertEqual(document.original_name, "specifica.pdf")
+        self.assertEqual(document.sharepoint_url, "")
+        self.assertEqual(document.sharepoint_path, "")
+        upload_to_sharepoint.assert_not_called()
+
+    def test_asset_detail_document_card_exposes_storage_choice(self):
+        self.client.force_login(self.user)
+        asset = Asset.objects.create(
+            name="Centro scelta archivio",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            status=Asset.STATUS_IN_USE,
+        )
+        WorkMachine.objects.create(asset=asset, source_key="detail-storage-choice")
+
+        response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="asset_document_storage"')
+        self.assertContains(response, 'value="local"')
+        self.assertContains(response, 'value="sharepoint"')
+
+    def test_asset_detail_folder_upload_keeps_sharepoint_relative_path(self):
+        self.client.force_login(self.user)
+        asset = Asset.objects.create(
+            name="Centro upload cartella",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            status=Asset.STATUS_IN_USE,
+            sharepoint_folder_path="ASSET CN/ML-FOLDER",
+        )
+        WorkMachine.objects.create(asset=asset, source_key="detail-folder-upload")
+        with _workspace_temporary_directory("assets-detail-folder-upload-") as tmpdir:
+            specs_file = SimpleUploadedFile("specifica.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+
+            def fake_sharepoint_upload(_asset, document):
+                self.assertEqual(
+                    getattr(document, "_sharepoint_relative_path", ""),
+                    "Cartella originale/Sub cartella/specifica.pdf",
+                )
+                document.sharepoint_path = (
+                    "ASSET CN/ML-FOLDER/specifiche/Cartella originale/Sub cartella/specifica.pdf"
+                )
+                document.save(update_fields=["sharepoint_path"])
+                return ""
+
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                    with patch("assets.views._ensure_asset_sharepoint_folder", return_value=[]):
+                        with patch("assets.views._upload_asset_document_to_sharepoint", side_effect=fake_sharepoint_upload):
+                            response = self.client.post(
+                                reverse("assets:asset_view", args=[asset.id]),
+                                {
+                                    "action": "upload_asset_documents",
+                                    "asset_document_storage": "sharepoint",
+                                    "upload_specs_files": specs_file,
+                                    "upload_specs_files_relative_path": "Cartella originale/Sub cartella/specifica.pdf",
+                                },
+                            )
+
+        self.assertEqual(response.status_code, 302)
+        document = AssetDocument.objects.get(asset=asset, category=AssetDocument.CATEGORY_SPECIFICHE)
+        self.assertEqual(document.original_name, "specifica.pdf")
+        self.assertEqual(
+            document.sharepoint_path,
+            "ASSET CN/ML-FOLDER/specifiche/Cartella originale/Sub cartella/specifica.pdf",
+        )
+
+    def test_sharepoint_upload_uses_relative_subfolders(self):
+        asset = Asset.objects.create(
+            name="Centro SharePoint subfolder",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            sharepoint_folder_path="ASSET CN/ML-SUBFOLDER",
+            source_key="manual-wm-sp-subfolder",
+        )
+        with _workspace_temporary_directory("assets-sp-subfolder-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            document = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("verbale.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="verbale.pdf",
+            )
+            document._sharepoint_relative_path = "Intervento 2026/Foto/verbale.pdf"
+            folders = []
+
+            def fake_ensure_folder(path):
+                folders.append(path)
+                return {"path": path, "url": "https://sp.example/folder"}
+
+            response = SimpleNamespace(
+                status_code=201,
+                text="{}",
+                json=lambda: {"webUrl": "https://sp.example/file", "id": "sp-file-id"},
+            )
+            with patch("assets.views._sharepoint_graph_ready", return_value=True):
+                with patch("assets.views._ensure_sharepoint_folder", side_effect=fake_ensure_folder):
+                    with patch("assets.views._sharepoint_drive_base_url", return_value="https://graph.example/drive"):
+                        with patch("assets.views._sharepoint_headers", return_value={}):
+                            with patch("assets.views._apply_sharepoint_document_metadata", return_value=""):
+                                with patch("assets.views.requests.put", return_value=response) as put:
+                                    warning = asset_views._upload_asset_document_to_sharepoint(asset, document)
+
+        self.assertEqual(warning, "")
+        self.assertIn("ASSET CN/ML-SUBFOLDER/interventi/Intervento 2026/Foto", folders)
+        self.assertIn("ASSET%20CN/ML-SUBFOLDER/interventi/Intervento%202026/Foto/", put.call_args.args[0])
+        document.refresh_from_db()
+        self.assertIn("/interventi/Intervento 2026/Foto/", document.sharepoint_path)
 
     def test_sharepoint_remote_filename_is_unique_and_safe(self):
         asset = Asset.objects.create(
@@ -1020,7 +1155,7 @@ class AssetsRoutingTests(TestCase):
         self.assertNotIn(":", remote_name)
         self.assertNotIn("?", remote_name)
 
-    def test_default_sharepoint_path_sanitizes_folder_segments(self):
+    def test_default_sharepoint_path_uses_asset_cn_root_and_tag(self):
         asset = Asset.objects.create(
             name="Centro path sicuro",
             asset_type=Asset.TYPE_WORK_MACHINE,
@@ -1030,9 +1165,148 @@ class AssetsRoutingTests(TestCase):
 
         path = asset_views._default_asset_sharepoint_path(asset)
 
-        self.assertIn(f"/CN5-Linea-/{asset.id}", path)
+        self.assertEqual(path, f"ASSET CN/{asset.asset_tag}")
         for char in '\\:*?"<>|#%{}~&':
             self.assertNotIn(char, path)
+
+    def test_reverse_sync_creates_new_and_removes_missing_documents(self):
+        asset = Asset.objects.create(
+            name="Centro sync inverso",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            sharepoint_folder_path="ASSET CN/SYNC-001",
+            source_key="manual-wm-reverse-sync",
+        )
+        # Documento sincronizzato che NON risultera piu su SharePoint.
+        stale = AssetDocument.objects.create(
+            asset=asset,
+            category=AssetDocument.CATEGORY_INTERVENTI,
+            file="",
+            original_name="vecchio intervento.pdf",
+            sharepoint_url="https://sp.example/old",
+            sharepoint_path="ASSET CN/SYNC-001/interventi/vecchio intervento.pdf",
+        )
+        # Documento solo-locale: non deve mai essere toccato dal sync inverso.
+        local_only = AssetDocument.objects.create(
+            asset=asset,
+            category=AssetDocument.CATEGORY_MANUALI,
+            file="",
+            original_name="manuale locale.pdf",
+        )
+
+        def fake_children(folder_path):
+            if folder_path.endswith("/specifiche"):
+                return [{"name": "nuova specifica.pdf", "webUrl": "https://sp.example/new", "file": {}}]
+            return []
+
+        with patch("assets.views._sharepoint_graph_ready", return_value=True):
+            with patch("assets.views._sharepoint_graph_list_children", side_effect=fake_children):
+                result = asset_views._sync_asset_documents_from_sharepoint(asset)
+
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(result["deleted"], 1)
+        self.assertFalse(AssetDocument.objects.filter(id=stale.id).exists())
+        self.assertTrue(AssetDocument.objects.filter(id=local_only.id).exists())
+        created = AssetDocument.objects.get(asset=asset, category=AssetDocument.CATEGORY_SPECIFICHE)
+        self.assertEqual(created.original_name, "nuova specifica.pdf")
+        self.assertEqual(created.sharepoint_path, "ASSET CN/SYNC-001/specifiche/nuova specifica.pdf")
+        self.assertEqual(created.sharepoint_url, "https://sp.example/new")
+
+    def test_sharepoint_document_metadata_includes_asset_fields(self):
+        parent = AssetCategory.objects.create(
+            code="sp-meta-it", label="Information Technology", base_asset_type=Asset.TYPE_OTHER
+        )
+        sub = AssetCategory.objects.create(
+            code="sp-meta-it-ap", label="Access Point", parent=parent, base_asset_type=Asset.TYPE_OTHER
+        )
+        asset = Asset.objects.create(
+            name="AP UT",
+            asset_type=Asset.TYPE_OTHER,
+            asset_category=sub,
+            asset_tag="IT-AP-SPMETA",
+            manufacturer="Unifi",
+            model="UAP-LR",
+            serial_number="MAC-1",
+            reparto="AMM",
+            status=Asset.STATUS_IN_USE,
+            source_key="manual-sp-meta",
+        )
+        with _workspace_temporary_directory("assets-sp-meta-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            document = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_MANUALI,
+                file=SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+            )
+            meta = asset_views._sharepoint_document_metadata(asset, document)
+
+        self.assertEqual(meta["AssetTag"], "IT-AP-SPMETA")
+        self.assertEqual(meta["AssetCategoria"], "Information Technology")
+        self.assertEqual(meta["AssetSottocategoria"], "Access Point")
+        self.assertEqual(meta["AssetProduttore"], "Unifi")
+        self.assertEqual(meta["AssetModello"], "UAP-LR")
+        self.assertEqual(meta["AssetTipoDocumento"], "Manuali")
+
+    def test_sharepoint_folder_metadata_includes_asset_fields(self):
+        asset = Asset.objects.create(
+            name="Cartella metadati",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_tag="ML-SP-FOLDER",
+            manufacturer="Doosan",
+            model="Puma",
+            serial_number="SN-FOLDER",
+            reparto="CN5",
+            status=Asset.STATUS_IN_USE,
+            source_key="manual-sp-folder-meta",
+        )
+
+        meta = asset_views._sharepoint_folder_metadata(asset, tipo_documento="Cartella asset")
+
+        self.assertEqual(meta["AssetTag"], "ML-SP-FOLDER")
+        self.assertEqual(meta["AssetProduttore"], "Doosan")
+        self.assertEqual(meta["AssetModello"], "Puma")
+        self.assertEqual(meta["AssetMatricola"], "SN-FOLDER")
+        self.assertEqual(meta["AssetReparto"], "CN5")
+        self.assertEqual(meta["AssetTipoDocumento"], "Cartella asset")
+
+    def test_ensure_asset_sharepoint_folder_applies_metadata_to_folders(self):
+        asset = Asset.objects.create(
+            name="Centro SharePoint folder metadata",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_tag="ML-SP-FOLDERS",
+            reparto="CN5",
+            sharepoint_folder_path="ASSET CN/ML-SP-FOLDERS",
+            source_key="manual-wm-sp-folder-metadata",
+        )
+        ensured_paths = []
+        metadata_calls = []
+
+        def fake_ensure_folder(path):
+            ensured_paths.append(path)
+            return {"path": path, "url": f"https://sp.example/{path}", "id": f"id-{len(ensured_paths)}"}
+
+        def fake_apply_folder_metadata(_asset, item_id, *, label, tipo_documento=""):
+            metadata_calls.append((item_id, label, tipo_documento))
+            return ""
+
+        with patch("assets.views._sharepoint_graph_ready", return_value=True):
+            with patch("assets.views._ensure_sharepoint_folder", side_effect=fake_ensure_folder):
+                with patch("assets.views._apply_sharepoint_folder_metadata", side_effect=fake_apply_folder_metadata):
+                    warnings = asset_views._ensure_asset_sharepoint_folder(asset)
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(
+            ensured_paths,
+            [
+                "ASSET CN/ML-SP-FOLDERS",
+                "ASSET CN/ML-SP-FOLDERS/specifiche",
+                "ASSET CN/ML-SP-FOLDERS/interventi",
+                "ASSET CN/ML-SP-FOLDERS/manuali",
+            ],
+        )
+        self.assertEqual(metadata_calls[0], ("id-1", "cartella asset ML-SP-FOLDERS", "Cartella asset"))
+        self.assertIn(("id-2", "cartella specifiche ML-SP-FOLDERS", "Specifiche"), metadata_calls)
+        self.assertIn(("id-3", "cartella interventi ML-SP-FOLDERS", "Interventi"), metadata_calls)
+        self.assertIn(("id-4", "cartella manuali ML-SP-FOLDERS", "Manuali"), metadata_calls)
 
     def test_asset_edit_assignment_from_anagrafica_autofills_department_and_location(self):
         self.client.force_login(self.user)
@@ -1244,7 +1518,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(asset.assignment_to, "Reparto CN5")
         self.assertEqual(asset.assignment_reparto, "CN5")
         self.assertEqual(asset.assignment_location, "CN5")
-        self.assertEqual(asset.sharepoint_folder_path, f"Macchine/CN5/{asset.id}")
+        self.assertEqual(asset.sharepoint_folder_path, f"ASSET CN/{asset.asset_tag}")
         self.assertTrue(PlantLayoutMarker.objects.filter(layout=layout, asset=asset, is_visible=True).exists())
 
     def test_asset_detail_shows_sharepoint_actions(self):
@@ -1584,8 +1858,6 @@ class AssetsRoutingTests(TestCase):
                         "GRAPH_CLIENT_ID=client-test",
                         "GRAPH_CLIENT_SECRET=secret-test",
                         "GRAPH_SITE_ID=site-test",
-                        "ASSETS_SHAREPOINT_ASSET_ROOT_PATH=Asset/Inventario",
-                        "ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH=Macchine",
                         "ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets",
                     ]
                 ),
@@ -1609,8 +1881,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8")
         self.assertIn("SharePoint / Microsoft Graph", content)
-        self.assertIn("Asset/Inventario", content)
-        self.assertIn("Macchine", content)
+        self.assertIn("ASSET CN", content)
 
     def test_gestione_admin_shows_label_type_rows_and_overrides(self):
         asset = Asset.objects.create(
@@ -1920,8 +2191,6 @@ class AssetsRoutingTests(TestCase):
                     "sharepoint_client_id": "client-new",
                     "sharepoint_client_secret": "",
                     "sharepoint_site_id": "site-new",
-                    "sharepoint_asset_root_path": "Asset/Inventario",
-                    "sharepoint_work_machine_root_path": "Macchine",
                     "sharepoint_library_url": "https://contoso.sharepoint.com/sites/example-assets",
                 },
             )
@@ -1943,8 +2212,6 @@ class AssetsRoutingTests(TestCase):
             self.assertIn("GRAPH_CLIENT_ID=client-new", content)
             self.assertIn("GRAPH_SITE_ID=site-new", content)
             self.assertIn("GRAPH_CLIENT_SECRET=keep-me", content)
-            self.assertIn("ASSETS_SHAREPOINT_ASSET_ROOT_PATH=Asset/Inventario", content)
-            self.assertIn("ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH=Macchine", content)
             self.assertIn("ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -3172,6 +3439,81 @@ class ImportAssetsCatalogTests(TestCase):
             asset = Asset.objects.get(asset_tag="CN-ANT")
             self.assertEqual(asset.notes, "Asset generico CN")
             self.assertIs(asset.extra_columns.get("is_generic_asset"), True)
+
+    def _write_catalog_xlsx_multisheet(self, path: Path, sheets: dict[str, list[list[object]]]) -> None:
+        headers = ["asset_id", "famiglia", "sottocategoria", "descrizione", "nome", "ubicazione", "matricola", "stato"]
+        wb = Workbook()
+        wb.remove(wb.active)
+        for sheet_name, rows in sheets.items():
+            ws = wb.create_sheet(title=sheet_name)
+            for col_idx, header in enumerate(headers, start=1):
+                ws.cell(row=1, column=col_idx, value=header)
+            for row_offset, row_values in enumerate(rows, start=2):
+                for col_idx, value in enumerate(row_values, start=1):
+                    ws.cell(row=row_offset, column=col_idx, value=value)
+        wb.save(path)
+
+    def test_xlsx_import_processes_all_sheets(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.xlsx"
+            self._write_catalog_xlsx_multisheet(
+                file_path,
+                {
+                    "IT": [["IT-AP-001", "Information Technology", "Access Point", "AP UT", "AP UT", "AMM", "MAC-1", "In uso"]],
+                    "Macchine": [["CNC-DM-001", "CMM", "Macchine CNC", "DMG DMC 85", "DMC 85", "CN5", "SN-85", "In uso"]],
+                },
+            )
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertTrue(Asset.objects.filter(asset_tag="IT-AP-001").exists())
+            self.assertTrue(Asset.objects.filter(asset_tag="CNC-DM-001").exists())
+
+    def test_xlsx_import_error_message_includes_sheet_name(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.xlsx"
+            self._write_catalog_xlsx_multisheet(
+                file_path,
+                {
+                    "IT": [["IT-AP-001", "Information Technology", "Access Point", "AP UT", "AP UT", "AMM", "MAC-1", "In uso"]],
+                    "Macchine": [["CNC-DM-001", "", "Macchine CNC", "DMG DMC 85", "DMC 85", "CN5", "SN-85", "In uso"]],
+                },
+            )
+
+            with self.assertRaisesMessage(CommandError, "Import annullato"):
+                call_command("import_assets_catalog", str(file_path), commit=True)
+
+            self.assertEqual(Asset.objects.count(), 0)
+            preview = AssetCatalogImporter().preview(file_path)
+            self.assertTrue(any("foglio 'Macchine'" in err.row_number for err in preview.errors))
+
+    def test_xlsx_import_maps_manufacturer_model_and_extra_columns(self):
+        with _workspace_temporary_directory("assets-catalog-") as tmpdir:
+            file_path = Path(tmpdir) / "catalogo.xlsx"
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "IT"
+            headers = [
+                "asset_id", "famiglia", "sottocategoria", "nome", "ubicazione",
+                "matricola", "stato", "produttore", "modello", "indirizzo_ip", "porta sw",
+            ]
+            values = [
+                "IT-AP-001", "Information Technology", "Access Point", "AP UT", "AMM",
+                "MAC-1", "In uso", "Unifi", "UAP-LR", "10.0.0.204", "A0.1.06",
+            ]
+            for col_idx, header in enumerate(headers, start=1):
+                ws.cell(row=1, column=col_idx, value=header)
+            for col_idx, value in enumerate(values, start=1):
+                ws.cell(row=2, column=col_idx, value=value)
+            wb.save(file_path)
+
+            call_command("import_assets_catalog", str(file_path), commit=True)
+
+            asset = Asset.objects.get(asset_tag="IT-AP-001")
+            self.assertEqual(asset.manufacturer, "Unifi")
+            self.assertEqual(asset.model, "UAP-LR")
+            self.assertEqual(asset.extra_columns.get("indirizzo_ip"), "10.0.0.204")
+            self.assertEqual(asset.extra_columns.get("porta sw"), "A0.1.06")
 
 
 class ImportWorkMachinesExcelTests(TestCase):
@@ -5663,3 +6005,75 @@ class AssetMaintenanceRegisterUnifiedTests(TestCase):
         # Solo il ticket incluso deve essere presente
         self.assertEqual(len(register), 1)
         self.assertEqual(register[0]["ticket"].id, ticket_included.id)
+
+
+class ClassifyAssetTypeTests(TestCase):
+    """Euristica di classificazione tipo asset dal nome categoria."""
+
+    def test_keyword_mapping(self):
+        from assets.services.asset_catalog_import import classify_asset_type
+
+        cases = {
+            "PC Ufficio": Asset.TYPE_PC,
+            "Portatili": Asset.TYPE_NOTEBOOK,
+            "Server di dominio": Asset.TYPE_SERVER,
+            "Macchina virtuale": Asset.TYPE_VM,
+            "Firewall perimetrale": Asset.TYPE_FIREWALL,
+            "Apparati di rete": Asset.TYPE_FIREWALL,
+            "Stampanti multifunzione": Asset.TYPE_STAMPANTE,
+            "Videosorveglianza TVCC": Asset.TYPE_CCTV,
+            "Fonia": Asset.TYPE_FONIA,
+            "Carroponti": Asset.TYPE_CARROPONTE,
+            "Macchine CNC": Asset.TYPE_CNC,
+            "Macchine utensili": Asset.TYPE_WORK_MACHINE,
+            "Bruciatori": Asset.TYPE_OTHER,
+            "": Asset.TYPE_OTHER,
+        }
+        for label, expected in cases.items():
+            self.assertEqual(classify_asset_type(label), expected, label)
+
+
+class RealignAssetTypesCommandTests(TestCase):
+    """Command realign_asset_types: riallineamento tipo asset da categoria."""
+
+    def test_realign_from_category(self):
+        pc_cat = AssetCategory.objects.create(
+            code="pc-ufficio", label="PC Ufficio", base_asset_type=Asset.TYPE_OTHER
+        )
+        burner_cat = AssetCategory.objects.create(
+            code="bruciatori", label="Bruciatori", base_asset_type=Asset.TYPE_OTHER
+        )
+        pc = Asset.objects.create(asset_tag="IT-000001", name="PC test", asset_type=Asset.TYPE_OTHER, asset_category=pc_cat)
+        burner = Asset.objects.create(asset_tag="AST-000001", name="Bruciatore", asset_type=Asset.TYPE_OTHER, asset_category=burner_cat)
+        orphan = Asset.objects.create(asset_tag="AST-000002", name="Senza categoria", asset_type=Asset.TYPE_OTHER)
+
+        call_command("realign_asset_types", stdout=io.StringIO())
+
+        pc_cat.refresh_from_db()
+        burner_cat.refresh_from_db()
+        pc.refresh_from_db()
+        burner.refresh_from_db()
+        orphan.refresh_from_db()
+        # La categoria "PC Ufficio" viene tipizzata e l'asset allineato.
+        self.assertEqual(pc_cat.base_asset_type, Asset.TYPE_PC)
+        self.assertEqual(pc.asset_type, Asset.TYPE_PC)
+        # "Bruciatori" resta OTHER (mai declassata, nessun keyword).
+        self.assertEqual(burner_cat.base_asset_type, Asset.TYPE_OTHER)
+        self.assertEqual(burner.asset_type, Asset.TYPE_OTHER)
+        # Asset senza categoria non viene toccato.
+        self.assertEqual(orphan.asset_type, Asset.TYPE_OTHER)
+
+    def test_dry_run_does_not_persist(self):
+        cat = AssetCategory.objects.create(
+            code="server", label="Server", base_asset_type=Asset.TYPE_OTHER
+        )
+        asset = Asset.objects.create(asset_tag="IT-000010", name="Srv", asset_type=Asset.TYPE_OTHER, asset_category=cat)
+
+        call_command("realign_asset_types", dry_run=True, stdout=io.StringIO())
+
+        cat.refresh_from_db()
+        asset.refresh_from_db()
+        self.assertEqual(cat.base_asset_type, Asset.TYPE_OTHER)
+        self.assertEqual(asset.asset_type, Asset.TYPE_OTHER)
+
+

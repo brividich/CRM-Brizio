@@ -90,6 +90,120 @@
     border-left: 3px solid #e2e8f0;
   }
 
+  .task-event-card.tone-blue { border-left-color: #3b82f6; }
+  .task-event-card.tone-amber { border-left-color: #f59e0b; }
+  .task-event-card.tone-slate { border-left-color: #64748b; }
+  .task-event-card.tone-teal { border-left-color: #14b8a6; }
+  .task-event-card.tone-green { border-left-color: #22c55e; }
+  .task-event-card.tone-purple { border-left-color: #8b5cf6; }
+  .task-event-card.tone-indigo { border-left-color: #6366f1; }
+
+  .task-event-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .task-event-time {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .task-event-actor {
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  .task-event-title {
+    margin: 0 0 3px;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .task-event-description {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .task-event-details {
+    display: grid;
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .task-event-detail {
+    display: grid;
+    grid-template-columns: minmax(96px, .42fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid #e8eef6;
+    border-radius: 10px;
+    background: #fbfdff;
+  }
+
+  .task-event-detail-label {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .task-event-change {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .task-event-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .task-event-arrow {
+    color: #94a3b8;
+    font-weight: 900;
+    flex: 0 0 auto;
+  }
+
+  .task-event-technical {
+    margin-top: 9px;
+    color: #64748b;
+    font-size: 11px;
+  }
+
+  .task-event-technical summary {
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .task-event-technical pre {
+    margin: 8px 0 0;
+    font-size: 11px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+
   /* Attachment card — left accent */
   .task-attach-card {
     border-left: 3px solid #14b8a6;
@@ -187,6 +301,10 @@
 
   @media (max-width: 760px) {
     .task-detail-meta { grid-template-columns: 1fr; }
+    .task-event-head { display: grid; gap: 4px; }
+    .task-event-actor { text-align: left; }
+    .task-event-detail { grid-template-columns: 1fr; }
+    .task-event-change { flex-wrap: wrap; }
     .at-grid-3 { grid-template-columns: 1fr; }
     .at-row-actions { min-width:0; }
   }
@@ -198,6 +316,15 @@
   body.theme-dark .task-detail-body       { color: var(--text); }
   body.theme-dark .task-list-card         { background: var(--surface); border-color: var(--border); }
   body.theme-dark .task-list-card:hover   { border-color: var(--border); box-shadow: 0 2px 10px rgba(0,0,0,.2); }
+  body.theme-dark .task-event-actor,
+  body.theme-dark .task-event-title,
+  body.theme-dark .task-event-change      { color: var(--text); }
+  body.theme-dark .task-event-time,
+  body.theme-dark .task-event-description,
+  body.theme-dark .task-event-detail-label,
+  body.theme-dark .task-event-technical   { color: var(--text-light); }
+  body.theme-dark .task-event-detail      { background: var(--surface); border-color: var(--border); }
+  body.theme-dark .task-event-technical pre { background: var(--surface); border-color: var(--border); color: var(--text-light); }
   body.theme-dark .task-attach-icon       { background: rgba(20,184,166,.1); border-color: rgba(153,246,228,.15); }
   body.theme-dark .task-table-mini th     { background: var(--thead-bg); border-color: var(--border); color: var(--text-mid); }
   body.theme-dark .task-table-mini td     { border-color: var(--border); color: var(--text); }
@@ -655,26 +782,46 @@
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Timeline eventi</h2>
-          <p class="ts-panel-subtitle">Storico aggiornamenti con attore e payload registrato dal sistema.</p>
+          <p class="ts-panel-subtitle">Storia operativa dell'attivita: cosa e cambiato, da chi e con quali valori.</p>
         </div>
         <div class="ts-panel-meta">
-          <span class="ts-chip soft">{{ task.events.all|length }} eventi</span>
+          <span class="ts-chip soft">{{ task_timeline_events|length }} eventi</span>
         </div>
       </div>
       <div class="ts-panel-body">
-        {% if task.events.all %}
+        {% if task_timeline_events %}
           <ul class="task-list-clean">
-            {% for event in task.events.all %}
-              <li class="task-list-card task-event-card">
-                <div class="ts-card-meta" style="margin-bottom:6px;">
-                  <span style="color:#94a3b8;font-size:11px;">{{ event.created_at|date:"d/m/Y H:i" }}</span>
-                  <span style="font-size:11px;font-weight:700;">
-                    {% if event.actor %}{{ event.actor.get_full_name|default:event.actor.username }}{% else %}System{% endif %}
-                  </span>
+            {% for item in task_timeline_events %}
+              <li class="task-list-card task-event-card tone-{{ item.tone }}">
+                <div class="task-event-head">
+                  <span class="task-event-time">{{ item.event.created_at|date:"d/m/Y H:i" }}</span>
+                  <span class="task-event-actor">{{ item.actor_name }}</span>
                 </div>
-                <div class="ts-card-title" style="font-size:13px;">{{ event.get_type_display }}</div>
-                {% if event.payload %}
-                  <pre style="margin:8px 0 0;font-size:11px;white-space:pre-wrap;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;">{{ event.payload }}</pre>
+                <h3 class="task-event-title">{{ item.title }}</h3>
+                <p class="task-event-description">{{ item.description }}</p>
+                {% if item.details %}
+                  <div class="task-event-details">
+                    {% for detail in item.details %}
+                      <div class="task-event-detail">
+                        <span class="task-event-detail-label">{{ detail.label }}</span>
+                        <span class="task-event-change">
+                          {% if detail.note %}
+                            <span class="task-event-value">{{ detail.note }}</span>
+                          {% else %}
+                            <span class="task-event-value">{{ detail.before }}</span>
+                            <span class="task-event-arrow">&rarr;</span>
+                            <span class="task-event-value">{{ detail.after }}</span>
+                          {% endif %}
+                        </span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                {% if item.technical_payload %}
+                  <details class="task-event-technical">
+                    <summary>Payload tecnico</summary>
+                    <pre>{{ item.technical_payload }}</pre>
+                  </details>
                 {% endif %}
               </li>
             {% endfor %}

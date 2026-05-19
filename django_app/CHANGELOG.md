@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Metadati SharePoint sulle cartelle asset
+
+- **[fix] `assets/views.py`**: `_ensure_asset_sharepoint_folder` ora applica le colonne metadato SharePoint anche alla cartella asset `ASSET CN/<tag>` e alle sottocartelle `specifiche`, `interventi`, `manuali`, non solo ai file caricati. La scrittura resta best-effort e usa lo stesso `PATCH .../listItem/fields` gia usato per i documenti.
+- **[test] `assets/tests.py`**: aggiunti test per i metadati delle cartelle e per verificare che la creazione/trovamento delle cartelle richiami l'applicazione dei metadati.
+- **[docs] `README.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`**: chiarito che i campi indicizzabili vengono valorizzati anche sulle cartelle create da Graph.
+
 ### QR label assets verso SharePoint
 
 - **[ux] `assets/views.py:asset_qr_label`**: la stampa PDF `/assets/view/<id>/qr-label/` ora genera di default un QR verso la cartella SharePoint dell'asset quando `sharepoint_folder_url` e' valorizzato; resta il fallback alla scheda asset se il link SharePoint manca e resta disponibile `?target=detail` per forzare la scheda.

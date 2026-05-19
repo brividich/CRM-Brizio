@@ -8,6 +8,7 @@ from functools import wraps
 
 import requests
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import models
 from django.shortcuts import redirect, render
@@ -424,6 +425,7 @@ def _delete_item_local(pk: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def lista(request):
     cfg = _get_impostazioni()
     items = []
@@ -626,6 +628,7 @@ def _build_fields_from_post(post, user) -> dict:
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def dettaglio(request, sp_id):
     cfg = _get_impostazioni()
     item_fields = None
@@ -672,6 +675,7 @@ def dettaglio(request, sp_id):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def modifica(request, sp_id):
     cfg = _get_impostazioni()
     use_local = _use_local(cfg)
@@ -762,6 +766,7 @@ def modifica(request, sp_id):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 @require_POST
 def elimina(request, sp_id):
     if not _can_manage_rspp(request):
@@ -785,6 +790,7 @@ def elimina(request, sp_id):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def statistiche(request):
     cfg = _get_impostazioni()
     items = []
@@ -936,6 +942,7 @@ def statistiche(request):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def heatmap(request):
     try:
         from assets.models import PlantLayout, PlantLayoutArea
@@ -996,6 +1003,7 @@ def heatmap(request):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def impostazioni(request):
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if not (request.user.is_superuser or (legacy_user and is_legacy_admin(legacy_user))):
@@ -1059,6 +1067,7 @@ def impostazioni(request):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def export_csv(request):
     import csv as csv_module
     from django.http import HttpResponse
@@ -1130,8 +1139,9 @@ def export_csv(request):
 # ---------------------------------------------------------------------------
 
 
+@login_required
 def export_pdf(request, sp_id):
-    from django.http import HttpResponse
+    from django.http import Http404, HttpResponse
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1139,6 +1149,16 @@ def export_pdf(request, sp_id):
     from reportlab.platypus import (
         HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
     )
+
+    # SEC-PREPROD-02 (H1): l'export PDF contiene PII e dati sicurezza della
+    # singola rilevazione. Consentito solo a gestori sicurezza (preposti/RSPP)
+    # o amministratori; mai a chi ha solo accesso generico al modulo.
+    if not (
+        getattr(request.user, "is_superuser", False)
+        or _can_manage_rspp(request)
+        or _can_create(request)
+    ):
+        return render(request, "core/pages/forbidden.html", status=403)
 
     cfg = _get_impostazioni()
     item_fields = None
@@ -1151,8 +1171,10 @@ def export_pdf(request, sp_id):
         item_fields["stato"] = _deriva_stato(item_fields)
         _enrich_event_fields(item_fields)
     except Exception as exc:
+        # Rilevazione inesistente o non recuperabile: 404 reale (in passato
+        # veniva restituito il template "forbidden" con status 404 incoerente).
         logger.warning("rilevazione_incidenti export_pdf %s: %s", sp_id, exc)
-        return render(request, "core/pages/forbidden.html", status=404)
+        raise Http404("Rilevazione non trovata.")
 
     f = item_fields
     response = HttpResponse(content_type="application/pdf")

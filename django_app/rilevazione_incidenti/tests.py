@@ -4,14 +4,19 @@ from datetime import date, datetime
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from assets.models import PlantLayout, PlantLayoutArea
 from core.models import UserOnboarding
 
-from .models import RilevazioneIncidente, TipoEventoSicurezza, normalize_tipo_evento
+from .models import (
+    RilevazioneIncidente,
+    SicurezzaImpostazioni,
+    TipoEventoSicurezza,
+    normalize_tipo_evento,
+)
 from .services import get_safety_kpis
 
 
@@ -107,3 +112,91 @@ class HeatmapIncidentiTests(TestCase):
         self.assertContains(response, "Heatmap incidenti")
         self.assertContains(response, "Layout test")
         self.assertContains(response, ">1</text>")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ExportPdfAuthorizationTests(TestCase):
+    """SEC-PREPROD-02 (H1): export_pdf riservato ai gestori sicurezza."""
+
+    def setUp(self):
+        cfg = SicurezzaImpostazioni.get_singleton()
+        cfg.acl_preposti = ["preposto@example.com"]
+        cfg.acl_rspp = ["rspp@example.com"]
+        cfg.save()
+        user_model = get_user_model()
+        self.basic = user_model.objects.create_user(
+            username="ri-basic", email="basic@example.com", password="pwd12345",
+        )
+        self.rspp = user_model.objects.create_user(
+            username="ri-rspp", email="rspp@example.com", password="pwd12345",
+        )
+        self.admin = user_model.objects.create_superuser(
+            username="ri-admin", email="ri-admin@example.com", password="pwd12345",
+        )
+        for user in (self.basic, self.rspp):
+            UserOnboarding.objects.create(
+                user=user, completed=True, completed_at=timezone.now(),
+            )
+        self.evento = RilevazioneIncidente.objects.create(
+            nominativo="Mario Rossi",
+            tipologia_scheda="Accident",
+            reparto="CNC",
+            data_segnalazione=_aware_datetime(2026, 5, 1),
+        )
+
+    def _url(self, pk):
+        return reverse("rilevazione_incidenti:export_pdf", args=[pk])
+
+    def test_basic_module_user_is_forbidden(self):
+        self.client.force_login(self.basic)
+        response = self.client.get(self._url(self.evento.pk))
+        self.assertEqual(response.status_code, 403)
+
+    def test_rspp_user_is_allowed(self):
+        self.client.force_login(self.rspp)
+        response = self.client.get(self._url(self.evento.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+    def test_superuser_is_allowed(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(self._url(self.evento.pk))
+        self.assertEqual(response.status_code, 200)
+
+    def test_missing_incident_returns_404_for_authorized_user(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(self._url(999999))
+        self.assertEqual(response.status_code, 404)
+
+    def test_denied_is_real_403_and_missing_is_real_404(self):
+        # Regressione: in passato la risorsa mancante restituiva il template
+        # "forbidden" con status 404 (incoerente). Ora 403 = negato, 404 = assente.
+        self.client.force_login(self.basic)
+        self.assertEqual(self.client.get(self._url(self.evento.pk)).status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(self._url(999999)).status_code, 404)
+
+
+@override_settings(SECURE_SSL_REDIRECT=False)
+class ReadViewsAuthGuardTests(TestCase):
+    """SEC-PREPROD-02 (M1): le viste di lettura non sono accessibili in anonimo."""
+
+    def test_anonymous_is_redirected_to_login(self):
+        response = self.client.get(reverse("rilevazione_incidenti:lista"))
+        self.assertIn(response.status_code, (301, 302))
+        self.assertIn("/login", response.headers.get("Location", ""))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ReadViewsAuthenticatedAccessTests(TestCase):
+    """SEC-PREPROD-02 (M1): l'accesso autenticato resta funzionante."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username="ri-read-admin", email="ri-read-admin@example.com", password="pwd12345",
+        )
+
+    def test_authenticated_manager_can_open_lista(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("rilevazione_incidenti:lista"))
+        self.assertEqual(response.status_code, 200)

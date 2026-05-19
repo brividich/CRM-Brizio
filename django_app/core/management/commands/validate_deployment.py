@@ -669,6 +669,26 @@ class DeploymentValidator:
                 enabled=trigger_apply,
             )
 
+        # SQL_LOG_ENABLED: in prod logga query e parametri (potenziale PII) su
+        # filesystem. Deve restare disattivato: FAIL in prod, WARN altrove.
+        sql_log_enabled = bool(getattr(settings, "SQL_LOG_ENABLED", False))
+        if sql_log_enabled:
+            severity = _severity_for_env(FAIL, WARN)
+            self.add(
+                "security",
+                "SQL_LOG_ENABLED",
+                severity,
+                "SQL_LOG_ENABLED=1: le query SQL (con parametri potenzialmente sensibili) "
+                "vengono scritte su file. Disattivare in produzione (SQL_LOG_ENABLED=0).",
+            )
+        else:
+            self.add(
+                "security",
+                "SQL_LOG_ENABLED",
+                OK,
+                "SQL_LOG_ENABLED disabilitato (default sicuro).",
+            )
+
         self.add("security", "public_repo", WARN, "Controllo repository pubblico non eseguito: web check non applicabile.")
 
 

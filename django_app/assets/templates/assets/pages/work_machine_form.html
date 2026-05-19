@@ -28,6 +28,13 @@
 .wmf-doc-row-grid { display:grid; gap:10px; grid-template-columns:1.2fr 1.5fr .8fr .8fr auto; align-items:end; }
 .wmf-doc-row label { display:grid; gap:6px; color:#334155; font-size: var(--fs-sm); font-weight:700; }
 .wmf-upload-block { border-top:1px solid #dbe1ea; padding-top:10px; display:grid; gap:10px; }
+.wmf-upload-storage { border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; padding:12px; display:grid; gap:8px; }
+.wmf-upload-storage-title { font-size: var(--fs-base); color:#334155; font-weight:800; }
+.wmf-upload-storage-options { display:flex; gap:8px; flex-wrap:wrap; }
+.wmf-upload-choice {
+  border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:8px 10px;
+  display:inline-flex; align-items:center; gap:7px; color:#334155; font-size:var(--fs-sm); font-weight:700; cursor:pointer;
+}
 .wmf-upload-list { display:grid; gap:8px; }
 .wmf-upload-item { border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:10px 12px; display:grid; gap:6px; }
 .wmf-upload-top { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -279,7 +286,7 @@
             {% endif %}
           {% endfor %}
         </div>
-        <div class="wmf-inline-note">Con la cartella automatica basta salvare: il portale usa root macchine, reparto e ID asset. I campi manuali servono solo per eccezioni.</div>
+        <div class="wmf-inline-note">Con la cartella automatica basta salvare: il portale crea "ASSET CN/&lt;tag asset&gt;" con le sottocartelle manuali, specifiche e interventi. I campi manuali servono solo per eccezioni.</div>
         <div class="wmf-inline-note" style="padding:10px 12px;border:1px solid #dbe1ea;border-radius:10px;background:#f8fafc;">
           Percorso previsto: <code data-sharepoint-preview>-</code>
         </div>
@@ -306,6 +313,20 @@
         </div>
       </div>
       <div class="wmf-card-body">
+        <div class="wmf-upload-storage">
+          <div class="wmf-upload-storage-title">Destinazione nuovi file</div>
+          <div class="wmf-upload-storage-options" aria-label="Destinazione nuovi file">
+            <label class="wmf-upload-choice">
+              <input type="radio" name="asset_document_storage" value="local">
+              Locale
+            </label>
+            <label class="wmf-upload-choice">
+              <input type="radio" name="asset_document_storage" value="sharepoint" checked>
+              SharePoint
+            </label>
+          </div>
+          <div class="wmf-help">Locale mantiene i file nel portale. SharePoint crea la cartella, se necessario, e sincronizza i nuovi file via Graph mantenendo il fallback locale.</div>
+        </div>
         <div class="wmf-doc-grid">
           {% for field_name, meta in document_field_map.items %}
             <section class="wmf-doc-section" data-doc-editor data-doc-label="{{ meta.1 }}">
@@ -358,7 +379,7 @@
                     multiple
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp"
                   >
-                  <div class="wmf-help">Upload reale nel portale, con sync SharePoint se configurato. Max 20 MB per file.</div>
+                  <div class="wmf-help">Max 20 MB per file.</div>
                 </div>
               </div>
             </section>
@@ -594,7 +615,7 @@
   const previewConfigNode = document.getElementById("asset-sharepoint-preview-config");
   const previewConfig = previewConfigNode ? JSON.parse(previewConfigNode.textContent || "{}") : {};
   const repartoInput = document.getElementById("id_reparto");
-  const assetId = "{{ asset.id|default:'' }}";
+  const assetTag = "{{ asset.asset_tag|default:'' }}";
   function cleanSegment(value, fallback) {
     const cleaned = String(value || "").replace(/[\\/:*?"<>|#%{}~&]+/g, "-").trim().replace(/^\.+|\.+$/g, "");
     return cleaned || fallback || "";
@@ -602,9 +623,8 @@
   function refreshSharePointPreview() {
     if (!previewNode) return;
     const root = String(previewConfig.root_path || "").replace(/^\/+|\/+$/g, "");
-    const reparto = cleanSegment(repartoInput ? repartoInput.value : "", previewConfig.fallback_reparto || "Senza reparto");
-    const folderName = cleanSegment(assetId, previewConfig.fallback_asset_id || "id-generato");
-    previewNode.textContent = [root, reparto, folderName].filter(Boolean).join("/");
+    const folderName = cleanSegment(assetTag, previewConfig.fallback_asset_tag || "tag-asset");
+    previewNode.textContent = [root, folderName].filter(Boolean).join("/");
   }
   function toggleSharePointAdvanced() {
     const hidden = autoSharePoint && autoSharePoint.checked;

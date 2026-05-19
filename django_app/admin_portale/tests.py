@@ -4,6 +4,7 @@ import json
 import shutil
 import sys
 import tempfile
+import urllib.error
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
@@ -15,10 +16,14 @@ from django.db import connection
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
+from ai_assistant.models import AiKnowledgeEntry
+from ai_assistant.tools import RuntimeContext
 from admin_portale.forms import PulsanteForm, UtenteCreateForm
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import AnagraficaDipendente, Permesso, Pulsante, Ruolo, UtenteLegacy
+from core.legacy_utils import legacy_table_columns
 from core.models import (
     AnagraficaRisposta,
     AnagraficaVoce,
@@ -159,6 +164,10 @@ def _ensure_ruoli_table() -> None:
 
 
 def _ensure_anagrafica_table() -> None:
+    # legacy_table_columns è lru_cache per-processo: se un test precedente ha
+    # popolato la cache quando la tabella aveva uno schema diverso (o non
+    # esisteva), il cache stale provoca INSERT con colonne inesistenti.
+    # Invalidiamo dopo aver garantito lo schema corrente.
     vendor = connection.vendor
     with connection.cursor() as cursor:
         if vendor == "sqlite":
@@ -200,6 +209,7 @@ def _ensure_anagrafica_table() -> None:
                 )
                 """
                 )
+    legacy_table_columns.cache_clear()
 
 
 def _ensure_pulsanti_table() -> None:
@@ -471,6 +481,23 @@ class AdminPortaleUserAnagraficaSyncTests(TestCase):
         self.assertEqual(row[1], "Badalassi")
         self.assertEqual(int(row[2] or 0), 0)
         self.assertIsNone(row[3])
+
+    def test_utente_edit_renders_json_script_blocks(self):
+        """La pagina utente_edit serializza i payload JSON via json_script."""
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(
+                reverse("admin_portale:utente_edit", args=[self.target_legacy.id])
+            )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn('id="anagrafica-risposte-data"', html)
+        self.assertIn('id="overrides-map-data"', html)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -786,6 +813,721 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             self.assertIn("LDAP_SYNC_PAGE_SIZE=750", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_shows_ollama_card(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Assistente AI / Ollama")
+        self.assertContains(response, "name=\"ollama_base_url\"")
+        self.assertContains(response, "name=\"ollama_rag_source_paths\"")
+        self.assertContains(response, "Knowledge base RAG abilitata")
+        self.assertContains(response, "FAQ AI")
+        self.assertContains(response, reverse("admin_portale:ai_settings"))
+        self.assertContains(response, reverse("admin_portale:ai_knowledge"))
+        self.assertNotContains(response, "/admin/ai_assistant/aiknowledgeentry/")
+        self.assertContains(response, "Test Ollama")
+        self.assertContains(response, "Salva config AI")
+
+    def test_ai_settings_page_renders_all_ai_components(self):
+        self.client.force_login(self.admin_user)
+        AiKnowledgeEntry.objects.create(
+            question="Come risponde l'assistente?",
+            answer="Usa FAQ curate e documenti indicizzati.",
+            source_label="FAQ Test",
+            created_by=self.admin_user,
+            updated_by=self.admin_user,
+        )
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(reverse("admin_portale:ai_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Gestione AI")
+        self.assertContains(response, "Provider e Runtime")
+        self.assertContains(response, "Stato Componenti")
+        self.assertContains(response, "Knowledge base RAG")
+        self.assertContains(response, "FAQ Curate")
+        self.assertContains(response, "Come risponde l&#x27;assistente?")
+        self.assertContains(response, reverse("ai_assistant:chat"))
+        self.assertContains(response, reverse("admin_portale:ldap_diagnostica"))
+
+    def test_ai_settings_page_renders_live_tools_console(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(reverse("admin_portale:ai_settings"), {"tab": "tools"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tool live")
+        self.assertContains(response, "Router cross-dominio")
+        self.assertContains(response, "tickets_summary")
+        self.assertContains(response, "Timbri / Anagrafica")
+        self.assertContains(response, "disabilitato")
+        self.assertContains(response, "Esegui test metadata-only")
+
+    def test_ai_settings_can_run_live_tool_test_without_sensitive_output(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin_user)
+        secret = "SEGRETO_DESCRIZIONE_NON_DEVE_APPARIRE"
+        mocked_context = RuntimeContext(
+            text=f"Ticket TCK-001 {secret}",
+            sources=("tool:tickets:riepilogo",),
+            audit={
+                "tools": [
+                    {
+                        "tool": "tickets_summary",
+                        "allowed": True,
+                        "scope": "personale",
+                        "row_count": 1,
+                    }
+                ],
+                "tool_count": 1,
+                "context_chars": 44,
+                "context_lines": 1,
+                "truncated": False,
+            },
+        )
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views.build_runtime_context", return_value=mocked_context):
+            response = self.client.post(
+                reverse("admin_portale:ai_settings"),
+                {
+                    "action": "test_ai_runtime_tool",
+                    "tab": "tools",
+                    "runtime_tool_key": "tickets_summary",
+                    "runtime_test_prompt": "quali ticket aperti ho?",
+                    "runtime_simulated_user": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Test tool live completato")
+        self.assertContains(response, "tool:tickets:riepilogo")
+        self.assertContains(response, "tickets_summary")
+        self.assertNotContains(response, secret)
+        audit = AuditLog.objects.get(azione="ai_runtime_tool_test")
+        audit_payload = json.dumps(audit.dettaglio)
+        self.assertIn("tickets_summary", audit_payload)
+        self.assertNotIn(secret, audit_payload)
+        self.assertNotIn("quali ticket aperti ho?", audit_payload)
+
+    def test_ai_settings_clear_runtime_cache_button_clears_cache_and_audits(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views.clear_knowledge_cache") as mocked_clear:
+            response = self.client.post(
+                reverse("admin_portale:ai_settings"),
+                {"action": "clear_ai_runtime_cache", "tab": "tools"},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('admin_portale:ai_settings')}?tab=tools")
+        mocked_clear.assert_called_once()
+        audit = AuditLog.objects.get(azione="ai_runtime_cache_clear")
+        self.assertEqual(audit.dettaglio["cache"], "rag_runtime")
+        self.assertNotIn("prompt", audit.dettaglio)
+
+    def test_ai_settings_filters_live_tool_audit_and_keeps_metadata_only(self):
+        from core.models import AuditLog
+
+        self.client.force_login(self.admin_user)
+        tickets = AuditLog.objects.create(
+            utente_display="Audit Tickets User",
+            azione="ai_chat",
+            modulo="ai_assistant",
+            dettaglio={
+                "runtime_tools": ["tickets_summary"],
+                "runtime_tools_allowed": [True],
+                "runtime_context_chars": 321,
+                "runtime_sources_count": 1,
+                "prompt_chars": 24,
+                "elapsed_ms": 120,
+                "prompt": "SEGRETO_PROMPT_NON_VISIBILE",
+            },
+        )
+        AuditLog.objects.create(
+            utente_display="Audit Tasks User",
+            azione="ai_chat_error",
+            modulo="ai_assistant",
+            dettaglio={
+                "runtime_tools": ["tasks_summary"],
+                "runtime_tools_allowed": [True],
+                "runtime_context_chars": 99,
+                "elapsed_ms": 900,
+            },
+        )
+        AuditLog.objects.filter(pk=tickets.pk).update(created_at=timezone.now())
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(
+                reverse("admin_portale:ai_settings"),
+                {
+                    "tab": "tools",
+                    "runtime_tool": "tickets_summary",
+                    "runtime_outcome": "allowed",
+                    "runtime_days": "30",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Audit Tickets User")
+        self.assertContains(response, "tickets_summary")
+        self.assertContains(response, "321 char")
+        self.assertNotContains(response, "Audit Tasks User")
+        self.assertNotContains(response, "SEGRETO_PROMPT_NON_VISIBILE")
+
+    def test_ai_settings_page_can_create_entry(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:ai_settings"),
+                {
+                    "action": "save_knowledge",
+                    "question": "Dove gestisco l'AI?",
+                    "answer": "Usa la pagina Gestione AI in Admin Portale.",
+                    "source_label": "FAQ Portale",
+                    "is_active": "on",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("admin_portale:ai_settings"))
+        entry = AiKnowledgeEntry.objects.get(question="Dove gestisco l'AI?")
+        self.assertTrue(entry.is_active)
+        self.assertEqual(entry.created_by, self.admin_user)
+
+    def test_ai_knowledge_page_renders_in_admin_portale(self):
+        self.client.force_login(self.admin_user)
+        AiKnowledgeEntry.objects.create(
+            question="Dove configuro Ollama?",
+            answer="In Admin Portale Config SRV.",
+            created_by=self.admin_user,
+            updated_by=self.admin_user,
+        )
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(reverse("admin_portale:ai_knowledge"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "FAQ AI")
+        self.assertContains(response, "Dove configuro Ollama?")
+        self.assertContains(response, "Config SRV")
+
+    def test_ai_knowledge_page_can_create_entry(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:ai_knowledge"),
+                {
+                    "action": "save",
+                    "question": "Come salvo conoscenza AI?",
+                    "answer": "Usa la pagina FAQ AI in Admin Portale.",
+                    "source_label": "FAQ Portale",
+                    "is_active": "on",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        entry = AiKnowledgeEntry.objects.get(question="Come salvo conoscenza AI?")
+        self.assertTrue(entry.is_active)
+        self.assertEqual(entry.created_by, self.admin_user)
+
+    def test_ai_knowledge_page_rejects_empty_entry(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:ai_knowledge"),
+                {
+                    "action": "save",
+                    "question": "",
+                    "answer": "",
+                    "source_label": "FAQ Portale",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Domanda e risposta sono obbligatorie")
+        self.assertFalse(AiKnowledgeEntry.objects.exists())
+
+    def test_config_srv_can_save_ollama_config(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ollama-config-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text("OLLAMA_CHAT_ENABLED=0\nOLLAMA_BASE_URL=http://old.local:11434\n", encoding="utf-8")
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ollama_config",
+                        "ollama_enabled": "on",
+                        "ollama_provider": "ollama",
+                        "ollama_base_url": "http://ollama.test.local:11434/",
+                        "ollama_model": "llama3.1",
+                        "ollama_timeout": "45",
+                        "ollama_temperature": "0.3",
+                        "ollama_max_prompt_chars": "5000",
+                        "ollama_max_history_messages": "12",
+                        "ollama_rag_enabled": "on",
+                        "ollama_rag_source_paths": "README.md,docs/ai,docs/help",
+                        "ollama_rag_max_chunks": "5",
+                        "ollama_rag_max_context_chars": "7000",
+                        "ollama_rag_cache_seconds": "120",
+                        "ollama_rag_max_db_entries": "250",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Configurazione Assistente AI salvata")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("OLLAMA_CHAT_ENABLED=1", content)
+            self.assertIn("OLLAMA_API_PROVIDER=ollama", content)
+            self.assertIn("OLLAMA_BASE_URL=http://ollama.test.local:11434", content)
+            self.assertIn("OLLAMA_CHAT_MODEL=llama3.1", content)
+            self.assertIn("OLLAMA_REQUEST_TIMEOUT_SECONDS=45", content)
+            self.assertIn("OLLAMA_CHAT_TEMPERATURE=0.3", content)
+            self.assertIn("OLLAMA_CHAT_MAX_PROMPT_CHARS=5000", content)
+            self.assertIn("OLLAMA_CHAT_MAX_HISTORY_MESSAGES=12", content)
+            self.assertIn("OLLAMA_RAG_ENABLED=1", content)
+            self.assertIn("OLLAMA_RAG_SOURCE_PATHS=README.md,docs/ai,docs/help", content)
+            self.assertIn("OLLAMA_RAG_MAX_CHUNKS=5", content)
+            self.assertIn("OLLAMA_RAG_MAX_CONTEXT_CHARS=7000", content)
+            self.assertIn("OLLAMA_RAG_CACHE_SECONDS=120", content)
+            self.assertIn("OLLAMA_RAG_MAX_DB_ENTRIES=250", content)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_ai_settings_page_can_save_openwebui_config(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ai-settings-openwebui-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "OLLAMA_CHAT_ENABLED=0\nOLLAMA_API_PROVIDER=ollama\nOLLAMA_BASE_URL=http://old.local:11434\n",
+                encoding="utf-8",
+            )
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    reverse("admin_portale:ai_settings"),
+                    {
+                        "action": "save_ollama_config",
+                        "ollama_enabled": "on",
+                        "ollama_provider": "openwebui",
+                        "ollama_base_url": "http://openwebui.test.local:3000",
+                        "ollama_model": "llama3.1",
+                        "openwebui_api_key": "sk-test",
+                        "ollama_timeout": "45",
+                        "ollama_temperature": "0.3",
+                        "ollama_max_prompt_chars": "5000",
+                        "ollama_max_history_messages": "12",
+                        "ollama_rag_enabled": "on",
+                        "ollama_rag_source_paths": "README.md,docs/ai",
+                        "ollama_rag_max_chunks": "4",
+                        "ollama_rag_max_context_chars": "5000",
+                        "ollama_rag_cache_seconds": "300",
+                        "ollama_rag_max_db_entries": "200",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Configurazione Assistente AI salvata")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("OLLAMA_CHAT_ENABLED=1", content)
+            self.assertIn("OLLAMA_API_PROVIDER=openwebui", content)
+            self.assertIn("OLLAMA_BASE_URL=http://openwebui.test.local:3000", content)
+            self.assertIn("OLLAMA_CHAT_MODEL=llama3.1", content)
+            self.assertIn("OPENWEBUI_API_KEY=sk-test", content)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_rejects_invalid_ollama_config_without_overwrite(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ollama-invalid-")
+        try:
+            env_path = tmpdir / ".env"
+            original = "OLLAMA_CHAT_ENABLED=1\nOLLAMA_BASE_URL=http://valid.local:11434\nOLLAMA_CHAT_MODEL=llama3.1\n"
+            env_path.write_text(original, encoding="utf-8")
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ollama_config",
+                        "ollama_enabled": "on",
+                        "ollama_provider": "ollama",
+                        "ollama_base_url": "ftp://ollama.test.local",
+                        "ollama_model": "llama3.1",
+                        "ollama_timeout": "45",
+                        "ollama_temperature": "0.3",
+                        "ollama_max_prompt_chars": "5000",
+                        "ollama_max_history_messages": "12",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "URL Ollama non valido")
+            self.assertEqual(env_path.read_text(encoding="utf-8"), original)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_rejects_invalid_ollama_numeric_values_without_overwrite(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ollama-invalid-numeric-")
+        try:
+            env_path = tmpdir / ".env"
+            original = "OLLAMA_CHAT_ENABLED=1\nOLLAMA_BASE_URL=http://valid.local:11434\nOLLAMA_CHAT_MODEL=llama3.1\n"
+            env_path.write_text(original, encoding="utf-8")
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ollama_config",
+                        "ollama_enabled": "on",
+                        "ollama_provider": "ollama",
+                        "ollama_base_url": "http://ollama.test.local:11434",
+                        "ollama_model": "llama3.1",
+                        "ollama_timeout": "abc",
+                        "ollama_temperature": "0.3",
+                        "ollama_max_prompt_chars": "5000",
+                        "ollama_max_history_messages": "12",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Timeout Ollama non valido")
+            self.assertEqual(env_path.read_text(encoding="utf-8"), original)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_rejects_sensitive_ollama_rag_paths_without_overwrite(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ollama-invalid-rag-")
+        try:
+            env_path = tmpdir / ".env"
+            original = (
+                "OLLAMA_CHAT_ENABLED=1\n"
+                "OLLAMA_BASE_URL=http://valid.local:11434\n"
+                "OLLAMA_CHAT_MODEL=llama3.1\n"
+                "OLLAMA_RAG_SOURCE_PATHS=README.md,docs/ai\n"
+            )
+            env_path.write_text(original, encoding="utf-8")
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ollama_config",
+                        "ollama_enabled": "on",
+                        "ollama_provider": "ollama",
+                        "ollama_base_url": "http://ollama.test.local:11434",
+                        "ollama_model": "llama3.1",
+                        "ollama_timeout": "45",
+                        "ollama_temperature": "0.3",
+                        "ollama_max_prompt_chars": "5000",
+                        "ollama_max_history_messages": "12",
+                        "ollama_rag_enabled": "on",
+                        "ollama_rag_source_paths": ".env,README.md",
+                        "ollama_rag_max_chunks": "4",
+                        "ollama_rag_max_context_chars": "5000",
+                        "ollama_rag_cache_seconds": "300",
+                        "ollama_rag_max_db_entries": "200",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Percorsi knowledge base non validi")
+            self.assertEqual(env_path.read_text(encoding="utf-8"), original)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_can_test_ollama_connection(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get") as json_get:
+            json_get.side_effect = [
+                {"version": "0.5.7"},
+                {"models": [{"name": "llama3.1:latest"}]},
+            ]
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "ollama",
+                    "ollama_base_url": "http://ollama.test.local:11434",
+                    "ollama_model": "llama3.1",
+                    "ollama_timeout": "30",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Connessione Ollama riuscita")
+        json_get.assert_any_call("http://ollama.test.local:11434/api/version", 30)
+        json_get.assert_any_call("http://ollama.test.local:11434/api/tags", 30)
+
+    def test_config_srv_ollama_connection_handles_invalid_tags_json(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get") as json_get:
+            json_get.side_effect = [
+                {"version": "0.9.5"},
+                json.JSONDecodeError("Expecting value", "", 0),
+            ]
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "ollama",
+                    "ollama_base_url": "http://ollama.test.local:11434",
+                    "ollama_model": "nemotron-3-nano:30b",
+                    "ollama_timeout": "30",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Connessione Ollama riuscita")
+        self.assertContains(response, "/api/tags non ha restituito JSON valido")
+        self.assertNotContains(response, "line 1 column 1")
+
+    def test_config_srv_can_test_openwebui_connection(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get") as json_get:
+            json_get.return_value = {"data": [{"id": "llama3.1"}]}
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "openwebui",
+                    "ollama_base_url": "http://openwebui.test.local:3000",
+                    "ollama_model": "llama3.1",
+                    "openwebui_api_key": "sk-test",
+                    "ollama_timeout": "30",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                    "ollama_rag_enabled": "on",
+                    "ollama_rag_source_paths": "README.md,docs/ai",
+                    "ollama_rag_max_chunks": "4",
+                    "ollama_rag_max_context_chars": "5000",
+                    "ollama_rag_cache_seconds": "300",
+                    "ollama_rag_max_db_entries": "200",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Open WebUI raggiunto")
+        json_get.assert_any_call(
+            "http://openwebui.test.local:3000/api/models",
+            30,
+            headers={"Authorization": "Bearer sk-test"},
+        )
+
+    def test_ai_settings_openwebui_401_shows_key_rotation_hint_once(self):
+        self.client.force_login(self.admin_user)
+
+        http_error = urllib.error.HTTPError(
+            url="http://openwebui.test.local:3000/api/models",
+            code=401,
+            msg="Unauthorized",
+            hdrs=None,
+            fp=None,
+        )
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get", side_effect=http_error):
+            response = self.client.post(
+                reverse("admin_portale:ai_settings"),
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "openwebui",
+                    "ollama_base_url": "http://openwebui.test.local:3000",
+                    "ollama_model": "nemotron-3-nano:30b",
+                    "openwebui_api_key": "sk-old",
+                    "ollama_timeout": "60",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                    "ollama_rag_enabled": "on",
+                    "ollama_rag_source_paths": "README.md,docs/ai",
+                    "ollama_rag_max_chunks": "4",
+                    "ollama_rag_max_context_chars": "5000",
+                    "ollama_rag_cache_seconds": "300",
+                    "ollama_rag_max_db_entries": "200",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn("Open WebUI ha risposto HTTP 401", body)
+        self.assertIn("Rigenera la key", body)
+        self.assertEqual(body.count("Open WebUI ha risposto HTTP 401"), 1)
+
+    def test_config_srv_ollama_connection_reports_network_error(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get", side_effect=urllib.error.URLError("no route")):
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "ollama",
+                    "ollama_base_url": "http://ollama.test.local:11434",
+                    "ollama_model": "llama3.1",
+                    "ollama_timeout": "30",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ollama non raggiungibile")
+
+    def test_config_srv_ollama_connection_reports_openwebui_hint_on_405(self):
+        self.client.force_login(self.admin_user)
+
+        http_error = urllib.error.HTTPError(
+            url="http://10.0.0.34:3000/api/version",
+            code=405,
+            msg="Method Not Allowed",
+            hdrs=None,
+            fp=None,
+        )
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views._ollama_json_get", side_effect=http_error):
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "test_ollama_config",
+                    "ollama_enabled": "on",
+                    "ollama_provider": "ollama",
+                    "ollama_base_url": "http://10.0.0.34:3000",
+                    "ollama_model": "llama3.1",
+                    "ollama_timeout": "30",
+                    "ollama_temperature": "0.2",
+                    "ollama_max_prompt_chars": "4000",
+                    "ollama_max_history_messages": "10",
+                    "ollama_rag_enabled": "on",
+                    "ollama_rag_source_paths": "README.md,docs/ai",
+                    "ollama_rag_max_chunks": "4",
+                    "ollama_rag_max_context_chars": "5000",
+                    "ollama_rag_cache_seconds": "300",
+                    "ollama_rag_max_db_entries": "200",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Open WebUI")
+        self.assertContains(response, "http://10.0.0.34:11434")
 
     def test_config_srv_deploy_runtime_writes_persistent_env_not_release_env(self):
         self.client.force_login(self.admin_user)
@@ -1918,8 +2660,8 @@ class AdminPortaleAclDiagnosticViewTests(TestCase):
         self.assertEqual(diag["pulsante"]["modulo"], "assenze")
         self.assertTrue(diag["registry_matches"])
         self.assertTrue(diag["redirect_matches"]["outbound"])
-        self.assertIn("OVERRIDE", diag["badges"])
-        self.assertIn("LEGACY", diag["badges"])
+        self.assertIn("LEGACY_OVERRIDE", diag["badges"])
+        self.assertIn("LEGACY_FALLBACK", diag["badges"])
         self.assertIn("legacy", diag["human_summary"]["title"].lower())
         self.assertEqual(diag["final_decision_source"], "legacy_fallback")
 

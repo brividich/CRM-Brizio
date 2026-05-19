@@ -665,14 +665,9 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Root asset</div>
-          <div class="kpi-val text-heading">{{ sharepoint_admin_config.asset_root_path|default:"-" }}</div>
-          <div class="kpi-sub">Usata come default per nuovi asset.</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Root macchine</div>
-          <div class="kpi-val text-heading">{{ sharepoint_admin_config.work_machine_root_path|default:"-" }}</div>
-          <div class="kpi-sub">Usata come default per nuove macchine.</div>
+          <div class="kpi-label">Cartella radice</div>
+          <div class="kpi-val text-heading">{{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}</div>
+          <div class="kpi-sub">Percorso fisso: {{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}/&lt;tag&gt;/{manuali,specifiche,interventi}.</div>
         </div>
       </div>
 
@@ -710,14 +705,9 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
             <input type="password" name="sharepoint_client_secret" value="" placeholder="{% if sharepoint_admin_config.client_secret_configured %}Lascia vuoto per mantenere{% else %}Inserisci secret{% endif %}">
           </div>
           <div class="form-group">
-            <label>Cartella base asset</label>
-            <input type="text" name="sharepoint_asset_root_path" value="{{ sharepoint_admin_config.asset_root_path }}" placeholder="Asset/Inventario">
-            <div class="help">Default usato per asset generici: base / reparto / tag.</div>
-          </div>
-          <div class="form-group">
-            <label>Cartella base macchine</label>
-            <input type="text" name="sharepoint_work_machine_root_path" value="{{ sharepoint_admin_config.work_machine_root_path }}" placeholder="Macchine">
-            <div class="help">Default usato per macchine: base / reparto / tag.</div>
+            <label>Cartella radice asset</label>
+            <input type="text" value="{{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}" disabled>
+            <div class="help">Percorso fisso non modificabile: {{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}/&lt;tag asset&gt;/{manuali,specifiche,interventi}.</div>
           </div>
         </div>
         <div class="form-group" style="max-width:none;">

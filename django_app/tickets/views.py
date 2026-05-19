@@ -396,6 +396,22 @@ def _ticket_access_flags(request, ticket: Ticket) -> dict:
     }
 
 
+def _api_require_ticket_access(request, ticket: Ticket):
+    """Guard object-level per le API di gestione ticket.
+
+    Il decoratore ``_tickets_gestione_required`` verifica solo che l'utente
+    sia gestore di *almeno un* tipo di ticket; non garantisce l'accesso allo
+    specifico ticket collegato all'oggetto manipolato. Questa funzione
+    richiede che l'utente sia gestore del tipo del ticket (o admin legacy).
+
+    Ritorna ``JsonResponse`` 403 se l'accesso è negato, altrimenti ``None``.
+    """
+    access = _ticket_access_flags(request, ticket)
+    if access["is_gestore"] or access["is_admin"]:
+        return None
+    return _json_err("Accesso non consentito a questo ticket.", status=403)
+
+
 # ── Costanti PDF ──────────────────────────────────────────────────────────────
 _PDF_MARGIN   = 16 * mm
 _PDF_COLOR_IT  = HexColor("#0369a1")
@@ -2258,6 +2274,9 @@ def _api_intervento_create(request):
         return _json_err("Dati non validi")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)
+    if denied is not None:
+        return denied
     name, email, _ = _legacy_identity(request)
 
     try:
@@ -2337,7 +2356,10 @@ def _api_intervento_update(request):
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
-    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    interv = get_object_or_404(TicketIntervento.objects.select_related("ticket"), pk=intervento_id)
+    denied = _api_require_ticket_access(request, interv.ticket)
+    if denied is not None:
+        return denied
     update_fields = ["updated_at"]
 
     if "data_fine" in payload:
@@ -2389,8 +2411,11 @@ def _api_intervento_delete(request):
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
-    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    interv = get_object_or_404(TicketIntervento.objects.select_related("ticket"), pk=intervento_id)
     ticket = interv.ticket
+    denied = _api_require_ticket_access(request, ticket)
+    if denied is not None:
+        return denied
     interv.delete()
 
     # Ricalcola data_primo_intervento
@@ -2422,7 +2447,10 @@ def _api_componente_create(request):
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
-    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    interv = get_object_or_404(TicketIntervento.objects.select_related("ticket"), pk=intervento_id)
+    denied = _api_require_ticket_access(request, interv.ticket)
+    if denied is not None:
+        return denied
     nome   = (payload.get("nome") or "").strip()[:200]
     if not nome:
         return _json_err("Nome componente obbligatorio")
@@ -2464,7 +2492,12 @@ def _api_componente_delete(request):
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
-    comp = get_object_or_404(TicketComponenteSostituito, pk=comp_id)
+    comp = get_object_or_404(
+        TicketComponenteSostituito.objects.select_related("intervento__ticket"), pk=comp_id
+    )
+    denied = _api_require_ticket_access(request, comp.intervento.ticket)
+    if denied is not None:
+        return denied
     comp.delete()
     return JsonResponse({"ok": True})
 
@@ -2485,6 +2518,9 @@ def api_crea_workorder_da_ticket(request):
         return _json_err("Dati non validi")
 
     ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)
+    if denied is not None:
+        return denied
 
     if not ticket.asset_id:
         return _json_err("Il ticket non ha un asset collegato. Collegare prima l'asset dalla tab 'Asset e KPI'.")

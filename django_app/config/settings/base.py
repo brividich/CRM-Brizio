@@ -185,6 +185,52 @@ READYZ_TTL_SECONDS = int(env("READYZ_TTL_SECONDS", "10") or "10")
 # automation_queue.
 READYZ_CHECKS_ENABLED = env_list("READYZ_CHECKS_ENABLED", [])
 
+# Assistente AI locale via Ollama. La chiamata parte dal server Django verso
+# l'endpoint Ollama, mai dal browser dell'utente.
+OLLAMA_CHAT_ENABLED = env_bool("OLLAMA_CHAT_ENABLED", True)
+OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "llama3.1")
+OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
+OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
+OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.2")
+OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
+OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
+OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
+OLLAMA_RAG_SOURCE_PATHS = env_list("OLLAMA_RAG_SOURCE_PATHS", ["README.md", "docs/ai"])
+OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "2") or "2")
+OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "2000") or "2000")
+OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")
+OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
+OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")
+OLLAMA_RAG_MAX_FILE_CHARS = int(env("OLLAMA_RAG_MAX_FILE_CHARS", "300000") or "300000")
+OLLAMA_RAG_MAX_DB_ENTRIES = int(env("OLLAMA_RAG_MAX_DB_ENTRIES", "200") or "200")
+OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS", "1800") or "1800")
+OLLAMA_CHAT_SYSTEM_PROMPT = env(
+    "OLLAMA_CHAT_SYSTEM_PROMPT",
+    (
+        "Sei l'assistente interno di NOVICROM HUB. Rispondi in italiano, in modo pratico. "
+        # Gerarchia fonti — prima regola, non troncabile
+        "PRIORITA' FONTI (obbligatoria): "
+        "1) CONTESTO LIVE: se presente, e' la fonte principale. Rispondi usando quei dati, "
+        "cita tool:* e ignora i documenti interni sulla stessa domanda. "
+        "2) DOCUMENTI INTERNI: solo se non c'e' un contesto live pertinente. "
+        "3) Conoscenza generale: mai per inventare dati aziendali. "
+        # Anti-invenzione
+        "REGOLA ASSOLUTA: non inventare file, percorsi, URL, procedure, comandi o sezioni "
+        "del portale assenti dal contesto. Se non hai il dato, dillo senza aggiungere fantasia. "
+        "Se l'utente chiede dati operativi (registrazioni, movimenti, elenchi) e non e' presente "
+        "un CONTESTO LIVE, rispondi: 'Non ho accesso diretto a questi dati. Apri il modulo nel portale.' "
+        "Non descrivere come funziona il modulo come se stessi leggendo i dati reali. "
+        # Dati sensibili
+        "Non ripetere password, token o credenziali. Per dati sanitari, disciplinari o riservati "
+        "invita a usare il modulo dedicato. "
+        # Qualita risposta
+        "Se non sei certo, dichiaralo. Non aprire URL esterni. "
+        "Cita le fonti [docs/...] o tool:* solo se presenti nel contesto ricevuto."
+    ),
+)
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -198,6 +244,7 @@ INSTALLED_APPS = [
     "hub_tools.apps.HubToolsConfig",
     "core.apps.CoreConfig",
     "dashboard.apps.DashboardConfig",
+    "ai_assistant.apps.AiAssistantConfig",
     "assenze.apps.AssenzeConfig",
     "anomalie.apps.AnomalieConfig",
     "assets.apps.AssetsConfig",

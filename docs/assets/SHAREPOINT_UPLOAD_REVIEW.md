@@ -8,7 +8,8 @@ Data: 2026-05-08
 - Validazione estensione, dimensione e MIME reale tramite `core.upload_mime`.
 - Salvataggio locale nel portale come `AssetDocument`.
 - Creazione automatica della cartella SharePoint, se `GRAPH_*` e `ASSETS_SHAREPOINT_*` sono configurati.
-- Sync file su SharePoint tramite Microsoft Graph `PUT /drive/root:/path:/content`.
+- Sync file su SharePoint tramite Microsoft Graph `PUT /drive/root:/path:/content`, solo quando l'utente sceglie la destinazione SharePoint.
+- Scelta esplicita upload locale/SharePoint dalla card Documenti del dettaglio asset e dal form macchina.
 - Link di fallback locale servito da route autenticata `/assets/documenti/<id>/download/`.
 
 ## Criticita Rilevate
