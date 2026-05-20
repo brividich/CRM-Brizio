@@ -7,7 +7,7 @@
 **Il portale interno unificato di Costruzioni Novicrom SRL**
 *Workflow · Operations · Sicurezza · Automazioni · Governance*
 
-![Version](https://img.shields.io/badge/version-1.0.1-F97316?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.0.2-F97316?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
 ![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
@@ -136,7 +136,7 @@ sequenceDiagram
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
-| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
+| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori; anagrafica civile/aziendale HR con permesso dedicato, cataloghi dropdown (aree, ruoli, mansioni, qualifiche), report/export, creazione dipendente |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
 | 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, timeline eventi leggibile, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
@@ -242,7 +242,7 @@ Collezione di tool sotto `/admin-portale/hub/` protetti da `@legacy_admin_requir
 - **Database Manager** — statistiche tabelle, backup, pulizia log/sessioni, ottimizzazione, ripristino. Engine rilevato automaticamente (SQLite dev / SQL Server prod)
 - **DB Schema infografica** — mappa visuale di tutti i modelli Django con campi, tipi, relazioni FK/1:1/M:M
 - **Homepage Builder** — editor visuale layout home per ruolo
-- **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente, normalizzando i booleani `True`/`False` e `1`/`0`
+- **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente, normalizzando i booleani `True`/`False` e `1`/`0`; la sezione Microsoft Graph / SharePoint centralizza anche URL libreria asset, root consentita, drive/item ID e feature flag dei link pubblici QR asset.
 - **Guide** — catalogo auto-indicizzato di documenti (HTML/PDF/MD) da `tools/`, `doc/`, `deployment/`, con dedup per formato
 - **Categorie moduli / branding portale** — raggruppa la navigazione e personalizza nome, loghi upload/URL, favicon e colori globali della shell
 </details>
@@ -264,6 +264,7 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 - Fail-fast: se venv/pip/migrate/collectstatic falliscono, release **non** attivata
 - FinishPage mostra banner rosso "Installazione Incompleta" con countdown 60s
 - Server Dashboard integrato con start/stop/restart IIS, reset password live e terminale TEST/PROD con preset Django/ACL
+- Server Dashboard — pannello **Servizi Windows**: elenca i servizi rilevanti per l'hosting (IIS `W3SVC`/`WAS`/`AppHostSvc`, SQL Server `MSSQL*`/`SQLAgent*`/`SQLBrowser`/`SQLWriter`) con stato (in servizio / arrestato / avvio / arresto / in pausa) e tipo di avvio (automatico / manuale / disattivato); gestione inline Avvia/Ferma/Riavvia e cambio tipo di avvio, attiva solo se il setup gira come Amministratore
 - **Release Manager** (`--mode release`) con quattro operazioni: **Crea Release** (`.zip` completo da DEV), **Promuovi Release** (deploy `.zip` su TEST/PROD) e il flusso **Hotfix** a due fasi — **Crea Hotfix** (`--mode hotfix-create`, rileva i file modificati via git e li impacchetta in un `hotfix-*.zip` leggero) e **Applica Hotfix** (`--mode hotfix-apply`, estrae il pacchetto hotfix sul release attivo `current\`, esegue eventuali management command e ricicla IIS, senza nuova release)
 </details>
 
@@ -285,16 +286,24 @@ Superficie di monitoring del portale, issue tracking interno e segnalazioni uten
 #### 🏭 Operations
 
 <details open>
-<summary><b>7. <code>anagrafica</code> — dipendenti e fornitori</b></summary>
+<summary><b>7. <code>anagrafica</code> — dipendenti, HR e fornitori</b></summary>
 
-Anagrafica master del portale, integrata con Active Directory e tabelle legacy.
+Anagrafica master del portale, integrata con Active Directory e tabelle legacy SQL Server. Gestione strutturata HR con livelli di visibilità differenziati.
 
-- **9 modelli**: Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione, FornitoreAsset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission
-- **Fallback email** automatico `email_notifica` → `email` quando il legacy non popola il primo campo
-- **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile e credenziali service account preservate dal pannello admin su `config/.env` persistente nei deploy
-- **Stats dashboard dipendente** con layout salvato per utente
-- **Generazione PDF** anagrafica tramite `tools/gen_anagrafica_pdf.py`
-- **Ruoli operativi** aggiuntivi (non i ruoli ACL)
+- **17 modelli**: Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione, FornitoreAsset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission, Mansione, TipoQualifica, DipendenteQualifica, DipendenteAnagraficaCivile, DipendenteAnagraficaAziendale, AnagraficaHRPermission, AreaAziendale, RuoloAziendale
+- **Bridge pattern**: `DipendenteAnagraficaCivile` e `DipendenteAnagraficaAziendale` referenziano la tabella legacy `anagrafica_dipendenti` tramite `legacy_anagrafica_id` — nessuna modifica alle tabelle legacy
+- **Anagrafica civile** (admin): dati nascita/genere, residenza completa, domicilio, titolo di studio, contatti privati, patente — inline editabile dalla scheda dipendente
+- **Anagrafica aziendale** (admin): area, ruolo aziendale, taglie DPI, contratto (tipo/livello/prova/data prima assunzione), contatti aziendali, consenso privacy — inline editabile
+- **Dati riservati HR** (permesso `AnagraficaHRPermission` singleton): codice fiscale, IBAN (display mascherato), dati bancari, categorie protette/disabilità con percentuale — visibili solo agli utenti autorizzati
+- **`AnagraficaHRPermission`** configurabile da admin Django: TUTTI / ADMIN / RUOLI ACL specifici
+- **Cataloghi dropdown gestibili**: `AreaAziendale` e `RuoloAziendale` con pagine CRUD dedicate nel subnav; `Mansione` (con categoria: operaio/impiegato/quadro/dirigente) e `TipoQualifica` (con scadenze e durata validità)
+- **Creazione dipendente** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione
+- **Report dipendenti** `/anagrafica/dipendenti/report/` con filtri avanzati (area, contratto, consenso privacy, categoria protetta) e export CSV (esclusi campi HR sensibili per sicurezza)
+- **Ruoli operativi** aggiuntivi assegnabili dalla scheda dipendente (preposto, RSPP, squadra antincendio, ecc.)
+- **Qualifiche** con scadenze, stato in-scadenza (60gg) e storico per dipendente
+- **Stats dashboard dipendente** con layout drag&drop salvato per utente
+- **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile, credenziali service account su `config/.env`
+- **Fallback email** automatico `email_notifica` → `email` per notifiche legacy
 </details>
 
 <details open>
@@ -308,11 +317,13 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 - **Inventario IT** su `/assets/dispositivi/` — tabella filtrabile per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
 - **Inventario produzione** su `/assets/work-machines/` — tabella con badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
 - **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
+- **Dashboard e categorie**: i chip categoria della dashboard aprono l'inventario canonico con filtro `asset_category=<id>`; eventuali link storici `category=<id>` vengono reindirizzati al filtro corretto.
 - **Categorie asset gerarchiche** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`; la tab mostra impatto operativo, contatori, preview degli asset collegati in popup e azione rapida per pubblicare la categoria nel menu laterale come lista filtrata. Il catalogo CSV/XLSX puo creare categorie padre (`famiglia`) e sottocategorie (`sottocategoria`) con `import_assets_catalog` (per i file XLSX vengono elaborati tutti i fogli; `produttore`/`modello` finiscono nei campi dedicati, le altre colonne non standard in `extra_columns`)
+- **Specifiche tecniche pulite per categoria**: nella scheda asset la card `Specifiche tecniche` mostra solo campi valorizzati, includendo le caratteristiche specifiche della categoria e nascondendo righe vuote/placeholder (`N/D`, `-`); i booleani reali `False` restano visibili come `No`.
 - **Categoria Antincendio** seedabile con management command `seed_assets_antincendio`: crea/aggiorna `AssetCategory(code="antincendio")`, campi dinamici e preset "Prova antincendio", senza introdurre nuovi tipi asset o file migration dedicati
 - **Assegnazione asset guidata**: nei form asset/macchine l'assegnatario puo essere scelto da anagrafica dipendenti con ricerca oppure come reparto intero; reparto e collocazione vengono precompilati e restano modificabili.
-- **Etichette QR asset**: il PDF `/assets/view/<id>/qr-label/` genera di default un QR verso la cartella SharePoint dell'asset quando `sharepoint_folder_url` e' valorizzato; se il link manca resta il fallback alla scheda asset, e `?target=detail` forza ancora la scheda.
-- **Documenti asset + SharePoint**: le macchine di lavoro supportano upload multipli per Specifiche/Manuali/Interventi anche dalla card Documenti del dettaglio asset; prima del caricamento l'utente sceglie se lasciare i nuovi file solo in locale nel portale oppure sincronizzarli su SharePoint via Graph. I file vengono validati, salvati come `AssetDocument` e serviti tramite download autenticato `/assets/documenti/<id>/download/` quando resta solo la copia locale. La cartella SharePoint puo essere lasciata in modalita automatica con percorso fisso `ASSET CN/<tag asset>` e le tre sottocartelle distinte `manuali`, `specifiche`, `interventi` predisposte automaticamente, con preview nel form; se non esistono vengono create via Graph. Le cartelle asset e ogni file caricato su SharePoint ricevono colonne metadato per l'indicizzazione (`AssetTag`, `AssetCategoria`, `AssetSottocategoria`, `AssetProduttore`, `AssetModello`, `AssetMatricola`, `AssetStato`, `AssetReparto`, `AssetTipoDocumento`), create automaticamente nella libreria se mancanti. Dalla card Documenti ogni file portale ha un pulsante **cestino** che ne elimina il record, la copia locale e — se sincronizzata — anche la copia su SharePoint. Sono supportati anche i file `.msg` (messaggi Outlook) e l'**upload di un'intera cartella** (pulsante "Carica cartella", input `webkitdirectory`): su SharePoint viene mantenuta la struttura relativa della cartella selezionata e delle sottocartelle dentro la categoria attiva, mentre i file di sistema vengono ignorati. Il **sync inverso** SharePoint → portale è gestito dal management command `sync_asset_documents_from_sharepoint [--asset <tag>] [--dry-run]` (schedulabile): importa come riferimento i file aggiunti direttamente su SharePoint, rimuove dal portale quelli cancellati su SharePoint e aggiorna i link modificati, senza toccare i documenti solo-locali. Guide operative: `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`
+- **Etichette QR asset**: il PDF `/assets/view/<id>/qr-label/` genera di default un QR verso la route pubblica tokenizzata `/assets/public/<token>/` quando esiste un link pubblico SharePoint read-only (`sharepoint_public_url`) generato via Graph; in assenza del link pubblico non usa piu l'URL SharePoint interno e resta il fallback alla scheda asset, mentre `?target=detail` forza ancora la scheda. Se `SITE_URL` e configurato (es. `https://hub.cnovicrom.local`), le route QR usano questa base canonica anche dietro IIS/Waitress, evitando link `http` generati da request interne. Feature flag e root/drive consentiti dei link pubblici sono gestibili dalla tab configurazione di `/assets/impostazioni/` e dal pannello centrale `/admin-portale/hub/setup-wizard/#sec-graph`.
+- **Documenti asset + SharePoint**: le macchine di lavoro supportano upload multipli per Specifiche/Manuali/Interventi anche dalla card Documenti del dettaglio asset; prima del caricamento l'utente sceglie se lasciare i nuovi file solo in locale nel portale oppure sincronizzarli su SharePoint via Graph. I file vengono validati, salvati come `AssetDocument` e serviti tramite download autenticato `/assets/documenti/<id>/download/` quando resta solo la copia locale. La cartella SharePoint puo essere lasciata in modalita automatica con percorso root amministrabile (default `ASSET CN`) e struttura `<root>/<tag asset>` con le tre sottocartelle distinte `manuali`, `specifiche`, `interventi` predisposte automaticamente, con preview nel form; se non esistono vengono create via Graph. Oltre alle tre di base, admin/gestori asset possono aggiungere **cartelle documento extra per `AssetCategory`** dalla card Documenti della scheda asset (modello `AssetCategoryDocumentFolder`): una cartella vale per tutti gli asset della categoria, non e rinominabile (slug stabile) e si puo disattivare con soft-delete solo se non contiene documenti. Le cartelle asset salvano anche `drive_id`/`item_id` per consentire, con feature flag esplicito, la creazione di link pubblici Graph `anonymous/view` solo sotto la root consentita tramite `assets_ensure_public_share_links`. Le cartelle asset e ogni file caricato su SharePoint ricevono colonne metadato per l'indicizzazione (`AssetTag`, `AssetCategoria`, `AssetSottocategoria`, `AssetProduttore`, `AssetModello`, `AssetMatricola`, `AssetStato`, `AssetReparto`, `AssetTipoDocumento`), create automaticamente nella libreria se mancanti. Dalla card Documenti ogni file portale ha un pulsante **cestino** che ne elimina il record, la copia locale e — se sincronizzata — anche la copia su SharePoint. Sono supportati anche i file `.msg` (messaggi Outlook) e l'**upload di un'intera cartella** (pulsante "Carica cartella", input `webkitdirectory`): su SharePoint viene mantenuta la struttura relativa della cartella selezionata e delle sottocartelle dentro la categoria attiva, i file caricati da cartella conservano il **nome originale** (i file singoli mantengono invece il nome univoco anti-sovrascrittura) e nella card Documenti vengono mostrati **raggruppati per cartella di origine** (campo `AssetDocument.relative_folder`); i file di sistema vengono ignorati. Il **sync inverso** SharePoint → portale è gestito dal management command `sync_asset_documents_from_sharepoint [--asset <tag>] [--dry-run]` (schedulabile): percorre **ricorsivamente** le sottocartelle di `manuali`/`specifiche`/`interventi`, importa come riferimento i file aggiunti direttamente su SharePoint (anche annidati, conservando la cartella di origine in `relative_folder`), rimuove dal portale quelli cancellati su SharePoint e aggiorna i link modificati, senza toccare i documenti solo-locali. Il command `assets_ensure_sharepoint_metadata [--asset <tag>] [--dry-run|--apply]` esegue il **backfill delle colonne metadato** sulle cartelle asset `ASSET CN/<tag>` (e relative sottocartelle) già esistenti, create prima del supporto ai metadati. Guide operative: `docs/assets/SHAREPOINT_UPLOAD_REVIEW.md`, `docs/assets/SHAREPOINT_CARTELLE_ASSET_GUIDE.md`
 - **Work Order** (ordini di lavoro) con origin (PERIODIC/MANUAL/TICKET), executed_by, reference_batch, notes, allegati, log cronologico, fornitori associati
 - **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato. La pagina supporta **toggle Griglia / Elenco** (default griglia, persistenza in `localStorage`) per gestire molti piani senza scroll infinito. Per ogni piano (es. "Cambio olio") mostra lo **storico esecuzioni** filtrato per asset selezionato e finestra temporale (12/24 mesi/tutto), con pulsante inline **+ Registra esecuzione**: il form è multi-asset (tutti gli asset del piano pre-selezionati con checkbox "Seleziona / deseleziona tutti") e crea un OdL preventivo chiuso per ogni asset selezionato in un'unica transazione, aggiornando last/next date del piano. Il form supporta **upload allegati** (verbali, report, foto) salvati come `WorkOrderAttachment`. Lo stesso storico (ultimi 12 mesi) compare nella card *Manutenzione periodica* del dettaglio asset
 - **Pattern unificato esecuzioni** (manutenzione periodica, regole giorni-base, scadenze amministrative): ogni superficie espone un form inline (data, durata, costo €, note/risoluzione, **allegati multipli**) per registrare il completamento. Verifiche e regole creano un `WorkOrder` chiuso con costo per le estrazioni KPI e gli allegati salvati come `WorkOrderAttachment` (visibili dal workorder e dall'asset); le scadenze creano un record `AssetAdministrativeDeadlineCompletion` con allegati propri salvati come `AssetAdministrativeDeadlineCompletionAttachment` (campo file `completion_files`, stessi limiti MIME/estensioni dei documenti asset, path logico `assets_admin_deadlines/<asset_tag>/<completion_id>/`, storage privato `ASSETS_PRIVATE_ROOT` e download autenticato da `/assets/scadenze/allegati/<id>/download/`; migrazione operativa file legacy: `manage.py migrate_admin_deadline_attachments_private --apply --delete-source`) e — opzionalmente — rinnovano la `due_date`. I widget dashboard "Scadenze scadute"/"Scadenze 30gg" linkano direttamente alla pagina scadenze con il form di completamento già aperto sulla riga (`?focus_deadline=<id>`)
@@ -363,6 +374,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Import Excel/catalogo** massivo per bulk creation: `import_assets_excel` per inventory IT multi-foglio e `import_assets_catalog <file> --dry-run|--commit` per CSV/XLSX normalizzati famiglia/sottocategoria
 - **Tipo bene unificato alla categoria**: il form asset non ha piu il campo "Tipo bene" separato; `asset_type` e derivato automaticamente dalla `Categoria asset`. Il command `realign_asset_types [--dry-run] [--skip-categories] [--include-classified]` riallinea `asset_type` degli asset esistenti a partire dalla categoria, ri-deducendo opzionalmente `base_asset_type` delle categorie dal nome
 - **Pagina "Dispositivi IT"** limitata ai soli tipi IT (PC, portatili, server, VM, firewall/rete, stampanti, fonia, TVCC, dispositivi generici): gli asset "Altro" (impianto/non-IT) non vi compaiono piu
+- **Navigazione per categoria**: la sidebar asset ha un gruppo per ogni categoria radice e una voce per ogni sotto-categoria; ogni voce apre l'inventario filtrato per sottoalbero (categoria + discendenti). Il command `sync_sidebar_categories` rigenera la sidebar dopo modifiche alle categorie nell'admin
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 </details>
 
@@ -388,7 +400,7 @@ Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`
 - **Workflow completo**: richiesta → approvazione capo reparto → notifica → calendario
 - **Calendario** con vista mensile/settimanale e colori per tipo
 - **Certificazione presenza** come tipo applicativo dedicato (persistita come `Altro` con metadato interno)
-- **Sync bidirezionale** con lista SharePoint via Graph API (intervallo configurabile `ASSENZE_SP_PULL_INTERVAL_SECONDS`)
+- **Sync bidirezionale** con lista SharePoint via Graph API; il pull automatico su pagine operative e' attivo di default (`ASSENZE_SYNC_ON_PAGE_LOAD=1`) e resta throttled dall'intervallo `ASSENZE_SP_PULL_INTERVAL_SECONDS`
 - **Capo reparto** risolto verso FK `capi_reparto.id` leggendo `indirizzo_email` (email_notifica/email fallback)
 - **Tipo assenza canonico** `Flessibilità` (allineamento da legacy `Infortunio` via management command idempotente)
 - **Timestamp approvazione** salvato in `assenze.approvazione_datetime` quando il CAR approva una richiesta ferie/permessi
@@ -688,6 +700,11 @@ questi file non vanno mai committati. In deploy Django carica `config/.env`
 prima del `.env` copiato nella release attiva, cosi un riavvio IIS applica i
 salvataggi del pannello admin. Un pre-commit hook in `tools/git-hooks/` blocca
 commit accidentali di `.env*`, chiavi private e pattern secret.
+
+La configurazione Graph/SharePoint condivisa, comprese le opzioni asset per QR
+pubblici (`SHAREPOINT_ASSET_*`), si gestisce dal pannello centrale
+`/admin-portale/hub/setup-wizard/#sec-graph`; la pagina impostazioni assets usa
+le stesse chiavi `.env` come vista operativa di modulo.
 
 ```powershell
 # Installa il pre-commit hook (una-tantum per sviluppatore)
@@ -1064,7 +1081,7 @@ Il comando `status` segnala automaticamente sessioni stale (avvio > 8 ore: avvis
 
 <div align="center">
 
-**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.0.1`
+**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.0.2`
 
 *Repository ripulito per pubblicazione sicura: nessuna credenziale reale è inclusa.
 I file `.example` sono template. Il pre-commit hook in `tools/git-hooks/` blocca

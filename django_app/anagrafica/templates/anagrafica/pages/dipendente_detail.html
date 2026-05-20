@@ -151,6 +151,24 @@
 .dp-qual-field { display:flex; flex-direction:column; gap:3px; }
 .dp-qual-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 
+/* Input campi anagrafica */
+.dp-input { width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; box-sizing:border-box; }
+.dp-input:focus { border-color:#1d4ed8; background:#fff; }
+
+/* Grid form anagrafica */
+.dp-form-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
+.dp-form-field { display:flex; flex-direction:column; gap:3px; }
+.dp-form-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.dp-form-section { border-top:1px dashed #e2e8f0; margin-top:14px; padding-top:12px; }
+.dp-form-section-title { font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
+
+/* Sezione HR riservata */
+.dp-hr-badge { display:inline-flex; align-items:center; gap:6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; margin-bottom:12px; }
+
+/* Toggle sezione edit */
+.dp-edit-section { display:none; margin-top:14px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
+.dp-edit-section.open { display:block; }
+
 @media (max-width:600px) {
   .dp-qual-form-grid { grid-template-columns:1fr; }
 }
@@ -190,6 +208,11 @@ body.theme-dark .dp-qual-cat { color:var(--text-light); }
 body.theme-dark .dp-qual-dates { color:var(--text-light); }
 body.theme-dark .dp-qual-label { color:var(--text-light); }
 body.theme-dark .dp-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dp-form-label { color:var(--text-light); }
+body.theme-dark .dp-form-section-title { color:var(--text-light); }
+body.theme-dark .dp-form-section { border-color:var(--border); }
+body.theme-dark .dp-edit-section { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; border-color:rgba(253,230,138,.3); }
 </style>
 {% endblock %}
 
@@ -240,9 +263,13 @@ body.theme-dark .dp-input { background:var(--surface-alt); border-color:var(--bo
     </div>
   </div>
 
-  <!-- INFO ANAGRAFICHE -->
+  <!-- ANAGRAFICA AZIENDALE -->
+  {% if is_admin %}
   <div class="dp-card">
-    <div class="dp-card-head"><div class="dp-card-title">Dati anagrafici</div></div>
+    <div class="dp-card-head">
+      <div class="dp-card-title">🏢 Anagrafica aziendale</div>
+      <button type="button" onclick="toggleSection('az-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
+    </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|default:"—" }}</div></div>
@@ -251,12 +278,9 @@ body.theme-dark .dp-input { background:var(--surface-alt); border-color:var(--bo
         <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{{ dip.reparto|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Mansione
-            {% if is_admin %}
-              <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1d4ed8;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
-            {% endif %}
+            <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1d4ed8;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
           </div>
           <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
-          {% if is_admin %}
           <div class="dp-mansione-form" id="mansione-form">
             <form method="post" action="{% url 'anagrafica:dipendente_mansione_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               {% csrf_token %}
@@ -276,14 +300,156 @@ body.theme-dark .dp-input { background:var(--surface-alt); border-color:var(--bo
               Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1d4ed8;">Gestisci il catalogo</a>.
             </div>
           </div>
-          {% endif %}
         </div>
+        <div class="dp-info-item"><div class="dp-info-label">Area</div><div class="dp-info-value">{{ aziendale.area|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1d4ed8;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1d4ed8;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Tipologia contratto</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_tipologia_contratto_display|default:"—" }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Livello inquadramento</div><div class="dp-info-value">{{ aziendale.livello_inquadramento|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d/m/Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d/m/Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d/m/Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Taglia pantalone</div><div class="dp-info-value">{{ aziendale.taglia_pantalone|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Taglia maglia</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_taglia_maglia_display|default:"—" }}{% else %}—{% endif %}</div></div>
+      </div>
+
+      <!-- Form modifica anagrafica aziendale -->
+      <div class="dp-edit-section" id="az-edit">
+        <div class="dp-form-section-title">Modifica dati aziendali</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            {% for field in form_aziendale %}
+            <div class="dp-form-field">
+              <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('az-edit')">Annulla</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
+  {% endif %}
+
+  <!-- ANAGRAFICA CIVILE -->
+  {% if is_admin %}
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🪪 Anagrafica civile</div>
+      <button type="button" onclick="toggleSection('civ-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-info-grid">
+        <div class="dp-info-item"><div class="dp-info-label">Data di nascita</div><div class="dp-info-value">{{ civile.data_nascita|date:"d/m/Y"|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Luogo di nascita</div><div class="dp-info-value">{{ civile.luogo_nascita|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Genere</div><div class="dp-info-value">{% if civile %}{{ civile.get_genere_display|default:"—" }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Titolo di studio</div><div class="dp-info-value">{% if civile %}{{ civile.get_titolo_studio_display|default:"—" }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Indirizzo residenza</div><div class="dp-info-value">{{ civile.indirizzo_residenza|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Città residenza</div><div class="dp-info-value">{{ civile.citta_residenza|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Provincia residenza</div><div class="dp-info-value">{{ civile.provincia_residenza|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nazione residenza</div><div class="dp-info-value">{{ civile.nazione_residenza|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">CAP residenza</div><div class="dp-info-value">{{ civile.cap_residenza|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Indirizzo domicilio</div><div class="dp-info-value">{{ civile.indirizzo_domicilio|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Città domicilio</div><div class="dp-info-value">{{ civile.citta_domicilio|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nazione domicilio</div><div class="dp-info-value">{{ civile.nazione_domicilio|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">CAP domicilio</div><div class="dp-info-value">{{ civile.cap_domicilio|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email privata</div><div class="dp-info-value">{% if civile.email_privata %}<a href="mailto:{{ civile.email_privata }}" style="color:#1d4ed8;">{{ civile.email_privata }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Telefono privato</div><div class="dp-info-value">{{ civile.telefono_privato|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Patente auto</div><div class="dp-info-value">{% if civile.patente_auto %}<span class="dp-pill dp-pill-green">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+      </div>
+
+      <!-- Form modifica anagrafica civile (campi non sensibili mostrati nel form; campi HR esclusi) -->
+      <div class="dp-edit-section" id="civ-edit">
+        <div class="dp-form-section-title">Modifica dati civili</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            {% for field in form_civile %}
+              {% if field.html_name not in "nome_banca,iban,intestatario_conto,categoria_protetta,categoria_disabili,percentuale_disabilita" %}
+              <div class="dp-form-field">
+                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('civ-edit')">Annulla</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- DATI RISERVATI HR -->
+  {% if can_hr %}
+  <div class="dp-card" style="border-color:#fde68a;">
+    <div class="dp-card-head" style="background:#fffbeb;">
+      <div class="dp-card-title">🔒 Dati riservati HR</div>
+      {% if is_admin %}
+        <button type="button" onclick="toggleSection('hr-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-hr-badge">⚠ Dati sensibili — visibili solo agli utenti con autorizzazione HR</div>
+      <div class="dp-info-grid">
+        <div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{{ civile.codice_fiscale|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nome banca</div><div class="dp-info-value">{{ civile.nome_banca|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">IBAN</div><div class="dp-info-value">{% if civile.iban %}{{ civile.iban_mascherato }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Intestatario conto</div><div class="dp-info-value">{{ civile.intestatario_conto|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Categoria protetta</div><div class="dp-info-value">{% if civile.categoria_protetta %}<span class="dp-pill dp-pill-blue">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Categoria disabili</div><div class="dp-info-value">{% if civile.categoria_disabili %}<span class="dp-pill dp-pill-blue">Sì</span>{% if civile.percentuale_disabilita %} <span style="font-size:11px;color:#64748b;">{{ civile.percentuale_disabilita }}%</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+      </div>
+
+      {% if is_admin %}
+      <div class="dp-edit-section" id="hr-edit">
+        <div class="dp-form-section-title">Modifica dati riservati HR</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "codice_fiscale,nome_banca,iban,intestatario_conto" %}
+              <div class="dp-form-field">
+                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+            {% for field in form_civile %}
+              {% if field.html_name in "categoria_protetta,categoria_disabili,percentuale_disabilita" %}
+              <div class="dp-form-field">
+                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('hr-edit')">Annulla</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- RUOLI OPERATIVI -->
   <div class="dp-card">
@@ -858,6 +1024,11 @@ window.addEventListener('beforeunload', e => {
 function toggleMansioneForm() {
   const f = document.getElementById('mansione-form');
   if (f) f.classList.toggle('open');
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
 }
 </script>
 {% endblock %}

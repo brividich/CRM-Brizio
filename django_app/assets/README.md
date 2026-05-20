@@ -117,6 +117,20 @@ Colonne dinamiche:
 - I macchinari di officina possono essere gestiti come `Asset` con `asset_type="WORK_MACHINE"` e dettagli dedicati nella tabella `WorkMachine`.
 - La relazione e `1:1`: `Asset` resta il master record (tag, nome, stato, reparto), `WorkMachine` contiene le colonne specifiche di officina.
 
+## Link pubblici QR SharePoint
+- Il QR pubblico usa `/assets/public/<public_qr_token>/`, che reindirizza solo a `sharepoint_public_url` quando il link pubblico read-only e attivo.
+- Se `SITE_URL` e configurato, i PDF etichetta usano quella base canonica per le route QR (es. `https://hub.cnovicrom.local/assets/public/<token>/`) invece dello scheme visto dalla request interna IIS/Waitress.
+- La creazione automatica e controllata da `SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED` (default `false`) e non cambia permessi tenant/sito.
+- Le impostazioni `SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED`, `SHAREPOINT_ASSET_ALLOWED_ROOT_NAME`, `SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID`, `SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID`, `SHAREPOINT_ASSET_SITE_ID` e `SHAREPOINT_ASSET_DRIVE_ID` sono gestibili sia dal pannello centrale `/admin-portale/hub/setup-wizard/#sec-graph` sia dalla tab configurazione di `/assets/impostazioni/`; entrambe le pagine salvano le stesse chiavi `.env`.
+- Sono eleggibili solo cartelle asset verificabili sotto `SHAREPOINT_ASSET_ALLOWED_ROOT_NAME` (default `ASSET CN`), con `sharepoint_drive_id` e `sharepoint_item_id`.
+- Riconversione asset esistenti:
+
+```bash
+python manage.py assets_ensure_public_share_links --dry-run
+python manage.py assets_ensure_public_share_links --apply --only-missing
+python manage.py assets_ensure_public_share_links --apply --asset-tag "APLCP142-MATR.PI-I-2286"
+```
+
 Import dedicato:
 
 ```bash

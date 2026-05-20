@@ -132,6 +132,11 @@
 .af-doc-name { font-weight: 600; color: #0f172a; font-size: var(--fs-md); }
 .af-doc-meta { color: #64748b; font-size: var(--fs-sm); }
 .af-doc-empty { color: #64748b; font-size: var(--fs-base); margin: 0; }
+.af-doc-folder-head { font-weight: 600; color: #334155; font-size: var(--fs-sm); margin: 6px 0 2px; padding: 4px 8px; background: #f1f5f9; border-radius: 8px; }
+.af-doc-item-nested { margin-left: 16px; }
+.af-doc-folder-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.af-doc-folder-add input[type="text"] { flex: 1; min-width: 220px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: var(--fs-sm); }
+.af-doc-folder-remove { margin-top: 10px; }
 .af-note { color: #64748b; font-size: var(--fs-base); line-height: 1.5; }
 .af-link-row { display: grid; gap: 8px; }
 .af-link-value { color: #0f172a; font-size: var(--fs-base); word-break: break-word; }
@@ -219,6 +224,8 @@ body.theme-dark .af-drop.is-dragging { border-color:#93c5fd; background:rgba(37,
 body.theme-dark .af-doc-item { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .af-doc-name { color:var(--text); }
 body.theme-dark .af-doc-meta, body.theme-dark .af-doc-empty, body.theme-dark .af-note { color:var(--text-light); }
+body.theme-dark .af-doc-folder-head { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .af-doc-folder-add input[type="text"] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .af-link-value { color:var(--text); }
 body.theme-dark .af-hint { border-color:var(--border); }
 body.theme-dark .af-hint-label { color:var(--text); }
@@ -329,8 +336,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
         {% endif %}
       {% endfor %}
       {% if asset_report_pdf_url %}
-        <a class="af-btn af-btn-secondary" href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">Report PDF</a>
+        <a class="af-btn af-btn-secondary" href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; PDF</a>
       {% endif %}
+      <a class="af-btn af-btn-secondary" href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; XLSX</a>
       {% if layout_manage_url %}
         <a class="af-btn af-btn-ghost" href="{{ layout_manage_url }}">Configura layout</a>
       {% endif %}
@@ -1050,18 +1058,29 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
           </div>
         {% elif card.code == "DOCUMENTS" %}
           <div class="af-doc-tabs">
-            {% for key, label in doc_category_labels.items %}
+            {% for spec in doc_category_specs %}
               <button
                 type="button"
                 class="af-doc-tab {% if forloop.first %}is-active{% endif %}"
-                data-doc-tab="{{ key }}"
+                data-doc-tab="{{ spec.code }}"
               >
-                {{ label }}
+                {{ spec.label }}
               </button>
             {% endfor %}
           </div>
 
-          {% for key, label in doc_category_labels.items %}
+          {% if can_manage_doc_folders %}
+            <form class="af-doc-folder-add" method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="add_asset_document_folder">
+              <input type="text" name="folder_name" maxlength="120" placeholder="Nome nuova cartella documento" required>
+              <button class="af-btn af-btn-secondary" type="submit">+ Aggiungi cartella</button>
+              <span class="af-note" style="flex-basis:100%;">La cartella vale per tutti gli asset della categoria.</span>
+            </form>
+          {% endif %}
+
+          {% for spec in doc_category_specs %}
+            {% with key=spec.code label=spec.label %}
             <div class="af-doc-body" data-doc-panel="{{ key }}" {% if not forloop.first %}style="display:none;"{% endif %}>
               <form class="af-doc-upload" method="post" enctype="multipart/form-data" data-doc-upload>
                 {% csrf_token %}
@@ -1104,41 +1123,55 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                   </div>
                 </div>
               </form>
-              {% with docs=documents_by_category|dict_get:key %}
-                {% if docs %}
-                  {% for doc in docs %}
-                    <div class="af-doc-item">
-                      <div>
-                        <div class="af-doc-name">{{ doc.name }}</div>
-                        <div class="af-doc-meta">
-                          {{ doc.size|default:"" }}
-                          {% if doc.date %} | {{ doc.date }}{% endif %}
-                          {% if doc.kind == "uploaded" %} | File portale{% else %} | Collegamento{% endif %}
-                          {% if doc.meta %} | {{ doc.meta }}{% endif %}
+              {% with groups=documents_by_category|dict_get:key %}
+                {% if groups %}
+                  {% for group in groups %}
+                    {% if group.folder %}
+                      <div class="af-doc-folder-head" title="Cartella caricata su SharePoint">&#128193; {{ group.folder }}</div>
+                    {% endif %}
+                    {% for doc in group.documents %}
+                      <div class="af-doc-item{% if group.folder %} af-doc-item-nested{% endif %}">
+                        <div>
+                          <div class="af-doc-name">{{ doc.name }}</div>
+                          <div class="af-doc-meta">
+                            {{ doc.size|default:"" }}
+                            {% if doc.date %} | {{ doc.date }}{% endif %}
+                            {% if doc.kind == "uploaded" %} | File portale{% else %} | Collegamento{% endif %}
+                            {% if doc.meta %} | {{ doc.meta }}{% endif %}
+                          </div>
+                        </div>
+                        <div class="af-doc-item-actions">
+                          {% if doc.url %}
+                            <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
+                          {% else %}
+                            <button class="af-btn" type="button" disabled>Apri</button>
+                          {% endif %}
+                          {% if doc.id %}
+                            <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale{% if doc.sharepoint %} e da SharePoint{% endif %}.');">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="delete_asset_document">
+                              <input type="hidden" name="document_id" value="{{ doc.id }}">
+                              <button class="af-btn af-btn-danger" type="submit" title="Elimina documento" aria-label="Elimina documento">&#128465;</button>
+                            </form>
+                          {% endif %}
                         </div>
                       </div>
-                      <div class="af-doc-item-actions">
-                        {% if doc.url %}
-                          <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
-                        {% else %}
-                          <button class="af-btn" type="button" disabled>Apri</button>
-                        {% endif %}
-                        {% if doc.id %}
-                          <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale{% if doc.sharepoint %} e da SharePoint{% endif %}.');">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="delete_asset_document">
-                            <input type="hidden" name="document_id" value="{{ doc.id }}">
-                            <button class="af-btn af-btn-danger" type="submit" title="Elimina documento" aria-label="Elimina documento">&#128465;</button>
-                          </form>
-                        {% endif %}
-                      </div>
-                    </div>
+                    {% endfor %}
                   {% endfor %}
                 {% else %}
                   <div class="af-doc-empty">Nessun documento nella categoria {{ label }}.</div>
                 {% endif %}
+                {% if can_manage_doc_folders and spec.removable %}
+                  <form method="post" class="af-doc-folder-remove" onsubmit="return confirm('Disattivare la cartella documento &quot;{{ label|escapejs }}&quot;? Sara possibile solo se non contiene documenti; vale per tutti gli asset della categoria.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="deactivate_asset_document_folder">
+                    <input type="hidden" name="folder_id" value="{{ spec.folder_id }}">
+                    <button class="af-btn af-btn-danger" type="submit">Disattiva questa cartella</button>
+                  </form>
+                {% endif %}
               {% endwith %}
             </div>
+            {% endwith %}
           {% endfor %}
         {% endif %}
       </article>

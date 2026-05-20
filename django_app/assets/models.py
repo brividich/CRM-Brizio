@@ -75,6 +75,16 @@ class Asset(models.Model):
     notes = models.TextField(blank=True, default="")
     sharepoint_folder_url = models.CharField(max_length=1000, blank=True, default="")
     sharepoint_folder_path = models.CharField(max_length=500, blank=True, default="")
+    sharepoint_drive_id = models.CharField(max_length=255, blank=True, default="")
+    sharepoint_item_id = models.CharField(max_length=255, blank=True, default="")
+    sharepoint_public_url = models.CharField(max_length=1000, blank=True, default="")
+    sharepoint_public_link_id = models.CharField(max_length=255, blank=True, default="")
+    sharepoint_public_enabled = models.BooleanField(default=False)
+    sharepoint_public_created_at = models.DateTimeField(null=True, blank=True)
+    sharepoint_public_last_checked_at = models.DateTimeField(null=True, blank=True)
+    sharepoint_public_error = models.TextField(blank=True, default="")
+    public_qr_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+    public_qr_enabled = models.BooleanField(default=True)
     extra_columns = models.JSONField(default=dict, blank=True)
     source_key = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     assigned_legacy_user_id = models.IntegerField(null=True, blank=True, db_index=True)
@@ -141,6 +151,8 @@ class Asset(models.Model):
     def save(self, *args, **kwargs):
         if self.source_key == "":
             self.source_key = None
+        if self.public_qr_enabled and not self.public_qr_token:
+            self.public_qr_token = uuid.uuid4().hex
         if self.asset_tag:
             return super().save(*args, **kwargs)
         for _ in range(3):
@@ -1368,9 +1380,17 @@ class AssetDocument(models.Model):
     ]
 
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="documents")
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default=CATEGORY_SPECIFICHE, db_index=True)
+    # Codice della cartella documento: una delle CATEGORY_CHOICES di base oppure
+    # lo slug di una AssetCategoryDocumentFolder extra configurata sulla categoria.
+    category = models.CharField(max_length=60, choices=CATEGORY_CHOICES, default=CATEGORY_SPECIFICHE, db_index=True)
     file = models.FileField(upload_to=_asset_document_upload_to)
     original_name = models.CharField(max_length=255, blank=True, default="")
+    relative_folder = models.CharField(
+        max_length=400,
+        blank=True,
+        default="",
+        help_text="Percorso relativo della cartella di origine (upload 'Carica cartella'); vuoto per i file singoli.",
+    )
     notes = models.CharField(max_length=255, blank=True, default="")
     document_date = models.DateField(null=True, blank=True)
     sharepoint_url = models.CharField(max_length=1000, blank=True, default="")
@@ -1401,6 +1421,35 @@ class AssetDocument(models.Model):
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+
+
+class AssetCategoryDocumentFolder(models.Model):
+    """Cartella documento extra configurata su una AssetCategory.
+
+    Si aggiunge alle tre cartelle di base (specifiche/interventi/manuali) e vale
+    per tutti gli asset di quella categoria. Lo ``slug`` e la chiave stabile
+    salvata in ``AssetDocument.category`` e usata come nome cartella SharePoint.
+    Non e rinominabile; la disattivazione (soft-delete) e consentita solo se
+    nessun documento la usa.
+    """
+
+    category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.CASCADE,
+        related_name="document_folders",
+    )
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=60)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "name", "id"]
+        unique_together = [("category", "slug")]
+
+    def __str__(self) -> str:
+        return f"AssetCategoryDocumentFolder<{self.category_id}:{self.slug}>"
 
 
 def default_asset_label_body_fields() -> list[str]:

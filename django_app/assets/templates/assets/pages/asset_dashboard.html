@@ -235,7 +235,7 @@ body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
       Tutti gli asset
     </a>
     {% for cat in categories %}
-    <a href="{% url 'assets:asset_list' %}?category={{ cat.id }}" class="ad-cat">
+    <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">
       {{ cat.label }}
       {% with cnt=kpis.asset_per_categoria %}
         {% for item in cnt %}{% if item.id == cat.id %}<span class="ad-cat-count">{{ item.count }}</span>{% endif %}{% endfor %}
@@ -455,7 +455,7 @@ body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
         {% if row.count > 0 %}
         <div class="ad-bar-row">
           <span class="ad-bar-label">
-            {% if row.id %}<a href="{% url 'assets:asset_list' %}?category={{ row.id }}" style="color:inherit;text-decoration:none;">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
+            {% if row.id %}<a href="{% url 'assets:asset_list' %}?asset_category={{ row.id }}" style="color:inherit;text-decoration:none;">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
           </span>
           <div class="ad-bar-track">
             <div class="ad-bar-fill {% cycle 'fill-blue' 'fill-teal' 'fill-violet' 'fill-green' 'fill-orange' 'fill-rose' 'fill-slate' %}"

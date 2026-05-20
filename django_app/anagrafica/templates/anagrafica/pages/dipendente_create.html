@@ -1,0 +1,446 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuovo dipendente | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.dc-page { display:flex; flex-direction:column; gap:20px; max-width:1100px; }
+.dc-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dc-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.dc-sub   { font-size:13px; color:#64748b; margin-top:2px; }
+.dc-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.dc-btn-primary { background:#1d4ed8; color:#fff; }
+.dc-btn-primary:hover { background:#1e40af; }
+.dc-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.dc-btn-ghost:hover { background:#e2e8f0; }
+
+/* ── Card sezione ── */
+.dc-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.dc-card-head { display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid #f1f5f9; cursor:pointer; user-select:none; }
+.dc-card-title { font-size:15px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:10px; }
+.dc-card-badge { font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; }
+.dc-badge-required { background:#fef3c7; color:#92400e; }
+.dc-badge-optional { background:#f1f5f9; color:#64748b; }
+.dc-badge-hr { background:#fde8e8; color:#b91c1c; }
+.dc-card-toggle { font-size:14px; color:#94a3b8; transition:transform .2s; }
+.dc-card-body { padding:22px; }
+.dc-collapsed .dc-card-body { display:none; }
+.dc-collapsed .dc-card-toggle { transform:rotate(-90deg); }
+
+/* ── Macro-area dentro la card ── */
+.dc-area { margin-bottom:22px; }
+.dc-area:last-child { margin-bottom:0; }
+.dc-area-title {
+  display:flex; align-items:center; gap:8px;
+  font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.07em;
+  margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;
+}
+.dc-area-title::before { content:''; display:block; width:3px; height:14px; border-radius:2px; background:#1d4ed8; }
+
+/* ── Griglia campi ── */
+.dc-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+.dc-grid-2 { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }
+.dc-grid-3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+.dc-field { display:flex; flex-direction:column; gap:4px; }
+.dc-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.dc-label .dc-required { color:#ef4444; margin-left:2px; }
+.dc-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.dc-input:focus { border-color:#1d4ed8; background:#fff; }
+.dc-input.has-error { border-color:#ef4444; background:#fff5f5; }
+.dc-error { font-size:11px; color:#b91c1c; margin-top:2px; }
+.dc-checkrow { display:flex; align-items:center; gap:8px; font-size:13px; color:#334155; padding:4px 0; }
+.dc-checkrow input[type=checkbox] { width:15px; height:15px; accent-color:#1d4ed8; cursor:pointer; }
+
+/* ── Avvisi HR ── */
+.dc-hr-notice { display:flex; align-items:center; gap:8px; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:12px; font-weight:600; color:#92400e; margin-bottom:16px; }
+
+/* ── Footer form ── */
+.dc-footer { display:flex; align-items:center; gap:12px; padding:18px 22px; background:#f8fafc; border-top:1px solid #e2e8f0; flex-wrap:wrap; }
+.dc-footer-note { font-size:12px; color:#64748b; }
+
+/* ── Dark mode ── */
+body.theme-dark .dc-title { color:var(--text); }
+body.theme-dark .dc-sub { color:var(--text-light); }
+body.theme-dark .dc-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dc-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dc-card-head { border-color:var(--border); }
+body.theme-dark .dc-card-title { color:var(--text); }
+body.theme-dark .dc-card-toggle { color:var(--text-light); }
+body.theme-dark .dc-area-title { color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dc-label { color:var(--text-light); }
+body.theme-dark .dc-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dc-input:focus { background:var(--surface); border-color:#60a5fa; }
+body.theme-dark .dc-checkrow { color:var(--text-mid); }
+body.theme-dark .dc-footer { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dc-footer-note { color:var(--text-light); }
+body.theme-dark .dc-hr-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fcd34d; }
+body.theme-dark .dc-card-body { border-color:var(--border); }
+
+@media (max-width:700px) {
+  .dc-grid, .dc-grid-2, .dc-grid-3 { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="dc-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="dc-topbar">
+    <div>
+      <div class="dc-title">+ Nuovo dipendente</div>
+      <div class="dc-sub">Compila i campi obbligatori. Le sezioni facoltative si possono completare anche dalla scheda.</div>
+    </div>
+    <a class="dc-btn dc-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
+  </div>
+
+  <form method="post" autocomplete="off" id="dc-form">
+    {% csrf_token %}
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SEZIONE 1 — Dati account (sempre aperta)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="dc-card" id="card-legacy">
+      <div class="dc-card-head" onclick="toggleCard('card-legacy')">
+        <div class="dc-card-title">
+          👤 Dati account
+          <span class="dc-card-badge dc-badge-required">Obbligatorio</span>
+        </div>
+        <span class="dc-card-toggle">▾</span>
+      </div>
+      <div class="dc-card-body">
+
+        <!-- Identità -->
+        <div class="dc-area">
+          <div class="dc-area-title">Identità</div>
+          <div class="dc-grid">
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.nome.id_for_label }}">Nome <span class="dc-required">*</span></label>
+              <input id="{{ legacy_form.nome.id_for_label }}" name="nome" type="text" class="dc-input {% if legacy_form.nome.errors %}has-error{% endif %}" value="{{ legacy_form.nome.value|default:'' }}" placeholder="Es. Mario">
+              {% if legacy_form.nome.errors %}<div class="dc-error">{{ legacy_form.nome.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.cognome.id_for_label }}">Cognome</label>
+              <input id="{{ legacy_form.cognome.id_for_label }}" name="cognome" type="text" class="dc-input {% if legacy_form.cognome.errors %}has-error{% endif %}" value="{{ legacy_form.cognome.value|default:'' }}" placeholder="Es. Rossi">
+              {% if legacy_form.cognome.errors %}<div class="dc-error">{{ legacy_form.cognome.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.matricola.id_for_label }}">Matricola</label>
+              <input id="{{ legacy_form.matricola.id_for_label }}" name="matricola" type="text" class="dc-input" value="{{ legacy_form.matricola.value|default:'' }}" placeholder="Es. CNO 0001">
+            </div>
+          </div>
+        </div>
+
+        <!-- Accesso e ruolo -->
+        <div class="dc-area">
+          <div class="dc-area-title">Accesso e ruolo</div>
+          <div class="dc-grid">
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.aliasusername.id_for_label }}">Alias / Username</label>
+              <input id="{{ legacy_form.aliasusername.id_for_label }}" name="aliasusername" type="text" class="dc-input" value="{{ legacy_form.aliasusername.value|default:'' }}" placeholder="Es. m.rossi">
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.reparto.id_for_label }}">Reparto</label>
+              <input id="{{ legacy_form.reparto.id_for_label }}" name="reparto" type="text" class="dc-input" value="{{ legacy_form.reparto.value|default:'' }}" placeholder="Es. Produzione">
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione</label>
+              <select id="{{ legacy_form.mansione.id_for_label }}" name="mansione" class="dc-input">
+                <option value="">— Nessuna —</option>
+                {% for m in mansioni_catalogo %}
+                  <option value="{{ m.nome }}" {% if legacy_form.mansione.value == m.nome %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contatti account -->
+        <div class="dc-area">
+          <div class="dc-area-title">Email e stato</div>
+          <div class="dc-grid">
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.email.id_for_label }}">Email account (login)</label>
+              <input id="{{ legacy_form.email.id_for_label }}" name="email" type="email" class="dc-input {% if legacy_form.email.errors %}has-error{% endif %}" value="{{ legacy_form.email.value|default:'' }}" placeholder="login@dominio.local">
+              {% if legacy_form.email.errors %}<div class="dc-error">{{ legacy_form.email.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="dc-field">
+              <label class="dc-label" for="{{ legacy_form.email_notifica.id_for_label }}">Email notifica</label>
+              <input id="{{ legacy_form.email_notifica.id_for_label }}" name="email_notifica" type="email" class="dc-input" value="{{ legacy_form.email_notifica.value|default:'' }}" placeholder="nome@example.com">
+            </div>
+            <div class="dc-field" style="justify-content:flex-end; padding-bottom:4px;">
+              <label class="dc-checkrow">
+                <input type="checkbox" name="attivo" {% if legacy_form.attivo.value %}checked{% endif %}> Dipendente attivo
+              </label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SEZIONE 2 — Anagrafica aziendale (collassata)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="dc-card dc-collapsed" id="card-aziendale">
+      <div class="dc-card-head" onclick="toggleCard('card-aziendale')">
+        <div class="dc-card-title">
+          🏢 Anagrafica aziendale
+          <span class="dc-card-badge dc-badge-optional">Facoltativo</span>
+        </div>
+        <span class="dc-card-toggle">▾</span>
+      </div>
+      <div class="dc-card-body">
+
+        <!-- Ruolo e organizzazione -->
+        <div class="dc-area">
+          <div class="dc-area-title">Ruolo e organizzazione</div>
+          <div class="dc-grid">
+            {% for field in form_aziendale %}
+              {% if field.html_name in "area,ruolo_aziendale" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Contratto -->
+        <div class="dc-area">
+          <div class="dc-area-title">Contratto e inquadramento</div>
+          <div class="dc-grid">
+            {% for field in form_aziendale %}
+              {% if field.html_name in "tipologia_contratto,livello_inquadramento,data_prima_assunzione,prova_data_inizio,prova_data_fine" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Contatti aziendali -->
+        <div class="dc-area">
+          <div class="dc-area-title">Contatti aziendali</div>
+          <div class="dc-grid-2">
+            {% for field in form_aziendale %}
+              {% if field.html_name in "email_aziendale,telefono_aziendale" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Taglie DPI -->
+        <div class="dc-area">
+          <div class="dc-area-title">Taglie DPI / abbigliamento</div>
+          <div class="dc-grid-3">
+            {% for field in form_aziendale %}
+              {% if field.html_name in "taglia_scarpe,taglia_pantalone,taglia_maglia" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Privacy -->
+        <div class="dc-area">
+          <div class="dc-area-title">Privacy</div>
+          <div class="dc-grid-2">
+            {% for field in form_aziendale %}
+              {% if field.html_name in "consenso_privacy,data_consenso_privacy" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SEZIONE 3 — Anagrafica civile (collassata)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="dc-card dc-collapsed" id="card-civile">
+      <div class="dc-card-head" onclick="toggleCard('card-civile')">
+        <div class="dc-card-title">
+          🪪 Anagrafica civile
+          <span class="dc-card-badge dc-badge-optional">Facoltativo</span>
+        </div>
+        <span class="dc-card-toggle">▾</span>
+      </div>
+      <div class="dc-card-body">
+
+        <!-- Dati personali -->
+        <div class="dc-area">
+          <div class="dc-area-title">Dati personali</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "data_nascita,luogo_nascita,genere,titolo_studio" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Residenza -->
+        <div class="dc-area">
+          <div class="dc-area-title">Residenza</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "indirizzo_residenza,citta_residenza,provincia_residenza,cap_residenza,nazione_residenza" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Domicilio -->
+        <div class="dc-area">
+          <div class="dc-area-title">Domicilio <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:#94a3b8;">(se diverso dalla residenza)</span></div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "indirizzo_domicilio,citta_domicilio,cap_domicilio,nazione_domicilio" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Contatti privati -->
+        <div class="dc-area">
+          <div class="dc-area-title">Contatti privati e patente</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "email_privata,telefono_privato,patente_auto" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SEZIONE 4 — Dati riservati HR (solo can_hr)
+    ═══════════════════════════════════════════════════════════════════════ -->
+    {% if can_hr %}
+    <div class="dc-card dc-collapsed" id="card-hr">
+      <div class="dc-card-head" onclick="toggleCard('card-hr')">
+        <div class="dc-card-title">
+          🔒 Dati riservati HR
+          <span class="dc-card-badge dc-badge-hr">Accesso HR</span>
+        </div>
+        <span class="dc-card-toggle">▾</span>
+      </div>
+      <div class="dc-card-body">
+        <div class="dc-hr-notice">⚠ Dati sensibili — visibili solo agli utenti con autorizzazione HR</div>
+
+        <!-- Documenti identificativi -->
+        <div class="dc-area">
+          <div class="dc-area-title">Documenti identificativi</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name == "codice_fiscale" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Dati bancari -->
+        <div class="dc-area">
+          <div class="dc-area-title">Dati bancari</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "nome_banca,iban,intestatario_conto" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Categorie protette -->
+        <div class="dc-area">
+          <div class="dc-area-title">Categorie protette e disabilità</div>
+          <div class="dc-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "categoria_protetta,categoria_disabili,percentuale_disabilita" %}
+              <div class="dc-field">
+                <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="dc-error">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Footer ── -->
+    <div class="dc-card">
+      <div class="dc-footer">
+        <button type="submit" class="dc-btn dc-btn-primary">✓ Crea dipendente</button>
+        <a href="{% url 'anagrafica:dipendenti_list' %}" class="dc-btn dc-btn-ghost">Annulla</a>
+        <span class="dc-footer-note">Le sezioni facoltative possono essere compilate in seguito dalla scheda del dipendente.</span>
+      </div>
+    </div>
+
+  </form>
+
+</div>
+
+<script>
+function toggleCard(id) {
+  document.getElementById(id).classList.toggle('dc-collapsed');
+}
+</script>
+{% endblock %}

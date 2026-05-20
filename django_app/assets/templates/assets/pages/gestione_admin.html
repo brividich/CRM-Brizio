@@ -669,6 +669,11 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           <div class="kpi-val text-heading">{{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}</div>
           <div class="kpi-sub">Percorso fisso: {{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}/&lt;tag&gt;/{manuali,specifiche,interventi}.</div>
         </div>
+        <div class="kpi">
+          <div class="kpi-label">Link pubblici QR</div>
+          <div class="kpi-val text-heading">{% if sharepoint_admin_config.public_links_enabled %}ON{% else %}OFF{% endif %}</div>
+          <div class="kpi-sub">Crea solo link Graph anonimi in sola lettura per cartelle sotto la root consentita.</div>
+        </div>
       </div>
 
       {% if sharepoint_admin_config.env_override_active %}
@@ -682,6 +687,11 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         <div><strong>Sorgente client:</strong> {{ sharepoint_admin_config.runtime_sources.client_id }}</div>
         <div><strong>Sorgente secret:</strong> {{ sharepoint_admin_config.runtime_sources.client_secret }}</div>
         <div><strong>Sorgente site id:</strong> {{ sharepoint_admin_config.runtime_sources.site_id }}</div>
+      </div>
+
+      <div class="text-base" style="padding:10px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:10px;">
+        La configurazione completa SharePoint/Graph del server e dei link pubblici QR e centralizzata anche in
+        <a href="{% url 'hub_tools:hub_setup_wizard' %}#sec-graph">Admin Portale / Gestione server</a>. I campi qui sotto leggono e salvano le stesse chiavi <code>.env</code>.
       </div>
 
       <form method="post" class="form-row" style="display:grid;gap:12px;">
@@ -706,14 +716,45 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           </div>
           <div class="form-group">
             <label>Cartella radice asset</label>
-            <input type="text" value="{{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}" disabled>
-            <div class="help">Percorso fisso non modificabile: {{ sharepoint_admin_config.asset_root|default:"ASSET CN" }}/&lt;tag asset&gt;/{manuali,specifiche,interventi}.</div>
+            <input type="text" name="sharepoint_allowed_root_name" value="{{ sharepoint_admin_config.allowed_root_name|default:"ASSET CN" }}" placeholder="ASSET CN">
+            <div class="help">Root consentita per cartelle asset e link pubblici. Cambiarla solo se cambia davvero la root SharePoint operativa.</div>
           </div>
         </div>
         <div class="form-group" style="max-width:none;">
           <label>URL libreria documentale (opzionale)</label>
           <input type="text" name="sharepoint_library_url" value="{{ sharepoint_admin_config.library_url }}" placeholder="https://contoso.sharepoint.com/sites/example">
           <div class="help">Serve come riferimento amministrativo; il sync usa Graph tenant/client/secret/site id.</div>
+        </div>
+        <div style="border-top:1px solid #e2e8f0;padding-top:12px;display:grid;gap:10px;">
+          <div class="inline-actions" style="align-items:flex-start;">
+            <label class="sidebar-editor-check" style="padding:0;">
+              <input type="checkbox" name="sharepoint_public_links_enabled" value="true" {% if sharepoint_admin_config.public_links_enabled %}checked{% endif %}>
+              Abilita creazione link pubblici QR
+            </label>
+            <span class="muted-note">Default sicuro: spento. Il link creato da Graph resta sempre <strong>anonymous/view</strong>, mai modifica.</span>
+          </div>
+          <div class="section-grid">
+            <div class="form-group">
+              <label>Allowed root drive ID</label>
+              <input type="text" name="sharepoint_allowed_root_drive_id" value="{{ sharepoint_admin_config.allowed_root_drive_id }}" placeholder="drive id root ASSET CN">
+              <div class="help">Opzionale ma consigliato: blocca asset su drive diversi.</div>
+            </div>
+            <div class="form-group">
+              <label>Allowed root item ID</label>
+              <input type="text" name="sharepoint_allowed_root_item_id" value="{{ sharepoint_admin_config.allowed_root_item_id }}" placeholder="driveItem id cartella ASSET CN">
+              <div class="help">Opzionale ma consigliato: valida la discendenza dalla cartella root.</div>
+            </div>
+            <div class="form-group">
+              <label>Asset site ID</label>
+              <input type="text" name="sharepoint_asset_site_id" value="{{ sharepoint_admin_config.asset_site_id }}" placeholder="vuoto = usa Graph Site ID">
+              <div class="help">Usato per risolvere driveItem da path se manca il drive id.</div>
+            </div>
+            <div class="form-group">
+              <label>Asset drive ID</label>
+              <input type="text" name="sharepoint_asset_drive_id" value="{{ sharepoint_admin_config.asset_drive_id }}" placeholder="vuoto = drive default del sito">
+              <div class="help">Usato dal command di riconversione per risolvere cartelle esistenti.</div>
+            </div>
+          </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button type="submit" class="btn btn-primary">Salva configurazione SharePoint</button>

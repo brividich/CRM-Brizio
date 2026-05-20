@@ -5,6 +5,8 @@
   <a class="sub-a{% if current == 'anagrafica:dipendenti_list' or current == 'anagrafica:dipendente_detail' %} active{% endif %}" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a>
   <a class="sub-a{% if current == 'anagrafica:ruoli_operativi_list' %} active{% endif %}" href="{% url 'anagrafica:ruoli_operativi_list' %}">Ruoli operativi</a>
   <a class="sub-a{% if current == 'anagrafica:mansioni_list' %} active{% endif %}" href="{% url 'anagrafica:mansioni_list' %}">Mansioni</a>
+  <a class="sub-a{% if current == 'anagrafica:aree_list' %} active{% endif %}" href="{% url 'anagrafica:aree_list' %}">Aree</a>
+  <a class="sub-a{% if current == 'anagrafica:ruoli_aziendali_list' %} active{% endif %}" href="{% url 'anagrafica:ruoli_aziendali_list' %}">Ruoli az.</a>
   <a class="sub-a{% if current == 'anagrafica:qualifiche_list' %} active{% endif %}" href="{% url 'anagrafica:qualifiche_list' %}">Qualifiche</a>
   <span style="color:#cbd5e1;margin:0 6px;font-size:13px;">·</span>
   <a class="sub-a{% if current == 'anagrafica:fornitori_list' or current == 'anagrafica:fornitore_detail' or current == 'anagrafica:fornitore_create' or current == 'anagrafica:fornitore_edit' %} active{% endif %}" href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a>
@@ -20,6 +22,10 @@
     <strong>Ruoli operativi:</strong> catalogo ruoli aziendali sicurezza (preposto, RSPP, ecc.) assegnabili ai dipendenti dalla loro scheda.
   {% elif current == 'anagrafica:mansioni_list' %}
     <strong>Mansioni:</strong> catalogo job title aziendali (operaio, impiegato, quadro, dirigente) assegnabili ai dipendenti.
+  {% elif current == 'anagrafica:aree_list' %}
+    <strong>Aree aziendali:</strong> catalogo delle aree selezionabili nell'anagrafica aziendale del dipendente.
+  {% elif current == 'anagrafica:ruoli_aziendali_list' %}
+    <strong>Ruoli aziendali:</strong> catalogo dei ruoli aziendali (distinti dalla mansione CCNL) selezionabili nell'anagrafica del dipendente.
   {% elif current == 'anagrafica:qualifiche_list' %}
     <strong>Qualifiche professionali:</strong> catalogo certificazioni e attestati con tracciamento scadenze. Assegnabili dalla scheda dipendente.
   {% elif current == 'anagrafica:fornitori_list' %}

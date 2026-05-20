@@ -97,7 +97,7 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "1.0.1"
+_DEFAULT_APP_VERSION = "1.0.2"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
@@ -6361,6 +6361,27 @@ class ServerDashboard:
     ENVS      = ["test", "prod"]
     REFRESH_MS = 5000   # auto-refresh ogni 5 secondi
 
+    # Servizi Windows rilevanti per l'hosting del portale (pattern -like).
+    SERVICE_PATTERNS = [
+        "W3SVC", "WAS", "AppHostSvc", "IISADMIN",
+        "MSSQL*", "SQLAgent*", "SQLSERVERAGENT", "SQLBrowser",
+        "SQLTELEMETRY*", "MsDtsServer*", "SQLWriter",
+    ]
+    _SVC_STATUS = {
+        "Running":      ("▶ In servizio", GREEN),
+        "Stopped":      ("■ Arrestato",   RED),
+        "StartPending": ("… Avvio",       YELLOW_TX),
+        "StopPending":  ("… Arresto",     YELLOW_TX),
+        "Paused":       ("⏸ In pausa",    YELLOW_TX),
+    }
+    _SVC_STARTTYPE = {
+        "Automatic": ("Automatico",  GRAY700),
+        "Manual":    ("Manuale",     GRAY600),
+        "Disabled":  ("Disattivato", RED),
+        "Boot":      ("Boot",        GRAY600),
+        "System":    ("System",      GRAY600),
+    }
+
     def __init__(self, parent=None):
         self._standalone = (parent is None)
         if self._standalone:
@@ -6371,11 +6392,11 @@ class ServerDashboard:
         self.root.configure(bg="white")
         self.root.resizable(True, True)
 
-        W, H = 920, 780
+        W, H = 920, 880
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
-        self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2 - 20}")
-        self.root.minsize(860, 720)
+        self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{max(0,(sh-H)//2 - 20)}")
+        self.root.minsize(860, 780)
 
         self._selected_env = tk.StringVar(value="test")
         self._status_data: dict = {}
@@ -6395,6 +6416,11 @@ class ServerDashboard:
             ("Q - migra django-q", "manage.py migrate django_q --noinput --settings=config.settings.prod"),
             ("Q - registra schedule", "manage.py setup_q_schedules --settings=config.settings.prod"),
         ]
+        # Servizi Windows — widget refs (impostati in _build)
+        self._svc_rows: dict = {}
+        self._svc_container: tk.Frame | None = None
+        self._svc_scroll: "ScrollableFrame | None" = None
+        self._svc_summary_lbl: tk.Label | None = None
         # Automazioni django-q — widget refs (impostati in _build)
         self._q_status_lbl: tk.Label | None = None
         self._q_log_txt: tk.Text | None = None
@@ -6457,6 +6483,43 @@ class ServerDashboard:
                                 cursor="hand2", anchor="w")
             lbl_note.grid(row=r_idx, column=2, sticky="w")
             self._rows.append((lbl_comp, lbl_val, lbl_note))
+
+        # ── Servizi Windows ──────────────────────────────────────
+        frame(main, height=14).pack()
+        svc_card = frame(main, bg=GRAY50,
+                         highlightthickness=1, highlightbackground=GRAY200)
+        svc_card.pack(fill="x")
+
+        svc_head = frame(svc_card, bg=GRAY50)
+        svc_head.pack(fill="x", padx=14, pady=(10, 4))
+        tk.Label(svc_head, text="Servizi Windows", font=(SF, 9, "bold"),
+                 bg=GRAY50, fg=GRAY600).pack(side="left")
+        self._svc_summary_lbl = tk.Label(svc_head, text="—", font=FSM,
+                                         bg=GRAY50, fg=GRAY400)
+        self._svc_summary_lbl.pack(side="right")
+
+        svc_hdr = frame(svc_card, bg=GRAY50)
+        svc_hdr.pack(fill="x", padx=14)
+        for txt, w in (("Servizio", 32), ("Stato", 14), ("Avvio", 13), ("Gestione", 10)):
+            tk.Label(svc_hdr, text=txt, font=(SF, 8, "bold"), fg=GRAY400,
+                     bg=GRAY50, width=w, anchor="w").pack(side="left")
+
+        svc_list = ScrollableFrame(svc_card, bg=GRAY50, height=132)
+        svc_list.pack(fill="x", padx=14, pady=(2, 4))
+        svc_list.pack_propagate(False)
+        self._svc_container = svc_list.inner
+        self._svc_scroll = svc_list
+        tk.Label(self._svc_container, text="Rilevamento servizi in corso…",
+                 font=FSM, fg=GRAY400, bg=GRAY50).pack(anchor="w", pady=6)
+
+        svc_note = (
+            "Avvio/arresto/riavvio e modifica del tipo di avvio agiscono sui servizi reali del server."
+            if self._admin_mode
+            else "Gestione servizi disabilitata: avvia il setup come Amministratore per agire sui servizi."
+        )
+        tk.Label(svc_card, text=svc_note, font=FSM,
+                 fg=GRAY500 if self._admin_mode else YELLOW_TX,
+                 bg=GRAY50, wraplength=820, justify="left").pack(anchor="w", padx=14, pady=(0, 10))
 
         # ── Control buttons ──────────────────────────────────────
         frame(main, height=14).pack()
@@ -6729,6 +6792,34 @@ if ($t) {{
         self.root.after(0, lambda s=q_state, r=q_lastrun, x=q_result, l=q_log_tail:
                         self._q_update_status(s, r, x, l))
 
+        # Servizi Windows rilevanti (IIS, SQL Server, …)
+        pat_list = ",".join("'" + p + "'" for p in self.SERVICE_PATTERNS)
+        svc_ps = (
+            "$pat = @(" + pat_list + ")\n"
+            "Get-Service -ErrorAction SilentlyContinue | Where-Object {\n"
+            "  $n = $_.Name\n"
+            "  ($pat | Where-Object { $n -like $_ }).Count -gt 0\n"
+            "} | Sort-Object DisplayName | ForEach-Object {\n"
+            "  $_.Name + [char]9 + $_.DisplayName + [char]9 + "
+            "$_.Status + [char]9 + $_.StartType\n"
+            "}\n"
+        )
+        services = []
+        try:
+            sr = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", svc_ps],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=12,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            for line in (sr.stdout or "").splitlines():
+                parts = line.rstrip("\r").split("\t")
+                if len(parts) >= 4 and parts[0].strip():
+                    services.append((parts[0].strip(), parts[1].strip(),
+                                     parts[2].strip(), parts[3].strip()))
+        except Exception:
+            services = []
+        self.root.after(0, lambda sv=services: self._update_services(sv))
+
     def _update_ui(self, site_state, pool_state, url, log_lines):
         state_map = {
             "Started": ("▶ Avviato", GREEN),
@@ -6781,6 +6872,164 @@ if ($t) {{
             except Exception:
                 pass
             self.root.after(1500, self._refresh)
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ── Servizi Windows ──────────────────────────────────────────
+    def _svc_mini_btn(self, parent, text, fg, command):
+        """Pulsantino inline per la gestione di un servizio."""
+        lbl = tk.Label(parent, text=text, font=(SF, 8, "bold"), fg=fg,
+                       bg=GRAY100, padx=8, pady=3, cursor="hand2")
+        lbl._enabled = True
+        lbl._fg = fg
+        lbl.bind("<Button-1>",
+                 lambda e: command(lbl) if getattr(lbl, "_enabled", True) else None)
+        lbl.bind("<Enter>",
+                 lambda e: lbl.configure(bg=GRAY200) if lbl._enabled else None)
+        lbl.bind("<Leave>",
+                 lambda e: lbl.configure(bg=GRAY100 if lbl._enabled else GRAY50))
+        return lbl
+
+    def _svc_set_enabled(self, lbl, enabled):
+        lbl._enabled = bool(enabled)
+        lbl.configure(fg=lbl._fg if enabled else GRAY400,
+                      bg=GRAY100 if enabled else GRAY50,
+                      cursor="hand2" if enabled else "arrow")
+
+    def _build_service_row(self, name, display, status, starttype):
+        row = frame(self._svc_container, bg=GRAY50)
+        row.pack(fill="x", pady=1)
+        tk.Label(row, text=(display or name), font=FSM, fg=GRAY700, bg=GRAY50,
+                 width=32, anchor="w").pack(side="left")
+        status_lbl = tk.Label(row, text="—", font=FSM, fg=GRAY500, bg=GRAY50,
+                              width=14, anchor="w")
+        status_lbl.pack(side="left")
+        start_lbl = tk.Label(row, text="—", font=FSM, fg=GRAY500, bg=GRAY50,
+                             width=13, anchor="w")
+        start_lbl.pack(side="left")
+        actions = frame(row, bg=GRAY50)
+        actions.pack(side="left")
+        btns = {}
+        for key, txt, fg in (("start", "▶ Avvia", GREEN),
+                             ("stop", "■ Ferma", RED),
+                             ("restart", "↺ Riavvia", BRAND)):
+            b = self._svc_mini_btn(
+                actions, txt, fg,
+                lambda _w, k=key, n=name: self._service_action(n, k))
+            b.pack(side="left", padx=(0, 6))
+            btns[key] = b
+        type_btn = self._svc_mini_btn(
+            actions, "⚙ Tipo avvio", GRAY600,
+            lambda w, n=name: self._svc_starttype_menu(n, w))
+        type_btn.pack(side="left", padx=(0, 6))
+        btns["type"] = type_btn
+        self._svc_rows[name] = {"status": status_lbl, "start": start_lbl,
+                                "btns": btns}
+
+    def _apply_service_state(self, row, status, starttype):
+        s_text, s_fg = self._SVC_STATUS.get(status, (status or "—", GRAY500))
+        t_text, t_fg = self._SVC_STARTTYPE.get(starttype, (starttype or "—", GRAY500))
+        row["status"].configure(text=s_text, fg=s_fg)
+        row["start"].configure(text=t_text, fg=t_fg)
+        running  = (status == "Running")
+        disabled = (starttype == "Disabled")
+        admin    = self._admin_mode
+        self._svc_set_enabled(row["btns"]["start"],   admin and not running and not disabled)
+        self._svc_set_enabled(row["btns"]["stop"],    admin and running)
+        self._svc_set_enabled(row["btns"]["restart"], admin and running)
+        self._svc_set_enabled(row["btns"]["type"],    admin)
+
+    def _update_services(self, services):
+        """Aggiorna la lista servizi; ricostruisce le righe se l'elenco cambia."""
+        if self._svc_container is None:
+            return
+        if not services and self._svc_rows:
+            return  # errore transitorio: mantieni l'elenco precedente
+        names = [s[0] for s in services]
+        if set(names) != set(self._svc_rows.keys()):
+            for child in self._svc_container.winfo_children():
+                child.destroy()
+            self._svc_rows.clear()
+            if not services:
+                tk.Label(self._svc_container, text="Nessun servizio rilevato.",
+                         font=FSM, fg=GRAY400, bg=GRAY50).pack(anchor="w", pady=6)
+            for name, display, status, starttype in services:
+                self._build_service_row(name, display, status, starttype)
+
+        running = 0
+        for name, display, status, starttype in services:
+            row = self._svc_rows.get(name)
+            if row:
+                self._apply_service_state(row, status, starttype)
+            if status == "Running":
+                running += 1
+        if self._svc_summary_lbl is not None:
+            self._svc_summary_lbl.configure(
+                text=f"{len(services)} servizi · {running} in servizio")
+
+        if self._svc_scroll is not None:
+            self._svc_scroll.inner.update_idletasks()
+            need = (self._svc_scroll.inner.winfo_reqheight()
+                    > self._svc_scroll.canvas.winfo_height())
+            self._svc_scroll.show_scrollbar(need)
+
+    def _svc_starttype_menu(self, name, widget):
+        """Menu contestuale per cambiare il tipo di avvio di un servizio."""
+        if not self._admin_mode:
+            return
+        m = tk.Menu(self.root, tearoff=0)
+        for label, val in (("Automatico", "Automatic"),
+                           ("Manuale", "Manual"),
+                           ("Disattivato", "Disabled")):
+            m.add_command(label=label,
+                          command=lambda v=val, n=name: self._set_service_starttype(n, v))
+        try:
+            m.tk_popup(widget.winfo_pointerx(), widget.winfo_pointery())
+        finally:
+            m.grab_release()
+
+    def _service_action(self, name, action):
+        if not self._admin_mode:
+            messagebox.showwarning(
+                "Gestione servizi",
+                "Avvia il setup come Amministratore per gestire i servizi Windows.")
+            return
+        safe = name.replace("'", "''")
+        ps_map = {
+            "start":   f"Start-Service -Name '{safe}' -ErrorAction Stop",
+            "stop":    f"Stop-Service -Name '{safe}' -Force -ErrorAction Stop",
+            "restart": f"Restart-Service -Name '{safe}' -Force -ErrorAction Stop",
+        }
+        ps = ps_map.get(action)
+        if ps:
+            self._run_service_ps(name, action, ps)
+
+    def _set_service_starttype(self, name, starttype):
+        if not self._admin_mode:
+            return
+        safe = name.replace("'", "''")
+        ps = f"Set-Service -Name '{safe}' -StartupType {starttype} -ErrorAction Stop"
+        self._run_service_ps(name, f"tipo avvio → {starttype}", ps)
+
+    def _run_service_ps(self, name, action, ps):
+        """Esegue un comando PowerShell di gestione servizio in background."""
+        def _run():
+            err = ""
+            try:
+                r = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=45,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                if r.returncode != 0 or (r.stderr or "").strip():
+                    err = (r.stderr or r.stdout or "Errore sconosciuto").strip()
+            except Exception as exc:
+                err = str(exc)
+            if err:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Gestione servizi",
+                    f"Operazione '{action}' sul servizio {name} non riuscita:\n\n"
+                    f"{err[:400]}"))
+            self.root.after(900, self._refresh)
         threading.Thread(target=_run, daemon=True).start()
 
     def _clean_old_releases(self):

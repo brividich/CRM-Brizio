@@ -22,6 +22,8 @@ from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import is_legacy_admin, legacy_table_columns
 
 from .forms import (
+    AnagraficaAziendaleForm,
+    AnagraficaCivileForm,
     DipendenteLegacyForm,
     FornitoreAssetForm,
     FornitoreDocumentoForm,
@@ -30,7 +32,11 @@ from .forms import (
     FornitoreValutazioneForm,
 )
 from .models import (
+    AnagraficaHRPermission,
     AnagraficaStatPermission,
+    AreaAziendale,
+    DipendenteAnagraficaAziendale,
+    DipendenteAnagraficaCivile,
     DipendenteQualifica,
     DipendenteRuoloOperativo,
     DipendenteStatLayout,
@@ -40,6 +46,7 @@ from .models import (
     FornitoreOrdine,
     FornitoreValutazione,
     Mansione,
+    RuoloAziendale,
     RuoloOperativo,
     TipoQualifica,
 )
@@ -87,36 +94,10 @@ def index(request):
 @login_required
 def dipendenti_list(request):
     ensure_anagrafica_schema()
-    if request.method == "POST":
-        form = DipendenteLegacyForm(request.POST)
-        if form.is_valid():
-            data = form.cleaned_data
-            try:
-                row = upsert_anagrafica_dipendente(
-                    aliasusername=(data.get("aliasusername") or "").strip(),
-                    nome=(data.get("nome") or "").strip(),
-                    cognome=(data.get("cognome") or "").strip(),
-                    matricola=(data.get("matricola") or "").strip(),
-                    reparto=(data.get("reparto") or "").strip(),
-                    mansione=(data.get("mansione") or "").strip(),
-                    ruolo=(data.get("ruolo") or "").strip(),
-                    email=(data.get("email") or "").strip(),
-                    email_notifica=(data.get("email_notifica") or "").strip(),
-                    attivo=bool(data.get("attivo")),
-                    utente_id=None,
-                    detach_account=not bool(data.get("attivo")),
-                )
-                stato = "attivo" if bool(row.get("attivo", 1)) else "non attivo"
-                messages.success(request, f"Dipendente salvato in anagrafica ({stato}).")
-                return redirect("anagrafica:dipendenti_list")
-            except Exception as exc:
-                logger.exception("Errore salvataggio dipendente anagrafica")
-                messages.error(request, f"Impossibile salvare il dipendente: {exc}")
-    else:
-        form = DipendenteLegacyForm(initial={"attivo": True})
-
     q = request.GET.get("q", "").strip()
     reparto = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
     rows = fetch_anagrafica_rows(deduplicate=True)
     reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows if str(row.get("reparto") or "").strip()})
@@ -139,6 +120,23 @@ def dipendenti_list(request):
         ]
     if reparto:
         rows = [row for row in rows if str(row.get("reparto") or "").strip().casefold() == reparto.casefold()]
+
+    # Filtri su campi Django (area, tipologia_contratto)
+    if area_filter or contratto_filter:
+        az_qs = DipendenteAnagraficaAziendale.objects.all()
+        if area_filter:
+            az_qs = az_qs.filter(area__iexact=area_filter)
+        if contratto_filter:
+            az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
+        allowed_ids = set(az_qs.values_list("legacy_anagrafica_id", flat=True))
+        rows = [row for row in rows if int(row.get("id") or 0) in allowed_ids]
+
+    aree_list = sorted(
+        DipendenteAnagraficaAziendale.objects.exclude(area="")
+        .values_list("area", flat=True)
+        .distinct()
+        .order_by("area")
+    )
 
     user_map = {
         int(user.id): user
@@ -194,15 +192,106 @@ def dipendenti_list(request):
 
     status_stats = count_anagrafica_statuses()
     return render(request, "anagrafica/pages/dipendenti_list.html", {
-        "create_form": form,
         "page_obj": page,
         "q": q,
         "reparto": reparto,
+        "area": area_filter,
+        "tipologia_contratto": contratto_filter,
         "reparti": reparti_list,
+        "aree": aree_list,
+        "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "n_totale": n_totale,
         "n_reparti": len(reparti_list),
         "n_attivi": status_stats["active"],
         "n_non_attivi": status_stats["inactive"],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Dipendente — creazione completa (legacy + civile + aziendale)
+# ---------------------------------------------------------------------------
+
+@login_required
+def dipendente_create(request):
+    ensure_anagrafica_schema()
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Non hai i permessi per creare un dipendente.")
+        return redirect("anagrafica:dipendenti_list")
+
+    can_hr = _check_hr_permission(request)
+
+    if request.method == "POST":
+        legacy_form = DipendenteLegacyForm(request.POST)
+        form_civile = AnagraficaCivileForm(request.POST)
+        form_aziendale = AnagraficaAziendaleForm(request.POST)
+
+        # Le form civile/aziendale sono facoltative: ignora errori se tutti i campi sono vuoti
+        civile_has_data = any(
+            v for k, v in request.POST.items()
+            if k not in ("csrfmiddlewaretoken",) and not k.startswith("az_") and not k.startswith("legacy_")
+            and v and k in AnagraficaCivileForm().fields
+        )
+        aziendale_has_data = any(
+            v for k, v in request.POST.items()
+            if k not in ("csrfmiddlewaretoken",) and v and k in AnagraficaAziendaleForm().fields
+        )
+
+        if legacy_form.is_valid():
+            data = legacy_form.cleaned_data
+            try:
+                row = upsert_anagrafica_dipendente(
+                    aliasusername=(data.get("aliasusername") or "").strip(),
+                    nome=(data.get("nome") or "").strip(),
+                    cognome=(data.get("cognome") or "").strip(),
+                    matricola=(data.get("matricola") or "").strip(),
+                    reparto=(data.get("reparto") or "").strip(),
+                    mansione=(data.get("mansione") or "").strip(),
+                    ruolo=(data.get("ruolo") or "").strip(),
+                    email=(data.get("email") or "").strip(),
+                    email_notifica=(data.get("email_notifica") or "").strip(),
+                    attivo=bool(data.get("attivo")),
+                    utente_id=None,
+                )
+                new_id = int(row.get("id") or 0)
+
+                # Salva anagrafica aziendale se il form è valido
+                if new_id and form_aziendale.is_valid():
+                    az = form_aziendale.save(commit=False)
+                    az.legacy_anagrafica_id = new_id
+                    az.updated_by = request.user
+                    az.save()
+
+                # Salva anagrafica civile se il form è valido
+                if new_id and form_civile.is_valid():
+                    civ = form_civile.save(commit=False)
+                    civ.legacy_anagrafica_id = new_id
+                    civ.updated_by = request.user
+                    civ.save()
+
+                nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
+                messages.success(request, f'Dipendente "{nome_disp}" creato.')
+                if new_id:
+                    return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
+                return redirect("anagrafica:dipendenti_list")
+            except Exception as exc:
+                logger.exception("Errore creazione dipendente")
+                messages.error(request, f"Impossibile creare il dipendente: {exc}")
+        else:
+            messages.error(request, "Controlla i campi obbligatori nella sezione Dati account.")
+    else:
+        legacy_form = DipendenteLegacyForm(initial={"attivo": True})
+        form_civile = AnagraficaCivileForm()
+        form_aziendale = AnagraficaAziendaleForm()
+
+    return render(request, "anagrafica/pages/dipendente_create.html", {
+        "legacy_form": legacy_form,
+        "form_civile": form_civile,
+        "form_aziendale": form_aziendale,
+        "can_hr": can_hr,
+        "mansioni_catalogo": list(Mansione.objects.filter(is_active=True).order_by("nome")),
+        "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
     })
 
 
@@ -541,6 +630,23 @@ def _can_view_stats(request) -> bool:
     return False
 
 
+def _check_hr_permission(request) -> bool:
+    """Verifica se l'utente può vedere i dati HR riservati (IBAN, CF, disabilità)."""
+    if request.user.is_superuser:
+        return True
+    perm = AnagraficaHRPermission.get_instance()
+    if perm.accesso == AnagraficaHRPermission.ACCESSO_TUTTI:
+        return True
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if is_legacy_admin(legacy_user):
+        return perm.accesso in (AnagraficaHRPermission.ACCESSO_ADMIN, AnagraficaHRPermission.ACCESSO_TUTTI)
+    if perm.accesso == AnagraficaHRPermission.ACCESSO_ADMIN:
+        return False
+    if legacy_user and legacy_user.ruolo_id is not None:
+        return int(legacy_user.ruolo_id) in [int(r) for r in (perm.ruolo_ids or [])]
+    return False
+
+
 def _compute_widget_counts(dip: dict) -> dict[str, int]:
     """Calcola i contatori per ogni widget statistiche del dipendente."""
     legacy_id = int(dip.get("id") or 0)
@@ -638,6 +744,13 @@ def dipendente_detail(request, legacy_id: int):
     can_stats = _can_view_stats(request)
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    can_hr = _check_hr_permission(request)
+
+    # Anagrafica civile e aziendale estese
+    civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    form_civile = AnagraficaCivileForm(instance=civile) if is_admin else None
+    form_aziendale = AnagraficaAziendaleForm(instance=aziendale) if is_admin else None
 
     # Widget layout viewer
     layout_obj = DipendenteStatLayout.objects.filter(viewer_user_id=request.user.id).first()
@@ -810,6 +923,11 @@ def dipendente_detail(request, legacy_id: int):
         "legacy_id": legacy_id,
         "can_stats": can_stats,
         "is_admin": is_admin,
+        "can_hr": can_hr,
+        "civile": civile,
+        "aziendale": aziendale,
+        "form_civile": form_civile,
+        "form_aziendale": form_aziendale,
         "widgets_visible": widgets_visible,
         "widgets_hidden": widgets_hidden,
         "all_widgets": STAT_WIDGETS,
@@ -1137,6 +1255,202 @@ def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
 
 
 # ---------------------------------------------------------------------------
+# Anagrafica civile e aziendale — salvataggio
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def dipendente_anagrafica_civile_save(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare l'anagrafica civile.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    instance, _ = DipendenteAnagraficaCivile.objects.get_or_create(
+        legacy_anagrafica_id=legacy_id
+    )
+    form = AnagraficaCivileForm(request.POST, instance=instance)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        obj.legacy_anagrafica_id = legacy_id
+        obj.updated_by = request.user
+        obj.save()
+        messages.success(request, "Anagrafica civile salvata.")
+    else:
+        for field, errs in form.errors.items():
+            for err in errs:
+                messages.error(request, f"{field}: {err}")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare l'anagrafica aziendale.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    instance, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
+        legacy_anagrafica_id=legacy_id
+    )
+    form = AnagraficaAziendaleForm(request.POST, instance=instance)
+    if form.is_valid():
+        obj = form.save(commit=False)
+        obj.legacy_anagrafica_id = legacy_id
+        obj.updated_by = request.user
+        obj.save()
+        messages.success(request, "Anagrafica aziendale salvata.")
+    else:
+        for field, errs in form.errors.items():
+            for err in errs:
+                messages.error(request, f"{field}: {err}")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Report dipendenti — filtri avanzati + export CSV
+# ---------------------------------------------------------------------------
+
+@login_required
+def dipendenti_report(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Accesso riservato agli amministratori.")
+        return redirect("anagrafica:dipendenti_list")
+
+    q = request.GET.get("q", "").strip()
+    reparto_filter = request.GET.get("reparto", "").strip()
+    area_filter = request.GET.get("area", "").strip()
+    contratto_filter = request.GET.get("tipologia_contratto", "").strip()
+    consenso_filter = request.GET.get("consenso_privacy", "").strip()
+    cat_protetta_filter = request.GET.get("categoria_protetta", "").strip()
+
+    # Parte da tutti i dipendenti legacy
+    all_rows = fetch_anagrafica_rows(deduplicate=True)
+
+    # Filtro per testo su nome/cognome
+    if q:
+        q_norm = q.casefold()
+        all_rows = [
+            row for row in all_rows
+            if any(
+                q_norm in str(row.get(k) or "").casefold()
+                for k in ("nome", "cognome", "aliasusername", "matricola")
+            )
+        ]
+
+    # Filtro per reparto (da legacy)
+    if reparto_filter:
+        all_rows = [
+            row for row in all_rows
+            if str(row.get("reparto") or "").strip().casefold() == reparto_filter.casefold()
+        ]
+
+    # Filtri su campi Django: area e tipologia_contratto
+    django_filter_ids: set[int] | None = None
+    az_qs = DipendenteAnagraficaAziendale.objects.all()
+    if area_filter:
+        az_qs = az_qs.filter(area__iexact=area_filter)
+    if contratto_filter:
+        az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
+    if consenso_filter == "si":
+        az_qs = az_qs.filter(consenso_privacy=True)
+    elif consenso_filter == "no":
+        az_qs = az_qs.filter(consenso_privacy=False)
+    if area_filter or contratto_filter or consenso_filter:
+        django_filter_ids = set(az_qs.values_list("legacy_anagrafica_id", flat=True))
+
+    # Filtro categoria protetta (da DipendenteAnagraficaCivile)
+    civ_filter_ids: set[int] | None = None
+    if cat_protetta_filter == "si":
+        civ_filter_ids = set(
+            DipendenteAnagraficaCivile.objects.filter(categoria_protetta=True)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+    elif cat_protetta_filter == "no":
+        civ_filter_ids = set(
+            DipendenteAnagraficaCivile.objects.filter(categoria_protetta=False)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+
+    if django_filter_ids is not None:
+        all_rows = [row for row in all_rows if int(row.get("id") or 0) in django_filter_ids]
+    if civ_filter_ids is not None:
+        all_rows = [row for row in all_rows if int(row.get("id") or 0) in civ_filter_ids]
+
+    # Arricchisce ogni riga con dati Django
+    legacy_ids = [int(row.get("id") or 0) for row in all_rows if int(row.get("id") or 0)]
+    az_map = {
+        obj.legacy_anagrafica_id: obj
+        for obj in DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=legacy_ids)
+    }
+    for row in all_rows:
+        lid = int(row.get("id") or 0)
+        az = az_map.get(lid)
+        row["_az"] = az
+
+    # Export CSV (no campi sensibili)
+    fmt = request.GET.get("format", "").strip()
+    if fmt == "csv":
+        import csv
+        from django.http import HttpResponse
+        response = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        response["Content-Disposition"] = 'attachment; filename="dipendenti_report.csv"'
+        writer = csv.writer(response, delimiter=";")
+        writer.writerow([
+            "ID", "Cognome", "Nome", "Matricola", "Reparto",
+            "Area", "Ruolo aziendale", "Tipologia contratto",
+            "Livello inquadramento", "Data prima assunzione",
+            "Consenso privacy", "Email aziendale", "Telefono aziendale",
+        ])
+        for row in all_rows:
+            az = row.get("_az")
+            writer.writerow([
+                row.get("id", ""),
+                row.get("cognome", ""),
+                row.get("nome", ""),
+                row.get("matricola", ""),
+                row.get("reparto", ""),
+                getattr(az, "area", "") or "",
+                getattr(az, "ruolo_aziendale", "") or "",
+                getattr(az, "get_tipologia_contratto_display", lambda: "")() if az else "",
+                getattr(az, "livello_inquadramento", "") or "",
+                getattr(az, "data_prima_assunzione", "") or "",
+                "Sì" if getattr(az, "consenso_privacy", False) else "No",
+                getattr(az, "email_aziendale", "") or "",
+                getattr(az, "telefono_aziendale", "") or "",
+            ])
+        return response
+
+    reparti_list = sorted({str(r.get("reparto") or "").strip() for r in fetch_anagrafica_rows(deduplicate=True) if str(r.get("reparto") or "").strip()})
+    aree_list = sorted(
+        DipendenteAnagraficaAziendale.objects.exclude(area="")
+        .values_list("area", flat=True)
+        .distinct()
+        .order_by("area")
+    )
+
+    paginator = Paginator(all_rows, 50)
+    page = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/dipendenti_report.html", {
+        "page_obj": page,
+        "q": q,
+        "reparto": reparto_filter,
+        "area": area_filter,
+        "tipologia_contratto": contratto_filter,
+        "consenso_privacy": consenso_filter,
+        "categoria_protetta": cat_protetta_filter,
+        "reparti": reparti_list,
+        "aree": aree_list,
+        "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
+        "n_totale": len(all_rows),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Mansioni — gestione catalogo
 # ---------------------------------------------------------------------------
 
@@ -1263,6 +1577,148 @@ def mansione_delete(request, mansione_id: int):
     mansione.delete()
     messages.success(request, f'Mansione "{nome}" eliminata.')
     return redirect("anagrafica:mansioni_list")
+
+
+# ---------------------------------------------------------------------------
+# Aree aziendali — catalogo dropdown
+# ---------------------------------------------------------------------------
+
+@login_required
+def aree_list(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    aree = list(AreaAziendale.objects.all().order_by("nome"))
+    return render(request, "anagrafica/pages/aree_list.html", {
+        "aree": aree,
+        "is_admin": is_admin,
+    })
+
+
+@login_required
+@require_POST
+def area_create(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per creare aree.")
+        return redirect("anagrafica:aree_list")
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'area è obbligatorio.")
+        return redirect("anagrafica:aree_list")
+    _, created = AreaAziendale.objects.get_or_create(
+        nome__iexact=nome,
+        defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
+    )
+    if created:
+        messages.success(request, f'Area "{nome}" creata.')
+    else:
+        messages.warning(request, f'Esiste già un\'area con il nome "{nome}".')
+    return redirect("anagrafica:aree_list")
+
+
+@login_required
+@require_POST
+def area_edit(request, area_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare aree.")
+        return redirect("anagrafica:aree_list")
+    area = get_object_or_404(AreaAziendale, pk=area_id)
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'area è obbligatorio.")
+        return redirect("anagrafica:aree_list")
+    area.nome = nome
+    area.descrizione = (request.POST.get("descrizione") or "").strip()
+    area.is_active = request.POST.get("is_active") == "1"
+    area.save()
+    messages.success(request, f'Area "{area.nome}" aggiornata.')
+    return redirect("anagrafica:aree_list")
+
+
+@login_required
+@require_POST
+def area_delete(request, area_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per eliminare aree.")
+        return redirect("anagrafica:aree_list")
+    area = get_object_or_404(AreaAziendale, pk=area_id)
+    nome = area.nome
+    area.delete()
+    messages.success(request, f'Area "{nome}" eliminata.')
+    return redirect("anagrafica:aree_list")
+
+
+# ---------------------------------------------------------------------------
+# Ruoli aziendali — catalogo dropdown
+# ---------------------------------------------------------------------------
+
+@login_required
+def ruoli_aziendali_list(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    ruoli = list(RuoloAziendale.objects.all().order_by("nome"))
+    return render(request, "anagrafica/pages/ruoli_aziendali_list.html", {
+        "ruoli": ruoli,
+        "is_admin": is_admin,
+    })
+
+
+@login_required
+@require_POST
+def ruolo_aziendale_create(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per creare ruoli aziendali.")
+        return redirect("anagrafica:ruoli_aziendali_list")
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not nome:
+        messages.error(request, "Il nome del ruolo è obbligatorio.")
+        return redirect("anagrafica:ruoli_aziendali_list")
+    _, created = RuoloAziendale.objects.get_or_create(
+        nome__iexact=nome,
+        defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
+    )
+    if created:
+        messages.success(request, f'Ruolo aziendale "{nome}" creato.')
+    else:
+        messages.warning(request, f'Esiste già un ruolo aziendale con il nome "{nome}".')
+    return redirect("anagrafica:ruoli_aziendali_list")
+
+
+@login_required
+@require_POST
+def ruolo_aziendale_edit(request, ruolo_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare ruoli aziendali.")
+        return redirect("anagrafica:ruoli_aziendali_list")
+    ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not nome:
+        messages.error(request, "Il nome del ruolo è obbligatorio.")
+        return redirect("anagrafica:ruoli_aziendali_list")
+    ruolo.nome = nome
+    ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
+    ruolo.is_active = request.POST.get("is_active") == "1"
+    ruolo.save()
+    messages.success(request, f'Ruolo aziendale "{ruolo.nome}" aggiornato.')
+    return redirect("anagrafica:ruoli_aziendali_list")
+
+
+@login_required
+@require_POST
+def ruolo_aziendale_delete(request, ruolo_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per eliminare ruoli aziendali.")
+        return redirect("anagrafica:ruoli_aziendali_list")
+    ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
+    nome = ruolo.nome
+    ruolo.delete()
+    messages.success(request, f'Ruolo aziendale "{nome}" eliminato.')
+    return redirect("anagrafica:ruoli_aziendali_list")
 
 
 # ---------------------------------------------------------------------------

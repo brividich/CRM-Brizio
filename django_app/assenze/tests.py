@@ -30,6 +30,7 @@ from .views import (
     _sp_fields_from_row,
     _sp_item_to_local,
     _strip_tipo_metadata_from_motivazione,
+    _sync_on_page_load_enabled,
     _tipo_for_display,
     _tipo_for_storage,
 )
@@ -68,6 +69,16 @@ class SharePointStatusParsingTests(SimpleTestCase):
         _sp_id, data = _sp_item_to_local(self._make_item(consenso="Rifiutato", moderation_status=None))
         self.assertEqual(data["consenso"], "Rifiutato")
         self.assertEqual(data["moderation_status"], 1)
+
+
+class AssenzeSyncFlagTests(SimpleTestCase):
+    @override_settings(ASSENZE_SYNC_ON_PAGE_LOAD=True)
+    def test_sync_on_page_load_enabled_when_setting_true(self):
+        self.assertTrue(_sync_on_page_load_enabled())
+
+    @override_settings(ASSENZE_SYNC_ON_PAGE_LOAD="0")
+    def test_sync_on_page_load_disabled_when_setting_zero_string(self):
+        self.assertFalse(_sync_on_page_load_enabled())
 
 
 class SharePointDeleteTests(SimpleTestCase):

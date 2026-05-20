@@ -33,6 +33,7 @@ from core.upload_mime import UploadMimeValidationError
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
 
 from . import views as asset_views
+from .services import sharepoint_public_links
 from .forms import (
     AssetAdministrativeDeadlineForm,
     AssetComponentForm,
@@ -48,6 +49,7 @@ from .models import (
     AssetAdministrativeDeadlineCompletion,
     AssetAdministrativeDeadlineCompletionAttachment,
     AssetCategory,
+    AssetCategoryDocumentFolder,
     AssetCategoryField,
     AssetComponent,
     AssetCustomField,
@@ -346,6 +348,38 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("assets:asset_list"))
         self.assertEqual(response.status_code, 200)
+
+    def test_asset_dashboard_category_links_use_asset_category_filter(self):
+        category = AssetCategory.objects.create(
+            code="pressa-dashboard-link",
+            label="Pressa dashboard link",
+            is_active=True,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"?asset_category={category.id}", html=False)
+        self.assertNotContains(response, f"?category={category.id}", html=False)
+
+    def test_asset_list_legacy_category_query_redirects_and_filters(self):
+        pressa = AssetCategory.objects.create(code="pressa", label="Pressa", is_active=True)
+        forni = AssetCategory.objects.create(code="forni", label="Forni", is_active=True)
+        Asset.objects.create(asset_tag="AST-PRESSA-001", name="Pressa M", asset_category=pressa)
+        Asset.objects.create(asset_tag="AST-FORNO-001", name="Forno A", asset_category=forni)
+
+        self.client.force_login(self.user)
+        response = self.client.get(f"{reverse('assets:asset_list')}?category={pressa.id}", follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.redirect_chain[0][1], 302)
+        self.assertIn(f"asset_category={pressa.id}", response.redirect_chain[0][0])
+        self.assertNotIn("?category=", response.redirect_chain[0][0])
+        self.assertNotIn("&category=", response.redirect_chain[0][0])
+        body = response.content.decode("utf-8")
+        self.assertIn("AST-PRESSA-001", body)
+        self.assertNotIn("AST-FORNO-001", body)
 
     def test_assets_list_200_when_logged_as_admin(self):
         admin = User.objects.create_superuser(
@@ -1087,10 +1121,171 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 302)
         document = AssetDocument.objects.get(asset=asset, category=AssetDocument.CATEGORY_SPECIFICHE)
         self.assertEqual(document.original_name, "specifica.pdf")
+        # La cartella relativa viene persistita sul documento per la vista raggruppata.
+        self.assertEqual(document.relative_folder, "Cartella originale/Sub cartella")
         self.assertEqual(
             document.sharepoint_path,
             "ASSET CN/ML-FOLDER/specifiche/Cartella originale/Sub cartella/specifica.pdf",
         )
+
+    def test_folder_upload_keeps_original_filename_on_sharepoint(self):
+        """Un documento caricato da cartella conserva il nome file originale su SharePoint."""
+        asset = Asset.objects.create(
+            name="Centro nome originale",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            sharepoint_folder_path="ASSET CN/ML-KEEPNAME",
+            source_key="manual-wm-keepname",
+        )
+        with _workspace_temporary_directory("assets-keepname-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            folder_doc = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("verbale.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="verbale.pdf",
+                relative_folder="Intervento maggio/Foto",
+            )
+            loose_doc = AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("singolo.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="singolo.pdf",
+            )
+            folder_name = asset_views._sharepoint_document_remote_filename(folder_doc)
+            loose_name = asset_views._sharepoint_document_remote_filename(loose_doc)
+
+        # Upload da cartella: nome originale intatto, nessun prefisso timestamp/id.
+        self.assertEqual(folder_name, "verbale.pdf")
+        # File singolo: resta il nome univoco con timestamp e id (anti-sovrascrittura).
+        self.assertTrue(loose_name.endswith("singolo.pdf"))
+        self.assertIn(str(loose_doc.id), loose_name)
+        self.assertNotEqual(loose_name, "singolo.pdf")
+
+    def test_documents_by_category_groups_uploads_by_folder(self):
+        """La scheda asset raggruppa i documenti per cartella di origine."""
+        asset = Asset.objects.create(
+            name="Centro raggruppamento",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            source_key="manual-wm-grouping",
+        )
+        with _workspace_temporary_directory("assets-grouping-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("loose.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="loose.pdf",
+            )
+            AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("foto-01.jpg", b"binarydata", content_type="image/jpeg"),
+                original_name="foto-01.jpg",
+                relative_folder="Intervento maggio/Foto",
+            )
+            AssetDocument.objects.create(
+                asset=asset,
+                category=AssetDocument.CATEGORY_INTERVENTI,
+                file=SimpleUploadedFile("foto-02.jpg", b"binarydata", content_type="image/jpeg"),
+                original_name="foto-02.jpg",
+                relative_folder="Intervento maggio/Foto",
+            )
+            _labels, grouped = asset_views._build_asset_documents_by_category(asset)
+
+        groups = grouped[AssetDocument.CATEGORY_INTERVENTI]
+        # Primo gruppo: file singoli (folder vuoto); poi un gruppo per la cartella.
+        self.assertEqual(groups[0]["folder"], "")
+        self.assertEqual(len(groups[0]["documents"]), 1)
+        self.assertEqual(groups[1]["folder"], "Intervento maggio/Foto")
+        self.assertEqual(len(groups[1]["documents"]), 2)
+
+    def test_document_folder_specs_include_category_extra_folders(self):
+        """Le cartelle documento extra della AssetCategory si aggiungono alle 3 di base."""
+        category = AssetCategory.objects.create(code="cnc-spec", label="CNC", is_active=True)
+        asset = Asset.objects.create(
+            name="Centro specs cartelle",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=category,
+            reparto="CN5",
+            source_key="manual-wm-folder-specs",
+        )
+        AssetCategoryDocumentFolder.objects.create(category=category, name="Collaudi", slug="collaudi", order=1)
+        AssetCategoryDocumentFolder.objects.create(
+            category=category, name="Disattivata", slug="disattivata", order=2, is_active=False
+        )
+
+        codes = [spec["code"] for spec in asset_views._asset_document_folder_specs(asset)]
+        self.assertEqual(codes[:3], ["SPECIFICHE", "INTERVENTI", "MANUALI"])
+        self.assertIn("collaudi", codes)
+        # La cartella disattivata non compare tra quelle disponibili.
+        self.assertNotIn("disattivata", codes)
+
+    def test_add_asset_document_folder_requires_manager(self):
+        """Un utente non gestore non puo aggiungere cartelle documento."""
+        category = AssetCategory.objects.create(code="cnc-add-perm", label="CNC", is_active=True)
+        asset = Asset.objects.create(
+            name="Centro add perm",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=category,
+            reparto="CN5",
+            source_key="manual-wm-add-perm",
+        )
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("assets:asset_view", args=[asset.id]),
+            {"action": "add_asset_document_folder", "folder_name": "Collaudi"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(category.document_folders.exists())
+
+    def test_add_and_deactivate_asset_document_folder(self):
+        """Un gestore aggiunge una cartella e la disattiva solo se vuota."""
+        admin = User.objects.create_superuser(
+            username="asset-doc-folder-admin",
+            email="asset-doc-folder-admin@test.local",
+            password="pass12345",
+        )
+        category = AssetCategory.objects.create(code="cnc-add", label="CNC", is_active=True)
+        asset = Asset.objects.create(
+            name="Centro add cartella",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=category,
+            reparto="CN5",
+            source_key="manual-wm-add-folder",
+        )
+        self.client.force_login(admin)
+
+        self.client.post(
+            reverse("assets:asset_view", args=[asset.id]),
+            {"action": "add_asset_document_folder", "folder_name": "Collaudi qualità"},
+        )
+        folder = category.document_folders.get()
+        self.assertEqual(folder.slug, "collaudi-qualita")
+        self.assertTrue(folder.is_active)
+
+        # Cartella con un documento: la disattivazione viene bloccata.
+        with _workspace_temporary_directory("assets-folder-deact-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            document = AssetDocument.objects.create(
+                asset=asset,
+                category=folder.slug,
+                file=SimpleUploadedFile("collaudo.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                original_name="collaudo.pdf",
+            )
+            self.client.post(
+                reverse("assets:asset_view", args=[asset.id]),
+                {"action": "deactivate_asset_document_folder", "folder_id": folder.id},
+            )
+            folder.refresh_from_db()
+            self.assertTrue(folder.is_active)
+
+            # Svuotata la cartella, la disattivazione va a buon fine.
+            document.delete()
+            self.client.post(
+                reverse("assets:asset_view", args=[asset.id]),
+                {"action": "deactivate_asset_document_folder", "folder_id": folder.id},
+            )
+            folder.refresh_from_db()
+            self.assertFalse(folder.is_active)
 
     def test_sharepoint_upload_uses_relative_subfolders(self):
         asset = Asset.objects.create(
@@ -1194,13 +1389,20 @@ class AssetsRoutingTests(TestCase):
             original_name="manuale locale.pdf",
         )
 
-        def fake_children(folder_path):
+        def fake_walk(folder_path):
             if folder_path.endswith("/specifiche"):
-                return [{"name": "nuova specifica.pdf", "webUrl": "https://sp.example/new", "file": {}}]
+                return [
+                    {
+                        "name": "nuova specifica.pdf",
+                        "webUrl": "https://sp.example/new",
+                        "file": {},
+                        "relative_folder": "",
+                    }
+                ]
             return []
 
         with patch("assets.views._sharepoint_graph_ready", return_value=True):
-            with patch("assets.views._sharepoint_graph_list_children", side_effect=fake_children):
+            with patch("assets.views._sharepoint_graph_walk_files", side_effect=fake_walk):
                 result = asset_views._sync_asset_documents_from_sharepoint(asset)
 
         self.assertEqual(result["created"], 1)
@@ -1211,6 +1413,52 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(created.original_name, "nuova specifica.pdf")
         self.assertEqual(created.sharepoint_path, "ASSET CN/SYNC-001/specifiche/nuova specifica.pdf")
         self.assertEqual(created.sharepoint_url, "https://sp.example/new")
+
+    def test_reverse_sync_imports_files_from_subfolders(self):
+        """Il sync inverso percorre le sottocartelle e conserva la cartella di origine."""
+        asset = Asset.objects.create(
+            name="Centro sync sottocartelle",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            sharepoint_folder_path="ASSET CN/SYNC-SUB",
+            source_key="manual-wm-reverse-sync-sub",
+        )
+
+        def fake_walk(folder_path):
+            if folder_path.endswith("/interventi"):
+                return [
+                    {
+                        "name": "verbale.pdf",
+                        "webUrl": "https://sp.example/verbale",
+                        "file": {},
+                        "relative_folder": "Intervento maggio",
+                    },
+                    {
+                        "name": "foto-01.jpg",
+                        "webUrl": "https://sp.example/foto",
+                        "file": {},
+                        "relative_folder": "Intervento maggio/Foto",
+                    },
+                ]
+            return []
+
+        with patch("assets.views._sharepoint_graph_ready", return_value=True):
+            with patch("assets.views._sharepoint_graph_walk_files", side_effect=fake_walk):
+                result = asset_views._sync_asset_documents_from_sharepoint(asset)
+
+        self.assertEqual(result["created"], 2)
+        verbale = AssetDocument.objects.get(asset=asset, original_name="verbale.pdf")
+        self.assertEqual(verbale.relative_folder, "Intervento maggio")
+        self.assertEqual(
+            verbale.sharepoint_path,
+            "ASSET CN/SYNC-SUB/interventi/Intervento maggio/verbale.pdf",
+        )
+        foto = AssetDocument.objects.get(asset=asset, original_name="foto-01.jpg")
+        self.assertEqual(foto.relative_folder, "Intervento maggio/Foto")
+        self.assertEqual(
+            foto.sharepoint_path,
+            "ASSET CN/SYNC-SUB/interventi/Intervento maggio/Foto/foto-01.jpg",
+        )
 
     def test_sharepoint_document_metadata_includes_asset_fields(self):
         parent = AssetCategory.objects.create(
@@ -1267,6 +1515,135 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(meta["AssetMatricola"], "SN-FOLDER")
         self.assertEqual(meta["AssetReparto"], "CN5")
         self.assertEqual(meta["AssetTipoDocumento"], "Cartella asset")
+
+    def test_create_anonymous_view_link_uses_view_anonymous_body(self):
+        response = SimpleNamespace(
+            status_code=201,
+            text='{"id":"perm-1"}',
+            headers={},
+            json=lambda: {"id": "perm-1", "link": {"webUrl": "https://share.example/public"}},
+        )
+
+        with patch("assets.services.sharepoint_public_links._graph_headers", return_value={}):
+            with patch("assets.services.sharepoint_public_links.requests.post", return_value=response) as post:
+                result = sharepoint_public_links.create_anonymous_view_link_for_drive_item("drive-1", "item-1")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["public_url"], "https://share.example/public")
+        self.assertEqual(
+            post.call_args.kwargs["json"],
+            {"type": "view", "scope": "anonymous", "retainInheritedPermissions": True},
+        )
+
+    @override_settings(SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=True)
+    def test_ensure_asset_public_share_link_saves_public_url(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-PUBLIC-OK",
+            name="Asset public ok",
+            sharepoint_folder_path="ASSET CN/AST-PUBLIC-OK",
+            sharepoint_drive_id="drive-1",
+            sharepoint_item_id="item-1",
+        )
+
+        with patch("assets.services.sharepoint_public_links.validate_asset_inside_allowed_root", return_value={"ok": True}):
+            with patch(
+                "assets.services.sharepoint_public_links.create_anonymous_view_link_for_drive_item",
+                return_value={"ok": True, "public_url": "https://share.example/public", "permission_id": "perm-1"},
+            ):
+                result = sharepoint_public_links.ensure_asset_public_share_link(asset)
+
+        self.assertTrue(result["ok"])
+        asset.refresh_from_db()
+        self.assertEqual(asset.sharepoint_public_url, "https://share.example/public")
+        self.assertEqual(asset.sharepoint_public_link_id, "perm-1")
+        self.assertTrue(asset.sharepoint_public_enabled)
+        self.assertEqual(asset.sharepoint_public_error, "")
+
+    @override_settings(SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=True)
+    def test_ensure_asset_public_share_link_blocks_outside_asset_cn(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-PUBLIC-BLOCK",
+            name="Asset public block",
+            sharepoint_folder_path="ALTRO/AST-PUBLIC-BLOCK",
+            sharepoint_drive_id="drive-1",
+            sharepoint_item_id="item-1",
+        )
+        item = {
+            "id": "item-1",
+            "name": "AST-PUBLIC-BLOCK",
+            "folder": {},
+            "parentReference": {"path": "/drive/root:/ALTRO", "driveId": "drive-1"},
+        }
+
+        with patch("assets.services.sharepoint_public_links._graph_get_drive_item", return_value=item):
+            with patch("assets.services.sharepoint_public_links.create_anonymous_view_link_for_drive_item") as create_link:
+                result = sharepoint_public_links.ensure_asset_public_share_link(asset)
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "not_in_asset_cn")
+        create_link.assert_not_called()
+
+    @override_settings(SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=True)
+    def test_management_command_dry_run_does_not_save_public_url(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-CMD-DRY",
+            name="Asset command dry",
+            sharepoint_folder_path="ASSET CN/AST-CMD-DRY",
+            sharepoint_drive_id="drive-1",
+            sharepoint_item_id="item-1",
+        )
+        out = io.StringIO()
+
+        with patch("assets.management.commands.assets_ensure_public_share_links.validate_asset_inside_allowed_root", return_value={"ok": True}):
+            with patch("assets.management.commands.assets_ensure_public_share_links.ensure_asset_public_share_link") as ensure:
+                call_command("assets_ensure_public_share_links", "--dry-run", stdout=out)
+
+        ensure.assert_not_called()
+        asset.refresh_from_db()
+        self.assertEqual(asset.sharepoint_public_url, "")
+        self.assertIn("eligible_dry_run", out.getvalue())
+
+    @override_settings(SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=True)
+    def test_management_command_apply_saves_public_url_for_eligible_asset(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-CMD-APPLY",
+            name="Asset command apply",
+            sharepoint_folder_path="ASSET CN/AST-CMD-APPLY",
+            sharepoint_drive_id="drive-1",
+            sharepoint_item_id="item-1",
+        )
+        out = io.StringIO()
+
+        with patch("assets.management.commands.assets_ensure_public_share_links.validate_asset_inside_allowed_root", return_value={"ok": True}):
+            with patch("assets.services.sharepoint_public_links.validate_asset_inside_allowed_root", return_value={"ok": True}):
+                with patch(
+                    "assets.services.sharepoint_public_links.create_anonymous_view_link_for_drive_item",
+                    return_value={"ok": True, "public_url": "https://share.example/cmd", "permission_id": "perm-cmd"},
+                ):
+                    call_command("assets_ensure_public_share_links", "--apply", "--asset-tag", asset.asset_tag, stdout=out)
+
+        asset.refresh_from_db()
+        self.assertEqual(asset.sharepoint_public_url, "https://share.example/cmd")
+        self.assertIn("created", out.getvalue())
+
+    @override_settings(SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=True)
+    def test_management_command_only_missing_skips_asset_with_existing_link(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-CMD-EXIST",
+            name="Asset command existing",
+            sharepoint_folder_path="ASSET CN/AST-CMD-EXIST",
+            sharepoint_drive_id="drive-1",
+            sharepoint_item_id="item-1",
+            sharepoint_public_url="https://share.example/existing",
+            sharepoint_public_enabled=True,
+        )
+        out = io.StringIO()
+
+        with patch("assets.management.commands.assets_ensure_public_share_links.ensure_asset_public_share_link") as ensure:
+            call_command("assets_ensure_public_share_links", "--apply", "--only-missing", "--asset-tag", asset.asset_tag, stdout=out)
+
+        ensure.assert_not_called()
+        self.assertIn("existing_only_missing", out.getvalue())
 
     def test_ensure_asset_sharepoint_folder_applies_metadata_to_folders(self):
         asset = Asset.objects.create(
@@ -1625,12 +2002,14 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertTrue(response.content.startswith(b"%PDF"))
 
-    def test_asset_qr_label_defaults_to_sharepoint_folder_when_available(self):
+    def test_asset_qr_label_defaults_to_public_route_when_available(self):
         asset = Asset.objects.create(
             name="Macchina QR SharePoint",
             asset_type=Asset.TYPE_WORK_MACHINE,
             reparto="CNC",
             sharepoint_folder_url="https://contoso.sharepoint.com/sites/assets/Shared%20Documents/ASSET%20CN/ML-QR",
+            sharepoint_public_url="https://share.example/public/ML-QR",
+            sharepoint_public_enabled=True,
             source_key="manual-wm-qr-sharepoint",
         )
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-sharepoint")
@@ -1640,8 +2019,57 @@ class AssetsRoutingTests(TestCase):
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(draw_label.call_args.kwargs["target_url"], asset.sharepoint_folder_url)
-        self.assertEqual(draw_label.call_args.kwargs["target_label"], "Cartella SharePoint")
+        self.assertEqual(
+            draw_label.call_args.kwargs["target_url"],
+            response.wsgi_request.build_absolute_uri(
+                reverse("assets:asset_public_redirect", kwargs={"public_qr_token": asset.public_qr_token})
+            ),
+        )
+        self.assertEqual(draw_label.call_args.kwargs["target_label"], "Cartella SharePoint pubblica")
+
+    @override_settings(SITE_URL="https://hub.cnovicrom.local")
+    def test_asset_qr_label_uses_site_url_for_public_route(self):
+        asset = Asset.objects.create(
+            name="Macchina QR HTTPS",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CNC",
+            sharepoint_folder_url="https://contoso.sharepoint.com/sites/assets/Shared%20Documents/ASSET%20CN/ML-HTTPS",
+            sharepoint_public_url="https://share.example/public/ML-HTTPS",
+            sharepoint_public_enabled=True,
+            source_key="manual-wm-qr-https",
+        )
+        WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-https")
+        self.client.force_login(self.user)
+
+        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+            response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            draw_label.call_args.kwargs["target_url"],
+            f"https://hub.cnovicrom.local{reverse('assets:asset_public_redirect', kwargs={'public_qr_token': asset.public_qr_token})}",
+        )
+
+    def test_asset_qr_label_does_not_use_internal_sharepoint_folder_without_public_link(self):
+        asset = Asset.objects.create(
+            name="Macchina QR no public",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CNC",
+            sharepoint_folder_url="https://contoso.sharepoint.com/sites/assets/Shared%20Documents/ASSET%20CN/ML-INTERNAL",
+            source_key="manual-wm-qr-no-public",
+        )
+        WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-no-public")
+        self.client.force_login(self.user)
+
+        with patch("assets.views._draw_asset_label_pdf") as draw_label:
+            response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(draw_label.call_args.kwargs["target_url"], asset.sharepoint_folder_url)
+        self.assertEqual(
+            draw_label.call_args.kwargs["target_url"],
+            response.wsgi_request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id})),
+        )
 
     def test_asset_qr_label_detail_target_still_points_to_asset_detail(self):
         asset = Asset.objects.create(
@@ -1663,6 +2091,46 @@ class AssetsRoutingTests(TestCase):
             response.wsgi_request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id})),
         )
         self.assertEqual(draw_label.call_args.kwargs["target_label"], "Scheda asset")
+
+    def test_public_redirect_valid_token_redirects_without_login(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-PUB-REDIR",
+            name="Asset public redirect",
+            sharepoint_public_url="https://share.example/asset",
+            sharepoint_public_enabled=True,
+        )
+
+        response = self.client.get(reverse("assets:asset_public_redirect", kwargs={"public_qr_token": asset.public_qr_token}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "https://share.example/asset")
+
+    def test_public_redirect_unknown_token_404(self):
+        response = self.client.get(reverse("assets:asset_public_redirect", kwargs={"public_qr_token": "missing-token"}))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_public_redirect_disabled_token_404(self):
+        asset = Asset.objects.create(
+            asset_tag="AST-PUB-DIS",
+            name="Asset public disabled",
+            sharepoint_public_url="https://share.example/asset",
+            sharepoint_public_enabled=True,
+        )
+        token = asset.public_qr_token
+        Asset.objects.filter(pk=asset.pk).update(public_qr_enabled=False)
+
+        response = self.client.get(reverse("assets:asset_public_redirect", kwargs={"public_qr_token": token}))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_assets_public_prefix_is_accessible_without_login_but_other_assets_routes_are_protected(self):
+        public_response = self.client.get(reverse("assets:asset_public_redirect", kwargs={"public_qr_token": "missing-token"}))
+        protected_response = self.client.get(reverse("assets:asset_list"))
+
+        self.assertEqual(public_response.status_code, 404)
+        self.assertEqual(protected_response.status_code, 302)
+        self.assertIn(reverse("login"), protected_response["Location"])
 
     def test_non_admin_cannot_open_asset_label_designer(self):
         self.client.force_login(self.user)
@@ -1859,6 +2327,12 @@ class AssetsRoutingTests(TestCase):
                         "GRAPH_CLIENT_SECRET=secret-test",
                         "GRAPH_SITE_ID=site-test",
                         "ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets",
+                        "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=true",
+                        "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME=ASSET CN",
+                        "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID=drive-root-test",
+                        "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID=item-root-test",
+                        "SHAREPOINT_ASSET_SITE_ID=site-assets-test",
+                        "SHAREPOINT_ASSET_DRIVE_ID=drive-assets-test",
                     ]
                 ),
                 encoding="utf-8",
@@ -1871,8 +2345,20 @@ class AssetsRoutingTests(TestCase):
 
             with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
                 "assets.views.os.environ",
-                {},
-                clear=True,
+                {
+                    "GRAPH_TENANT_ID": "",
+                    "GRAPH_CLIENT_ID": "",
+                    "GRAPH_CLIENT_SECRET": "",
+                    "GRAPH_SITE_ID": "",
+                    "ASSETS_SHAREPOINT_LIBRARY_URL": "",
+                    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID": "",
+                    "SHAREPOINT_ASSET_SITE_ID": "",
+                    "SHAREPOINT_ASSET_DRIVE_ID": "",
+                },
+                clear=False,
             ):
                 response = asset_views.gestione_admin.__wrapped__(request)
         finally:
@@ -1882,6 +2368,11 @@ class AssetsRoutingTests(TestCase):
         content = response.content.decode("utf-8")
         self.assertIn("SharePoint / Microsoft Graph", content)
         self.assertIn("ASSET CN", content)
+        self.assertIn("Link pubblici QR", content)
+        self.assertIn("drive-root-test", content)
+        self.assertIn("item-root-test", content)
+        self.assertIn("site-assets-test", content)
+        self.assertIn("drive-assets-test", content)
 
     def test_gestione_admin_shows_label_type_rows_and_overrides(self):
         asset = Asset.objects.create(
@@ -2192,6 +2683,12 @@ class AssetsRoutingTests(TestCase):
                     "sharepoint_client_secret": "",
                     "sharepoint_site_id": "site-new",
                     "sharepoint_library_url": "https://contoso.sharepoint.com/sites/example-assets",
+                    "sharepoint_public_links_enabled": "true",
+                    "sharepoint_allowed_root_name": "ASSET CN",
+                    "sharepoint_allowed_root_drive_id": "drive-root-new",
+                    "sharepoint_allowed_root_item_id": "item-root-new",
+                    "sharepoint_asset_site_id": "site-assets-new",
+                    "sharepoint_asset_drive_id": "drive-assets-new",
                 },
             )
             _attach_session(request)
@@ -2201,8 +2698,20 @@ class AssetsRoutingTests(TestCase):
 
             with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
                 "assets.views.os.environ",
-                {},
-                clear=True,
+                {
+                    "GRAPH_TENANT_ID": "",
+                    "GRAPH_CLIENT_ID": "",
+                    "GRAPH_CLIENT_SECRET": "",
+                    "GRAPH_SITE_ID": "",
+                    "ASSETS_SHAREPOINT_LIBRARY_URL": "",
+                    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID": "",
+                    "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID": "",
+                    "SHAREPOINT_ASSET_SITE_ID": "",
+                    "SHAREPOINT_ASSET_DRIVE_ID": "",
+                },
+                clear=False,
             ):
                 response = asset_views.gestione_admin.__wrapped__(request)
 
@@ -2213,6 +2722,12 @@ class AssetsRoutingTests(TestCase):
             self.assertIn("GRAPH_SITE_ID=site-new", content)
             self.assertIn("GRAPH_CLIENT_SECRET=keep-me", content)
             self.assertIn("ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets", content)
+            self.assertIn("SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED=true", content)
+            self.assertIn("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME=ASSET CN", content)
+            self.assertIn("SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID=drive-root-new", content)
+            self.assertIn("SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID=item-root-new", content)
+            self.assertIn("SHAREPOINT_ASSET_SITE_ID=site-assets-new", content)
+            self.assertIn("SHAREPOINT_ASSET_DRIVE_ID=drive-assets-new", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -2450,6 +2965,128 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Registro manutenzione termica")
         self.assertContains(response, "Potenza")
         self.assertContains(response, "18")
+
+    def test_asset_detail_specs_hide_empty_standard_fallback_rows(self):
+        AssetDetailField.objects.all().delete()
+        asset = Asset.objects.create(
+            asset_tag="AST-SPECS-001",
+            name="Notebook specifiche parziali",
+            asset_type=Asset.TYPE_HW,
+            serial_number="SN-SPECS-001",
+        )
+        AssetITDetails.objects.create(asset=asset)
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Numero seriale")
+        self.assertContains(response, "SN-SPECS-001")
+        self.assertNotContains(response, '<span class="af-spec-k">Processore</span>', html=False)
+        self.assertNotContains(response, '<span class="af-spec-k">Memoria</span>', html=False)
+        self.assertNotContains(response, '<span class="af-spec-k">Sistema operativo</span>', html=False)
+        self.assertNotContains(response, '<span class="af-spec-k">Grafica</span>', html=False)
+
+    def test_asset_detail_specs_hide_empty_category_fields_even_when_show_if_empty(self):
+        category = AssetCategory.objects.create(
+            code="quadro-elettrico",
+            label="Quadro elettrico",
+            base_asset_type=Asset.TYPE_OTHER,
+            is_active=True,
+        )
+        AssetCategoryField.objects.create(
+            category=category,
+            code="matricola_quadro",
+            label="Matricola quadro",
+            field_type=AssetCategoryField.TYPE_TEXT,
+            detail_section=AssetDetailField.SECTION_SPECS,
+            detail_value_format=AssetDetailField.FORMAT_TEXT,
+            show_in_detail=True,
+            is_active=True,
+        )
+        AssetCategoryField.objects.create(
+            category=category,
+            code="campo_non_compilato",
+            label="Campo non compilato",
+            field_type=AssetCategoryField.TYPE_TEXT,
+            detail_section=AssetDetailField.SECTION_SPECS,
+            detail_value_format=AssetDetailField.FORMAT_TEXT,
+            show_in_detail=True,
+            show_if_empty=True,
+            is_active=True,
+        )
+        asset = Asset.objects.create(
+            asset_tag="AST-SPECS-002",
+            name="Quadro reparto 2",
+            asset_type=Asset.TYPE_OTHER,
+            asset_category=category,
+            extra_columns={"_category_fields": {"matricola_quadro": "QE-002", "campo_non_compilato": ""}},
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Matricola quadro")
+        self.assertContains(response, "QE-002")
+        self.assertNotContains(response, "Campo non compilato")
+
+    def test_asset_detail_specs_render_false_boolean_as_no(self):
+        category = AssetCategory.objects.create(
+            code="impianto-antincendio",
+            label="Impianto antincendio",
+            base_asset_type=Asset.TYPE_OTHER,
+            is_active=True,
+        )
+        AssetCategoryField.objects.create(
+            category=category,
+            code="presidio_attivo",
+            label="Presidio attivo",
+            field_type=AssetCategoryField.TYPE_BOOL,
+            detail_section=AssetDetailField.SECTION_SPECS,
+            detail_value_format=AssetDetailField.FORMAT_BOOL,
+            show_in_detail=True,
+            is_active=True,
+        )
+        asset = Asset.objects.create(
+            asset_tag="AST-SPECS-003",
+            name="Presidio magazzino",
+            asset_type=Asset.TYPE_OTHER,
+            asset_category=category,
+            extra_columns={"_category_fields": {"presidio_attivo": False}},
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Presidio attivo")
+        self.assertContains(response, '<span class="af-spec-v">No</span>', html=False)
+
+    def test_asset_detail_specs_card_not_rendered_when_configured_specs_are_empty(self):
+        AssetDetailField.objects.all().delete()
+        asset = Asset.objects.create(
+            asset_tag="AST-SPECS-004",
+            name="Asset senza specifiche",
+            asset_type=Asset.TYPE_OTHER,
+        )
+        AssetDetailField.objects.create(
+            code="empty-spec-model",
+            label="Modello vuoto",
+            section=AssetDetailField.SECTION_SPECS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:model",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            show_if_empty=True,
+            is_active=True,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", args=[asset.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'data-card-code="specs"', html=False)
+        self.assertNotContains(response, "Modello vuoto")
 
     def test_admin_can_create_sidebar_child_button(self):
         admin = User.objects.create_superuser(
@@ -6075,5 +6712,73 @@ class RealignAssetTypesCommandTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(cat.base_asset_type, Asset.TYPE_OTHER)
         self.assertEqual(asset.asset_type, Asset.TYPE_OTHER)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CategorySidebarTests(TestCase):
+    """Navigazione asset guidata dall'albero categorie."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(username="cat-nav-user", password="pass12345")
+        _complete_onboarding(self.user)
+        self.root = AssetCategory.objects.create(code="it", label="Information Technology")
+        self.child_pc = AssetCategory.objects.create(code="it-pc", label="PC", parent=self.root)
+        self.child_srv = AssetCategory.objects.create(code="it-srv", label="Server", parent=self.root)
+        self.other_root = AssetCategory.objects.create(code="hvac", label="HVAC")
+        self.other_child = AssetCategory.objects.create(code="hvac-bru", label="Bruciatori", parent=self.other_root)
+
+        self.pc = Asset.objects.create(asset_tag="IT-000001", name="PC uno", asset_category=self.child_pc)
+        self.srv = Asset.objects.create(asset_tag="IT-000002", name="Server uno", asset_category=self.child_srv)
+        self.burner = Asset.objects.create(asset_tag="AST-000001", name="Bruciatore", asset_category=self.other_child)
+
+    def test_rebuild_creates_groups_and_items(self):
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+
+        # Pulsante legacy che deve sparire dopo il rebuild.
+        AssetSidebarButton.objects.create(
+            code="dispositivi_it", section=AssetSidebarButton.SECTION_MAIN, label="Dispositivi IT"
+        )
+
+        groups, items = rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+        self.assertEqual(groups, 2)  # Information Technology + HVAC
+        self.assertEqual(items, 3)   # PC, Server, Bruciatori
+
+        self.assertFalse(AssetSidebarButton.objects.filter(code="dispositivi_it").exists())
+        root_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{self.root.id}")
+        self.assertEqual(root_btn.label, "Information Technology")
+        self.assertFalse(root_btn.is_subitem)
+
+        pc_btn = AssetSidebarButton.objects.get(code=f"catnav-{self.child_pc.id}")
+        self.assertTrue(pc_btn.is_subitem)
+        self.assertEqual(pc_btn.parent_id, root_btn.id)
+        self.assertIn(f"asset_category={self.child_pc.id}", pc_btn.target_url)
+        # I report restano raggiungibili.
+        self.assertTrue(AssetSidebarButton.objects.filter(code="report_asset").exists())
+
+    def test_subtree_ids_include_descendants(self):
+        from assets.views import _category_subtree_ids
+
+        ids = _category_subtree_ids(self.root)
+        self.assertIn(self.root.id, ids)
+        self.assertIn(self.child_pc.id, ids)
+        self.assertIn(self.child_srv.id, ids)
+        self.assertNotIn(self.other_child.id, ids)
+
+    def test_asset_list_root_category_shows_whole_subtree(self):
+        self.client.force_login(self.user)
+        response = self.client.get(f"{reverse('assets:asset_list')}?asset_category={self.root.id}")
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn("IT-000001", body)
+        self.assertIn("IT-000002", body)
+        self.assertNotIn("AST-000001", body)
+
+    def test_asset_list_leaf_category_shows_only_that_category(self):
+        self.client.force_login(self.user)
+        response = self.client.get(f"{reverse('assets:asset_list')}?asset_category={self.child_pc.id}")
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn("IT-000001", body)
+        self.assertNotIn("IT-000002", body)
 
 

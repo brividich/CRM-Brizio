@@ -5,10 +5,13 @@ Schedulare come task Windows (suggerito ogni ora o piu volte al giorno):
     python manage.py sync_asset_documents_from_sharepoint
 
 Per ogni asset con una cartella SharePoint configurata (``sharepoint_folder_path``)
-la procedura allinea il portale alle modifiche applicate direttamente su SharePoint:
+la procedura allinea il portale alle modifiche applicate direttamente su SharePoint.
+Le sottocartelle di ``manuali``/``specifiche``/``interventi`` vengono percorse
+ricorsivamente e la cartella di origine viene conservata sul documento.
 
-  - file nuovi caricati su SharePoint -> crea un AssetDocument di riferimento
-    (con ``sharepoint_url``/``sharepoint_path``, senza copia locale);
+  - file nuovi caricati su SharePoint (anche dentro sottocartelle) -> crea un
+    AssetDocument di riferimento (con ``sharepoint_url``/``sharepoint_path``/
+    ``relative_folder``, senza copia locale);
   - file rimossi da SharePoint -> elimina l'AssetDocument sincronizzato corrispondente
     (record + eventuale copia locale);
   - file ancora presenti -> aggiorna ``sharepoint_url`` se cambiato.

@@ -486,3 +486,243 @@ class DipendenteQualifica(models.Model):
         from datetime import timedelta
         oggi = timezone.localdate()
         return oggi <= self.data_scadenza <= oggi + timedelta(days=60)
+
+
+# ---------------------------------------------------------------------------
+# Catalogo aree aziendali (dropdown per DipendenteAnagraficaAziendale.area)
+# ---------------------------------------------------------------------------
+
+class AreaAziendale(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Area aziendale"
+        verbose_name_plural = "Aree aziendali"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Catalogo ruoli aziendali (dropdown per DipendenteAnagraficaAziendale.ruolo_aziendale)
+# ---------------------------------------------------------------------------
+
+class RuoloAziendale(models.Model):
+    nome = models.CharField(max_length=200, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Ruolo aziendale"
+        verbose_name_plural = "Ruoli aziendali"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Anagrafica civile dipendente (dati personali/privati)
+# ---------------------------------------------------------------------------
+
+class DipendenteAnagraficaCivile(models.Model):
+    GENERE_M = "M"
+    GENERE_F = "F"
+    GENERE_A = "A"
+    GENERE_CHOICES = [
+        (GENERE_M, "Maschile"),
+        (GENERE_F, "Femminile"),
+        (GENERE_A, "Non specificato"),
+    ]
+
+    TITOLO_PRIMO_GRADO = "PRIMO_GRADO"
+    TITOLO_SECONDO_GRADO = "SECONDO_GRADO"
+    TITOLO_LAUREA_TRIENNALE = "LAUREA_TRIENNALE"
+    TITOLO_LAUREA_MAGISTRALE = "LAUREA_MAGISTRALE"
+    TITOLO_LAUREA_CICLO_UNICO = "LAUREA_CICLO_UNICO"
+    TITOLO_CHOICES = [
+        (TITOLO_PRIMO_GRADO, "Istruzione primo grado"),
+        (TITOLO_SECONDO_GRADO, "Istruzione secondo grado"),
+        (TITOLO_LAUREA_TRIENNALE, "Laurea triennale"),
+        (TITOLO_LAUREA_MAGISTRALE, "Laurea magistrale"),
+        (TITOLO_LAUREA_CICLO_UNICO, "Laurea magistrale ciclo unico"),
+    ]
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+
+    data_nascita = models.DateField(null=True, blank=True)
+    luogo_nascita = models.CharField(max_length=200, blank=True, default="")
+    genere = models.CharField(max_length=1, choices=GENERE_CHOICES, blank=True, default="")
+
+    indirizzo_residenza = models.CharField(max_length=300, blank=True, default="")
+    citta_residenza = models.CharField(max_length=100, blank=True, default="", verbose_name="Città residenza")
+    provincia_residenza = models.CharField(max_length=5, blank=True, default="")
+    nazione_residenza = models.CharField(max_length=100, blank=True, default="Italia")
+    cap_residenza = models.CharField(max_length=10, blank=True, default="", verbose_name="CAP residenza")
+
+    indirizzo_domicilio = models.CharField(max_length=300, blank=True, default="")
+    citta_domicilio = models.CharField(max_length=100, blank=True, default="", verbose_name="Città domicilio")
+    nazione_domicilio = models.CharField(max_length=100, blank=True, default="")
+    cap_domicilio = models.CharField(max_length=10, blank=True, default="", verbose_name="CAP domicilio")
+
+    codice_fiscale = models.CharField(max_length=16, blank=True, default="")
+    titolo_studio = models.CharField(max_length=20, choices=TITOLO_CHOICES, blank=True, default="")
+
+    email_privata = models.EmailField(blank=True, default="")
+    telefono_privato = models.CharField(max_length=30, blank=True, default="")
+    patente_auto = models.BooleanField(default=False)
+
+    # Dati sensibili — accesso limitato a ruolo HR
+    nome_banca = models.CharField(max_length=200, blank=True, default="")
+    iban = models.CharField(max_length=34, blank=True, default="", verbose_name="IBAN")
+    intestatario_conto = models.CharField(max_length=200, blank=True, default="")
+    categoria_protetta = models.BooleanField(default=False)
+    categoria_disabili = models.BooleanField(default=False)
+    percentuale_disabilita = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        verbose_name="Percentuale disabilità",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anagrafica_civile_aggiornate",
+    )
+
+    class Meta:
+        verbose_name = "Anagrafica civile dipendente"
+        verbose_name_plural = "Anagrafiche civili dipendenti"
+
+    def __str__(self) -> str:
+        return f"Anagrafica civile [{self.legacy_anagrafica_id}]"
+
+    @property
+    def iban_mascherato(self) -> str:
+        """Restituisce IBAN con la parte centrale mascherata per il display."""
+        v = self.iban.replace(" ", "")
+        if len(v) < 8:
+            return v
+        return f"{v[:4]} **** **** **** {v[-4:]}"
+
+
+# ---------------------------------------------------------------------------
+# Anagrafica aziendale dipendente (dati contrattuali/organizzativi)
+# ---------------------------------------------------------------------------
+
+class DipendenteAnagraficaAziendale(models.Model):
+    CONTRATTO_INDETERMINATO = "INDETERMINATO"
+    CONTRATTO_DETERMINATO = "DETERMINATO"
+    CONTRATTO_APPRENDISTATO = "APPRENDISTATO"
+    CONTRATTO_SOMMINISTRAZIONE = "SOMMINISTRAZIONE"
+    CONTRATTO_COLLABORAZIONE = "COLLABORAZIONE"
+    CONTRATTO_STAGE = "STAGE"
+    CONTRATTO_ALTRO = "ALTRO"
+    CONTRATTO_CHOICES = [
+        (CONTRATTO_INDETERMINATO, "Tempo indeterminato"),
+        (CONTRATTO_DETERMINATO, "Tempo determinato"),
+        (CONTRATTO_APPRENDISTATO, "Apprendistato"),
+        (CONTRATTO_SOMMINISTRAZIONE, "Somministrazione"),
+        (CONTRATTO_COLLABORAZIONE, "Collaborazione"),
+        (CONTRATTO_STAGE, "Stage / Tirocinio"),
+        (CONTRATTO_ALTRO, "Altro"),
+    ]
+
+    TAGLIA_XS = "XS"
+    TAGLIA_S = "S"
+    TAGLIA_M = "M"
+    TAGLIA_L = "L"
+    TAGLIA_XL = "XL"
+    TAGLIA_XXL = "XXL"
+    TAGLIA_XXXL = "XXXL"
+    TAGLIA_MAGLIA_CHOICES = [
+        (TAGLIA_XS, "XS"),
+        (TAGLIA_S, "S"),
+        (TAGLIA_M, "M"),
+        (TAGLIA_L, "L"),
+        (TAGLIA_XL, "XL"),
+        (TAGLIA_XXL, "XXL"),
+        (TAGLIA_XXXL, "XXXL"),
+    ]
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+
+    area = models.CharField(max_length=100, blank=True, default="", verbose_name="Area di appartenenza")
+    ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
+
+    taglia_scarpe = models.CharField(max_length=10, blank=True, default="")
+    taglia_pantalone = models.CharField(max_length=20, blank=True, default="")
+    taglia_maglia = models.CharField(max_length=10, choices=TAGLIA_MAGLIA_CHOICES, blank=True, default="")
+
+    consenso_privacy = models.BooleanField(default=False)
+    data_consenso_privacy = models.DateField(null=True, blank=True)
+
+    data_prima_assunzione = models.DateField(null=True, blank=True)
+    prova_data_inizio = models.DateField(null=True, blank=True, verbose_name="Inizio periodo di prova")
+    prova_data_fine = models.DateField(null=True, blank=True, verbose_name="Fine periodo di prova")
+    tipologia_contratto = models.CharField(
+        max_length=20, choices=CONTRATTO_CHOICES, blank=True, default=""
+    )
+    livello_inquadramento = models.CharField(max_length=50, blank=True, default="")
+
+    email_aziendale = models.EmailField(blank=True, default="")
+    telefono_aziendale = models.CharField(max_length=30, blank=True, default="")
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anagrafica_aziendale_aggiornate",
+    )
+
+    class Meta:
+        verbose_name = "Anagrafica aziendale dipendente"
+        verbose_name_plural = "Anagrafiche aziendali dipendenti"
+
+    def __str__(self) -> str:
+        return f"Anagrafica aziendale [{self.legacy_anagrafica_id}]"
+
+
+# ---------------------------------------------------------------------------
+# Permessi accesso dati HR riservati (singleton)
+# ---------------------------------------------------------------------------
+
+class AnagraficaHRPermission(models.Model):
+    """Singleton: chi può vedere i dati HR riservati (IBAN, codice fiscale, disabilità)."""
+    ACCESSO_TUTTI = "TUTTI"
+    ACCESSO_ADMIN = "ADMIN"
+    ACCESSO_RUOLI = "RUOLI"
+
+    ACCESSO_CHOICES = [
+        (ACCESSO_TUTTI, "Tutti gli utenti autenticati"),
+        (ACCESSO_ADMIN, "Solo amministratori"),
+        (ACCESSO_RUOLI, "Ruoli ACL specifici"),
+    ]
+
+    accesso = models.CharField(max_length=20, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    ruolo_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
+    )
+
+    class Meta:
+        verbose_name = "Permessi dati HR riservati"
+        verbose_name_plural = "Permessi dati HR riservati"
+
+    def __str__(self) -> str:
+        return f"Permessi HR ({self.get_accesso_display()})"
+
+    @classmethod
+    def get_instance(cls) -> "AnagraficaHRPermission":
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
+        return obj

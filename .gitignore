@@ -5,6 +5,10 @@ deployment/dist/
 deployment/build/
 deployment/__pycache__/
 
+# Pacchetti hotfix generati localmente
+hotfix/*.zip
+hotfix/app.log
+
 # Python
 __pycache__/
 *.py[cod]

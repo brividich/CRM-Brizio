@@ -64,6 +64,7 @@ _ENV_BOOLEAN_KEYS = {
     "SQL_LOG_FORCE_DEBUG_CURSOR",
     "EMAIL_USE_TLS",
     "EMAIL_USE_SSL",
+    "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED",
 }
 
 
@@ -1125,7 +1126,7 @@ def api_reconfigure(request):
         "LEGACY_AUTH_ENABLED": current_env.get("LEGACY_AUTH_ENABLED", "1"),
         "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "0")),
         "NAVIGATION_LEGACY_FALLBACK_ENABLED": "1",
-        "ASSENZE_SYNC_ON_PAGE_LOAD": current_env.get("ASSENZE_SYNC_ON_PAGE_LOAD", "0"),
+        "ASSENZE_SYNC_ON_PAGE_LOAD": current_env.get("ASSENZE_SYNC_ON_PAGE_LOAD", "1"),
         "SESSION_IDLE_TIMEOUT_SECONDS": s("session_timeout", current_env.get("SESSION_IDLE_TIMEOUT_SECONDS", "3600")),
         "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", current_env.get("SESSION_EXPIRE_AT_BROWSER_CLOSE", "1")),
         "LEGACY_ACL_CACHE_TTL": s("acl_cache_ttl", current_env.get("LEGACY_ACL_CACHE_TTL", "120")),
@@ -1149,6 +1150,25 @@ def api_reconfigure(request):
         "GRAPH_LIST_ID_DIPENDENTI": s("graph_list_dipendenti", current_env.get("GRAPH_LIST_ID_DIPENDENTI", "")),
         "GRAPH_LIST_ID_CAPOREPARTO": s("graph_list_caporeparto", current_env.get("GRAPH_LIST_ID_CAPOREPARTO", "")),
         "GRAPH_LIST_ID_ANOMALIE_DB": s("graph_list_anomalie_db", current_env.get("GRAPH_LIST_ID_ANOMALIE_DB", "")),
+        "ASSETS_SHAREPOINT_LIBRARY_URL": s("assets_sharepoint_library_url", current_env.get("ASSETS_SHAREPOINT_LIBRARY_URL", "")),
+        "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED": b(
+            "sharepoint_asset_public_links_enabled",
+            current_env.get("SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED", "0"),
+        ),
+        "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME": s(
+            "sharepoint_asset_allowed_root_name",
+            current_env.get("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN"),
+        ) or "ASSET CN",
+        "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID": s(
+            "sharepoint_asset_allowed_root_drive_id",
+            current_env.get("SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID", ""),
+        ),
+        "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID": s(
+            "sharepoint_asset_allowed_root_item_id",
+            current_env.get("SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID", ""),
+        ),
+        "SHAREPOINT_ASSET_SITE_ID": s("sharepoint_asset_site_id", current_env.get("SHAREPOINT_ASSET_SITE_ID", "")),
+        "SHAREPOINT_ASSET_DRIVE_ID": s("sharepoint_asset_drive_id", current_env.get("SHAREPOINT_ASSET_DRIVE_ID", "")),
         "ASSENZE_SP_PULL_INTERVAL_SECONDS": current_env.get("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300"),
         "ASSENZE_CALENDAR_MAX_EVENTS": current_env.get("ASSENZE_CALENDAR_MAX_EVENTS", "1500"),
         "ASSENZE_CALENDAR_COLORS_CACHE_TTL": current_env.get("ASSENZE_CALENDAR_COLORS_CACHE_TTL", "300"),
@@ -2402,4 +2422,3 @@ def api_notifiche_bulk(request):
         return JsonResponse({"ok": True, "count": updated, "message": f"Segnate come lette {updated} notifiche."})
 
     return JsonResponse({"ok": False, "error": "Azione non riconosciuta"}, status=400)
-

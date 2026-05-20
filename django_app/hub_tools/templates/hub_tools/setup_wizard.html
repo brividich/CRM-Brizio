@@ -305,6 +305,10 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
         <label>Site ID (SharePoint)</label>
         <input type="text" id="f_graph_site_id" value="{{ env.GRAPH_SITE_ID|default:'' }}">
       </div>
+      <div class="sw-fg">
+        <label>URL libreria asset SharePoint</label>
+        <input type="text" id="f_assets_sharepoint_library_url" value="{{ env.ASSETS_SHAREPOINT_LIBRARY_URL|default:'' }}" placeholder="https://contoso.sharepoint.com/sites/example-assets">
+      </div>
       <hr class="sw-sep">
       <div style="font-size:.8rem;font-weight:700;color:var(--sw-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">ID Liste SharePoint</div>
       <div class="sw-fr2">
@@ -326,6 +330,37 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
           <label>Lista Anomalie DB</label>
           <input type="text" id="f_graph_list_anomalie_db" value="{{ env.GRAPH_LIST_ID_ANOMALIE_DB|default:'' }}">
         </div>
+      </div>
+      <hr class="sw-sep">
+      <div style="font-size:.8rem;font-weight:700;color:var(--sw-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Asset / QR pubblici SharePoint</div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_sharepoint_asset_public_links_enabled" {% if env.SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED == '1' %}checked{% endif %}>
+        <label for="f_sharepoint_asset_public_links_enabled">Abilita link pubblici QR asset</label>
+        <span class="hint">Crea solo link Graph anonymous/view sulle cartelle validate sotto la root consentita.</span>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Root consentita asset</label>
+          <input type="text" id="f_sharepoint_asset_allowed_root_name" value="{{ env.SHAREPOINT_ASSET_ALLOWED_ROOT_NAME|default:'ASSET CN' }}" placeholder="ASSET CN">
+        </div>
+        <div class="sw-fg">
+          <label>Allowed root drive ID</label>
+          <input type="text" id="f_sharepoint_asset_allowed_root_drive_id" value="{{ env.SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID|default:'' }}">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Allowed root item ID</label>
+          <input type="text" id="f_sharepoint_asset_allowed_root_item_id" value="{{ env.SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID|default:'' }}">
+        </div>
+        <div class="sw-fg">
+          <label>Asset site ID</label>
+          <input type="text" id="f_sharepoint_asset_site_id" value="{{ env.SHAREPOINT_ASSET_SITE_ID|default:'' }}" placeholder="vuoto = usa Site ID Graph">
+        </div>
+      </div>
+      <div class="sw-fg">
+        <label>Asset drive ID</label>
+        <input type="text" id="f_sharepoint_asset_drive_id" value="{{ env.SHAREPOINT_ASSET_DRIVE_ID|default:'' }}" placeholder="vuoto = drive default del sito">
       </div>
     </div>
   </div>
@@ -694,6 +729,13 @@ async function saveConfig() {
     graph_list_dipendenti: v('f_graph_list_dipendenti'),
     graph_list_caporeparto: v('f_graph_list_caporeparto'),
     graph_list_anomalie_db: v('f_graph_list_anomalie_db'),
+    assets_sharepoint_library_url: v('f_assets_sharepoint_library_url'),
+    sharepoint_asset_public_links_enabled: chk('f_sharepoint_asset_public_links_enabled'),
+    sharepoint_asset_allowed_root_name: v('f_sharepoint_asset_allowed_root_name'),
+    sharepoint_asset_allowed_root_drive_id: v('f_sharepoint_asset_allowed_root_drive_id'),
+    sharepoint_asset_allowed_root_item_id: v('f_sharepoint_asset_allowed_root_item_id'),
+    sharepoint_asset_site_id: v('f_sharepoint_asset_site_id'),
+    sharepoint_asset_drive_id: v('f_sharepoint_asset_drive_id'),
     email_host: v('f_email_host'),
     email_port: v('f_email_port'),
     email_user: v('f_email_user'),

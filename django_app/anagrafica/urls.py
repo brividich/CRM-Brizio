@@ -34,6 +34,9 @@ urlpatterns = [
     path("fornitori/<int:fornitore_id>/asset/add", views.fornitore_asset_add, name="fornitore_asset_add"),
     path("fornitori/<int:fornitore_id>/asset/<int:fa_id>/remove", views.fornitore_asset_remove, name="fornitore_asset_remove"),
 
+    # Crea nuovo dipendente
+    path("dipendenti/nuovo/", views.dipendente_create, name="dipendente_create"),
+
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
     path("dipendenti/<int:legacy_id>/ruoli/assegna", views.dipendente_ruolo_assegna, name="dipendente_ruolo_assegna"),
@@ -58,11 +61,30 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
     path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/delete", views.dipendente_qualifica_delete, name="dipendente_qualifica_delete"),
 
+    # Anagrafica civile e aziendale
+    path("dipendenti/<int:legacy_id>/anagrafica-civile/salva/", views.dipendente_anagrafica_civile_save, name="dipendente_civile_save"),
+    path("dipendenti/<int:legacy_id>/anagrafica-aziendale/salva/", views.dipendente_anagrafica_aziendale_save, name="dipendente_aziendale_save"),
+
+    # Report dipendenti
+    path("dipendenti/report/", views.dipendenti_report, name="dipendenti_report"),
+
     # Mansioni catalogo
     path("mansioni/", views.mansioni_list, name="mansioni_list"),
     path("mansioni/nuovo", views.mansione_create, name="mansione_create"),
     path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
+
+    # Aree aziendali catalogo
+    path("aree/", views.aree_list, name="aree_list"),
+    path("aree/nuovo", views.area_create, name="area_create"),
+    path("aree/<int:area_id>/modifica", views.area_edit, name="area_edit"),
+    path("aree/<int:area_id>/elimina", views.area_delete, name="area_delete"),
+
+    # Ruoli aziendali catalogo
+    path("ruoli-aziendali/", views.ruoli_aziendali_list, name="ruoli_aziendali_list"),
+    path("ruoli-aziendali/nuovo", views.ruolo_aziendale_create, name="ruolo_aziendale_create"),
+    path("ruoli-aziendali/<int:ruolo_id>/modifica", views.ruolo_aziendale_edit, name="ruolo_aziendale_edit"),
+    path("ruoli-aziendali/<int:ruolo_id>/elimina", views.ruolo_aziendale_delete, name="ruolo_aziendale_delete"),
 
     # Qualifiche catalogo + scadenze
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),

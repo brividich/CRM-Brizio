@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Assenze SharePoint sync automatico
+
+- **[fix] `config/settings/base.py`, `.env.example`, root `.env.example`**: `ASSENZE_SYNC_ON_PAGE_LOAD` torna attivo di default (`1`) per riabilitare il pull automatico da SharePoint sulle pagine operative assenze quando Graph e' configurato.
+- **[setup] `setup_wizard/templates/setup_wizard/wizard.html`, `tools/setup-wizard.html`, `hub_tools/views.py`**: i wizard generano o rigenerano la chiave assenze accesa quando non gia presente.
+- **[test] `assenze/tests.py`**: aggiunta copertura mirata per il parser del flag `ASSENZE_SYNC_ON_PAGE_LOAD`.
+
+### Link pubblici SharePoint per QR asset
+
+- **[feat] `assets/models.py`, migration `assets/0069_asset_public_share_links.py`**: aggiunti metadati drive/item SharePoint, link pubblico Graph, stato/errore verifica e token QR pubblico per asset.
+- **[feat] `assets/services/sharepoint_public_links.py`**: nuovo servizio Graph dedicato che crea solo link `anonymous/view`, valida cartelle sotto `ASSET CN` e non logga token o segreti.
+- **[feat] `assets/management/commands/assets_ensure_public_share_links.py`**: nuovo command con dry-run default, `--apply`, `--force`, `--only-missing` e `--asset-tag` per riconvertire le cartelle asset esistenti.
+- **[ux] `assets/views.py`, `assets/urls.py`**: aggiunta route pubblica `/assets/public/<public_qr_token>/`; le etichette QR usano la route pubblica o il link pubblico, mai l'URL SharePoint interno.
+- **[fix] `assets/views.py`**: le etichette QR usano `SITE_URL` come base canonica quando configurato, evitando route pubbliche generate in `http` dietro IIS/Waitress.
+- **[admin] `assets/admin.py`**: mostrati campi SharePoint pubblico/QR e aggiunte azioni admin per generare, rigenerare/verificare o disabilitare il QR pubblico.
+- **[admin] `assets/views.py`, `assets/templates/assets/pages/gestione_admin.html`**: la card SharePoint / Microsoft Graph di `/assets/impostazioni/?tab=config` permette ora di gestire feature flag link pubblici QR, root consentita e ID root/site/drive asset (`SHAREPOINT_ASSET_*`) senza modificare manualmente il file `.env`.
+- **[admin] `hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`**: la sezione Microsoft Graph / SharePoint di `/admin-portale/hub/setup-wizard/#sec-graph` centralizza anche URL libreria asset, feature flag link pubblici QR, root consentita e ID root/site/drive asset; la pagina assets rimanda al pannello centrale e continua a salvare le stesse chiavi `.env`.
+- **[settings] `config/settings/base.py`, `.env.example`**: aggiunti feature flag e allowlist root SharePoint, con default sicuri e feature spenta.
+- **[test] `assets/tests.py`, `hub_tools/tests.py`**: aggiunte coperture per body Graph `createLink`, salvataggio link pubblico, blocco fuori root, command dry-run/apply/only-missing, target QR pubblico, redirect pubblico, base canonica `SITE_URL` per QR, protezione delle altre route `/assets/` e gestione centralizzata `SHAREPOINT_ASSET_*` dal setup wizard hub.
+
+### Link categoria dashboard asset
+
+- **[fix] `assets/templates/assets/pages/asset_dashboard.html`**: i chip categoria e il widget "Asset per categoria" puntano ora a `/assets/lista/?asset_category=<id>` invece del vecchio parametro non gestito `category=<id>`.
+- **[fix] `assets/views.py`**: `asset_list` reindirizza i link legacy `?category=<id>` al filtro canonico `?asset_category=<id>`, mantenendo eventuali altri parametri query.
+- **[test] `assets/tests.py`**: aggiunti test per link dashboard e compatibilita del parametro legacy.
+- **[docs] `README.md`**: chiarito che i collegamenti categoria aprono l'inventario filtrato.
+
+### Specifiche tecniche asset solo compilate
+
+- **[fix] `assets/views.py`**: la card `Specifiche tecniche` del dettaglio asset nasconde sempre i campi vuoti o placeholder (`N/D`, `-`), anche quando il campo dettaglio o categoria e configurato con `show_if_empty`; i valori calcolati non vuoti restano visibili.
+- **[fix] `assets/views.py`**: i booleani mancanti in formato `BOOL` non vengono piu trasformati in `No`; solo un valore booleano reale `False` viene mostrato come `No`.
+- **[test] `assets/tests.py`**: aggiunte coperture per fallback standard, campi specifici di categoria, booleani `False` e card non renderizzata quando non ci sono specifiche compilate.
+- **[docs] `README.md`**: documentato il comportamento della sezione `Specifiche tecniche`.
+
 ### Metadati SharePoint sulle cartelle asset
 
 - **[fix] `assets/views.py`**: `_ensure_asset_sharepoint_folder` ora applica le colonne metadato SharePoint anche alla cartella asset `ASSET CN/<tag>` e alle sottocartelle `specifiche`, `interventi`, `manuali`, non solo ai file caricati. La scrittura resta best-effort e usa lo stesso `PATCH .../listItem/fields` gia usato per i documenti.

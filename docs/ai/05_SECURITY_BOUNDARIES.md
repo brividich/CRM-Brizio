@@ -96,6 +96,7 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 ```text
 /health  /version  /login  /logout  /cambia-password
 /static/  /media/  /admin/  /favicon  /setup/  /admin-portale/hub/
+/assets/public/            (QR asset tokenizzato: redirect solo a link SharePoint pubblico gia salvato)
 /automazioni/approvazione/   (token-based, no login required)
 /approval-actions/           (token-based, Entra Application Proxy frontend)
 ```

@@ -1,6 +1,6 @@
 # CLAUDE.md - NOVICROM HUB AI Instructions
 
-Versione app corrente: **1.0.1** (2026-04-28)
+Versione app corrente: **1.0.2** (2026-05-19)
 
 ## Prime Directive
 

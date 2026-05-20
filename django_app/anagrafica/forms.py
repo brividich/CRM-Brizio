@@ -10,7 +10,17 @@ from core.upload_mime import (
     validate_extension_and_mime,
 )
 
-from .models import Fornitore, FornitoreAsset, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione
+from .models import (
+    AreaAziendale,
+    DipendenteAnagraficaAziendale,
+    DipendenteAnagraficaCivile,
+    Fornitore,
+    FornitoreAsset,
+    FornitoreDocumento,
+    FornitoreOrdine,
+    FornitoreValutazione,
+    RuoloAziendale,
+)
 
 
 # Documenti fornitore: PDF, immagini, Office. 15 MB.
@@ -144,6 +154,80 @@ class FornitoreValutazioneForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if not self.instance.pk:
             self.initial.setdefault("data", timezone.localdate())
+
+
+class AnagraficaCivileForm(forms.ModelForm):
+    class Meta:
+        model = DipendenteAnagraficaCivile
+        exclude = ["legacy_anagrafica_id", "updated_by", "updated_at"]
+        widgets = {
+            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "luogo_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Comune di nascita"}),
+            "genere": forms.Select(attrs={"class": "dp-input"}),
+            "indirizzo_residenza": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Via/Piazza..."}),
+            "citta_residenza": forms.TextInput(attrs={"class": "dp-input"}),
+            "provincia_residenza": forms.TextInput(attrs={"class": "dp-input", "maxlength": 5, "style": "text-transform:uppercase"}),
+            "nazione_residenza": forms.TextInput(attrs={"class": "dp-input"}),
+            "cap_residenza": forms.TextInput(attrs={"class": "dp-input", "maxlength": 10}),
+            "indirizzo_domicilio": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Se diverso dalla residenza"}),
+            "citta_domicilio": forms.TextInput(attrs={"class": "dp-input"}),
+            "nazione_domicilio": forms.TextInput(attrs={"class": "dp-input"}),
+            "cap_domicilio": forms.TextInput(attrs={"class": "dp-input", "maxlength": 10}),
+            "codice_fiscale": forms.TextInput(attrs={"class": "dp-input", "maxlength": 16, "style": "text-transform:uppercase"}),
+            "titolo_studio": forms.Select(attrs={"class": "dp-input"}),
+            "email_privata": forms.EmailInput(attrs={"class": "dp-input"}),
+            "telefono_privato": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
+            "nome_banca": forms.TextInput(attrs={"class": "dp-input"}),
+            "iban": forms.TextInput(attrs={"class": "dp-input", "maxlength": 34, "style": "text-transform:uppercase", "placeholder": "IT..."}),
+            "intestatario_conto": forms.TextInput(attrs={"class": "dp-input"}),
+            "percentuale_disabilita": forms.NumberInput(attrs={"class": "dp-input", "step": "0.01", "min": "0", "max": "100", "placeholder": "es. 46.00"}),
+        }
+
+    def clean_codice_fiscale(self):
+        return self.cleaned_data.get("codice_fiscale", "").upper().strip()
+
+    def clean_iban(self):
+        return self.cleaned_data.get("iban", "").replace(" ", "").upper()
+
+
+class AnagraficaAziendaleForm(forms.ModelForm):
+    class Meta:
+        model = DipendenteAnagraficaAziendale
+        exclude = ["legacy_anagrafica_id", "updated_by", "updated_at"]
+        widgets = {
+            "taglia_scarpe": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 42"}),
+            "taglia_pantalone": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 48 oppure 50/34"}),
+            "taglia_maglia": forms.Select(attrs={"class": "dp-input"}),
+            "data_consenso_privacy": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "data_prima_assunzione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "prova_data_inizio": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "tipologia_contratto": forms.Select(attrs={"class": "dp-input"}),
+            "livello_inquadramento": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 3° livello CCNL Metalmeccanici"}),
+            "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
+            "telefono_aziendale": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Area: dropdown da catalogo AreaAziendale; include il valore corrente anche se non nel catalogo
+        active_aree = list(AreaAziendale.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
+        current_area = self.instance.area if self.instance.pk else ""
+        if current_area and current_area not in active_aree:
+            active_aree = [current_area] + active_aree
+        area_choices = [("", "— Nessuna —")] + [(n, n) for n in active_aree]
+        self.fields["area"].widget = forms.Select(attrs={"class": "dp-input"})
+        self.fields["area"].widget.choices = area_choices
+
+        # Ruolo aziendale: dropdown da catalogo RuoloAziendale
+        active_ruoli = list(RuoloAziendale.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
+        current_ruolo = self.instance.ruolo_aziendale if self.instance.pk else ""
+        if current_ruolo and current_ruolo not in active_ruoli:
+            active_ruoli = [current_ruolo] + active_ruoli
+        ruolo_choices = [("", "— Nessuno —")] + [(n, n) for n in active_ruoli]
+        self.fields["ruolo_aziendale"].widget = forms.Select(attrs={"class": "dp-input"})
+        self.fields["ruolo_aziendale"].widget.choices = ruolo_choices
 
 
 class FornitoreAssetForm(forms.ModelForm):

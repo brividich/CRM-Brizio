@@ -14,6 +14,11 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_qualifiche", "label": "Anagrafica - Qualifiche catalogo", "url": "/anagrafica/qualifiche/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_widget_layout", "label": "Anagrafica - API widget layout", "url": "/anagrafica/api/widget-layout/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_impostazioni_widget", "label": "Anagrafica - Impostazioni permessi widget", "url": "/anagrafica/impostazioni-widget/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_civile_save", "label": "Anagrafica - Salva anagrafica civile dipendente", "url": "/anagrafica/dipendenti/0/anagrafica-civile/salva/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_aziendale_save", "label": "Anagrafica - Salva anagrafica aziendale dipendente", "url": "/anagrafica/dipendenti/0/anagrafica-aziendale/salva/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_dipendenti_report", "label": "Anagrafica - Report/export dipendenti", "url": "/anagrafica/dipendenti/report/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_aree", "label": "Anagrafica - Aree aziendali catalogo", "url": "/anagrafica/aree/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_ruoli_aziendali", "label": "Anagrafica - Ruoli aziendali catalogo", "url": "/anagrafica/ruoli-aziendali/", "hide": True},
 ]
 
 

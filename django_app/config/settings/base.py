@@ -150,7 +150,7 @@ ACL_STRICT_CANONICAL = env_bool("ACL_STRICT_CANONICAL", False)
 # attivare ACL_STRICT_CANONICAL in prod. Default True in ambiente test/UAT.
 ACL_LOG_LEGACY_FALLBACK = env_bool("ACL_LOG_LEGACY_FALLBACK", True)
 ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300") or "300")
-ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", False)
+ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", True)
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")
 ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", "#")
 SQL_LOG_ENABLED = env_bool("SQL_LOG_ENABLED", False)
@@ -392,6 +392,12 @@ TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 ASSETS_PRIVATE_ROOT = Path(env("ASSETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED = env_bool("SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED", False)
+SHAREPOINT_ASSET_ALLOWED_ROOT_NAME = env("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN")
+SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID = env("SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID", "")
+SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID = env("SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID", "")
+SHAREPOINT_ASSET_SITE_ID = env("SHAREPOINT_ASSET_SITE_ID", "")
+SHAREPOINT_ASSET_DRIVE_ID = env("SHAREPOINT_ASSET_DRIVE_ID", "")
 # Allegati Diario Preposto (segnalazioni di sicurezza): storage privato con
 # fallback compatibile sui file legacy in MEDIA_ROOT.
 DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
@@ -435,6 +441,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/favicon",
     "/setup/",
     "/admin-portale/hub/",
+    "/assets/public/",
     "/monitoring/report-problem/",
     "/admin-portale/automazioni/approvazione/",
     "/automazioni/approvazione/",  # token-based, no login required

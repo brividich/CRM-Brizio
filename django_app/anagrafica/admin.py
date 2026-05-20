@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione
+from .models import AnagraficaHRPermission, Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione
 
 
 class FornitoreDocumentoInline(admin.TabularInline):
@@ -33,3 +33,14 @@ class FornitoreAdmin(admin.ModelAdmin):
     search_fields = ("ragione_sociale", "piva", "email", "citta")
     inlines = [FornitoreDocumentoInline, FornitoreOrdineInline, FornitoreValutazioneInline]
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(AnagraficaHRPermission)
+class AnagraficaHRPermissionAdmin(admin.ModelAdmin):
+    list_display = ("accesso",)
+
+    def has_add_permission(self, request):
+        return not AnagraficaHRPermission.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -76,7 +76,10 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
       <div class="ana-title">Dipendenti</div>
       <div class="ana-sub">Anagrafica centrale unica per utenti, timbri, assenze e moduli collegati</div>
     </div>
-    <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:index' %}">&larr; Torna all'anagrafica</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo dipendente</a>
+      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:index' %}">&larr; Torna all'anagrafica</a>
+    </div>
   </div>
 
   <div class="ana-kpi">
@@ -108,60 +111,6 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
 
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <div class="ana-form-card">
-    <div class="ana-card-head" style="padding:0 0 14px;border-bottom:1px solid #f1f5f9;margin-bottom:16px;">
-      <div class="ana-card-title">Nuovo dipendente</div>
-    </div>
-    <form method="post" class="ana-form-grid">
-      {% csrf_token %}
-      <div class="ana-field">
-        <label for="{{ create_form.nome.id_for_label }}">Nome</label>
-        {{ create_form.nome }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.cognome.id_for_label }}">Cognome</label>
-        {{ create_form.cognome }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.aliasusername.id_for_label }}">Alias username</label>
-        {{ create_form.aliasusername }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.matricola.id_for_label }}">Matricola</label>
-        {{ create_form.matricola }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.reparto.id_for_label }}">Reparto</label>
-        {{ create_form.reparto }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.mansione.id_for_label }}">Mansione</label>
-        {{ create_form.mansione }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.ruolo.id_for_label }}">Ruolo</label>
-        {{ create_form.ruolo }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.email.id_for_label }}">Email account</label>
-        {{ create_form.email }}
-      </div>
-      <div class="ana-field">
-        <label for="{{ create_form.email_notifica.id_for_label }}">Email notifica</label>
-        {{ create_form.email_notifica }}
-      </div>
-      <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:4px;">
-        <label class="ana-checkline">
-          {{ create_form.attivo }}
-          Dipendente attivo
-        </label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="ana-btn ana-btn-primary" type="submit">Salva dipendente</button>
-        </div>
-      </div>
-    </form>
-  </div>
-
   <form method="get" class="ana-search-bar">
     <div class="ana-field">
       <label>Cerca per nome</label>
@@ -176,9 +125,32 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
         {% endfor %}
       </select>
     </div>
+    {% if aree %}
+    <div class="ana-field" style="max-width:200px;">
+      <label>Area</label>
+      <select class="ana-input" name="area">
+        <option value="">Tutte le aree</option>
+        {% for a in aree %}
+          <option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    {% if contratto_choices %}
+    <div class="ana-field" style="max-width:220px;">
+      <label>Tipo contratto</label>
+      <select class="ana-input" name="tipologia_contratto">
+        <option value="">Tutti</option>
+        {% for val, label in contratto_choices %}
+          <option value="{{ val }}"{% if val == tipologia_contratto %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <div style="display:flex;gap:8px;padding-top:20px;">
       <button class="ana-btn ana-btn-primary" type="submit">Filtra</button>
       <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
+      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV">📋 Report</a>
     </div>
   </form>
 

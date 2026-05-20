@@ -6,6 +6,21 @@
 {% block assets_shell_subtitle %}<p>Interventi aperti, chiusi o annullati.</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:asset_list' %}">Vai all'inventario</a>
+  <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn">&#8595; Esporta</button>
+  <dialog id="woExportDlg" style="border:1px solid #dbe1ea;border-radius:14px;padding:20px;min-width:280px;box-shadow:0 8px 32px rgba(15,23,42,.15);">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:12px;color:#1e3a5f;">Esporta interventi</div>
+    <div style="font-size:.875rem;font-weight:600;margin-bottom:6px;color:#64748b;">Ambito</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:.875rem;"><input type="radio" name="woExportScope" value="filtered" checked> Filtri attivi</label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:.875rem;"><input type="radio" name="woExportScope" value="full"> Completo (tutti i record)</label>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <a id="woXlsxLink" href="#" style="flex:1;text-align:center;background:#16a34a;color:#fff;border:1px solid #16a34a;border-radius:10px;padding:9px 14px;font-weight:700;text-decoration:none;font-size:.875rem;">&#8595; XLSX</a>
+      <a id="woPdfLink" href="#" style="flex:1;text-align:center;background:#dc2626;color:#fff;border:1px solid #dc2626;border-radius:10px;padding:9px 14px;font-weight:700;text-decoration:none;font-size:.875rem;">&#8595; PDF</a>
+    </div>
+    <button type="button" onclick="document.getElementById('woExportDlg').close()" style="width:100%;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:7px;font-weight:600;cursor:pointer;font-family:inherit;font-size:.875rem;">Chiudi</button>
+  </dialog>
+  <script>(function(){var base="{% url 'assets:workorder_list_export' %}",qs="{{ request.GET.urlencode|escapejs }}";function upd(){var s=document.querySelector('input[name="woExportScope"]:checked').value,q=s==="filtered"&&qs?qs+"&":"";document.getElementById("woXlsxLink").href=base+"?"+q+"scope="+s+"&format=xlsx";document.getElementById("woPdfLink").href=base+"?"+q+"scope="+s+"&format=pdf";}document.querySelectorAll('input[name="woExportScope"]').forEach(function(r){r.addEventListener("change",upd);});upd();})();</script>
 {% endblock %}
 
 {% block assets_shell_content %}

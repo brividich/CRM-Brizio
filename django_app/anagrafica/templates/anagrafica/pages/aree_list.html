@@ -1,0 +1,185 @@
+{% extends "core/base.html" %}
+
+{% block title %}Aree aziendali | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.cat-page { display:flex; flex-direction:column; gap:20px; }
+.cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.cat-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.cat-sub   { font-size:13px; color:#64748b; margin-top:2px; }
+.cat-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.cat-btn-primary { background:#1d4ed8; color:#fff; }
+.cat-btn-primary:hover { background:#1e40af; }
+.cat-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.cat-btn-ghost:hover { background:#e2e8f0; }
+.cat-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+.cat-btn-danger { background:#fef2f2; color:#dc2626; border:1px solid #fca5a5; }
+.cat-btn-danger:hover { background:#fee2e2; }
+.cat-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cat-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.cat-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.cat-table { width:100%; border-collapse:collapse; font-size:13px; }
+.cat-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+.cat-table td { padding:12px 16px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
+.cat-table tr:last-child td { border-bottom:none; }
+.cat-table tr:hover td { background:#f8fafc; }
+.cat-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
+.cat-pill-green { background:#dcfce7; color:#166534; }
+.cat-pill-gray  { background:#f1f5f9; color:#475569; }
+.cat-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
+.cat-add-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
+.cat-add-title { font-size:14px; font-weight:700; color:#1e293b; margin-bottom:14px; }
+.cat-form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
+.cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.cat-input:focus { border-color:#1d4ed8; background:#fff; }
+/* Dark */
+body.theme-dark .cat-title { color:var(--text); }
+body.theme-dark .cat-sub { color:var(--text-light); }
+body.theme-dark .cat-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .cat-card, body.theme-dark .cat-add-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .cat-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .cat-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .cat-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .cat-add-title { color:var(--text); }
+body.theme-dark .cat-label { color:var(--text-light); }
+body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="cat-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="cat-topbar">
+    <div>
+      <div class="cat-title">Aree aziendali</div>
+      <div class="cat-sub">Catalogo delle aree selezionabili nell'anagrafica aziendale dei dipendenti</div>
+    </div>
+    <a class="cat-btn cat-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  {% if is_admin %}
+  <div class="cat-add-card">
+    <div class="cat-add-title">+ Nuova area</div>
+    <form method="post" action="{% url 'anagrafica:area_create' %}">
+      {% csrf_token %}
+      <div class="cat-form-row">
+        <div class="cat-field">
+          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
+          <input class="cat-input" type="text" name="nome" maxlength="100" placeholder="Es. Produzione, Uffici, Magazzino..." required>
+        </div>
+        <div class="cat-field" style="flex:2;">
+          <label class="cat-label">Descrizione</label>
+          <input class="cat-input" type="text" name="descrizione" placeholder="Descrizione opzionale">
+        </div>
+        <div style="padding-bottom:1px;">
+          <button type="submit" class="cat-btn cat-btn-primary">Aggiungi</button>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="cat-card">
+    <div class="cat-card-head">
+      <div class="cat-card-title">{{ aree|length }} aree nel catalogo</div>
+    </div>
+    <table class="cat-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Descrizione</th>
+          <th>Stato</th>
+          {% if is_admin %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for area in aree %}
+        <tr>
+          <td><strong>{{ area.nome }}</strong></td>
+          <td style="color:#64748b;">{{ area.descrizione|default:"—" }}</td>
+          <td>
+            {% if area.is_active %}
+              <span class="cat-pill cat-pill-green">Attiva</span>
+            {% else %}
+              <span class="cat-pill cat-pill-gray">Inattiva</span>
+            {% endif %}
+          </td>
+          {% if is_admin %}
+          <td>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="cat-btn cat-btn-ghost cat-btn-sm"
+                      onclick="openEdit({{ area.pk }},'{{ area.nome|escapejs }}','{{ area.descrizione|escapejs }}',{{ area.is_active|yesno:'true,false' }})">
+                Modifica
+              </button>
+              <form method="post" action="{% url 'anagrafica:area_delete' area.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare l\'area «{{ area.nome }}»?')">
+                {% csrf_token %}
+                <button type="submit" class="cat-btn cat-btn-danger cat-btn-sm">Elimina</button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{% if is_admin %}4{% else %}3{% endif %}" class="cat-empty">Nessuna area ancora aggiunta. Usa il form sopra per crearne una.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+{% if is_admin %}
+<!-- Modal modifica -->
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:24px;min-width:380px;max-width:520px;width:90%;">
+    <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:16px;">Modifica area</div>
+    <form method="post" id="edit-form">
+      {% csrf_token %}
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="cat-field">
+          <label class="cat-label">Nome <span style="color:#ef4444;">*</span></label>
+          <input class="cat-input" type="text" name="nome" id="edit-nome" maxlength="100" required>
+        </div>
+        <div class="cat-field">
+          <label class="cat-label">Descrizione</label>
+          <input class="cat-input" type="text" name="descrizione" id="edit-desc">
+        </div>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;">
+            <input type="checkbox" name="is_active" id="edit-active" value="1"> Area attiva
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;padding-top:4px;">
+          <button type="submit" class="cat-btn cat-btn-primary">Salva</button>
+          <button type="button" class="cat-btn cat-btn-ghost" onclick="closeEdit()">Annulla</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openEdit(id, nome, desc, active) {
+  var base = "{% url 'anagrafica:area_edit' 0 %}".replace('/0/', '/' + id + '/');
+  document.getElementById('edit-form').action = base;
+  document.getElementById('edit-nome').value = nome;
+  document.getElementById('edit-desc').value = desc;
+  document.getElementById('edit-active').checked = active;
+  var m = document.getElementById('edit-modal');
+  m.style.display = 'flex';
+}
+function closeEdit() {
+  document.getElementById('edit-modal').style.display = 'none';
+}
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+</script>
+{% endif %}
+{% endblock %}

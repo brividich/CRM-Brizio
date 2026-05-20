@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
 from .models import (
     Asset,
@@ -31,6 +31,7 @@ from .models import (
     WorkOrder,
     WorkOrderLog,
 )
+from .services.sharepoint_public_links import ensure_asset_public_share_link, resolve_asset_drive_item_ids
 
 
 class AssetEndpointInline(admin.TabularInline):
@@ -71,9 +72,42 @@ class AssetAdministrativeDeadlineInline(admin.TabularInline):
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ("asset_tag", "name", "asset_type", "asset_category", "reparto", "status", "updated_at")
-    list_filter = ("asset_type", "asset_category", "status", "reparto")
-    search_fields = ("asset_tag", "name", "serial_number", "manufacturer", "model", "sharepoint_folder_url", "sharepoint_folder_path")
+    list_display = (
+        "asset_tag",
+        "name",
+        "asset_type",
+        "asset_category",
+        "reparto",
+        "status",
+        "sharepoint_public_enabled",
+        "public_qr_enabled",
+        "updated_at",
+    )
+    list_filter = ("asset_type", "asset_category", "status", "reparto", "sharepoint_public_enabled", "public_qr_enabled")
+    search_fields = (
+        "asset_tag",
+        "name",
+        "serial_number",
+        "manufacturer",
+        "model",
+        "sharepoint_folder_url",
+        "sharepoint_folder_path",
+        "sharepoint_public_url",
+        "public_qr_token",
+    )
+    readonly_fields = (
+        "sharepoint_folder_url",
+        "sharepoint_public_url",
+        "sharepoint_public_enabled",
+        "sharepoint_public_last_checked_at",
+        "sharepoint_public_error",
+        "public_qr_token",
+    )
+    actions = (
+        "generate_sharepoint_public_link",
+        "regenerate_sharepoint_public_link",
+        "disable_public_qr",
+    )
     inlines = [
         AssetEndpointInline,
         AssetITDetailsInline,
@@ -82,6 +116,43 @@ class AssetAdmin(admin.ModelAdmin):
         AssetComponentInline,
         AssetAdministrativeDeadlineInline,
     ]
+
+    @admin.action(description="Genera link pubblico SharePoint")
+    def generate_sharepoint_public_link(self, request, queryset):
+        self._ensure_public_links(request, queryset, force=False)
+
+    @admin.action(description="Rigenera/verifica link pubblico SharePoint")
+    def regenerate_sharepoint_public_link(self, request, queryset):
+        self._ensure_public_links(request, queryset, force=True)
+
+    @admin.action(description="Disabilita QR pubblico")
+    def disable_public_qr(self, request, queryset):
+        updated = queryset.update(public_qr_enabled=False)
+        self.message_user(request, f"QR pubblico disabilitato per {updated} asset.", level=messages.WARNING)
+
+    def _ensure_public_links(self, request, queryset, *, force: bool):
+        created = existing = errors = 0
+        for asset in queryset:
+            try:
+                if not asset.sharepoint_drive_id or not asset.sharepoint_item_id:
+                    resolve_asset_drive_item_ids(asset, save=True)
+                result = ensure_asset_public_share_link(asset, save=True, force=force)
+            except Exception as exc:
+                errors += 1
+                self.message_user(request, f"{asset.asset_tag}: {exc}", level=messages.ERROR)
+                continue
+            if result.get("ok") and result.get("status") == "existing":
+                existing += 1
+            elif result.get("ok"):
+                created += 1
+            else:
+                errors += 1
+                self.message_user(request, f"{asset.asset_tag}: {result.get('error')}", level=messages.ERROR)
+        self.message_user(
+            request,
+            f"Link pubblici SharePoint: creati/aggiornati={created}, esistenti={existing}, errori={errors}.",
+            level=messages.INFO if errors == 0 else messages.WARNING,
+        )
 
 
 @admin.register(AssetCustomField)

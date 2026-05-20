@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+﻿{% extends "core/base.html" %}
 {% load assets_extras %}
 
 {% block title %}Cruscotto inventario asset{% endblock %}
@@ -387,13 +387,23 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm0 8a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
         </button>
         {% endif %}
-        {% if can_hdr_sync %}
-        <button class="tool" id="toggleSyncPanel" type="button" title="Sincronizzazione inventario cloud">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>
-        </button>
-        {% endif %}
+        <button type="button" onclick="document.getElementById('assetListExportDlg').showModal()" style="background:#fff;color:#1f64d8;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;font-family:inherit;font-size:var(--fs-base);">&#8595; Esporta</button>
         <a class="nb" href="{% url 'assets:work_machine_create' %}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">+ Nuova macchina</a>
         <a class="nb" href="{% url 'assets:asset_create' %}">+ Nuovo asset</a>
+        <dialog id="assetListExportDlg" style="border:1px solid #dbe1ea;border-radius:14px;padding:20px;min-width:280px;box-shadow:0 8px 32px rgba(15,23,42,.15);">
+          <div style="font-weight:700;font-size:var(--fs-title-sm);margin-bottom:12px;color:#1e3a5f;">Esporta inventario asset</div>
+          <div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:6px;color:#64748b;">Ambito</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:var(--fs-sm);"><input type="radio" name="alExportScope" value="filtered" checked> Filtri attivi</label>
+            <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:var(--fs-sm);"><input type="radio" name="alExportScope" value="full"> Completo (tutti i record)</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <a id="alXlsxLink" href="#" style="flex:1;text-align:center;background:#16a34a;color:#fff;border:1px solid #16a34a;border-radius:10px;padding:9px 14px;font-weight:700;text-decoration:none;font-size:var(--fs-sm);">&#8595; XLSX</a>
+            <a id="alPdfLink" href="#" style="flex:1;text-align:center;background:#dc2626;color:#fff;border:1px solid #dc2626;border-radius:10px;padding:9px 14px;font-weight:700;text-decoration:none;font-size:var(--fs-sm);">&#8595; PDF</a>
+          </div>
+          <button type="button" onclick="document.getElementById('assetListExportDlg').close()" style="width:100%;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:7px;font-weight:600;cursor:pointer;font-family:inherit;font-size:var(--fs-sm);">Chiudi</button>
+        </dialog>
+        <script>(function(){var base="{% url 'assets:asset_list_export' %}",qs="{{ request.GET.urlencode|escapejs }}";function upd(){var s=document.querySelector('input[name="alExportScope"]:checked').value,q=s==="filtered"&&qs?qs+"&":"";document.getElementById("alXlsxLink").href=base+"?"+q+"scope="+s+"&format=xlsx";document.getElementById("alPdfLink").href=base+"?"+q+"scope="+s+"&format=pdf";}document.querySelectorAll('input[name="alExportScope"]').forEach(function(r){r.addEventListener("change",upd);});upd();})();</script>
 
         <!-- Widget dashboard floating panel -->
         <div id="widgetManagerPanel" class="hdr-panel" hidden>
@@ -402,18 +412,6 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
           <div class="muted text-sm" style="margin-top:8px;">Seleziona quali elementi mostrare e collega ogni widget a una pagina. Usa il pulsante drag &amp; drop nella barra tabella per riordinare.</div>
         </div>
 
-        <!-- Sincronizzazione cloud floating panel -->
-        <div id="syncPanel" class="hdr-panel hdr-panel-sm" hidden>
-          <div class="text-base font-bold" style="color:#4d6890;margin-bottom:10px;">Sincronizzazione inventario cloud</div>
-          <form method="post" enctype="multipart/form-data" id="excelImportFormHdr" style="display:grid;gap:8px;">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="import_excel">
-            <div class="field"><label for="id_excel_file_hdr">File inventario (.xlsx/.xlsm)</label><input class="input" id="id_excel_file_hdr" name="excel_file" type="file" accept=".xlsx,.xlsm" required></div>
-            <div class="field"><label for="id_import_sheets_hdr">Fogli (CSV)</label><input class="input" id="id_import_sheets_hdr" name="import_sheets" type="text" value="{{ default_import_sheets }}"></div>
-            <div class="opts"><label class="checkline"><input type="checkbox" name="dry_run" value="1" checked> Simulazione</label><label class="checkline"><input type="checkbox" name="include_optional" value="1"> Includi fogli opzionali</label><label class="checkline"><input type="checkbox" name="all_sheets" value="1"> Tutti i fogli</label><label class="checkline"><input type="checkbox" name="update_existing" value="1" checked> Aggiorna esistenti</label></div>
-            <button class="btn" id="excelImportSubmitHdr" type="submit" style="width:100%;">Carica e sincronizza</button>
-          </form>
-        </div>
       </div>
     </header>
 
@@ -567,18 +565,6 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
         <article class="card widget-item" data-widget-id="side_alerts" data-widget-title="Avvisi recenti">
           <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
           <div class="ch"><h3 class="t text-title-lg">Avvisi recenti</h3><span class="chip a">NUOVO</span></div><ul class="alerts">{% for alert in recent_alerts %}<li><div class="at"><span class="dot {{ alert.level }}"></span>{{ alert.title }}</div><div class="ad">{{ alert.message|truncatechars:120 }}</div><div class="tm">{{ alert.time }}</div></li>{% endfor %}</ul>
-        </article>
-        <article class="card widget-item" data-widget-id="side_sync" data-widget-title="Sincronizzazione inventario cloud">
-          <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-          <div class="ch"><h3 class="t text-title-lg">Sincronizzazione inventario cloud</h3></div>
-          <form method="post" enctype="multipart/form-data" id="excelImportForm" style="padding:12px;display:grid;gap:8px;">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="import_excel">
-            <div class="field"><label for="id_excel_file">File inventario (.xlsx/.xlsm)</label><input class="input" id="id_excel_file" name="excel_file" type="file" accept=".xlsx,.xlsm" required></div>
-            <div class="field"><label for="id_import_sheets">Fogli (CSV)</label><input class="input" id="id_import_sheets" name="import_sheets" type="text" value="{{ default_import_sheets }}"></div>
-            <div class="opts"><label class="checkline"><input type="checkbox" name="dry_run" value="1" checked> Simulazione</label><label class="checkline"><input type="checkbox" name="include_optional" value="1"> Includi fogli opzionali</label><label class="checkline"><input type="checkbox" name="all_sheets" value="1"> Tutti i fogli</label><label class="checkline"><input type="checkbox" name="update_existing" value="1" checked> Aggiorna esistenti</label></div>
-            <button class="btn" id="excelImportSubmit" type="submit" style="width:100%;">Carica e sincronizza</button>
-          </form>
         </article>
       </aside>
     </section>
@@ -2392,32 +2378,19 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
 
   const wp = document.getElementById("widgetManagerPanel");
   const wb = document.getElementById("toggleWidgetPanel");
-  const sp = document.getElementById("syncPanel");
-  const sb = document.getElementById("toggleSyncPanel");
-
   if (wb && wp) {
     wb.addEventListener("click", function () {
       const opening = wp.hidden;
       wp.hidden = !opening;
       wb.classList.toggle("active", opening);
-      if (sp && opening) { sp.hidden = true; if (sb) sb.classList.remove("active"); }
     });
   }
 
-  if (sb && sp) {
-    sb.addEventListener("click", function () {
-      const opening = sp.hidden;
-      sp.hidden = !opening;
-      sb.classList.toggle("active", opening);
-      if (wp && opening) { wp.hidden = true; if (wb) wb.classList.remove("active"); }
-    });
-  }
 
   document.addEventListener("click", function (ev) {
     const actsEl = document.querySelector(".hdr-acts");
     if (actsEl && !actsEl.contains(ev.target)) {
       if (wp) { wp.hidden = true; if (wb) wb.classList.remove("active"); }
-      if (sp) { sp.hidden = true; if (sb) sb.classList.remove("active"); }
     }
   });
 
@@ -2432,16 +2405,6 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
     input.addEventListener("change", applyColumnVisibility);
   });
 
-  [["excelImportForm", "excelImportSubmit"], ["excelImportFormHdr", "excelImportSubmitHdr"]].forEach(function (pair) {
-    const f = document.getElementById(pair[0]);
-    const s = document.getElementById(pair[1]);
-    if (f && s) {
-      f.addEventListener("submit", function () {
-        s.disabled = true;
-        s.textContent = "Import in corso...";
-      });
-    }
-  });
 
   document.querySelectorAll("button[data-delete-field]").forEach(function (btn) {
     btn.addEventListener("click", function (event) {

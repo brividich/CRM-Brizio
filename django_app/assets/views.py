@@ -25,7 +25,7 @@ from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, IntegrityError, connections, transaction
 from django.db.models import Avg, Count, Max, Q
-from django.http import FileResponse, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
 from django.urls import NoReverseMatch, reverse
@@ -85,6 +85,7 @@ from .models import (
     AssetAdministrativeDeadlineCompletion,
     AssetAdministrativeDeadlineCompletionAttachment,
     AssetCategory,
+    AssetCategoryDocumentFolder,
     AssetCategoryField,
     AssetComponent,
     AssetCustomField,
@@ -196,11 +197,24 @@ ASSET_DOCUMENT_UPLOAD_FIELDS = {
     AssetDocument.CATEGORY_INTERVENTI: "upload_interventions_files",
 }
 ASSET_DOCUMENT_CATEGORY_LABELS = dict(AssetDocument.CATEGORY_CHOICES)
+# Prefisso del campo upload per le cartelle documento extra (oltre alle 3 di base).
+ASSET_DOCUMENT_CUSTOM_FIELD_PREFIX = "upload_cat_"
 ASSET_DOCUMENT_STORAGE_LOCAL = "local"
 ASSET_DOCUMENT_STORAGE_SHAREPOINT = "sharepoint"
 ASSET_DOCUMENT_STORAGE_CHOICES = {ASSET_DOCUMENT_STORAGE_LOCAL, ASSET_DOCUMENT_STORAGE_SHAREPOINT}
-# Cartella radice fissa per l'archivio asset su SharePoint: <root drive>/ASSET CN/<asset_tag>/...
-ASSET_SHAREPOINT_ROOT = "ASSET CN"
+# Cartella radice per l'archivio asset su SharePoint: <root drive>/ASSET CN/<asset_tag>/...
+def _asset_sharepoint_root() -> str:
+    return (
+        str(os.getenv("SHAREPOINT_ASSET_ALLOWED_ROOT_NAME") or getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN") or "ASSET CN")
+        .strip()
+        or "ASSET CN"
+    )
+
+
+ASSET_SHAREPOINT_ROOT = _asset_sharepoint_root()
+# Profondita massima della discesa ricorsiva nelle sottocartelle SharePoint
+# durante il sync inverso: limite di sicurezza contro alberi anomali/cicli.
+SHAREPOINT_SYNC_MAX_DEPTH = 20
 REPORT_TEMPLATE_ALLOWED_EXTENSIONS = {
     ".pdf",
     ".doc",
@@ -859,7 +873,7 @@ def _build_asset_label_preview_context(
     field_values = _default_asset_label_preview_values()
     preview_asset_name = "Anteprima generica"
     preview_asset_tag = "Nessun asset selezionato"
-    target_url = request.build_absolute_uri(reverse("assets:asset_list"))
+    target_url = _portal_absolute_uri(request, reverse("assets:asset_list"))
     target_label = "Elenco asset"
     if asset is not None:
         preview_asset_name = asset.name or "Asset"
@@ -2246,6 +2260,44 @@ def _sharepoint_assets_defaults() -> dict[str, str]:
     dotenv_values = load_env_file_values()
     return {
         "library_url": _clean_string(dotenv_values.get("ASSETS_SHAREPOINT_LIBRARY_URL", ""))[:1000],
+        "public_links_enabled": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED",
+                str(getattr(settings, "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED", False)).lower(),
+            )
+        ).lower()
+        in {"1", "true", "yes", "on"},
+        "allowed_root_name": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME",
+                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME", "ASSET CN"),
+            )
+        )
+        or "ASSET CN",
+        "allowed_root_drive_id": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID",
+                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID", ""),
+            )
+        ),
+        "allowed_root_item_id": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID",
+                getattr(settings, "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID", ""),
+            )
+        ),
+        "asset_site_id": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_SITE_ID",
+                getattr(settings, "SHAREPOINT_ASSET_SITE_ID", ""),
+            )
+        ),
+        "asset_drive_id": _clean_string(
+            dotenv_values.get(
+                "SHAREPOINT_ASSET_DRIVE_ID",
+                getattr(settings, "SHAREPOINT_ASSET_DRIVE_ID", ""),
+            )
+        ),
     }
 
 
@@ -2275,7 +2327,13 @@ def _sharepoint_admin_config() -> dict[str, object]:
             for source in [tenant_source, client_source, secret_source, site_source]
         ),
         "library_url": defaults["library_url"],
-        "asset_root": ASSET_SHAREPOINT_ROOT,
+        "asset_root": defaults["allowed_root_name"],
+        "public_links_enabled": defaults["public_links_enabled"],
+        "allowed_root_name": defaults["allowed_root_name"],
+        "allowed_root_drive_id": defaults["allowed_root_drive_id"],
+        "allowed_root_item_id": defaults["allowed_root_item_id"],
+        "asset_site_id": defaults["asset_site_id"],
+        "asset_drive_id": defaults["asset_drive_id"],
     }
 
 
@@ -2303,6 +2361,53 @@ def _asset_document_relative_path_field(field_name: str) -> str:
     return f"{field_name}_relative_path"
 
 
+def _asset_document_custom_field_name(slug: str) -> str:
+    """Nome del campo upload HTML per una cartella documento extra."""
+    return f"{ASSET_DOCUMENT_CUSTOM_FIELD_PREFIX}{slug}_files"
+
+
+def _asset_document_folder_specs(asset: "Asset | None" = None) -> list[dict]:
+    """Cartelle documento disponibili: le 3 di base piu le extra della AssetCategory.
+
+    Ogni spec contiene: ``code`` (chiave salvata in ``AssetDocument.category`` e
+    usata, in minuscolo, come segmento cartella SharePoint), ``label`` visibile,
+    ``field`` nome del campo upload, ``removable`` (True solo per le extra) e
+    ``folder_id`` (pk della ``AssetCategoryDocumentFolder`` o ``None`` per le base).
+    """
+    specs: list[dict] = []
+    for code, label in AssetDocument.CATEGORY_CHOICES:
+        specs.append(
+            {
+                "code": code,
+                "label": label,
+                "field": ASSET_DOCUMENT_UPLOAD_FIELDS[code],
+                "removable": False,
+                "folder_id": None,
+            }
+        )
+    category = getattr(asset, "asset_category", None)
+    if category is not None:
+        for folder in category.document_folders.filter(is_active=True):
+            specs.append(
+                {
+                    "code": folder.slug,
+                    "label": folder.name,
+                    "field": _asset_document_custom_field_name(folder.slug),
+                    "removable": True,
+                    "folder_id": folder.id,
+                }
+            )
+    return specs
+
+
+def _asset_document_category_label(specs: list[dict], code: str) -> str:
+    """Etichetta visibile di una cartella documento dato il suo codice."""
+    for spec in specs:
+        if spec["code"] == code:
+            return spec["label"]
+    return ASSET_DOCUMENT_CATEGORY_LABELS.get(code, code)
+
+
 def _sanitize_sharepoint_relative_path(value: str | None, *, fallback_filename: str = "") -> str:
     normalized = _normalize_sharepoint_path(value)
     if not normalized:
@@ -2321,6 +2426,11 @@ def _sanitize_sharepoint_relative_path(value: str | None, *, fallback_filename: 
 def _sharepoint_document_remote_filename(document: AssetDocument) -> str:
     source = _clean_string(document.original_name) or Path(document.file.name).name
     filename = _sanitize_sharepoint_filename(source)
+    # Upload da cartella: conserva il nome originale per non snaturare la struttura
+    # della cartella replicata su SharePoint. Le sottocartelle evitano le collisioni
+    # e un re-upload dello stesso file aggiorna il contenuto come previsto.
+    if _clean_string(getattr(document, "relative_folder", "")):
+        return filename
     path = Path(filename)
     suffix = path.suffix[:20]
     stem = path.stem[:120] or "documento"
@@ -2336,7 +2446,7 @@ def _default_asset_sharepoint_path(asset: Asset) -> str:
         if not asset.pk:
             return ""
         asset_tag = f"asset-{asset.pk}"
-    return _normalize_sharepoint_path(f"{ASSET_SHAREPOINT_ROOT}/{asset_tag}")
+    return _normalize_sharepoint_path(f"{_asset_sharepoint_root()}/{asset_tag}")
 
 
 def _ensure_asset_sharepoint_defaults(asset: Asset) -> None:
@@ -2441,6 +2551,7 @@ def _ensure_sharepoint_folder(path: str) -> dict[str, str]:
         "path": normalized,
         "url": _coalesce_str((item or {}).get("webUrl")),
         "id": _coalesce_str((item or {}).get("id")),
+        "drive_id": _coalesce_str(((item or {}).get("parentReference") or {}).get("driveId")),
     }
 
 
@@ -2464,23 +2575,35 @@ def _ensure_asset_sharepoint_folder(asset: Asset) -> list[str]:
         )
         if metadata_warning:
             warnings.append(metadata_warning)
-        # Predispone le tre sottocartelle distinte: manuali, specifiche, interventi.
-        for category, _label in AssetDocument.CATEGORY_CHOICES:
-            category_info = _ensure_sharepoint_folder(f"{folder_path}/{category.lower()}")
+        # Predispone le sottocartelle documento: le 3 di base piu le extra
+        # configurate sulla AssetCategory dell'asset.
+        for spec in _asset_document_folder_specs(asset):
+            category_info = _ensure_sharepoint_folder(f"{folder_path}/{spec['code'].lower()}")
             metadata_warning = _apply_sharepoint_folder_metadata(
                 asset,
                 _clean_string(category_info.get("id")),
-                label=f"cartella {_label.lower()} {asset.asset_tag}",
-                tipo_documento=_label,
+                label=f"cartella {spec['label'].lower()} {asset.asset_tag}",
+                tipo_documento=spec["label"],
             )
             if metadata_warning:
                 warnings.append(metadata_warning)
     except Exception as exc:
         return [f"SharePoint non raggiungibile per {asset.asset_tag}: {exc}"]
     folder_url = _clean_string(info.get("url"))
+    update_fields = {}
     if folder_url and folder_url != _clean_string(asset.sharepoint_folder_url):
-        Asset.objects.filter(pk=asset.pk).update(sharepoint_folder_url=folder_url)
+        update_fields["sharepoint_folder_url"] = folder_url
         asset.sharepoint_folder_url = folder_url
+    drive_id = _clean_string(info.get("drive_id"))
+    item_id = _clean_string(info.get("id"))
+    if drive_id and drive_id != _clean_string(getattr(asset, "sharepoint_drive_id", "")):
+        update_fields["sharepoint_drive_id"] = drive_id
+        asset.sharepoint_drive_id = drive_id
+    if item_id and item_id != _clean_string(getattr(asset, "sharepoint_item_id", "")):
+        update_fields["sharepoint_item_id"] = item_id
+        asset.sharepoint_item_id = item_id
+    if update_fields:
+        Asset.objects.filter(pk=asset.pk).update(**update_fields)
     return warnings
 
 
@@ -2559,7 +2682,10 @@ def _sharepoint_asset_metadata(asset: Asset) -> dict[str, str]:
 
 def _sharepoint_document_metadata(asset: Asset, document: AssetDocument) -> dict[str, str]:
     metadata = _sharepoint_asset_metadata(asset)
-    metadata["AssetTipoDocumento"] = document.get_category_display()
+    # Etichetta cartella: risolve sia le 3 di base sia le extra della categoria.
+    metadata["AssetTipoDocumento"] = _asset_document_category_label(
+        _asset_document_folder_specs(asset), document.category
+    )
     return metadata
 
 
@@ -2614,13 +2740,16 @@ def _upload_asset_document_to_sharepoint(asset: Asset, document: AssetDocument) 
 
     category_folder = f"{folder_path}/{document.category.lower()}".strip("/")
     try:
-        relative_path = _sanitize_sharepoint_relative_path(
-            getattr(document, "_sharepoint_relative_path", ""),
-            fallback_filename=document.original_name or Path(document.file.name).name,
-        )
-        relative_folder = ""
-        if "/" in relative_path:
-            relative_folder = "/".join(relative_path.split("/")[:-1])
+        # Cartella relativa: usa quella persistita sul documento (upload "Carica
+        # cartella"); fallback al percorso relativo transitorio per compatibilita.
+        relative_folder = _normalize_sharepoint_path(getattr(document, "relative_folder", ""))
+        if not relative_folder:
+            relative_path = _sanitize_sharepoint_relative_path(
+                getattr(document, "_sharepoint_relative_path", ""),
+                fallback_filename=document.original_name or Path(document.file.name).name,
+            )
+            if "/" in relative_path:
+                relative_folder = "/".join(relative_path.split("/")[:-1])
         target_folder = f"{category_folder}/{relative_folder}".strip("/") if relative_folder else category_folder
         category_info = _ensure_sharepoint_folder(target_folder)
         filename = _sharepoint_document_remote_filename(document)
@@ -2663,41 +2792,72 @@ def _delete_asset_document_from_sharepoint(document: AssetDocument) -> str:
         return f"File rimosso dal portale ma non da SharePoint per {label}: {exc}"
 
 
-def _sharepoint_graph_list_children(folder_path: str) -> list[dict]:
-    """Elenca i file (non le sottocartelle) di una cartella SharePoint.
+def _sharepoint_graph_walk_files(
+    folder_path: str,
+    *,
+    _base: str | None = None,
+    _depth: int = 0,
+) -> list[dict]:
+    """Elenca ricorsivamente i file di una cartella SharePoint e delle sottocartelle.
 
-    Gestisce la paginazione Graph. Ritorna lista vuota se la cartella non esiste
-    (404). Solleva ``RuntimeError`` per ogni altro errore (cartella non leggibile).
+    Ogni elemento ritornato e il ``driveItem`` Graph con in piu la chiave
+    ``relative_folder``: il percorso della sottocartella relativo a ``folder_path``
+    (vuoto per i file nella radice). Gestisce la paginazione Graph e limita la
+    profondita a ``SHAREPOINT_SYNC_MAX_DEPTH``. Ritorna lista vuota se la cartella
+    non esiste (404). Solleva ``RuntimeError`` per ogni altro errore.
     """
     normalized = _normalize_sharepoint_path(folder_path)
     if not normalized:
         return []
+    base = _normalize_sharepoint_path(_base) if _base is not None else normalized
+    if _depth > SHAREPOINT_SYNC_MAX_DEPTH:
+        return []
+    relative_folder = ""
+    if base and normalized.lower().startswith(base.lower()):
+        relative_folder = normalized[len(base):].strip("/")
     url = (
         f"{_sharepoint_drive_base_url()}/root:/{quote(normalized, safe='/')}:/children"
         "?$select=id,name,size,webUrl,file,folder,lastModifiedDateTime&$top=200"
     )
     headers = _sharepoint_headers()
-    items: list[dict] = []
+    files: list[dict] = []
+    subfolders: list[str] = []
     while url:
         response = requests.get(url, headers=headers, timeout=30)
         if response.status_code == 404:
-            return []
+            return files
         if response.status_code != 200:
             raise RuntimeError(response.text or f"Errore Graph {response.status_code}")
         payload = response.json()
         for entry in payload.get("value", []):
-            # Salta le sottocartelle: indicizziamo solo i file.
-            if isinstance(entry, dict) and "file" in entry:
-                items.append(entry)
+            if not isinstance(entry, dict):
+                continue
+            name = _clean_string(entry.get("name"))
+            if not name:
+                continue
+            if "folder" in entry:
+                subfolders.append(name)
+            elif "file" in entry:
+                files.append({**entry, "relative_folder": relative_folder})
         url = _clean_string(payload.get("@odata.nextLink"))
-    return items
+    for sub in subfolders:
+        files.extend(
+            _sharepoint_graph_walk_files(
+                f"{normalized}/{sub}", _base=base, _depth=_depth + 1
+            )
+        )
+    return files
 
 
 def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -> dict:
     """Sync inverso SharePoint -> portale per i documenti di un singolo asset.
 
+    Le sottocartelle di ``manuali``/``specifiche``/``interventi`` vengono percorse
+    ricorsivamente: i file annidati conservano la cartella di origine in
+    ``AssetDocument.relative_folder`` (vista raggruppata nella scheda asset).
+
     - file nuovi presenti su SharePoint -> crea un ``AssetDocument`` di riferimento
-      (con ``sharepoint_url``/``sharepoint_path``, senza copia locale);
+      (con ``sharepoint_url``/``sharepoint_path``/``relative_folder``, senza copia locale);
     - file rimossi da SharePoint -> elimina l'``AssetDocument`` sincronizzato
       corrispondente (record + eventuale copia locale);
     - file ancora presenti -> aggiorna ``sharepoint_url`` se cambiato.
@@ -2731,10 +2891,11 @@ def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -
 
     seen_paths: set[str] = set()
     scanned_prefixes: set[str] = set()
-    for category, _label in AssetDocument.CATEGORY_CHOICES:
+    for spec in _asset_document_folder_specs(asset):
+        category = spec["code"]
         category_folder = _normalize_sharepoint_path(f"{folder_path}/{category.lower()}")
         try:
-            children = _sharepoint_graph_list_children(category_folder)
+            children = _sharepoint_graph_walk_files(category_folder)
         except Exception as exc:
             # Cartella non leggibile: niente eliminazioni per questa sottocartella.
             result["warnings"].append(
@@ -2747,17 +2908,27 @@ def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -
             name = _clean_string(entry.get("name"))
             if not name:
                 continue
-            remote_path = _normalize_sharepoint_path(f"{category_folder}/{name}")
+            # Sottocartella di origine del file, relativa alla cartella categoria.
+            rel_folder = _normalize_sharepoint_path(entry.get("relative_folder"))
+            remote_path = _normalize_sharepoint_path(f"{category_folder}/{rel_folder}/{name}")
             path_key = remote_path.lower()
             seen_paths.add(path_key)
             web_url = _clean_string(entry.get("webUrl"))
             existing = existing_by_path.get(path_key)
             if existing is not None:
+                update_fields: list[str] = []
                 if web_url and web_url != _clean_string(existing.sharepoint_url):
+                    existing.sharepoint_url = web_url[:1000]
+                    update_fields.append("sharepoint_url")
+                # Backfill della cartella di origine sui record sincronizzati prima
+                # del supporto alle sottocartelle, per la vista raggruppata.
+                if rel_folder and not _clean_string(existing.relative_folder):
+                    existing.relative_folder = rel_folder[:400]
+                    update_fields.append("relative_folder")
+                if update_fields:
                     result["updated"] += 1
                     if apply:
-                        existing.sharepoint_url = web_url[:1000]
-                        existing.save(update_fields=["sharepoint_url"])
+                        existing.save(update_fields=update_fields)
                 continue
             # File nuovo caricato direttamente su SharePoint: crea record di riferimento.
             result["created"] += 1
@@ -2767,6 +2938,7 @@ def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -
                     category=category,
                     file="",
                     original_name=name[:255],
+                    relative_folder=rel_folder[:400],
                     sharepoint_url=web_url[:1000],
                     sharepoint_path=remote_path[:500],
                 )
@@ -2786,13 +2958,34 @@ def _sync_asset_documents_from_sharepoint(asset: Asset, *, apply: bool = True) -
 
 def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "detail") -> tuple[str, str]:
     desired = _clean_string(target).lower()
-    if desired == "sharepoint" and _clean_string(asset.sharepoint_folder_url):
-        return asset.sharepoint_folder_url, "Cartella SharePoint"
+    if desired == "sharepoint":
+        public_url = _clean_string(getattr(asset, "sharepoint_public_url", ""))
+        public_enabled = getattr(asset, "sharepoint_public_enabled", False)
+        if (
+            _clean_string(getattr(asset, "public_qr_token", ""))
+            and getattr(asset, "public_qr_enabled", True)
+            and public_enabled
+            and public_url
+        ):
+            public_route = reverse("assets:asset_public_redirect", kwargs={"public_qr_token": asset.public_qr_token})
+            return _portal_absolute_uri(request, public_route), "Cartella SharePoint pubblica"
+        if public_enabled and public_url:
+            return public_url, "Cartella SharePoint pubblica"
     if desired == "landing":
         landing_url = reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag})
-        return request.build_absolute_uri(landing_url), "Landing mobile QR"
+        return _portal_absolute_uri(request, landing_url), "Landing mobile QR"
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
-    return request.build_absolute_uri(detail_url), "Scheda asset"
+    return _portal_absolute_uri(request, detail_url), "Scheda asset"
+
+
+def _portal_absolute_uri(request: HttpRequest, path: str) -> str:
+    site_url = _clean_string(getattr(settings, "SITE_URL", "")).rstrip("/")
+    if site_url:
+        normalized_path = _clean_string(path)
+        if not normalized_path.startswith("/"):
+            normalized_path = f"/{normalized_path}"
+        return f"{site_url}{normalized_path}"
+    return request.build_absolute_uri(path)
 
 
 def _draw_pdf_qr(pdf: canvas.Canvas, value: str, *, x: float, y: float, size: float) -> None:
@@ -2813,7 +3006,13 @@ def _shorten_text(value: str, limit: int = 56) -> str:
 
 
 def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], dict[str, list[dict]]]:
-    documents_by_category: dict[str, list[dict]] = defaultdict(list)
+    """Costruisce i documenti asset raggruppati per categoria e cartella.
+
+    Per ogni categoria ritorna una lista di gruppi ``{"folder": ..., "documents": [...]}``;
+    il gruppo con ``folder`` vuoto raccoglie i file singoli (loose), gli altri
+    raggruppano i file caricati con "Carica cartella" mantenendo la cartella visibile.
+    """
+    flat: dict[str, list[dict]] = defaultdict(list)
     extra = asset.extra_columns if isinstance(asset.extra_columns, dict) else {}
     raw_docs = extra.get("documents")
     if isinstance(raw_docs, list):
@@ -2826,7 +3025,7 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
             category = _coalesce_str(row.get("category"), AssetDocument.CATEGORY_SPECIFICHE).upper()
             if category not in ASSET_DOCUMENT_CATEGORY_LABELS:
                 category = AssetDocument.CATEGORY_SPECIFICHE
-            documents_by_category[category].append(
+            flat[category].append(
                 {
                     "name": name,
                     "size": _coalesce_str(row.get("size"), ""),
@@ -2834,6 +3033,7 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
                     "url": _coalesce_str(row.get("url"), ""),
                     "kind": "external",
                     "meta": "",
+                    "folder": "",
                 }
             )
 
@@ -2848,7 +3048,7 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
             meta_parts.append(_clean_string(uploaded.notes))
         if _clean_string(uploaded.sharepoint_path):
             meta_parts.append(f"SP: {uploaded.sharepoint_path}")
-        documents_by_category[uploaded.category].append(
+        flat[uploaded.category].append(
             {
                 "id": uploaded.id,
                 "name": uploaded.original_name or Path(uploaded.file.name).name,
@@ -2858,16 +3058,37 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
                 "kind": "uploaded",
                 "sharepoint": bool(_clean_string(uploaded.sharepoint_path)),
                 "meta": " | ".join(meta_parts),
+                "folder": _normalize_sharepoint_path(uploaded.relative_folder),
             }
         )
 
-    for category in ASSET_DOCUMENT_CATEGORY_LABELS:
-        documents_by_category.setdefault(category, [])
-    return ASSET_DOCUMENT_CATEGORY_LABELS, dict(documents_by_category)
+    # Categorie da mostrare: le 3 di base + le extra della AssetCategory, piu
+    # eventuali codici "orfani" presenti solo su documenti gia esistenti.
+    specs = _asset_document_folder_specs(asset)
+    category_labels: dict[str, str] = {spec["code"]: spec["label"] for spec in specs}
+    for code in flat:
+        category_labels.setdefault(code, ASSET_DOCUMENT_CATEGORY_LABELS.get(code, code))
+
+    documents_by_category: dict[str, list[dict]] = {}
+    for category in category_labels:
+        groups_map: dict[str, list[dict]] = {}
+        for doc in flat.get(category, []):
+            groups_map.setdefault(doc.get("folder", ""), []).append(doc)
+        groups: list[dict] = []
+        if groups_map.get(""):
+            groups.append({"folder": "", "documents": groups_map.pop("")})
+        else:
+            groups_map.pop("", None)
+        for folder in sorted(groups_map.keys(), key=str.lower):
+            groups.append({"folder": folder, "documents": groups_map[folder]})
+        documents_by_category[category] = groups
+    return category_labels, documents_by_category
 
 
 def _build_uploaded_documents_context(asset: Asset | None) -> dict[str, list[AssetDocument]]:
-    grouped: dict[str, list[AssetDocument]] = {key: [] for key in ASSET_DOCUMENT_CATEGORY_LABELS}
+    grouped: dict[str, list[AssetDocument]] = {
+        spec["code"]: [] for spec in _asset_document_folder_specs(asset)
+    }
     if not asset or not asset.pk:
         return grouped
     for document in asset.documents.all():
@@ -2918,10 +3139,14 @@ def asset_document_download(request, document_id: int):
     )
 
 
-def _validate_asset_document_uploads(request: HttpRequest) -> tuple[dict[str, list], list[str]]:
+def _validate_asset_document_uploads(
+    request: HttpRequest, asset: Asset | None = None
+) -> tuple[dict[str, list], list[str]]:
     uploads: dict[str, list] = {}
     errors: list[str] = []
-    for category, field_name in ASSET_DOCUMENT_UPLOAD_FIELDS.items():
+    for spec in _asset_document_folder_specs(asset):
+        category = spec["code"]
+        field_name = spec["field"]
         valid_files = []
         relative_paths = request.POST.getlist(_asset_document_relative_path_field(field_name))
         for index, upload in enumerate(request.FILES.getlist(field_name)):
@@ -2985,14 +3210,17 @@ def _apply_asset_document_changes(
 
     for category, files in uploads.items():
         for upload in files:
+            relative_path = getattr(upload, "_sharepoint_relative_path", "")
+            relative_folder = "/".join(relative_path.split("/")[:-1]) if "/" in relative_path else ""
             document = AssetDocument.objects.create(
                 asset=asset,
                 category=category,
                 file=upload,
                 original_name=_sanitize_sharepoint_filename(getattr(upload, "name", ""))[:255],
+                relative_folder=relative_folder[:400],
                 uploaded_by=actor if getattr(actor, "is_authenticated", False) else None,
             )
-            document._sharepoint_relative_path = getattr(upload, "_sharepoint_relative_path", "")
+            document._sharepoint_relative_path = relative_path
             if sync_sharepoint:
                 warning = _upload_asset_document_to_sharepoint(asset, document)
                 if warning:
@@ -3493,6 +3721,13 @@ def _can_manage_asset_detail_layout(request: HttpRequest) -> bool:
     )
 
 
+def _can_manage_asset_document_folders(request: HttpRequest) -> bool:
+    """Solo admin/gestori asset possono aggiungere o disattivare cartelle documento."""
+    if _is_assets_admin(request):
+        return True
+    return bool(user_can_modulo_action(request, "assets", "admin_assets"))
+
+
 def _can_manage_asset_list_layout(request: HttpRequest) -> bool:
     if _is_assets_admin(request):
         return True
@@ -3623,7 +3858,7 @@ def _assignment_form_kwargs(asset: Asset | None = None) -> dict[str, object]:
 
 def _sharepoint_form_preview_config(*, is_work_machine: bool = False) -> dict[str, str]:
     return {
-        "root_path": ASSET_SHAREPOINT_ROOT,
+        "root_path": _asset_sharepoint_root(),
         "fallback_asset_tag": "tag-asset",
     }
 
@@ -5085,6 +5320,8 @@ def _resolve_asset_detail_source_value(
 
 def _format_asset_detail_value(value, value_format: str) -> str:
     if value_format == AssetDetailField.FORMAT_BOOL:
+        if value in (None, ""):
+            return "N/D"
         return "Si" if bool(value) else "No"
     if value_format == AssetDetailField.FORMAT_DATE:
         if isinstance(value, datetime):
@@ -5110,6 +5347,24 @@ def _format_asset_detail_value(value, value_format: str) -> str:
         return value.strftime("%d/%m/%Y")
     cleaned = _clean_string(str(value) if value not in (None, "") else "")
     return cleaned or "N/D"
+
+
+def _is_empty_asset_detail_value(value) -> bool:
+    if isinstance(value, bool):
+        return False
+    if value is None:
+        return True
+    if isinstance(value, (list, tuple, set, dict)):
+        return not value
+    cleaned = _clean_string(str(value))
+    return cleaned.casefold() in {"", "n/d", "-"}
+
+
+def _should_skip_asset_detail_row(section: str, formatted_value, show_if_empty: bool) -> bool:
+    is_empty = _is_empty_asset_detail_value(formatted_value)
+    if section == AssetDetailField.SECTION_SPECS:
+        return is_empty
+    return is_empty and not show_if_empty
 
 
 def _build_configured_asset_detail_sections(
@@ -5138,7 +5393,7 @@ def _build_configured_asset_detail_sections(
             sync_text=sync_text,
         )
         formatted_value = _format_asset_detail_value(raw_value, detail_field.value_format)
-        if formatted_value == "N/D" and not detail_field.show_if_empty:
+        if _should_skip_asset_detail_row(detail_field.section, formatted_value, detail_field.show_if_empty):
             continue
         sections[detail_field.section].append(
             {
@@ -5164,7 +5419,7 @@ def _build_asset_category_detail_sections(asset: Asset, extra: dict[str, object]
     for field_def in field_qs:
         raw_value = category_values.get(field_def.code, "")
         formatted_value = _format_asset_detail_value(raw_value, field_def.detail_value_format)
-        if formatted_value == "N/D" and not field_def.show_if_empty:
+        if _should_skip_asset_detail_row(field_def.detail_section, formatted_value, field_def.show_if_empty):
             continue
         sections[field_def.detail_section].append(
             {
@@ -7925,6 +8180,14 @@ def _build_assets_admin_snapshot() -> dict:
 def asset_list(request: HttpRequest) -> HttpResponse:
     can_manage_custom_fields = _is_assets_admin(request)
 
+    if request.method == "GET" and request.GET.get("category") and not request.GET.get("asset_category"):
+        next_query = request.GET.copy()
+        next_query["asset_category"] = request.GET.get("category")
+        next_query.pop("category", None)
+        query_string = next_query.urlencode()
+        target_url = reverse("assets:asset_list")
+        return redirect(f"{target_url}?{query_string}" if query_string else target_url)
+
     if request.method == "POST":
         json_payload: dict[str, object] = {}
         if "application/json" in str(getattr(request, "content_type", "") or "").lower():
@@ -8050,7 +8313,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if asset_type:
             assets = assets.filter(asset_type=asset_type)
         if asset_category:
-            assets = assets.filter(asset_category=asset_category)
+            # Filtro per sottoalbero: la categoria selezionata e tutte le sue
+            # discendenti (clic su una radice mostra tutti i suoi asset).
+            assets = assets.filter(asset_category_id__in=_category_subtree_ids(asset_category))
         if reparto:
             assets = assets.filter(reparto__icontains=reparto)
         if vlan is not None:
@@ -8184,12 +8449,23 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             admin_checks.append("Nessun campo personalizzato attivo: verifica se e voluto.")
         if not admin_checks:
             admin_checks.append("Configurazione amministratore completa e coerente.")
-    total_assets = Asset.objects.count()
-    in_use_count = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
-    in_repair_count = Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count()
-    open_wo_count = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).count()
-    assigned_count = Asset.objects.exclude(assignment_to__isnull=True).exclude(assignment_to="").count()
-    maintenance_due_count = WorkOrder.objects.filter(
+    # KPI: scope by structural filters (category + type) to reflect the current view
+    kpi_qs = Asset.objects.all()
+    if form.is_valid():
+        _kf_type = _clean_string(form.cleaned_data.get("asset_type"))
+        _kf_cat = form.cleaned_data.get("asset_category")
+        if _kf_type:
+            kpi_qs = kpi_qs.filter(asset_type=_kf_type)
+        if _kf_cat:
+            kpi_qs = kpi_qs.filter(asset_category_id__in=_category_subtree_ids(_kf_cat))
+
+    total_assets = kpi_qs.count()
+    in_use_count = kpi_qs.filter(status=Asset.STATUS_IN_USE).count()
+    in_repair_count = kpi_qs.filter(status=Asset.STATUS_IN_REPAIR).count()
+    assigned_count = kpi_qs.exclude(assignment_to__isnull=True).exclude(assignment_to="").count()
+    _kpi_wo_qs = WorkOrder.objects.filter(asset__in=kpi_qs)
+    open_wo_count = _kpi_wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
+    maintenance_due_count = _kpi_wo_qs.filter(
         status=WorkOrder.STATUS_OPEN,
         opened_at__lt=timezone.now() - timedelta(days=21),
     ).count()
@@ -8290,7 +8566,6 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "next_page_url": next_page_url,
             "page_start": page_start,
             "page_end": page_end,
-            "default_import_sheets": DEFAULT_IMPORT_SHEETS,
             "custom_fields": custom_fields,
             "all_custom_fields": all_custom_fields,
             "asset_list_context_key": asset_list_context_key,
@@ -8587,7 +8862,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if request.method == "POST":
         action = _clean_string(request.POST.get("action"))
         if action == "upload_asset_documents":
-            uploads, upload_errors = _validate_asset_document_uploads(request)
+            uploads, upload_errors = _validate_asset_document_uploads(request, asset)
             upload_count = _asset_document_upload_count(uploads)
             storage_target = _asset_document_storage_target(request)
             for error in upload_errors:
@@ -8644,6 +8919,67 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     },
                 )
                 messages.success(request, f"Documento \"{doc_label}\" eliminato.")
+            return redirect("assets:asset_view", id=asset.id)
+        if action == "add_asset_document_folder":
+            if not _can_manage_asset_document_folders(request):
+                messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            category = asset.asset_category
+            if category is None:
+                messages.error(request, "Assegna prima una categoria all'asset per aggiungere cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            raw_name = _clean_string(request.POST.get("folder_name"))[:120]
+            slug = slugify(raw_name)[:60]
+            base_codes = {code.lower() for code, _ in AssetDocument.CATEGORY_CHOICES}
+            if not raw_name or not slug:
+                messages.error(request, "Nome cartella non valido.")
+            elif slug in base_codes:
+                messages.error(request, "Esiste gia una cartella di base con questo nome.")
+            elif category.document_folders.filter(slug=slug).exists():
+                messages.error(request, "Esiste gia una cartella documento con questo nome per la categoria.")
+            else:
+                next_order = (category.document_folders.aggregate(m=Max("order"))["m"] or 0) + 1
+                AssetCategoryDocumentFolder.objects.create(
+                    category=category, name=raw_name, slug=slug, order=next_order
+                )
+                # Predispone subito la sottocartella su SharePoint (best-effort).
+                for warning in _ensure_asset_sharepoint_folder(asset):
+                    messages.warning(request, warning)
+                log_action(
+                    request,
+                    "add_asset_document_folder",
+                    "assets",
+                    {"asset_id": asset.id, "category_id": category.id, "slug": slug, "name": raw_name},
+                )
+                messages.success(
+                    request,
+                    f"Cartella documento \"{raw_name}\" aggiunta alla categoria {category.label}.",
+                )
+            return redirect("assets:asset_view", id=asset.id)
+        if action == "deactivate_asset_document_folder":
+            if not _can_manage_asset_document_folders(request):
+                messages.error(request, "Permessi insufficienti per gestire le cartelle documento.")
+                return redirect("assets:asset_view", id=asset.id)
+            folder_id = _as_int(request.POST.get("folder_id"), default=0)
+            folder = None
+            if folder_id > 0 and asset.asset_category is not None:
+                folder = asset.asset_category.document_folders.filter(id=folder_id, is_active=True).first()
+            if folder is None:
+                messages.error(request, "Cartella documento non trovata.")
+            elif AssetDocument.objects.filter(
+                asset__asset_category=folder.category, category=folder.slug
+            ).exists():
+                messages.error(request, "Impossibile disattivare: la cartella contiene ancora documenti.")
+            else:
+                folder.is_active = False
+                folder.save(update_fields=["is_active"])
+                log_action(
+                    request,
+                    "deactivate_asset_document_folder",
+                    "assets",
+                    {"asset_id": asset.id, "folder_id": folder.id, "slug": folder.slug},
+                )
+                messages.success(request, f"Cartella documento \"{folder.name}\" disattivata.")
             return redirect("assets:asset_view", id=asset.id)
 
     recent_workorders = asset.workorders.select_related("asset").all()[:10]
@@ -8773,7 +9109,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         assignment_rows = configured_sections.get(AssetDetailField.SECTION_ASSIGNMENT, [])
     else:
         detail_metrics = default_detail_metrics
-        spec_rows = [{"label": key, "value": value} for key, value in default_spec_pairs]
+        spec_rows = [
+            {"label": key, "value": value}
+            for key, value in default_spec_pairs
+            if not _is_empty_asset_detail_value(value)
+        ]
         profile_rows = default_profile_rows
         assignment_rows = default_assignment_rows
     detail_metrics = [*detail_metrics, *category_detail_sections.get(AssetDetailField.SECTION_METRICS, [])]
@@ -9011,6 +9351,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     ]
     ticket_kpi = _compute_ticket_kpi_for_asset(asset)
     doc_category_labels, documents_by_category = _build_asset_documents_by_category(asset)
+    doc_category_specs = _asset_document_folder_specs(asset)
+    doc_upload_field_map = {spec["code"]: spec["field"] for spec in doc_category_specs}
+    can_manage_doc_folders = _can_manage_asset_document_folders(request)
     periodic_verification_rows = []
     asset_execution_cutoff = _periodic_execution_window_cutoff(PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today)
     for verification in asset.periodic_verifications.all().order_by("name", "id"):
@@ -9252,15 +9595,17 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_license_rows": asset_license_rows,
             "asset_license_manage_url": _software_licenses_page_url(asset_id=asset.id),
             "doc_category_labels": doc_category_labels,
+            "doc_category_specs": doc_category_specs,
             "documents_by_category": dict(documents_by_category),
-            "document_upload_field_map": ASSET_DOCUMENT_UPLOAD_FIELDS,
+            "document_upload_field_map": doc_upload_field_map,
+            "can_manage_doc_folders": can_manage_doc_folders,
             "sharepoint_folder_url": _clean_string(asset.sharepoint_folder_url),
             "sharepoint_folder_path": _normalize_sharepoint_path(asset.sharepoint_folder_path),
             "asset_report_pdf_url": _asset_report_pdf_url(asset.id),
             "asset_qr_url": reverse("assets:asset_qr_label", kwargs={"id": asset.id}),
             "asset_qr_sharepoint_url": (
                 reverse("assets:asset_qr_label", kwargs={"id": asset.id}) + "?target=sharepoint"
-                if _clean_string(asset.sharepoint_folder_url)
+                if asset.sharepoint_public_enabled and _clean_string(asset.sharepoint_public_url)
                 else ""
             ),
             "asset_label_designer_url": (
@@ -9412,7 +9757,7 @@ def asset_label_designer(request: HttpRequest) -> HttpResponse:
     logo_meta = _asset_label_logo_meta(template)
     if preview_asset is not None:
         preview_asset_qr_url = reverse("assets:asset_qr_label", kwargs={"id": preview_asset.id})
-        if _clean_string(preview_asset.sharepoint_folder_url):
+        if preview_asset.sharepoint_public_enabled and _clean_string(preview_asset.sharepoint_public_url):
             preview_asset_sharepoint_qr_url = f"{preview_asset_qr_url}?target=sharepoint"
 
     if scope == AssetLabelTemplate.SCOPE_ASSET and scope_asset is not None:
@@ -9544,6 +9889,16 @@ def asset_qr_landing(request: HttpRequest, asset_tag: str) -> HttpResponse:
             **_assets_shell_context(request, rows=25),
         },
     )
+
+
+def asset_public_redirect(request: HttpRequest, public_qr_token: str) -> HttpResponse:
+    token = _clean_string(public_qr_token)
+    if not token:
+        raise Http404("Link non disponibile.")
+    asset = get_object_or_404(Asset, public_qr_token=token, public_qr_enabled=True)
+    if not asset.sharepoint_public_enabled or not _clean_string(asset.sharepoint_public_url):
+        raise Http404("Link non disponibile.")
+    return redirect(asset.sharepoint_public_url)
 
 
 @login_required
@@ -12455,6 +12810,283 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+# ---------------------------------------------------------------------------
+# EXPORT: shared helpers
+# ---------------------------------------------------------------------------
+
+def _report_table_pdf(title: str, headers: list, rows: list) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape as rl_landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    buf = io.BytesIO()
+    pagesize = rl_landscape(A4)
+    doc = SimpleDocTemplate(
+        buf, pagesize=pagesize,
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
+        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
+    )
+    styles = getSampleStyleSheet()
+    elements: list = []
+    elements.append(Paragraph(f"<b>{title}</b>", styles["Heading2"]))
+    gen_date = timezone.localdate().strftime("%d/%m/%Y")
+    elements.append(Paragraph(f"Generato il {gen_date} — NOVICROM HUB", styles["Normal"]))
+    elements.append(Spacer(1, 0.4 * cm))
+    if not rows:
+        elements.append(Paragraph("Nessun record.", styles["Normal"]))
+    else:
+        page_w = pagesize[0] - 3 * cm
+        col_w = page_w / max(len(headers), 1)
+        data = [headers] + rows
+        tbl = Table(data, colWidths=[col_w] * len(headers), repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        elements.append(tbl)
+    doc.build(elements)
+    return buf.getvalue()
+
+
+def _xl_write_sheet(ws, headers: list, rows: list) -> None:
+    import openpyxl.styles as xlst
+    fill = xlst.PatternFill(fill_type="solid", fgColor="2563EB")
+    hfont = xlst.Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+    halign = xlst.Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for ci, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.fill = fill
+        cell.font = hfont
+        cell.alignment = halign
+    ws.row_dimensions[1].height = 20
+    for ri, row in enumerate(rows, 2):
+        for ci, val in enumerate(row, 1):
+            ws.cell(row=ri, column=ci, value=val)
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = min(max(len(str(col[0].value or "")) + 3, 10), 50)
+
+
+def _apply_asset_export_filters(get_params) -> "QuerySet[Asset]":
+    form = AssetFilterForm(get_params or None)
+    qs = Asset.objects.select_related("asset_category").prefetch_related("endpoints")
+    if form.is_valid():
+        q = _clean_string(form.cleaned_data.get("q"))
+        asset_type = _clean_string(form.cleaned_data.get("asset_type"))
+        asset_category = form.cleaned_data.get("asset_category")
+        reparto = _clean_string(form.cleaned_data.get("reparto"))
+        vlan = form.cleaned_data.get("vlan")
+        ip = _clean_string(form.cleaned_data.get("ip"))
+        if q:
+            qs = qs.filter(
+                Q(asset_tag__icontains=q) | Q(name__icontains=q) | Q(serial_number__icontains=q)
+                | Q(manufacturer__icontains=q) | Q(model__icontains=q)
+                | Q(endpoints__endpoint_name__icontains=q) | Q(endpoints__ip__icontains=q)
+            )
+        if asset_type:
+            qs = qs.filter(asset_type=asset_type)
+        if asset_category:
+            qs = qs.filter(asset_category_id__in=_category_subtree_ids(asset_category))
+        if reparto:
+            qs = qs.filter(reparto__icontains=reparto)
+        if vlan is not None:
+            qs = qs.filter(endpoints__vlan=vlan)
+        if ip:
+            qs = qs.filter(endpoints__ip__icontains=ip)
+    return qs.distinct().order_by("name", "asset_tag")
+
+
+# ---------------------------------------------------------------------------
+# EXPORT: asset list
+# ---------------------------------------------------------------------------
+
+_ASSET_EXPORT_HEADERS = [
+    "Tag", "Nome", "Tipo", "Categoria", "Reparto", "Stato",
+    "Produttore", "Modello", "Matricola", "Assegnato a", "Posizione", "Note",
+]
+
+
+def _asset_export_row(a: "Asset") -> list:
+    return [
+        a.asset_tag or "",
+        a.name or "",
+        a.get_asset_type_display(),
+        a.asset_category.label if a.asset_category_id else "",
+        a.reparto or "",
+        a.get_status_display(),
+        a.manufacturer or "",
+        a.model or "",
+        a.serial_number or "",
+        a.assignment_to or "",
+        a.assignment_location or "",
+        a.notes or "",
+    ]
+
+
+@login_required
+def asset_list_export(request: HttpRequest) -> HttpResponse:
+    scope = request.GET.get("scope", "filtered")
+    fmt = request.GET.get("format", "xlsx")
+    if scope == "full":
+        assets = list(Asset.objects.select_related("asset_category").distinct().order_by("name", "asset_tag"))
+    else:
+        assets = list(_apply_asset_export_filters(request.GET))
+
+    today = timezone.localdate().strftime("%Y%m%d")
+    rows = [_asset_export_row(a) for a in assets]
+
+    if fmt == "pdf":
+        pdf_bytes = _report_table_pdf("Inventario asset", _ASSET_EXPORT_HEADERS, rows)
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="asset_{today}.pdf"'
+        return resp
+
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Asset"
+    _xl_write_sheet(ws, _ASSET_EXPORT_HEADERS, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="asset_{today}.xlsx"'
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# EXPORT: workorder list
+# ---------------------------------------------------------------------------
+
+_WO_EXPORT_HEADERS = [
+    "ID", "Asset Tag", "Asset Nome", "Titolo", "Tipo", "Stato",
+    "Aperto il", "Chiuso il", "Descrizione",
+]
+
+
+def _wo_export_row(wo: "WorkOrder") -> list:
+    return [
+        str(wo.id),
+        wo.asset.asset_tag if wo.asset_id else "",
+        wo.asset.name if wo.asset_id else "",
+        wo.title or "",
+        wo.get_kind_display(),
+        wo.get_status_display(),
+        wo.opened_at.strftime("%d/%m/%Y %H:%M") if wo.opened_at else "",
+        wo.closed_at.strftime("%d/%m/%Y %H:%M") if wo.closed_at else "",
+        wo.description or "",
+    ]
+
+
+@login_required
+def workorder_list_export(request: HttpRequest) -> HttpResponse:
+    scope = request.GET.get("scope", "filtered")
+    fmt = request.GET.get("format", "xlsx")
+    qs = WorkOrder.objects.select_related("asset").all()
+    if scope == "filtered":
+        status_f = _clean_string(request.GET.get("status"))
+        kind_f = _clean_string(request.GET.get("kind"))
+        q = _clean_string(request.GET.get("q"))
+        if status_f:
+            qs = qs.filter(status=status_f)
+        if kind_f:
+            qs = qs.filter(kind=kind_f)
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q) | Q(asset__asset_tag__icontains=q)
+                | Q(asset__name__icontains=q) | Q(description__icontains=q)
+            )
+    workorders = list(qs.order_by("-opened_at"))
+    today = timezone.localdate().strftime("%Y%m%d")
+    rows = [_wo_export_row(wo) for wo in workorders]
+
+    if fmt == "pdf":
+        pdf_bytes = _report_table_pdf("Interventi / Work Orders", _WO_EXPORT_HEADERS, rows)
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="workorders_{today}.pdf"'
+        return resp
+
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Interventi"
+    _xl_write_sheet(ws, _WO_EXPORT_HEADERS, rows)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="workorders_{today}.xlsx"'
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# EXPORT: work machine list PDF (XLSX già presente)
+# ---------------------------------------------------------------------------
+
+@login_required
+def work_machine_export_pdf(request: HttpRequest) -> HttpResponse:
+    scope = request.GET.get("scope", "filtered")
+    if scope == "full":
+        qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+    else:
+        form = WorkMachineFilterForm(request.GET or None)
+        qs = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).select_related("work_machine")
+        if form.is_valid():
+            q = _clean_string(form.cleaned_data.get("q"))
+            reparto = _clean_string(form.cleaned_data.get("reparto"))
+            status_f = _clean_string(form.cleaned_data.get("status"))
+            cnc_only = bool(form.cleaned_data.get("cnc_only"))
+            five_axes_only = bool(form.cleaned_data.get("five_axes_only"))
+            tcr_only = bool(form.cleaned_data.get("tcr_only"))
+            if q:
+                qs = qs.filter(
+                    Q(asset_tag__icontains=q) | Q(name__icontains=q) | Q(reparto__icontains=q)
+                    | Q(manufacturer__icontains=q) | Q(model__icontains=q) | Q(serial_number__icontains=q)
+                )
+            if reparto:
+                qs = qs.filter(reparto__icontains=reparto)
+            if status_f:
+                qs = qs.filter(status=status_f)
+            if cnc_only:
+                qs = qs.filter(work_machine__cnc_controlled=True)
+            if five_axes_only:
+                qs = qs.filter(work_machine__five_axes=True)
+            if tcr_only:
+                qs = qs.filter(work_machine__tcr_enabled=True)
+
+    machines = list(qs.order_by("reparto", "name", "asset_tag"))
+    headers = ["Tag", "Nome", "Reparto", "Stato", "Produttore", "Anno", "CNC", "5 assi", "TCR", "X mm", "Y mm", "Z mm"]
+    rows = []
+    for a in machines:
+        wm = getattr(a, "work_machine", None)
+        rows.append([
+            a.asset_tag or "", a.name or "", a.reparto or "", a.get_status_display(),
+            a.manufacturer or "",
+            str(wm.year) if wm and wm.year else "",
+            "Sì" if wm and wm.cnc_controlled else "No",
+            "Sì" if wm and wm.five_axes else "No",
+            "Sì" if wm and wm.tcr_enabled else "No",
+            str(wm.x_mm) if wm and wm.x_mm else "",
+            str(wm.y_mm) if wm and wm.y_mm else "",
+            str(wm.z_mm) if wm and wm.z_mm else "",
+        ])
+    today = timezone.localdate().strftime("%Y%m%d")
+    pdf_bytes = _report_table_pdf("Macchine di lavoro", headers, rows)
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="macchine_{today}.pdf"'
+    return resp
+
+
 @login_required
 def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
     """Esporta la lista macchine filtrata in formato Excel (.xlsx)."""
@@ -13381,7 +14013,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
     assignment_kwargs = _assignment_form_kwargs(asset)
 
     if request.method == "POST":
-        uploads, upload_errors = _validate_asset_document_uploads(request)
+        uploads, upload_errors = _validate_asset_document_uploads(request, asset)
         document_storage_target = _asset_document_storage_target(request)
         remove_ids = {_as_int(value, default=0) for value in request.POST.getlist("remove_document_ids")}
         remove_ids = {value for value in remove_ids if value > 0}
@@ -14491,6 +15123,90 @@ def asset_report_pdf(request: HttpRequest, id: int | None = None) -> HttpRespons
 
 
 @login_required
+def asset_detail_export_xlsx(request: HttpRequest, id: int) -> HttpResponse:
+    import openpyxl
+    import openpyxl.styles as xlst
+
+    asset = get_object_or_404(
+        Asset.objects.select_related("asset_category", "it_details", "work_machine"),
+        pk=id,
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Scheda asset"
+
+    hfill = xlst.PatternFill(fill_type="solid", fgColor="2563EB")
+    hfont = xlst.Font(bold=True, color="FFFFFF", name="Calibri", size=10)
+    sfill = xlst.PatternFill(fill_type="solid", fgColor="EFF6FF")
+    sfont = xlst.Font(bold=True, name="Calibri", size=9)
+    kfont = xlst.Font(bold=True, name="Calibri", size=9)
+    vfont = xlst.Font(name="Calibri", size=9)
+
+    r = 1
+    for ci, h in enumerate(["Attributo", "Valore"], 1):
+        cell = ws.cell(row=r, column=ci, value=h)
+        cell.fill = hfill
+        cell.font = hfont
+        cell.alignment = xlst.Alignment(horizontal="center", vertical="center")
+    r += 1
+
+    def _sec(label):
+        nonlocal r
+        c = ws.cell(row=r, column=1, value=label)
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        c.fill = sfill
+        c.font = sfont
+        r += 1
+
+    def _kv(key, val):
+        nonlocal r
+        ws.cell(row=r, column=1, value=key).font = kfont
+        ws.cell(row=r, column=2, value=str(val) if val is not None else "").font = vfont
+        r += 1
+
+    _sec("Anagrafica")
+    _kv("Tag", asset.asset_tag)
+    _kv("Nome", asset.name)
+    _kv("Tipo", asset.get_asset_type_display())
+    _kv("Categoria", asset.asset_category.label if asset.asset_category_id else "")
+    _kv("Reparto", asset.reparto)
+    _kv("Stato", asset.get_status_display())
+    _kv("Produttore", asset.manufacturer)
+    _kv("Modello", asset.model)
+    _kv("Matricola", asset.serial_number)
+    _kv("Note", asset.notes)
+
+    _sec("Assegnazione")
+    _kv("Assegnato a", asset.assignment_to)
+    _kv("Reparto assegnazione", asset.assignment_reparto)
+    _kv("Ubicazione", asset.assignment_location)
+
+    it = getattr(asset, "it_details", None)
+    if it:
+        _sec("Dettagli IT")
+        _kv("OS", it.os)
+        _kv("CPU", it.cpu)
+        _kv("RAM", it.ram)
+        _kv("Disco", it.disco)
+        _kv("Dominio", "Sì" if it.domain_joined else "No")
+        _kv("EDR", "Sì" if it.edr_enabled else "No")
+        _kv("2FA Office", "Sì" if it.office_2fa_enabled else "No")
+
+    ws.column_dimensions["A"].width = 28
+    ws.column_dimensions["B"].width = 55
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    tag = asset.asset_tag or str(asset.pk)
+    today = timezone.localdate().strftime("%Y%m%d")
+    resp = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resp["Content-Disposition"] = f'attachment; filename="asset_{tag}_{today}.xlsx"'
+    return resp
+
+
+@login_required
 def report_template_admin(request: HttpRequest) -> HttpResponse:
     if not _is_assets_admin(request):
         messages.error(request, "Solo admin puo gestire i template report.")
@@ -14667,6 +15383,12 @@ def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
     site_id = _clean_string(request.POST.get("sharepoint_site_id"))[:500]
     client_secret = _clean_string(request.POST.get("sharepoint_client_secret"))
     library_url = _clean_string(request.POST.get("sharepoint_library_url"))[:1000]
+    public_links_enabled = "true" if _clean_string(request.POST.get("sharepoint_public_links_enabled")).lower() in {"1", "true", "yes", "on"} else "false"
+    allowed_root_name = _clean_string(request.POST.get("sharepoint_allowed_root_name"))[:120] or "ASSET CN"
+    allowed_root_drive_id = _clean_string(request.POST.get("sharepoint_allowed_root_drive_id"))[:255]
+    allowed_root_item_id = _clean_string(request.POST.get("sharepoint_allowed_root_item_id"))[:255]
+    asset_site_id = _clean_string(request.POST.get("sharepoint_asset_site_id"))[:500]
+    asset_drive_id = _clean_string(request.POST.get("sharepoint_asset_drive_id"))[:255]
 
     try:
         dotenv_values = load_env_file_values()
@@ -14676,6 +15398,12 @@ def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
             "GRAPH_CLIENT_ID": client_id,
             "GRAPH_SITE_ID": site_id,
             "ASSETS_SHAREPOINT_LIBRARY_URL": library_url,
+            "SHAREPOINT_ASSET_PUBLIC_LINKS_ENABLED": public_links_enabled,
+            "SHAREPOINT_ASSET_ALLOWED_ROOT_NAME": allowed_root_name,
+            "SHAREPOINT_ASSET_ALLOWED_ROOT_DRIVE_ID": allowed_root_drive_id,
+            "SHAREPOINT_ASSET_ALLOWED_ROOT_ITEM_ID": allowed_root_item_id,
+            "SHAREPOINT_ASSET_SITE_ID": asset_site_id,
+            "SHAREPOINT_ASSET_DRIVE_ID": asset_drive_id,
         }
         if client_secret:
             updates["GRAPH_CLIENT_SECRET"] = client_secret
