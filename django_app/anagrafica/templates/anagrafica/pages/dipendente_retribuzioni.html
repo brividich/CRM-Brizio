@@ -1,0 +1,242 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo{% endblock %}
+
+{% block extra_head %}
+<style>
+.dr-page { display:flex; flex-direction:column; gap:20px; }
+.dr-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dr-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.dr-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.dr-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.dr-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.dr-btn-ghost:hover { background:#e2e8f0; }
+.dr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.dr-card-head { display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid #f1f5f9; cursor:pointer; user-select:none; }
+.dr-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.dr-card-body { padding:0; }
+.dr-toggle { font-size:13px; color:#64748b; transition:transform .2s; display:inline-block; }
+.dr-card-head.open .dr-toggle { transform:rotate(180deg); }
+
+/* Sezioni voci — collassabili via <details> */
+.dr-section { padding:0; }
+.dr-section + .dr-section { border-top:1px solid #f1f5f9; }
+.dr-section summary { list-style:none; display:flex; align-items:center; justify-content:space-between; padding:11px 20px 9px; cursor:pointer; user-select:none; }
+.dr-section summary::-webkit-details-marker { display:none; }
+.dr-section summary::after { content:"▾"; font-size:11px; color:#94a3b8; transition:transform .18s; }
+.dr-section[open] summary::after { transform:rotate(180deg); }
+.dr-section-title { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+.dr-section-body { padding:0 20px 10px; }
+
+/* Tabella voci */
+.dr-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dr-table td { padding:7px 0; border-bottom:1px solid #f8fafc; vertical-align:middle; }
+.dr-table tr:last-child td { border-bottom:none; }
+.dr-voce-name { color:#334155; font-weight:500; flex:1; }
+.dr-voce-importo { color:#1e293b; font-weight:700; text-align:right; min-width:90px; font-variant-numeric:tabular-nums; }
+.dr-voce-importo.totale { color:#1d4ed8; }
+.dr-voce-importo.ral { font-size:15px; color:#166534; }
+
+/* Badge variazione */
+.dr-changed { display:inline-flex; align-items:center; gap:4px; }
+.dr-up { background:#dcfce7; color:#166534; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; }
+.dr-down { background:#fee2e2; color:#b91c1c; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; }
+.dr-prev { font-size:10px; color:#94a3b8; margin-left:4px; }
+
+/* Data-entry manuale */
+.dr-btn-primary { background:#1d4ed8; color:#fff; border:none; }
+.dr-btn-primary:hover { background:#1e40af; }
+.dr-btn-danger-xs { background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer; }
+.dr-btn-danger-xs:hover { background:#fecaca; }
+.dr-btn-edit-xs { background:#eff6ff; color:#1d4ed8; border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer; margin-right:4px; }
+.dr-btn-edit-xs:hover { background:#dbeafe; }
+.dr-badge-manuale { background:#ede9fe; color:#5b21b6; padding:1px 7px; border-radius:999px; font-size:9px; font-weight:700; margin-left:6px; }
+.dr-input { width:100%; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; box-sizing:border-box; }
+.dr-form-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.dr-row-actions { white-space:nowrap; min-width:90px; text-align:right; }
+.dr-add-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; display:none; }
+.dr-add-panel.open { display:block; }
+.dr-edit-row { background:#fefce8 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dr-page">
+
+  <!-- Topbar -->
+  <div class="dr-topbar">
+    <div>
+      <div class="dr-title">{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo</div>
+      <div class="dr-sub">{{ n_mesi }} mese{% if n_mesi != 1 %}i{% endif %} disponibile{% if n_mesi != 1 %}i{% endif %}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if can_hr or is_admin %}
+      <button type="button" class="dr-btn dr-btn-primary" onclick="toggleAddPanel()">+ Voce manuale</button>
+      {% endif %}
+      <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" class="dr-btn dr-btn-ghost">← Scheda dipendente</a>
+    </div>
+  </div>
+
+  {% if can_hr or is_admin %}
+  <div class="dr-add-panel" id="dr-add-panel">
+    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:10px;">➕ Inserisci voce retributiva manuale</div>
+    <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_add' legacy_id %}">
+      {% csrf_token %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+        <div>
+          <label class="dr-form-label">Mese competenza *</label>
+          <input type="date" name="data_competenza" class="dr-input" required title="Indica un giorno qualsiasi del mese (il sistema usa il primo giorno)">
+        </div>
+        <div>
+          <label class="dr-form-label">Voce / Pay item *</label>
+          <input type="text" name="pay_item" class="dr-input" maxlength="150" required placeholder="es. Bonus produzione">
+        </div>
+        <div>
+          <label class="dr-form-label">Importo (€) *</label>
+          <input type="number" name="importo" class="dr-input" step="0.01" required>
+        </div>
+        <div>
+          <label class="dr-form-label">Categoria</label>
+          <select name="categoria" class="dr-input">
+            <option value="">Auto-classifica</option>
+            {% for code, label in categorie_voce %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="dr-form-label">Note</label>
+          <input type="text" name="note" class="dr-input" maxlength="300" placeholder="Opzionale">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button type="submit" class="dr-btn dr-btn-primary">Salva voce</button>
+        <button type="button" class="dr-btn dr-btn-ghost" onclick="toggleAddPanel()">Annulla</button>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:8px;">
+        Le voci manuali fanno override delle voci CSV con lo stesso nome nello stesso mese. Restano modificabili ed eliminabili.
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if not timeline %}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:40px;text-align:center;color:#94a3b8;font-size:14px;">
+    Nessuna voce retributiva disponibile per questo dipendente.<br>
+    <a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1d4ed8;font-weight:600;margin-top:8px;display:inline-block;">Importa il file CSV →</a>
+  </div>
+  {% endif %}
+
+  {% for mese in timeline %}
+  <div class="dr-card">
+    <div class="dr-card-head" onclick="toggleMonth(this)" data-month="{{ mese.data_comp|date:'Ym' }}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div class="dr-card-title">{{ mese.data_comp|date:"F Y" }}</div>
+        {% if mese.ral %}
+          <span style="font-size:13px;color:#166534;font-weight:700;">RAL: € {{ mese.ral.importo|floatformat:2 }}</span>
+        {% endif %}
+        {% if mese.n_changed %}
+          <span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">⚡ modificato</span>
+        {% endif %}
+      </div>
+      <span class="dr-toggle">▼</span>
+    </div>
+
+    <div class="dr-card-body" id="month-{{ mese.data_comp|date:'Ym' }}" style="display:none;">
+
+      {% if mese.fissi %}
+      <details class="dr-section" open>
+        <summary><span class="dr-section-title">🔒 Elementi Fissi</span></summary>
+        <div class="dr-section-body">
+          <table class="dr-table">
+            {% for v in mese.fissi %}
+              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if mese.variabili %}
+      <details class="dr-section" open>
+        <summary><span class="dr-section-title">📈 Elementi Variabili</span></summary>
+        <div class="dr-section-body">
+          <table class="dr-table">
+            {% for v in mese.variabili %}
+              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if mese.altri %}
+      <details class="dr-section" open>
+        <summary><span class="dr-section-title">📋 Altri Elementi</span></summary>
+        <div class="dr-section-body">
+          <table class="dr-table">
+            {% for v in mese.altri %}
+              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if mese.totali %}
+      <details class="dr-section" open>
+        <summary><span class="dr-section-title">Σ Totali Elementi</span></summary>
+        <div class="dr-section-body">
+          <table class="dr-table">
+            {% for v in mese.totali %}
+              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp is_totale=True %}
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      <div style="padding:6px 20px 10px;font-size:11px;color:#94a3b8;text-align:right;">
+        {% if mese.importazione %}
+          Importato il {{ mese.importazione.data_importazione|date:"d/m/Y H:i" }}
+          {% if mese.importazione.importato_da %}— {{ mese.importazione.importato_da.get_full_name|default:mese.importazione.importato_da }}{% endif %}
+        {% else %}
+          Solo voci manuali per questo mese
+        {% endif %}
+        {% if mese.n_manuale %}
+          · <span style="color:#5b21b6;font-weight:600;">{{ mese.n_manuale }} voce{% if mese.n_manuale != 1 %} manuali{% else %} manuale{% endif %}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<script>
+function toggleMonth(head) {
+  const month = head.dataset.month;
+  const body = document.getElementById('month-' + month);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  head.classList.toggle('open', !open);
+}
+
+function toggleAddPanel() {
+  const p = document.getElementById('dr-add-panel');
+  if (p) p.classList.toggle('open');
+}
+
+function toggleVoceEdit(id) {
+  const row = document.getElementById('voce-edit-' + id);
+  if (!row) return;
+  row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const firstHead = document.querySelector('.dr-card-head');
+  if (firstHead) toggleMonth(firstHead);
+});
+</script>
+{% endblock %}

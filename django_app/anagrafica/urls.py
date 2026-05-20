@@ -11,28 +11,8 @@ urlpatterns = [
     # Dipendenti (sola lettura)
     path("dipendenti/", views.dipendenti_list, name="dipendenti_list"),
 
-    # Fornitori
-    path("fornitori/", views.fornitori_list, name="fornitori_list"),
-    path("fornitori/nuovo/", views.fornitore_create, name="fornitore_create"),
-    path("fornitori/<int:fornitore_id>/", views.fornitore_detail, name="fornitore_detail"),
-    path("fornitori/<int:fornitore_id>/modifica/", views.fornitore_edit, name="fornitore_edit"),
-    path("fornitori/<int:fornitore_id>/toggle-active", views.fornitore_toggle_active, name="fornitore_toggle_active"),
-
-    # Documenti
-    path("fornitori/<int:fornitore_id>/documenti/add", views.fornitore_documento_add, name="fornitore_documento_add"),
-    path("fornitori/<int:fornitore_id>/documenti/<int:doc_id>/delete", views.fornitore_documento_delete, name="fornitore_documento_delete"),
-
-    # Ordini
-    path("fornitori/<int:fornitore_id>/ordini/add", views.fornitore_ordine_add, name="fornitore_ordine_add"),
-    path("fornitori/<int:fornitore_id>/ordini/<int:ordine_id>/stato", views.fornitore_ordine_stato, name="fornitore_ordine_stato"),
-
-    # Valutazioni
-    path("fornitori/<int:fornitore_id>/valutazioni/add", views.fornitore_valutazione_add, name="fornitore_valutazione_add"),
-    path("fornitori/<int:fornitore_id>/valutazioni/<int:val_id>/delete", views.fornitore_valutazione_delete, name="fornitore_valutazione_delete"),
-
-    # Asset assegnati
-    path("fornitori/<int:fornitore_id>/asset/add", views.fornitore_asset_add, name="fornitore_asset_add"),
-    path("fornitori/<int:fornitore_id>/asset/<int:fa_id>/remove", views.fornitore_asset_remove, name="fornitore_asset_remove"),
+    # NOTE: i fornitori sono ora gestiti dal modulo dedicato `fornitori`
+    # (URL prefix /fornitori/). Vedere `fornitori/urls.py`.
 
     # Crea nuovo dipendente
     path("dipendenti/nuovo/", views.dipendente_create, name="dipendente_create"),
@@ -56,6 +36,8 @@ urlpatterns = [
 
     # Mansione dipendente (aggiorna campo legacy)
     path("dipendenti/<int:legacy_id>/mansione/set", views.dipendente_mansione_set, name="dipendente_mansione_set"),
+    # Reparto dipendente (aggiorna campo legacy)
+    path("dipendenti/<int:legacy_id>/reparto/set", views.dipendente_reparto_set, name="dipendente_reparto_set"),
 
     # Qualifiche dipendente
     path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
@@ -91,4 +73,35 @@ urlpatterns = [
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
     path("qualifiche/<int:tipo_id>/modifica", views.tipo_qualifica_edit, name="tipo_qualifica_edit"),
     path("qualifiche/<int:tipo_id>/elimina", views.tipo_qualifica_delete, name="tipo_qualifica_delete"),
+
+    # Voci retributive — importazione CSV e storico dipendente
+    path("retribuzioni/", views.retribuzioni_import, name="retribuzioni_import"),
+    path("dipendenti/<int:legacy_id>/retribuzioni/", views.dipendente_retribuzioni, name="dipendente_retribuzioni"),
+    # Voci retributive — data-entry manuale (HR/admin)
+    path("dipendenti/<int:legacy_id>/retribuzioni/voci/add",
+         views.dipendente_retribuzione_voce_add, name="dipendente_retribuzione_voce_add"),
+    path("dipendenti/<int:legacy_id>/retribuzioni/voci/<int:voce_id>/edit",
+         views.dipendente_retribuzione_voce_edit, name="dipendente_retribuzione_voce_edit"),
+    path("dipendenti/<int:legacy_id>/retribuzioni/voci/<int:voce_id>/delete",
+         views.dipendente_retribuzione_voce_delete, name="dipendente_retribuzione_voce_delete"),
+
+    # Storico contrattuale — importazione CSV e CRUD manuale
+    path("contratti/", views.contratti_import, name="contratti_import"),
+    path("dipendenti/<int:legacy_id>/contratti/add", views.dipendente_contratto_add, name="dipendente_contratto_add"),
+    path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/edit", views.dipendente_contratto_edit, name="dipendente_contratto_edit"),
+    path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/delete", views.dipendente_contratto_delete, name="dipendente_contratto_delete"),
+
+    # Pannello impostazioni — catalogo cataloghi e permessi del modulo anagrafica
+    path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("impostazioni/permessi/salva", views.impostazioni_permessi_save, name="impostazioni_permessi_save"),
+
+    # Livelli contrattuali — catalogo
+    path("livelli/nuovo", views.livello_contrattuale_create, name="livello_contrattuale_create"),
+    path("livelli/<int:livello_id>/modifica", views.livello_contrattuale_edit, name="livello_contrattuale_edit"),
+    path("livelli/<int:livello_id>/elimina", views.livello_contrattuale_delete, name="livello_contrattuale_delete"),
+
+    # Tipologie contratto — catalogo
+    path("tipologie-contratto/nuovo", views.tipologia_contratto_create, name="tipologia_contratto_create"),
+    path("tipologie-contratto/<int:tipologia_id>/modifica", views.tipologia_contratto_edit, name="tipologia_contratto_edit"),
+    path("tipologie-contratto/<int:tipologia_id>/elimina", views.tipologia_contratto_delete, name="tipologia_contratto_delete"),
 ]

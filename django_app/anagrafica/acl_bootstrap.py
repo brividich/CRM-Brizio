@@ -7,8 +7,8 @@ _BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v2"
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},
     {"modulo": "anagrafica", "codice": "anagrafica_dipendenti", "label": "Anagrafica - Lista dipendenti", "url": "/anagrafica/dipendenti/", "hide": False},
-    {"modulo": "anagrafica", "codice": "anagrafica_fornitori", "label": "Anagrafica - Lista fornitori", "url": "/anagrafica/fornitori/", "hide": False},
-    {"modulo": "anagrafica", "codice": "anagrafica_fornitore_create", "label": "Anagrafica - Nuovo fornitore", "url": "/anagrafica/fornitori/nuovo/", "hide": True},
+    # NOTE: i pulsanti "Fornitori" sono ora gestiti dal modulo `fornitori`
+    # (vedere fornitori/acl_bootstrap.py se creato in seguito).
     {"modulo": "anagrafica", "codice": "anagrafica_ruoli_operativi", "label": "Anagrafica - Ruoli operativi", "url": "/anagrafica/ruoli-operativi/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_mansioni", "label": "Anagrafica - Mansioni catalogo", "url": "/anagrafica/mansioni/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_qualifiche", "label": "Anagrafica - Qualifiche catalogo", "url": "/anagrafica/qualifiche/", "hide": True},

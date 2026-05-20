@@ -136,7 +136,8 @@ sequenceDiagram
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
-| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori; anagrafica civile/aziendale HR con permesso dedicato, cataloghi dropdown (aree, ruoli, mansioni, qualifiche), report/export, creazione dipendente |
+| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | **Anagrafica HR**: dipendenti, anagrafica civile/aziendale con permesso dedicato, storico contrattuale + cambiamenti organizzativi, voci retributive, **pannello impostazioni unificato** (`/anagrafica/impostazioni/`) per cataloghi (aree, ruoli, mansioni, qualifiche, livelli CCNL, tipologie contratto) e permessi, report/export, creazione dipendente (con sezione contratto) |
+| 7b | [`fornitori`](django_app/fornitori/) | Operations | `/fornitori/` | **Anagrafica Fornitori** (modulo separato): dashboard KPI spesa/ordini/asset, lista filtrabile, scheda fornitore con documenti / ordini / valutazioni qualità / asset assegnati. I modelli restano in `anagrafica.models` per compatibilità con le FK storiche di assets |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
 | 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, timeline eventi leggibile, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
@@ -286,24 +287,38 @@ Superficie di monitoring del portale, issue tracking interno e segnalazioni uten
 #### 🏭 Operations
 
 <details open>
-<summary><b>7. <code>anagrafica</code> — dipendenti, HR e fornitori</b></summary>
+<summary><b>7. <code>anagrafica</code> — dipendenti e HR</b></summary>
 
-Anagrafica master del portale, integrata con Active Directory e tabelle legacy SQL Server. Gestione strutturata HR con livelli di visibilità differenziati.
+Anagrafica master HR del portale, integrata con Active Directory e tabelle legacy SQL Server. Gestione strutturata HR con livelli di visibilità differenziati. **L'anagrafica fornitori è ora un modulo dedicato — vedere `fornitori` qui sotto.**
 
-- **17 modelli**: Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione, FornitoreAsset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission, Mansione, TipoQualifica, DipendenteQualifica, DipendenteAnagraficaCivile, DipendenteAnagraficaAziendale, AnagraficaHRPermission, AreaAziendale, RuoloAziendale
 - **Bridge pattern**: `DipendenteAnagraficaCivile` e `DipendenteAnagraficaAziendale` referenziano la tabella legacy `anagrafica_dipendenti` tramite `legacy_anagrafica_id` — nessuna modifica alle tabelle legacy
 - **Anagrafica civile** (admin): dati nascita/genere, residenza completa, domicilio, titolo di studio, contatti privati, patente — inline editabile dalla scheda dipendente
-- **Anagrafica aziendale** (admin): area, ruolo aziendale, taglie DPI, contratto (tipo/livello/prova/data prima assunzione), contatti aziendali, consenso privacy — inline editabile
+- **Anagrafica aziendale** (admin): area, ruolo aziendale, taglie DPI, contatti aziendali, consenso privacy — inline editabile. Il contratto/livello CCNL è ora gestito dallo storico contrattuale.
 - **Dati riservati HR** (permesso `AnagraficaHRPermission` singleton): codice fiscale, IBAN (display mascherato), dati bancari, categorie protette/disabilità con percentuale — visibili solo agli utenti autorizzati
-- **`AnagraficaHRPermission`** configurabile da admin Django: TUTTI / ADMIN / RUOLI ACL specifici
-- **Cataloghi dropdown gestibili**: `AreaAziendale` e `RuoloAziendale` con pagine CRUD dedicate nel subnav; `Mansione` (con categoria: operaio/impiegato/quadro/dirigente) e `TipoQualifica` (con scadenze e durata validità)
-- **Creazione dipendente** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione
+- **`AnagraficaHRPermission`** configurabile dal pannello impostazioni o da admin Django: TUTTI / ADMIN / RUOLI ACL specifici
+- **Storico cambiamenti organizzativi** (`DipendenteCambiamentoOrganizzativo`, gated admin): log automatico dei cambi di mansione, reparto, area e ruolo aziendale generato da hook nelle view di modifica (`dipendente_mansione_set`, nuova `dipendente_reparto_set`, `dipendente_anagrafica_aziendale_save`). Card timeline nella scheda dipendente con filtro per tipo, badge colorato e autore+timestamp. Admin Django read-only
+- **Storico contrattuale CCNL** (`StoricoContratto`, gated HR): periodi `data_inizio`/`data_fine` con tipologia contratto, livello (cataloghi `TipologiaContratto` e `LivelloContrattuale`), qualifica professionale, CCNL. Import CSV massivo `/anagrafica/contratti/` (formato `Codice fiscale;Data Inizio;Data Fine;Tipo di contratto;Qualifica;Livello;CCNL;Descrizione livello`, encoding auto-detect) + CRUD manuale con auto-chiusura del record "in corso" quando ne inizia uno nuovo
+- **Voci retributive** (`VoceRetributiva`, gated HR): card "💰 Voci retributive" nella scheda dipendente con classificazione automatica fissi/variabili/totali/altri. **Import CSV mensile** dallo studio paghe (`/anagrafica/retribuzioni/`, admin-only) con rilevamento automatico variazioni rispetto al mese precedente. **Data-entry manuale** (HR/admin): pulsante "+ Voce manuale" su `/anagrafica/dipendenti/<id>/retribuzioni/` per inserire/modificare/eliminare singole voci (flag `manuale=True`, override delle voci CSV con stesso `pay_item_key` nello stesso mese)
+- **Pannello impostazioni unico** su `/anagrafica/impostazioni/` con 8 tabs verticali per gestire tutti i cataloghi e i permessi del modulo: Mansioni, Aree aziendali, Ruoli aziendali, Ruoli operativi sicurezza, Qualifiche professionali, **Livelli contrattuali CCNL** (A1, B3…DIR — `LivelloContrattuale`), **Tipologie contratto** (`TipologiaContratto`) e Permessi (statistiche + dati HR riservati). Le URL standalone (`/anagrafica/mansioni/`, `/anagrafica/aree/`, …) restano funzionanti come scorciatoie dirette.
+- **Creazione dipendente** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione. La sezione "Contratto e inquadramento" alla creazione crea contestualmente il primo `StoricoContratto` (tipologia, livello CCNL, ccnl, qualifica, date inizio/fine) se compilata
 - **Report dipendenti** `/anagrafica/dipendenti/report/` con filtri avanzati (area, contratto, consenso privacy, categoria protetta) e export CSV (esclusi campi HR sensibili per sicurezza)
 - **Ruoli operativi** aggiuntivi assegnabili dalla scheda dipendente (preposto, RSPP, squadra antincendio, ecc.)
 - **Qualifiche** con scadenze, stato in-scadenza (60gg) e storico per dipendente
 - **Stats dashboard dipendente** con layout drag&drop salvato per utente
 - **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile, credenziali service account su `config/.env`
 - **Fallback email** automatico `email_notifica` → `email` per notifiche legacy
+</details>
+
+<details open>
+<summary><b>7b. <code>fornitori</code> — anagrafica fornitori (modulo dedicato)</b></summary>
+
+Modulo dedicato all'anagrafica fornitori, scorporato da `anagrafica` per separare nettamente la gestione HR da quella commerciale/operativa. URL prefix `/fornitori/` con namespace `fornitori:*`.
+
+- **Dashboard** `/fornitori/` con hero verde, KPI (attivi/inattivi/spesa totale/ordini/asset assegnati), ultimi fornitori e top 5 spesa per categoria con barre orizzontali
+- **Lista filtrabile** `/fornitori/elenco/` con ricerca per ragione sociale/P.IVA/città, filtro categoria, filtro stato attivo, paginazione
+- **Scheda fornitore** `/fornitori/<id>/` con anagrafica completa, **documenti** allegati (PDF/Office/immagini, validazione MIME+estensione, 15MB max), **ordini** con stato e importo (somma in spesa totale), **valutazioni qualità** (qualità/puntualità/comunicazione su 5 stelle, media calcolata), **asset assegnati** (collegamento al modulo `assets`)
+- **CRUD** completo `+nuovo` / modifica / toggle attivo, con form Django `FornitoreForm` (ragione sociale, P.IVA, codice fiscale, indirizzo, contatti, PEC, website, categoria)
+- **Compatibilità DB**: i modelli `Fornitore`, `FornitoreDocumento`, `FornitoreOrdine`, `FornitoreValutazione`, `FornitoreAsset` restano fisicamente in `anagrafica.models` (tabelle `anagrafica_fornitore*` invariate) perché referenziati da ForeignKey storiche in `assets.models` (`PeriodicVerification.supplier`, `WorkOrder.supplier`, `AssistanceContract.supplier`). La separazione è quindi a livello di app Django (URL/views/forms/templates/ACL), non di schema database
 </details>
 
 <details open>

@@ -1,0 +1,23 @@
+{% with current=request.resolver_match.view_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'fornitori:index' %} active{% endif %}" href="{% url 'fornitori:index' %}">Fornitori</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'fornitori:fornitori_list' or current == 'fornitori:fornitore_detail' or current == 'fornitori:fornitore_edit' %} active{% endif %}" href="{% url 'fornitori:fornitori_list' %}">Elenco</a>
+  <a class="sub-a{% if current == 'fornitori:fornitore_create' %} active{% endif %}" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo</a>
+</div>
+<div class="notice" style="margin-top: 10px;">
+  {% if current == 'fornitori:index' %}
+    <strong>Anagrafica Fornitori:</strong> panoramica spesa, ordini e asset assegnati ai fornitori aziendali.
+  {% elif current == 'fornitori:fornitori_list' %}
+    <strong>Fornitori:</strong> elenco completo con filtri per categoria, stato e ricerca testuale.
+  {% elif current == 'fornitori:fornitore_detail' %}
+    <strong>Scheda fornitore:</strong> anagrafica, documenti, ordini, valutazioni qualità e asset assegnati.
+  {% elif current == 'fornitori:fornitore_create' %}
+    <strong>Nuovo fornitore:</strong> ragione sociale obbligatoria; documenti, ordini e valutazioni si aggiungono dalla scheda.
+  {% elif current == 'fornitori:fornitore_edit' %}
+    <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici.
+  {% else %}
+    <strong>Anagrafica Fornitori:</strong> gestione fornitori, ordini, documenti, valutazioni e asset.
+  {% endif %}
+</div>
+{% endwith %}

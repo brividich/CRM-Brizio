@@ -255,6 +255,7 @@ INSTALLED_APPS = [
     "admin_portale.apps.AdminPortaleConfig",
     "notizie.apps.NotizieConfig",
     "anagrafica.apps.AnagraficaConfig",
+    "fornitori.apps.FornitoriConfig",
     "timbri.apps.TimbriConfig",
     "planimetria.apps.PlanimetriaConfig",
     "tickets.apps.TicketsConfig",

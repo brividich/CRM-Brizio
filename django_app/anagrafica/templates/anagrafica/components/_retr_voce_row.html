@@ -1,0 +1,62 @@
+{# Riga voce retributiva — voce CSV o manuale, con eventuali pulsanti edit/delete inline.
+   Parametri attesi: v (VoceRetributiva), can_edit, legacy_id, categorie_voce, mese_data, is_totale (bool opt) #}
+<tr>
+  <td class="dr-voce-name"{% if is_totale %} style="font-weight:700;"{% endif %}>
+    {{ v.pay_item }}
+    {% if v.manuale %}<span class="dr-badge-manuale">manuale</span>{% endif %}
+    {% if v.is_changed and v.importo_precedente is not None %}
+    <span class="dr-changed">
+      {% if v.importo > v.importo_precedente %}<span class="dr-up">▲</span>
+      {% else %}<span class="dr-down">▼</span>{% endif %}
+      <span class="dr-prev">era € {{ v.importo_precedente|floatformat:2 }}</span>
+    </span>
+    {% endif %}
+  </td>
+  <td class="dr-voce-importo{% if is_totale %} {% if v.pay_item_key == 'ral' %}ral{% else %}totale{% endif %}{% endif %}">
+    € {{ v.importo|floatformat:2 }}
+  </td>
+  {% if can_edit %}
+  <td class="dr-row-actions">
+    {% if v.manuale %}
+      <button type="button" class="dr-btn-edit-xs" onclick="toggleVoceEdit({{ v.pk }})" title="Modifica voce">✏</button>
+      <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_delete' legacy_id v.pk %}" style="display:inline;margin:0;" onsubmit="return confirm('Eliminare questa voce manuale?');">
+        {% csrf_token %}
+        <button type="submit" class="dr-btn-danger-xs" title="Elimina voce">✕</button>
+      </form>
+    {% endif %}
+  </td>
+  {% endif %}
+</tr>
+{% if can_edit and v.manuale %}
+<tr id="voce-edit-{{ v.pk }}" class="dr-edit-row" style="display:none;">
+  <td colspan="3" style="padding:10px 4px;">
+    <form method="post" action="{% url 'anagrafica:dipendente_retribuzione_voce_edit' legacy_id v.pk %}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">
+      {% csrf_token %}
+      <div>
+        <label class="dr-form-label">Voce *</label>
+        <input type="text" name="pay_item" class="dr-input" value="{{ v.pay_item }}" maxlength="150" required>
+      </div>
+      <div>
+        <label class="dr-form-label">Importo (€) *</label>
+        <input type="number" name="importo" class="dr-input" step="0.01" value="{{ v.importo }}" required>
+      </div>
+      <div>
+        <label class="dr-form-label">Categoria</label>
+        <select name="categoria" class="dr-input">
+          {% for code, label in categorie_voce %}
+          <option value="{{ code }}"{% if code == v.categoria %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label class="dr-form-label">Note</label>
+        <input type="text" name="note" class="dr-input" value="{{ v.note }}" maxlength="300">
+      </div>
+      <div style="grid-column:1/-1;display:flex;gap:6px;">
+        <button type="submit" class="dr-btn dr-btn-primary">Salva</button>
+        <button type="button" class="dr-btn dr-btn-ghost" onclick="toggleVoceEdit({{ v.pk }})">Annulla</button>
+      </div>
+    </form>
+  </td>
+</tr>
+{% endif %}

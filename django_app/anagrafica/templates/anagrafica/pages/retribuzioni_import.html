@@ -1,0 +1,177 @@
+{% extends "core/base.html" %}
+
+{% block title %}Importazione Voci Retributive{% endblock %}
+
+{% block extra_head %}
+<style>
+.ri-page { display:flex; flex-direction:column; gap:20px; }
+.ri-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ri-title { font-size:24px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.ri-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.ri-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ri-btn-ghost:hover { background:#e2e8f0; }
+.ri-btn-primary { background:#1d4ed8; color:#fff; }
+.ri-btn-primary:hover { background:#1e40af; }
+.ri-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ri-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.ri-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.ri-card-body { padding:18px 20px; }
+
+/* Upload zone */
+.ri-upload-zone { border:2px dashed #cbd5e1; border-radius:12px; padding:32px 24px; text-align:center; background:#f8fafc; transition:border-color .2s; cursor:pointer; }
+.ri-upload-zone:hover { border-color:#1d4ed8; background:#eff6ff; }
+.ri-upload-zone input[type=file] { display:none; }
+.ri-upload-icon { font-size:40px; margin-bottom:10px; }
+.ri-upload-label { font-size:14px; font-weight:600; color:#334155; margin-bottom:4px; }
+.ri-upload-hint { font-size:12px; color:#94a3b8; }
+.ri-upload-selected { font-size:13px; color:#1d4ed8; font-weight:600; margin-top:8px; min-height:20px; }
+
+/* Specifiche CSV */
+.ri-spec-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:14px; }
+.ri-spec-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; }
+.ri-spec-label { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
+.ri-spec-value { font-size:12px; color:#334155; font-weight:600; margin-top:2px; font-family:monospace; }
+
+/* Tabella importazioni */
+.ri-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ri-table th { background:#f8fafc; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; padding:8px 14px; text-align:left; border-bottom:1px solid #e2e8f0; }
+.ri-table td { padding:10px 14px; border-bottom:1px solid #f1f5f9; color:#1e293b; vertical-align:middle; }
+.ri-table tr:last-child td { border-bottom:none; }
+.ri-table tr:hover td { background:#f8fafc; }
+.ri-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+.ri-badge-ok { background:#dcfce7; color:#166534; }
+.ri-badge-err { background:#fee2e2; color:#b91c1c; }
+.ri-changed-badge { background:#fef3c7; color:#92400e; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; }
+
+/* Alert info */
+.ri-alert { display:flex; gap:10px; padding:12px 16px; border-radius:10px; font-size:13px; }
+.ri-alert-info { background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; }
+.ri-alert-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ri-page">
+
+  <!-- Topbar -->
+  <div class="ri-topbar">
+    <div>
+      <div class="ri-title">💰 Importazione Voci Retributive</div>
+      <div style="font-size:13px;color:#64748b;margin-top:2px;">Carica il CSV mensile dallo studio paghe</div>
+    </div>
+    <a href="{% url 'anagrafica:dipendenti_list' %}" class="ri-btn ri-btn-ghost">← Dipendenti</a>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="ri-alert {% if msg.tags == 'error' %}ri-alert-warn{% else %}ri-alert-info{% endif %}">
+      <span style="flex-shrink:0;">{% if msg.tags == 'error' %}⚠{% else %}✓{% endif %}</span>
+      <span>{{ msg }}</span>
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Upload form -->
+  <div class="ri-card">
+    <div class="ri-card-head">
+      <div class="ri-card-title">📂 Carica file CSV</div>
+    </div>
+    <div class="ri-card-body">
+
+      <div class="ri-alert ri-alert-info" style="margin-bottom:16px;">
+        <span>ℹ</span>
+        <span>Il file deve usare il separatore <strong>punto e virgola (;)</strong> e le colonne:
+          <code style="background:#dbeafe;padding:1px 5px;border-radius:4px;font-size:11px;">tax_code;nome;pay_item;value;date</code>.
+          Il valore usa la virgola come decimale. La data è in formato <strong>gg/mm/aaaa</strong>.
+          Ogni importazione viene storicizzata: le voci modificate rispetto al mese precedente vengono evidenziate automaticamente.
+        </span>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" id="upload-form">
+        {% csrf_token %}
+        <div class="ri-upload-zone" onclick="document.getElementById('file-input').click()">
+          <div class="ri-upload-icon">📄</div>
+          <div class="ri-upload-label">Trascina il file qui o clicca per selezionarlo</div>
+          <div class="ri-upload-hint">CSV — separatore ; — encoding UTF-8 o Latin-1</div>
+          <div class="ri-upload-selected" id="file-label">Nessun file selezionato</div>
+          <input type="file" id="file-input" name="file_csv" accept=".csv,.txt" onchange="updateLabel(this)">
+        </div>
+
+        <div class="ri-spec-grid">
+          <div class="ri-spec-item"><div class="ri-spec-label">Separatore</div><div class="ri-spec-value">; (punto e virgola)</div></div>
+          <div class="ri-spec-item"><div class="ri-spec-label">Decimale valore</div><div class="ri-spec-value">, (virgola)</div></div>
+          <div class="ri-spec-item"><div class="ri-spec-label">Formato data</div><div class="ri-spec-value">dd/mm/yyyy</div></div>
+          <div class="ri-spec-item"><div class="ri-spec-label">Chiave dipendente</div><div class="ri-spec-value">tax_code (CF)</div></div>
+        </div>
+
+        <div style="margin-top:18px;">
+          <button type="submit" class="ri-btn ri-btn-primary" id="submit-btn">⬆ Importa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Storico importazioni -->
+  <div class="ri-card">
+    <div class="ri-card-head">
+      <div class="ri-card-title">📋 Storico importazioni</div>
+      <span style="font-size:12px;color:#94a3b8;">{{ importazioni|length }} import{% if importazioni|length != 1 %}azioni{% else %}azione{% endif %}</span>
+    </div>
+    <div class="ri-card-body" style="padding:0;">
+      {% if importazioni %}
+      <table class="ri-table">
+        <thead>
+          <tr>
+            <th>Competenza</th>
+            <th>File</th>
+            <th>Voci OK</th>
+            <th>Errori</th>
+            <th>Importato da</th>
+            <th>Data importazione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for imp in importazioni %}
+          <tr>
+            <td style="font-weight:700;">{{ imp.data_competenza|date:"F Y" }}</td>
+            <td style="color:#64748b;font-size:12px;">{{ imp.file_nome|default:"—" }}</td>
+            <td><span class="ri-badge ri-badge-ok">{{ imp.righe_ok }}</span></td>
+            <td>{% if imp.righe_errore %}<span class="ri-badge ri-badge-err">{{ imp.righe_errore }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td style="font-size:12px;">{{ imp.importato_da.get_full_name|default:imp.importato_da|default:"—" }}</td>
+            <td style="font-size:12px;color:#64748b;">{{ imp.data_importazione|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:32px;text-align:center;color:#94a3b8;font-size:14px;">
+        Nessuna importazione effettuata. Carica il primo file CSV.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script>
+function updateLabel(input) {
+  const label = document.getElementById('file-label');
+  label.textContent = input.files.length ? input.files[0].name : 'Nessun file selezionato';
+}
+document.getElementById('upload-form').addEventListener('submit', function() {
+  document.getElementById('submit-btn').textContent = '⏳ Importazione in corso…';
+  document.getElementById('submit-btn').disabled = true;
+});
+const dropZone = document.querySelector('.ri-upload-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#1d4ed8'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.style.borderColor = '';
+  const files = e.dataTransfer.files;
+  if (files.length) {
+    document.getElementById('file-input').files = files;
+    updateLabel(document.getElementById('file-input'));
+  }
+});
+</script>
+{% endblock %}

@@ -167,14 +167,13 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
   <!-- Hero (fisso, non personalizzabile) -->
   <div class="ana-hero">
     <div>
-      <div class="ana-hero-title">Anagrafica</div>
-      <div class="ana-hero-sub">Gestione dipendenti e fornitori aziendali</div>
+      <div class="ana-hero-title">Anagrafica HR</div>
+      <div class="ana-hero-sub">Gestione dipendenti, mansioni, ruoli e qualifiche</div>
     </div>
     <div class="ana-hero-actions">
       <a class="ana-hbtn ana-hbtn-white" href="{% url 'anagrafica:dipendenti_list' %}">👥 Dipendenti</a>
-      <a class="ana-hbtn ana-hbtn-white" href="{% url 'anagrafica:fornitori_list' %}">🏭 Fornitori</a>
       <a class="ana-hbtn ana-hbtn-outline" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo dipendente</a>
-      <a class="ana-hbtn ana-hbtn-outline" href="{% url 'anagrafica:fornitore_create' %}">+ Nuovo fornitore</a>
+      <a class="ana-hbtn ana-hbtn-outline" href="{% url 'anagrafica:impostazioni' %}">⚙️ Impostazioni</a>
       <button class="ana-hbtn ana-hbtn-outline" id="ana-edit-btn">✏️ Personalizza</button>
     </div>
   </div>
@@ -206,28 +205,28 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
         <div class="ana-kpi-sub">{{ n_reparti }} reparti</div>
       </div>
       <div class="ana-kpi green">
-        <div class="ana-kpi-icon">🏭</div>
-        <div class="ana-kpi-value">{{ n_fornitori }}</div>
-        <div class="ana-kpi-label">Fornitori attivi</div>
-        <div class="ana-kpi-sub">{{ n_fornitori_tutti }} totali</div>
+        <div class="ana-kpi-icon">👷</div>
+        <div class="ana-kpi-value">{{ n_mansioni }}</div>
+        <div class="ana-kpi-label">Mansioni</div>
+        <div class="ana-kpi-sub">catalogo attivo</div>
+      </div>
+      <div class="ana-kpi purple">
+        <div class="ana-kpi-icon">🏢</div>
+        <div class="ana-kpi-value">{{ n_aree }}</div>
+        <div class="ana-kpi-label">Aree aziendali</div>
+        <div class="ana-kpi-sub">in catalogo</div>
       </div>
       <div class="ana-kpi orange">
-        <div class="ana-kpi-icon">💶</div>
-        <div class="ana-kpi-value">€ {{ spesa_totale|floatformat:0 }}</div>
-        <div class="ana-kpi-label">Spesa totale</div>
-        <div class="ana-kpi-sub">{{ n_ordini }} ordini</div>
+        <div class="ana-kpi-icon">🎓</div>
+        <div class="ana-kpi-value">{{ n_qualifiche }}</div>
+        <div class="ana-kpi-label">Tipi qualifica</div>
+        <div class="ana-kpi-sub">catalogo attivo</div>
       </div>
       <div class="ana-kpi red">
         <div class="ana-kpi-icon">⚠️</div>
-        <div class="ana-kpi-value">{{ n_fornitori_inattivi }}</div>
-        <div class="ana-kpi-label">Inattivi</div>
-        <div class="ana-kpi-sub">su {{ n_fornitori_tutti }} totali</div>
-      </div>
-      <div class="ana-kpi purple">
-        <div class="ana-kpi-icon">🔧</div>
-        <div class="ana-kpi-value">{{ n_asset_assegnati }}</div>
-        <div class="ana-kpi-label">Asset assegnati</div>
-        <div class="ana-kpi-sub">a fornitori</div>
+        <div class="ana-kpi-value">{{ n_qualifiche_scadenza }}</div>
+        <div class="ana-kpi-label">Qualifiche in scadenza</div>
+        <div class="ana-kpi-sub">prossimi 60 giorni</div>
       </div>
     </div>
   </div>
@@ -236,7 +235,7 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
   <div class="ana-widget" data-wid="moduli">
     <div class="ana-widget-bar">
       <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
-      <span class="ana-widget-label">Accesso rapido — Dipendenti e Fornitori</span>
+      <span class="ana-widget-label">Accesso rapido — Dipendenti e Impostazioni</span>
       <button class="ana-widget-hide" data-wid="moduli" title="Nascondi">✕</button>
     </div>
     <div class="ana-sections">
@@ -247,7 +246,7 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
             <div class="ana-module-icon blue">👥</div>
             <div>
               <div class="ana-module-title">Dipendenti</div>
-              <div class="ana-module-sub">Rubrica aziendale — sola lettura</div>
+              <div class="ana-module-sub">Rubrica aziendale + scheda HR completa</div>
             </div>
           </div>
         </div>
@@ -264,100 +263,71 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
           </div>
           <div class="ana-badge-row">
             <span class="ana-badge ana-badge-gray">Da SQL Server legacy</span>
-            <span class="ana-badge ana-badge-blue">Sola lettura</span>
+            <span class="ana-badge ana-badge-blue">Civile + Aziendale</span>
+            <span class="ana-badge ana-badge-green">Storico contratti</span>
           </div>
         </div>
         <div class="ana-module-footer">
           <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:dipendenti_list' %}">Vedi tutti →</a>
+          <a class="ana-btn ana-btn-green"   href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo</a>
         </div>
       </div>
 
       <div class="ana-module-card">
         <div class="ana-module-head">
           <div style="display:flex;align-items:center;gap:11px;">
-            <div class="ana-module-icon green">🏭</div>
+            <div class="ana-module-icon green">⚙️</div>
             <div>
-              <div class="ana-module-title">Fornitori</div>
-              <div class="ana-module-sub">CRUD completo — ordini, documenti, valutazioni</div>
+              <div class="ana-module-title">Impostazioni anagrafica</div>
+              <div class="ana-module-sub">Cataloghi, livelli CCNL, qualifiche, permessi</div>
             </div>
           </div>
         </div>
         <div class="ana-module-body">
           <div class="ana-stats-row">
             <div class="ana-stat-box">
-              <div class="ana-stat-val">{{ n_fornitori }}</div>
-              <div class="ana-stat-lbl">Attivi</div>
+              <div class="ana-stat-val">{{ n_mansioni }}</div>
+              <div class="ana-stat-lbl">Mansioni</div>
             </div>
             <div class="ana-stat-box">
-              <div class="ana-stat-val">{{ n_ordini }}</div>
-              <div class="ana-stat-lbl">Ordini</div>
+              <div class="ana-stat-val">{{ n_aree }}</div>
+              <div class="ana-stat-lbl">Aree</div>
             </div>
             <div class="ana-stat-box">
-              <div class="ana-stat-val">{{ n_asset_assegnati }}</div>
-              <div class="ana-stat-lbl">Asset</div>
+              <div class="ana-stat-val">{{ n_qualifiche }}</div>
+              <div class="ana-stat-lbl">Qualifiche</div>
             </div>
           </div>
           <div class="ana-badge-row">
-            <span class="ana-badge ana-badge-green">Documenti</span>
-            <span class="ana-badge ana-badge-blue">Valutazioni</span>
-            <span class="ana-badge ana-badge-blue">Asset</span>
+            <span class="ana-badge ana-badge-blue">Livelli CCNL</span>
+            <span class="ana-badge ana-badge-blue">Tipologie contratto</span>
+            <span class="ana-badge ana-badge-green">Permessi HR</span>
           </div>
         </div>
         <div class="ana-module-footer">
-          <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:fornitori_list' %}">Vedi tutti →</a>
-          <a class="ana-btn ana-btn-green"   href="{% url 'anagrafica:fornitore_create' %}">+ Nuovo</a>
+          <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:impostazioni' %}">Apri pannello →</a>
         </div>
       </div>
 
     </div>
   </div>
 
-  <!-- ── Widget: Ultimi fornitori ── -->
-  <div class="ana-widget" data-wid="ultimi">
+  <!-- ── Widget: Link a Fornitori ── -->
+  <div class="ana-widget" data-wid="fornitori-link">
     <div class="ana-widget-bar">
       <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
-      <span class="ana-widget-label">Ultimi fornitori aggiunti</span>
-      <button class="ana-widget-hide" data-wid="ultimi" title="Nascondi">✕</button>
+      <span class="ana-widget-label">Anagrafica fornitori</span>
+      <button class="ana-widget-hide" data-wid="fornitori-link" title="Nascondi">✕</button>
     </div>
     <div class="ana-last-card">
       <div class="ana-last-head">
-        <div class="ana-last-title">Ultimi fornitori aggiunti</div>
-        <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">Vedi tutti</a>
+        <div class="ana-last-title">🏭 Anagrafica Fornitori — modulo dedicato</div>
+        <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:index' %}">Apri modulo →</a>
       </div>
-      {% if ultimi_fornitori %}
-      <table class="ana-last-table">
-        <thead>
-          <tr>
-            <th>Ragione sociale</th>
-            <th>Categoria</th>
-            <th>Città</th>
-            <th>Stato</th>
-            <th>Aggiunto il</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in ultimi_fornitori %}
-          <tr>
-            <td><strong>{{ f.ragione_sociale }}</strong></td>
-            <td>{% if f.categoria %}<span class="ana-cat-badge">{{ f.get_categoria_display }}</span>{% else %}—{% endif %}</td>
-            <td>{{ f.citta|default:"—" }}</td>
-            <td>
-              {% if f.is_active %}
-                <span class="ana-badge ana-badge-green">Attivo</span>
-              {% else %}
-                <span class="ana-badge" style="background:#fef2f2;color:#dc2626;">Inattivo</span>
-              {% endif %}
-            </td>
-            <td>{{ f.created_at|date:"d/m/Y" }}</td>
-            <td><a class="ana-link-btn" href="{% url 'anagrafica:fornitore_detail' f.pk %}">Apri →</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="ana-empty">Nessun fornitore ancora registrato. <a href="{% url 'anagrafica:fornitore_create' %}">Aggiungine uno</a>.</div>
-      {% endif %}
+      <div class="ana-empty" style="padding:20px;">
+        La gestione fornitori (anagrafica, documenti, ordini, valutazioni, asset assegnati) è ora separata dal modulo HR.
+        Vai al <a href="{% url 'fornitori:index' %}">modulo Anagrafica Fornitori</a> per accedervi.
+      </div>
     </div>
   </div>
 
@@ -372,7 +342,7 @@ body.theme-dark .ana-restore-row { color:#7dd3fc; border-color:rgba(186,230,253,
 <script>
 (function () {
   var STORAGE_KEY = 'ana_dash_prefs_v1';
-  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Fornitori', ultimi: 'Ultimi fornitori' };
+  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Impostazioni', 'fornitori-link': 'Link ad Anagrafica Fornitori' };
 
   var root      = document.getElementById('ana-root');
   var editBar   = document.getElementById('ana-edit-bar');

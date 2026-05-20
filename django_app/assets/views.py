@@ -12119,7 +12119,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                     scope=scope_filter,
                     q=q,
                 ),
-                "supplier_url": reverse("anagrafica:fornitore_detail", kwargs={"fornitore_id": contract.supplier_id}),
+                "supplier_url": reverse("fornitori:fornitore_detail", kwargs={"fornitore_id": contract.supplier_id}),
                 "asset_url": (
                     reverse("assets:asset_view", kwargs={"id": contract.asset_id})
                     if contract.asset_id

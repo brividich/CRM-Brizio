@@ -693,6 +693,130 @@ class DipendenteAnagraficaAziendale(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Voci retributive — importazione mensile da studio paghe (CSV)
+# ---------------------------------------------------------------------------
+
+def _classify_pay_item(key: str) -> str:
+    """Classifica una voce retributiva nelle tre macro-sezioni."""
+    k = key.strip().lower()
+    FISSI = (
+        "retribuzione base", "scatti di anzianit", "terzo elemento",
+        "cottimo", "premio professionale", "superminimo individuale",
+        "scatti congelati", "acconto scatti futuri", "acconto futuri aumenti",
+        "ad personam", "premio categoria",
+    )
+    VARIABILI = (
+        "premio produzione operai", "premio produzione impiegati",
+        "premio di anzianita", "indennita' di funzione", "indennita di funzione",
+        "trasferta italia",
+    )
+    TOTALI = ("retribuzione di fatto", "totale elementi variabili", "rml", "ral")
+    for prefix in FISSI:
+        if k.startswith(prefix):
+            return "fisso"
+    for prefix in VARIABILI:
+        if k.startswith(prefix):
+            return "variabile"
+    for prefix in TOTALI:
+        if k == prefix:
+            return "totale"
+    return "altro"
+
+
+class ImportazioneRetributiva(models.Model):
+    """Traccia ogni importazione mensile CSV dallo studio paghe."""
+    ORIGINE_CSV = "CSV"
+    ORIGINE_MANUALE = "MANUALE"
+    ORIGINE_CHOICES = [
+        (ORIGINE_CSV, "Import CSV studio paghe"),
+        (ORIGINE_MANUALE, "Inserimento manuale HR"),
+    ]
+
+    data_importazione = models.DateTimeField(auto_now_add=True)
+    data_competenza = models.DateField(
+        help_text="Primo giorno del mese di competenza (es. 2026-04-01)"
+    )
+    origine = models.CharField(
+        max_length=10, choices=ORIGINE_CHOICES, default=ORIGINE_CSV, db_index=True
+    )
+    importato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="importazioni_retributive",
+    )
+    file_nome = models.CharField(max_length=255, blank=True, default="")
+    righe_totali = models.IntegerField(default=0)
+    righe_ok = models.IntegerField(default=0)
+    righe_errore = models.IntegerField(default=0)
+    note = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-data_competenza", "-data_importazione"]
+        verbose_name = "Importazione retributiva"
+        verbose_name_plural = "Importazioni retributive"
+
+    def __str__(self) -> str:
+        mese = self.data_competenza.strftime("%B %Y") if self.data_competenza else "?"
+        return f"Importazione {mese} ({self.righe_ok} voci)"
+
+
+class VoceRetributiva(models.Model):
+    """Singola voce retributiva di un dipendente per un periodo di competenza."""
+    CAT_FISSO = "fisso"
+    CAT_VARIABILE = "variabile"
+    CAT_TOTALE = "totale"
+    CAT_ALTRO = "altro"
+
+    CATEGORIA_CHOICES = [
+        (CAT_FISSO, "Elementi Fissi"),
+        (CAT_VARIABILE, "Elementi Variabili"),
+        (CAT_TOTALE, "Totali Elementi"),
+        (CAT_ALTRO, "Altro"),
+    ]
+
+    importazione = models.ForeignKey(
+        ImportazioneRetributiva, on_delete=models.CASCADE, related_name="voci"
+    )
+    tax_code = models.CharField(max_length=16, db_index=True)
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    data_competenza = models.DateField()
+    pay_item = models.CharField(max_length=150)
+    pay_item_key = models.CharField(max_length=150, db_index=True)
+    categoria = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default=CAT_ALTRO)
+    importo = models.DecimalField(max_digits=12, decimal_places=2)
+    is_changed = models.BooleanField(default=False)
+    importo_precedente = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    manuale = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True se voce inserita manualmente da utente HR (override delle voci CSV con stesso pay_item_key)",
+    )
+    note = models.CharField(max_length=300, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="voci_retributive_modificate",
+    )
+
+    class Meta:
+        ordering = ["-data_competenza", "tax_code", "categoria", "pay_item_key"]
+        indexes = [
+            models.Index(fields=["tax_code", "pay_item_key", "-data_competenza"]),
+            models.Index(fields=["legacy_anagrafica_id", "-data_competenza"]),
+        ]
+        verbose_name = "Voce retributiva"
+        verbose_name_plural = "Voci retributive"
+
+    def __str__(self) -> str:
+        return f"{self.tax_code} — {self.pay_item} ({self.data_competenza})"
+
+
+# ---------------------------------------------------------------------------
 # Permessi accesso dati HR riservati (singleton)
 # ---------------------------------------------------------------------------
 
@@ -726,3 +850,137 @@ class AnagraficaHRPermission(models.Model):
     def get_instance(cls) -> "AnagraficaHRPermission":
         obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
         return obj
+
+
+# ---------------------------------------------------------------------------
+# Storico contrattuale — evoluzione contratto, livello e qualifica professionale
+# ---------------------------------------------------------------------------
+
+class TipologiaContratto(models.Model):
+    """Catalogo tipologie di contratto — sostituisce CONTRATTO_CHOICES hardcoded."""
+    codice = models.CharField(max_length=20, unique=True)
+    nome = models.CharField(max_length=100)
+    ordine = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine", "codice"]
+        verbose_name = "Tipologia contratto"
+        verbose_name_plural = "Tipologie contratto"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class LivelloContrattuale(models.Model):
+    """Catalogo livelli contrattuali (A1, B3 … DIR) con descrizione testuale."""
+    codice = models.CharField(max_length=10, unique=True)
+    descrizione = models.CharField(max_length=200, blank=True, default="")
+    ordine = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine", "codice"]
+        verbose_name = "Livello contrattuale"
+        verbose_name_plural = "Livelli contrattuali"
+
+    def __str__(self) -> str:
+        return f"{self.codice} — {self.descrizione}" if self.descrizione else self.codice
+
+
+class DipendenteCambiamentoOrganizzativo(models.Model):
+    """Storico cambiamenti organizzativi interni (mansione, reparto, area, ruolo aziendale).
+
+    Generato automaticamente dagli hook delle view di modifica. Lo storico contrattuale
+    CCNL (tipologia contratto, livello, qualifica) vive invece in StoricoContratto.
+    """
+    TIPO_MANSIONE = "MANSIONE"
+    TIPO_REPARTO = "REPARTO"
+    TIPO_AREA = "AREA"
+    TIPO_RUOLO_AZIENDALE = "RUOLO_AZIENDALE"
+
+    TIPO_CHOICES = [
+        (TIPO_MANSIONE, "Mansione"),
+        (TIPO_REPARTO, "Reparto"),
+        (TIPO_AREA, "Area aziendale"),
+        (TIPO_RUOLO_AZIENDALE, "Ruolo aziendale"),
+    ]
+
+    TIPO_COLORI = {
+        TIPO_MANSIONE: "#1d4ed8",
+        TIPO_REPARTO: "#0891b2",
+        TIPO_AREA: "#7c3aed",
+        TIPO_RUOLO_AZIENDALE: "#db2777",
+    }
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES, db_index=True)
+    valore_precedente = models.CharField(max_length=300, blank=True, default="")
+    valore_nuovo = models.CharField(max_length=300, blank=True, default="")
+    data_effetto = models.DateField(
+        help_text="Data da cui vale il nuovo valore (default: oggi)"
+    )
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="cambiamenti_organizzativi_registrati",
+    )
+
+    class Meta:
+        ordering = ["-data_effetto", "-created_at"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "tipo", "-data_effetto"]),
+        ]
+        verbose_name = "Cambiamento organizzativo"
+        verbose_name_plural = "Storico cambiamenti organizzativi"
+
+    def __str__(self) -> str:
+        prev = self.valore_precedente or "(vuoto)"
+        new = self.valore_nuovo or "(vuoto)"
+        return f"[{self.legacy_anagrafica_id}] {self.get_tipo_display()}: {prev} → {new}"
+
+    @property
+    def colore(self) -> str:
+        return self.TIPO_COLORI.get(self.tipo, "#64748b")
+
+
+class StoricoContratto(models.Model):
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    tax_code = models.CharField(max_length=16, blank=True, default="", db_index=True)
+
+    data_inizio = models.DateField()
+    data_fine = models.DateField(null=True, blank=True)
+
+    tipologia_contratto = models.CharField(max_length=20, blank=True, default="")
+    qualifica_nome = models.CharField(max_length=150, blank=True, default="")
+    codice_livello = models.CharField(max_length=10, blank=True, default="")
+    ccnl = models.CharField(max_length=100, blank=True, default="")
+    descrizione_livello = models.CharField(max_length=200, blank=True, default="")
+
+    importato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="contratti_importati",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data_inizio", "-created_at"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "data_inizio"]),
+            models.Index(fields=["tax_code", "data_inizio"]),
+        ]
+        verbose_name = "Storico contrattuale"
+        verbose_name_plural = "Storico contrattuale"
+
+    def __str__(self) -> str:
+        fine = self.data_fine.strftime("%d/%m/%Y") if self.data_fine else "in corso"
+        return f"{self.tax_code} {self.data_inizio.strftime('%d/%m/%Y')} – {fine}"
+
+    @property
+    def is_in_corso(self) -> bool:
+        return self.data_fine is None

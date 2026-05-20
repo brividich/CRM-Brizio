@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ fornitore.ragione_sociale }} | Anagrafica{% endblock %}
+{% block title %}{{ fornitore.ragione_sociale }} | Anagrafica Fornitori{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -117,14 +117,14 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
 </style>
 {% endblock %}
 
-{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
 
 {% block content %}
 <div class="ana-page">
 
   <div class="ana-breadcrumb">
-    <a href="{% url 'anagrafica:index' %}">Anagrafica</a> /
-    <a href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a> /
+    <a href="{% url 'fornitori:index' %}">Fornitori</a> /
+    <a href="{% url 'fornitori:fornitori_list' %}">Elenco</a> /
     {{ fornitore.ragione_sociale }}
   </div>
 
@@ -147,9 +147,9 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
       </div>
     </div>
     <div class="ana-hero-actions">
-      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">← Elenco</a>
-      <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:fornitore_edit' fornitore.pk %}">✏ Modifica</a>
-      <form method="post" action="{% url 'anagrafica:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
+      <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">← Elenco</a>
+      <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:fornitore_edit' fornitore.pk %}">✏ Modifica</a>
+      <form method="post" action="{% url 'fornitori:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
         {% csrf_token %}
         <button class="ana-btn {% if fornitore.is_active %}ana-btn-danger{% else %}ana-btn-ghost{% endif %}"
                 type="submit" onclick="return confirm('Confermi?')">
@@ -209,7 +209,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
                   <td><span class="ana-pill stato-{{ o.stato }}">{{ o.get_stato_display }}</span></td>
                   <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.descrizione|default:"—" }}</td>
                   <td>
-                    <form method="post" action="{% url 'anagrafica:fornitore_ordine_stato' fornitore.pk o.pk %}" style="display:inline-flex;gap:5px;">
+                    <form method="post" action="{% url 'fornitori:fornitore_ordine_stato' fornitore.pk o.pk %}" style="display:inline-flex;gap:5px;">
                       {% csrf_token %}
                       <select class="ana-input" name="stato" style="width:auto;padding:4px 8px;font-size:12px;">
                         {% for v,l in o.STATO_CHOICES %}<option value="{{ v }}"{% if o.stato == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
@@ -224,7 +224,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
           </div>
           {% else %}<div class="ana-empty">Nessun ordine registrato.</div>{% endif %}
           <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Nuovo ordine</summary>
-            <form method="post" action="{% url 'anagrafica:fornitore_ordine_add' fornitore.pk %}" class="ana-form-grid">
+            <form method="post" action="{% url 'fornitori:fornitore_ordine_add' fornitore.pk %}" class="ana-form-grid">
               {% csrf_token %}
               <div class="ana-field"><label>N. Ordine</label>{{ ordine_form.numero_ordine }}</div>
               <div class="ana-field"><label>Data *</label>{{ ordine_form.data_ordine }}</div>
@@ -248,14 +248,14 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
                 <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d/m/Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
               </div>
             </div>
-            <form method="post" action="{% url 'anagrafica:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
+            <form method="post" action="{% url 'fornitori:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
               <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">Elimina</button>
             </form>
           </div>
           {% endfor %}
           {% else %}<div class="ana-empty">Nessun documento allegato.</div>{% endif %}
           <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Carica documento</summary>
-            <form method="post" action="{% url 'anagrafica:fornitore_documento_add' fornitore.pk %}" enctype="multipart/form-data" class="ana-form-grid">
+            <form method="post" action="{% url 'fornitori:fornitore_documento_add' fornitore.pk %}" enctype="multipart/form-data" class="ana-form-grid">
               {% csrf_token %}
               <div class="ana-field"><label>Nome *</label>{{ doc_form.nome }}</div>
               <div class="ana-field"><label>Tipo</label>{{ doc_form.tipo }}</div>
@@ -284,7 +284,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
                   <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.comunicazione %}★{% else %}☆{% endif %}{% endfor %}</span></td>
                   <td><strong>{{ v.media }}/5</strong></td>
                   <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ v.note|default:"—" }}</td>
-                  <td><form method="post" action="{% url 'anagrafica:fornitore_valutazione_delete' fornitore.pk v.pk %}">{% csrf_token %}<button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">✕</button></form></td>
+                  <td><form method="post" action="{% url 'fornitori:fornitore_valutazione_delete' fornitore.pk v.pk %}">{% csrf_token %}<button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">✕</button></form></td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -292,7 +292,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
           </div>
           {% else %}<div class="ana-empty">Nessuna valutazione.</div>{% endif %}
           <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Nuova valutazione</summary>
-            <form method="post" action="{% url 'anagrafica:fornitore_valutazione_add' fornitore.pk %}" class="ana-form-grid">
+            <form method="post" action="{% url 'fornitori:fornitore_valutazione_add' fornitore.pk %}" class="ana-form-grid">
               {% csrf_token %}
               <div class="ana-field"><label>Data *</label>{{ valutazione_form.data }}</div>
               <div class="ana-field"><label>Qualità (1-5) *</label>{{ valutazione_form.qualita }}</div>
@@ -317,14 +317,14 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
               </div>
               <div style="font-size:12px;color:#64748b;">{{ fa.get_tipo_display }} · Dal {{ fa.data_inizio|date:"d/m/Y" }}{% if fa.data_fine %} al {{ fa.data_fine|date:"d/m/Y" }}{% endif %}{% if fa.note %} · {{ fa.note }}{% endif %}</div>
             </div>
-            <form method="post" action="{% url 'anagrafica:fornitore_asset_remove' fornitore.pk fa.pk %}">{% csrf_token %}
+            <form method="post" action="{% url 'fornitori:fornitore_asset_remove' fornitore.pk fa.pk %}">{% csrf_token %}
               <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Rimuovere?')" type="submit">Rimuovi</button>
             </form>
           </div>
           {% endfor %}
           {% else %}<div class="ana-empty">Nessun asset assegnato a questo fornitore.</div>{% endif %}
           <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Assegna asset</summary>
-            <form method="post" action="{% url 'anagrafica:fornitore_asset_add' fornitore.pk %}" class="ana-form-grid">
+            <form method="post" action="{% url 'fornitori:fornitore_asset_add' fornitore.pk %}" class="ana-form-grid">
               {% csrf_token %}
               <div class="ana-field full"><label>Asset *</label>{{ asset_form.asset }}</div>
               <div class="ana-field"><label>Tipo rapporto</label>{{ asset_form.tipo }}</div>

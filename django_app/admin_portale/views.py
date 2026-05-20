@@ -355,10 +355,10 @@ MODULE_CATALOG: dict[str, dict] = {
             {
                 "codice": "view_anagrafica_fornitori",
                 "nome_visibile": "Fornitori",
-                "url": "route:anagrafica:fornitori_list",
+                "url": "route:fornitori:fornitori_list",
                 "icona": "briefcase",
                 "ui_slot": "topbar",
-                "ui_section": "anagrafica",
+                "ui_section": "fornitori",
                 "visible_topbar": True,
                 "enabled": True,
             },

@@ -1,23 +1,20 @@
 {% with current=request.resolver_match.view_name %}
 <div class="subnav">
-  <a class="sub-a{% if current == 'anagrafica:index' %} active{% endif %}" href="{% url 'anagrafica:index' %}">Anagrafica</a>
+  <a class="sub-a{% if current == 'anagrafica:index' %} active{% endif %}" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'anagrafica:dipendenti_list' or current == 'anagrafica:dipendente_detail' %} active{% endif %}" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a>
-  <a class="sub-a{% if current == 'anagrafica:ruoli_operativi_list' %} active{% endif %}" href="{% url 'anagrafica:ruoli_operativi_list' %}">Ruoli operativi</a>
-  <a class="sub-a{% if current == 'anagrafica:mansioni_list' %} active{% endif %}" href="{% url 'anagrafica:mansioni_list' %}">Mansioni</a>
-  <a class="sub-a{% if current == 'anagrafica:aree_list' %} active{% endif %}" href="{% url 'anagrafica:aree_list' %}">Aree</a>
-  <a class="sub-a{% if current == 'anagrafica:ruoli_aziendali_list' %} active{% endif %}" href="{% url 'anagrafica:ruoli_aziendali_list' %}">Ruoli az.</a>
-  <a class="sub-a{% if current == 'anagrafica:qualifiche_list' %} active{% endif %}" href="{% url 'anagrafica:qualifiche_list' %}">Qualifiche</a>
   <span style="color:#cbd5e1;margin:0 6px;font-size:13px;">·</span>
-  <a class="sub-a{% if current == 'anagrafica:fornitori_list' or current == 'anagrafica:fornitore_detail' or current == 'anagrafica:fornitore_create' or current == 'anagrafica:fornitore_edit' %} active{% endif %}" href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a>
+  <a class="sub-a{% if current == 'anagrafica:impostazioni' or current == 'anagrafica:mansioni_list' or current == 'anagrafica:aree_list' or current == 'anagrafica:ruoli_aziendali_list' or current == 'anagrafica:ruoli_operativi_list' or current == 'anagrafica:qualifiche_list' or current == 'anagrafica:widget_permissions' %} active{% endif %}" href="{% url 'anagrafica:impostazioni' %}">⚙️ Impostazioni</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
   {% if current == 'anagrafica:index' %}
-    <strong>Anagrafica:</strong> panoramica di dipendenti, ruoli, mansioni, qualifiche e fornitori aziendali.
+    <strong>Anagrafica HR:</strong> panoramica dei dipendenti, ruoli, mansioni e qualifiche. I fornitori sono gestiti dal modulo dedicato <a href="{% url 'fornitori:index' %}">Anagrafica Fornitori</a>.
   {% elif current == 'anagrafica:dipendenti_list' %}
     <strong>Dipendenti:</strong> elenco dei dipendenti aziendali (dati da archivio legacy). Clicca "Scheda" per accedere al dettaglio.
   {% elif current == 'anagrafica:dipendente_detail' %}
     <strong>Scheda dipendente:</strong> dati anagrafici, mansione, ruoli operativi, qualifiche e statistiche attività nel portale.
+  {% elif current == 'anagrafica:impostazioni' %}
+    <strong>Impostazioni anagrafica:</strong> gestione dei cataloghi (mansioni, aree, ruoli, qualifiche, livelli e tipologie contratto) e dei permessi del modulo.
   {% elif current == 'anagrafica:ruoli_operativi_list' %}
     <strong>Ruoli operativi:</strong> catalogo ruoli aziendali sicurezza (preposto, RSPP, ecc.) assegnabili ai dipendenti dalla loro scheda.
   {% elif current == 'anagrafica:mansioni_list' %}
@@ -28,16 +25,8 @@
     <strong>Ruoli aziendali:</strong> catalogo dei ruoli aziendali (distinti dalla mansione CCNL) selezionabili nell'anagrafica del dipendente.
   {% elif current == 'anagrafica:qualifiche_list' %}
     <strong>Qualifiche professionali:</strong> catalogo certificazioni e attestati con tracciamento scadenze. Assegnabili dalla scheda dipendente.
-  {% elif current == 'anagrafica:fornitori_list' %}
-    <strong>Fornitori:</strong> gestione anagrafica fornitori. Clicca su un fornitore per vedere documenti, ordini e valutazioni.
-  {% elif current == 'anagrafica:fornitore_detail' %}
-    <strong>Scheda fornitore:</strong> anagrafica, documenti allegati, storico ordini e valutazioni qualita'.
-  {% elif current == 'anagrafica:fornitore_create' %}
-    <strong>Nuovo fornitore:</strong> compila i campi obbligatori (ragione sociale) e salva. Potrai aggiungere documenti e ordini dalla scheda.
-  {% elif current == 'anagrafica:fornitore_edit' %}
-    <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici del fornitore.
   {% else %}
-    <strong>Anagrafica:</strong> gestione HR dipendenti e fornitori.
+    <strong>Anagrafica HR:</strong> gestione dipendenti, mansioni, ruoli e qualifiche.
   {% endif %}
 </div>
 {% endwith %}

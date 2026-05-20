@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ form_title }} | Anagrafica{% endblock %}
+{% block title %}{{ form_title }} | Anagrafica Fornitori{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -80,7 +80,7 @@ body.theme-dark .ana-actions { background:var(--surface-alt); border-color:var(-
 </style>
 {% endblock %}
 
-{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
 
 {% block content %}
 <div class="ana-form-page">
@@ -89,16 +89,16 @@ body.theme-dark .ana-actions { background:var(--surface-alt); border-color:var(-
   <div class="ana-topbar">
     <div>
       {% if fornitore %}
-        <a class="ana-back" href="{% url 'anagrafica:fornitore_detail' fornitore.pk %}">← Torna alla scheda</a>
+        <a class="ana-back" href="{% url 'fornitori:fornitore_detail' fornitore.pk %}">← Torna alla scheda</a>
       {% else %}
-        <a class="ana-back" href="{% url 'anagrafica:fornitori_list' %}">← Fornitori</a>
+        <a class="ana-back" href="{% url 'fornitori:fornitori_list' %}">← Fornitori</a>
       {% endif %}
       <div class="ana-title">{{ form_title }}</div>
       <div class="ana-sub">{% if fornitore %}Modifica i dati del fornitore{% else %}Compila i campi per aggiungere un nuovo fornitore{% endif %}</div>
     </div>
   </div>
 
-  {% include "anagrafica/components/flash_messages.html" %}
+  {% include "fornitori/components/flash_messages.html" %}
 
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
@@ -227,9 +227,9 @@ body.theme-dark .ana-actions { background:var(--surface-alt); border-color:var(-
       <div class="ana-actions">
         <button class="ana-btn ana-btn-primary" type="submit">Salva fornitore</button>
         {% if fornitore %}
-          <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitore_detail' fornitore.pk %}">Annulla</a>
+          <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitore_detail' fornitore.pk %}">Annulla</a>
         {% else %}
-          <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">Annulla</a>
+          <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">Annulla</a>
         {% endif %}
       </div>
 

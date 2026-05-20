@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import csv
 import json
 import logging
-from decimal import Decimal
+from datetime import timedelta as _timedelta
+from collections import defaultdict
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from io import StringIO
 
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.http import JsonResponse
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
@@ -25,11 +31,6 @@ from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
     DipendenteLegacyForm,
-    FornitoreAssetForm,
-    FornitoreDocumentoForm,
-    FornitoreForm,
-    FornitoreOrdineForm,
-    FornitoreValutazioneForm,
 )
 from .models import (
     AnagraficaHRPermission,
@@ -37,18 +38,20 @@ from .models import (
     AreaAziendale,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
+    DipendenteCambiamentoOrganizzativo,
     DipendenteQualifica,
     DipendenteRuoloOperativo,
     DipendenteStatLayout,
-    Fornitore,
-    FornitoreAsset,
-    FornitoreDocumento,
-    FornitoreOrdine,
-    FornitoreValutazione,
+    ImportazioneRetributiva,
+    LivelloContrattuale,
     Mansione,
     RuoloAziendale,
     RuoloOperativo,
+    StoricoContratto,
+    TipologiaContratto,
     TipoQualifica,
+    VoceRetributiva,
+    _classify_pay_item,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,25 +68,27 @@ def index(request):
     n_dipendenti = len(rows)
     n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows if str(row.get("reparto") or "").strip()})
 
-    n_fornitori = Fornitore.objects.filter(is_active=True).count()
-    n_fornitori_tutti = Fornitore.objects.count()
-    n_fornitori_inattivi = n_fornitori_tutti - n_fornitori
+    # Conteggi catalogo per dashboard HR
+    n_mansioni = Mansione.objects.filter(is_active=True).count()
+    n_aree = AreaAziendale.objects.filter(is_active=True).count()
+    n_qualifiche = TipoQualifica.objects.filter(is_active=True).count()
 
-    spesa_totale = FornitoreOrdine.objects.aggregate(t=Sum("importo"))["t"] or Decimal("0")
-    n_ordini = FornitoreOrdine.objects.count()
-    n_asset_assegnati = FornitoreAsset.objects.count()
+    # Qualifiche in scadenza nei prossimi 60 giorni
+    from datetime import timedelta
+    from django.utils import timezone as tz
+    oggi = tz.localdate()
+    soglia = oggi + timedelta(days=60)
+    n_qualifiche_scadenza = DipendenteQualifica.objects.filter(
+        data_scadenza__isnull=False, data_scadenza__lte=soglia
+    ).count()
 
-    ultimi_fornitori = Fornitore.objects.order_by("-created_at")[:6]
     return render(request, "anagrafica/pages/index.html", {
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
-        "n_fornitori": n_fornitori,
-        "n_fornitori_tutti": n_fornitori_tutti,
-        "n_fornitori_inattivi": n_fornitori_inattivi,
-        "spesa_totale": spesa_totale,
-        "n_ordini": n_ordini,
-        "n_asset_assegnati": n_asset_assegnati,
-        "ultimi_fornitori": ultimi_fornitori,
+        "n_mansioni": n_mansioni,
+        "n_aree": n_aree,
+        "n_qualifiche": n_qualifiche,
+        "n_qualifiche_scadenza": n_qualifiche_scadenza,
     })
 
 
@@ -270,6 +275,49 @@ def dipendente_create(request):
                     civ.updated_by = request.user
                     civ.save()
 
+                # Crea primo StoricoContratto se la sezione contratto è stata compilata
+                if new_id:
+                    from datetime import date as _date
+                    data_inizio_raw = (request.POST.get("contratto_data_inizio") or "").strip()
+                    if data_inizio_raw:
+                        try:
+                            data_inizio = _date.fromisoformat(data_inizio_raw)
+                        except ValueError:
+                            data_inizio = None
+                        if data_inizio:
+                            data_fine_raw = (request.POST.get("contratto_data_fine") or "").strip()
+                            data_fine = None
+                            if data_fine_raw:
+                                try:
+                                    data_fine = _date.fromisoformat(data_fine_raw)
+                                except ValueError:
+                                    data_fine = None
+                            tip_id = request.POST.get("contratto_tipologia_id") or ""
+                            tipologia_codice = ""
+                            if tip_id.isdigit():
+                                tip = TipologiaContratto.objects.filter(pk=int(tip_id)).first()
+                                if tip:
+                                    tipologia_codice = tip.codice
+                            cod_lvl = (request.POST.get("contratto_codice_livello") or "").strip().upper()[:10]
+                            descr_lvl = ""
+                            if cod_lvl:
+                                lvl = LivelloContrattuale.objects.filter(codice=cod_lvl).first()
+                                if lvl:
+                                    descr_lvl = lvl.descrizione
+                            tax_code = (request.POST.get("codice_fiscale") or "").upper().strip()[:16]
+                            StoricoContratto.objects.create(
+                                legacy_anagrafica_id=new_id,
+                                tax_code=tax_code,
+                                data_inizio=data_inizio,
+                                data_fine=data_fine,
+                                tipologia_contratto=tipologia_codice,
+                                codice_livello=cod_lvl,
+                                descrizione_livello=descr_lvl,
+                                ccnl=(request.POST.get("contratto_ccnl") or "").strip()[:100],
+                                qualifica_nome=(request.POST.get("contratto_qualifica_nome") or "").strip()[:150],
+                                importato_da=request.user,
+                            )
+
                 nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
@@ -292,251 +340,17 @@ def dipendente_create(request):
         "can_hr": can_hr,
         "mansioni_catalogo": list(Mansione.objects.filter(is_active=True).order_by("nome")),
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
+        "tipologie_contratto": list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")),
+        "livelli_contrattuali": list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice")),
     })
 
 
 # ---------------------------------------------------------------------------
-# Fornitori — lista con stats
+# NOTE: tutte le view "Fornitori" sono state spostate nel modulo dedicato
+# `fornitori` (URL prefix /fornitori/). I modelli Fornitore* restano in
+# `anagrafica.models` perché referenziati da `assets.models` via FK storiche
+# (tabelle DB invariate).
 # ---------------------------------------------------------------------------
-
-@login_required
-def fornitori_list(request):
-    q = request.GET.get("q", "").strip()
-    categoria = request.GET.get("categoria", "").strip()
-    solo_attivi = request.GET.get("attivi", "1") == "1"
-
-    qs = Fornitore.objects.all()
-    if solo_attivi:
-        qs = qs.filter(is_active=True)
-    if q:
-        qs = qs.filter(
-            Q(ragione_sociale__icontains=q)
-            | Q(piva__icontains=q)
-            | Q(citta__icontains=q)
-        )
-    if categoria:
-        qs = qs.filter(categoria=categoria)
-
-    stats = Fornitore.objects.aggregate(
-        totale=Count("id"),
-        attivi=Count("id", filter=Q(is_active=True)),
-    )
-    spesa_totale = FornitoreOrdine.objects.aggregate(s=Sum("importo"))["s"] or Decimal("0")
-
-    paginator = Paginator(qs, 25)
-    page = paginator.get_page(request.GET.get("page"))
-
-    return render(request, "anagrafica/pages/fornitori_list.html", {
-        "page_obj": page,
-        "q": q,
-        "categoria": categoria,
-        "solo_attivi": solo_attivi,
-        "categoria_choices": Fornitore.CATEGORIA_CHOICES,
-        "stats_totale": stats["totale"],
-        "stats_attivi": stats["attivi"],
-        "spesa_totale": spesa_totale,
-    })
-
-
-# ---------------------------------------------------------------------------
-# Fornitore — scheda dettaglio
-# ---------------------------------------------------------------------------
-
-@login_required
-def fornitore_detail(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    ordini = fornitore.ordini.all()
-    valutazioni = fornitore.valutazioni.all()
-    documenti = fornitore.documenti.all()
-    asset_assegnati = fornitore.asset_assegnati.select_related("asset", "created_by").all()
-    spesa = ordini.aggregate(t=Sum("importo"))["t"] or Decimal("0")
-
-    return render(request, "anagrafica/pages/fornitore_detail.html", {
-        "fornitore": fornitore,
-        "documenti": documenti,
-        "ordini": ordini,
-        "valutazioni": valutazioni,
-        "asset_assegnati": asset_assegnati,
-        "spesa_totale": spesa,
-        "doc_form": FornitoreDocumentoForm(),
-        "ordine_form": FornitoreOrdineForm(),
-        "valutazione_form": FornitoreValutazioneForm(),
-        "asset_form": FornitoreAssetForm(fornitore=fornitore),
-    })
-
-
-# ---------------------------------------------------------------------------
-# Fornitore — crea / modifica
-# ---------------------------------------------------------------------------
-
-@login_required
-def fornitore_create(request):
-    if request.method == "POST":
-        form = FornitoreForm(request.POST)
-        if form.is_valid():
-            fornitore = form.save()
-            messages.success(request, f'Fornitore "{fornitore.ragione_sociale}" creato.')
-            return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-    else:
-        form = FornitoreForm()
-    return render(request, "anagrafica/pages/fornitore_form.html", {
-        "form": form,
-        "form_title": "Nuovo fornitore",
-    })
-
-
-@login_required
-def fornitore_edit(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    if request.method == "POST":
-        form = FornitoreForm(request.POST, instance=fornitore)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Fornitore aggiornato.")
-            return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-    else:
-        form = FornitoreForm(instance=fornitore)
-    return render(request, "anagrafica/pages/fornitore_form.html", {
-        "form": form,
-        "fornitore": fornitore,
-        "form_title": f"Modifica — {fornitore.ragione_sociale}",
-    })
-
-
-@login_required
-@require_POST
-def fornitore_toggle_active(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    fornitore.is_active = not fornitore.is_active
-    fornitore.save(update_fields=["is_active", "updated_at"])
-    stato = "attivato" if fornitore.is_active else "disattivato"
-    messages.success(request, f'Fornitore "{fornitore.ragione_sociale}" {stato}.')
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-
-
-# ---------------------------------------------------------------------------
-# Documenti
-# ---------------------------------------------------------------------------
-
-@login_required
-@require_POST
-def fornitore_documento_add(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    form = FornitoreDocumentoForm(request.POST, request.FILES)
-    if form.is_valid():
-        doc = form.save(commit=False)
-        doc.fornitore = fornitore
-        doc.uploaded_by = request.user
-        doc.save()
-        messages.success(request, f'Documento "{doc.nome}" caricato.')
-    else:
-        messages.error(request, "Errore nel caricamento: verifica i campi obbligatori.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-
-
-@login_required
-@require_POST
-def fornitore_documento_delete(request, fornitore_id, doc_id):
-    doc = get_object_or_404(FornitoreDocumento, pk=doc_id, fornitore_id=fornitore_id)
-    nome = doc.nome
-    doc.delete()
-    messages.success(request, f'Documento "{nome}" eliminato.')
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore_id)
-
-
-# ---------------------------------------------------------------------------
-# Ordini
-# ---------------------------------------------------------------------------
-
-@login_required
-@require_POST
-def fornitore_ordine_add(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    form = FornitoreOrdineForm(request.POST)
-    if form.is_valid():
-        ordine = form.save(commit=False)
-        ordine.fornitore = fornitore
-        ordine.created_by = request.user
-        ordine.save()
-        messages.success(request, "Ordine aggiunto.")
-    else:
-        messages.error(request, "Errore nel salvataggio dell'ordine.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-
-
-@login_required
-@require_POST
-def fornitore_ordine_stato(request, fornitore_id, ordine_id):
-    ordine = get_object_or_404(FornitoreOrdine, pk=ordine_id, fornitore_id=fornitore_id)
-    nuovo_stato = request.POST.get("stato", "")
-    stati_validi = dict(FornitoreOrdine.STATO_CHOICES)
-    if nuovo_stato in stati_validi:
-        ordine.stato = nuovo_stato
-        ordine.save(update_fields=["stato", "updated_at"])
-        messages.success(request, f"Stato aggiornato: {stati_validi[nuovo_stato]}.")
-    else:
-        messages.error(request, "Stato non valido.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore_id)
-
-
-# ---------------------------------------------------------------------------
-# Valutazioni
-# ---------------------------------------------------------------------------
-
-@login_required
-@require_POST
-def fornitore_valutazione_add(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    form = FornitoreValutazioneForm(request.POST)
-    if form.is_valid():
-        val = form.save(commit=False)
-        val.fornitore = fornitore
-        val.valutato_da = request.user
-        val.save()
-        messages.success(request, "Valutazione aggiunta.")
-    else:
-        messages.error(request, "Errore nel salvataggio della valutazione.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-
-
-@login_required
-@require_POST
-def fornitore_valutazione_delete(request, fornitore_id, val_id):
-    val = get_object_or_404(FornitoreValutazione, pk=val_id, fornitore_id=fornitore_id)
-    val.delete()
-    messages.success(request, "Valutazione eliminata.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore_id)
-
-
-# ---------------------------------------------------------------------------
-# Asset assegnati al fornitore
-# ---------------------------------------------------------------------------
-
-@login_required
-@require_POST
-def fornitore_asset_add(request, fornitore_id):
-    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
-    form = FornitoreAssetForm(request.POST, fornitore=fornitore)
-    if form.is_valid():
-        fa = form.save(commit=False)
-        fa.fornitore = fornitore
-        fa.created_by = request.user
-        fa.save()
-        messages.success(request, f'Asset "{fa.asset}" assegnato al fornitore.')
-    else:
-        messages.error(request, "Errore nell'assegnazione dell'asset.")
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore.pk)
-
-
-@login_required
-@require_POST
-def fornitore_asset_remove(request, fornitore_id, fa_id):
-    fa = get_object_or_404(FornitoreAsset, pk=fa_id, fornitore_id=fornitore_id)
-    nome = str(fa.asset)
-    fa.delete()
-    messages.success(request, f'Asset "{nome}" rimosso dal fornitore.')
-    return redirect("anagrafica:fornitore_detail", fornitore_id=fornitore_id)
-
 
 # ---------------------------------------------------------------------------
 # Definizione widget statistiche dipendente
@@ -918,6 +732,92 @@ def dipendente_detail(request, legacy_id: int):
     except Exception:
         logger.exception("Errore caricamento asset per dipendente %s", legacy_id)
 
+    # Voci retributive (solo se l'utente ha accesso HR)
+    retribuzioni_latest: list = []
+    retribuzioni_timeline: list = []
+    retribuzioni_importazione = None
+    retribuzioni_data_competenza = None
+    retribuzioni_has_changes = False
+    if can_hr:
+        _voci_q = Q(legacy_anagrafica_id=legacy_id)
+        if civile and civile.codice_fiscale:
+            _voci_q |= Q(tax_code=civile.codice_fiscale.strip().upper())
+        voci_qs = VoceRetributiva.objects.filter(
+            _voci_q
+        ).select_related("importazione").order_by(
+            "-data_competenza", "-importazione__data_importazione", "categoria", "pay_item_key"
+        )
+        voci_all = list(voci_qs)
+        if voci_all:
+            # Raggruppa per mese, separando CSV (solo più recente per mese) e manuali (sempre incluse).
+            # Le voci manuali fanno override delle CSV con stesso pay_item_key.
+            _by_month: dict = {}
+            for v in voci_all:
+                key = v.data_competenza
+                if key not in _by_month:
+                    _by_month[key] = {"csv_imp": None, "csv_voci": [], "manuale_voci": []}
+                if v.manuale:
+                    _by_month[key]["manuale_voci"].append(v)
+                else:
+                    if _by_month[key]["csv_imp"] is None:
+                        _by_month[key]["csv_imp"] = v.importazione
+                    if v.importazione_id == _by_month[key]["csv_imp"].id:
+                        _by_month[key]["csv_voci"].append(v)
+
+            def _merge(entry):
+                manuale_keys = {v.pay_item_key for v in entry["manuale_voci"]}
+                return [v for v in entry["csv_voci"] if v.pay_item_key not in manuale_keys] + entry["manuale_voci"]
+
+            _months_desc = sorted(_by_month.keys(), reverse=True)
+            if _months_desc:
+                _latest_month = _months_desc[0]
+                _latest_entry = _by_month[_latest_month]
+                retribuzioni_data_competenza = _latest_month
+                retribuzioni_importazione = _latest_entry["csv_imp"]  # può essere None se mese ha solo manuali
+                retribuzioni_latest = _merge(_latest_entry)
+                retribuzioni_has_changes = any(v.is_changed for v in retribuzioni_latest)
+                retribuzioni_timeline = [(d, _merge(_by_month[d])) for d in _months_desc]
+
+    _TOTALI_SORT = {"retribuzione di fatto": 0, "totale elementi variabili": 1, "rml": 2, "ral": 3}
+    retribuzioni_fissi = [v for v in retribuzioni_latest if v.categoria == "fisso"]
+    retribuzioni_variabili = [v for v in retribuzioni_latest if v.categoria == "variabile"]
+    retribuzioni_totali = sorted(
+        [v for v in retribuzioni_latest if v.categoria == "totale"],
+        key=lambda v: _TOTALI_SORT.get(v.pay_item_key, 99),
+    )
+    retribuzioni_altri = [v for v in retribuzioni_latest if v.categoria == "altro"]
+
+    # Storico cambiamenti organizzativi (mansione, reparto, area, ruolo aziendale) — solo admin
+    storico_cambiamenti: list = []
+    if is_admin:
+        storico_cambiamenti = list(
+            DipendenteCambiamentoOrganizzativo.objects
+            .filter(legacy_anagrafica_id=legacy_id)
+            .select_related("created_by")
+            .order_by("-data_effetto", "-created_at")[:50]
+        )
+
+    # Storico contrattuale
+    storico_contratti: list = []
+    livelli_catalogo: list = []
+    livelli_json: str = "{}"
+    tipi_qualifica_prof: list = []
+    if can_hr:
+        _contr_q = Q(legacy_anagrafica_id=legacy_id)
+        tax_code_contr = civile.codice_fiscale.strip().upper() if civile and civile.codice_fiscale else None
+        if tax_code_contr:
+            _contr_q |= Q(tax_code=tax_code_contr)
+        storico_contratti = list(
+            StoricoContratto.objects.filter(_contr_q).order_by("-data_inizio", "-created_at")
+        )
+        tipologie_contratto = list(TipologiaContratto.objects.filter(is_active=True))
+        _tipologie_map = {t.codice: t.nome for t in tipologie_contratto}
+        for _c in storico_contratti:
+            _c.tipologia_nome = _tipologie_map.get(_c.tipologia_contratto, _c.tipologia_contratto)
+        livelli_catalogo = list(LivelloContrattuale.objects.filter(is_active=True))
+        livelli_json = json.dumps({l.codice: l.descrizione for l in livelli_catalogo})
+        tipi_qualifica_prof = [q for q in tipi_qualifica if q.categoria == TipoQualifica.CAT_PROFESSIONALE]
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -944,6 +844,21 @@ def dipendente_detail(request, legacy_id: int):
         "assets_assegnati": assets_assegnati,
         "assets_reparto": assets_reparto,
         "reparti_capo": reparti_capo,
+        "retribuzioni_latest": retribuzioni_latest,
+        "retribuzioni_fissi": retribuzioni_fissi,
+        "retribuzioni_variabili": retribuzioni_variabili,
+        "retribuzioni_totali": retribuzioni_totali,
+        "retribuzioni_altri": retribuzioni_altri,
+        "retribuzioni_timeline": retribuzioni_timeline,
+        "retribuzioni_importazione": retribuzioni_importazione,
+        "retribuzioni_data_competenza": retribuzioni_data_competenza,
+        "retribuzioni_has_changes": retribuzioni_has_changes,
+        "storico_cambiamenti": storico_cambiamenti,
+        "storico_contratti": storico_contratti,
+        "tipologie_contratto": tipologie_contratto,
+        "livelli_catalogo": livelli_catalogo,
+        "livelli_json": livelli_json,
+        "tipi_qualifica_prof": tipi_qualifica_prof,
     })
 
 
@@ -1038,12 +953,12 @@ def ruolo_operativo_create(request):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare ruoli operativi.")
-        return redirect("anagrafica:ruoli_operativi_list")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return redirect("anagrafica:ruoli_operativi_list")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     _, created = RuoloOperativo.objects.get_or_create(
         nome__iexact=nome,
@@ -1058,7 +973,7 @@ def ruolo_operativo_create(request):
         messages.success(request, f'Ruolo "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un ruolo con il nome "{nome}".')
-    return redirect("anagrafica:ruoli_operativi_list")
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
 
 @login_required
@@ -1067,13 +982,13 @@ def ruolo_operativo_edit(request, ruolo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare ruoli operativi.")
-        return redirect("anagrafica:ruoli_operativi_list")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return redirect("anagrafica:ruoli_operativi_list")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     ruolo.nome = nome
     ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
@@ -1082,7 +997,7 @@ def ruolo_operativo_edit(request, ruolo_id: int):
     ruolo.is_active = request.POST.get("is_active") == "1"
     ruolo.save()
     messages.success(request, f'Ruolo "{ruolo.nome}" aggiornato.')
-    return redirect("anagrafica:ruoli_operativi_list")
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
 
 @login_required
@@ -1091,13 +1006,13 @@ def ruolo_operativo_delete(request, ruolo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare ruoli operativi.")
-        return redirect("anagrafica:ruoli_operativi_list")
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
     nome = ruolo.nome
     ruolo.delete()
     messages.success(request, f'Ruolo "{nome}" eliminato.')
-    return redirect("anagrafica:ruoli_operativi_list")
+    return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
 
 # ---------------------------------------------------------------------------
@@ -1148,6 +1063,36 @@ def widget_permissions(request):
 
 @login_required
 @require_POST
+def _registra_cambiamento(
+    legacy_id: int,
+    tipo: str,
+    vecchio: str,
+    nuovo: str,
+    user,
+    data_effetto=None,
+    note: str = "",
+) -> DipendenteCambiamentoOrganizzativo | None:
+    """Crea una riga di storico solo se il valore è effettivamente cambiato.
+
+    Confronto case-insensitive con strip, così micro-edit di whitespace o maiuscole
+    non generano voci storiche spurie.
+    """
+    from django.utils import timezone as _tz
+    v = (vecchio or "").strip()
+    n = (nuovo or "").strip()
+    if v.casefold() == n.casefold():
+        return None
+    return DipendenteCambiamentoOrganizzativo.objects.create(
+        legacy_anagrafica_id=legacy_id,
+        tipo=tipo,
+        valore_precedente=v[:300],
+        valore_nuovo=n[:300],
+        data_effetto=data_effetto or _tz.localdate(),
+        note=note,
+        created_by=user if getattr(user, "is_authenticated", False) else None,
+    )
+
+
 def dipendente_mansione_set(request, legacy_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
@@ -1162,6 +1107,7 @@ def dipendente_mansione_set(request, legacy_id: int):
         messages.error(request, "Dipendente non trovato.")
         return redirect("anagrafica:dipendenti_list")
     dip = rows[0]
+    mansione_vecchia = (dip.get("mansione") or "").strip()
 
     try:
         upsert_anagrafica_dipendente(
@@ -1177,10 +1123,61 @@ def dipendente_mansione_set(request, legacy_id: int):
             email_notifica=dip.get("email_notifica") or "",
             attivo=bool(dip.get("attivo", True)),
         )
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_MANSIONE,
+            mansione_vecchia, mansione_nome,
+            request.user,
+        )
         messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
     except Exception:
         logger.exception("Errore aggiornamento mansione dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento della mansione.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_reparto_set(request, legacy_id: int):
+    """Modifica il reparto di un dipendente con storicizzazione automatica."""
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare il reparto.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    reparto_nome = (request.POST.get("reparto") or "").strip()[:200]
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    reparto_vecchio = (dip.get("reparto") or "").strip()
+
+    try:
+        upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=dip.get("nome") or "",
+            cognome=dip.get("cognome") or "",
+            reparto=reparto_nome,
+            mansione=dip.get("mansione") or "",
+            ruolo=dip.get("ruolo") or "",
+            matricola=dip.get("matricola") or "",
+            email=dip.get("email") or "",
+            email_notifica=dip.get("email_notifica") or "",
+            attivo=bool(dip.get("attivo", True)),
+        )
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_REPARTO,
+            reparto_vecchio, reparto_nome,
+            request.user,
+        )
+        messages.success(request, f'Reparto aggiornato a "{reparto_nome}".' if reparto_nome else "Reparto rimosso.")
+    except Exception:
+        logger.exception("Errore aggiornamento reparto dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento del reparto.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -1294,17 +1291,726 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     instance, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
         legacy_anagrafica_id=legacy_id
     )
+    area_vecchia = instance.area or ""
+    ruolo_az_vecchio = instance.ruolo_aziendale or ""
+
     form = AnagraficaAziendaleForm(request.POST, instance=instance)
     if form.is_valid():
         obj = form.save(commit=False)
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_AREA,
+            area_vecchia, obj.area or "",
+            request.user,
+        )
+        _registra_cambiamento(
+            legacy_id,
+            DipendenteCambiamentoOrganizzativo.TIPO_RUOLO_AZIENDALE,
+            ruolo_az_vecchio, obj.ruolo_aziendale or "",
+            request.user,
+        )
         messages.success(request, "Anagrafica aziendale salvata.")
     else:
         for field, errs in form.errors.items():
             for err in errs:
                 messages.error(request, f"{field}: {err}")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Voci retributive — importazione CSV dallo studio paghe
+# ---------------------------------------------------------------------------
+
+def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> ImportazioneRetributiva:
+    """Parsa il CSV paghe e crea ImportazioneRetributiva + VoceRetributiva."""
+    raw = file_obj.read()
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        raise ValueError("Impossibile decodificare il file CSV (provati utf-8, latin-1, cp1252).")
+
+    reader = csv.DictReader(StringIO(text), delimiter=";")
+    rows = [r for r in reader if any(v.strip() for v in r.values())]
+    if not rows:
+        raise ValueError("Il file CSV è vuoto o non contiene righe valide.")
+
+    # Data competenza dal primo record
+    first_date_str = (rows[0].get("date") or "").strip()
+    try:
+        data_comp_raw = datetime.strptime(first_date_str, "%d/%m/%Y").date()
+        data_competenza = data_comp_raw.replace(day=1)
+    except ValueError:
+        raise ValueError(f"Formato data non riconosciuto: '{first_date_str}' (atteso gg/mm/aaaa).")
+
+    importazione = ImportazioneRetributiva.objects.create(
+        data_competenza=data_competenza,
+        importato_da=user,
+        file_nome=file_nome,
+        righe_totali=len(rows),
+    )
+
+    # Mappa codice fiscale → legacy_anagrafica_id
+    all_cf = {(r.get("tax_code") or "").strip().upper() for r in rows if (r.get("tax_code") or "").strip()}
+    cf_to_id: dict[str, int] = dict(
+        DipendenteAnagraficaCivile.objects.filter(
+            codice_fiscale__in=all_cf
+        ).values_list("codice_fiscale", "legacy_anagrafica_id")
+    )
+
+    # Fallback nome "COGNOME NOME" → legacy_anagrafica_id quando il CF non è ancora in DipendenteAnagraficaCivile
+    nome_to_id: dict[str, int] = {}
+    try:
+        _legacy_all = fetch_anagrafica_rows(deduplicate=True)
+        for _lr in _legacy_all:
+            _cog = str(_lr.get("cognome") or "").strip().upper()
+            _nom = str(_lr.get("nome") or "").strip().upper()
+            _full = f"{_cog} {_nom}".strip()
+            _lid = int(_lr.get("id") or 0)
+            if _full and _lid:
+                nome_to_id[_full] = _lid
+    except Exception:
+        logger.warning("Fallback nome-based per retribuzioni non disponibile (legacy DB non raggiungibile)")
+
+    # Voci dell'ultima importazione precedente per rilevare variazioni
+    prev_import = (
+        ImportazioneRetributiva.objects
+        .filter(data_competenza__lt=data_competenza)
+        .order_by("-data_competenza")
+        .first()
+    )
+    prev_voci: dict[tuple, Decimal] = {}
+    if prev_import:
+        for voce in VoceRetributiva.objects.filter(importazione=prev_import):
+            prev_voci[(voce.tax_code, voce.pay_item_key)] = voce.importo
+
+    ok = err = 0
+    voci_to_create: list[VoceRetributiva] = []
+    for row in rows:
+        try:
+            tax_code = (row.get("tax_code") or "").strip().upper()
+            pay_item = (row.get("pay_item") or "").strip()
+            value_str = (row.get("value") or "0").strip().replace(",", ".")
+            date_str = (row.get("date") or "").strip()
+            if not tax_code or not pay_item:
+                err += 1
+                continue
+            importo = Decimal(value_str)
+            data_riga = datetime.strptime(date_str, "%d/%m/%Y").date()
+            pay_item_key = pay_item.lower()
+            categoria = _classify_pay_item(pay_item_key)
+            legacy_id = cf_to_id.get(tax_code)
+            if not legacy_id:
+                nome_csv = (row.get("nome") or "").strip().upper()
+                legacy_id = nome_to_id.get(nome_csv)
+            prev_importo = prev_voci.get((tax_code, pay_item_key))
+            is_changed = prev_importo is not None and prev_importo != importo
+            voci_to_create.append(VoceRetributiva(
+                importazione=importazione,
+                tax_code=tax_code,
+                legacy_anagrafica_id=legacy_id,
+                data_competenza=data_riga,
+                pay_item=pay_item,
+                pay_item_key=pay_item_key,
+                categoria=categoria,
+                importo=importo,
+                is_changed=is_changed,
+                importo_precedente=prev_importo if is_changed else None,
+            ))
+            ok += 1
+        except (InvalidOperation, ValueError):
+            err += 1
+
+    VoceRetributiva.objects.bulk_create(voci_to_create)
+    importazione.righe_ok = ok
+    importazione.righe_errore = err
+    importazione.save(update_fields=["righe_ok", "righe_errore"])
+    return importazione
+
+
+@login_required
+def retribuzioni_import(request):
+    """Pagina importazione CSV retributivo (solo admin)."""
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Accesso riservato agli amministratori.")
+        return redirect("anagrafica:dipendenti_list")
+
+    if request.method == "POST":
+        file_obj = request.FILES.get("file_csv")
+        if not file_obj:
+            messages.error(request, "Nessun file selezionato.")
+        else:
+            try:
+                imp = _import_csv_retribuzioni(file_obj, request.user, file_obj.name)
+                messages.success(
+                    request,
+                    f"Importazione completata: {imp.righe_ok} voci caricate"
+                    f"{f', {imp.righe_errore} errori' if imp.righe_errore else ''}."
+                )
+                return redirect("anagrafica:retribuzioni_import")
+            except Exception as exc:
+                logger.exception("Errore importazione CSV retribuzioni")
+                messages.error(request, f"Errore durante l'importazione: {exc}")
+
+    importazioni = list(
+        ImportazioneRetributiva.objects
+        .filter(origine=ImportazioneRetributiva.ORIGINE_CSV)
+        .select_related("importato_da")[:30]
+    )
+    return render(request, "anagrafica/pages/retribuzioni_import.html", {
+        "importazioni": importazioni,
+        "is_admin": is_admin,
+    })
+
+
+@login_required
+def dipendente_retribuzioni(request, legacy_id: int):
+    """Storico completo voci retributive per un dipendente (accesso HR)."""
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    ensure_anagrafica_schema()
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    civile_retr = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    _retr_q = Q(legacy_anagrafica_id=legacy_id)
+    if civile_retr and civile_retr.codice_fiscale:
+        _retr_q |= Q(tax_code=civile_retr.codice_fiscale.strip().upper())
+    voci_all = list(
+        VoceRetributiva.objects.filter(_retr_q)
+        .select_related("importazione")
+        .order_by("-data_competenza", "-importazione__data_importazione", "categoria", "pay_item_key")
+    )
+
+    # Logica di merge: una sola importazione CSV per mese (la più recente) + voci manuali del mese.
+    # Le voci manuali fanno override delle voci CSV con lo stesso pay_item_key.
+    _TOTALI_SORT = {"retribuzione di fatto": 0, "totale elementi variabili": 1, "rml": 2, "ral": 3}
+    _by_month: dict = {}
+    for v in voci_all:
+        key = v.data_competenza
+        if key not in _by_month:
+            _by_month[key] = {"csv_imp": None, "csv_voci": [], "manuale_voci": []}
+        if v.manuale:
+            _by_month[key]["manuale_voci"].append(v)
+        else:
+            if _by_month[key]["csv_imp"] is None:
+                _by_month[key]["csv_imp"] = v.importazione
+            if v.importazione_id == _by_month[key]["csv_imp"].id:
+                _by_month[key]["csv_voci"].append(v)
+
+    timeline = []
+    for _date in sorted(_by_month.keys(), reverse=True):
+        entry = _by_month[_date]
+        _manuale_keys = {v.pay_item_key for v in entry["manuale_voci"]}
+        _voci = [v for v in entry["csv_voci"] if v.pay_item_key not in _manuale_keys] + entry["manuale_voci"]
+        _fissi = [v for v in _voci if v.categoria == "fisso"]
+        _variabili = [v for v in _voci if v.categoria == "variabile"]
+        _altri = [v for v in _voci if v.categoria == "altro"]
+        _totali = sorted([v for v in _voci if v.categoria == "totale"],
+                         key=lambda v: _TOTALI_SORT.get(v.pay_item_key, 99))
+        _ral = next((v for v in _totali if v.pay_item_key == "ral"), None)
+        timeline.append({
+            "data_comp": _date,
+            "importazione": entry["csv_imp"],
+            "n_manuale": len(entry["manuale_voci"]),
+            "fissi": _fissi,
+            "variabili": _variabili,
+            "altri": _altri,
+            "totali": _totali,
+            "ral": _ral,
+            "n_changed": sum(1 for v in _voci if v.is_changed),
+        })
+
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+
+    return render(request, "anagrafica/pages/dipendente_retribuzioni.html", {
+        "dip": dip,
+        "legacy_id": legacy_id,
+        "timeline": timeline,
+        "n_mesi": len(timeline),
+        "can_hr": can_hr,
+        "is_admin": is_admin,
+        "tax_code_dipendente": civile_retr.codice_fiscale.strip().upper() if civile_retr and civile_retr.codice_fiscale else "",
+        "categorie_voce": VoceRetributiva.CATEGORIA_CHOICES,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Voci retributive — data-entry manuale (HR/admin)
+# ---------------------------------------------------------------------------
+
+def _get_or_create_import_manuale(data_competenza, user) -> ImportazioneRetributiva:
+    """Recupera o crea l'unica `ImportazioneRetributiva` manuale per quel mese di competenza."""
+    imp, created = ImportazioneRetributiva.objects.get_or_create(
+        origine=ImportazioneRetributiva.ORIGINE_MANUALE,
+        data_competenza=data_competenza,
+        defaults={
+            "importato_da": user,
+            "file_nome": "(inserimento manuale)",
+            "note": "Container voci retributive inserite manualmente",
+        },
+    )
+    return imp
+
+
+def _parse_data_competenza(raw: str):
+    """Accetta 'YYYY-MM' o 'YYYY-MM-DD' e restituisce date(primo giorno mese)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        if len(raw) == 7:  # YYYY-MM
+            return datetime.strptime(raw + "-01", "%Y-%m-%d").date()
+        d = datetime.strptime(raw, "%Y-%m-%d").date()
+        return d.replace(day=1)
+    except ValueError:
+        return None
+
+
+def _parse_importo(raw: str):
+    raw = (raw or "").strip().replace(",", ".")
+    if not raw:
+        return None
+    try:
+        return Decimal(raw)
+    except InvalidOperation:
+        return None
+
+
+@login_required
+@require_POST
+def dipendente_retribuzione_voce_add(request, legacy_id: int):
+    """Aggiunge una voce retributiva manuale (HR + admin)."""
+    can_hr = _check_hr_permission(request)
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not (can_hr or is_admin):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    data_comp = _parse_data_competenza(request.POST.get("data_competenza"))
+    if not data_comp:
+        messages.error(request, "Mese di competenza non valido.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    pay_item = (request.POST.get("pay_item") or "").strip()[:150]
+    importo = _parse_importo(request.POST.get("importo"))
+    if not pay_item or importo is None:
+        messages.error(request, "Voce e importo sono obbligatori.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    categoria_raw = (request.POST.get("categoria") or "").strip().lower()
+    valid_cats = {c for c, _ in VoceRetributiva.CATEGORIA_CHOICES}
+    categoria = categoria_raw if categoria_raw in valid_cats else _classify_pay_item(pay_item.lower())
+
+    civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    tax_code = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
+
+    imp = _get_or_create_import_manuale(data_comp, request.user)
+    VoceRetributiva.objects.create(
+        importazione=imp,
+        tax_code=tax_code,
+        legacy_anagrafica_id=legacy_id,
+        data_competenza=data_comp,
+        pay_item=pay_item,
+        pay_item_key=pay_item.lower(),
+        categoria=categoria,
+        importo=importo,
+        manuale=True,
+        note=(request.POST.get("note") or "").strip()[:300],
+        updated_by=request.user,
+    )
+    imp.righe_ok = imp.voci.count()
+    imp.save(update_fields=["righe_ok"])
+
+    messages.success(request, f'Voce "{pay_item}" aggiunta per {data_comp.strftime("%B %Y")}.')
+    return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_retribuzione_voce_edit(request, legacy_id: int, voce_id: int):
+    """Modifica una voce retributiva (solo voci con flag manuale=True)."""
+    can_hr = _check_hr_permission(request)
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not (can_hr or is_admin):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    voce = get_object_or_404(VoceRetributiva, pk=voce_id)
+    if not voce.manuale:
+        messages.error(request, "Solo le voci inserite manualmente sono modificabili. Le voci da CSV vanno reimportate.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    tc = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
+    if voce.legacy_anagrafica_id != legacy_id and (not tc or voce.tax_code != tc):
+        messages.error(request, "Voce non appartenente a questo dipendente.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    pay_item = (request.POST.get("pay_item") or "").strip()[:150]
+    importo = _parse_importo(request.POST.get("importo"))
+    if not pay_item or importo is None:
+        messages.error(request, "Voce e importo sono obbligatori.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    categoria_raw = (request.POST.get("categoria") or "").strip().lower()
+    valid_cats = {c for c, _ in VoceRetributiva.CATEGORIA_CHOICES}
+    categoria = categoria_raw if categoria_raw in valid_cats else _classify_pay_item(pay_item.lower())
+
+    voce.pay_item = pay_item
+    voce.pay_item_key = pay_item.lower()
+    voce.importo = importo
+    voce.categoria = categoria
+    voce.note = (request.POST.get("note") or "").strip()[:300]
+    voce.updated_by = request.user
+    voce.save(update_fields=["pay_item", "pay_item_key", "importo", "categoria", "note", "updated_by", "updated_at"])
+
+    messages.success(request, "Voce aggiornata.")
+    return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_retribuzione_voce_delete(request, legacy_id: int, voce_id: int):
+    """Elimina una voce retributiva (solo voci con flag manuale=True)."""
+    can_hr = _check_hr_permission(request)
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not (can_hr or is_admin):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    voce = get_object_or_404(VoceRetributiva, pk=voce_id)
+    if not voce.manuale:
+        messages.error(request, "Solo le voci inserite manualmente sono eliminabili.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    tc = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
+    if voce.legacy_anagrafica_id != legacy_id and (not tc or voce.tax_code != tc):
+        messages.error(request, "Voce non appartenente a questo dipendente.")
+        return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+    imp = voce.importazione
+    voce.delete()
+    # Se l'importazione manuale è rimasta senza voci, eliminala
+    if imp.origine == ImportazioneRetributiva.ORIGINE_MANUALE and not imp.voci.exists():
+        imp.delete()
+    else:
+        imp.righe_ok = imp.voci.count()
+        imp.save(update_fields=["righe_ok"])
+
+    messages.success(request, "Voce eliminata.")
+    return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Storico contrattuale — import CSV + CRUD manuale
+# ---------------------------------------------------------------------------
+
+_CONTRATTO_LABEL_MAP: dict[str, str] = {
+    label.lower(): value
+    for value, label in DipendenteAnagraficaAziendale.CONTRATTO_CHOICES
+}
+_CONTRATTO_LABEL_MAP.update({
+    "indeterminato": DipendenteAnagraficaAziendale.CONTRATTO_INDETERMINATO,
+    "determinato": DipendenteAnagraficaAziendale.CONTRATTO_DETERMINATO,
+    "apprendistato": DipendenteAnagraficaAziendale.CONTRATTO_APPRENDISTATO,
+    "somministrazione": DipendenteAnagraficaAziendale.CONTRATTO_SOMMINISTRAZIONE,
+    "collaborazione": DipendenteAnagraficaAziendale.CONTRATTO_COLLABORAZIONE,
+    "stage": DipendenteAnagraficaAziendale.CONTRATTO_STAGE,
+    "tirocinio": DipendenteAnagraficaAziendale.CONTRATTO_STAGE,
+    "altro": DipendenteAnagraficaAziendale.CONTRATTO_ALTRO,
+})
+
+
+def _normalize_contratto_choice(raw: str) -> str:
+    key = raw.strip().lower()
+    if key in _CONTRATTO_LABEL_MAP:
+        return _CONTRATTO_LABEL_MAP[key]
+    # partial match
+    for k, v in _CONTRATTO_LABEL_MAP.items():
+        if k in key or key in k:
+            return v
+    return ""
+
+
+def _import_csv_contratti(file_obj, user) -> tuple[int, int, int]:
+    """Parsa il CSV contrattuale e crea/aggiorna record StoricoContratto.
+
+    Formato: Codice fiscale;Data Inizio;Data Fine;Tipo di contratto;Qualifica;Livello;CCNL;Descrizione livello
+    Più righe con stesso (CF, Data Inizio, Data Fine) vengono aggregate automaticamente.
+    Restituisce (created, updated, skipped).
+    """
+    raw = file_obj.read()
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        raise ValueError("Impossibile decodificare il file CSV (provati utf-8, latin-1, cp1252).")
+
+    # Mappa CF → legacy_id
+    cf_to_id: dict[str, int] = {}
+    for row in DipendenteAnagraficaCivile.objects.filter(
+        codice_fiscale__isnull=False, legacy_anagrafica_id__isnull=False
+    ).exclude(codice_fiscale="").values("codice_fiscale", "legacy_anagrafica_id"):
+        cf_to_id[str(row["codice_fiscale"]).strip().upper()] = row["legacy_anagrafica_id"]
+
+    # Fallback nome-based
+    nome_to_id: dict[str, int] = {}
+    try:
+        _legacy_all = fetch_anagrafica_rows(deduplicate=True)
+        for _lr in _legacy_all:
+            _cog = str(_lr.get("cognome") or "").strip().upper()
+            _nom = str(_lr.get("nome") or "").strip().upper()
+            _full = f"{_cog} {_nom}".strip()
+            _lid = int(_lr.get("id") or 0)
+            if _full and _lid:
+                nome_to_id[_full] = _lid
+    except Exception:
+        logger.warning("Fallback nome-based per contratti non disponibile")
+
+    # Raggruppa righe per (CF, data_inizio, data_fine)
+    groups: dict[tuple, dict] = {}
+    reader = csv.DictReader(StringIO(text), delimiter=";")
+    for row in reader:
+        cf = (row.get("Codice fiscale") or "").strip().upper()
+        if not cf:
+            continue
+        di_raw = (row.get("Data Inizio") or "").strip()
+        df_raw = (row.get("Data Fine") or "").strip()
+        if not di_raw:
+            continue
+        try:
+            di = datetime.strptime(di_raw, "%d/%m/%Y").date()
+            df = datetime.strptime(df_raw, "%d/%m/%Y").date() if df_raw else None
+        except ValueError:
+            continue
+        key = (cf, di, df)
+        if key not in groups:
+            groups[key] = {
+                "tax_code": cf, "data_inizio": di, "data_fine": df,
+                "tipologia_contratto": "", "qualifica_nome": "",
+                "codice_livello": "", "ccnl": "", "descrizione_livello": "",
+            }
+        g = groups[key]
+        tipo = (row.get("Tipo di contratto") or "").strip()
+        qualifica = (row.get("Qualifica") or "").strip()
+        livello = (row.get("Livello") or "").strip()
+        ccnl = (row.get("CCNL") or "").strip()
+        desc = (row.get("Descrizione livello") or "").strip()
+        if tipo and not g["tipologia_contratto"]:
+            g["tipologia_contratto"] = _normalize_contratto_choice(tipo)
+        if qualifica and not g["qualifica_nome"]:
+            g["qualifica_nome"] = qualifica
+        if livello and not g["codice_livello"]:
+            g["codice_livello"] = livello.upper()
+        if ccnl and not g["ccnl"]:
+            g["ccnl"] = ccnl
+        if desc and not g["descrizione_livello"]:
+            g["descrizione_livello"] = desc
+
+    created_n = updated_n = 0
+    for (cf, di, df), data in groups.items():
+        lid = cf_to_id.get(cf) or nome_to_id.get(cf)
+        defaults = {
+            "tipologia_contratto": data["tipologia_contratto"],
+            "qualifica_nome": data["qualifica_nome"],
+            "codice_livello": data["codice_livello"],
+            "ccnl": data["ccnl"],
+            "descrizione_livello": data["descrizione_livello"],
+            "legacy_anagrafica_id": lid,
+            "importato_da": user,
+        }
+        _, created = StoricoContratto.objects.update_or_create(
+            tax_code=cf, data_inizio=di, data_fine=df,
+            defaults=defaults,
+        )
+        if created:
+            created_n += 1
+        else:
+            updated_n += 1
+    return created_n, updated_n, 0
+
+
+@login_required
+def contratti_import(request):
+    """Pagina importazione CSV contratti (solo admin)."""
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Accesso riservato agli amministratori.")
+        return redirect("anagrafica:dipendenti_list")
+
+    stats = None
+    if request.method == "POST":
+        file_obj = request.FILES.get("file_csv")
+        if not file_obj:
+            messages.error(request, "Nessun file selezionato.")
+        else:
+            try:
+                created, updated, _ = _import_csv_contratti(file_obj, request.user)
+                messages.success(
+                    request,
+                    f"Importazione completata: {created} record creati, {updated} aggiornati.",
+                )
+                stats = {"created": created, "updated": updated}
+                return redirect("anagrafica:contratti_import")
+            except Exception as exc:
+                logger.exception("Errore importazione CSV contratti")
+                messages.error(request, f"Errore durante l'importazione: {exc}")
+
+    recenti = list(
+        StoricoContratto.objects.select_related("importato_da").order_by("-created_at")[:30]
+    )
+    return render(request, "anagrafica/pages/contratti_import.html", {
+        "recenti": recenti,
+        "is_admin": is_admin,
+    })
+
+
+@login_required
+@require_POST
+def dipendente_contratto_add(request, legacy_id: int):
+    """Aggiunge manualmente un record storico contrattuale."""
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    di_raw = request.POST.get("data_inizio", "").strip()
+    df_raw = request.POST.get("data_fine", "").strip()
+    try:
+        data_inizio = datetime.strptime(di_raw, "%Y-%m-%d").date()
+        data_fine = datetime.strptime(df_raw, "%Y-%m-%d").date() if df_raw else None
+    except ValueError:
+        messages.error(request, "Formato data non valido.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    tax_code = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
+
+    # Auto-chiudi il record "in corso" se il nuovo inizia dopo
+    _q_inc = Q(legacy_anagrafica_id=legacy_id)
+    if tax_code:
+        _q_inc |= Q(tax_code=tax_code)
+    in_corso = (
+        StoricoContratto.objects.filter(_q_inc, data_fine__isnull=True)
+        .order_by("-data_inizio")
+        .first()
+    )
+    if in_corso and in_corso.data_inizio < data_inizio:
+        in_corso.data_fine = data_inizio
+        in_corso.save(update_fields=["data_fine"])
+
+    codice_liv = request.POST.get("codice_livello", "").strip().upper()
+    # Auto-popola descrizione dal catalogo se non specificata manualmente
+    desc_liv = request.POST.get("descrizione_livello", "").strip()
+    if codice_liv and not desc_liv:
+        _lc = LivelloContrattuale.objects.filter(codice=codice_liv).first()
+        if _lc:
+            desc_liv = _lc.descrizione
+
+    StoricoContratto.objects.create(
+        legacy_anagrafica_id=legacy_id,
+        tax_code=tax_code,
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        tipologia_contratto=request.POST.get("tipologia_contratto", "").strip(),
+        codice_livello=codice_liv,
+        descrizione_livello=desc_liv,
+        qualifica_nome=request.POST.get("qualifica_nome", "").strip(),
+        importato_da=request.user,
+    )
+    messages.success(request, "Record contrattuale aggiunto.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_contratto_delete(request, legacy_id: int, contratto_id: int):
+    """Elimina un record storico contrattuale."""
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    contratto = get_object_or_404(StoricoContratto, pk=contratto_id)
+    if contratto.legacy_anagrafica_id != legacy_id:
+        civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+        tc = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else None
+        if contratto.tax_code != tc:
+            messages.error(request, "Record non appartenente a questo dipendente.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    contratto.delete()
+    messages.success(request, "Record contrattuale eliminato.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_contratto_edit(request, legacy_id: int, contratto_id: int):
+    """Aggiorna un record storico contrattuale esistente."""
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    contratto = get_object_or_404(StoricoContratto, pk=contratto_id)
+    if contratto.legacy_anagrafica_id != legacy_id:
+        civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+        tc = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else None
+        if contratto.tax_code != tc:
+            messages.error(request, "Record non appartenente a questo dipendente.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    di_raw = request.POST.get("data_inizio", "").strip()
+    df_raw = request.POST.get("data_fine", "").strip()
+    try:
+        data_inizio = datetime.strptime(di_raw, "%Y-%m-%d").date()
+        data_fine = datetime.strptime(df_raw, "%Y-%m-%d").date() if df_raw else None
+    except ValueError:
+        messages.error(request, "Formato data non valido.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    codice_liv = request.POST.get("codice_livello", "").strip().upper()
+    desc_liv = request.POST.get("descrizione_livello", "").strip()
+    if codice_liv and not desc_liv:
+        _lc = LivelloContrattuale.objects.filter(codice=codice_liv).first()
+        if _lc:
+            desc_liv = _lc.descrizione
+
+    contratto.data_inizio = data_inizio
+    contratto.data_fine = data_fine
+    contratto.tipologia_contratto = request.POST.get("tipologia_contratto", "").strip()
+    contratto.codice_livello = codice_liv
+    contratto.descrizione_livello = desc_liv
+    contratto.qualifica_nome = request.POST.get("qualifica_nome", "").strip()
+    contratto.save()
+    messages.success(request, "Record contrattuale aggiornato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -1517,12 +2223,12 @@ def mansione_create(request):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare mansioni.")
-        return redirect("anagrafica:mansioni_list")
+        return _back_to_caller(request, "anagrafica:mansioni_list")
 
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome della mansione è obbligatorio.")
-        return redirect("anagrafica:mansioni_list")
+        return _back_to_caller(request, "anagrafica:mansioni_list")
 
     _, created = Mansione.objects.get_or_create(
         nome__iexact=nome,
@@ -1537,7 +2243,7 @@ def mansione_create(request):
         messages.success(request, f'Mansione "{nome}" creata.')
     else:
         messages.warning(request, f'Esiste già una mansione con il nome "{nome}".')
-    return redirect("anagrafica:mansioni_list")
+    return _back_to_caller(request, "anagrafica:mansioni_list")
 
 
 @login_required
@@ -1546,13 +2252,13 @@ def mansione_edit(request, mansione_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare mansioni.")
-        return redirect("anagrafica:mansioni_list")
+        return _back_to_caller(request, "anagrafica:mansioni_list")
 
     mansione = get_object_or_404(Mansione, pk=mansione_id)
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome della mansione è obbligatorio.")
-        return redirect("anagrafica:mansioni_list")
+        return _back_to_caller(request, "anagrafica:mansioni_list")
 
     mansione.nome = nome
     mansione.categoria = (request.POST.get("categoria") or "").strip()[:20]
@@ -1561,7 +2267,7 @@ def mansione_edit(request, mansione_id: int):
     mansione.is_active = request.POST.get("is_active") == "1"
     mansione.save()
     messages.success(request, f'Mansione "{mansione.nome}" aggiornata.')
-    return redirect("anagrafica:mansioni_list")
+    return _back_to_caller(request, "anagrafica:mansioni_list")
 
 
 @login_required
@@ -1570,13 +2276,13 @@ def mansione_delete(request, mansione_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare mansioni.")
-        return redirect("anagrafica:mansioni_list")
+        return _back_to_caller(request, "anagrafica:mansioni_list")
 
     mansione = get_object_or_404(Mansione, pk=mansione_id)
     nome = mansione.nome
     mansione.delete()
     messages.success(request, f'Mansione "{nome}" eliminata.')
-    return redirect("anagrafica:mansioni_list")
+    return _back_to_caller(request, "anagrafica:mansioni_list")
 
 
 # ---------------------------------------------------------------------------
@@ -1600,11 +2306,11 @@ def area_create(request):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare aree.")
-        return redirect("anagrafica:aree_list")
+        return _back_to_caller(request, "anagrafica:aree_list")
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome dell'area è obbligatorio.")
-        return redirect("anagrafica:aree_list")
+        return _back_to_caller(request, "anagrafica:aree_list")
     _, created = AreaAziendale.objects.get_or_create(
         nome__iexact=nome,
         defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
@@ -1613,7 +2319,7 @@ def area_create(request):
         messages.success(request, f'Area "{nome}" creata.')
     else:
         messages.warning(request, f'Esiste già un\'area con il nome "{nome}".')
-    return redirect("anagrafica:aree_list")
+    return _back_to_caller(request, "anagrafica:aree_list")
 
 
 @login_required
@@ -1622,18 +2328,18 @@ def area_edit(request, area_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare aree.")
-        return redirect("anagrafica:aree_list")
+        return _back_to_caller(request, "anagrafica:aree_list")
     area = get_object_or_404(AreaAziendale, pk=area_id)
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
         messages.error(request, "Il nome dell'area è obbligatorio.")
-        return redirect("anagrafica:aree_list")
+        return _back_to_caller(request, "anagrafica:aree_list")
     area.nome = nome
     area.descrizione = (request.POST.get("descrizione") or "").strip()
     area.is_active = request.POST.get("is_active") == "1"
     area.save()
     messages.success(request, f'Area "{area.nome}" aggiornata.')
-    return redirect("anagrafica:aree_list")
+    return _back_to_caller(request, "anagrafica:aree_list")
 
 
 @login_required
@@ -1642,12 +2348,12 @@ def area_delete(request, area_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare aree.")
-        return redirect("anagrafica:aree_list")
+        return _back_to_caller(request, "anagrafica:aree_list")
     area = get_object_or_404(AreaAziendale, pk=area_id)
     nome = area.nome
     area.delete()
     messages.success(request, f'Area "{nome}" eliminata.')
-    return redirect("anagrafica:aree_list")
+    return _back_to_caller(request, "anagrafica:aree_list")
 
 
 # ---------------------------------------------------------------------------
@@ -1671,11 +2377,11 @@ def ruolo_aziendale_create(request):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare ruoli aziendali.")
-        return redirect("anagrafica:ruoli_aziendali_list")
+        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     nome = (request.POST.get("nome") or "").strip()[:200]
     if not nome:
         messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return redirect("anagrafica:ruoli_aziendali_list")
+        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     _, created = RuoloAziendale.objects.get_or_create(
         nome__iexact=nome,
         defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
@@ -1684,7 +2390,7 @@ def ruolo_aziendale_create(request):
         messages.success(request, f'Ruolo aziendale "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un ruolo aziendale con il nome "{nome}".')
-    return redirect("anagrafica:ruoli_aziendali_list")
+    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
 
 
 @login_required
@@ -1693,18 +2399,18 @@ def ruolo_aziendale_edit(request, ruolo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare ruoli aziendali.")
-        return redirect("anagrafica:ruoli_aziendali_list")
+        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
     nome = (request.POST.get("nome") or "").strip()[:200]
     if not nome:
         messages.error(request, "Il nome del ruolo è obbligatorio.")
-        return redirect("anagrafica:ruoli_aziendali_list")
+        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     ruolo.nome = nome
     ruolo.descrizione = (request.POST.get("descrizione") or "").strip()
     ruolo.is_active = request.POST.get("is_active") == "1"
     ruolo.save()
     messages.success(request, f'Ruolo aziendale "{ruolo.nome}" aggiornato.')
-    return redirect("anagrafica:ruoli_aziendali_list")
+    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
 
 
 @login_required
@@ -1713,12 +2419,12 @@ def ruolo_aziendale_delete(request, ruolo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare ruoli aziendali.")
-        return redirect("anagrafica:ruoli_aziendali_list")
+        return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
     ruolo = get_object_or_404(RuoloAziendale, pk=ruolo_id)
     nome = ruolo.nome
     ruolo.delete()
     messages.success(request, f'Ruolo aziendale "{nome}" eliminato.')
-    return redirect("anagrafica:ruoli_aziendali_list")
+    return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
 
 
 # ---------------------------------------------------------------------------
@@ -1814,12 +2520,12 @@ def tipo_qualifica_create(request):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare tipi di qualifica.")
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     nome = (request.POST.get("nome") or "").strip()[:150]
     if not nome:
         messages.error(request, "Il nome della qualifica è obbligatorio.")
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     durata_raw = request.POST.get("durata_mesi") or "0"
     try:
@@ -1840,7 +2546,7 @@ def tipo_qualifica_create(request):
         messages.success(request, f'Tipo qualifica "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un tipo qualifica con il nome "{nome}".')
-    return redirect("anagrafica:qualifiche_list")
+    return _back_to_caller(request, "anagrafica:qualifiche_list")
 
 
 @login_required
@@ -1849,13 +2555,13 @@ def tipo_qualifica_edit(request, tipo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare tipi di qualifica.")
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
     nome = (request.POST.get("nome") or "").strip()[:150]
     if not nome:
         messages.error(request, "Il nome della qualifica è obbligatorio.")
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     durata_raw = request.POST.get("durata_mesi") or "0"
     try:
@@ -1870,7 +2576,7 @@ def tipo_qualifica_edit(request, tipo_id: int):
     tipo.is_active = request.POST.get("is_active") == "1"
     tipo.save()
     messages.success(request, f'Tipo qualifica "{tipo.nome}" aggiornato.')
-    return redirect("anagrafica:qualifiche_list")
+    return _back_to_caller(request, "anagrafica:qualifiche_list")
 
 
 @login_required
@@ -1879,14 +2585,356 @@ def tipo_qualifica_delete(request, tipo_id: int):
     legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare tipi di qualifica.")
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
     if tipo.assegnazioni.exists():
         messages.error(request, f'"{tipo.nome}" ha assegnazioni attive — non eliminabile.')
-        return redirect("anagrafica:qualifiche_list")
+        return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     nome = tipo.nome
     tipo.delete()
     messages.success(request, f'Tipo qualifica "{nome}" eliminato.')
-    return redirect("anagrafica:qualifiche_list")
+    return _back_to_caller(request, "anagrafica:qualifiche_list")
+
+
+# ---------------------------------------------------------------------------
+# Helper: redirect verso il pannello impostazioni con tab attivo
+# ---------------------------------------------------------------------------
+
+def _redirect_impostazioni(tab: str | None = None):
+    url = reverse("anagrafica:impostazioni")
+    if tab:
+        url = f"{url}?tab={tab}#tab-{tab}"
+    return HttpResponseRedirect(url)
+
+
+def _back_to_caller(request, fallback_view_name: str):
+    """
+    Redirect intelligente per le view CRUD dei cataloghi: se il form proviene dal
+    pannello impostazioni (campo nascosto `next_tab`) torna lì, altrimenti
+    redirige alla pagina di lista standalone.
+    """
+    next_tab = (request.POST.get("next_tab") or "").strip()
+    if next_tab:
+        return _redirect_impostazioni(next_tab)
+    return redirect(fallback_view_name)
+
+
+def _impostazioni_admin_check(request, tab: str | None = None):
+    """Restituisce (is_admin, redirect_response_or_None)."""
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Permessi insufficienti.")
+        return False, _redirect_impostazioni(tab)
+    return True, None
+
+
+# ---------------------------------------------------------------------------
+# Livelli contrattuali — catalogo (CRUD)
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def livello_contrattuale_create(request):
+    ok, resp = _impostazioni_admin_check(request, "livelli")
+    if not ok:
+        return resp
+
+    codice = (request.POST.get("codice") or "").strip().upper()[:10]
+    if not codice:
+        messages.error(request, "Il codice del livello è obbligatorio.")
+        return _redirect_impostazioni("livelli")
+
+    descrizione = (request.POST.get("descrizione") or "").strip()[:200]
+    try:
+        ordine = max(0, int(request.POST.get("ordine") or "0"))
+    except ValueError:
+        ordine = 0
+
+    _, created = LivelloContrattuale.objects.get_or_create(
+        codice=codice,
+        defaults={"descrizione": descrizione, "ordine": ordine},
+    )
+    if created:
+        messages.success(request, f'Livello "{codice}" creato.')
+    else:
+        messages.warning(request, f'Esiste già un livello con codice "{codice}".')
+    return _redirect_impostazioni("livelli")
+
+
+@login_required
+@require_POST
+def livello_contrattuale_edit(request, livello_id: int):
+    ok, resp = _impostazioni_admin_check(request, "livelli")
+    if not ok:
+        return resp
+
+    livello = get_object_or_404(LivelloContrattuale, pk=livello_id)
+    codice = (request.POST.get("codice") or "").strip().upper()[:10]
+    if not codice:
+        messages.error(request, "Il codice del livello è obbligatorio.")
+        return _redirect_impostazioni("livelli")
+
+    try:
+        ordine = max(0, int(request.POST.get("ordine") or "0"))
+    except ValueError:
+        ordine = 0
+
+    livello.codice = codice
+    livello.descrizione = (request.POST.get("descrizione") or "").strip()[:200]
+    livello.ordine = ordine
+    livello.is_active = request.POST.get("is_active") == "1"
+    livello.save()
+    messages.success(request, f'Livello "{livello.codice}" aggiornato.')
+    return _redirect_impostazioni("livelli")
+
+
+@login_required
+@require_POST
+def livello_contrattuale_delete(request, livello_id: int):
+    ok, resp = _impostazioni_admin_check(request, "livelli")
+    if not ok:
+        return resp
+
+    livello = get_object_or_404(LivelloContrattuale, pk=livello_id)
+    codice = livello.codice
+    # Controllo se esistono StoricoContratto con questo codice
+    if StoricoContratto.objects.filter(codice_livello=codice).exists():
+        messages.error(
+            request,
+            f'"{codice}" è referenziato nello storico contrattuale — non eliminabile. Disattivalo.',
+        )
+        return _redirect_impostazioni("livelli")
+
+    livello.delete()
+    messages.success(request, f'Livello "{codice}" eliminato.')
+    return _redirect_impostazioni("livelli")
+
+
+# ---------------------------------------------------------------------------
+# Tipologie contratto — catalogo (CRUD)
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def tipologia_contratto_create(request):
+    ok, resp = _impostazioni_admin_check(request, "tipologie")
+    if not ok:
+        return resp
+
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not codice or not nome:
+        messages.error(request, "Codice e nome della tipologia sono obbligatori.")
+        return _redirect_impostazioni("tipologie")
+
+    try:
+        ordine = max(0, int(request.POST.get("ordine") or "0"))
+    except ValueError:
+        ordine = 0
+
+    _, created = TipologiaContratto.objects.get_or_create(
+        codice=codice,
+        defaults={"nome": nome, "ordine": ordine},
+    )
+    if created:
+        messages.success(request, f'Tipologia "{codice}" creata.')
+    else:
+        messages.warning(request, f'Esiste già una tipologia con codice "{codice}".')
+    return _redirect_impostazioni("tipologie")
+
+
+@login_required
+@require_POST
+def tipologia_contratto_edit(request, tipologia_id: int):
+    ok, resp = _impostazioni_admin_check(request, "tipologie")
+    if not ok:
+        return resp
+
+    tipologia = get_object_or_404(TipologiaContratto, pk=tipologia_id)
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not codice or not nome:
+        messages.error(request, "Codice e nome della tipologia sono obbligatori.")
+        return _redirect_impostazioni("tipologie")
+
+    try:
+        ordine = max(0, int(request.POST.get("ordine") or "0"))
+    except ValueError:
+        ordine = 0
+
+    tipologia.codice = codice
+    tipologia.nome = nome
+    tipologia.ordine = ordine
+    tipologia.is_active = request.POST.get("is_active") == "1"
+    tipologia.save()
+    messages.success(request, f'Tipologia "{tipologia.codice}" aggiornata.')
+    return _redirect_impostazioni("tipologie")
+
+
+@login_required
+@require_POST
+def tipologia_contratto_delete(request, tipologia_id: int):
+    ok, resp = _impostazioni_admin_check(request, "tipologie")
+    if not ok:
+        return resp
+
+    tipologia = get_object_or_404(TipologiaContratto, pk=tipologia_id)
+    codice = tipologia.codice
+    if StoricoContratto.objects.filter(tipologia_contratto=codice).exists():
+        messages.error(
+            request,
+            f'"{codice}" è referenziata nello storico contrattuale — non eliminabile. Disattivala.',
+        )
+        return _redirect_impostazioni("tipologie")
+
+    tipologia.delete()
+    messages.success(request, f'Tipologia "{codice}" eliminata.')
+    return _redirect_impostazioni("tipologie")
+
+
+# ---------------------------------------------------------------------------
+# Pannello impostazioni anagrafica — vista aggregata con tabs
+# ---------------------------------------------------------------------------
+
+@login_required
+def impostazioni(request):
+    """Pannello unico di gestione dei cataloghi/configurazioni del modulo anagrafica."""
+    from datetime import timedelta
+    from django.utils import timezone as tz
+
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+
+    active_tab = (request.GET.get("tab") or "mansioni").strip().lower()
+
+    # --- Mansioni ---
+    mansioni = list(Mansione.objects.all().order_by("nome"))
+    mansione_counts: dict[str, int] = {}
+    try:
+        from django.db import connections
+        conn_name = "legacy" if "legacy" in connections else "default"
+        with connections[conn_name].cursor() as cur:
+            cur.execute(
+                "SELECT LOWER(mansione), COUNT(*) FROM anagrafica_dipendenti "
+                "WHERE mansione IS NOT NULL AND mansione != '' GROUP BY LOWER(mansione)"
+            )
+            for row in cur.fetchall():
+                mansione_counts[row[0]] = row[1]
+    except Exception:
+        pass
+    for m in mansioni:
+        m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
+
+    cat_order = [c for c, _ in Mansione.CATEGORIA_CHOICES]
+    cat_labels = dict(Mansione.CATEGORIA_CHOICES)
+    mansioni_grouped: list[tuple[str, str, list]] = []
+    for cat_code in cat_order:
+        items = [m for m in mansioni if (m.categoria or Mansione.CAT_ALTRO) == cat_code]
+        if items:
+            mansioni_grouped.append((cat_code, cat_labels[cat_code], items))
+
+    # --- Aree aziendali ---
+    aree = list(AreaAziendale.objects.all().order_by("nome"))
+
+    # --- Ruoli aziendali ---
+    ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))
+
+    # --- Ruoli operativi sicurezza ---
+    ruoli_operativi = RuoloOperativo.objects.annotate(
+        n_assegnati=Count("assegnazioni")
+    ).order_by("nome")
+
+    # --- Qualifiche professionali ---
+    tipi_qualifica = list(
+        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni"))
+        .order_by("categoria", "nome")
+    )
+    oggi = tz.localdate()
+    soglia_q = oggi + timedelta(days=60)
+    scadenze_q_count = DipendenteQualifica.objects.filter(
+        data_scadenza__isnull=False, data_scadenza__lte=soglia_q
+    ).count()
+
+    # --- Livelli contrattuali ---
+    livelli = list(LivelloContrattuale.objects.all().order_by("ordine", "codice"))
+
+    # --- Tipologie contratto ---
+    tipologie = list(TipologiaContratto.objects.all().order_by("ordine", "codice"))
+
+    # --- Permessi HR / widget statistiche (singleton) ---
+    stat_perm = AnagraficaStatPermission.get_instance()
+    hr_perm = AnagraficaHRPermission.get_instance()
+    try:
+        from core.legacy_models import Ruolo
+        ruoli_acl = list(Ruolo.objects.order_by("nome"))
+    except Exception:
+        ruoli_acl = []
+
+    return render(request, "anagrafica/pages/impostazioni.html", {
+        "is_admin": is_admin,
+        "active_tab": active_tab,
+        # Mansioni
+        "mansioni": mansioni,
+        "mansioni_grouped": mansioni_grouped,
+        "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
+        # Aree
+        "aree": aree,
+        # Ruoli aziendali
+        "ruoli_aziendali": ruoli_aziendali,
+        # Ruoli operativi
+        "ruoli_operativi": ruoli_operativi,
+        # Qualifiche
+        "tipi_qualifica": tipi_qualifica,
+        "QUAL_CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
+        "scadenze_q_count": scadenze_q_count,
+        # Livelli
+        "livelli": livelli,
+        # Tipologie
+        "tipologie": tipologie,
+        # Permessi
+        "stat_perm": stat_perm,
+        "hr_perm": hr_perm,
+        "ruoli_acl": ruoli_acl,
+        "ACCESSO_TUTTI": AnagraficaStatPermission.ACCESSO_TUTTI,
+        "ACCESSO_ADMIN": AnagraficaStatPermission.ACCESSO_ADMIN,
+        "ACCESSO_RUOLI": AnagraficaStatPermission.ACCESSO_RUOLI,
+    })
+
+
+@login_required
+@require_POST
+def impostazioni_permessi_save(request):
+    """Salvataggio combinato dei permessi statistiche e dati HR riservati."""
+    ok, resp = _impostazioni_admin_check(request, "permessi")
+    if not ok:
+        return resp
+
+    def _parse_accesso(prefix: str) -> str:
+        val = (request.POST.get(f"{prefix}_accesso") or "").strip()
+        if val in (
+            AnagraficaStatPermission.ACCESSO_TUTTI,
+            AnagraficaStatPermission.ACCESSO_ADMIN,
+            AnagraficaStatPermission.ACCESSO_RUOLI,
+        ):
+            return val
+        return AnagraficaStatPermission.ACCESSO_ADMIN
+
+    def _parse_ruoli(prefix: str) -> list[int]:
+        raw = request.POST.getlist(f"{prefix}_ruolo_ids")
+        return [int(r) for r in raw if str(r).isdigit()]
+
+    stat_perm = AnagraficaStatPermission.get_instance()
+    stat_perm.accesso = _parse_accesso("stat")
+    stat_perm.ruolo_ids = _parse_ruoli("stat")
+    stat_perm.save()
+
+    hr_perm = AnagraficaHRPermission.get_instance()
+    hr_perm.accesso = _parse_accesso("hr")
+    hr_perm.ruolo_ids = _parse_ruoli("hr")
+    hr_perm.save()
+
+    messages.success(request, "Permessi salvati.")
+    return _redirect_impostazioni("permessi")

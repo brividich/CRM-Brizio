@@ -53,6 +53,7 @@ urlpatterns = [
     path("approval-actions/", include(("automazioni.approval_proxy_urls", "approval_proxy"), namespace="approval_proxy")),
     path("monitoring/", include(("monitoring.urls", "monitoring"), namespace="monitoring")),
     path("anagrafica/", include(("anagrafica.urls", "anagrafica"), namespace="anagrafica")),
+    path("fornitori/", include(("fornitori.urls", "fornitori"), namespace="fornitori")),
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),
     path("tickets/",    include(("tickets.urls",    "tickets"),    namespace="tickets")),
     path("diario-preposto/", include(("diario_preposto.urls", "diario_preposto"), namespace="diario_preposto")),

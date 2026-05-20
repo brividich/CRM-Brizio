@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Fornitori | Anagrafica{% endblock %}
+{% block title %}Fornitori | Anagrafica Fornitori{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -90,7 +90,7 @@ body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(
 </style>
 {% endblock %}
 
-{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
 
 {% block content %}
 <div class="ana-page">
@@ -101,7 +101,7 @@ body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(
       <div class="ana-title">Fornitori</div>
       <div class="ana-sub">Anagrafica completa dei fornitori aziendali</div>
     </div>
-    <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:fornitore_create' %}">+ Nuovo fornitore</a>
+    <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo fornitore</a>
   </div>
 
   <!-- KPI -->
@@ -123,7 +123,7 @@ body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(
     </div>
   </div>
 
-  {% include "anagrafica/components/flash_messages.html" %}
+  {% include "fornitori/components/flash_messages.html" %}
 
   <!-- Filtri -->
   <form method="get" class="ana-search-bar">
@@ -145,7 +145,7 @@ body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(
     </label>
     <div style="display:flex;gap:8px;padding-top:20px;">
       <button class="ana-btn ana-btn-primary" type="submit">Filtra</button>
-      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">Reset</a>
+      <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">Reset</a>
     </div>
   </form>
 
@@ -198,7 +198,7 @@ body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(
                 <span class="ana-pill ana-pill-red">Inattivo</span>
               {% endif %}
             </td>
-            <td><a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'anagrafica:fornitore_detail' f.pk %}">Apri →</a></td>
+            <td><a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:fornitore_detail' f.pk %}">Apri →</a></td>
           </tr>
           {% empty %}
           <tr><td colspan="9" class="ana-empty">Nessun fornitore trovato.</td></tr>

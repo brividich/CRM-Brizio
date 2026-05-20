@@ -1,0 +1,1103 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni Anagrafica | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ============================================================
+   Pannello impostazioni anagrafica — UI a tabs verticali
+   ============================================================ */
+#imp-root { display:flex; flex-direction:column; gap:18px; }
+
+.imp-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%);
+  border-radius:16px; padding:24px 28px; color:#fff;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+}
+.imp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.imp-hero-sub { font-size:13px; opacity:.85; margin-top:3px; }
+
+.imp-noperm {
+  background:#fef3c7; border:1px solid #fde68a; color:#92400e;
+  border-radius:12px; padding:14px 18px; font-size:13px; font-weight:600;
+}
+
+.imp-layout {
+  display:grid; grid-template-columns:240px 1fr; gap:18px; align-items:start;
+}
+.imp-tabs {
+  position:sticky; top:14px; display:flex; flex-direction:column; gap:4px;
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:10px;
+}
+.imp-tab {
+  display:flex; align-items:center; gap:10px; padding:9px 12px;
+  border-radius:9px; font-size:13px; font-weight:600;
+  text-decoration:none; color:#475569; cursor:pointer;
+  background:transparent; border:none; text-align:left; width:100%;
+}
+.imp-tab:hover { background:#f1f5f9; color:#0f172a; }
+.imp-tab.active { background:#1d4ed8; color:#fff; }
+.imp-tab .imp-tab-icon { font-size:16px; width:18px; text-align:center; }
+.imp-tab .imp-tab-count { margin-left:auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#e2e8f0; color:#475569; }
+.imp-tab.active .imp-tab-count { background:rgba(255,255,255,.25); color:#fff; }
+
+.imp-content { display:flex; flex-direction:column; gap:16px; }
+.imp-panel { display:none; flex-direction:column; gap:16px; }
+.imp-panel.active { display:flex; }
+
+.imp-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.imp-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.imp-card-title { font-size:15px; font-weight:800; color:#0f172a; }
+.imp-card-sub { font-size:12px; color:#64748b; margin-top:2px; }
+
+/* Form add */
+.imp-add-form { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; align-items:end; }
+.imp-field { display:flex; flex-direction:column; gap:3px; }
+.imp-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.imp-input, .imp-select, .imp-textarea {
+  width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:9px; font-size:13px;
+  background:#f8fafc; color:#0f172a; outline:none; box-sizing:border-box;
+}
+.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1d4ed8; background:#fff; }
+.imp-textarea { resize:vertical; min-height:60px; }
+.imp-color { width:42px; height:36px; padding:2px; border-radius:8px; border:1px solid #d1d5db; cursor:pointer; }
+
+.imp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:12px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:background .15s; }
+.imp-btn-primary { background:#1d4ed8; color:#fff; }
+.imp-btn-primary:hover { background:#1e40af; }
+.imp-btn-green { background:#16a34a; color:#fff; }
+.imp-btn-green:hover { background:#15803d; }
+.imp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.imp-btn-ghost:hover { background:#e2e8f0; }
+.imp-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.imp-btn-danger:hover { background:#fecaca; }
+.imp-btn-sm { padding:4px 10px; font-size:11px; border-radius:7px; }
+
+/* Lista item */
+.imp-cat-title { font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:10px 0 6px; }
+.imp-list { display:flex; flex-direction:column; gap:8px; }
+.imp-row {
+  display:flex; align-items:center; gap:12px; padding:10px 14px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+  flex-wrap:wrap;
+}
+.imp-row.inactive { opacity:.55; }
+.imp-row-main { flex:1; min-width:0; }
+.imp-row-name { font-size:13px; font-weight:700; color:#0f172a; }
+.imp-row-meta { font-size:11px; color:#64748b; margin-top:2px; }
+.imp-row-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.imp-dot { display:inline-block; width:10px; height:10px; border-radius:50%; vertical-align:middle; }
+
+.imp-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+.imp-badge-blue { background:#dbeafe; color:#1d4ed8; }
+.imp-badge-green { background:#dcfce7; color:#166534; }
+.imp-badge-gray { background:#f1f5f9; color:#475569; }
+.imp-badge-orange { background:#ffedd5; color:#c2410c; }
+.imp-badge-red { background:#fee2e2; color:#b91c1c; }
+
+.imp-empty { padding:18px; text-align:center; color:#94a3b8; font-size:13px; }
+
+/* Modale edit */
+.imp-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
+.imp-modal-overlay.open { display:flex; }
+.imp-modal { background:#fff; border-radius:14px; padding:22px 26px; width:min(520px, 95vw); max-height:90vh; overflow-y:auto; position:relative; }
+.imp-modal-title { font-size:16px; font-weight:800; color:#0f172a; margin-bottom:16px; }
+.imp-modal-close { position:absolute; top:10px; right:14px; font-size:20px; cursor:pointer; color:#64748b; background:none; border:none; }
+.imp-modal-body { display:flex; flex-direction:column; gap:10px; }
+.imp-modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+
+/* Tab permessi */
+.imp-perm-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.imp-perm-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+.imp-perm-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:10px; }
+.imp-perm-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:#1e293b; }
+.imp-perm-row input[type=radio] { transform:scale(1.05); }
+.imp-perm-ruoli { display:none; flex-direction:column; gap:6px; margin-top:8px; padding:10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:200px; overflow-y:auto; }
+.imp-perm-ruoli.open { display:flex; }
+.imp-perm-ruoli label { display:flex; align-items:center; gap:8px; font-size:12px; color:#1e293b; cursor:pointer; padding:3px 4px; border-radius:5px; }
+.imp-perm-ruoli label:hover { background:#f1f5f9; }
+
+@media (max-width:900px) {
+  .imp-layout { grid-template-columns:1fr; }
+  .imp-tabs { position:static; flex-direction:row; flex-wrap:wrap; }
+  .imp-perm-grid { grid-template-columns:1fr; }
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .imp-tabs { background:var(--surface); border-color:var(--border); }
+body.theme-dark .imp-tab { color:var(--text-mid); }
+body.theme-dark .imp-tab:hover { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .imp-tab.active { background:#1d4ed8; color:#fff; }
+body.theme-dark .imp-tab .imp-tab-count { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .imp-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .imp-card-title { color:var(--text); }
+body.theme-dark .imp-input, body.theme-dark .imp-select, body.theme-dark .imp-textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .imp-label { color:var(--text-light); }
+body.theme-dark .imp-cat-title { color:var(--text-light); }
+body.theme-dark .imp-row { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .imp-row-name { color:var(--text); }
+body.theme-dark .imp-row-meta { color:var(--text-light); }
+body.theme-dark .imp-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .imp-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .imp-modal { background:var(--surface); }
+body.theme-dark .imp-modal-title { color:var(--text); }
+body.theme-dark .imp-empty { color:var(--text-light); }
+body.theme-dark .imp-noperm { background:rgba(146,64,14,.2); color:#fcd34d; border-color:rgba(253,230,138,.3); }
+body.theme-dark .imp-perm-card { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .imp-perm-title { color:var(--text); }
+body.theme-dark .imp-perm-row { color:var(--text-mid); }
+body.theme-dark .imp-perm-ruoli { background:var(--surface); border-color:var(--border); }
+body.theme-dark .imp-perm-ruoli label { color:var(--text-mid); }
+body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div id="imp-root">
+
+  <div class="imp-hero">
+    <div>
+      <div class="imp-hero-title">⚙️ Impostazioni Anagrafica</div>
+      <div class="imp-hero-sub">Gestione cataloghi, permessi e configurazioni del modulo</div>
+    </div>
+  </div>
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  {% if not is_admin %}
+    <div class="imp-noperm">
+      ⚠️ Sei in modalità sola lettura. Le modifiche sono riservate agli amministratori.
+    </div>
+  {% endif %}
+
+  <div class="imp-layout">
+
+    <!-- Sidebar tabs -->
+    <nav class="imp-tabs">
+      <button class="imp-tab" data-tab="mansioni" type="button">
+        <span class="imp-tab-icon">👷</span> Mansioni
+        <span class="imp-tab-count">{{ mansioni|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="aree" type="button">
+        <span class="imp-tab-icon">🏢</span> Aree aziendali
+        <span class="imp-tab-count">{{ aree|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="ruoli-aziendali" type="button">
+        <span class="imp-tab-icon">💼</span> Ruoli aziendali
+        <span class="imp-tab-count">{{ ruoli_aziendali|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="ruoli-operativi" type="button">
+        <span class="imp-tab-icon">🦺</span> Ruoli operativi
+        <span class="imp-tab-count">{{ ruoli_operativi|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="qualifiche" type="button">
+        <span class="imp-tab-icon">🎓</span> Qualifiche
+        <span class="imp-tab-count">{{ tipi_qualifica|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="livelli" type="button">
+        <span class="imp-tab-icon">📊</span> Livelli CCNL
+        <span class="imp-tab-count">{{ livelli|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="tipologie" type="button">
+        <span class="imp-tab-icon">📑</span> Tipologie contratto
+        <span class="imp-tab-count">{{ tipologie|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="permessi" type="button">
+        <span class="imp-tab-icon">🔒</span> Permessi
+      </button>
+    </nav>
+
+    <!-- Content -->
+    <div class="imp-content">
+
+      <!-- ============= MANSIONI ============= -->
+      <section class="imp-panel" data-panel="mansioni" id="tab-mansioni">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Catalogo mansioni</div>
+              <div class="imp-card-sub">Job title CCNL assegnabili ai dipendenti (operaio, impiegato, quadro, dirigente)</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:mansione_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="mansioni">
+            <div class="imp-field" style="flex:2 1 220px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Operaio specializzato">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Categoria</label>
+              <select class="imp-select" name="categoria">
+                <option value="">—</option>
+                {% for code, label in CATEGORIA_CHOICES %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Colore</label>
+              <input class="imp-color" type="color" name="colore" value="#64748b">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          {% for cat_code, cat_label, items in mansioni_grouped %}
+            <div class="imp-cat-title">{{ cat_label }} ({{ items|length }})</div>
+            <div class="imp-list">
+              {% for m in items %}
+                <div class="imp-row {% if not m.is_active %}inactive{% endif %}">
+                  <span class="imp-dot" style="background:{{ m.colore|default:'#64748b' }};"></span>
+                  <div class="imp-row-main">
+                    <div class="imp-row-name">{{ m.nome }}</div>
+                    <div class="imp-row-meta">
+                      {{ m.n_dipendenti|default:0 }} dipendenti
+                      {% if not m.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                    </div>
+                  </div>
+                  {% if is_admin %}
+                  <div class="imp-row-actions">
+                    <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
+                            data-modal="mansione-edit-{{ m.id }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:mansione_delete' m.id %}" style="display:inline;"
+                          onsubmit="return confirm('Eliminare la mansione &quot;{{ m.nome|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="next_tab" value="mansioni">
+                      <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+
+                {% if is_admin %}
+                <div class="imp-modal-overlay" id="modal-mansione-edit-{{ m.id }}">
+                  <div class="imp-modal">
+                    <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                    <div class="imp-modal-title">Modifica mansione</div>
+                    <form method="post" action="{% url 'anagrafica:mansione_edit' m.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next_tab" value="mansioni">
+                      <div class="imp-modal-body">
+                        <div class="imp-field">
+                          <label class="imp-label">Nome *</label>
+                          <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ m.nome }}">
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label">Categoria</label>
+                          <select class="imp-select" name="categoria">
+                            <option value="">—</option>
+                            {% for code, label in CATEGORIA_CHOICES %}
+                              <option value="{{ code }}" {% if m.categoria == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label">Descrizione</label>
+                          <textarea class="imp-textarea" name="descrizione">{{ m.descrizione }}</textarea>
+                        </div>
+                        <div class="imp-field" style="flex-direction:row;align-items:center;gap:6px;">
+                          <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" name="is_active" value="1" {% if m.is_active %}checked{% endif %}>
+                            Attiva
+                          </label>
+                        </div>
+                        <div class="imp-field" style="flex-direction:row;align-items:center;gap:8px;">
+                          <label class="imp-label" style="margin:0;">Colore</label>
+                          <input class="imp-color" type="color" name="colore" value="{{ m.colore|default:'#64748b' }}">
+                        </div>
+                      </div>
+                      <div class="imp-modal-footer">
+                        <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                        <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% empty %}
+            <div class="imp-empty">Nessuna mansione registrata.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ============= AREE AZIENDALI ============= -->
+      <section class="imp-panel" data-panel="aree" id="tab-aree">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Aree aziendali</div>
+              <div class="imp-card-sub">Catalogo aree selezionabili nell'anagrafica aziendale del dipendente</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:area_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="aree">
+            <div class="imp-field" style="flex:2 1 220px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Produzione">
+            </div>
+            <div class="imp-field" style="flex:3 1 280px;">
+              <label class="imp-label">Descrizione</label>
+              <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for a in aree %}
+              <div class="imp-row {% if not a.is_active %}inactive{% endif %}">
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ a.nome }}</div>
+                  {% if a.descrizione %}<div class="imp-row-meta">{{ a.descrizione }}</div>{% endif %}
+                  {% if not a.is_active %}<span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="area-edit-{{ a.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:area_delete' a.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare l\'area &quot;{{ a.nome|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="aree">
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-area-edit-{{ a.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica area</div>
+                  <form method="post" action="{% url 'anagrafica:area_edit' a.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="aree">
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ a.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <textarea class="imp-textarea" name="descrizione">{{ a.descrizione }}</textarea>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if a.is_active %}checked{% endif %}>
+                          Attiva
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessuna area registrata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= RUOLI AZIENDALI ============= -->
+      <section class="imp-panel" data-panel="ruoli-aziendali" id="tab-ruoli-aziendali">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Ruoli aziendali</div>
+              <div class="imp-card-sub">Catalogo dei ruoli aziendali, distinti dalla mansione CCNL</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:ruolo_aziendale_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="ruoli-aziendali">
+            <div class="imp-field" style="flex:2 1 220px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="200" required placeholder="Es. Responsabile produzione">
+            </div>
+            <div class="imp-field" style="flex:3 1 280px;">
+              <label class="imp-label">Descrizione</label>
+              <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for r in ruoli_aziendali %}
+              <div class="imp-row {% if not r.is_active %}inactive{% endif %}">
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ r.nome }}</div>
+                  {% if r.descrizione %}<div class="imp-row-meta">{{ r.descrizione }}</div>{% endif %}
+                  {% if not r.is_active %}<span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="ruoloaz-edit-{{ r.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:ruolo_aziendale_delete' r.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare il ruolo &quot;{{ r.nome|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="ruoli-aziendali">
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-ruoloaz-edit-{{ r.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica ruolo aziendale</div>
+                  <form method="post" action="{% url 'anagrafica:ruolo_aziendale_edit' r.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="ruoli-aziendali">
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="200" required value="{{ r.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <textarea class="imp-textarea" name="descrizione">{{ r.descrizione }}</textarea>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if r.is_active %}checked{% endif %}>
+                          Attivo
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessun ruolo aziendale registrato.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= RUOLI OPERATIVI ============= -->
+      <section class="imp-panel" data-panel="ruoli-operativi" id="tab-ruoli-operativi">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Ruoli operativi sicurezza</div>
+              <div class="imp-card-sub">Preposto, RSPP, ASPP, RLS, addetti antincendio/primo soccorso — assegnabili ai dipendenti</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="ruoli-operativi">
+            <div class="imp-field" style="flex:2 1 200px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Preposto">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Icona</label>
+              <input class="imp-input" type="text" name="icona" maxlength="10" placeholder="🦺">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Colore</label>
+              <input class="imp-color" type="color" name="colore" value="#64748b">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for ro in ruoli_operativi %}
+              <div class="imp-row {% if not ro.is_active %}inactive{% endif %}">
+                <span class="imp-dot" style="background:{{ ro.colore|default:'#64748b' }};"></span>
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ ro.icona }} {{ ro.nome }}</div>
+                  <div class="imp-row-meta">
+                    {{ ro.n_assegnati|default:0 }} assegnati
+                    {% if ro.descrizione %} · {{ ro.descrizione }}{% endif %}
+                    {% if not ro.is_active %} · <span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
+                  </div>
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="ruoloop-edit-{{ ro.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:ruolo_operativo_delete' ro.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare il ruolo operativo &quot;{{ ro.nome|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="ruoli-operativi">
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-ruoloop-edit-{{ ro.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica ruolo operativo</div>
+                  <form method="post" action="{% url 'anagrafica:ruolo_operativo_edit' ro.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="ruoli-operativi">
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ ro.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Icona</label>
+                        <input class="imp-input" type="text" name="icona" maxlength="10" value="{{ ro.icona }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Colore</label>
+                        <input class="imp-color" type="color" name="colore" value="{{ ro.colore|default:'#64748b' }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <textarea class="imp-textarea" name="descrizione">{{ ro.descrizione }}</textarea>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if ro.is_active %}checked{% endif %}>
+                          Attivo
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessun ruolo operativo registrato.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= QUALIFICHE ============= -->
+      <section class="imp-panel" data-panel="qualifiche" id="tab-qualifiche">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Qualifiche professionali</div>
+              <div class="imp-card-sub">
+                Certificazioni e attestati con scadenza. Assegnabili dalla scheda dipendente.
+                {% if scadenze_q_count %}
+                  <span class="imp-badge imp-badge-orange">{{ scadenze_q_count }} in scadenza/scadute</span>
+                {% endif %}
+              </div>
+            </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:qualifiche_list' %}">
+              Vista classica con scadenzario →
+            </a>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="qualifiche">
+            <div class="imp-field" style="flex:2 1 200px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Patentino carrellista">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Categoria</label>
+              <select class="imp-select" name="categoria">
+                {% for code, label in QUAL_CATEGORIA_CHOICES %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Durata (mesi)</label>
+              <input class="imp-input" type="number" min="0" name="durata_mesi" value="0">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          {% regroup tipi_qualifica by categoria as qual_groups %}
+          {% for group in qual_groups %}
+            <div class="imp-cat-title">{{ group.grouper|default:"Altro" }} ({{ group.list|length }})</div>
+            <div class="imp-list">
+              {% for t in group.list %}
+                <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
+                  <div class="imp-row-main">
+                    <div class="imp-row-name">{{ t.nome }}</div>
+                    <div class="imp-row-meta">
+                      {{ t.n_assegnazioni|default:0 }} assegnazioni
+                      {% if t.durata_mesi %} · durata {{ t.durata_mesi }} mesi{% endif %}
+                      {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                    </div>
+                  </div>
+                  {% if is_admin %}
+                  <div class="imp-row-actions">
+                    <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="qual-edit-{{ t.id }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;"
+                          onsubmit="return confirm('Eliminare la qualifica &quot;{{ t.nome|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="next_tab" value="qualifiche">
+                      <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+                {% if is_admin %}
+                <div class="imp-modal-overlay" id="modal-qual-edit-{{ t.id }}">
+                  <div class="imp-modal">
+                    <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                    <div class="imp-modal-title">Modifica qualifica</div>
+                    <form method="post" action="{% url 'anagrafica:tipo_qualifica_edit' t.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next_tab" value="qualifiche">
+                      <div class="imp-modal-body">
+                        <div class="imp-field">
+                          <label class="imp-label">Nome *</label>
+                          <input class="imp-input" type="text" name="nome" maxlength="150" required value="{{ t.nome }}">
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label">Categoria</label>
+                          <select class="imp-select" name="categoria">
+                            {% for code, label in QUAL_CATEGORIA_CHOICES %}
+                              <option value="{{ code }}" {% if t.categoria == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label">Durata (mesi)</label>
+                          <input class="imp-input" type="number" min="0" name="durata_mesi" value="{{ t.durata_mesi }}">
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label">Descrizione</label>
+                          <textarea class="imp-textarea" name="descrizione">{{ t.descrizione }}</textarea>
+                        </div>
+                        <div class="imp-field">
+                          <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" name="is_active" value="1" {% if t.is_active %}checked{% endif %}>
+                            Attiva
+                          </label>
+                        </div>
+                      </div>
+                      <div class="imp-modal-footer">
+                        <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                        <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% empty %}
+            <div class="imp-empty">Nessuna qualifica registrata.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <!-- ============= LIVELLI CCNL ============= -->
+      <section class="imp-panel" data-panel="livelli" id="tab-livelli">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Livelli contrattuali (CCNL)</div>
+              <div class="imp-card-sub">Catalogo dei livelli (A1, B3 … DIR) usati nello storico contrattuale del dipendente</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:livello_contrattuale_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="livelli">
+            <div class="imp-field">
+              <label class="imp-label">Codice *</label>
+              <input class="imp-input" type="text" name="codice" maxlength="10" required placeholder="A1" style="text-transform:uppercase;">
+            </div>
+            <div class="imp-field" style="flex:3 1 280px;">
+              <label class="imp-label">Descrizione</label>
+              <input class="imp-input" type="text" name="descrizione" maxlength="200" placeholder="Es. Operaio comune">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Ordine</label>
+              <input class="imp-input" type="number" name="ordine" min="0" value="0">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for l in livelli %}
+              <div class="imp-row {% if not l.is_active %}inactive{% endif %}">
+                <span class="imp-badge imp-badge-blue">{{ l.codice }}</span>
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ l.descrizione|default:"—" }}</div>
+                  <div class="imp-row-meta">
+                    ordine: {{ l.ordine }}
+                    {% if not l.is_active %} · <span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
+                  </div>
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="livello-edit-{{ l.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:livello_contrattuale_delete' l.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare il livello &quot;{{ l.codice|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-livello-edit-{{ l.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica livello contrattuale</div>
+                  <form method="post" action="{% url 'anagrafica:livello_contrattuale_edit' l.id %}">
+                    {% csrf_token %}
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Codice *</label>
+                        <input class="imp-input" type="text" name="codice" maxlength="10" required value="{{ l.codice }}" style="text-transform:uppercase;">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <input class="imp-input" type="text" name="descrizione" maxlength="200" value="{{ l.descrizione }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Ordine</label>
+                        <input class="imp-input" type="number" name="ordine" min="0" value="{{ l.ordine }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if l.is_active %}checked{% endif %}>
+                          Attivo
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessun livello contrattuale registrato.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= TIPOLOGIE CONTRATTO ============= -->
+      <section class="imp-panel" data-panel="tipologie" id="tab-tipologie">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Tipologie contratto</div>
+              <div class="imp-card-sub">Es. tempo indeterminato, determinato, apprendistato — usate nello storico contrattuale</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:tipologia_contratto_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="tipologie">
+            <div class="imp-field">
+              <label class="imp-label">Codice *</label>
+              <input class="imp-input" type="text" name="codice" maxlength="20" required placeholder="TI" style="text-transform:uppercase;">
+            </div>
+            <div class="imp-field" style="flex:3 1 280px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Tempo indeterminato">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Ordine</label>
+              <input class="imp-input" type="number" name="ordine" min="0" value="0">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for tc in tipologie %}
+              <div class="imp-row {% if not tc.is_active %}inactive{% endif %}">
+                <span class="imp-badge imp-badge-green">{{ tc.codice }}</span>
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ tc.nome }}</div>
+                  <div class="imp-row-meta">
+                    ordine: {{ tc.ordine }}
+                    {% if not tc.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                  </div>
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="tipologia-edit-{{ tc.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:tipologia_contratto_delete' tc.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare la tipologia &quot;{{ tc.codice|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-tipologia-edit-{{ tc.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica tipologia contratto</div>
+                  <form method="post" action="{% url 'anagrafica:tipologia_contratto_edit' tc.id %}">
+                    {% csrf_token %}
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Codice *</label>
+                        <input class="imp-input" type="text" name="codice" maxlength="20" required value="{{ tc.codice }}" style="text-transform:uppercase;">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ tc.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Ordine</label>
+                        <input class="imp-input" type="number" name="ordine" min="0" value="{{ tc.ordine }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if tc.is_active %}checked{% endif %}>
+                          Attiva
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessuna tipologia contratto registrata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= PERMESSI ============= -->
+      <section class="imp-panel" data-panel="permessi" id="tab-permessi">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Permessi visibilità sezioni anagrafica</div>
+              <div class="imp-card-sub">Configura chi può vedere statistiche e dati HR riservati nella scheda dipendente</div>
+            </div>
+          </div>
+
+          <form method="post" action="{% url 'anagrafica:impostazioni_permessi_save' %}">
+            {% csrf_token %}
+            <div class="imp-perm-grid">
+
+              <!-- Stat permissions -->
+              <div class="imp-perm-card">
+                <div class="imp-perm-title">📊 Widget statistiche</div>
+                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere la sezione statistiche attività nella scheda dipendente</p>
+
+                <label class="imp-perm-row">
+                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_TUTTI }}" {% if stat_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
+                  Tutti gli utenti autenticati
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_ADMIN }}" {% if stat_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
+                  Solo amministratori
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="stat_accesso" value="{{ ACCESSO_RUOLI }}" {% if stat_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="stat" {% if not is_admin %}disabled{% endif %}>
+                  Ruoli ACL specifici
+                </label>
+
+                <div class="imp-perm-ruoli {% if stat_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="stat">
+                  {% if ruoli_acl %}
+                    {% for r in ruoli_acl %}
+                      <label>
+                        <input type="checkbox" name="stat_ruolo_ids" value="{{ r.id }}"
+                               {% if r.id in stat_perm.ruolo_ids %}checked{% endif %}
+                               {% if not is_admin %}disabled{% endif %}>
+                        {{ r.nome }}
+                      </label>
+                    {% endfor %}
+                  {% else %}
+                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- HR permissions -->
+              <div class="imp-perm-card">
+                <div class="imp-perm-title">🔐 Dati HR riservati</div>
+                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere IBAN, codice fiscale, percentuale disabilità nelle schede</p>
+
+                <label class="imp-perm-row">
+                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_TUTTI }}" {% if hr_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
+                  Tutti gli utenti autenticati
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_ADMIN }}" {% if hr_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
+                  Solo amministratori
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="hr_accesso" value="{{ ACCESSO_RUOLI }}" {% if hr_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="hr" {% if not is_admin %}disabled{% endif %}>
+                  Ruoli ACL specifici
+                </label>
+
+                <div class="imp-perm-ruoli {% if hr_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="hr">
+                  {% if ruoli_acl %}
+                    {% for r in ruoli_acl %}
+                      <label>
+                        <input type="checkbox" name="hr_ruolo_ids" value="{{ r.id }}"
+                               {% if r.id in hr_perm.ruolo_ids %}checked{% endif %}
+                               {% if not is_admin %}disabled{% endif %}>
+                        {{ r.nome }}
+                      </label>
+                    {% endfor %}
+                  {% else %}
+                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            {% if is_admin %}
+            <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+              <button type="submit" class="imp-btn imp-btn-primary">💾 Salva permessi</button>
+            </div>
+            {% endif %}
+          </form>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('imp-root');
+  if (!root) return;
+
+  var tabs = root.querySelectorAll('.imp-tab');
+  var panels = root.querySelectorAll('.imp-panel');
+
+  function setTab(tabName, push) {
+    var found = false;
+    tabs.forEach(function (t) {
+      var active = t.dataset.tab === tabName;
+      t.classList.toggle('active', active);
+      if (active) found = true;
+    });
+    panels.forEach(function (p) {
+      p.classList.toggle('active', p.dataset.panel === tabName);
+    });
+    if (!found) {
+      // fallback al primo tab
+      tabs[0] && tabs[0].classList.add('active');
+      panels[0] && panels[0].classList.add('active');
+    }
+    if (push) {
+      var url = new URL(window.location.href);
+      url.searchParams.set('tab', tabName);
+      url.hash = 'tab-' + tabName;
+      window.history.replaceState(null, '', url.toString());
+    }
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      setTab(t.dataset.tab, true);
+    });
+  });
+
+  // Tab iniziale: query string > hash > default "mansioni"
+  var params = new URLSearchParams(window.location.search);
+  var initial = params.get('tab');
+  if (!initial && window.location.hash.indexOf('#tab-') === 0) {
+    initial = window.location.hash.replace('#tab-', '');
+  }
+  initial = initial || '{{ active_tab|escapejs }}' || 'mansioni';
+  setTab(initial, false);
+
+  // Modali
+  root.querySelectorAll('[data-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = 'modal-' + btn.dataset.modal;
+      var modal = document.getElementById(id);
+      if (modal) modal.classList.add('open');
+    });
+  });
+  root.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var overlay = btn.closest('.imp-modal-overlay');
+      if (overlay) overlay.classList.remove('open');
+    });
+  });
+  root.querySelectorAll('.imp-modal-overlay').forEach(function (overlay) {
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+  });
+
+  // Permessi: mostra checkbox ruoli solo quando "RUOLI"
+  root.querySelectorAll('[data-perm-radio]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      var group = radio.dataset.permRadio;
+      var box = root.querySelector('[data-perm-ruoli="' + group + '"]');
+      if (!box) return;
+      box.classList.toggle('open', radio.value === '{{ ACCESSO_RUOLI }}' && radio.checked);
+    });
+  });
+})();
+</script>
+{% endblock %}

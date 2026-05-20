@@ -1,0 +1,196 @@
+{% extends "core/base.html" %}
+
+{% block title %}Anagrafica Fornitori | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#fn-root { display:flex; flex-direction:column; gap:20px; }
+
+.fn-hero {
+  background:linear-gradient(135deg,#0f3d2e 0%,#16a34a 60%,#22c55e 100%);
+  border-radius:16px; padding:30px 34px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
+}
+.fn-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
+.fn-hero-sub { font-size:13px; opacity:.85; margin-top:3px; }
+.fn-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.fn-hbtn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; }
+.fn-hbtn-white { background:#fff; color:#0f3d2e; }
+.fn-hbtn-white:hover { background:#dcfce7; }
+.fn-hbtn-outline { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
+.fn-hbtn-outline:hover { background:rgba(255,255,255,.28); }
+
+.fn-kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+.fn-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; position:relative; overflow:hidden; }
+.fn-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:3px 3px 0 0; }
+.fn-kpi.green::before  { background:#16a34a; }
+.fn-kpi.blue::before   { background:#1d4ed8; }
+.fn-kpi.orange::before { background:#f59e0b; }
+.fn-kpi.red::before    { background:#dc2626; }
+.fn-kpi.purple::before { background:#7c3aed; }
+.fn-kpi-icon { font-size:20px; margin-bottom:2px; }
+.fn-kpi-value { font-size:28px; font-weight:900; color:#0f172a; letter-spacing:-.03em; line-height:1; }
+.fn-kpi-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.fn-kpi-sub { font-size:11px; color:#94a3b8; }
+
+.fn-sections { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; }
+.fn-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+.fn-card-head { padding:16px 22px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #f1f5f9; }
+.fn-card-title { font-size:14px; font-weight:800; color:#0f172a; }
+.fn-table { width:100%; border-collapse:collapse; }
+.fn-table th { padding:9px 14px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #f1f5f9; text-align:left; }
+.fn-table td { padding:11px 14px; font-size:13px; color:#334155; border-bottom:1px solid #f8fafc; }
+.fn-table tr:last-child td { border-bottom:none; }
+.fn-table tr:hover td { background:#fafbff; }
+.fn-cat-badge { padding:3px 8px; border-radius:20px; font-size:10px; font-weight:700; background:#eff6ff; color:#1d4ed8; }
+.fn-link-btn { display:inline-flex; align-items:center; font-size:11px; font-weight:700; color:#16a34a; text-decoration:none; padding:5px 10px; background:#f0fdf4; border-radius:8px; }
+.fn-link-btn:hover { background:#dcfce7; }
+.fn-empty { padding:36px; text-align:center; color:#94a3b8; font-size:13px; }
+.fn-bar-row { display:flex; align-items:center; gap:10px; padding:10px 22px; border-bottom:1px solid #f1f5f9; }
+.fn-bar-row:last-child { border-bottom:none; }
+.fn-bar-label { font-size:13px; font-weight:600; color:#0f172a; min-width:130px; }
+.fn-bar-track { flex:1; height:10px; background:#f1f5f9; border-radius:999px; overflow:hidden; }
+.fn-bar-fill { height:100%; background:linear-gradient(90deg,#22c55e,#16a34a); border-radius:999px; }
+.fn-bar-val { font-size:12px; font-weight:700; color:#475569; min-width:80px; text-align:right; }
+.fn-btn { display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:9px; font-size:12px; font-weight:700; text-decoration:none; border:none; cursor:pointer; }
+.fn-btn-primary { background:#16a34a; color:#fff; }
+.fn-btn-primary:hover { background:#15803d; }
+.fn-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.fn-btn-ghost:hover { background:#e2e8f0; }
+
+@media(max-width:900px){ .fn-kpi-row{grid-template-columns:repeat(3,1fr);} .fn-sections{grid-template-columns:1fr;} }
+@media(max-width:600px){ .fn-kpi-row{grid-template-columns:1fr 1fr;} .fn-hero{padding:20px 18px;} .fn-hero-title{font-size:21px;} }
+
+/* Dark mode */
+body.theme-dark .fn-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .fn-card-head { background:var(--bg); border-color:var(--border); }
+body.theme-dark .fn-card-title { color:var(--text); }
+body.theme-dark .fn-kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .fn-kpi-value { color:var(--text); }
+body.theme-dark .fn-kpi-label { color:var(--text-light); }
+body.theme-dark .fn-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .fn-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .fn-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .fn-empty { color:var(--text-light); }
+body.theme-dark .fn-cat-badge { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .fn-link-btn { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .fn-link-btn:hover { background:rgba(22,163,74,.3); }
+body.theme-dark .fn-bar-row { border-color:var(--border); }
+body.theme-dark .fn-bar-label { color:var(--text); }
+body.theme-dark .fn-bar-track { background:var(--surface-alt); }
+body.theme-dark .fn-bar-val { color:var(--text-light); }
+body.theme-dark .fn-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div id="fn-root">
+
+  <div class="fn-hero">
+    <div>
+      <div class="fn-hero-title">🏭 Anagrafica Fornitori</div>
+      <div class="fn-hero-sub">Gestione completa: documenti, ordini, valutazioni e asset assegnati</div>
+    </div>
+    <div class="fn-hero-actions">
+      <a class="fn-hbtn fn-hbtn-white" href="{% url 'fornitori:fornitori_list' %}">📋 Elenco fornitori</a>
+      <a class="fn-hbtn fn-hbtn-outline" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo fornitore</a>
+    </div>
+  </div>
+
+  {% include "fornitori/components/flash_messages.html" %}
+
+  <!-- KPI -->
+  <div class="fn-kpi-row">
+    <div class="fn-kpi green">
+      <div class="fn-kpi-icon">🏭</div>
+      <div class="fn-kpi-value">{{ n_fornitori }}</div>
+      <div class="fn-kpi-label">Fornitori attivi</div>
+      <div class="fn-kpi-sub">{{ n_fornitori_tutti }} totali</div>
+    </div>
+    <div class="fn-kpi red">
+      <div class="fn-kpi-icon">⚠️</div>
+      <div class="fn-kpi-value">{{ n_fornitori_inattivi }}</div>
+      <div class="fn-kpi-label">Inattivi</div>
+      <div class="fn-kpi-sub">su {{ n_fornitori_tutti }} totali</div>
+    </div>
+    <div class="fn-kpi orange">
+      <div class="fn-kpi-icon">💶</div>
+      <div class="fn-kpi-value">€ {{ spesa_totale|floatformat:0 }}</div>
+      <div class="fn-kpi-label">Spesa totale</div>
+      <div class="fn-kpi-sub">somma ordini storici</div>
+    </div>
+    <div class="fn-kpi blue">
+      <div class="fn-kpi-icon">🧾</div>
+      <div class="fn-kpi-value">{{ n_ordini }}</div>
+      <div class="fn-kpi-label">Ordini</div>
+      <div class="fn-kpi-sub">tutti i fornitori</div>
+    </div>
+    <div class="fn-kpi purple">
+      <div class="fn-kpi-icon">🔧</div>
+      <div class="fn-kpi-value">{{ n_asset_assegnati }}</div>
+      <div class="fn-kpi-label">Asset assegnati</div>
+      <div class="fn-kpi-sub">a fornitori</div>
+    </div>
+  </div>
+
+  <div class="fn-sections">
+
+    <div class="fn-card">
+      <div class="fn-card-head">
+        <div class="fn-card-title">Ultimi fornitori aggiunti</div>
+        <a class="fn-btn fn-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">Vedi tutti</a>
+      </div>
+      {% if ultimi_fornitori %}
+      <table class="fn-table">
+        <thead>
+          <tr>
+            <th>Ragione sociale</th>
+            <th>Categoria</th>
+            <th>Città</th>
+            <th>Aggiunto il</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in ultimi_fornitori %}
+          <tr>
+            <td><strong>{{ f.ragione_sociale }}</strong></td>
+            <td>{% if f.categoria %}<span class="fn-cat-badge">{{ f.get_categoria_display }}</span>{% else %}—{% endif %}</td>
+            <td>{{ f.citta|default:"—" }}</td>
+            <td>{{ f.created_at|date:"d/m/Y" }}</td>
+            <td><a class="fn-link-btn" href="{% url 'fornitori:fornitore_detail' f.pk %}">Apri →</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="fn-empty">Nessun fornitore ancora registrato. <a href="{% url 'fornitori:fornitore_create' %}">Aggiungine uno</a>.</div>
+      {% endif %}
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-card-head">
+        <div class="fn-card-title">Spesa per categoria — top 5</div>
+      </div>
+      {% if spesa_categorie %}
+        {% with max_val=spesa_categorie.0.totale %}
+        {% for c in spesa_categorie %}
+          <div class="fn-bar-row">
+            <span class="fn-bar-label">{{ c.label }}</span>
+            <div class="fn-bar-track">
+              <div class="fn-bar-fill" style="width:{% widthratio c.totale max_val 100 %}%;"></div>
+            </div>
+            <span class="fn-bar-val">€ {{ c.totale|floatformat:0 }}</span>
+          </div>
+        {% endfor %}
+        {% endwith %}
+      {% else %}
+        <div class="fn-empty">Nessun ordine registrato.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
