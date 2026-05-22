@@ -1,0 +1,252 @@
+{% extends "core/base.html" %}
+
+{% block title %}Retribuzioni — Vista globale | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.rg-page { display:flex; flex-direction:column; gap:14px; }
+.rg-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
+.rg-btn-ghost { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+.rg-btn-ghost:hover { background:#e2e8f0; }
+.rg-btn-primary { background:#12395f; color:#fff; }
+.rg-btn-primary:hover { background:#0e2d4b; }
+
+/* Filtri */
+.rg-filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:14px 18px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.rg-filter-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px; }
+.rg-filter-input { padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; min-width:150px; }
+.rg-filter-input:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+.rg-multi { min-height:110px; max-height:160px; padding:4px 6px; }
+.rg-hint { font-size:10px; color:#94a3b8; margin-top:3px; }
+
+/* Multi-select dipendente con ricerca */
+.rg-dip-wrap { position:relative; min-width:240px; max-width:320px; }
+.rg-dip-search { width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px 7px 0 0; font-size:13px; box-sizing:border-box; }
+.rg-dip-search:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+.rg-dip-select { width:100%; border:1px solid #cbd5e1; border-top:none; border-radius:0 0 7px 7px; font-size:13px; min-height:110px; max-height:160px; box-sizing:border-box; }
+.rg-dip-select:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+
+/* Tabella */
+.rg-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.rg-scroll { overflow-x:auto; }
+.rg-table { width:100%; border-collapse:separate; border-spacing:0; font-size:11.5px; }
+
+.rg-th-pin { position:sticky; left:0; z-index:2; background:#f8fafc; padding:6px 12px; white-space:nowrap; border-bottom:2px solid #e2e8f0; text-align:left; font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.rg-th-fix { padding:4px 7px; border-bottom:2px solid #e2e8f0; text-align:left; font-size:9.5px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; line-height:1.15; background:#f8fafc; vertical-align:bottom; }
+.rg-th-group { padding:5px 6px; text-align:center; font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }
+.rg-th { padding:4px 6px; text-align:right; font-size:9px; font-weight:600; color:#475569; border-bottom:1px solid #e2e8f0; white-space:normal; line-height:1.15; vertical-align:bottom; width:58px; min-width:58px; max-width:58px; }
+
+.rg-td-pin { position:sticky; left:0; z-index:1; background:#fff; padding:5px 12px; white-space:nowrap; border-bottom:1px solid #f1f5f9; font-weight:600; color:#1e293b; font-size:12px; border-right:1px solid #e2e8f0; }
+.rg-td-fix { padding:5px 7px; white-space:nowrap; border-bottom:1px solid #f1f5f9; font-size:11px; color:#64748b; }
+.rg-td { padding:5px 6px; text-align:right; font-variant-numeric:tabular-nums; border-bottom:1px solid #f1f5f9; }
+.rg-tr:hover .rg-td, .rg-tr:hover .rg-td-pin, .rg-tr:hover .rg-td-fix { background:#f8fafc; }
+.rg-manuale { position:relative; }
+.rg-manuale::after { content:"M"; position:absolute; top:1px; right:1px; font-size:7px; font-weight:700; color:#9333ea; }
+
+/* Colori categoria */
+.rg-cat-fisso     { background:#eff6ff; color:#1e40af; }
+.rg-cat-variabile { background:#fefce8; color:#854d0e; }
+.rg-cat-totale    { background:#f0fdf4; color:#166534; }
+.rg-cat-altro     { background:#f8fafc; color:#475569; }
+.rg-td-totale { font-weight:700; }
+
+/* Paginazione */
+.rg-pager { display:flex; gap:6px; justify-content:center; padding:14px; flex-wrap:wrap; }
+.rg-page-btn { padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
+.rg-page-btn:hover { background:#e2e8f0; }
+.rg-page-btn.active { background:#12395f; color:#fff; border-color:#12395f; cursor:default; }
+.rg-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="rg-page">
+
+  <!-- Header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Retribuzioni</div>
+      <h2 class="hr-pagehead-title">💶 Retribuzioni — Vista globale</h2>
+      <p class="hr-pagehead-desc">Voci retributive di tutti i dipendenti, una riga per mese — {{ totale }} record totali.</p>
+    </div>
+    <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti</a>
+  </div>
+
+  <!-- Filtri -->
+  <form method="get" id="rg-filter-form" class="rg-filter-bar">
+    <!-- Mensilità -->
+    <div>
+      <label class="rg-filter-label">Mensilità</label>
+      <select name="periodo" class="rg-filter-input" aria-label="Filtra per mensilità">
+        <option value="">— Tutti i periodi —</option>
+        {% for p in periodi %}
+        <option value="{{ p|date:'Y-m-d' }}" {% if filtro_periodo == p|date:'Y-m-d' %}selected{% endif %}>
+          {{ p|date:"F Y" }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Dipendente (multi-select con ricerca) -->
+    <div class="rg-dip-wrap">
+      <label class="rg-filter-label">Dipendente</label>
+      <input type="text" id="rg-dip-search" class="rg-dip-search" placeholder="Cerca per cognome…" autocomplete="off">
+      <select name="dipendente" id="rg-dip-select" multiple class="rg-dip-select" aria-label="Filtra per dipendente">
+        {% for d in dipendenti_options %}
+        <option value="{{ d.cf }}" {% if d.cf in filtro_dipendenti %}selected{% endif %}>{{ d.nome }}</option>
+        {% endfor %}
+      </select>
+      <div class="rg-hint">Ctrl+clic per selezionare più dipendenti</div>
+    </div>
+
+    <!-- Reparto (multi-select) -->
+    <div>
+      <label class="rg-filter-label">Reparto</label>
+      <select name="reparto" multiple class="rg-filter-input rg-multi" aria-label="Filtra per reparto">
+        {% for r in reparti_options %}
+        <option value="{{ r }}" {% if r in filtro_reparti %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      <div class="rg-hint">Ctrl+clic per più reparti</div>
+    </div>
+
+    <!-- Livello contrattuale (multi-select) -->
+    <div>
+      <label class="rg-filter-label">Livello contrattuale</label>
+      <select name="livello" multiple class="rg-filter-input rg-multi" style="min-width:120px;" aria-label="Filtra per livello contrattuale">
+        {% for l in livelli_options %}
+        <option value="{{ l }}" {% if l in filtro_livelli %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+      </select>
+      <div class="rg-hint">Ctrl+clic per più livelli</div>
+    </div>
+
+    <!-- Sesso -->
+    <div>
+      <label class="rg-filter-label">Sesso</label>
+      <select name="sesso" class="rg-filter-input" style="min-width:130px;" aria-label="Filtra per sesso">
+        <option value="">— Tutti —</option>
+        {% for val, label in sesso_options %}
+        <option value="{{ val }}" {% if filtro_sesso == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
+      <button type="submit" class="rg-btn rg-btn-primary">Filtra</button>
+      <button type="button" class="rg-btn rg-btn-ghost" onclick="rgExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
+      {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_livelli or filtro_sesso %}
+      <a href="{% url 'anagrafica:retribuzioni_globale' %}" class="rg-btn rg-btn-ghost">✕ Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Tabella -->
+  <div class="rg-card">
+    {% if rows %}
+    <div class="rg-scroll">
+      <table class="rg-table">
+        <thead>
+          <tr>
+            <th class="rg-th-pin" rowspan="2">Dipendente</th>
+            <th class="rg-th-fix" rowspan="2">Periodo</th>
+            <th class="rg-th-fix" rowspan="2">Reparto</th>
+            <th class="rg-th-fix" rowspan="2">Livello</th>
+            <th class="rg-th-fix" rowspan="2">Sesso</th>
+            {% for g in gruppi %}
+            <th class="rg-th-group rg-cat-{{ g.categoria }}" colspan="{{ g.n }}">{{ g.label }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for c in colonne %}
+            <th class="rg-th rg-cat-{{ c.categoria }}">{{ c.label }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="rg-tr">
+            <td class="rg-td-pin">
+              {% if r.legacy_anagrafica_id %}
+                <a href="{% url 'anagrafica:dipendente_retribuzioni' r.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;font-weight:600;">{{ r.nome }}</a>
+              {% else %}
+                {{ r.nome }}
+              {% endif %}
+            </td>
+            <td class="rg-td-fix">{{ r.data_competenza|date:"m/Y" }}</td>
+            <td class="rg-td-fix">{{ r.reparto|default:"—" }}</td>
+            <td class="rg-td-fix">{{ r.livello|default:"—" }}</td>
+            <td class="rg-td-fix">{{ r.sesso|default:"—" }}</td>
+            {% for cell in r.celle %}
+            <td class="rg-td{% if cell.is_totale %} rg-td-totale{% endif %}{% if cell.manuale %} rg-manuale{% endif %}">
+              {% if cell.importo is not None %}{{ cell.importo|floatformat:2 }}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="rg-pager">
+      {% if page_obj.has_previous %}
+        <button type="button" class="rg-page-btn" onclick="rgGoPage({{ page_obj.previous_page_number }})">&laquo;</button>
+      {% endif %}
+      {% for n in page_obj.paginator.page_range %}
+        {% if n == page_obj.number %}
+          <span class="rg-page-btn active">{{ n }}</span>
+        {% elif n >= page_obj.number|add:"-3" and n <= page_obj.number|add:"3" %}
+          <button type="button" class="rg-page-btn" onclick="rgGoPage({{ n }})">{{ n }}</button>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <button type="button" class="rg-page-btn" onclick="rgGoPage({{ page_obj.next_page_number }})">&raquo;</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="rg-empty">
+      Nessuna voce retributiva disponibile{% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_livelli or filtro_sesso %} per i filtri selezionati{% endif %}.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+/* Ricerca live nel multi-select dipendenti */
+document.getElementById('rg-dip-search').addEventListener('input', function () {
+  var q = this.value.toLowerCase();
+  document.querySelectorAll('#rg-dip-select option').forEach(function (opt) {
+    opt.style.display = opt.text.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+  });
+});
+
+/* Paginazione che preserva i filtri multi-select */
+function rgGoPage(n) {
+  var form = document.getElementById('rg-filter-form');
+  var existing = form.querySelector('input[name="page"]');
+  if (existing) existing.remove();
+  var inp = document.createElement('input');
+  inp.type = 'hidden'; inp.name = 'page'; inp.value = n;
+  form.appendChild(inp);
+  form.submit();
+}
+
+/* Export Excel con i filtri attivi */
+function rgExport() {
+  var form = document.getElementById('rg-filter-form');
+  var data = new FormData(form);
+  var params = new URLSearchParams();
+  data.forEach(function (val, key) {
+    if (key !== 'page') params.append(key, val);
+  });
+  window.location.href = "{% url 'anagrafica:retribuzioni_globale_export' %}?" + params.toString();
+}
+</script>
+{% endblock %}

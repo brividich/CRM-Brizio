@@ -4,6 +4,31 @@ Data: 2026-05-22
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (AI chat: pannello personalizzazione risposte e limiti)
+- `django_app/ai_assistant/templates/ai_assistant/chat.html` -> aggiunto pannello "Personalizzazione risposte e limiti" con stile operativo/sintetico/dettagliato, toggle limiti, box "Puo/Non puo", persistenza `localStorage` e invio preferenze nel payload chat
+- `django_app/ai_assistant/views.py` -> sanifica `preferences` dal payload API e le passa a `chat_with_ollama`; audit metadata-only con chiavi preferenze
+- `django_app/ai_assistant/services.py` -> trasforma le preferenze utente in un system prompt separato, senza autorizzare nuovi dati o bypass ACL/privacy/tool
+- `django_app/ai_assistant/tests.py` -> test rendering pannello, prompt preferenze e sanitizzazione API
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata personalizzazione AI e confini operativi
+- Test/check: AST mirato OK; test mirati preferenze OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (56 test); `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (AI Anagrafica ratei: risposta nominativa diretta e fonti RAG nascoste quando c'e tool live)
+- `django_app/ai_assistant/tools.py` -> `anagrafica_summary` filtra nominativo/self per ratei ferie/ROL/permessi/ex-fest, produce `RISPOSTA DIRETTA`, converte ore in giorni su base 7.5 se richiesto e mantiene solo dipendente/reparto/periodo/ore
+- `django_app/ai_assistant/services.py` -> con contesto runtime live non restituisce piu fonti RAG alla UI e forza `rag_context_chars=0`; istruisce il modello a usare `RISPOSTA DIRETTA`
+- `django_app/ai_assistant/views.py` -> suggerimenti contestuali specifici per ratei, evitando proposte generiche sulle assenze quando si parla di ferie residue
+- `django_app/ai_assistant/tests.py` -> aggiunti test su saldo nominativo ferie residue, conversione in giorni e pulizia fonti RAG con tool live
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata correzione ratei nominativi e fonti live pulite
+- Test/check: AST mirato OK; test mirati ratei/RAG OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (54 test)
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (AI Anagrafica: classifica ratei ferie/permessi residui via `SaldoCedolino`)
+- `django_app/ai_assistant/tools.py` -> `anagrafica_summary` riconosce ratei ferie/ROL/permessi/ex-fest residui, usa ultimo periodo disponibile o mese richiesto, classifica top N e passa al modello solo dipendente/reparto/periodo/ore; evita dominio Assenze per "ferie residue"
+- `django_app/ai_assistant/tests.py` -> aggiunto `test_runtime_anagrafica_context_lists_top_ferie_residue`
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md`, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/13_AI_GOVERNANCE_PREDICTIVE_POLICY.md` -> documentati ratei ammessi solo come ore+periodo e dettagli cedolino vietati
+- Test/check: parse AST mirato OK; primo test mirato interrotto da timeout durante creazione DB test, poi test mirati OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (51 test); `python django_app\manage.py check --settings=config.settings.test` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (abilitato tool live AI Anagrafica HR read-only; Timbri/Presenze resta deferred)
+- `django_app/ai_assistant/tools.py` -> nuovo `anagrafica_summary` con permesso superuser/admin legacy o ruoli `AnagraficaHRPermission`, output limitato a campi aziendali minimi + consenso privacy, blocco esplicito campi HR riservati/sanitari/retributivi/documentali; `timbri_presenze` separato come deferred
+- `django_app/ai_assistant/tests.py` -> regressioni su consenso privacy autorizzato, permesso negato, blocco campi HR vietati e fallback timbrature
+- `django_app/admin_portale/tests.py` -> test catalogo Tool live aggiornato per mostrare `Anagrafica HR` / `anagrafica_summary` e `Timbri / Presenze` disabilitato
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md`, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/13_AI_GOVERNANCE_PREDICTIVE_POLICY.md` -> documentata governance `restricted` Anagrafica HR e separazione Timbri/Presenze
+- Test/check: parse AST mirato OK; `python django_app\manage.py test ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_privacy_consent_for_authorized_user ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_denies_user_without_hr_permission ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_blocks_forbidden_hr_fields ai_assistant.tests.AiAssistantTests.test_runtime_context_reports_missing_live_tool_for_deferred_hr_domains admin_portale.tests.AdminPortaleConfigSrvLdapTests.test_ai_settings_page_renders_live_tools_console --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (50 test; test legacy di troncamento riallineato da 250 a 500 righe); `python django_app\manage.py check --settings=config.settings.test` OK
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (fix 500 upload documenti dipendente: import `Path` + audit payload dict)
 - `django_app/anagrafica/views.py` -> aggiunto `from pathlib import Path`; `DOCUMENTO_DIPENDENTE_UPLOAD` passa dict a `log_action`
 - `django_app/anagrafica/tests.py` -> aggiunto `DocumentoDipendenteUploadTests.test_documento_upload_salva_pdf_manuale`

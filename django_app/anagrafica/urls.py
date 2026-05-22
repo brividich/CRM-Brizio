@@ -11,6 +11,9 @@ urlpatterns = [
     # Dipendenti (sola lettura)
     path("dipendenti/", views.dipendenti_list, name="dipendenti_list"),
 
+    # Ex dipendenti (rapporto cessato) — vista dedicata
+    path("ex-dipendenti/", views.ex_dipendenti_list, name="ex_dipendenti_list"),
+
     # NOTE: i fornitori sono ora gestiti dal modulo dedicato `fornitori`
     # (URL prefix /fornitori/). Vedere `fornitori/urls.py`.
 
@@ -38,6 +41,10 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/mansione/set", views.dipendente_mansione_set, name="dipendente_mansione_set"),
     # Reparto dipendente (aggiorna campo legacy)
     path("dipendenti/<int:legacy_id>/reparto/set", views.dipendente_reparto_set, name="dipendente_reparto_set"),
+    # Username dipendente (aliasusername)
+    path("dipendenti/<int:legacy_id>/username/set", views.dipendente_username_set, name="dipendente_username_set"),
+    # Attiva/disattiva dipendente (campo attivo)
+    path("dipendenti/<int:legacy_id>/toggle-active", views.dipendente_toggle_active, name="dipendente_toggle_active"),
 
     # Qualifiche dipendente
     path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
@@ -110,6 +117,9 @@ urlpatterns = [
 
     # Voci retributive — importazione CSV e storico dipendente
     path("retribuzioni/", views.retribuzioni_import, name="retribuzioni_import"),
+    # Voci retributive — vista globale pivot dipendente+mese × pay_item + export
+    path("retribuzioni/globale/", views.retribuzioni_globale, name="retribuzioni_globale"),
+    path("retribuzioni/globale/export.xlsx", views.retribuzioni_globale_export, name="retribuzioni_globale_export"),
     path("dipendenti/<int:legacy_id>/retribuzioni/", views.dipendente_retribuzioni, name="dipendente_retribuzioni"),
     path("dipendenti/<int:legacy_id>/retribuzioni/export.xlsx",
          views.dipendente_retribuzioni_export_xlsx, name="dipendente_retribuzioni_export_xlsx"),
@@ -126,6 +136,9 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/contratti/add", views.dipendente_contratto_add, name="dipendente_contratto_add"),
     path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/edit", views.dipendente_contratto_edit, name="dipendente_contratto_edit"),
     path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/delete", views.dipendente_contratto_delete, name="dipendente_contratto_delete"),
+
+    # Scadenzario unificato qualifiche + visite mediche
+    path("scadenzario/", views.scadenzario, name="scadenzario"),
 
     # Ratei ferie/ROL/ex-festività — lista aggregata + export
     path("ratei/", views.ratei_list, name="ratei_list"),

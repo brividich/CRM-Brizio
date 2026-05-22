@@ -3,6 +3,7 @@
 {% block title %}{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 .dr-page { display:flex; flex-direction:column; gap:18px; }
 .dr-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
@@ -11,8 +12,8 @@
 .dr-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
 .dr-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .dr-btn-ghost:hover { background:#e2e8f0; }
-.dr-btn-primary { background:#1d4ed8; color:#fff; border:none; }
-.dr-btn-primary:hover { background:#1e40af; }
+.dr-btn-primary { background:#12395f; color:#fff; border:none; }
+.dr-btn-primary:hover { background:#0e2d4b; }
 .dr-btn-danger { background:#fee2e2; color:#b91c1c; border:none; }
 .dr-btn-danger:hover { background:#fecaca; }
 
@@ -189,7 +190,7 @@
   {% if not anni %}
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:40px;text-align:center;color:#94a3b8;font-size:14px;">
     Nessuna voce retributiva disponibile per questo dipendente.<br>
-    <a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1d4ed8;font-weight:600;margin-top:8px;display:inline-block;">Importa il file CSV →</a>
+    <a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1f5c91;font-weight:600;margin-top:8px;display:inline-block;">Importa il file CSV →</a>
   </div>
   {% else %}
 

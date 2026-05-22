@@ -1,16 +1,18 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Aree aziendali | Anagrafica{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 .cat-page { display:flex; flex-direction:column; gap:20px; }
 .cat-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .cat-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .cat-sub   { font-size:13px; color:#64748b; margin-top:2px; }
 .cat-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.cat-btn-primary { background:#1d4ed8; color:#fff; }
-.cat-btn-primary:hover { background:#1e40af; }
+.cat-btn-primary { background:#12395f; color:#fff; }
+.cat-btn-primary:hover { background:#0e2d4b; }
 .cat-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .cat-btn-ghost:hover { background:#e2e8f0; }
 .cat-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
@@ -34,7 +36,7 @@
 .cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
 .cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-input:focus { border-color:#1d4ed8; background:#fff; }
+.cat-input:focus { border-color:#1f5c91; background:#fff; }
 /* Dark */
 body.theme-dark .cat-title { color:var(--text); }
 body.theme-dark .cat-sub { color:var(--text-light); }
@@ -90,13 +92,13 @@ body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--b
     <div class="cat-card-head">
       <div class="cat-card-title">{{ aree|length }} aree nel catalogo</div>
     </div>
-    <table class="cat-table">
+    <table class="cat-table" data-sortable>
       <thead>
         <tr>
           <th>Nome</th>
           <th>Descrizione</th>
           <th>Stato</th>
-          {% if is_admin %}<th></th>{% endif %}
+          {% if is_admin %}<th data-no-sort data-no-filter></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -127,7 +129,7 @@ body.theme-dark .cat-input { background:var(--surface-alt); border-color:var(--b
           {% endif %}
         </tr>
         {% empty %}
-        <tr><td colspan="{% if is_admin %}4{% else %}3{% endif %}" class="cat-empty">Nessuna area ancora aggiunta. Usa il form sopra per crearne una.</td></tr>
+        <tr data-empty-row="1"><td colspan="{% if is_admin %}4{% else %}3{% endif %}" class="cat-empty">Nessuna area ancora aggiunta. Usa il form sopra per crearne una.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -182,4 +184,8 @@ document.getElementById('edit-modal').addEventListener('click', function(e) {
 });
 </script>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
 {% endblock %}

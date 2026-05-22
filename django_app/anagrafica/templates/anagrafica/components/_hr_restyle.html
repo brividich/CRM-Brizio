@@ -1,0 +1,218 @@
+<style>
+/* ==========================================================================
+   Anagrafica HR — restyle UI (Fase A)
+   Sistema di design derivato dal prototipo `anagrafica_hr_dashboard_novicrom.jsx`.
+   Solo presentazione: nessuna logica, nessun dato. Classi prefissate `hr-`.
+   Incluso inline (pattern del modulo anagrafica) per non dipendere da collectstatic.
+   ========================================================================== */
+
+#ana-root, .hr-shell { --hr-navy:#12395f; --hr-navy-dark:#0e2d4b; --hr-blue:#1f5c91; }
+
+/* ── Shell pagina ────────────────────────────────────────────────────────── */
+.hr-shell { display:flex; flex-direction:column; gap:14px; }
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.hr-hero {
+  overflow:hidden; border-radius:24px; color:#fff;
+  background:linear-gradient(135deg,#12395f 0%,#1f5c91 55%,#12395f 100%);
+  padding:22px 26px; box-shadow:0 18px 40px -22px rgba(15,23,42,.55);
+  display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
+}
+.hr-hero-eyebrow {
+  display:inline-flex; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
+  border-radius:999px; padding:5px 13px; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.18em; color:rgba(255,255,255,.9);
+}
+.hr-hero-title { margin:14px 0 0; font-size:28px; font-weight:800; letter-spacing:-.02em; max-width:46ch; color:#fff; }
+.hr-hero-sub { margin:8px 0 0; font-size:14px; line-height:1.5; color:rgba(255,255,255,.85); max-width:60ch; }
+.hr-hero-stats { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; min-width:260px; }
+.hr-hero-stat {
+  border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.12);
+  border-radius:16px; padding:13px 15px; text-decoration:none; color:#fff;
+  transition:background .15s;
+}
+.hr-hero-stat:hover { background:rgba(255,255,255,.22); }
+.hr-hero-stat-val { font-size:24px; font-weight:800; line-height:1; color:#fff; }
+.hr-hero-stat-lbl { margin-top:4px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:rgba(255,255,255,.78); }
+
+/* ── Metric card ─────────────────────────────────────────────────────────── */
+.hr-metric-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.hr-metric {
+  display:flex; align-items:center; gap:12px; text-align:left;
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px;
+  padding:13px 14px; box-shadow:0 1px 2px rgba(15,23,42,.04);
+  transition:transform .15s, box-shadow .15s; text-decoration:none;
+}
+a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shadow:0 10px 22px -14px rgba(15,23,42,.4); }
+.hr-metric-ico {
+  flex-shrink:0; width:38px; height:38px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+}
+.hr-metric-ico.blue  { background:#eff6ff; color:#1d4ed8; }
+.hr-metric-ico.green { background:#ecfdf5; color:#047857; }
+.hr-metric-ico.amber { background:#fffbeb; color:#b45309; }
+.hr-metric-ico.red   { background:#fef2f2; color:#b91c1c; }
+.hr-metric-ico.navy  { background:#eef2ff; color:#12395f; }
+.hr-metric-body { min-width:0; flex:1; }
+.hr-metric-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.hr-metric-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+.hr-metric-val { font-size:20px; font-weight:800; letter-spacing:-.02em; color:#0f172a; }
+.hr-metric-sub { margin-top:2px; font-size:12px; color:#64748b; }
+
+/* ── Card generica ───────────────────────────────────────────────────────── */
+.hr-card {
+  background:#fff; border:1px solid #e2e8f0;
+  border-radius:16px; box-shadow:0 1px 2px rgba(15,23,42,.04); overflow:hidden;
+}
+.hr-card-pad { padding:14px 16px; }
+.hr-card-head {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 16px; border-bottom:1px solid #f1f5f9;
+}
+.hr-card-title { font-size:16px; font-weight:800; color:#12395f; }
+.hr-card-desc { font-size:13px; color:#64748b; margin-top:2px; }
+.hr-grid { display:grid; gap:12px; }
+.hr-grid-2 { grid-template-columns:repeat(2,1fr); }
+
+/* ── Page header ─────────────────────────────────────────────────────────── */
+.hr-pagehead {
+  display:flex; gap:14px; flex-wrap:wrap; align-items:center; justify-content:space-between;
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px;
+  padding:14px 18px; box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+.hr-pagehead-eyebrow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.18em; color:#1f5c91; }
+.hr-pagehead-title { margin:4px 0 0; font-size:22px; font-weight:800; letter-spacing:-.02em; color:#12395f; }
+.hr-pagehead-desc { margin:4px 0 0; font-size:13px; line-height:1.45; color:#64748b; max-width:90ch; }
+
+/* ── Pill di stato ───────────────────────────────────────────────────────── */
+.hr-pill {
+  display:inline-flex; align-items:center; border-radius:999px; border:1px solid;
+  padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap;
+}
+.hr-pill.neutral { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
+.hr-pill.ok      { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+.hr-pill.warning { background:#fffbeb; color:#b45309; border-color:#fde68a; }
+.hr-pill.danger  { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+.hr-pill.blue    { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+
+/* ── Progress ────────────────────────────────────────────────────────────── */
+.hr-progress { height:6px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
+.hr-progress > span { display:block; height:100%; border-radius:999px; background:#12395f; }
+
+/* ── Bottoni ─────────────────────────────────────────────────────────────── */
+.hr-btn {
+  display:inline-flex; align-items:center; gap:6px; cursor:pointer; text-decoration:none;
+  border:1px solid transparent; border-radius:11px; padding:8px 14px;
+  font-size:13px; font-weight:700; font-family:inherit; transition:background .15s, border-color .15s;
+}
+.hr-btn-primary { background:#12395f; color:#fff; }
+.hr-btn-primary:hover { background:#0e2d4b; }
+.hr-btn-outline { background:#fff; color:#12395f; border-color:#e2e8f0; }
+.hr-btn-outline:hover { background:#f8fafc; }
+.hr-btn-ghost { background:#f1f5f9; color:#334155; }
+.hr-btn-ghost:hover { background:#e2e8f0; }
+.hr-btn-sm { padding:5px 10px; font-size:12px; border-radius:9px; }
+
+/* ── Tab bar / subnav a pill ─────────────────────────────────────────────── */
+.hr-tabs {
+  display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+  background:#fff; border:1px solid #e2e8f0;
+  border-radius:14px; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+.hr-tab {
+  display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  border-radius:10px; padding:7px 13px; font-size:13px; font-weight:700;
+  color:#64748b; text-decoration:none; border:none; background:none;
+  cursor:pointer; font-family:inherit; transition:background .15s, color .15s;
+}
+.hr-tab:hover { background:#f1f5f9; color:#12395f; }
+.hr-tab.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+
+/* ── Tabella ─────────────────────────────────────────────────────────────── */
+.hr-table { width:100%; border-collapse:collapse; font-size:13px; }
+.hr-table th {
+  padding:10px 14px; text-align:left; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.05em; color:#64748b;
+  background:#f8fafc; border-bottom:1px solid #e2e8f0; white-space:nowrap;
+}
+.hr-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; color:#334155; vertical-align:middle; }
+.hr-table tr:last-child td { border-bottom:none; }
+.hr-table tbody tr:hover td { background:#f8fafc; }
+
+/* ── Ordinamento / filtro colonna (sortable-table.js) ────────────────────── */
+th.st-th { cursor:default; }
+.st-th-wrap { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.st-sort, .st-filter-toggle { background:none; border:none; padding:2px 4px; font-size:11px;
+  color:#94a3b8; cursor:pointer; line-height:1; border-radius:4px; }
+.st-sort:hover, .st-filter-toggle:hover { color:#1f5c91; background:#eff6ff; }
+.st-filter-toggle.active { color:#1f5c91; background:#dbeafe; }
+.st-filter-input { display:inline-block; margin-left:4px; padding:3px 7px; border:1px solid #cbd5e1;
+  border-radius:6px; font-size:12px; background:#fff; color:#0f172a; outline:none; max-width:140px;
+  text-transform:none; letter-spacing:normal; font-weight:400; }
+.st-filter-input:focus { border-color:#1f5c91; }
+
+/* ── Search field ────────────────────────────────────────────────────────── */
+.hr-search { position:relative; }
+.hr-search input {
+  height:38px; width:100%; box-sizing:border-box; border:1px solid #e2e8f0;
+  border-radius:11px; background:#fff; padding:0 12px 0 34px; font-size:13px; color:#0f172a;
+  outline:none;
+}
+.hr-search input:focus { border-color:#1f5c91; box-shadow:0 0 0 4px rgba(31,92,145,.12); }
+.hr-search::before {
+  content:"\1F50D"; position:absolute; left:11px; top:50%; transform:translateY(-50%);
+  font-size:13px; opacity:.55; pointer-events:none;
+}
+
+/* ── InfoCell (coppia label/valore) ──────────────────────────────────────── */
+.hr-infocell { background:#f8fafc; border:1px solid #e2e8f0; border-radius:13px; padding:10px 12px; }
+.hr-infocell-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+.hr-infocell-val { margin-top:3px; font-weight:700; color:#0f172a; word-break:break-word; }
+.hr-infocell-muted { font-size:12px; color:#64748b; }
+
+/* ── Stato vuoto / placeholder ───────────────────────────────────────────── */
+.hr-empty { padding:30px; text-align:center; color:#94a3b8; font-size:13px; }
+.hr-soon {
+  border:1px dashed #cbd5e1; border-radius:14px; background:#f8fafc;
+  padding:22px; text-align:center; color:#64748b;
+}
+.hr-soon-badge {
+  display:inline-flex; border-radius:999px; background:#eef2ff; color:#12395f;
+  padding:3px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width:1100px) { .hr-metric-grid { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:760px)  {
+  .hr-metric-grid { grid-template-columns:1fr; }
+  .hr-grid-2 { grid-template-columns:1fr; }
+  .hr-hero-stats { min-width:0; width:100%; }
+  .hr-hero-title { font-size:23px; }
+}
+
+/* ── Dark mode (allineato ai token core) ─────────────────────────────────── */
+body.theme-dark .hr-metric,
+body.theme-dark .hr-card,
+body.theme-dark .hr-pagehead,
+body.theme-dark .hr-tabs { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hr-card-head { border-color:var(--border); }
+body.theme-dark .hr-metric-val,
+body.theme-dark .hr-infocell-val { color:var(--text); }
+body.theme-dark .hr-metric-lbl,
+body.theme-dark .hr-metric-sub,
+body.theme-dark .hr-card-desc,
+body.theme-dark .hr-pagehead-desc,
+body.theme-dark .hr-infocell-lbl { color:var(--text-light); }
+body.theme-dark .hr-card-title,
+body.theme-dark .hr-pagehead-title { color:#93c5fd; }
+body.theme-dark .hr-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .hr-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .hr-table tbody tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hr-infocell,
+body.theme-dark .hr-soon { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .hr-tab:hover { background:var(--surface-alt); }
+body.theme-dark .hr-btn-outline { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hr-btn-ghost { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .hr-search input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+</style>

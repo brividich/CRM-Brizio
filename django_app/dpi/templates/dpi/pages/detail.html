@@ -97,7 +97,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
             {% if richiesta.tipo_dpi or richiesta.modello_dpi or richiesta.taglia_dpi %}
             <div class="dpi-cat-big-desc">
               {% if richiesta.tipo_dpi %}{{ richiesta.tipo_dpi.nome }}{% endif %}
-              {% if richiesta.modello_dpi %}{% if richiesta.tipo_dpi %} / {% endif %}{{ richiesta.modello_dpi.codice }} {{ richiesta.modello_dpi.nome }}{% endif %}
+              {% if richiesta.modello_dpi %}{% if richiesta.tipo_dpi %} / {% endif %}{{ richiesta.modello_dpi.nome }}{% endif %}
               {% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}
             </div>
             {% endif %}
@@ -113,7 +113,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dt>Tipo</dt>
           <dd>{% if richiesta.tipo_dpi %}{{ richiesta.tipo_dpi.nome }}{% else %}-{% endif %}</dd>
           <dt>Modello</dt>
-          <dd>{% if richiesta.modello_dpi %}{{ richiesta.modello_dpi.codice }} - {{ richiesta.modello_dpi.nome }}{% else %}-{% endif %}</dd>
+          <dd>{% if richiesta.modello_dpi %}{{ richiesta.modello_dpi.nome }}{% else %}-{% endif %}</dd>
           <dt>Taglia</dt>
           <dd>{% if richiesta.taglia_dpi %}{{ richiesta.taglia_dpi.valore }}{% else %}-{% endif %}</dd>
           <dt>Quantità</dt>
@@ -150,7 +150,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dt>Data consegna</dt>
           <dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
           <dt>DPI consegnato</dt>
-          <dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.codice }} {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
+          <dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}
           <dt>Consegnato da</dt>
           <dd>{{ consegna.consegnato_da_nome }}</dd>

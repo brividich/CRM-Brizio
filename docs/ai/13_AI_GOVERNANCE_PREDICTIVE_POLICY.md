@@ -31,7 +31,8 @@ Policy operativa per l'Assistente AI di NOVICROM HUB: dati live, FAQ curate, aud
 | Procedure Refresh | abilitato | campagna, documento, stato lettura, esito quiz sintetico | risposte quiz, opzioni, IP, user agent, allegati privati | manager vedono aggregati, utenti assegnazioni |
 | Notizie | abilitato | titolo, obbligatorieta, versione, pubblicazione, compliance utente, conteggio allegati | corpo, hash, file, URL/path allegati, report nominativi letture | niente corpo esteso o allegati |
 | Sicurezza | abilitato | KPI, trend e riepiloghi aggregati autorizzati | testimonianze, dettagli personali, cause libere, allegati, dati sanitari | solo aggregati, non casi individuali |
-| Timbri / Anagrafica | rimandato | nessun contesto live AI | dati HR, anagrafiche personali, timbrature, presenze | richiede DPIA/revisione privacy dedicata |
+| Anagrafica HR | limitato | nome, matricola, reparto, mansione, area, ruolo aziendale, stato attivo/cessato, consenso privacy se richiesto, classifiche ratei ferie/permessi residui con ore e periodo | CF, IBAN, banca, indirizzi, contatti privati, categorie protette, visite mediche, retribuzioni, dettagli cedolino, documenti, path/allegati | solo superuser/admin legacy o ruoli `AnagraficaHRPermission` |
+| Timbri / Presenze | rimandato | nessun contesto live AI | timbrature, cartellini, presenze | richiede DPIA/revisione privacy dedicata |
 
 ## Retention
 
@@ -80,4 +81,3 @@ Primi casi sicuri:
 6. Se il RAG sembra obsoleto: usare "Svuota cache RAG/runtime".
 7. Dopo ogni modifica, eseguire test connessione e una domanda con fonte attesa.
 8. Non incollare key, prompt sensibili o risposte complete nei ticket di supporto: usare solo host, provider, modello, elapsed ms, tool e codice errore sintetico.
-

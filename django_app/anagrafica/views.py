@@ -12,7 +12,7 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -24,6 +24,7 @@ from core.legacy_anagrafica import (
     ensure_anagrafica_schema,
     fetch_anagrafica_rows,
     generate_username,
+    normalize_legacy_alias,
     upsert_anagrafica_dipendente,
 )
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
@@ -85,6 +86,22 @@ def _file_field_url(file_field) -> str:
         return ""
 
 
+def _cessati_legacy_ids() -> set[int]:
+    """Insieme dei ``legacy_anagrafica_id`` con rapporto cessato (ex dipendenti).
+
+    Un dipendente è considerato ex dipendente quando l'anagrafica aziendale ha
+    una ``data_cessazione`` valorizzata. Questi nominativi restano a sistema con
+    il fascicolo completo ma sono esclusi dalla lista dipendenti in forza.
+    """
+    return {
+        int(lid)
+        for lid in DipendenteAnagraficaAziendale.objects
+        .filter(data_cessazione__isnull=False)
+        .values_list("legacy_anagrafica_id", flat=True)
+        if lid
+    }
+
+
 # ---------------------------------------------------------------------------
 # Dashboard anagrafica
 # ---------------------------------------------------------------------------
@@ -101,14 +118,32 @@ def index(request):
     n_aree = AreaAziendale.objects.filter(is_active=True).count()
     n_qualifiche = TipoQualifica.objects.filter(is_active=True).count()
 
-    # Qualifiche in scadenza nei prossimi 60 giorni
+    # Qualifiche scadute e in scadenza (prossimi 60 giorni)
     from datetime import timedelta
     from django.utils import timezone as tz
     oggi = tz.localdate()
     soglia = oggi + timedelta(days=60)
-    n_qualifiche_scadenza = DipendenteQualifica.objects.filter(
-        data_scadenza__isnull=False, data_scadenza__lte=soglia
+    n_qualifiche_scadute = DipendenteQualifica.objects.filter(
+        data_scadenza__isnull=False, data_scadenza__lt=oggi
     ).count()
+    n_qualifiche_scadenza = DipendenteQualifica.objects.filter(
+        data_scadenza__isnull=False, data_scadenza__gte=oggi, data_scadenza__lte=soglia
+    ).count()
+
+    # Visite mediche scadute (dato sanitario sensibile: gating)
+    can_view_visite = _can_view_visite_mediche(request)
+    n_visite_scadute = 0
+    if can_view_visite:
+        latest_ids = (
+            VisitaMedica.objects
+            .filter(data_scadenza__isnull=False)
+            .values("legacy_anagrafica_id", "tipo_id")
+            .annotate(max_id=Max("id"))
+            .values_list("max_id", flat=True)
+        )
+        n_visite_scadute = VisitaMedica.objects.filter(
+            id__in=latest_ids, data_scadenza__lt=oggi
+        ).count()
 
     return render(request, "anagrafica/pages/index.html", {
         "n_dipendenti": n_dipendenti,
@@ -116,7 +151,10 @@ def index(request):
         "n_mansioni": n_mansioni,
         "n_aree": n_aree,
         "n_qualifiche": n_qualifiche,
+        "n_qualifiche_scadute": n_qualifiche_scadute,
         "n_qualifiche_scadenza": n_qualifiche_scadenza,
+        "can_view_visite": can_view_visite,
+        "n_visite_scadute": n_visite_scadute,
     })
 
 
@@ -133,6 +171,10 @@ def dipendenti_list(request):
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
     rows = fetch_anagrafica_rows(deduplicate=True)
+    # Gli ex dipendenti (rapporto cessato) restano a sistema ma non compaiono
+    # mai in questa lista: hanno una vista dedicata `ex_dipendenti_list`.
+    cessati_ids = _cessati_legacy_ids()
+    rows = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
     reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows if str(row.get("reparto") or "").strip()})
     n_totale = len(rows)
     if q:
@@ -257,6 +299,85 @@ def dipendenti_list(request):
         "n_reparti": len(reparti_list),
         "n_attivi": status_stats["active"],
         "n_non_attivi": status_stats["inactive"],
+        "n_ex": len(cessati_ids),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Ex dipendenti — vista dedicata ai rapporti cessati
+# ---------------------------------------------------------------------------
+
+@login_required
+def ex_dipendenti_list(request):
+    """Elenco degli ex dipendenti (rapporto di lavoro cessato).
+
+    Vista separata dalla lista dipendenti in forza: questi nominativi restano a
+    sistema con il fascicolo completo (documenti, retribuzioni, storico) ma non
+    compaiono tra i dipendenti attivi. Un dipendente è qui quando la sua
+    anagrafica aziendale ha una ``data_cessazione`` valorizzata.
+    """
+    ensure_anagrafica_schema()
+    q = request.GET.get("q", "").strip()
+
+    cessati_ids = _cessati_legacy_ids()
+    rows = [
+        row
+        for row in fetch_anagrafica_rows(deduplicate=True)
+        if int(row.get("id") or 0) in cessati_ids
+    ]
+    if q:
+        q_norm = q.casefold()
+        rows = [
+            row
+            for row in rows
+            if any(
+                q_norm in str(row.get(field) or "").strip().casefold()
+                for field in ("nome", "cognome", "aliasusername", "matricola")
+                if str(row.get(field) or "").strip()
+            )
+        ]
+
+    az_map = {
+        obj.legacy_anagrafica_id: obj
+        for obj in DipendenteAnagraficaAziendale.objects.filter(
+            legacy_anagrafica_id__in=cessati_ids
+        )
+    }
+    civile_map = {
+        int(obj.legacy_anagrafica_id): obj
+        for obj in DipendenteAnagraficaCivile.objects.filter(
+            legacy_anagrafica_id__in=cessati_ids
+        ).only("legacy_anagrafica_id", "foto")
+    }
+    for row in rows:
+        legacy_id = int(row.get("id") or 0)
+        az = az_map.get(legacy_id)
+        civile = civile_map.get(legacy_id)
+        row["legacy_id"] = legacy_id
+        row["matricola_legacy"] = str(row.get("matricola") or "").strip()
+        row["foto_url"] = _file_field_url(civile.foto) if civile else ""
+        row["data_cessazione"] = getattr(az, "data_cessazione", None)
+        row["data_assunzione"] = (
+            getattr(az, "data_assunzione_ultima", None)
+            or getattr(az, "data_prima_assunzione", None)
+        )
+        row["tipologia_contratto_display"] = (
+            az.get_tipologia_contratto_display() if az and az.tipologia_contratto else ""
+        )
+
+    rows.sort(key=lambda row: (
+        row.get("data_cessazione") or date.min,
+        str(row.get("cognome") or "").strip().casefold(),
+        str(row.get("nome") or "").strip().casefold(),
+    ), reverse=True)
+
+    paginator = Paginator(rows, 40)
+    page = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/ex_dipendenti_list.html", {
+        "page_obj": page,
+        "q": q,
+        "n_ex": len(cessati_ids),
     })
 
 
@@ -712,6 +833,40 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
 
 
 # ---------------------------------------------------------------------------
+# Scheda dettaglio dipendente — helper assenze
+# ---------------------------------------------------------------------------
+
+def _query_assenze_dipendente(utente_id: int | None) -> list[dict]:
+    """Read-only: assenze del dipendente (anno corrente + precedente) via utente_id JOIN.
+
+    Ritorna lista di dict con chiavi: data_inizio, data_fine, tipo_assenza,
+    moderation_status. Vuota se la tabella non esiste o utente_id è None.
+    """
+    if not utente_id:
+        return []
+    import datetime as _dt
+    from django.utils import timezone as _tz
+    data_da = _dt.date(_tz.localdate().year - 1, 1, 1)
+    try:
+        with connections["default"].cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.data_inizio, a.data_fine, a.tipo_assenza, a.moderation_status
+                FROM assenze a
+                INNER JOIN dipendenti d ON a.dipendente_id = d.id
+                WHERE d.utente_id = %s AND a.data_inizio >= %s
+                ORDER BY a.data_inizio DESC
+                """,
+                [int(utente_id), data_da],
+            )
+            cols = [str(c[0]) for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception:
+        logger.warning("_query_assenze_dipendente: tabelle legacy non disponibili (utente_id=%s)", utente_id)
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Scheda dettaglio dipendente
 # ---------------------------------------------------------------------------
 
@@ -1007,6 +1162,28 @@ def dipendente_detail(request, legacy_id: int):
             SaldoCedolino.objects.filter(_ratei_q).order_by("-data_competenza")[:1]
         )
 
+    # Assenze (read-only, ultimi 2 anni, via legacy JOIN)
+    _utente_id_ass = int(dip.get("utente_id") or 0) or None
+    assenze_list = _query_assenze_dipendente(_utente_id_ass)
+    assenze_no_link = _utente_id_ass is None
+    assenze_summary_anno: dict[str, int] = {}
+    for _a in assenze_list:
+        _d_i = _a.get("data_inizio")
+        _d_f = _a.get("data_fine") or _d_i
+        if not _d_i:
+            continue
+        try:
+            _year = _d_i.year if hasattr(_d_i, "year") else int(str(_d_i)[:4])
+            if _year != oggi.year:
+                continue
+            if int(_a.get("moderation_status") or -1) != 0:
+                continue
+            _days = max(1, (_d_f - _d_i).days + 1) if _d_f and _d_f != _d_i else 1
+            _tipo = str(_a.get("tipo_assenza") or "Altro").strip() or "Altro"
+            assenze_summary_anno[_tipo] = assenze_summary_anno.get(_tipo, 0) + _days
+        except Exception:
+            pass
+
     # Storico cambiamenti organizzativi (mansione, reparto, area, ruolo aziendale) — solo admin
     storico_cambiamenti: list = []
     if is_admin:
@@ -1089,6 +1266,9 @@ def dipendente_detail(request, legacy_id: int):
         "livelli_json": livelli_json,
         "tipi_qualifica_prof": tipi_qualifica_prof,
         "ratei_saldi": ratei_saldi,
+        "assenze_list": assenze_list,
+        "assenze_summary_anno": assenze_summary_anno,
+        "assenze_no_link": assenze_no_link,
     })
 
 
@@ -1408,6 +1588,146 @@ def dipendente_reparto_set(request, legacy_id: int):
     except Exception:
         logger.exception("Errore aggiornamento reparto dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento del reparto.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_username_set(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare lo username.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    new_alias = (request.POST.get("aliasusername") or "").strip()[:150]
+
+    if not new_alias:
+        messages.error(request, "Lo username non può essere vuoto.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    if " " in new_alias:
+        messages.error(request, "Lo username non può contenere spazi.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    # Normalizza con la stessa regola di upsert_anagrafica_dipendente, così
+    # anagrafica e account portale restano allineati sullo stesso valore.
+    new_alias = normalize_legacy_alias(new_alias)
+    if not new_alias:
+        messages.error(request, "Lo username non è valido.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    # Unicità: nessun altro dipendente deve avere lo stesso alias
+    conflict = AnagraficaDipendente.objects.filter(
+        aliasusername__iexact=new_alias
+    ).exclude(id=legacy_id).first()
+    if conflict:
+        messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    old_alias = (dip.get("aliasusername") or "").strip()
+
+    # Account portale Django collegato: anagrafica.utente_id -> Profile.legacy_user_id -> User.
+    # aliasusername è la fonte di verità: lo username Django viene tenuto allineato.
+    from django.db import transaction
+    from django.contrib.auth import get_user_model
+    from core.models import Profile
+
+    linked_utente_id = int(dip.get("utente_id") or 0)
+    django_profile = None
+    if linked_utente_id > 0:
+        django_profile = (
+            Profile.objects.select_related("user")
+            .filter(legacy_user_id=linked_utente_id)
+            .first()
+        )
+
+    # Fail-closed: blocca prima di scrivere se lo username è già preso da un altro account.
+    if django_profile and django_profile.user_id:
+        User = get_user_model()
+        username_conflict = (
+            User.objects.filter(username__iexact=new_alias)
+            .exclude(id=django_profile.user_id)
+            .first()
+        )
+        if username_conflict:
+            messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro account portale.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    try:
+        with transaction.atomic():
+            upsert_anagrafica_dipendente(
+                row_id=legacy_id,
+                aliasusername=new_alias,
+                nome=dip.get("nome") or "",
+                cognome=dip.get("cognome") or "",
+                reparto=dip.get("reparto") or "",
+                mansione=dip.get("mansione") or "",
+                ruolo=dip.get("ruolo") or "",
+                matricola=dip.get("matricola") or "",
+                email=dip.get("email") or "",
+                email_notifica=dip.get("email_notifica") or "",
+                attivo=bool(dip.get("attivo", True)),
+            )
+            if (
+                django_profile
+                and django_profile.user_id
+                and django_profile.user.username != new_alias
+            ):
+                django_profile.user.username = new_alias
+                django_profile.user.save(update_fields=["username"])
+        _registra_cambiamento(legacy_id, "USERNAME", old_alias, new_alias, request.user)
+        if django_profile and django_profile.user_id:
+            messages.success(request, f"Username aggiornato a '{new_alias}' (anagrafica + account portale).")
+        else:
+            messages.success(request, f"Username aggiornato a '{new_alias}'.")
+    except Exception:
+        logger.exception("Errore aggiornamento username dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento dello username.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_toggle_active(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare lo stato del dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    currently_active = dip.get("attivo") not in {None, 0, False, "0"}
+    new_active = not currently_active
+
+    try:
+        upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=dip.get("nome") or "",
+            cognome=dip.get("cognome") or "",
+            reparto=dip.get("reparto") or "",
+            mansione=dip.get("mansione") or "",
+            ruolo=dip.get("ruolo") or "",
+            matricola=dip.get("matricola") or "",
+            email=dip.get("email") or "",
+            email_notifica=dip.get("email_notifica") or "",
+            attivo=new_active,
+            detach_account=not new_active,
+        )
+        if new_active:
+            messages.success(request, "Dipendente riattivato.")
+        else:
+            messages.success(request, "Dipendente disattivato. L'account portale è stato scollegato.")
+    except Exception:
+        logger.exception("Errore toggle attivo dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento dello stato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -2559,10 +2879,15 @@ def dipendenti_report(request):
         obj.legacy_anagrafica_id: obj
         for obj in DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=legacy_ids)
     }
+    civ_map = {
+        obj.legacy_anagrafica_id: obj
+        for obj in DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id__in=legacy_ids)
+    }
     for row in all_rows:
         lid = int(row.get("id") or 0)
         az = az_map.get(lid)
-        row["_az"] = az
+        row["az"] = az
+        row["civ"] = civ_map.get(lid)
 
     # Export CSV (no campi sensibili)
     fmt = request.GET.get("format", "").strip()
@@ -2579,7 +2904,7 @@ def dipendenti_report(request):
             "Consenso privacy", "Email aziendale", "Telefono aziendale",
         ])
         for row in all_rows:
-            az = row.get("_az")
+            az = row.get("az")
             writer.writerow([
                 row.get("id", ""),
                 row.get("cognome", ""),
@@ -3265,6 +3590,154 @@ def tipologia_contratto_delete(request, tipologia_id: int):
 # ---------------------------------------------------------------------------
 # Pannello impostazioni anagrafica — vista aggregata con tabs
 # ---------------------------------------------------------------------------
+# Scadenzario unificato qualifiche + visite mediche
+# ---------------------------------------------------------------------------
+
+@login_required
+def scadenzario(request):
+    """Scadenzario unificato: qualifiche professionali e visite mediche in scadenza/scadute.
+
+    Accesso: login obbligatorio. Le qualifiche sono visibili a tutti gli utenti
+    autenticati; le visite mediche (dati sanitari) solo se _can_view_visite_mediche.
+    """
+    from django.utils import timezone as tz
+    oggi = tz.localdate()
+    soglia_30 = oggi + _timedelta(days=30)
+    soglia_60 = oggi + _timedelta(days=60)
+
+    can_view_visite = _can_view_visite_mediche(request)
+
+    filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / ""
+    filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
+    filtro_reparto = request.GET.get("reparto", "").strip()
+    export_csv     = request.GET.get("format") == "csv"
+
+    # Mappa ID legacy → dati dipendente (nome, reparto)
+    dip_rows = fetch_anagrafica_rows(deduplicate=True)
+    dip_map  = {int(r["id"]): r for r in dip_rows if r.get("id")}
+
+    voci: list[dict] = []
+
+    # ── Qualifiche ──────────────────────────────────────────────────────────
+    if filtro_tipo in ("", "qualifica"):
+        qs_q = DipendenteQualifica.objects.select_related("tipo").filter(
+            data_scadenza__isnull=False
+        )
+        if filtro_stato == "scaduta":
+            qs_q = qs_q.filter(data_scadenza__lt=oggi)
+        elif filtro_stato == "30":
+            qs_q = qs_q.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
+        elif filtro_stato == "60":
+            qs_q = qs_q.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+        else:
+            qs_q = qs_q.filter(data_scadenza__lte=soglia_60)
+
+        for q in qs_q:
+            dip = dip_map.get(q.legacy_anagrafica_id, {})
+            reparto = str(dip.get("reparto") or "").strip()
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            delta = (q.data_scadenza - oggi).days
+            voci.append({
+                "kind":         "qualifica",
+                "kind_label":   "Qualifica",
+                "legacy_id":    q.legacy_anagrafica_id,
+                "cognome":      str(dip.get("cognome") or f"ID {q.legacy_anagrafica_id}").strip(),
+                "nome":         str(dip.get("nome") or "").strip(),
+                "reparto":      reparto,
+                "tipo_nome":    q.tipo.nome,
+                "categoria":    q.tipo.get_categoria_display(),
+                "data_scadenza": q.data_scadenza,
+                "giorni":       delta,
+                "scaduta":      delta < 0,
+            })
+
+    # ── Visite mediche (gated) ───────────────────────────────────────────────
+    if can_view_visite and filtro_tipo in ("", "visita"):
+        latest_ids = (
+            VisitaMedica.objects
+            .filter(data_scadenza__isnull=False)
+            .values("legacy_anagrafica_id", "tipo_id")
+            .annotate(max_id=Max("id"))
+            .values_list("max_id", flat=True)
+        )
+        qs_v = VisitaMedica.objects.select_related("tipo").filter(id__in=latest_ids)
+        if filtro_stato == "scaduta":
+            qs_v = qs_v.filter(data_scadenza__lt=oggi)
+        elif filtro_stato == "30":
+            qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
+        elif filtro_stato == "60":
+            qs_v = qs_v.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+        else:
+            qs_v = qs_v.filter(data_scadenza__lte=soglia_60)
+
+        for v in qs_v:
+            dip = dip_map.get(v.legacy_anagrafica_id, {})
+            reparto = str(dip.get("reparto") or "").strip()
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            delta = (v.data_scadenza - oggi).days
+            voci.append({
+                "kind":         "visita",
+                "kind_label":   "Visita medica",
+                "legacy_id":    v.legacy_anagrafica_id,
+                "cognome":      str(dip.get("cognome") or f"ID {v.legacy_anagrafica_id}").strip(),
+                "nome":         str(dip.get("nome") or "").strip(),
+                "reparto":      reparto,
+                "tipo_nome":    v.tipo.nome,
+                "categoria":    "Visita medica",
+                "data_scadenza": v.data_scadenza,
+                "giorni":       delta,
+                "scaduta":      delta < 0,
+            })
+
+    # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine
+    voci.sort(key=lambda x: x["giorni"])
+
+    # KPI
+    n_scadute = sum(1 for v in voci if v["scaduta"])
+    n_30gg    = sum(1 for v in voci if not v["scaduta"] and v["giorni"] <= 30)
+    n_60gg    = sum(1 for v in voci if not v["scaduta"] and 30 < v["giorni"] <= 60)
+
+    reparti = sorted({v["reparto"] for v in voci if v["reparto"]})
+
+    # Export CSV
+    if export_csv:
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario_anagrafica.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
+        for v in voci:
+            stato = "Scaduta" if v["scaduta"] else f"Scade in {v['giorni']} giorni"
+            writer.writerow([
+                f"{v['cognome']} {v['nome']}".strip(),
+                v["reparto"],
+                v["kind_label"],
+                v["tipo_nome"],
+                v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
+                stato,
+            ])
+        return resp
+
+    # Paginazione
+    paginator  = Paginator(voci, 50)
+    page_obj   = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/scadenzario.html", {
+        "page_obj":      page_obj,
+        "n_scadute":     n_scadute,
+        "n_30gg":        n_30gg,
+        "n_60gg":        n_60gg,
+        "oggi":          oggi,
+        "filtro_tipo":   filtro_tipo,
+        "filtro_stato":  filtro_stato,
+        "filtro_reparto": filtro_reparto,
+        "reparti":       reparti,
+        "can_view_visite": can_view_visite,
+        "totale":        len(voci),
+    })
+
+
 # Ratei ferie/ROL/ex-festività — vista aggregata con filtro mese + dipendente
 # ---------------------------------------------------------------------------
 
@@ -3512,6 +3985,390 @@ def ratei_export(request):
 
 
 # ---------------------------------------------------------------------------
+# Retribuzioni — vista globale pivot (dipendente+mese × pay_item) con filtri
+# ---------------------------------------------------------------------------
+
+_GENERE_LABEL = dict(DipendenteAnagraficaCivile.GENERE_CHOICES)
+
+
+def _retribuzioni_globale_context(request) -> dict:
+    """Costruisce dataset e filtri condivisi dalla vista globale retribuzioni e
+    dal relativo export. Restituisce mappe display, colonne pivot, righe-gruppo
+    (chiavi tax_code+mese ordinate) e i valori dei filtri correnti."""
+    from django.db.models import Min
+
+    # Coppie tax_code/legacy presenti nelle voci retributive
+    all_pairs = list(
+        VoceRetributiva.objects.values("tax_code", "legacy_anagrafica_id").distinct()
+    )
+
+    # Anagrafica civile: la voce retributiva non sempre ha `legacy_anagrafica_id`
+    # valorizzato, quindi il collegamento al dipendente legacy (nome, reparto)
+    # passa dal codice fiscale tramite l'anagrafica civile.
+    cf_civile_legacy: dict = {}
+    cf_to_sesso: dict = {}
+    for c in (
+        DipendenteAnagraficaCivile.objects
+        .exclude(codice_fiscale="")
+        .values("codice_fiscale", "legacy_anagrafica_id", "genere")
+    ):
+        cf_u = (c["codice_fiscale"] or "").strip().upper()
+        if not cf_u:
+            continue
+        cf_civile_legacy[cf_u] = c["legacy_anagrafica_id"]
+        cf_to_sesso[cf_u] = c["genere"] or ""
+
+    # Mappa tax_code -> legacy_id: prima il valore della voce, poi l'anagrafica civile
+    cf_to_legacy: dict = {}
+    for p in all_pairs:
+        cf = (p["tax_code"] or "").strip()
+        if not cf or cf in cf_to_legacy:
+            continue
+        cf_to_legacy[cf] = p["legacy_anagrafica_id"] or cf_civile_legacy.get(cf.upper())
+
+    legacy_ids = sorted({lid for lid in cf_to_legacy.values() if lid})
+
+    dip_qs = list(
+        AnagraficaDipendente.objects.filter(id__in=legacy_ids)
+        .values("id", "cognome", "nome", "reparto")
+    )
+    id_to_nome = {
+        d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
+        for d in dip_qs
+    }
+    id_to_reparto = {d["id"]: (d["reparto"] or "").strip() for d in dip_qs}
+
+    # Livello contrattuale corrente: contratto piu' recente per dipendente
+    id_to_livello: dict = {}
+    cf_to_livello: dict = {}
+    for sc in (
+        StoricoContratto.objects
+        .order_by("-data_inizio", "-created_at")
+        .values("legacy_anagrafica_id", "tax_code", "codice_livello")
+    ):
+        liv = (sc["codice_livello"] or "").strip()
+        if not liv:
+            continue
+        lid = sc["legacy_anagrafica_id"]
+        cf = (sc["tax_code"] or "").strip().upper()
+        if lid and lid not in id_to_livello:
+            id_to_livello[lid] = liv
+        if cf and cf not in cf_to_livello:
+            cf_to_livello[cf] = liv
+
+    def _nome(cf):
+        lid = cf_to_legacy.get(cf)
+        return (id_to_nome.get(lid) if lid else None) or cf
+
+    def _reparto(cf):
+        lid = cf_to_legacy.get(cf)
+        return id_to_reparto.get(lid, "") if lid else ""
+
+    def _sesso(cf):
+        return cf_to_sesso.get(cf.upper(), "")
+
+    def _livello(cf):
+        lid = cf_to_legacy.get(cf)
+        return (id_to_livello.get(lid) if lid else None) or cf_to_livello.get(cf.upper(), "")
+
+    # Opzioni filtri
+    dipendenti_options = sorted(
+        ({"cf": cf, "nome": _nome(cf), "reparto": _reparto(cf)} for cf in cf_to_legacy),
+        key=lambda x: x["nome"],
+    )
+    reparti_options = sorted({r for r in id_to_reparto.values() if r})
+    livelli_db = list(
+        LivelloContrattuale.objects.filter(is_active=True)
+        .order_by("ordine", "codice")
+        .values_list("codice", flat=True)
+    )
+    livelli_usati = {_livello(cf) for cf in cf_to_legacy if _livello(cf)}
+    livelli_options = list(dict.fromkeys(list(livelli_db) + sorted(livelli_usati)))
+    periodi = list(
+        VoceRetributiva.objects.values_list("data_competenza", flat=True)
+        .distinct().order_by("-data_competenza")
+    )
+
+    # Filtri GET
+    filtro_dipendenti = [c for c in request.GET.getlist("dipendente") if c.strip()]
+    filtro_reparti = request.GET.getlist("reparto")
+    filtro_sesso = request.GET.get("sesso", "").strip()
+    filtro_livelli = [v.strip() for v in request.GET.getlist("livello") if v.strip()]
+    filtro_periodo = request.GET.get("periodo", "")
+
+    # Insieme tax_code ammessi dopo i filtri dipendente/reparto/sesso/livello
+    allowed = set(cf_to_legacy.keys())
+    if filtro_dipendenti:
+        allowed &= set(filtro_dipendenti)
+    if filtro_reparti:
+        allowed = {cf for cf in allowed if _reparto(cf) in filtro_reparti}
+    if filtro_sesso:
+        allowed = {cf for cf in allowed if _sesso(cf) == filtro_sesso}
+    if filtro_livelli:
+        allowed = {cf for cf in allowed if _livello(cf) in filtro_livelli}
+
+    has_filters = bool(filtro_dipendenti or filtro_reparti or filtro_sesso or filtro_livelli)
+    qs = VoceRetributiva.objects.all()
+    if has_filters:
+        qs = qs.filter(tax_code__in=allowed)
+    if filtro_periodo:
+        try:
+            anno, mese, giorno = filtro_periodo.split("-")
+            qs = qs.filter(data_competenza=date(int(anno), int(mese), int(giorno)))
+        except (ValueError, AttributeError):
+            pass
+
+    # Colonne pivot: tutti i pay_item del set filtrato, ordine di prima apparizione
+    col_rows = list(
+        qs.values("pay_item_key", "pay_item", "categoria")
+        .annotate(_first=Min("data_competenza"))
+        .order_by("_first")
+    )
+    _CAT_ORDER = {"fisso": 0, "variabile": 1, "altro": 2, "totale": 3}
+    _TOTALI_SORT = {"retribuzione di fatto": 0, "totale elementi variabili": 1, "rml": 2, "ral": 3}
+    key_meta: dict = {}
+    seq = 0
+    for r in col_rows:
+        k = r["pay_item_key"]
+        if k not in key_meta:
+            key_meta[k] = {
+                "key": k, "label": r["pay_item"], "categoria": r["categoria"], "_seq": seq,
+            }
+            seq += 1
+
+    def _col_sort(m):
+        cat = _CAT_ORDER.get(m["categoria"], 99)
+        sub = _TOTALI_SORT.get(m["key"], 50) if m["categoria"] == "totale" else m["_seq"]
+        return (cat, sub)
+
+    colonne = sorted(key_meta.values(), key=_col_sort)
+
+    _CAT_LABEL = dict(VoceRetributiva.CATEGORIA_CHOICES)
+    gruppi: list = []
+    for c in colonne:
+        if gruppi and gruppi[-1]["categoria"] == c["categoria"]:
+            gruppi[-1]["n"] += 1
+        else:
+            gruppi.append({
+                "categoria": c["categoria"],
+                "label": _CAT_LABEL.get(c["categoria"], c["categoria"]),
+                "n": 1,
+            })
+
+    # Righe-gruppo: una per ogni combinazione dipendente+mese
+    group_rows = list(
+        qs.values("tax_code", "data_competenza").distinct()
+        .order_by("-data_competenza", "tax_code")
+    )
+
+    return {
+        "qs": qs,
+        "colonne": colonne,
+        "gruppi": gruppi,
+        "group_rows": group_rows,
+        "periodi": periodi,
+        "dipendenti_options": dipendenti_options,
+        "reparti_options": reparti_options,
+        "livelli_options": livelli_options,
+        "sesso_options": DipendenteAnagraficaCivile.GENERE_CHOICES,
+        "filtro_dipendenti": filtro_dipendenti,
+        "filtro_reparti": filtro_reparti,
+        "filtro_sesso": filtro_sesso,
+        "filtro_livelli": filtro_livelli,
+        "filtro_periodo": filtro_periodo,
+        "_nome": _nome,
+        "_reparto": _reparto,
+        "_sesso": _sesso,
+        "_livello": _livello,
+    }
+
+
+def _retribuzioni_globale_rows(ctx: dict, groups: list) -> list:
+    """Per un sottoinsieme di righe-gruppo costruisce le righe pivot effettive.
+
+    Applica la stessa regola di merge della scheda dipendente: per ogni mese vale
+    l'importazione CSV piu' recente, le voci manuali fanno override sullo stesso
+    pay_item_key."""
+    colonne = ctx["colonne"]
+    qs = ctx["qs"]
+    tax_set = {g["tax_code"] for g in groups}
+    date_set = {g["data_competenza"] for g in groups}
+    key_set = {(g["tax_code"], g["data_competenza"]) for g in groups}
+
+    bucket: dict = {}
+    for v in (
+        qs.filter(tax_code__in=tax_set, data_competenza__in=date_set)
+        .select_related("importazione")
+    ):
+        kk = (v.tax_code, v.data_competenza)
+        if kk in key_set:
+            bucket.setdefault(kk, []).append(v)
+
+    rows: list = []
+    for g in groups:
+        cf = g["tax_code"]
+        kk = (cf, g["data_competenza"])
+        gv = bucket.get(kk, [])
+        manuali = [v for v in gv if v.manuale]
+        csv_voci = [v for v in gv if not v.manuale]
+        if csv_voci:
+            latest = max((v.importazione for v in csv_voci), key=lambda i: i.data_importazione)
+            csv_voci = [v for v in csv_voci if v.importazione_id == latest.id]
+        manuale_keys = {v.pay_item_key for v in manuali}
+        eff = {v.pay_item_key: v for v in csv_voci if v.pay_item_key not in manuale_keys}
+        eff.update({v.pay_item_key: v for v in manuali})
+
+        celle = []
+        for col in colonne:
+            v = eff.get(col["key"])
+            celle.append({
+                "importo": v.importo if v else None,
+                "manuale": bool(v and v.manuale),
+                "is_totale": col["categoria"] == "totale",
+            })
+        sesso = ctx["_sesso"](cf)
+        rows.append({
+            "tax_code": cf,
+            "legacy_anagrafica_id": gv[0].legacy_anagrafica_id if gv else None,
+            "nome": ctx["_nome"](cf),
+            "reparto": ctx["_reparto"](cf),
+            "livello": ctx["_livello"](cf),
+            "sesso": _GENERE_LABEL.get(sesso, sesso),
+            "data_competenza": g["data_competenza"],
+            "celle": celle,
+        })
+    return rows
+
+
+@login_required
+def retribuzioni_globale(request):
+    """Vista globale voci retributive: una riga per dipendente+mese, colonne =
+    pay_item raggruppate per categoria. Filtri per dipendente (multi), reparto,
+    sesso e livello contrattuale (solo HR)."""
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso non autorizzato ai dati HR.")
+        return redirect("anagrafica:index")
+
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+
+    ctx = _retribuzioni_globale_context(request)
+
+    paginator = Paginator(ctx["group_rows"], 40)
+    page_obj = paginator.get_page(request.GET.get("page", 1))
+    rows = _retribuzioni_globale_rows(ctx, list(page_obj.object_list))
+
+    return render(request, "anagrafica/pages/retribuzioni_globale.html", {
+        "page_obj": page_obj,
+        "rows": rows,
+        "colonne": ctx["colonne"],
+        "gruppi": ctx["gruppi"],
+        "n_colonne": len(ctx["colonne"]),
+        "periodi": ctx["periodi"],
+        "dipendenti_options": ctx["dipendenti_options"],
+        "reparti_options": ctx["reparti_options"],
+        "livelli_options": ctx["livelli_options"],
+        "sesso_options": ctx["sesso_options"],
+        "filtro_dipendenti": ctx["filtro_dipendenti"],
+        "filtro_reparti": ctx["filtro_reparti"],
+        "filtro_sesso": ctx["filtro_sesso"],
+        "filtro_livelli": ctx["filtro_livelli"],
+        "filtro_periodo": ctx["filtro_periodo"],
+        "totale": len(ctx["group_rows"]),
+        "can_hr": can_hr,
+        "is_admin": is_admin,
+    })
+
+
+@login_required
+def retribuzioni_globale_export(request):
+    """Esporta in XLSX la vista globale retribuzioni con i filtri correnti (solo HR)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font, Alignment
+    from openpyxl.utils import get_column_letter
+
+    can_hr = _check_hr_permission(request)
+    if not can_hr:
+        messages.error(request, "Accesso non autorizzato ai dati HR.")
+        return redirect("anagrafica:index")
+
+    ctx = _retribuzioni_globale_context(request)
+    colonne = ctx["colonne"]
+    rows = _retribuzioni_globale_rows(ctx, ctx["group_rows"])
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Retribuzioni"
+
+    _CAT_FILL = {
+        "fisso": PatternFill("solid", fgColor="EFF6FF"),
+        "variabile": PatternFill("solid", fgColor="FEF9C3"),
+        "totale": PatternFill("solid", fgColor="DCFCE7"),
+        "altro": PatternFill("solid", fgColor="F1F5F9"),
+    }
+    fill_hdr = PatternFill("solid", fgColor="F1F5F9")
+    font_b = Font(bold=True)
+    c_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    fixed = ["Dipendente", "Periodo", "Reparto", "Livello", "Sesso"]
+    n_fixed = len(fixed)
+
+    # Riga 1 — gruppi categoria
+    for i, label in enumerate(fixed, 1):
+        ws.merge_cells(start_row=1, start_column=i, end_row=2, end_column=i)
+        c = ws.cell(row=1, column=i, value=label)
+        c.fill = fill_hdr
+        c.font = font_b
+        c.alignment = c_center
+    col = n_fixed + 1
+    for g in ctx["gruppi"]:
+        start, end = col, col + g["n"] - 1
+        if end > start:
+            ws.merge_cells(start_row=1, start_column=start, end_row=1, end_column=end)
+        c = ws.cell(row=1, column=start, value=g["label"])
+        c.fill = _CAT_FILL.get(g["categoria"], fill_hdr)
+        c.font = font_b
+        c.alignment = c_center
+        col = end + 1
+
+    # Riga 2 — pay_item
+    for j, meta in enumerate(colonne):
+        c = ws.cell(row=2, column=n_fixed + 1 + j, value=meta["label"])
+        c.fill = _CAT_FILL.get(meta["categoria"], fill_hdr)
+        c.font = font_b
+        c.alignment = c_center
+    ws.freeze_panes = "A3"
+
+    for r in rows:
+        periodo = r["data_competenza"].strftime("%m/%Y") if r["data_competenza"] else ""
+        line = [r["nome"], periodo, r["reparto"], r["livello"], r["sesso"]]
+        for cell in r["celle"]:
+            line.append(float(cell["importo"]) if cell["importo"] is not None else None)
+        ws.append(line)
+
+    ws.column_dimensions["A"].width = 28
+    for i in range(2, n_fixed + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 14
+    for j in range(len(colonne)):
+        ws.column_dimensions[get_column_letter(n_fixed + 1 + j)].width = 15
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = "retribuzioni_globale"
+    if ctx["filtro_periodo"]:
+        fname += f"_{ctx['filtro_periodo'][:7]}"
+    response = HttpResponse(
+        buf.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{fname}.xlsx"'
+    return response
+
+
+# ---------------------------------------------------------------------------
 
 @login_required
 def impostazioni(request):
@@ -3627,6 +4484,28 @@ def impostazioni(request):
         .select_related("categoria")
         .order_by("ordine", "etichetta")
     )
+    # Rotte del modulo selezionabili nei link subnav (pagine GET senza parametri)
+    subnav_route_choices = [
+        ("anagrafica:index", "Anagrafica HR — dashboard"),
+        ("anagrafica:dipendenti_list", "Dipendenti — elenco"),
+        ("anagrafica:dipendente_create", "Dipendenti — nuovo"),
+        ("anagrafica:dipendenti_report", "Dipendenti — report"),
+        ("anagrafica:retribuzioni_globale", "Analisi retribuzioni — vista globale"),
+        ("anagrafica:retribuzioni_import", "Retribuzioni — import CSV"),
+        ("anagrafica:contratti_import", "Contratti — import CSV"),
+        ("anagrafica:ratei_list", "Ratei ferie / permessi"),
+        ("anagrafica:scadenzario", "Scadenzario qualifiche e visite"),
+        ("anagrafica:visite_mediche_dashboard", "Visite mediche — dashboard"),
+        ("anagrafica:visite_mediche_nuova_sessione", "Visite mediche — nuova sessione"),
+        ("anagrafica:documenti_list", "Documenti dipendenti"),
+        ("anagrafica:ruoli_operativi_list", "Ruoli operativi — catalogo"),
+        ("anagrafica:mansioni_list", "Mansioni — catalogo"),
+        ("anagrafica:aree_list", "Aree aziendali — catalogo"),
+        ("anagrafica:ruoli_aziendali_list", "Ruoli aziendali — catalogo"),
+        ("anagrafica:qualifiche_list", "Qualifiche — catalogo"),
+        ("anagrafica:widget_permissions", "Impostazioni widget dipendente"),
+        ("anagrafica:impostazioni", "Impostazioni anagrafica"),
+    ]
 
     return render(request, "anagrafica/pages/impostazioni.html", {
         "is_admin": is_admin,
@@ -3670,6 +4549,7 @@ def impostazioni(request):
         # Subnav navigazione
         "subnav_categorie": subnav_categorie,
         "subnav_links": subnav_links,
+        "subnav_route_choices": subnav_route_choices,
     })
 
 
@@ -4755,6 +5635,9 @@ def visite_mediche_dashboard(request):
     ).count()
     kpi_visite_totali = VisitaMedica.objects.count()
 
+    _MESI_ITA = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+                 "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+
     # Ultime visite registrate (globale, 30 più recenti)
     ultime_visite = list(
         VisitaMedica.objects
@@ -4763,6 +5646,10 @@ def visite_mediche_dashboard(request):
     )
     for v in ultime_visite:
         v.dipendente_nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
+        if v.data_svolgimento:
+            v.mese_label = f"{_MESI_ITA[v.data_svolgimento.month]} {v.data_svolgimento.year}"
+        else:
+            v.mese_label = "Data non disponibile"
 
     # Scadute o in scadenza — con filtro mese opzionale
     if filtro_scad == "mese_corrente":
@@ -4793,6 +5680,10 @@ def visite_mediche_dashboard(request):
     for v in scad_o_in_scad:
         v.dipendente_nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         v.giorni_a_scadenza = (v.data_scadenza - oggi).days if v.data_scadenza else None
+        if v.data_scadenza:
+            v.mese_label = f"{_MESI_ITA[v.data_scadenza.month]} {v.data_scadenza.year}"
+        else:
+            v.mese_label = "Senza scadenza"
 
     # Pre-aggrega conteggi DB per tipo (evita N query nel loop)
     _valide_per_tipo = {
@@ -4843,8 +5734,55 @@ def visite_mediche_dashboard(request):
 
     kpi_tipi_attivi = tipi_attivi_qs.count()
 
+    # Sessioni per tipo (latest per dipendente): usate nel pannello dettaglio interattivo
+    from collections import defaultdict as _defaultdict
+    _all_tipo_ids = [row["tipo"].pk for row in tipologie_stats]
+    if _all_tipo_ids:
+        _latest_ids_bulk = (
+            VisitaMedica.objects
+            .filter(tipo_id__in=_all_tipo_ids)
+            .values("tipo_id", "legacy_anagrafica_id")
+            .annotate(max_id=Max("id"))
+            .values_list("max_id", flat=True)
+        )
+        _latest_sessions_bulk = list(
+            VisitaMedica.objects
+            .filter(id__in=_latest_ids_bulk)
+            .select_related("tipo")
+            .order_by("tipo_id", "legacy_anagrafica_id")
+        )
+        _soglia_avviso = oggi + _timedelta(days=60)
+        _sessions_by_tipo: dict = _defaultdict(list)
+        for _v in _latest_sessions_bulk:
+            _v.dipendente_nome = nomi_map.get(_v.legacy_anagrafica_id, f"#{_v.legacy_anagrafica_id}")
+            _v.giorni_a_scadenza = (_v.data_scadenza - oggi).days if _v.data_scadenza else None
+            _sessions_by_tipo[_v.tipo_id].append(_v)
+
+        def _session_sort_key(_v):
+            if not _v.data_scadenza:
+                return (3, "")
+            if _v.data_scadenza < oggi:
+                return (0, str(_v.data_scadenza))
+            if _v.data_scadenza <= _soglia_avviso:
+                return (1, str(_v.data_scadenza))
+            return (2, str(_v.data_scadenza))
+
+        for row in tipologie_stats:
+            sessioni = sorted(_sessions_by_tipo.get(row["tipo"].pk, []), key=_session_sort_key)
+            row["sessioni"] = sessioni
+            row["n_scadute"] = sum(1 for s in sessioni if s.data_scadenza and s.giorni_a_scadenza is not None and s.giorni_a_scadenza < 0)
+            row["n_in_scadenza"] = sum(1 for s in sessioni if s.data_scadenza and s.giorni_a_scadenza is not None and 0 <= s.giorni_a_scadenza <= 60)
+            row["n_valide"] = sum(1 for s in sessioni if s.data_scadenza and s.giorni_a_scadenza is not None and s.giorni_a_scadenza > 60)
+    else:
+        for row in tipologie_stats:
+            row["sessioni"] = []
+            row["n_scadute"] = 0
+            row["n_in_scadenza"] = 0
+            row["n_valide"] = 0
+
     return render(request, "anagrafica/pages/visite_mediche_dashboard.html", {
         "oggi": oggi,
+        "soglia_avviso": oggi + _timedelta(days=60),
         "kpi_scadute": kpi_scadute,
         "kpi_in_scad": kpi_in_scad,
         "kpi_totali": kpi_visite_totali,

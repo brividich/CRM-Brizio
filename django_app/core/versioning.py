@@ -57,9 +57,16 @@ def _clean_changelog_line(value: str) -> str:
 def _load_changelog_entries(path_str: str, mtime_ns: int) -> list[dict[str, object]]:
     path = Path(path_str)
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        raw = path.read_bytes()
     except OSError:
         return []
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Editors on Windows may save the changelog as cp1252; fall back so a
+        # single non-UTF-8 byte does not 500 every page via the context processor.
+        text = raw.decode("cp1252", errors="replace")
+    lines = text.splitlines()
 
     entries: list[dict[str, object]] = []
     current: dict[str, object] | None = None

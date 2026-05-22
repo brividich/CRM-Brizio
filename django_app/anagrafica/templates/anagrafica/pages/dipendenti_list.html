@@ -1,144 +1,74 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Dipendenti | Anagrafica{% endblock %}
+{% block title %}Dipendenti | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
-.ana-page { display:flex; flex-direction:column; gap:20px; }
-.ana-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.ana-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
-.ana-sub   { font-size:13px; color:#64748b; margin-top:2px; }
-.ana-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.ana-btn-primary { background:#1d4ed8; color:#fff; }
-.ana-btn-primary:hover { background:#1e40af; }
-.ana-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
-.ana-btn-ghost:hover { background:#e2e8f0; }
-.ana-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
-.ana-kpi { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
-.ana-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
-.ana-k-val { font-size:32px; font-weight:800; color:#0f172a; line-height:1; }
-.ana-k-label { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-top:6px; }
-.ana-k-sub { font-size:12px; color:#94a3b8; margin-top:3px; }
-.ana-search-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; }
-.ana-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:160px; }
-.ana-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.ana-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ana-input:focus { border-color:#1d4ed8; background:#fff; }
-.ana-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-.ana-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
-.ana-card-title { font-size:15px; font-weight:700; color:#1e293b; }
-.ana-table-wrap { overflow-x:auto; }
-.ana-table { width:100%; border-collapse:collapse; font-size:13px; }
-.ana-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
-.ana-table td { padding:12px 16px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
-.ana-table tr:last-child td { border-bottom:none; }
-.ana-table tr:hover td { background:#f8fafc; }
-.ana-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
-.ana-pill-blue { background:#dbeafe; color:#1e40af; }
-.ana-pill-gray { background:#f1f5f9; color:#475569; }
-.ana-avatar { width:32px; height:32px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
-.ana-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
-.ana-avatar-fallback::before { content:""; position:absolute; top:7px; left:10px; width:10px; height:10px; border-radius:50%; background:#94a3b8; }
-.ana-avatar-fallback::after { content:""; position:absolute; left:7px; bottom:5px; width:16px; height:10px; border-radius:10px 10px 6px 6px; background:#94a3b8; }
-.ana-name-cell { display:flex; align-items:center; gap:10px; }
-.ana-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
-.ana-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
-.ana-pag span { font-size:13px; color:#64748b; }
-.ana-notice { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:10px 16px; font-size:13px; color:#92400e; }
-.ana-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
-.ana-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-.ana-checkline { display:flex; align-items:center; gap:8px; font-size:13px; color:#334155; }
-@media (max-width: 900px) { .ana-form-grid { grid-template-columns:1fr; } }
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
-body.theme-dark .ana-title { color:var(--text); }
-body.theme-dark .ana-sub { color:var(--text-light); }
-body.theme-dark .ana-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
-body.theme-dark .ana-btn-ghost:hover { background:var(--surface); }
-body.theme-dark .ana-filter-card, body.theme-dark .ana-form-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ana-field label { color:var(--text-light); }
-body.theme-dark .ana-input, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .ana-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .ana-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .ana-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
-body.theme-dark .ana-avatar { background:rgba(255,255,255,.08); border-color:var(--border); }
-body.theme-dark .ana-avatar-fallback::before, body.theme-dark .ana-avatar-fallback::after { background:var(--text-light); }
-body.theme-dark .ana-empty { color:var(--text-light); }
-body.theme-dark .ana-pag span { color:var(--text-light); }
-body.theme-dark .ana-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
-body.theme-dark .ana-checkline { color:var(--text-mid); }
-
-/* ── Sortable table (sortable-table.js) ──────────────────────────────────── */
-.ana-table th.st-th { cursor:default; }
-.st-th-wrap { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.st-th-label { display:inline-block; }
-.st-sort, .st-filter-toggle { background:none; border:none; padding:2px 4px; font-size:11px; color:#94a3b8; cursor:pointer; line-height:1; border-radius:4px; }
-.st-sort:hover, .st-filter-toggle:hover { color:#1d4ed8; background:#eff6ff; }
-.st-filter-toggle.active { color:#1d4ed8; background:#dbeafe; }
-.st-filter-input { display:inline-block; margin-left:4px; padding:3px 7px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; background:#fff; color:#0f172a; outline:none; max-width:140px; text-transform:none; letter-spacing:normal; font-weight:400; }
-.st-filter-input:focus { border-color:#1d4ed8; }
-body.theme-dark .st-sort, body.theme-dark .st-filter-toggle { color:var(--text-light); }
-body.theme-dark .st-sort:hover, body.theme-dark .st-filter-toggle:hover { background:rgba(96,165,250,.15); color:#93c5fd; }
-body.theme-dark .st-filter-toggle.active { background:rgba(96,165,250,.25); color:#93c5fd; }
-body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+/* dipendenti_list — elementi specifici di pagina */
+.hr-search-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;
+  background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:14px 16px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.hr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:160px; }
+.hr-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.hr-input { border:1px solid #e2e8f0; border-radius:.6rem; padding:8px 12px; font-size:13px;
+  color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.hr-input:focus { border-color:#1f5c91; background:#fff; }
+.hr-notice { background:#fffbeb; border:1px solid #fde68a; border-radius:.7rem;
+  padding:10px 14px; font-size:13px; color:#92400e; }
+.hr-avatar { width:32px; height:32px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1;
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
+.hr-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
+.hr-avatar-fb::before { content:""; position:absolute; top:7px; left:10px; width:10px; height:10px;
+  border-radius:50%; background:#94a3b8; }
+.hr-avatar-fb::after { content:""; position:absolute; left:7px; bottom:5px; width:16px; height:10px;
+  border-radius:10px 10px 6px 6px; background:#94a3b8; }
+.hr-name-cell { display:flex; align-items:center; gap:10px; }
+.hr-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; }
+.hr-pag span { font-size:13px; color:#64748b; }
+body.theme-dark .hr-search-bar { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hr-field label { color:var(--text-light); }
+body.theme-dark .hr-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hr-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
+body.theme-dark .hr-pag span { color:var(--text-light); }
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="ana-page">
+<div class="hr-shell">
 
-  <div class="ana-topbar">
+  <!-- Page header -->
+  <div class="hr-pagehead">
     <div>
-      <div class="ana-title">Dipendenti</div>
-      <div class="ana-sub">Anagrafica centrale unica per utenti, timbri, assenze e moduli collegati</div>
+      <div class="hr-pagehead-eyebrow">Anagrafica personale</div>
+      <h2 class="hr-pagehead-title">Dipendenti e fascicolo HR</h2>
+      <p class="hr-pagehead-desc">Anagrafica centrale unica per utenti, timbri, assenze e moduli collegati. Clicca "Scheda" per accedere al dettaglio del dipendente.</p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo dipendente</a>
-      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:index' %}">&larr; Torna all'anagrafica</a>
-    </div>
-  </div>
-
-  <div class="ana-kpi">
-    <div class="ana-k">
-      <div class="ana-k-val">{{ n_totale }}</div>
-      <div class="ana-k-label">Dipendenti totali</div>
-      <div class="ana-k-sub">In archivio legacy</div>
-    </div>
-    <div class="ana-k">
-      <div class="ana-k-val">{{ n_reparti }}</div>
-      <div class="ana-k-label">Reparti</div>
-      <div class="ana-k-sub">Con dipendenti assegnati</div>
-    </div>
-    <div class="ana-k">
-      <div class="ana-k-val">{{ n_attivi }}</div>
-      <div class="ana-k-label">Attivi</div>
-      <div class="ana-k-sub">Con stato attivo in anagrafica</div>
-    </div>
-    <div class="ana-k">
-      <div class="ana-k-val">{{ n_non_attivi }}</div>
-      <div class="ana-k-label">Non attivi</div>
-      <div class="ana-k-sub">Senza account collegato operativo</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo dipendente</a>
+      {% if n_ex %}
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:ex_dipendenti_list' %}" title="Rapporti di lavoro cessati">Ex dipendenti ({{ n_ex }})</a>
+      {% endif %}
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:index' %}">← Anagrafica HR</a>
     </div>
   </div>
 
-  <div class="ana-notice">
-    I dipendenti non attivi restano in anagrafica senza account. Se un account viene disattivato, il collegamento operativo viene staccato ma il dipendente resta qui.
-  </div>
+   
 
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <form method="get" class="ana-search-bar">
-    <div class="ana-field">
+  <!-- Filtri -->
+  <form method="get" class="hr-search-bar">
+    <div class="hr-field">
       <label>Cerca per nome</label>
-      <input class="ana-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome o username...">
+      <input class="hr-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome o username...">
     </div>
-    <div class="ana-field" style="max-width:220px;">
+    <div class="hr-field" style="max-width:220px;">
       <label>Reparto</label>
-      <select class="ana-input" name="reparto">
+      <select class="hr-input" name="reparto" aria-label="Filtra per reparto">
         <option value="">Tutti i reparti</option>
         {% for r in reparti %}
           <option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>
@@ -146,9 +76,9 @@ body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:v
       </select>
     </div>
     {% if aree %}
-    <div class="ana-field" style="max-width:200px;">
+    <div class="hr-field" style="max-width:200px;">
       <label>Area</label>
-      <select class="ana-input" name="area">
+      <select class="hr-input" name="area" aria-label="Filtra per area">
         <option value="">Tutte le aree</option>
         {% for a in aree %}
           <option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>
@@ -157,9 +87,9 @@ body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:v
     </div>
     {% endif %}
     {% if tipologie_contratto %}
-    <div class="ana-field" style="max-width:220px;">
+    <div class="hr-field" style="max-width:220px;">
       <label>Tipo contratto</label>
-      <select class="ana-input" name="tipologia_contratto">
+      <select class="hr-input" name="tipologia_contratto" aria-label="Filtra per tipo contratto">
         <option value="">Tutti</option>
         {% for tc in tipologie_contratto %}
           <option value="{{ tc.codice }}"{% if tc.codice == tipologia_contratto %} selected{% endif %}>{{ tc.nome }}</option>
@@ -168,18 +98,19 @@ body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:v
     </div>
     {% endif %}
     <div style="display:flex;gap:8px;padding-top:20px;">
-      <button class="ana-btn ana-btn-primary" type="submit">Filtra</button>
-      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
-      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV">📋 Report</a>
+      <button class="hr-btn hr-btn-primary" type="submit">Filtra</button>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV">📋 Report</a>
     </div>
   </form>
 
-  <div class="ana-card">
-    <div class="ana-card-head">
-      <div class="ana-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
+  <!-- Tabella -->
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
     </div>
-    <div class="ana-table-wrap">
-      <table class="ana-table" data-sortable>
+    <div style="overflow-x:auto;">
+      <table class="hr-table" data-sortable>
         <thead>
           <tr>
             <th>Dipendente</th>
@@ -197,50 +128,50 @@ body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:v
           {% for dip in page_obj %}
           <tr>
             <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
-              <div class="ana-name-cell">
-                <div class="ana-avatar{% if not dip.foto_url %} ana-avatar-fallback{% endif %}" aria-hidden="true">
-                  {% if dip.foto_url %}<img class="ana-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
+              <div class="hr-name-cell">
+                <div class="hr-avatar{% if not dip.foto_url %} hr-avatar-fb{% endif %}" aria-hidden="true">
+                  {% if dip.foto_url %}<img class="hr-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
                 </div>
-                <div><div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div></div>
+                <div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div>
               </div>
             </td>
-            <td><span class="ana-pill ana-pill-gray">{{ dip.aliasusername|default:"-" }}</span></td>
+            <td><span class="hr-pill neutral">{{ dip.aliasusername|default:"-" }}</span></td>
             <td>
               {% if dip.anagrafica_attivo %}
-                <span class="ana-pill ana-pill-blue">Attivo</span>
+                <span class="hr-pill ok">Attivo</span>
               {% else %}
-                <span class="ana-pill ana-pill-gray">Non attivo</span>
+                <span class="hr-pill neutral">Non attivo</span>
               {% endif %}
             </td>
             <td>
               {% if dip.has_account %}
-                <span class="ana-pill ana-pill-blue">{% if dip.account_attivo %}Account attivo{% else %}Account disattivato{% endif %}</span>
+                <span class="hr-pill blue">{% if dip.account_attivo %}Account attivo{% else %}Account disattivato{% endif %}</span>
               {% else %}
-                <span class="ana-pill ana-pill-gray">Nessun account</span>
+                <span class="hr-pill neutral">Nessun account</span>
               {% endif %}
             </td>
-            <td>{% if dip.reparto %}<span class="ana-pill ana-pill-blue">{{ dip.reparto }}</span>{% else %}-{% endif %}</td>
+            <td>{% if dip.reparto %}<span class="hr-pill blue">{{ dip.reparto }}</span>{% else %}-{% endif %}</td>
             <td>{{ dip.mansione|default:"-" }}</td>
             <td>
               {% if dip.email_notifica %}
-                <a href="mailto:{{ dip.email_notifica }}" style="color:#1d4ed8;font-size:12px;">{{ dip.email_notifica }}</a>
+                <a href="mailto:{{ dip.email_notifica }}" style="color:#1f5c91;font-size:12px;">{{ dip.email_notifica }}</a>
               {% else %}
                 <span style="color:#cbd5e1;">-</span>
               {% endif %}
             </td>
             <td data-sort-value="{{ dip.timbri_count|default:0 }}">
               {% if dip.timbri_count %}
-                <span class="ana-pill ana-pill-blue">{{ dip.timbri_count }}</span>
+                <span class="hr-pill blue">{{ dip.timbri_count }}</span>
               {% else %}
-                <span class="ana-pill ana-pill-gray">0</span>
+                <span class="hr-pill neutral">0</span>
               {% endif %}
             </td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 {% if dip.timbri_legacy_id %}
-                  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">👤 Scheda</a>
-                  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' dip.timbri_legacy_id %}">Timbri</a>
-                  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'timbri:operatore_report' dip.timbri_legacy_id %}" target="_blank" title="Report timbri/firma/sigla">&#128438;</a>
+                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">👤 Scheda</a>
+                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' dip.timbri_legacy_id %}">Timbri</a>
+                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'timbri:operatore_report' dip.timbri_legacy_id %}" target="_blank" title="Report timbri/firma/sigla">&#128438;</a>
                 {% else %}
                   <span style="color:#cbd5e1;">-</span>
                 {% endif %}
@@ -248,23 +179,29 @@ body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:v
             </td>
           </tr>
           {% empty %}
-          <tr data-empty-row="1"><td colspan="9" class="ana-empty">Nessun dipendente trovato.</td></tr>
+          <tr data-empty-row="1"><td colspan="9" class="hr-empty">Nessun dipendente trovato.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
 
+    
+
     {% if page_obj.has_other_pages %}
-    <div class="ana-pag">
+    <div class="hr-pag">
       {% if page_obj.has_previous %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&reparto={{ reparto }}">&larr; Prec</a>
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&reparto={{ reparto }}">← Prec</a>
       {% endif %}
       <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&reparto={{ reparto }}">Succ &rarr;</a>
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&reparto={{ reparto }}">Succ →</a>
       {% endif %}
     </div>
     {% endif %}
+  </div>
+
+  <div class="hr-notice">
+    I dipendenti non attivi restano in anagrafica senza account. Se un account viene disattivato, il collegamento operativo viene staccato ma il dipendente resta qui.
   </div>
 
 </div>

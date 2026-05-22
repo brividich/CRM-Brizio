@@ -3,34 +3,31 @@
 {% block title %}Ratei Ferie / Permessi | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
-.rl-page { display:flex; flex-direction:column; gap:18px; }
-.rl-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.rl-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
-.rl-sub { font-size:13px; color:#64748b; margin-top:2px; }
-
-.rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.rl-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.rl-page { display:flex; flex-direction:column; gap:14px; }
+.rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
+.rl-btn-ghost { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
 .rl-btn-ghost:hover { background:#e2e8f0; }
-.rl-btn-primary { background:#1d4ed8; color:#fff; border:none; }
-.rl-btn-primary:hover { background:#1e40af; }
+.rl-btn-primary { background:#12395f; color:#fff; }
+.rl-btn-primary:hover { background:#0e2d4b; }
 
 /* Filtri */
-.rl-filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+.rl-filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:14px 18px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .rl-filter-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px; }
 .rl-filter-input { padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; min-width:180px; }
-.rl-filter-input:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+.rl-filter-input:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 
 /* Multi-select dipendente */
 .rl-dip-wrap { position:relative; min-width:240px; max-width:320px; }
 .rl-dip-search { width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px 7px 0 0; font-size:13px; box-sizing:border-box; }
-.rl-dip-search:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+.rl-dip-search:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 .rl-dip-select { width:100%; border:1px solid #cbd5e1; border-top:none; border-radius:0 0 7px 7px; font-size:13px; min-height:110px; max-height:160px; box-sizing:border-box; }
-.rl-dip-select:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+.rl-dip-select:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 .rl-dip-hint { font-size:10px; color:#94a3b8; margin-top:3px; }
 
 /* Tabella */
-.rl-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.rl-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .rl-scroll { overflow-x:auto; }
 .rl-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:900px; }
 
@@ -53,7 +50,7 @@
 .rl-pager { display:flex; gap:6px; justify-content:center; padding:14px; flex-wrap:wrap; }
 .rl-page-btn { padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
 .rl-page-btn:hover { background:#e2e8f0; }
-.rl-page-btn.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; cursor:default; }
+.rl-page-btn.active { background:#12395f; color:#fff; border-color:#12395f; cursor:default; }
 .rl-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
 </style>
 {% endblock %}
@@ -64,12 +61,13 @@
 <div class="rl-page">
 
   <!-- Header -->
-  <div class="rl-topbar">
+  <div class="hr-pagehead">
     <div>
-      <div class="rl-title">📅 Ratei Ferie / Permessi</div>
-      <div class="rl-sub">Saldi ore da cedolino paga — {{ totale }} record totali</div>
+      <div class="hr-pagehead-eyebrow">Presenze e assenze</div>
+      <h2 class="hr-pagehead-title">📅 Ratei Ferie / Permessi</h2>
+      <p class="hr-pagehead-desc">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
     </div>
-    <a class="rl-btn rl-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti</a>
   </div>
 
   <!-- Filtri -->
@@ -152,7 +150,7 @@
           <tr class="rl-tr">
             <td class="rl-td-pin">
               {% if s.legacy_anagrafica_id %}
-                <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1d4ed8;text-decoration:none;font-size:13px;font-weight:600;">
+                <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;font-size:13px;font-weight:600;">
                   {{ s.nome_display }}
                 </a>
               {% else %}

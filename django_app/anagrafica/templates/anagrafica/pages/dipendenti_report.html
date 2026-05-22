@@ -1,16 +1,18 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Report dipendenti | Anagrafica{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 .ana-page { display:flex; flex-direction:column; gap:20px; }
 .ana-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .ana-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .ana-sub   { font-size:13px; color:#64748b; margin-top:2px; }
 .ana-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.ana-btn-primary { background:#1d4ed8; color:#fff; }
-.ana-btn-primary:hover { background:#1e40af; }
+.ana-btn-primary { background:#12395f; color:#fff; }
+.ana-btn-primary:hover { background:#0e2d4b; }
 .ana-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .ana-btn-ghost:hover { background:#e2e8f0; }
 .ana-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
@@ -18,7 +20,7 @@
 .ana-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:160px; }
 .ana-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .ana-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ana-input:focus { border-color:#1d4ed8; background:#fff; }
+.ana-input:focus { border-color:#1f5c91; background:#fff; }
 .ana-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
 .ana-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
 .ana-card-title { font-size:15px; font-weight:700; color:#1e293b; }
@@ -142,38 +144,38 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
       </div>
     </div>
     <div class="ana-table-wrap">
-      <table class="ana-table">
+      <table class="ana-table" data-sortable>
         <thead>
           <tr>
-            <th>Dipendente</th>
             <th>Matricola</th>
+            <th>Dipendente</th>
+            <th>Ruolo aziendale</th>
             <th>Reparto</th>
             <th>Area</th>
-            <th>Ruolo aziendale</th>
             <th>Contratto</th>
             <th>Livello</th>
-            <th>Prima assunzione</th>
+            <th data-sort-type="date">Prima assunzione</th>
             <th>Consenso privacy</th>
-            <th>Email aziendale</th>
+            <th>Categoria protetta</th>
           </tr>
         </thead>
         <tbody>
           {% for row in page_obj %}
-          {% with az=row._az %}
+          {% with az=row.az %}
           <tr>
+            <td>{{ row.matricola|default:"—" }}</td>
             <td>
               <a href="{% url 'anagrafica:dipendente_detail' row.id %}" style="font-weight:700;color:#1e293b;text-decoration:none;">
                 {{ row.cognome }} {{ row.nome }}
               </a>
               {% if not row.attivo %}<span class="ana-pill ana-pill-gray" style="margin-left:6px;">Non attivo</span>{% endif %}
             </td>
-            <td>{{ row.matricola|default:"—" }}</td>
+            <td>{{ az.ruolo_aziendale|default:"—" }}</td>
             <td>{% if row.reparto %}<span class="ana-pill ana-pill-blue">{{ row.reparto }}</span>{% else %}—{% endif %}</td>
             <td>{{ az.area|default:"—" }}</td>
-            <td>{{ az.ruolo_aziendale|default:"—" }}</td>
             <td>{% if az %}{{ az.get_tipologia_contratto_display|default:"—" }}{% else %}—{% endif %}</td>
             <td>{{ az.livello_inquadramento|default:"—" }}</td>
-            <td>{{ az.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</td>
+            <td data-sort-value="{{ az.data_prima_assunzione|date:'Y-m-d' }}">{{ az.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</td>
             <td>
               {% if az.consenso_privacy %}
                 <span class="ana-pill ana-pill-green">Sì</span>
@@ -182,11 +184,18 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
                 <span class="ana-pill ana-pill-gray">No</span>
               {% endif %}
             </td>
-            <td>{% if az.email_aziendale %}<a href="mailto:{{ az.email_aziendale }}" style="color:#1d4ed8;">{{ az.email_aziendale }}</a>{% else %}—{% endif %}</td>
+            <td>
+              {% if row.civ.categoria_protetta %}
+                <span class="ana-pill ana-pill-blue">Sì</span>
+                {% if row.civ.percentuale_disabilita %}<span style="font-size:11px;color:#64748b;margin-left:4px;">{{ row.civ.percentuale_disabilita }}%</span>{% endif %}
+              {% else %}
+                <span class="ana-pill ana-pill-gray">No</span>
+              {% endif %}
+            </td>
           </tr>
           {% endwith %}
           {% empty %}
-          <tr><td colspan="10" class="ana-empty">Nessun dipendente trovato con i filtri selezionati.</td></tr>
+          <tr data-empty-row="1"><td colspan="10" class="ana-empty">Nessun dipendente trovato con i filtri selezionati.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -206,4 +215,8 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
 {% endblock %}

@@ -135,9 +135,20 @@
             <input class="input" type="text" id="nome" name="nome" value="{{ utente_obj.nome }}" required>
           </div>
           <div class="field">
-            <label for="email">Email</label>
+            <label for="email">Email / Login (UPN)</label>
             <input class="input" type="email" id="email" name="email" value="{{ utente_obj.email|default:'' }}">
           </div>
+          {% if django_username is not None %}
+          <div class="field">
+            <label for="django_username">Username portale (login locale)</label>
+            <input class="input" type="text" id="django_username" value="{{ django_username }}" readonly autocomplete="off" style="background:var(--surface-muted,#f1f5f9);color:var(--text-muted,#64748b);">
+            <small style="font-size:11px;color:var(--text-muted,#888);">Username account Django (#{{ django_user_id }}). Sola lettura: si modifica dalla <strong>scheda dipendente</strong> (campo Username), che lo allinea automaticamente.</small>
+          </div>
+          {% elif django_user_id %}
+          <div class="field">
+            <small style="color:var(--text-muted,#888);">Account Django #{{ django_user_id }} collegato — username non disponibile.</small>
+          </div>
+          {% endif %}
           <div class="field">
             <label for="ruolo_id">Ruolo</label>
             <select class="input" id="ruolo_id" name="ruolo_id">

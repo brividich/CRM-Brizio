@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Anagrafica HR - Retribuzioni vista globale
+
+- **[feat] `anagrafica/views.py`, `anagrafica/urls.py`**: nuove view `retribuzioni_globale` e `retribuzioni_globale_export` (gate `_check_hr_permission`); pagina pivot `/anagrafica/retribuzioni/globale/` con una riga per dipendente+mese e una colonna per ogni `pay_item` raggruppata per categoria.
+- **[feat] `anagrafica/templates/anagrafica/pages/retribuzioni_globale.html`** (nuovo): tabella pivot con filtri dipendente (multi+ricerca), reparto (multi), livello contrattuale (multi), sesso e mensilita; export Excel con i filtri correnti.
+- **[ux] `anagrafica/templates/anagrafica/components/subnav.html`**: aggiunta voce descrittiva per la nuova view nella subnav.
+- **[fix] `anagrafica/views.py`**: la vista globale risolve nome/reparto del dipendente via codice fiscale -> `DipendenteAnagraficaCivile` quando la `VoceRetributiva` non ha `legacy_anagrafica_id`; corregge nome mostrato come CF (ricerca per cognome-nome non funzionante) e colonna Reparto vuota.
+- **[ux] `anagrafica/templates/anagrafica/pages/retribuzioni_globale.html`**: intestazioni colonna compattate su due righe (font ridotto, colonne strette), padding celle ridotto, `aria-label` sui select dei filtri.
+- **[fix] `anagrafica/templates/anagrafica/pages/impostazioni.html`**: i form crea/modifica dei link subnav anagrafica ora espongono il selettore "Tipo di URL" (nome view Django / URL diretto). Prima il form forzava `url_type=raw`, quindi inserire un nome di rotta (es. `anagrafica:retribuzioni_globale`) produceva un link non valido (pagina non trovata).
+- **[ux] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/impostazioni.html`**: aggiunto un menu a tendina "Scegli una pagina del modulo..." nei form crea/modifica dei link subnav: selezionando una pagina dal catalogo (`subnav_route_choices`, ~19 rotte del modulo anagrafica) il nome view e `url_type=named` vengono compilati automaticamente. Resta possibile inserire manualmente path/URL esterni.
+
+### Assistente AI - Anagrafica HR
+
+- **[feat] `ai_assistant/tools.py`**: abilitato il tool runtime `anagrafica_summary` per elenco dipendenti, campi aziendali minimi, consenso privacy e classifiche ratei ferie/permessi residui; accesso solo a superuser, admin legacy o ruoli autorizzati da `AnagraficaHRPermission`.
+- **[fix] `ai_assistant/tools.py`, `ai_assistant/services.py`, `ai_assistant/views.py`**: le domande nominative sui ratei (es. "Quante ore ferie residue ha SMARRELLA?") filtrano ora il dipendente richiesto, includono una `RISPOSTA DIRETTA`, convertono in giorni su base 7.5 ore se richiesto e non mostrano piu fonti RAG irrilevanti quando il contesto live `tool:*` e presente. Aggiornati anche i suggerimenti contestuali dei ratei.
+- **[ux] `ai_assistant/templates/ai_assistant/chat.html`, `ai_assistant/views.py`, `ai_assistant/services.py`**: aggiunto pannello "Personalizzazione risposte e limiti" nella chat AI. L'utente puo scegliere stile operativo/sintetico/dettagliato e se mostrare esplicitamente i limiti; la UI chiarisce cosa l'AI puo' e non puo' fare. Le preferenze sono salvate nel browser, sanificate dall'API e passate al modello senza alterare ACL, privacy o tool live disponibili.
+- **[privacy] `ai_assistant/tools.py`**: il tool blocca richieste di CF, IBAN, banca, indirizzi, contatti privati, categorie protette/disabilita, visite mediche, retribuzioni, dettagli cedolino, documenti, allegati e path; `timbri_presenze` resta non disponibile.
+- **[test] `ai_assistant/tests.py`, `admin_portale/tests.py`**: aggiunte regressioni su consenso privacy, classifica ferie residue, saldo nominativo ferie residue, pulizia fonti RAG con tool live, preferenze utente sanificate, permesso negato, campi HR vietati e catalogo Tool live; riallineato il test di troncamento runtime al limite corrente di righe.
+
+### Admin portale - gestione utenti
+
+- **[ux] `admin_portale/forms.py`**: aggiunto campo `new_username` in `UtenteUpdateForm` con validazione (no spazi); campo opzionale, lasciato vuoto non modifica nulla.
+- **[ux] `admin_portale/views.py`**: `utente_edit` passa `django_username` nel context (letto dal `User` Django collegato via `Profile`); `utente_update` gestisce il cambio username Django - verifica unicita, aggiorna `User.username`, aggiunge audit entry `utente_username_change`.
+- **[ux] `admin_portale/templates/admin_portale/pages/utente_edit.html`**: campo "Email" rinominato "Email / Login (UPN)" per chiarire che e il login credential legacy; aggiunto campo "Username portale" per modificare `User.username` Django (visibile solo se l'account Django e collegato).
+
+### Anagrafica - scheda dipendente
+
+- **[fix] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: chiave `sessionStorage` per le tab interne portata da globale (`dp_detail_tab_v1`) a per-dipendente (`dp_detail_tab_<legacy_id>_v1`); impedisce che l'ultima tab visitata su un dipendente si apra anche su un altro dipendente.
+- **[feat] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: aggiunta modifica `aliasusername` inline (tab Riepilogo, campo "Username", solo admin) - stessa UX di mansione/reparto: edit -> form inline -> Salva; validazione unicita, storico cambiamento.
+- **[feat] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: aggiunto toggle Disattiva/Riattiva dipendente nell'hero (solo admin) - imposta `attivo=0/1` nel campo legacy; la disattivazione scollega anche l'account portale (`detach_account=True`); operazione reversibile con conferma JS.
 ### Archivio documenti dipendente
 
 - **[fix] `anagrafica/views.py`**: corretto il 500 su upload manuale documento dipendente (`Path` usato senza import); l'audit `DOCUMENTO_DIPENDENTE_UPLOAD` ora passa un payload dict invece di una stringa.

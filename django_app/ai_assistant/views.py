@@ -90,7 +90,26 @@ def _runtime_audit_summary(runtime_audit: dict | None) -> dict:
     }
 
 
+def _clean_chat_preferences(raw: object) -> dict[str, object]:
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, object] = {}
+    style = str(raw.get("style") or "").replace("\x00", "").strip().lower()
+    if style in {"operativo", "sintetico", "dettagliato"}:
+        cleaned["style"] = style
+    cleaned["show_limits"] = bool(raw.get("show_limits"))
+    return cleaned
+
+
 _SUGGESTED_RULES: list[tuple[tuple[str, ...], list[str]]] = [
+    (
+        ("ferie residue", "ratei", "rol resid", "permessi resid", "ex fest"),
+        [
+            "Quali sono i primi 5 dipendenti per ferie residue?",
+            "Quante ore ferie residue ha un dipendente?",
+            "Mostra i ROL residui piu' alti.",
+        ],
+    ),
     (
         ("assente", "assenz", "ferie", "permesso", "malattia"),
         [
@@ -202,13 +221,19 @@ def api_chat(request):
     payload = _json_payload(request)
     message = str(payload.get("message") or "").strip()
     history = payload.get("history")
+    preferences = _clean_chat_preferences(payload.get("preferences"))
     if not message:
         return JsonResponse({"ok": False, "error": "Scrivi un messaggio prima di inviare."}, status=400)
 
     started = time.monotonic()
     runtime_context = build_runtime_context(request, message, history=history)
     try:
-        result = chat_with_ollama(message, history=history, runtime_context=runtime_context.text)
+        result = chat_with_ollama(
+            message,
+            history=history,
+            runtime_context=runtime_context.text,
+            user_preferences=preferences,
+        )
     except OllamaChatError as exc:
         elapsed_ms = int((time.monotonic() - started) * 1000)
         runtime_audit = _runtime_audit_summary(runtime_context.audit)
@@ -241,6 +266,7 @@ def api_chat(request):
                 "rag_sources_count": len(result.sources),
                 "runtime_sources_count": len(runtime_context.sources),
                 "rag_context_chars": result.rag_context_chars,
+                "ai_preferences": sorted(preferences.keys()),
                 "elapsed_ms": elapsed_ms,
                 **runtime_audit,
             },

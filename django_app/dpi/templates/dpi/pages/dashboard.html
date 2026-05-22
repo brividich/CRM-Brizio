@@ -185,7 +185,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
             <td>
               <span class="dpi-cat-chip">
                 {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}{{ r.categoria.icona_emoji }}{% endif %}
-                {{ r.categoria.nome }}{% if r.tipo_dpi %} / {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} / {{ r.modello_dpi.codice }} {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} / {{ r.taglia_dpi.valore }}{% endif %}
+                {{ r.categoria.nome }}{% if r.tipo_dpi %} / {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} / {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} / {{ r.taglia_dpi.valore }}{% endif %}
               </span>
             </td>
             {% if is_gestore %}<td>{{ r.richiedente_nome }}</td><td>{{ r.richiedente_reparto|default:"-" }}</td>{% endif %}

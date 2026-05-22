@@ -2,6 +2,58 @@
 
 ## 2026-05-22 - Codex
 
+- Area: `django_app/ai_assistant` + documentazione.
+- Richiesta: migliorare la personalizzazione dell'assistente AI e chiarire il discorso su cosa puo' e non puo' fare.
+- File modificati: `django_app/ai_assistant/templates/ai_assistant/chat.html`, `django_app/ai_assistant/views.py`, `django_app/ai_assistant/services.py`, `django_app/ai_assistant/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: la personalizzazione era solo conversazionale/implicita; mancava una UI che rendesse espliciti stile risposta e confini operativi, e mancava un passaggio controllato delle preferenze al backend.
+- Modifica: aggiunto pannello "Personalizzazione risposte e limiti" nella chat AI con stile operativo/sintetico/dettagliato, toggle per mostrare limiti quando mancano permessi/dati/tool e box "Puo/Non puo"; le preferenze sono salvate in `localStorage`, inviate all'API chat, sanificate da `views.py` e trasformate da `services.py` in istruzioni di risposta che non alterano ACL, privacy o tool live. Aggiunti test di rendering, sanitizzazione API e costruzione prompt preferenze.
+- Impatto previsto: l'utente puo scegliere il taglio delle risposte e vede chiaramente che l'AI puo usare solo contesti autorizzati, proporre FAQ/miglioramenti approvati, ma non aggirare permessi, inventare dati o esporre dati sensibili.
+- Rischi residui: preferenze salvate lato browser; non sono un profilo server-side centralizzato. La resa finale dipende comunque dal modello locale, ma il prompt ora contiene istruzioni esplicite e testate.
+- Test/check: AST mirato OK; test mirati `test_chat_page_authenticated`, `test_build_messages_includes_sanitized_user_preferences`, `test_api_chat_sanitizes_and_passes_preferences`, `test_api_chat_passes_runtime_context_and_sources` OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (56 test); `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check` OK.
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `django_app/ai_assistant` + documentazione.
+- Richiesta: correggere il caso in cui `tool:anagrafica:ratei` veniva attivato ma il modello rispondeva ancora "Non ho accesso diretto" per domande nominative come "Quante ore ferie residue ha SMARRELLA?", con fonti RAG irrilevanti mostrate nel menu contestuale.
+- File modificati: `django_app/ai_assistant/tools.py`, `django_app/ai_assistant/services.py`, `django_app/ai_assistant/views.py`, `django_app/ai_assistant/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: il tool ratei produceva una classifica top N anche per domande su un singolo dipendente; se il nominativo non era nelle righe inviate, Qwen non aveva il dato diretto e tornava al fallback. Inoltre `chat_with_ollama` restituiva alla UI le fonti RAG anche quando il RAG non veniva iniettato nel payload, causando chip come sezioni README non pertinenti.
+- Modifica: aggiunto filtro nominativo/self per i ratei, matching su nome/cognome/alias/matricola prima della query `SaldoCedolino`; aggiunta sezione `RISPOSTA DIRETTA` nel contesto live, conversione giorni su base 7.5 ore quando richiesta, istruzione runtime per riportare la risposta diretta, soppressione fonti RAG e `rag_context_chars=0` quando esiste un contesto `tool:*`, suggerimenti contestuali specifici per ratei.
+- Impatto previsto: domande tipo "Quante ore ferie residue ha SMARRELLA?" rispondono con il saldo del dipendente richiesto e fonte `tool:anagrafica:ratei`, senza mostrare fonti documentali non usate.
+- Rischi residui: il matching nominativo e parziale; in caso di omonimi mostra piu righe e richiede disambiguazione pratica. I ratei restano disponibili solo a utenti autorizzati da Anagrafica HR.
+- Test/check: AST mirato OK; `python django_app\manage.py test ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_named_ferie_residue ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_converts_named_ferie_to_days_when_requested ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_top_ferie_residue ai_assistant.tests.AiAssistantTests.test_chat_with_ollama_hides_rag_sources_when_runtime_context_present --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (54 test).
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `django_app/ai_assistant` + governance/documentazione AI.
+- Richiesta: far rispondere l'assistente alla domanda "elencami i primi 5 dipendenti con maggior numero di ore ferie residue".
+- File modificati: `django_app/ai_assistant/tools.py`, `django_app/ai_assistant/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md`, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/13_AI_GOVERNANCE_PREDICTIVE_POLICY.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: la richiesta su ferie residue veniva intercettata dal dominio Assenze o dal fallback senza produrre contesto live Anagrafica; i dati sono gia disponibili in `SaldoCedolino.ferie_residui` e la vista ratei e gated da permesso HR.
+- Modifica: aggiunta sotto-modalita ratei al tool `anagrafica_summary`: riconosce ferie/ROL/permessi/ex-fest residui, usa l'ultimo periodo disponibile (o il mese richiesto), ordina per valore maggiore/minore, limita la classifica a N righe (default 5) e restituisce solo dipendente, reparto, periodo e ore residue. Il tool continua a bloccare CF, dettagli cedolino, retribuzioni, documenti, allegati e path; audit metadata-only con metrica, periodo, ordine e conteggi.
+- Impatto previsto: una domanda come "elencami i primi 5 dipendenti con maggior numero di ore ferie residue" attiva `tool:anagrafica:ratei` e produce una classifica autorizzata invece del messaggio di mancato accesso.
+- Rischi residui: i ratei ferie/permessi sono dati HR nominativi; restano esposti solo a superuser/admin legacy o ruoli `AnagraficaHRPermission` e solo in forma sintetica ore+periodo.
+- Test/check: parse AST mirato OK; primo test mirato interrotto da timeout durante creazione DB test, poi `python django_app\manage.py test ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_top_ferie_residue ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_privacy_consent_for_authorized_user ai_assistant.tests.AiAssistantTests.test_runtime_context_reports_missing_live_tool_for_deferred_hr_domains --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (51 test); `python django_app\manage.py check --settings=config.settings.test` OK.
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `django_app/ai_assistant` + governance/documentazione AI.
+- Richiesta: abilitare il modulo Anagrafica nell'assistente AI, dopo il fallback `tool:runtime:non-disponibile`.
+- File modificati: `django_app/ai_assistant/tools.py`, `django_app/ai_assistant/tests.py`, `django_app/admin_portale/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/12_AI_RUNTIME_TOOLS_TODOLIST.md`, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/13_AI_GOVERNANCE_PREDICTIVE_POLICY.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: il catalogo runtime marcava il dominio combinato Timbri/Anagrafica come deferred, quindi ogni domanda su dipendenti/consenso privacy produceva fallback privacy senza leggere i dati gia disponibili nel modulo Anagrafica.
+- Modifica: separato `anagrafica_summary` da `timbri_presenze`; aggiunto tool Anagrafica HR read-only con permesso superuser/admin legacy o ruoli `AnagraficaHRPermission`, loader su `fetch_anagrafica_rows` + `DipendenteAnagraficaAziendale`, filtri sintetici per consenso privacy/reparto-area/stato e output limitato a nome, matricola, reparto, mansione, area, ruolo aziendale, stato e consenso privacy se richiesto. Il tool blocca esplicitamente richieste di CF, IBAN, banca, indirizzi, contatti privati, categorie protette/disabilita, visite mediche, retribuzioni, documenti, allegati e path. Timbri/Presenze resta deferred.
+- Impatto previsto: l'assistente puo rispondere a richieste tipo "elenco dipendenti che hanno fornito il consenso privacy" mostrando solo dati aziendali minimi e fonte `tool:anagrafica:dipendenti`; le richieste su timbrature o dati HR riservati restano fail-closed.
+- Rischi residui: il tool espone nominativi e dati aziendali minimali al modello locale per utenti autorizzati; la governance resta `restricted` e va tenuta allineata in Admin AI se si usa `AiToolPrivacyReview`. Non abilita timbrature/presenze.
+- Test/check: parse AST mirato OK; `python django_app\manage.py test ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_lists_privacy_consent_for_authorized_user ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_denies_user_without_hr_permission ai_assistant.tests.AiAssistantTests.test_runtime_anagrafica_context_blocks_forbidden_hr_fields ai_assistant.tests.AiAssistantTests.test_runtime_context_reports_missing_live_tool_for_deferred_hr_domains admin_portale.tests.AdminPortaleConfigSrvLdapTests.test_ai_settings_page_renders_live_tools_console --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py test ai_assistant.tests --settings=config.settings.test --verbosity 1` OK (50 test; prima esecuzione completa ha evidenziato il test legacy di troncamento sotto soglia, aggiornato da 250 a 500 righe); `python django_app\manage.py check --settings=config.settings.test` OK.
+- Note: nessun backup creato. `django_app/admin_portale/tests.py` era read-only: attributo rimosso solo per aggiornare il test del catalogo Tool live e poi ripristinato.
+
+## 2026-05-22 - Codex
+
 - Area: `django_app/anagrafica`.
 - Richiesta: correggere il 500 su `POST /anagrafica/dipendenti/277/documenti/upload` con `NameError: name 'Path' is not defined`.
 - File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

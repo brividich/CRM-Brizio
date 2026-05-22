@@ -873,8 +873,10 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tool live")
         self.assertContains(response, "Router cross-dominio")
+        self.assertContains(response, "Anagrafica HR")
+        self.assertContains(response, "anagrafica_summary")
         self.assertContains(response, "tickets_summary")
-        self.assertContains(response, "Timbri / Anagrafica")
+        self.assertContains(response, "Timbri / Presenze")
         self.assertContains(response, "disabilitato")
         self.assertContains(response, "Esegui test metadata-only")
 

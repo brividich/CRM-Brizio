@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db.models import Q
@@ -148,13 +149,26 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         privacy_note="Restituisce indicatori aggregati, non note sensibili.",
     ),
     RuntimeToolSpec(
-        key="timbri_anagrafica",
-        label="Timbri / Anagrafica",
+        key="anagrafica_summary",
+        label="Anagrafica HR",
+        domain="HR",
+        audit_tool="anagrafica_summary",
+        source_prefix="tool:anagrafica",
+        status="enabled",
+        sample_prompt="elenco dipendenti che hanno fornito il consenso privacy",
+        privacy_note=(
+            "Read-only per superuser, admin legacy o ruoli HR autorizzati; espone solo campi aziendali minimi "
+            "e non include CF, IBAN, dati sanitari, retributivi, privati o documenti."
+        ),
+    ),
+    RuntimeToolSpec(
+        key="timbri_presenze",
+        label="Timbri / Presenze",
         domain="HR",
         audit_tool="runtime_unavailable",
         source_prefix="tool:runtime:non-disponibile",
         status="deferred",
-        sample_prompt="mostra timbrature e anagrafica dipendenti",
+        sample_prompt="mostra timbrature e cartellini",
         privacy_note="Disabilitato: richiede revisione privacy dedicata prima del live.",
     ),
 )
@@ -323,16 +337,76 @@ _SICUREZZA_KEYWORDS = {
     "rilevazioni incidenti",
     "kpi sicurezza",
 }
+_ANAGRAFICA_KEYWORDS = {
+    "anagrafica",
+    "anagrafiche",
+    "dipendente",
+    "dipendenti",
+    "consenso privacy",
+    "consenso",
+    "matricola",
+    "matricole",
+    "badge",
+    "reparto",
+    "reparti",
+    "area",
+    "aree",
+    "mansione",
+    "mansioni",
+    "ruolo aziendale",
+    "ruoli aziendali",
+    "ferie",
+    "ratei",
+    "residui",
+    "residue",
+    "rol",
+    "ex fest",
+    "ex-fest",
+}
+_ANAGRAFICA_FORBIDDEN_KEYWORDS = {
+    "codice fiscale",
+    "iban",
+    "banca",
+    "conto",
+    "intestatario",
+    "categoria protetta",
+    "categorie protette",
+    "disabilita",
+    "disabilit",
+    "disabilitÃ ",
+    "invalidita",
+    "invalidit",
+    "invaliditÃ ",
+    "visita medica",
+    "visite mediche",
+    "referto",
+    "idoneita",
+    "idoneit",
+    "idoneitÃ ",
+    "prescrizione",
+    "prescrizioni",
+    "stipendio",
+    "stipendi",
+    "retribuzione",
+    "retribuzioni",
+    "ral",
+    "cedolino",
+    "cedolini",
+    "indirizzo",
+    "residenza",
+    "domicilio",
+    "telefono privato",
+    "email privata",
+    "documento",
+    "documenti",
+}
+_ANAGRAFICA_FORBIDDEN_TOKEN_PATTERN = re.compile(r"\bcf\b")
 _UNAVAILABLE_DOMAIN_KEYWORDS = {
     "timbri",
     "timbrature",
     "cartellino",
     "cartellini",
     "presenze",
-    "anagrafica",
-    "anagrafiche",
-    "dipendente",
-    "dipendenti",
 }
 _RUNTIME_PRIORITY_BY_TOOL = {
     "runtime_router": 0,
@@ -344,6 +418,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "tickets_summary": 60,
     "tasks_summary": 70,
     "anomalie_summary": 80,
+    "anagrafica_summary": 85,
     "assenze_periodo": 90,
     "module_catalog": 100,
     "runtime_unavailable": 110,
@@ -356,6 +431,8 @@ def _norm_text(value: str) -> str:
 
 def _wants_absence_list(prompt: str) -> bool:
     text = _norm_text(prompt)
+    if any(marker in text for marker in ("ferie resid", "ratei", "rol resid", "permessi resid", "ex fest", "ex-fest")):
+        return False
     # Una domanda con un nome proprio + parola chiave assenza vale come richiesta
     has_name_hint = bool(re.search(r"\b(dipendente|dipendenti|persona|collega)\b", text))
     if not any(keyword in text for keyword in _ABSENCE_KEYWORDS) and not has_name_hint:
@@ -375,6 +452,8 @@ _NAME_STOPWORDS = {
     "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre",
     "dicembre", "oggi", "domani", "settimana", "anno", "reparto", "ufficio",
     "team", "sezione", "area", "effettuati", "registrati", "fatti", "fatto",
+    "ancora", "ore", "giorno", "giorni", "residuo", "residui", "residua",
+    "residue", "rimasto", "rimasti", "rimasta", "rimaste",
     "produzione", "magazzino", "amministrazione", "contabilita", "acquisti",
     # preposizioni e articoli che chiudono il nome
     "a", "al", "nel", "nella", "di", "da", "per", "in", "con", "su", "tra", "fra",
@@ -401,6 +480,34 @@ def _extract_name_filter(prompt: str) -> str:
             candidate = " ".join(clean_words).strip()
             if candidate and len(candidate) >= 3:
                 return candidate
+    return ""
+
+
+def _extract_ratei_name_filter(prompt: str) -> str:
+    """Estrae il nominativo per domande sui ratei, incluso il formato "ha COGNOME?"."""
+    candidate = _extract_name_filter(prompt)
+    if candidate:
+        return candidate
+    for pattern in (
+        r"(?:ferie|permessi|rol|ex[- ]fest(?:ivita)?)\s+(?:residue?|residui|rimast[ie])?\s+(?:di|per)\s+([A-Za-zÀ-ÿ'\-]+(?:\s+[A-Za-zÀ-ÿ'\-]+){0,3})",
+        r"\bha\s+([A-Za-zÀ-ÿ'\-]+(?:\s+[A-Za-zÀ-ÿ'\-]+){0,3})(?:\s*\?|\s*\.|$)",
+    ):
+        m = re.search(pattern, prompt, re.IGNORECASE)
+        if not m:
+            continue
+        clean_words: list[str] = []
+        for word in m.group(1).strip().split():
+            if word.lower() in _NAME_STOPWORDS:
+                break
+            clean_words.append(word)
+        candidate = " ".join(clean_words).strip()
+        if candidate and len(candidate) >= 3:
+            return candidate
+    # I cognomi in maiuscolo sono frequenti nelle richieste HR rapide.
+    uppercase_tokens = re.findall(r"\b[A-ZÀ-Ý]{3,}(?:\s+[A-ZÀ-Ý]{3,}){0,2}\b", prompt)
+    for candidate in uppercase_tokens:
+        if candidate.lower() not in _NAME_STOPWORDS:
+            return candidate.strip()
     return ""
 
 
@@ -564,6 +671,34 @@ def _wants_dpi_context(prompt: str) -> bool:
             text,
         )
         or "dpi" in text
+    )
+
+
+def _wants_anagrafica_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    if not any(keyword in text for keyword in _ANAGRAFICA_KEYWORDS):
+        return False
+    return bool(
+        re.search(
+            r"\b(chi|quali|elenco|elencami|lista|riepilogo|mostra|dimmi|vedere|sono|cercare|consultare|quanti|dipendenti?|anagrafica|privacy|consenso|reparti?|aree?|mansioni?|ruoli?|matricol[ae]|badge|attivi|cessati|top|primi|prime|maggior[ei]|residu[ei]|ratei|ferie|rol)\b",
+            text,
+        )
+    )
+
+
+def _wants_anagrafica_ratei_context(prompt: str) -> bool:
+    text = _norm_text(prompt)
+    if not any(keyword in text for keyword in ("ferie", "rol", "permessi", "ex fest", "ex-fest")):
+        return False
+    return bool(
+        "ratei" in text
+        or "residu" in text
+        or "residue" in text
+        or "saldo" in text
+        or "saldi" in text
+        or "ancora" in text
+        or "rimast" in text
+        or "disponibil" in text
     )
 
 
@@ -976,6 +1111,115 @@ def _row_line_extended(row: dict) -> str:
     capo = str(row.get("capo") or "").strip()
     reparto_part = f", reparto: {capo}" if capo else ""
     return f"- {dipendente}{reparto_part}: {tipo}, dal {inizio} al {fine}, stato: {stato}"
+
+
+def _full_name_from_anagrafica_row(row: dict) -> str:
+    nome = str(row.get("nome") or "").strip()
+    cognome = str(row.get("cognome") or "").strip()
+    full_name = " ".join(part for part in (nome, cognome) if part).strip()
+    if full_name:
+        return full_name
+    alias = str(row.get("aliasusername") or "").strip()
+    return alias or f"ID {row.get('id') or 'N/D'}"
+
+
+def _is_anagrafica_row_active(row: dict, aziendale: Any | None) -> bool:
+    if getattr(aziendale, "data_cessazione", None):
+        return False
+    raw_attivo = row.get("attivo")
+    return raw_attivo not in {0, False, "0"}
+
+
+def _anagrafica_dipendente_line(row: dict, aziendale: Any | None, *, include_privacy: bool) -> str:
+    parts: list[str] = []
+    matricola = str(row.get("matricola") or "").strip()
+    reparto = str(row.get("reparto") or "").strip()
+    mansione = str(row.get("mansione") or "").strip()
+    area = str(getattr(aziendale, "area", "") or "").strip() if aziendale else ""
+    ruolo = str(getattr(aziendale, "ruolo_aziendale", "") or "").strip() if aziendale else ""
+    status = "attivo" if _is_anagrafica_row_active(row, aziendale) else "cessato/non attivo"
+
+    if matricola:
+        parts.append(f"matricola {matricola}")
+    if reparto:
+        parts.append(f"reparto {reparto}")
+    if area:
+        parts.append(f"area {area}")
+    if mansione:
+        parts.append(f"mansione {mansione}")
+    if ruolo:
+        parts.append(f"ruolo aziendale {ruolo}")
+    parts.append(f"stato {status}")
+    if include_privacy:
+        consenso = "si" if bool(getattr(aziendale, "consenso_privacy", False)) else "no"
+        data_consenso = _short_date(getattr(aziendale, "data_consenso_privacy", None))
+        suffix = f" ({data_consenso})" if data_consenso != "N/D" else ""
+        parts.append(f"consenso privacy: {consenso}{suffix}")
+    return f"- {_full_name_from_anagrafica_row(row)}: {', '.join(parts)}"
+
+
+def _extract_top_limit(prompt: str, *, default: int = 5, max_limit: int = 30) -> int:
+    text = _norm_text(prompt)
+    match = re.search(r"\b(?:top|primi|prime)\s+(\d{1,2})\b", text)
+    if not match:
+        match = re.search(r"\b(\d{1,2})\s+(?:dipendenti|persone|righe|risultati)\b", text)
+    if not match:
+        return default
+    try:
+        return max(1, min(int(match.group(1)), max_limit))
+    except (TypeError, ValueError):
+        return default
+
+
+def _ratei_field_from_prompt(prompt: str) -> tuple[str, str]:
+    text = _norm_text(prompt)
+    if "rol" in text:
+        return "rol_residui", "ROL residui"
+    if "permessi" in text:
+        return "permessi_residui", "Permessi residui"
+    if "ex fest" in text or "ex-fest" in text:
+        return "ex_fest_residui", "Ex festivita residue"
+    return "ferie_residui", "Ferie residue"
+
+
+def _format_hours(value: Any) -> str:
+    try:
+        amount = Decimal(str(value or "0"))
+    except (InvalidOperation, ValueError):
+        amount = Decimal("0")
+    return f"{amount:.2f}"
+
+
+def _format_days_from_hours(value: Any) -> str:
+    try:
+        amount = Decimal(str(value or "0"))
+    except (InvalidOperation, ValueError):
+        amount = Decimal("0")
+    if amount == 0:
+        return "0.00"
+    return f"{(amount / Decimal('7.5')):.2f}"
+
+
+def _wants_days_ratei(prompt: str) -> bool:
+    return bool(re.search(r"\bgiorn[io]\b", _norm_text(prompt)))
+
+
+def _anagrafica_ratei_line(saldo: Any, name_by_id: dict[int, str], reparto_by_id: dict[int, str], field_name: str) -> str:
+    legacy_id = int(getattr(saldo, "legacy_anagrafica_id", 0) or 0)
+    name = name_by_id.get(legacy_id) or f"Dipendente ID {legacy_id or 'non risolto'}"
+    reparto = reparto_by_id.get(legacy_id, "")
+    reparto_part = f", reparto {reparto}" if reparto else ""
+    return (
+        f"- {name}{reparto_part}: {_format_hours(getattr(saldo, field_name, 0))} ore, "
+        f"periodo {_short_date(getattr(saldo, 'data_competenza', None))}"
+    )
+
+
+def _ratei_value_label(value: Any, *, include_days: bool) -> str:
+    label = f"{_format_hours(value)} ore"
+    if include_days:
+        label += f" ({_format_days_from_hours(value)} giorni a 7.5 ore/giorno)"
+    return label
 
 
 def _aggregate_absences(rows: list[dict]) -> str:
@@ -1636,6 +1880,342 @@ def _dpi_context(request, prompt: str) -> RuntimeContext:
     )
 
 
+def _can_use_anagrafica_runtime(request) -> tuple[bool, str]:
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False, "anonymous"
+    if getattr(user, "is_superuser", False):
+        return True, "superuser"
+
+    from anagrafica.models import AnagraficaHRPermission
+    from core.legacy_utils import is_legacy_admin
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user is not None:
+        request.legacy_user = legacy_user
+    if is_legacy_admin(legacy_user):
+        return True, "legacy_admin"
+
+    perm = AnagraficaHRPermission.get_instance()
+    if perm.accesso == AnagraficaHRPermission.ACCESSO_TUTTI:
+        return True, "hr_permission_all"
+    if perm.accesso == AnagraficaHRPermission.ACCESSO_RUOLI and legacy_user and legacy_user.ruolo_id is not None:
+        allowed_roles = {int(role_id) for role_id in (perm.ruolo_ids or [])}
+        if int(legacy_user.ruolo_id) in allowed_roles:
+            return True, "hr_permission_role"
+    return False, "missing_anagrafica_hr_permission"
+
+
+def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContext:
+    from anagrafica.models import SaldoCedolino
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    field_name, field_label = _ratei_field_from_prompt(prompt)
+    limit = _extract_top_limit(prompt, default=5, max_limit=30)
+    text = _norm_text(prompt)
+    ascending = bool(re.search(r"\b(minor[ei]|piu bass[ioe]|piÃ¹ bass[ioe])\b", text))
+
+    include_days = _wants_days_ratei(prompt)
+    name_filter = _extract_ratei_name_filter(prompt)
+    self_request = not name_filter and bool(re.search(r"\b(io|me|mio|mia|miei|mie|ho)\b", text))
+
+    qs = SaldoCedolino.objects.all()
+    period = _target_period(prompt)
+    if period is not None:
+        _, period_start, period_end = period
+        qs = qs.filter(data_competenza__gte=period_start, data_competenza__lte=period_end)
+
+    target_rows: list[dict[str, Any]] = []
+    target_label = ""
+    if name_filter or self_request:
+        all_rows = fetch_anagrafica_rows(deduplicate=True)
+        if name_filter:
+            tokens = [token for token in _norm_text(name_filter).split() if token and token not in _NAME_STOPWORDS]
+            for row in all_rows:
+                searchable = _norm_text(
+                    " ".join(
+                        str(value or "")
+                        for value in (
+                            _full_name_from_anagrafica_row(row),
+                            row.get("aliasusername"),
+                            row.get("matricola"),
+                        )
+                    )
+                )
+                if tokens and all(token in searchable for token in tokens):
+                    target_rows.append(row)
+            target_label = name_filter
+        else:
+            user = getattr(request, "user", None)
+            legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+            request.legacy_user = legacy_user
+            legacy_user_id = int(getattr(legacy_user, "id", 0) or 0)
+            username = _norm_text(getattr(user, "username", "") or "")
+            for row in all_rows:
+                row_user_id = int(row.get("utente_id") or 0)
+                row_alias = _norm_text(str(row.get("aliasusername") or ""))
+                if (legacy_user_id and row_user_id == legacy_user_id) or (username and row_alias == username):
+                    target_rows.append(row)
+            target_label = "utente corrente"
+
+        target_ids = [int(row.get("id") or 0) for row in target_rows if int(row.get("id") or 0) > 0]
+        if not target_ids:
+            return RuntimeContext(
+                text=(
+                    "DATI LIVE PORTALE - ANAGRAFICA HR / RATEI\n"
+                    f"Esito: nessun dipendente trovato per '{target_label}'. "
+                    "Non inventare ore residue; chiedi di verificare il nominativo in Anagrafica > Dipendenti."
+                ),
+                sources=("tool:anagrafica:ratei",),
+                audit={
+                    "tool": "anagrafica_summary",
+                    "allowed": True,
+                    "scope": scope,
+                    "ratei_metric": field_name,
+                    "name_filter": target_label,
+                    "row_count": 0,
+                    "shown_count": 0,
+                },
+            )
+        qs = qs.filter(legacy_anagrafica_id__in=target_ids)
+
+    latest_period = qs.order_by("-data_competenza").values_list("data_competenza", flat=True).first()
+    if latest_period is None:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - ANAGRAFICA HR / RATEI\n"
+                f"Esito: nessun saldo ratei disponibile per {target_label or 'il periodo richiesto'}. "
+                "Invita ad aprire Anagrafica > Ratei Ferie/Permessi o a importare i saldi aggiornati."
+            ),
+            sources=("tool:anagrafica:ratei",),
+            audit={
+                "tool": "anagrafica_summary",
+                "allowed": True,
+                "scope": scope,
+                "ratei_metric": field_name,
+                "name_filter": target_label,
+                "row_count": 0,
+                "shown_count": 0,
+            },
+        )
+
+    if target_rows:
+        saldi_qs = qs.filter(data_competenza=latest_period).order_by("tax_code")
+        saldi = list(saldi_qs[:limit])
+        total_rows = saldi_qs.count()
+    else:
+        order_field = field_name if ascending else f"-{field_name}"
+        saldi_qs = qs.filter(data_competenza=latest_period).order_by(order_field, "tax_code")
+        saldi = list(saldi_qs[:limit])
+        total_rows = len(saldi)
+    legacy_ids = [int(getattr(saldo, "legacy_anagrafica_id", 0) or 0) for saldo in saldi]
+    legacy_ids = [legacy_id for legacy_id in legacy_ids if legacy_id > 0]
+    legacy_rows = target_rows if target_rows else fetch_anagrafica_rows(ids=legacy_ids, deduplicate=True) if legacy_ids else []
+    name_by_id = {
+        int(row.get("id") or 0): _full_name_from_anagrafica_row(row)
+        for row in legacy_rows
+        if int(row.get("id") or 0) > 0
+    }
+    reparto_by_id = {
+        int(row.get("id") or 0): str(row.get("reparto") or "").strip()
+        for row in legacy_rows
+        if int(row.get("id") or 0) > 0
+    }
+    lines = (
+        "\n".join(_anagrafica_ratei_line(saldo, name_by_id, reparto_by_id, field_name) for saldo in saldi)
+        if saldi
+        else "Nessun saldo ratei disponibile per il periodo richiesto."
+    )
+
+    direction_label = "minore" if ascending else "maggiore"
+    if target_rows and len(saldi) == 1:
+        saldo = saldi[0]
+        legacy_id = int(getattr(saldo, "legacy_anagrafica_id", 0) or 0)
+        name = name_by_id.get(legacy_id) or target_label or f"Dipendente ID {legacy_id or 'non risolto'}"
+        direct_answer = (
+            f"{name} ha {_ratei_value_label(getattr(saldo, field_name, 0), include_days=include_days)} "
+            f"di {field_label.lower()} al {_short_date(latest_period)}."
+        )
+    elif target_rows:
+        direct_answer = (
+            f"Ho trovato {len(saldi)} saldi per '{target_label}' al {_short_date(latest_period)}:\n"
+            f"{lines}"
+        )
+    else:
+        direct_answer = (
+            f"Classifica {field_label.lower()} per {direction_label} valore al {_short_date(latest_period)}:\n"
+            f"{lines}"
+        )
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - ANAGRAFICA HR / RATEI\n"
+            "Ambito autorizzato: classifica ratei ferie/permessi per utente HR/admin autorizzato.\n"
+            "Regole risposta: puoi riportare solo dipendente, reparto, periodo e ore residue della metrica richiesta. "
+            "Non riportare codice fiscale, dati retributivi, importi, dettagli cedolino, documenti, allegati o path.\n"
+            f"Metrica: {field_label}. Ordinamento: {direction_label} valore. Periodo usato: {_short_date(latest_period)}. "
+            f"Filtro nominativo: {target_label or 'nessuno'}. Righe mostrate: {len(saldi)}.\n"
+            "ISTRUZIONE RISPOSTA: se e' presente una RISPOSTA DIRETTA, riportala all'utente. "
+            "Non rispondere che non hai accesso se questa fonte contiene il dato richiesto.\n"
+            f"RISPOSTA DIRETTA:\n{direct_answer}\nFonte: tool:anagrafica:ratei.\n"
+            "Righe live disponibili:\n"
+            f"{lines}"
+        ),
+        sources=("tool:anagrafica:ratei",),
+        audit={
+            "tool": "anagrafica_summary",
+            "allowed": True,
+            "scope": scope,
+            "ratei_metric": field_name,
+            "name_filter": target_label,
+            "period": latest_period.isoformat(),
+            "order": "asc" if ascending else "desc",
+            "row_count": total_rows,
+            "shown_count": len(saldi),
+        },
+    )
+
+
+def _anagrafica_context(request, prompt: str) -> RuntimeContext:
+    if not _wants_anagrafica_context(prompt):
+        return RuntimeContext()
+
+    text = _norm_text(prompt)
+    if any(keyword in text for keyword in _ANAGRAFICA_FORBIDDEN_KEYWORDS) or _ANAGRAFICA_FORBIDDEN_TOKEN_PATTERN.search(text):
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - ANAGRAFICA HR\n"
+                "Esito autorizzazione: limitato. Il tool AI Anagrafica non espone dati HR riservati, sanitari, "
+                "retributivi, privati o documentali. Invita l'utente ad aprire la scheda dipendente nel modulo "
+                "Anagrafica e a usare i permessi server-side del portale."
+            ),
+            sources=("tool:anagrafica:accesso-limitato",),
+            audit={"tool": "anagrafica_summary", "allowed": False, "reason": "forbidden_field_request"},
+        )
+
+    allowed, scope = _can_use_anagrafica_runtime(request)
+    if not allowed:
+        return RuntimeContext(
+            text=(
+                "DATI LIVE PORTALE - ANAGRAFICA HR\n"
+                "Esito autorizzazione: negato. L'utente corrente non ha permessi Anagrafica HR sufficienti "
+                "per interrogare dati dipendente tramite AI; invita ad aprire il modulo dedicato o chiedere "
+                "abilitazione ad amministratore/HR."
+            ),
+            sources=("tool:anagrafica:accesso-negato",),
+            audit={"tool": "anagrafica_summary", "allowed": False, "reason": scope},
+        )
+
+    if _wants_anagrafica_ratei_context(prompt):
+        return _anagrafica_ratei_context(request, prompt, scope)
+
+    from anagrafica.models import DipendenteAnagraficaAziendale
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    rows = fetch_anagrafica_rows(deduplicate=True)
+    legacy_ids = [int(row.get("id") or 0) for row in rows if int(row.get("id") or 0) > 0]
+    aziendale_by_id = {
+        item.legacy_anagrafica_id: item
+        for item in DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id__in=legacy_ids)
+    }
+
+    filters_for_context: list[str] = []
+    audit_filters: list[str] = []
+
+    wants_privacy = "consenso" in text or "privacy" in text
+    consent_filter: bool | None = None
+    if wants_privacy:
+        if re.search(r"\b(no|non|senza|mancant[ei]|assent[ei]|negat[ioe])\b", text):
+            consent_filter = False
+            filters_for_context.append("consenso privacy=no")
+            audit_filters.append("consenso_privacy=no")
+        elif re.search(r"\b(si|sÃ¬|con|fornit[aoie]|rilasciat[aoie]|firmat[aoie]|presente)\b", text):
+            consent_filter = True
+            filters_for_context.append("consenso privacy=si")
+            audit_filters.append("consenso_privacy=yes")
+        else:
+            filters_for_context.append("consenso privacy=tutti")
+            audit_filters.append("consenso_privacy=all")
+
+    if consent_filter is not None:
+        rows = [
+            row for row in rows
+            if bool(getattr(aziendale_by_id.get(int(row.get("id") or 0)), "consenso_privacy", False)) is consent_filter
+        ]
+
+    reparto_filter = _extract_reparto_filter(prompt)
+    if reparto_filter:
+        rf = reparto_filter.casefold()
+        rows = [
+            row for row in rows
+            if rf in str(row.get("reparto") or "").casefold()
+            or rf in str(getattr(aziendale_by_id.get(int(row.get("id") or 0)), "area", "") or "").casefold()
+        ]
+        filters_for_context.append(f"reparto/area contiene '{reparto_filter}'")
+        audit_filters.append("reparto_area")
+
+    if re.search(r"\b(cessat[ioe]|inattiv[ioe]|non attiv[ioe]|disattivat[ioe])\b", text):
+        rows = [row for row in rows if not _is_anagrafica_row_active(row, aziendale_by_id.get(int(row.get("id") or 0)))]
+        filters_for_context.append("stato=cessato/non attivo")
+        audit_filters.append("stato=inactive")
+    elif re.search(r"\b(attiv[ioe]|in forza)\b", text):
+        rows = [row for row in rows if _is_anagrafica_row_active(row, aziendale_by_id.get(int(row.get("id") or 0)))]
+        filters_for_context.append("stato=attivo")
+        audit_filters.append("stato=active")
+
+    rows = sorted(rows, key=lambda row: _full_name_from_anagrafica_row(row).casefold())
+    shown_rows = rows[:30]
+    consent_yes = sum(
+        1 for row in rows
+        if bool(getattr(aziendale_by_id.get(int(row.get("id") or 0)), "consenso_privacy", False))
+    )
+    active_count = sum(
+        1 for row in rows
+        if _is_anagrafica_row_active(row, aziendale_by_id.get(int(row.get("id") or 0)))
+    )
+    include_privacy = wants_privacy
+    lines = (
+        "\n".join(
+            _anagrafica_dipendente_line(
+                row,
+                aziendale_by_id.get(int(row.get("id") or 0)),
+                include_privacy=include_privacy,
+            )
+            for row in shown_rows
+        )
+        if shown_rows
+        else "Nessun dipendente trovato per i filtri richiesti."
+    )
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - ANAGRAFICA HR\n"
+            "Ambito autorizzato: elenco dipendenti e campi aziendali minimi per utente HR/admin autorizzato.\n"
+            "Regole risposta: puoi riportare solo nome, matricola, reparto, mansione, area, ruolo aziendale, "
+            "stato attivo/cessato e, se richiesto, consenso privacy. Non riportare codice fiscale, IBAN, banca, "
+            "indirizzi, contatti privati, categorie protette, disabilita, dati sanitari, retribuzioni, documenti, "
+            "allegati o path; se l'utente chiede quei dati, indica di aprire la scheda nel modulo.\n"
+            f"Filtri applicati: {', '.join(filters_for_context) if filters_for_context else 'nessuno'}.\n"
+            f"Dipendenti trovati: {len(rows)}; mostrati: {len(shown_rows)}.\n"
+            f"Conteggi filtro: attivi {active_count}, cessati/non attivi {len(rows) - active_count}, "
+            f"consenso privacy si {consent_yes}, consenso privacy no {len(rows) - consent_yes}.\n"
+            "ISTRUZIONE RISPOSTA: se ci sono righe, elenca i dipendenti uno per uno usando solo i campi sotto; "
+            "non sintetizzare con nomi non presenti e non inventare valori mancanti.\n"
+            f"{lines}"
+        ),
+        sources=("tool:anagrafica:dipendenti",),
+        audit={
+            "tool": "anagrafica_summary",
+            "allowed": True,
+            "scope": scope,
+            "filters": audit_filters,
+            "row_count": len(rows),
+            "shown_count": len(shown_rows),
+            "consent_yes_count": consent_yes,
+            "active_count": active_count,
+        },
+    )
+
+
 def _anomalie_context(request, prompt: str) -> RuntimeContext:
     if not _wants_anomalie_context(prompt):
         return RuntimeContext()
@@ -2200,8 +2780,6 @@ def _unavailable_domain_context(request, prompt: str) -> RuntimeContext:
     domains: list[str] = []
     if any(keyword in text for keyword in ("timbri", "timbrature", "cartellino", "cartellini", "presenze")):
         domains.append("Timbri/Presenze")
-    if any(keyword in text for keyword in ("anagrafica", "anagrafiche", "dipendente", "dipendenti")):
-        domains.append("Anagrafica HR")
     if not domains:
         domains.append("dominio richiesto")
 
@@ -2210,7 +2788,7 @@ def _unavailable_domain_context(request, prompt: str) -> RuntimeContext:
             "DATI LIVE PORTALE - TOOL NON DISPONIBILE\n"
             f"Dominio richiesto: {', '.join(domains)}.\n"
             "Esito: nessun tool live AI e' abilitato per questo dominio. Per privacy HR, non leggere o inventare "
-            "dati di anagrafiche, timbrature, cartellini o presenze; indica di usare il modulo dedicato o chiedere "
+            "dati di timbrature, cartellini o presenze; indica di usare il modulo dedicato o chiedere "
             "una revisione privacy prima di abilitare un provider AI."
         ),
         sources=("tool:runtime:non-disponibile",),
@@ -2272,6 +2850,7 @@ RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _tasks_context,
     _assets_context,
     _dpi_context,
+    _anagrafica_context,
     _anomalie_context,
     _procedure_context,
     _notizie_context,

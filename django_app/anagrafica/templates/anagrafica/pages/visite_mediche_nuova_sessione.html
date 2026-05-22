@@ -2,6 +2,10 @@
 
 {% block title %}Nuova sessione visite mediche · {{ INSTANCE_NAME|default:"NOVICROM HUB" }}{% endblock %}
 
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% endblock %}
+
 {% block content %}
 {% include "anagrafica/components/subnav.html" %}
 
@@ -9,7 +13,7 @@
 
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
     <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Registra sessione visite mediche</h1>
-    <a href="{% url 'anagrafica:visite_mediche_dashboard' %}" style="font-size:13px;color:#6366f1;font-weight:600;">← Dashboard visite</a>
+    <a href="{% url 'anagrafica:visite_mediche_dashboard' %}" style="font-size:13px;color:#1f5c91;font-weight:600;">← Dashboard visite</a>
   </div>
 
   {% if messages %}
@@ -57,7 +61,7 @@
           </div>
         </div>
         <div style="margin-top:16px;">
-          <button type="submit" style="padding:9px 20px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
+          <button type="submit" style="padding:9px 20px;background:#1f5c91;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">
             Carica dipendenti →
           </button>
         </div>
@@ -82,7 +86,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button type="button" onclick="selectAll(true)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Seleziona tutti</button>
         <button type="button" onclick="selectAll(false)" style="padding:6px 13px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;color:#475569;">Deseleziona tutti</button>
-        <button type="button" onclick="openAggiungiModal()" style="padding:6px 13px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ Aggiungi dipendente</button>
+        <button type="button" onclick="openAggiungiModal()" style="padding:6px 13px;background:#1f5c91;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;">+ Aggiungi dipendente</button>
       </div>
     </div>
 
@@ -116,7 +120,7 @@
               </td>
               <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
                 <a href="{% url 'anagrafica:dipendente_detail' c.legacy_id %}#visite-mediche"
-                   target="_blank" style="color:#1d4ed8;text-decoration:none;">{{ c.nome }}</a>
+                   target="_blank" style="color:#1f5c91;text-decoration:none;">{{ c.nome }}</a>
               </td>
               <td style="padding:8px 10px;color:#475569;">
                 {% if c.ultima_visita %}
@@ -359,7 +363,7 @@ function aggiungiDipendente(legacyId, nome) {
   var tdNome = document.createElement('td');
   tdNome.style.cssText = 'padding:8px 10px;font-weight:600;color:#1e293b;';
   var a = document.createElement('a');
-  a.href = '#'; a.target = '_blank'; a.style.cssText = 'color:#1d4ed8;text-decoration:none;';
+  a.href = '#'; a.target = '_blank'; a.style.cssText = 'color:#1f5c91;text-decoration:none;';
   a.textContent = nome;
   tdNome.appendChild(a);
 

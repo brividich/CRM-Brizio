@@ -5552,12 +5552,15 @@ def utente_edit(request, user_id: int):
     # Onboarding wizard primo accesso
     onboarding_data = None
     django_user_id = None
+    django_username = None
     ui_prefs_data = None
     try:
         from core.models import Profile, UserOnboarding
         _profile = Profile.objects.filter(legacy_user_id=utente.id).select_related("user").first()
         if _profile:
             django_user_id = _profile.user_id
+            if _profile.user:
+                django_username = _profile.user.username
             onboarding_data = UserOnboarding.objects.filter(user_id=django_user_id).first()
             ui_prefs_data = UserUiPreference.objects.filter(user_id=django_user_id).first()
     except Exception:
@@ -5589,6 +5592,7 @@ def utente_edit(request, user_id: int):
             "current_legacy_user_id": int(current_legacy_user.id) if current_legacy_user else None,
             "onboarding_data": onboarding_data,
             "django_user_id": django_user_id,
+            "django_username": django_username,
             "ui_prefs_data": ui_prefs_data,
         },
     )
@@ -5714,6 +5718,10 @@ def utente_update(request, user_id: int):
                 utente.ruolo = (ruolo.nome or "").strip()
         except DatabaseError:
             pass
+
+    # Lo username NON si modifica da qui: la fonte di verità è
+    # `anagrafica_dipendenti.aliasusername`, gestito dalla scheda dipendente
+    # (`anagrafica:dipendente_username_set`), che lo propaga all'account Django.
 
     try:
         with transaction.atomic():

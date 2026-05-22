@@ -3,14 +3,15 @@
 {% block title %}Ruoli Operativi | Anagrafica{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 .ro-page { display:flex; flex-direction:column; gap:20px; }
 .ro-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .ro-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .ro-sub { font-size:13px; color:#64748b; margin-top:2px; }
 .ro-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.ro-btn-primary { background:#1d4ed8; color:#fff; }
-.ro-btn-primary:hover { background:#1e40af; }
+.ro-btn-primary { background:#12395f; color:#fff; }
+.ro-btn-primary:hover { background:#0e2d4b; }
 .ro-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .ro-btn-ghost:hover { background:#e2e8f0; }
 .ro-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
@@ -45,7 +46,7 @@
 .ro-field { display:flex; flex-direction:column; gap:4px; }
 .ro-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .ro-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ro-input:focus { border-color:#1d4ed8; background:#fff; }
+.ro-input:focus { border-color:#1f5c91; background:#fff; }
 
 /* Modal edit */
 .ro-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }

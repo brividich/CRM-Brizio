@@ -1,7 +1,8 @@
+import json
 import tempfile
 import socket
 import urllib.error
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -35,6 +36,8 @@ class AiAssistantTests(TestCase):
         response = self.client.get(reverse("ai_assistant:chat"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Assistente AI")
+        self.assertContains(response, "Personalizzazione risposte e limiti")
+        self.assertContains(response, "Non pu&ograve;")
 
     def test_api_chat_returns_ollama_response(self):
         self.client.force_login(self.user)
@@ -132,6 +135,44 @@ class AiAssistantTests(TestCase):
         self.assertEqual(request.full_url, "http://10.0.0.34:3000/api/chat/completions")
         self.assertEqual(request.headers["Authorization"], "Bearer sk-test")
         self.assertEqual(result.content, "Da Open WebUI.")
+
+    def test_chat_with_ollama_hides_rag_sources_when_runtime_context_present(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"model":"llama3.1","message":{"content":"Dato live."},"done":true}'
+
+        with override_settings(
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OLLAMA_RAG_ENABLED=True,
+        ), patch("ai_assistant.services.build_knowledge_context") as mocked_knowledge, patch(
+            "ai_assistant.services.urllib.request.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            mocked_knowledge.return_value = SimpleNamespace(
+                text="[fonte: README.md > Audit delle route ancora in fallback] testo RAG",
+                sources=("README.md > Audit delle route ancora in fallback",),
+            )
+            result = chat_with_ollama(
+                "Quante ore ferie residue ha SMARRELLA?",
+                runtime_context="DATI LIVE PORTALE - ANAGRAFICA HR / RATEI\nRISPOSTA DIRETTA: 10 ore.",
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        joined_messages = "\n".join(item["content"] for item in payload["messages"])
+        self.assertIn("CONTESTO LIVE AUTORIZZATO", joined_messages)
+        self.assertIn("RISPOSTA DIRETTA", joined_messages)
+        self.assertNotIn("README.md", joined_messages)
+        self.assertEqual(result.sources, ())
+        self.assertEqual(result.rag_context_chars, 0)
 
     def test_api_save_knowledge_requires_admin(self):
         normal_user = get_user_model().objects.create_user(username="ai.user", password="password")
@@ -231,6 +272,18 @@ class AiAssistantTests(TestCase):
         self.assertIn("Mario Rossi", messages[1]["content"])
         self.assertIn("Cita le fonti tool:*", messages[1]["content"])
         self.assertIn("fatti osservati", messages[1]["content"])
+
+    def test_build_messages_includes_sanitized_user_preferences(self):
+        with override_settings(OLLAMA_CHAT_SYSTEM_PROMPT="Sistema", OLLAMA_CHAT_MAX_PROMPT_CHARS=80):
+            messages = build_ollama_messages(
+                "Domanda",
+                user_preferences={"style": "dettagliato", "show_limits": True},
+            )
+
+        self.assertIn("PREFERENZE DI RISPOSTA", messages[1]["content"])
+        self.assertIn("Rispondi in modo dettagliato", messages[1]["content"])
+        self.assertIn("permesso mancante", messages[1]["content"])
+        self.assertIn("non autorizzano nuovi dati", messages[1]["content"])
 
     def test_runtime_absence_context_denies_users_without_calendar_permission(self):
         request = SimpleNamespace(user=self.user)
@@ -1167,7 +1220,7 @@ class AiAssistantTests(TestCase):
 
     def test_runtime_context_global_limit_truncates_text_and_audit(self):
         long_context = RuntimeContext(
-            text="\n".join(f"- riga {index}" for index in range(250)),
+            text="\n".join(f"- riga {index}" for index in range(500)),
             sources=("tool:test:lungo",),
             audit={"tool": "test_long", "allowed": True},
         )
@@ -1182,14 +1235,182 @@ class AiAssistantTests(TestCase):
     def test_runtime_context_reports_missing_live_tool_for_deferred_hr_domains(self):
         request = SimpleNamespace(user=self.user, path="/assistente-ai/")
 
-        context = build_runtime_context(request, "mostra timbrature e anagrafica dipendenti")
+        context = build_runtime_context(request, "mostra timbrature e cartellini")
 
         self.assertIn("tool:runtime:non-disponibile", context.sources)
         self.assertIn("Timbri/Presenze", context.text)
-        self.assertIn("Anagrafica HR", context.text)
         self.assertIn("nessun tool live AI", context.text)
         self.assertFalse(context.audit["tools"][0]["allowed"])
         self.assertEqual(context.audit["tools"][0]["tool"], "runtime_unavailable")
+
+    def test_runtime_anagrafica_context_lists_privacy_consent_for_authorized_user(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=10,
+            area="Produzione",
+            ruolo_aziendale="Operatore",
+            consenso_privacy=True,
+            data_consenso_privacy=date(2026, 5, 1),
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=11,
+            area="Produzione",
+            ruolo_aziendale="Magazzino",
+            consenso_privacy=False,
+        )
+        rows = [
+            {
+                "id": 10,
+                "nome": "Mario",
+                "cognome": "Rossi",
+                "matricola": "M10",
+                "reparto": "Produzione",
+                "mansione": "Operatore",
+                "attivo": True,
+            },
+            {
+                "id": 11,
+                "nome": "Luigi",
+                "cognome": "Bianchi",
+                "matricola": "M11",
+                "reparto": "Produzione",
+                "mansione": "Magazzino",
+                "attivo": True,
+            },
+        ]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(
+                request,
+                "elenco dipendenti che hanno fornito il consenso privacy",
+            )
+
+        self.assertIn("tool:anagrafica:dipendenti", context.sources)
+        self.assertNotIn("tool:runtime:non-disponibile", context.sources)
+        self.assertIn("Mario Rossi", context.text)
+        self.assertNotIn("Luigi Bianchi", context.text)
+        self.assertIn("consenso privacy: si", context.text)
+        self.assertIn("01/05/2026", context.text)
+        self.assertEqual(context.audit["tools"][0]["tool"], "anagrafica_summary")
+        self.assertTrue(context.audit["tools"][0]["allowed"])
+
+    def test_runtime_anagrafica_context_lists_top_ferie_residue(self):
+        from anagrafica.models import SaldoCedolino
+
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        period = date(2026, 5, 31)
+        fixtures = [
+            (10, "RSSMRA80A01H501A", "10.00"),
+            (11, "BNCLGU80A01H501B", "32.50"),
+            (12, "VRDGPP80A01H501C", "5.00"),
+            (13, "NRILRA80A01H501D", "48.25"),
+            (14, "FRNPLA80A01H501E", "22.00"),
+            (15, "GLLSRA80A01H501F", "18.00"),
+        ]
+        for legacy_id, tax_code, ferie_residui in fixtures:
+            SaldoCedolino.objects.create(
+                tax_code=tax_code,
+                legacy_anagrafica_id=legacy_id,
+                data_competenza=period,
+                ferie_residui=ferie_residui,
+            )
+        rows = [
+            {"id": 10, "nome": "Mario", "cognome": "Rossi", "reparto": "Produzione"},
+            {"id": 11, "nome": "Luigi", "cognome": "Bianchi", "reparto": "Magazzino"},
+            {"id": 12, "nome": "Giuseppe", "cognome": "Verdi", "reparto": "Qualita"},
+            {"id": 13, "nome": "Laura", "cognome": "Neri", "reparto": "Produzione"},
+            {"id": 14, "nome": "Paolo", "cognome": "Ferrari", "reparto": "Ufficio"},
+            {"id": 15, "nome": "Sara", "cognome": "Galli", "reparto": "Ufficio"},
+        ]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(
+                request,
+                "elencami i primi 5 dipendenti con maggior numero di ore ferie residue",
+            )
+
+        self.assertIn("tool:anagrafica:ratei", context.sources)
+        self.assertIn("Ferie residue", context.text)
+        self.assertIn("31/05/2026", context.text)
+        self.assertIn("Laura Neri", context.text)
+        self.assertIn("48.25 ore", context.text)
+        self.assertIn("Luigi Bianchi", context.text)
+        self.assertNotIn("Giuseppe Verdi", context.text)
+        self.assertEqual(context.audit["tools"][0]["ratei_metric"], "ferie_residui")
+        self.assertEqual(context.audit["tools"][0]["shown_count"], 5)
+
+    def test_runtime_anagrafica_context_lists_named_ferie_residue(self):
+        from anagrafica.models import SaldoCedolino
+
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        period = date(2026, 5, 31)
+        SaldoCedolino.objects.create(
+            tax_code="SMRGIU80A01H501A",
+            legacy_anagrafica_id=20,
+            data_competenza=period,
+            ferie_residui="18.75",
+        )
+        SaldoCedolino.objects.create(
+            tax_code="RSSMRA80A01H501B",
+            legacy_anagrafica_id=21,
+            data_competenza=period,
+            ferie_residui="99.00",
+        )
+        rows = [
+            {"id": 20, "nome": "Giulia", "cognome": "Smarrella", "reparto": "Amministrazione"},
+            {"id": 21, "nome": "Mario", "cognome": "Rossi", "reparto": "Produzione"},
+        ]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "Quante ore ferie residue ha SMARRELLA?")
+
+        tool_audit = context.audit["tools"][0]
+        self.assertIn("tool:anagrafica:ratei", context.sources)
+        self.assertIn("RISPOSTA DIRETTA", context.text)
+        self.assertIn("Giulia Smarrella ha 18.75 ore di ferie residue", context.text)
+        self.assertNotIn("Mario Rossi: 99.00 ore", context.text)
+        self.assertEqual(tool_audit["name_filter"], "SMARRELLA")
+        self.assertEqual(tool_audit["row_count"], 1)
+        self.assertEqual(tool_audit["shown_count"], 1)
+
+    def test_runtime_anagrafica_context_converts_named_ferie_to_days_when_requested(self):
+        from anagrafica.models import SaldoCedolino
+
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        period = date(2026, 5, 31)
+        SaldoCedolino.objects.create(
+            tax_code="SMRGIU80A01H501A",
+            legacy_anagrafica_id=20,
+            data_competenza=period,
+            ferie_residui="15.00",
+        )
+        rows = [{"id": 20, "nome": "Giulia", "cognome": "Smarrella", "reparto": "Amministrazione"}]
+
+        with patch("core.legacy_anagrafica.fetch_anagrafica_rows", return_value=rows):
+            context = build_runtime_context(request, "Quanti giorni di ferie residue ha SMARRELLA?")
+
+        self.assertIn("Giulia Smarrella ha 15.00 ore (2.00 giorni a 7.5 ore/giorno)", context.text)
+
+    def test_runtime_anagrafica_context_denies_user_without_hr_permission(self):
+        user = get_user_model().objects.create_user(username="ai.base", password="password")
+        request = SimpleNamespace(user=user, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "elenco dipendenti")
+
+        self.assertIn("tool:anagrafica:accesso-negato", context.sources)
+        self.assertIn("permessi Anagrafica HR", context.text)
+        self.assertFalse(context.audit["tools"][0]["allowed"])
+
+    def test_runtime_anagrafica_context_blocks_forbidden_hr_fields(self):
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+
+        context = build_runtime_context(request, "mostra codice fiscale e iban del dipendente")
+
+        self.assertIn("tool:anagrafica:accesso-limitato", context.sources)
+        self.assertIn("non espone dati HR riservati", context.text)
+        self.assertFalse(context.audit["tools"][0]["allowed"])
 
     def test_runtime_context_audit_records_allowed_denied_and_unavailable_tools(self):
         allowed = RuntimeContext(
@@ -1249,5 +1470,43 @@ class AiAssistantTests(TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        mocked_chat.assert_called_once_with("chi e assente domani", history=None, runtime_context="Mario Rossi: Ferie")
+        mocked_chat.assert_called_once_with(
+            "chi e assente domani",
+            history=None,
+            runtime_context="Mario Rossi: Ferie",
+            user_preferences={},
+        )
         self.assertEqual(response.json()["sources"], ["tool:assenze:periodo"])
+
+    def test_api_chat_sanitizes_and_passes_preferences(self):
+        self.client.force_login(self.user)
+        with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
+            "ai_assistant.views.chat_with_ollama"
+        ) as mocked_chat:
+            mocked_context.return_value.text = ""
+            mocked_context.return_value.sources = ()
+            mocked_context.return_value.audit = {}
+            mocked_chat.return_value = OllamaChatResult(content="Ok", model="llama3.1", done=True)
+            response = self.client.post(
+                reverse("ai_assistant:api_chat"),
+                data=json.dumps(
+                    {
+                        "message": "rispondi",
+                        "preferences": {
+                            "style": "dettagliato",
+                            "show_limits": True,
+                            "bad": "ignored",
+                        },
+                    }
+                ),
+                content_type="application/json",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_chat.assert_called_once_with(
+            "rispondi",
+            history=None,
+            runtime_context="",
+            user_preferences={"style": "dettagliato", "show_limits": True},
+        )

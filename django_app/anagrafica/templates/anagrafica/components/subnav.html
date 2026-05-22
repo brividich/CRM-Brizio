@@ -1,30 +1,46 @@
 {% load anagrafica_extras %}
 {% subnav_anagrafica as nav %}
 <style>
-.subnav-dropdown{position:relative;display:inline-block;}
-.subnav-dropdown-btn{background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit;padding:0;color:inherit;}
-.subnav-dropdown-btn.active{color:#2563eb;font-weight:600;}
-.subnav-dropdown-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:180px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08);z-index:200;padding:4px 0;}
-.subnav-dropdown:hover .subnav-dropdown-menu,
-.subnav-dropdown-btn:focus + .subnav-dropdown-menu{display:block;}
-.subnav-dropdown-menu a{display:block;padding:8px 14px;font-size:13px;color:#374151;text-decoration:none;white-space:nowrap;}
-.subnav-dropdown-menu a:hover{background:#f1f5f9;color:#1d4ed8;}
-.subnav-dropdown-menu a.active{color:#1d4ed8;font-weight:600;}
+/* Subnav Anagrafica HR — restyle pill-tab (Fase A) */
+.hrnav { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
+  background:#fff; border:1px solid #e2e8f0; border-radius:.85rem;
+  padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.hrnav-tab { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  border-radius:.6rem; padding:7px 13px; font-size:13px; font-weight:700;
+  color:#64748b; text-decoration:none; border:none; background:none;
+  cursor:pointer; font-family:inherit; transition:background .15s, color .15s; }
+.hrnav-tab:hover { background:#f1f5f9; color:#12395f; }
+.hrnav-tab.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+.hrnav-dd { position:relative; display:inline-block; }
+.hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:190px;
+  background:#fff; border:1px solid #e2e8f0; border-radius:.7rem;
+  box-shadow:0 10px 26px -12px rgba(15,23,42,.4); z-index:200; padding:5px; }
+.hrnav-dd:hover .hrnav-dd-menu, .hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
+.hrnav-dd-menu a { display:block; padding:8px 11px; border-radius:.5rem; font-size:13px;
+  font-weight:600; color:#374151; text-decoration:none; white-space:nowrap; }
+.hrnav-dd-menu a:hover { background:#f1f5f9; color:#12395f; }
+.hrnav-dd-menu a.active { background:#eef2ff; color:#12395f; }
+.hrnav-notice { margin-top:10px; font-size:13px; color:#475569; }
+body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hrnav-tab { color:var(--text-light); }
+body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-dd-menu { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hrnav-dd-menu a { color:var(--text-mid); }
+body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-notice { color:var(--text-light); }
 </style>
-<div class="subnav">
+<div class="hrnav">
   {% for item in nav.items %}
     {% if item.type == "link" %}
-      {% if not forloop.first %}<span style="color:#cbd5e1;margin:0 6px;font-size:13px;">·</span>{% endif %}
-      <a class="sub-a{% if item.active %} active{% endif %}"
+      <a class="hrnav-tab{% if item.active %} active{% endif %}"
          href="{{ item.url }}"
          {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
     {% elif item.type == "category" %}
-      {% if not forloop.first %}<span style="color:#cbd5e1;margin:0 6px;font-size:13px;">·</span>{% endif %}
-      <span class="subnav-dropdown">
-        <button class="sub-a subnav-dropdown-btn{% if item.active %} active{% endif %}" type="button">
+      <span class="hrnav-dd">
+        <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">
           {% if item.icona %}{{ item.icona }} {% endif %}{{ item.label }} ▾
         </button>
-        <div class="subnav-dropdown-menu">
+        <div class="hrnav-dd-menu">
           {% for child in item.links %}
             <a href="{{ child.url }}"
                class="{% if child.active %}active{% endif %}"
@@ -36,10 +52,10 @@
       </span>
     {% endif %}
   {% empty %}
-    <a class="sub-a" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
+    <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
 </div>
-<div class="notice" style="margin-top: 10px;">
+<div class="hrnav-notice">
   {% with current=request.resolver_match.view_name %}
   {% if current == 'anagrafica:index' %}
     <strong>Anagrafica HR:</strong> panoramica dei dipendenti, ruoli, mansioni e qualifiche.
@@ -49,6 +65,8 @@
     <strong>Scheda dipendente:</strong> dati anagrafici, mansione, ruoli, qualifiche, visite mediche, DPI e documenti.
   {% elif current == 'anagrafica:ratei_list' %}
     <strong>Ratei Ferie / Permessi:</strong> saldi mensili ferie, ROL ed ex-festività da cedolino paga.
+  {% elif current == 'anagrafica:retribuzioni_globale' %}
+    <strong>Retribuzioni — Vista globale:</strong> voci retributive di tutti i dipendenti, una riga per mese, filtrabili per dipendente, reparto, sesso e livello contrattuale.
   {% elif current == 'anagrafica:visite_mediche_dashboard' %}
     <strong>Visite mediche:</strong> scadenze, copertura per tipologia e ultime visite registrate.
   {% elif current == 'anagrafica:documenti_list' %}

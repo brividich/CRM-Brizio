@@ -37,7 +37,8 @@ Questa matrice riflette la sezione "Matrice Moduli" di `12_AI_RUNTIME_TOOLS_TODO
 | `procedure_refresh_summary` | approved | campagna (nome), documento (titolo), stato lettura (letto/non letto), esito quiz (superato/non superato/non assegnato) | risposte dettagliate quiz, allegati privati, note valutazione |
 | `sicurezza_summary` | approved | KPI aggregati (conteggi, percentuali), riepilogo diario preposto (date, conteggi), riepilogo incidenti (numero, tipo sintetico, reparto) | testimonianze, dettagli personali coinvolti, allegati, dati sanitari, prognosi |
 | `notizie_summary` | approved | titolo notizia, obbligatorietà, versione, data pubblicazione, stato compliance utente (letta/non letta), conteggio allegati | corpo HTML/testo esteso, hash, URL/path allegati, report nominativi letture |
-| `timbri_anagrafica` | blocked | nessun campo live AI | tutti i dati HR, anagrafici personali, timbrature, presenze, stipendi, posizioni contrattuali |
+| `anagrafica_summary` | restricted | nome, matricola, reparto, mansione, area, ruolo aziendale, stato attivo/cessato, consenso privacy se richiesto, classifiche ratei ferie/permessi residui con ore e periodo | codice fiscale, IBAN, banca, indirizzi, contatti privati, categorie protette, disabilita, visite mediche, retribuzioni, dettagli cedolino, documenti, allegati/path |
+| `timbri_presenze` | blocked | nessun campo live AI | timbrature, cartellini, presenze e dati biometrici/cronologici |
 | `runtime_router` | approved | aggregazione da tool autorizzati sopra | nessun campo aggiuntivo rispetto ai tool che compone |
 
 ---
@@ -141,4 +142,5 @@ Seguire la checklist in `12_AI_RUNTIME_TOOLS_TODOLIST.md` sezione "Checklist Per
 
 | Data | Revisore | Modifica |
 |---|---|---|
+| 2026-05-22 | Codex | Separato `anagrafica_summary` (restricted, read-only con campi minimi e ratei ferie/permessi solo ore+periodo) dal dominio `timbri_presenze` ancora bloccato. |
 | 2026-05-13 | Sistema (Fase 5) | Prima stesura: matrice campi, policy retention, prompt aggiornato, runbook operativo. |

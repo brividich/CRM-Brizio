@@ -428,6 +428,102 @@
   padding: 0 4px;
 }
 
+.ai-config {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,.04);
+}
+.ai-config summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 850;
+  color: var(--text, #0f172a);
+}
+.ai-config summary::-webkit-details-marker { display: none; }
+.ai-config-summary {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-light, #64748b);
+  white-space: nowrap;
+}
+.ai-config-body {
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding: 14px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.3fr);
+  gap: 14px;
+}
+.ai-config-title {
+  font-size: 12px;
+  font-weight: 850;
+  color: var(--text, #0f172a);
+  margin-bottom: 8px;
+}
+.ai-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-segmented button {
+  border: 1px solid var(--border, #e2e8f0);
+  background: #f8fafc;
+  color: var(--text, #0f172a);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ai-segmented button.is-active {
+  background: #002b5c;
+  border-color: #002b5c;
+  color: #fff;
+}
+.ai-pref-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text, #0f172a);
+}
+.ai-pref-toggle input {
+  margin-top: 2px;
+  accent-color: #002b5c;
+}
+.ai-boundary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ai-boundary-box {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fafc;
+}
+.ai-boundary-box strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--text, #0f172a);
+}
+.ai-boundary-box ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--text-light, #64748b);
+  line-height: 1.45;
+}
+
 /* ── Notice variants ─────────────────────────────────────────────── */
 .ai-notice-error {
   background: #fef2f2;
@@ -579,6 +675,22 @@ body.theme-dark .ai-suggestion-btn {
 body.theme-dark .ai-suggestion-btn:hover { background: var(--surface); }
 body.theme-dark .ai-status-chip { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.12); }
 body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: #fca5a5; }
+body.theme-dark .ai-config,
+body.theme-dark .ai-boundary-box {
+  background: var(--surface);
+  border-color: var(--border);
+}
+body.theme-dark .ai-config-body { border-color: var(--border); }
+body.theme-dark .ai-segmented button {
+  background: var(--surface-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+body.theme-dark .ai-segmented button.is-active {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -587,6 +699,10 @@ body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: 
   .ai-form-row { flex-wrap: wrap; }
   .ai-send, .ai-learn { width: 100%; min-width: unset; }
   .ai-bubble { max-width: 92%; }
+  .ai-config-body,
+  .ai-boundary-grid { grid-template-columns: 1fr; }
+  .ai-config summary { align-items: flex-start; flex-direction: column; }
+  .ai-config-summary { white-space: normal; }
 }
 </style>
 {% endblock %}
@@ -635,6 +751,45 @@ body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: 
       {% endif %}
     </div>
   </div>
+
+  <details class="ai-config" data-ai-preferences>
+    <summary>
+      <span>Personalizzazione risposte e limiti</span>
+      <span class="ai-config-summary" data-ai-pref-summary>Stile operativo, limiti visibili</span>
+    </summary>
+    <div class="ai-config-body">
+      <div>
+        <div class="ai-config-title">Stile risposta</div>
+        <div class="ai-segmented" role="group" aria-label="Stile risposta AI">
+          <button type="button" data-ai-style-option="operativo">Operativo</button>
+          <button type="button" data-ai-style-option="sintetico">Sintetico</button>
+          <button type="button" data-ai-style-option="dettagliato">Dettagliato</button>
+        </div>
+        <label class="ai-pref-toggle">
+          <input type="checkbox" data-ai-pref-limits>
+          <span>Mostra il limite quando mancano permessi, dati live o azioni abilitate.</span>
+        </label>
+      </div>
+      <div class="ai-boundary-grid" aria-label="Confini operativi assistente AI">
+        <div class="ai-boundary-box">
+          <strong>Pu&ograve;</strong>
+          <ul>
+            <li>Usare tool live autorizzati e fonti visibili.</li>
+            <li>Riassumere dati filtrati dai permessi.</li>
+            <li>Proporre FAQ o miglioramenti da approvare.</li>
+          </ul>
+        </div>
+        <div class="ai-boundary-box">
+          <strong>Non pu&ograve;</strong>
+          <ul>
+            <li>Aggirare ACL, ruoli o moduli non abilitati.</li>
+            <li>Inventare dati aziendali assenti dal contesto.</li>
+            <li>Esporre CF, IBAN, dati sanitari o allegati riservati.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </details>
 
   <!-- Chat panel -->
   <section class="ai-panel" aria-label="Conversazione assistente AI">
@@ -714,6 +869,11 @@ body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: 
   var sessionStart = Date.now();
   var sessionChip  = root.querySelector("[data-ai-session-info]");
   var newChatBtn   = root.querySelector("[data-ai-new-chat]");
+  var prefKey      = "novicrom_ai_chat_preferences_v1";
+  var prefSummary  = root.querySelector("[data-ai-pref-summary]");
+  var prefLimits   = root.querySelector("[data-ai-pref-limits]");
+  var styleButtons = Array.from(root.querySelectorAll("[data-ai-style-option]"));
+  var preferences  = { style: "operativo", show_limits: true };
 
   /* ── CSRF ────────────────────────────────────────────────────── */
   function csrf() {
@@ -755,6 +915,52 @@ body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: 
     sessionChip.textContent = "\u{1F4AC} " + label + " · " + timeStr;
   }
   setInterval(updateSessionChip, 10000);
+
+  function savePreferences() {
+    try {
+      window.localStorage.setItem(prefKey, JSON.stringify(preferences));
+    } catch (_) { /* preferenze non persistibili */ }
+  }
+
+  function loadPreferences() {
+    try {
+      var raw = window.localStorage.getItem(prefKey);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (parsed && ["operativo", "sintetico", "dettagliato"].indexOf(parsed.style) !== -1) {
+        preferences.style = parsed.style;
+      }
+      preferences.show_limits = parsed.show_limits !== false;
+    } catch (_) { /* preferenze corrotte: usa default */ }
+  }
+
+  function updatePreferencesUi() {
+    styleButtons.forEach(function (btn) {
+      var active = btn.dataset.aiStyleOption === preferences.style;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (prefLimits) prefLimits.checked = !!preferences.show_limits;
+    if (prefSummary) {
+      var styleLabel = preferences.style.charAt(0).toUpperCase() + preferences.style.slice(1);
+      prefSummary.textContent = styleLabel + ", " + (preferences.show_limits ? "limiti visibili" : "limiti solo se necessari");
+    }
+  }
+
+  styleButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      preferences.style = btn.dataset.aiStyleOption || "operativo";
+      updatePreferencesUi();
+      savePreferences();
+    });
+  });
+  prefLimits && prefLimits.addEventListener("change", function () {
+    preferences.show_limits = !!prefLimits.checked;
+    updatePreferencesUi();
+    savePreferences();
+  });
+  loadPreferences();
+  updatePreferencesUi();
 
   /* ── Reset / nuova conversazione ────────────────────────────── */
   function resetSession() {
@@ -1011,7 +1217,7 @@ body.theme-dark .ai-disabled-card code { background: var(--surface-alt); color: 
           "X-CSRFToken": csrf(),
           "X-Requested-With": "XMLHttpRequest"
         },
-        body: JSON.stringify({ message: text, history: history.slice(0, -1) })
+        body: JSON.stringify({ message: text, history: history.slice(0, -1), preferences: preferences })
       });
 
       var data = await window.portalReadJsonResponse(response);

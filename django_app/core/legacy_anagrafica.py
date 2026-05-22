@@ -230,6 +230,11 @@ def fetch_anagrafica_rows(*, ids: list[int] | None = None, deduplicate: bool = F
         )
         if notification_email:
             row["email_notifica"] = notification_email
+        # Normalizza `attivo` a booleano: il campo legacy puo' essere NULL,
+        # che va interpretato come attivo (coerente con COALESCE(attivo, 1)).
+        if "attivo" in row:
+            raw_attivo = row.get("attivo")
+            row["attivo"] = True if raw_attivo is None else bool(raw_attivo)
     return rows
 
 

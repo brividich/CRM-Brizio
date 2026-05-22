@@ -4,6 +4,9 @@ from django import forms
 
 
 class UtenteUpdateForm(forms.Form):
+    # Lo username non è modificabile da qui: la fonte di verità è
+    # `anagrafica_dipendenti.aliasusername` (scheda dipendente). Vedi
+    # `anagrafica.views.dipendente_username_set`, che lo propaga all'account.
     nome = forms.CharField(max_length=200)
     email = forms.EmailField(required=False)
     attivo = forms.BooleanField(required=False)

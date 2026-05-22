@@ -1,0 +1,148 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Ex dipendenti | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+/* ex_dipendenti_list — elementi specifici di pagina */
+.hr-search-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;
+  background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:14px 16px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.hr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:160px; }
+.hr-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.hr-input { border:1px solid #e2e8f0; border-radius:.6rem; padding:8px 12px; font-size:13px;
+  color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.hr-input:focus { border-color:#1f5c91; background:#fff; }
+.hr-notice { background:#fffbeb; border:1px solid #fde68a; border-radius:.7rem;
+  padding:10px 14px; font-size:13px; color:#92400e; }
+.hr-avatar { width:32px; height:32px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1;
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
+.hr-avatar-img { width:100%; height:100%; object-fit:cover; display:block; filter:grayscale(1); }
+.hr-avatar-fb::before { content:""; position:absolute; top:7px; left:10px; width:10px; height:10px;
+  border-radius:50%; background:#94a3b8; }
+.hr-avatar-fb::after { content:""; position:absolute; left:7px; bottom:5px; width:16px; height:10px;
+  border-radius:10px 10px 6px 6px; background:#94a3b8; }
+.hr-name-cell { display:flex; align-items:center; gap:10px; }
+.hr-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; }
+.hr-pag span { font-size:13px; color:#64748b; }
+body.theme-dark .hr-search-bar { background:var(--surface); border-color:var(--border); }
+body.theme-dark .hr-field label { color:var(--text-light); }
+body.theme-dark .hr-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .hr-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
+body.theme-dark .hr-pag span { color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica personale</div>
+      <h2 class="hr-pagehead-title">Ex dipendenti</h2>
+      <p class="hr-pagehead-desc">Rapporti di lavoro cessati. Questi nominativi restano a sistema con il fascicolo completo (documenti, retribuzioni, storico) ma non compaiono tra i dipendenti in forza.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti in forza</a>
+    </div>
+  </div>
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- Filtri -->
+  <form method="get" class="hr-search-bar">
+    <div class="hr-field">
+      <label>Cerca per nome</label>
+      <input class="hr-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, username o matricola...">
+    </div>
+    <div style="display:flex;gap:8px;padding-top:20px;">
+      <button class="hr-btn hr-btn-primary" type="submit">Filtra</button>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:ex_dipendenti_list' %}">Reset</a>
+    </div>
+  </form>
+
+  <!-- Tabella -->
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">{{ page_obj.paginator.count }} ex dipendent{{ page_obj.paginator.count|pluralize:"e,i" }}{% if q %} (filtrati){% endif %}</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="hr-table" data-sortable>
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Username</th>
+            <th>Matricola</th>
+            <th>Contratto</th>
+            <th>Data assunzione</th>
+            <th>Data cessazione</th>
+            <th data-no-sort data-no-filter></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dip in page_obj %}
+          <tr>
+            <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
+              <div class="hr-name-cell">
+                <div class="hr-avatar{% if not dip.foto_url %} hr-avatar-fb{% endif %}" aria-hidden="true">
+                  {% if dip.foto_url %}<img class="hr-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
+                </div>
+                <div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div>
+              </div>
+            </td>
+            <td><span class="hr-pill neutral">{{ dip.aliasusername|default:"-" }}</span></td>
+            <td>{{ dip.matricola_legacy|default:"-" }}</td>
+            <td>{{ dip.tipologia_contratto_display|default:"-" }}</td>
+            <td data-sort-value="{{ dip.data_assunzione|date:'Y-m-d' }}">{{ dip.data_assunzione|date:"d/m/Y"|default:"-" }}</td>
+            <td data-sort-value="{{ dip.data_cessazione|date:'Y-m-d' }}">
+              {% if dip.data_cessazione %}
+                <span class="hr-pill neutral">{{ dip.data_cessazione|date:"d/m/Y" }}</span>
+              {% else %}
+                <span style="color:#cbd5e1;">-</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                {% if dip.legacy_id %}
+                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.legacy_id %}" title="Fascicolo dipendente">👤 Scheda</a>
+                {% else %}
+                  <span style="color:#cbd5e1;">-</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr data-empty-row="1"><td colspan="7" class="hr-empty">Nessun ex dipendente.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="hr-pag">
+      {% if page_obj.has_previous %}
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}">← Prec</a>
+      {% endif %}
+      <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}">Succ →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="hr-notice">
+    Gli ex dipendenti non hanno un account portale collegato. Il fascicolo resta consultabile dalla scheda per adempimenti, audit e storico, nel rispetto dei tempi di conservazione previsti.
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
+{% endblock %}

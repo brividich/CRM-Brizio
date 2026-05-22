@@ -1,0 +1,215 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Scadenzario | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+/* ── Filtri scadenzario ─────────────────────────────────────────────────── */
+.sc-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
+.sc-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
+.sc-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.sc-select {
+  border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px;
+  font-size:13px; color:#0f172a; background:#f8fafc; outline:none;
+  width:100%; font-family:inherit;
+}
+.sc-select:focus { border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
+/* ── Status pill ────────────────────────────────────────────────────────── */
+.sc-pill-scaduta { background:#fee2e2; color:#b91c1c; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-pill-30      { background:#ffedd5; color:#9a3412; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-pill-60      { background:#fef9c3; color:#854d0e; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-badge-q { background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-badge-v { background:#f3e8ff; color:#6b21a8; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sc-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sc-field label { color:var(--text-light); }
+body.theme-dark .sc-pill-scaduta { background:rgba(185,28,28,.25); color:#fca5a5; }
+body.theme-dark .sc-pill-30      { background:rgba(154,52,18,.25); color:#fdba74; }
+body.theme-dark .sc-pill-60      { background:rgba(133,77,14,.25); color:#fde68a; }
+body.theme-dark .sc-badge-q { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h1 class="hr-pagehead-title">Scadenzario</h1>
+      <p class="hr-pagehead-desc">Qualifiche e visite mediche scadute o in scadenza nei prossimi 60 giorni.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-outline" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv">⬇ Esporta CSV</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="hr-metric-grid">
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⚠️</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Scadute</span><span class="hr-metric-val">{{ n_scadute }}</span></div>
+        <div class="hr-metric-sub">Da rinnovare subito</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">⏰</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Entro 30 giorni</span><span class="hr-metric-val">{{ n_30gg }}</span></div>
+        <div class="hr-metric-sub">Prossima scadenza</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Entro 60 giorni</span><span class="hr-metric-val">{{ n_60gg }}</span></div>
+        <div class="hr-metric-sub">Pianificazione</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">📋</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Totale</span><span class="hr-metric-val">{{ totale }}</span></div>
+        <div class="hr-metric-sub">Con filtri attivi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div class="hr-card">
+    <form method="get" action="">
+      <div class="sc-filters">
+        <div class="sc-field">
+          <label for="sc-tipo">Tipo</label>
+          <select id="sc-tipo" name="tipo" class="sc-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_tipo %}selected{% endif %}>Tutti</option>
+            <option value="qualifica" {% if filtro_tipo == "qualifica" %}selected{% endif %}>Solo qualifiche</option>
+            {% if can_view_visite %}
+            <option value="visita" {% if filtro_tipo == "visita" %}selected{% endif %}>Solo visite mediche</option>
+            {% endif %}
+          </select>
+        </div>
+        <div class="sc-field">
+          <label for="sc-stato">Stato</label>
+          <select id="sc-stato" name="stato" class="sc-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_stato %}selected{% endif %}>Scadute + entro 60gg</option>
+            <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Solo scadute</option>
+            <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
+            <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+          </select>
+        </div>
+        {% if reparti %}
+        <div class="sc-field">
+          <label for="sc-reparto">Reparto</label>
+          <select id="sc-reparto" name="reparto" class="sc-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti</option>
+            {% for r in reparti %}
+            <option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
+          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
+          <a href="{% url 'anagrafica:scadenzario' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabella risultati -->
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <span class="hr-card-title">Risultati</span>
+        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;">{{ totale }}</span>
+      </div>
+      {% if not can_view_visite %}
+      <div style="font-size:12px;color:#94a3b8;">Le visite mediche non sono visibili con il tuo livello di accesso.</div>
+      {% endif %}
+    </div>
+
+    {% if page_obj.object_list %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table" data-sortable>
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Reparto</th>
+            <th>Tipo</th>
+            <th>Descrizione</th>
+            <th data-sort-type="date">Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in page_obj.object_list %}
+          <tr>
+            <td>
+              <a href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
+                {{ v.cognome }} {{ v.nome }}
+              </a>
+            </td>
+            <td>
+              {% if v.reparto %}<span class="hr-pill blue">{{ v.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+            </td>
+            <td>
+              {% if v.kind == "qualifica" %}
+                <span class="sc-badge-q">🎓 Qualifica</span>
+              {% else %}
+                <span class="sc-badge-v">🏥 Visita</span>
+              {% endif %}
+            </td>
+            <td style="font-weight:600;color:#1e293b;">{{ v.tipo_nome }}</td>
+            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d/m/Y" }}</td>
+            <td>
+              {% if v.scaduta %}
+                <span class="sc-pill-scaduta">Scaduta da {{ v.giorni|stringformat:"d"|slice:"1:" }}gg</span>
+              {% elif v.giorni <= 30 %}
+                <span class="sc-pill-30">⏰ {{ v.giorni }}gg</span>
+              {% else %}
+                <span class="sc-pill-60">{{ v.giorni }}gg</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
+      {% if page_obj.has_previous %}
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
+      {% endif %}
+      <span style="font-size:13px;color:#64748b;">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="hr-empty">
+      <div style="font-size:32px;margin-bottom:8px;">✅</div>
+      Nessuna scadenza trovata con i filtri selezionati.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
+{% endblock %}

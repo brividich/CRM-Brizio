@@ -14,7 +14,7 @@ from openpyxl import load_workbook
 
 from core.legacy_anagrafica import cleanup_duplicate_anagrafica_rows, ensure_anagrafica_schema
 from assets.models import Asset, AssetCategory, SoftwareLicense
-from .models import DipendenteAnagraficaCivile, SaldoCedolino
+from .models import DipendenteAnagraficaAziendale, DipendenteAnagraficaCivile, SaldoCedolino
 
 User = get_user_model()
 
@@ -339,6 +339,48 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(html.count(">Aksoy Derya<"), 1)
         self.assertNotIn(">AKSOY DERYA<", html)
+
+    def test_ex_dipendenti_are_separated_from_active_list(self):
+        """Un dipendente con data_cessazione non compare nella lista in forza
+        ma compare nella vista dedicata agli ex dipendenti."""
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo)
+                VALUES (%s, %s, %s, %s)
+                """,
+                ["m.attivo", "Marco", "Attivo", 1],
+            )
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo)
+                VALUES (%s, %s, %s, %s)
+                """,
+                ["e.cessato", "Elia", "Cessato", 0],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["e.cessato"],
+            )
+            ex_legacy_id = int(cursor.fetchone()[0])
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=ex_legacy_id,
+            data_cessazione=date(2025, 12, 31),
+        )
+
+        self.client.force_login(self.user)
+
+        list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
+        self.assertIn(">Attivo Marco<", list_html)
+        self.assertNotIn(">Cessato Elia<", list_html)
+
+        ex_response = self.client.get(reverse("anagrafica:ex_dipendenti_list"))
+        ex_html = ex_response.content.decode()
+        self.assertEqual(ex_response.status_code, 200)
+        self.assertIn(">Cessato Elia<", ex_html)
+        self.assertNotIn(">Attivo Marco<", ex_html)
+        self.assertEqual(ex_response.context["page_obj"].paginator.count, 1)
 
     def test_list_orders_employees_by_surname_and_name_on_first_load(self):
         with connection.cursor() as cursor:

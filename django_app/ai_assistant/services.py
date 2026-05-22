@@ -376,6 +376,7 @@ def build_ollama_messages(
     *,
     knowledge_context: str = "",
     runtime_context: str = "",
+    user_preferences: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     max_prompt_chars = int(getattr(settings, "OLLAMA_CHAT_MAX_PROMPT_CHARS", 2000) or 2000)
     max_history_messages = int(getattr(settings, "OLLAMA_CHAT_MAX_HISTORY_MESSAGES", 6) or 6)
@@ -391,6 +392,9 @@ def build_ollama_messages(
     messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
+    preferences_prompt = _build_preferences_prompt(user_preferences)
+    if preferences_prompt:
+        messages.append({"role": "system", "content": preferences_prompt})
     # Il contesto live viene inserito PRIMA dei documenti RAG: ha priorità assoluta
     # e deve essere il riferimento principale per domande su dati operativi.
     if runtime_context:
@@ -403,6 +407,7 @@ def build_ollama_messages(
                     "ISTRUZIONE: questo contesto contiene dati reali del portale filtrati con i permessi "
                     "dell'utente. Usalo come fonte principale e definitiva per rispondere. "
                     "Cita le fonti tool:* quando usi questi dati. "
+                    "Se il contesto contiene una sezione RISPOSTA DIRETTA, riportala come risposta principale. "
                     "Non aggiungere nominativi o dettagli non presenti nel contesto. "
                     "Se il dato non e' qui, dillo esplicitamente senza inventare procedure, comandi o sezioni. "
                     "Per richieste predittive separa fatti osservati, ipotesi e raccomandazioni."
@@ -433,7 +438,38 @@ def build_ollama_messages(
     return messages
 
 
-def chat_with_ollama(prompt: str, history: Any = None, *, runtime_context: str = "") -> OllamaChatResult:
+def _build_preferences_prompt(user_preferences: dict[str, Any] | None) -> str:
+    if not isinstance(user_preferences, dict):
+        return ""
+    style = str(user_preferences.get("style") or "").strip().lower()
+    style_map = {
+        "operativo": "Rispondi in modo operativo: dato principale, fonte, prossimo passo solo se utile.",
+        "sintetico": "Rispondi in modo sintetico: massimo 3-5 righe quando il contenuto lo consente.",
+        "dettagliato": "Rispondi in modo dettagliato: includi criteri, filtri applicati e assunzioni esplicite.",
+    }
+    lines: list[str] = []
+    if style in style_map:
+        lines.append(style_map[style])
+    if bool(user_preferences.get("show_limits")):
+        lines.append(
+            "Quando non puoi rispondere o agire, spiega in una riga il limite: permesso mancante, tool live assente, "
+            "dato non presente nel contesto o azione non abilitata."
+        )
+    if not lines:
+        return ""
+    lines.append(
+        "Queste preferenze non autorizzano nuovi dati, non cambiano ACL/permessi e non permettono di inventare dati assenti."
+    )
+    return "PREFERENZE DI RISPOSTA DELL'UTENTE:\n" + "\n".join(f"- {line}" for line in lines)
+
+
+def chat_with_ollama(
+    prompt: str,
+    history: Any = None,
+    *,
+    runtime_context: str = "",
+    user_preferences: dict[str, Any] | None = None,
+) -> OllamaChatResult:
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip().rstrip("/")
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
     model = str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
@@ -444,10 +480,11 @@ def chat_with_ollama(prompt: str, history: Any = None, *, runtime_context: str =
         raise OllamaChatError("OLLAMA_CHAT_MODEL non configurato.")
 
     knowledge = build_knowledge_context(prompt)
+    has_runtime_context = bool(runtime_context.strip())
     # Se c'è un contesto live (dati operativi reali), non iniettare il RAG nel payload:
     # i modelli small ignorano l'istruzione "ignora i documenti se c'è contesto live"
-    # e confondono le due fonti. Il RAG è comunque calcolato per raccogliere i sources.
-    rag_for_llm = "" if runtime_context.strip() else knowledge.text
+    # e confondono le due fonti. Anche le fonti RAG restano nascoste nella UI quando risponde un tool live.
+    rag_for_llm = "" if has_runtime_context else knowledge.text
     payload = {
         "model": model,
         "messages": build_ollama_messages(
@@ -455,6 +492,7 @@ def chat_with_ollama(prompt: str, history: Any = None, *, runtime_context: str =
             history,
             knowledge_context=rag_for_llm,
             runtime_context=runtime_context,
+            user_preferences=user_preferences,
         ),
         "stream": False,
     }
@@ -528,6 +566,6 @@ def chat_with_ollama(prompt: str, history: Any = None, *, runtime_context: str =
         content=content,
         model=str(data.get("model") or model) if isinstance(data, dict) else model,
         done=bool(data.get("done", True)) if isinstance(data, dict) else True,
-        sources=knowledge.sources,
-        rag_context_chars=len(knowledge.text),
+        sources=() if has_runtime_context else knowledge.sources,
+        rag_context_chars=0 if has_runtime_context else len(knowledge.text),
     )

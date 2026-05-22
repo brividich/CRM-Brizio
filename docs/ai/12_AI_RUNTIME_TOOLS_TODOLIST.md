@@ -50,7 +50,8 @@ Legenda:
 - `[x]` Procedure Refresh: campagne, prese visione, quiz e formazione autorizzata.
 - `[x]` Diario Preposto / Incidenti: solo riepiloghi sicurezza autorizzati, senza note sensibili o allegati.
 - `[x]` Notizie: notizie pubblicate e leggibili dall'utente corrente.
-- `[-]` Timbri / Anagrafica: rimandato a revisione privacy HR dedicata; nessun tool live abilitato in questa fase.
+- `[x]` Anagrafica HR: elenco dipendenti e campi aziendali minimi per superuser/admin legacy o ruoli autorizzati, senza dati HR riservati.
+- `[-]` Timbri / Presenze: rimandato a revisione privacy HR dedicata; nessun tool live abilitato in questa fase.
 
 ## Fase 3 - Domande Cross-Dominio
 
@@ -90,7 +91,8 @@ Legenda:
 | Procedure | `[x]` | campagna, documento, stato lettura, esito quiz sintetico | risposte dettagliate non necessarie, allegati privati |
 | Sicurezza | `[x]` | KPI e riepiloghi autorizzati | testimonianze, dettagli personali, allegati, dati sanitari |
 | Notizie | `[x]` | titolo, obbligatorieta, versione, data pubblicazione, compliance utente, conteggio allegati | corpo, hash, file, URL/path allegati, report nominativi letture |
-| Timbri / Anagrafica | `[-]` | nessun contesto live AI in fase 2 | dati HR, anagrafiche personali, timbrature e presenze senza revisione privacy dedicata |
+| Anagrafica HR | `[x]` | nome, matricola, reparto, mansione, area, ruolo aziendale, stato attivo/cessato, consenso privacy se richiesto, classifiche ratei ferie/permessi residui con ore e periodo | codice fiscale, IBAN, banca, indirizzi, contatti privati, categorie protette, disabilita, visite mediche, retribuzioni, dettagli cedolino, documenti, allegati/path |
+| Timbri / Presenze | `[-]` | nessun contesto live AI in fase 2 | timbrature, cartellini e presenze senza revisione privacy dedicata |
 
 ## Checklist Per Nuovo Tool
 

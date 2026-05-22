@@ -3,6 +3,7 @@
 {% block title %}Impostazioni Anagrafica | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 /* ============================================================
    Pannello impostazioni anagrafica — UI a tabs verticali
@@ -10,7 +11,7 @@
 #imp-root { display:flex; flex-direction:column; gap:18px; }
 
 .imp-hero {
-  background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%);
+  background:linear-gradient(135deg,#12395f 0%,#1f5c91 60%,#12395f 100%);
   border-radius:16px; padding:24px 28px; color:#fff;
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
 }
@@ -36,7 +37,7 @@
   background:transparent; border:none; text-align:left; width:100%;
 }
 .imp-tab:hover { background:#f1f5f9; color:#0f172a; }
-.imp-tab.active { background:#1d4ed8; color:#fff; }
+.imp-tab.active { background:#12395f; color:#fff; }
 .imp-tab .imp-tab-icon { font-size:16px; width:18px; text-align:center; }
 .imp-tab .imp-tab-count { margin-left:auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#e2e8f0; color:#475569; }
 .imp-tab.active .imp-tab-count { background:rgba(255,255,255,.25); color:#fff; }
@@ -58,13 +59,13 @@
   width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:9px; font-size:13px;
   background:#f8fafc; color:#0f172a; outline:none; box-sizing:border-box;
 }
-.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1d4ed8; background:#fff; }
+.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f5c91; background:#fff; }
 .imp-textarea { resize:vertical; min-height:60px; }
 .imp-color { width:42px; height:36px; padding:2px; border-radius:8px; border:1px solid #d1d5db; cursor:pointer; }
 
 .imp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:12px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:background .15s; }
-.imp-btn-primary { background:#1d4ed8; color:#fff; }
-.imp-btn-primary:hover { background:#1e40af; }
+.imp-btn-primary { background:#12395f; color:#fff; }
+.imp-btn-primary:hover { background:#0e2d4b; }
 .imp-btn-green { background:#16a34a; color:#fff; }
 .imp-btn-green:hover { background:#15803d; }
 .imp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
@@ -127,7 +128,7 @@
 body.theme-dark .imp-tabs { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-tab { color:var(--text-mid); }
 body.theme-dark .imp-tab:hover { background:var(--surface-alt); color:var(--text); }
-body.theme-dark .imp-tab.active { background:#1d4ed8; color:#fff; }
+body.theme-dark .imp-tab.active { background:#1f5c91; color:#fff; }
 body.theme-dark .imp-tab .imp-tab-count { background:var(--surface-alt); color:var(--text-mid); }
 body.theme-dark .imp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-card-title { color:var(--text); }
@@ -983,7 +984,7 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1d4ed8;">
+                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f5c91;">
                   <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
                 </label>
                 {% for ro in ruoli_operativi %}
@@ -1731,7 +1732,17 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
                         {% if not l.is_sistema %}
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">URL</label>
+                          <select aria-label="Pagina del modulo" onchange="if(this.value){var d=this.parentNode;d.querySelector('input[name=url_value]').value=this.value;d.querySelector('select[name=url_type]').value='named';}" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;margin-bottom:4px;">
+                            <option value="">— Scegli una pagina del modulo… —</option>
+                            {% for name, label in subnav_route_choices %}
+                            <option value="{{ name }}">{{ label }}</option>
+                            {% endfor %}
+                          </select>
                           <input type="text" name="url_value" value="{{ l.url_value }}" maxlength="255" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                          <select name="url_type" aria-label="Tipo di URL" style="margin-top:4px;width:100%;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;">
+                            <option value="named" {% if l.url_type == "named" %}selected{% endif %}>Nome view Django</option>
+                            <option value="raw" {% if l.url_type == "raw" %}selected{% endif %}>URL / path diretto</option>
+                          </select>
                         </div>
                         {% else %}
                         <div style="display:flex;align-items:flex-end;">
@@ -1793,8 +1804,17 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
                   </div>
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">URL *</label>
-                    <input type="text" name="url_value" required maxlength="255" placeholder="es. /anagrafica/report/ o https://…" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
-                    <input type="hidden" name="url_type" value="raw">
+                    <select aria-label="Pagina del modulo" onchange="if(this.value){var d=this.parentNode;d.querySelector('input[name=url_value]').value=this.value;d.querySelector('select[name=url_type]').value='named';}" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;margin-bottom:4px;">
+                      <option value="">— Scegli una pagina del modulo… —</option>
+                      {% for name, label in subnav_route_choices %}
+                      <option value="{{ name }}">{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <input type="text" name="url_value" required maxlength="255" placeholder="…oppure scrivi anagrafica:nome_view, /percorso/ o https://…" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                    <select name="url_type" aria-label="Tipo di URL" style="margin-top:4px;width:100%;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;">
+                      <option value="named">Nome view Django (es. anagrafica:retribuzioni_globale)</option>
+                      <option value="raw">URL / path diretto (es. /anagrafica/… o https://…)</option>
+                    </select>
                   </div>
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Categoria</label>

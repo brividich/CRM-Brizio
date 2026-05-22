@@ -1,16 +1,18 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Qualifiche | Anagrafica{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
 <style>
 .ql-page { display:flex; flex-direction:column; gap:20px; }
 .ql-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .ql-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .ql-sub { font-size:13px; color:#64748b; margin-top:2px; }
 .ql-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.ql-btn-primary { background:#1d4ed8; color:#fff; }
-.ql-btn-primary:hover { background:#1e40af; }
+.ql-btn-primary { background:#12395f; color:#fff; }
+.ql-btn-primary:hover { background:#0e2d4b; }
 .ql-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .ql-btn-ghost:hover { background:#e2e8f0; }
 .ql-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
@@ -40,7 +42,7 @@
 .ql-field { display:flex; flex-direction:column; gap:4px; }
 .ql-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .ql-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ql-input:focus { border-color:#1d4ed8; background:#fff; }
+.ql-input:focus { border-color:#1f5c91; background:#fff; }
 
 .ql-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
 .ql-modal-overlay.open { display:flex; }
@@ -100,14 +102,14 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
       <div class="ql-card-title" style="color:#92400e;">⚠ Scadenze in arrivo o già scadute ({{ scadenze|length }})</div>
     </div>
     <div style="overflow-x:auto;">
-      <table class="ql-table">
+      <table class="ql-table" data-sortable>
         <thead>
           <tr>
             <th>Dipendente</th>
             <th>Qualifica</th>
             <th>Categoria</th>
-            <th>Conseguita</th>
-            <th>Scadenza</th>
+            <th data-sort-type="date">Conseguita</th>
+            <th data-sort-type="date">Scadenza</th>
             <th>Stato</th>
           </tr>
         </thead>
@@ -115,7 +117,7 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
           {% for s in scadenze %}
           <tr class="{% if s.scaduta %}ql-scad-row-red{% elif s.in_scadenza %}ql-scad-row-orange{% endif %}">
             <td>
-              <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1d4ed8;font-weight:600;text-decoration:none;">
+              <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f5c91;font-weight:600;text-decoration:none;">
                 {{ s.dipendente }}
               </a>
             </td>
@@ -126,8 +128,8 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
               {% elif s.tipo_categoria == "GESTIONALE" %}<span class="ql-badge ql-badge-purple">Gestionale</span>
               {% else %}<span class="ql-badge ql-badge-gray">Altro</span>{% endif %}
             </td>
-            <td>{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-            <td style="font-weight:600;{% if s.scaduta %}color:#b91c1c;{% elif s.in_scadenza %}color:#9a3412;{% endif %}">
+            <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+            <td style="font-weight:600;{% if s.scaduta %}color:#b91c1c;{% elif s.in_scadenza %}color:#9a3412;{% endif %}" data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}">
               {{ s.data_scadenza|date:"d/m/Y" }}
             </td>
             <td>
@@ -159,14 +161,14 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
         </div>
       </div>
       <div style="overflow-x:auto;">
-        <table class="ql-table">
+        <table class="ql-table" data-sortable>
           <thead>
             <tr>
               <th>Nome qualifica</th>
               <th>Durata validità</th>
-              <th>Assegnazioni</th>
+              <th data-sort-type="number">Assegnazioni</th>
               <th>Stato</th>
-              {% if is_admin %}<th></th>{% endif %}
+              {% if is_admin %}<th data-no-sort data-no-filter></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -342,4 +344,8 @@ document.getElementById('ql-modal').addEventListener('click', function(e) {
 });
 </script>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
 {% endblock %}

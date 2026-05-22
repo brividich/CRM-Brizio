@@ -5,6 +5,11 @@ documentate nel modello-tipo `people.xlsx` (Cognome, Nome, E-mail, Codice fiscal
 Matricola, Badge, Data di nascita, residenza, IBAN, taglie, consenso privacy,
 grado di istruzione, ecc.).
 
+Le righe con `Data cessazione` valorizzata vengono importate come ex dipendenti:
+restano a sistema con il fascicolo completo ma vengono marcate non attive e
+l'eventuale account portale viene scollegato. Non compaiono nella lista
+dipendenti in forza (vedi `anagrafica:ex_dipendenti_list`).
+
 Esempi:
     python manage.py import_dipendenti_xlsx doc/people.xlsx --dry-run
     python manage.py import_dipendenti_xlsx doc/people.xlsx --update-existing
@@ -332,6 +337,7 @@ class Command(BaseCommand):
             "match_per_cf": 0,
             "match_per_email": 0,
             "match_per_nome": 0,
+            "cessati": 0,
             "saltati": 0,
             "errori": 0,
         }
@@ -477,6 +483,10 @@ class Command(BaseCommand):
             if alias_to_use:
                 self._existing_usernames.add(alias_to_use)
 
+        # Se il dipendente ha una data di cessazione è un ex dipendente:
+        # va marcato non attivo e l'account portale va scollegato (utente_id
+        # azzerato), coerentemente con `dipendente_toggle_active`.
+        is_cessato = _parse_date(cell(raw_row, "data_cessazione")) is not None
         legacy_row = upsert_anagrafica_dipendente(
             row_id=legacy_id,
             nome=nome,
@@ -484,9 +494,12 @@ class Command(BaseCommand):
             email=email,
             aliasusername=alias_to_use,
             matricola=_norm_matricola(cell(raw_row, "matricola")),
-            attivo=_parse_date(cell(raw_row, "data_cessazione")) is None,
+            attivo=not is_cessato,
+            detach_account=is_cessato,
         )
         new_legacy_id = int(legacy_row["id"])
+        if is_cessato:
+            stats["cessati"] += 1
         if not matched_by:
             matched_by = "nome"
         if matched_by == "cf":
