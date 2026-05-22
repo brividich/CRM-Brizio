@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Dipendenti | Anagrafica{% endblock %}
 
@@ -36,7 +37,10 @@
 .ana-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; }
 .ana-pill-blue { background:#dbeafe; color:#1e40af; }
 .ana-pill-gray { background:#f1f5f9; color:#475569; }
-.ana-avatar { width:32px; height:32px; border-radius:50%; background:#1d4ed8; color:#fff; font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ana-avatar { width:32px; height:32px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
+.ana-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
+.ana-avatar-fallback::before { content:""; position:absolute; top:7px; left:10px; width:10px; height:10px; border-radius:50%; background:#94a3b8; }
+.ana-avatar-fallback::after { content:""; position:absolute; left:7px; bottom:5px; width:16px; height:10px; border-radius:10px 10px 6px 6px; background:#94a3b8; }
 .ana-name-cell { display:flex; align-items:center; gap:10px; }
 .ana-empty { text-align:center; padding:40px; color:#94a3b8; font-size:14px; }
 .ana-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
@@ -59,10 +63,26 @@ body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid
 body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
 body.theme-dark .ana-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .ana-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .ana-avatar { background:rgba(255,255,255,.08); border-color:var(--border); }
+body.theme-dark .ana-avatar-fallback::before, body.theme-dark .ana-avatar-fallback::after { background:var(--text-light); }
 body.theme-dark .ana-empty { color:var(--text-light); }
 body.theme-dark .ana-pag span { color:var(--text-light); }
 body.theme-dark .ana-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
 body.theme-dark .ana-checkline { color:var(--text-mid); }
+
+/* ── Sortable table (sortable-table.js) ──────────────────────────────────── */
+.ana-table th.st-th { cursor:default; }
+.st-th-wrap { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.st-th-label { display:inline-block; }
+.st-sort, .st-filter-toggle { background:none; border:none; padding:2px 4px; font-size:11px; color:#94a3b8; cursor:pointer; line-height:1; border-radius:4px; }
+.st-sort:hover, .st-filter-toggle:hover { color:#1d4ed8; background:#eff6ff; }
+.st-filter-toggle.active { color:#1d4ed8; background:#dbeafe; }
+.st-filter-input { display:inline-block; margin-left:4px; padding:3px 7px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; background:#fff; color:#0f172a; outline:none; max-width:140px; text-transform:none; letter-spacing:normal; font-weight:400; }
+.st-filter-input:focus { border-color:#1d4ed8; }
+body.theme-dark .st-sort, body.theme-dark .st-filter-toggle { color:var(--text-light); }
+body.theme-dark .st-sort:hover, body.theme-dark .st-filter-toggle:hover { background:rgba(96,165,250,.15); color:#93c5fd; }
+body.theme-dark .st-filter-toggle.active { background:rgba(96,165,250,.25); color:#93c5fd; }
+body.theme-dark .st-filter-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 
@@ -136,13 +156,13 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
       </select>
     </div>
     {% endif %}
-    {% if contratto_choices %}
+    {% if tipologie_contratto %}
     <div class="ana-field" style="max-width:220px;">
       <label>Tipo contratto</label>
       <select class="ana-input" name="tipologia_contratto">
         <option value="">Tutti</option>
-        {% for val, label in contratto_choices %}
-          <option value="{{ val }}"{% if val == tipologia_contratto %} selected{% endif %}>{{ label }}</option>
+        {% for tc in tipologie_contratto %}
+          <option value="{{ tc.codice }}"{% if tc.codice == tipologia_contratto %} selected{% endif %}>{{ tc.nome }}</option>
         {% endfor %}
       </select>
     </div>
@@ -159,7 +179,7 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
       <div class="ana-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
     </div>
     <div class="ana-table-wrap">
-      <table class="ana-table">
+      <table class="ana-table" data-sortable>
         <thead>
           <tr>
             <th>Dipendente</th>
@@ -169,16 +189,18 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
             <th>Reparto</th>
             <th>Mansione</th>
             <th>Email notifica</th>
-            <th>Timbri</th>
-            <th></th>
+            <th data-sort-type="number">Timbri</th>
+            <th data-no-sort data-no-filter></th>
           </tr>
         </thead>
         <tbody>
           {% for dip in page_obj %}
           <tr>
-            <td>
+            <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
               <div class="ana-name-cell">
-                <div class="ana-avatar">{{ dip.nome|first|upper }}{{ dip.cognome|first|upper }}</div>
+                <div class="ana-avatar{% if not dip.foto_url %} ana-avatar-fallback{% endif %}" aria-hidden="true">
+                  {% if dip.foto_url %}<img class="ana-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
+                </div>
                 <div><div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div></div>
               </div>
             </td>
@@ -206,7 +228,7 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
                 <span style="color:#cbd5e1;">-</span>
               {% endif %}
             </td>
-            <td>
+            <td data-sort-value="{{ dip.timbri_count|default:0 }}">
               {% if dip.timbri_count %}
                 <span class="ana-pill ana-pill-blue">{{ dip.timbri_count }}</span>
               {% else %}
@@ -226,7 +248,7 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="9" class="ana-empty">Nessun dipendente trovato.</td></tr>
+          <tr data-empty-row="1"><td colspan="9" class="ana-empty">Nessun dipendente trovato.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -246,4 +268,8 @@ body.theme-dark .ana-checkline { color:var(--text-mid); }
   </div>
 
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'core/js/sortable-table.js' %}"></script>
 {% endblock %}

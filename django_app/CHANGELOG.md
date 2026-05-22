@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Archivio documenti dipendente
+
+- **[fix] `anagrafica/views.py`**: corretto il 500 su upload manuale documento dipendente (`Path` usato senza import); l'audit `DOCUMENTO_DIPENDENTE_UPLOAD` ora passa un payload dict invece di una stringa.
+- **[test] `anagrafica/tests.py`**: aggiunta regressione che carica un PDF sintetico come documento manuale usando `ANAGRAFICA_PRIVATE_ROOT` temporaneo.
+- **[fix] `anagrafica/views.py`**: corretto il redirect dopo creazione/modifica/eliminazione delle cartelle documenti. Le view usano ora `_redirect_impostazioni("documenti")` invece di concatenare `?tab=documenti` al nome URL, evitando `NoReverseMatch`.
+- **[fix] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/documenti_list.html`**: corretto il 500 su `/anagrafica/documenti/`. La view non espone piu un attributo dinamico con underscore (`_nome_dipendente`), non leggibile dal template engine Django, ma usa `nome_dipendente`; il template estende il layout canonico `core/base.html`.
+- **[test] `anagrafica/tests.py`**: aggiunte regressioni che renderizzano la lista documenti manuali e verificano i redirect delle impostazioni documenti/subnav.
+
+### Subnav anagrafica
+
+- **[fix] `anagrafica/views.py`**: anche la CRUD subnav configurabile usa `_redirect_impostazioni("navigazione")` per tornare alla tab corretta, evitando lo stesso errore di reverse quando si crea/modifica/elimina categorie o link.
+
+### Lista dipendenti e foto profilo
+
+- **[schema] `anagrafica/models.py`, migration `anagrafica/0017_dipendenteanagraficacivile_foto.py`**: aggiunto campo `foto` su `DipendenteAnagraficaCivile`, salvato sotto `MEDIA_ROOT/anagrafica/dipendenti/<legacy_id>/foto/`.
+- **[ux] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/dipendenti_list.html`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: la lista `/anagrafica/dipendenti/` viene ordinata lato server per `cognome nome` A-Z prima della paginazione; gli avatar con iniziali sono sostituiti dalla foto dipendente o da un fallback grigio neutro.
+- **[form] `anagrafica/forms.py`, `anagrafica/templates/anagrafica/pages/dipendente_create.html`, `anagrafica/views.py`**: i form di creazione/modifica anagrafica civile usano `multipart/form-data` e accettano upload immagine.
+- **[test] `anagrafica/tests.py`**: aggiunte coperture per ordinamento A-Z iniziale, rendering foto/fallback e upload foto; riallineati i test di creazione dipendente alla view `dipendente_create`.
+
+### Ratei ferie export XLSX
+
+- **[fix] `anagrafica/views.py`**: l'export `/anagrafica/ratei/export/` non scrive piu sulle celle `A2:D2`, che sono celle mergeate read-only per effetto degli header verticali `A1:A2` ... `D1:D2`; corretto il 500 `MergedCell object attribute 'value' is read-only` con filtri reparto/periodo.
+- **[test] `anagrafica/tests.py`**: aggiunta regressione che genera un saldo cedolino, chiama l'export con `periodo` e `reparto`, apre l'XLSX con openpyxl e verifica header/dati principali.
+
 ### Assenze SharePoint sync automatico
 
 - **[fix] `config/settings/base.py`, `.env.example`, root `.env.example`**: `ASSENZE_SYNC_ON_PAGE_LOAD` torna attivo di default (`1`) per riabilitare il pull automatico da SharePoint sulle pagine operative assenze quando Graph e' configurato.

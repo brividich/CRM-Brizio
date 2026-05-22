@@ -1,0 +1,59 @@
+{% comment %}
+Partial HTMX renderizzato da `anagrafica:htmx_dpi_iniziali` al cambio della
+multiselect "Ruoli operativi" nel form di creazione dipendente.
+Output: una riga per categoria DPI obbligatoria per il ruolo scelto, con
+checkbox di conferma consegna + scelta modello/taglia/quantità.
+La view di creazione legge i campi via `dpi_indici` + indici numerici.
+{% endcomment %}
+
+{% if not righe %}
+  <em style="color:#94a3b8;">Nessun DPI obbligatorio configurato per i ruoli selezionati.</em>
+{% else %}
+<input type="hidden" name="dpi_indici" value="{% for i in indici %}{{ i }}{% if not forloop.last %},{% endif %}{% endfor %}">
+<table class="dc-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+  <thead>
+    <tr style="background:#f1f5f9;text-align:left;">
+      <th style="padding:8px 6px;width:36px;">✓</th>
+      <th style="padding:8px 6px;">Categoria</th>
+      <th style="padding:8px 6px;">Modello</th>
+      <th style="padding:8px 6px;width:120px;">Taglia</th>
+      <th style="padding:8px 6px;width:80px;">Q.tà</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in righe %}
+    {% with i=forloop.counter0 cat=r.categoria %}
+    <tr style="border-top:1px solid #e2e8f0;">
+      <td style="padding:8px 6px;">
+        <input type="checkbox" name="dpi_consegnato_{{ i }}" id="dpi_consegnato_{{ i }}" value="1">
+        <input type="hidden" name="dpi_categoria_id_{{ i }}" value="{{ cat.id }}">
+      </td>
+      <td style="padding:8px 6px;">
+        <span style="font-size:16px;">{{ cat.icona_emoji }}</span>
+        <strong>{{ cat.nome }}</strong>
+        {% if cat.vita_utile_giorni %}
+          <div style="font-size:11px;color:#94a3b8;">Vita utile: {{ cat.vita_utile_giorni }} gg</div>
+        {% endif %}
+      </td>
+      <td style="padding:8px 6px;">
+        <select name="dpi_modello_id_{{ i }}" class="dc-input" style="min-width:180px;">
+          <option value="">— Non specificato —</option>
+          {% for m in r.modelli %}
+            <option value="{{ m.id }}">{{ m.codice }} — {{ m.nome }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td style="padding:8px 6px;">
+        <input type="text" name="dpi_taglia_id_{{ i }}" class="dc-input"
+               placeholder="ID taglia o vuoto" style="width:100%;">
+      </td>
+      <td style="padding:8px 6px;">
+        <input type="number" name="dpi_quantita_{{ i }}" class="dc-input"
+               value="1" min="1" max="20" style="width:80px;">
+      </td>
+    </tr>
+    {% endwith %}
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

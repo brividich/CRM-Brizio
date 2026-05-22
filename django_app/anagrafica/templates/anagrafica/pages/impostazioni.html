@@ -107,7 +107,7 @@
 .imp-modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
 
 /* Tab permessi */
-.imp-perm-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.imp-perm-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:16px; }
 .imp-perm-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
 .imp-perm-title { font-size:13px; font-weight:800; color:#0f172a; margin-bottom:10px; }
 .imp-perm-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; color:#1e293b; }
@@ -203,6 +203,22 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
       <button class="imp-tab" data-tab="tipologie" type="button">
         <span class="imp-tab-icon">📑</span> Tipologie contratto
         <span class="imp-tab-count">{{ tipologie|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="visite-mediche" type="button">
+        <span class="imp-tab-icon">🩺</span> Visite mediche
+        <span class="imp-tab-count">{{ tipi_visita|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="dpi" type="button">
+        <span class="imp-tab-icon">🦺</span> DPI
+        <span class="imp-tab-count">{{ dpi_categorie|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="documenti" type="button">
+        <span class="imp-tab-icon">📁</span> Documenti
+        <span class="imp-tab-count">{{ cartelle_documenti|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="navigazione" type="button">
+        <span class="imp-tab-icon">🔗</span> Navigazione
+        <span class="imp-tab-count">{{ subnav_links|length }}</span>
       </button>
       <button class="imp-tab" data-tab="permessi" type="button">
         <span class="imp-tab-icon">🔒</span> Permessi
@@ -927,6 +943,891 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
         </div>
       </section>
 
+      <!-- ============= VISITE MEDICHE ============= -->
+      <section class="imp-panel" data-panel="visite-mediche" id="tab-visite-mediche">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Tipi di visita medica</div>
+              <div class="imp-card-sub">
+                Catalogo tipologie di sorveglianza sanitaria con periodicità e ruoli obbligatori.
+                {% if scadenze_vm_count %}
+                  <span class="imp-badge imp-badge-orange">{{ scadenze_vm_count }} in scadenza/scadute</span>
+                {% endif %}
+              </div>
+            </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:visite_mediche_dashboard' %}">
+              Scadenzario →
+            </a>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:tipo_visita_medica_create' %}" id="form-visita-create">
+            {% csrf_token %}
+            <div class="imp-add-form" style="margin-bottom:10px;">
+              <div class="imp-field" style="flex:2 1 200px;">
+                <label class="imp-label">Nome *</label>
+                <input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Visita periodica">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Periodicità (mesi)</label>
+                <input class="imp-input" type="number" min="0" name="durata_mesi" value="12">
+              </div>
+              <div class="imp-field" style="justify-content:flex-end;">
+                <label class="imp-label" style="display:flex;align-items:center;gap:5px;margin-top:14px;">
+                  <input type="checkbox" name="obbligatoria" value="1" checked>
+                  Obbligatoria
+                </label>
+              </div>
+            </div>
+            {% if ruoli_operativi %}
+            <div style="margin-bottom:10px;">
+              <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1d4ed8;">
+                  <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
+                </label>
+                {% for ro in ruoli_operativi %}
+                <label class="visita-create-ruolo-lbl" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
+                  <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}" class="visita-create-ruolo"> {{ ro.icona }} {{ ro.nome }}
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            <div>
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi tipo visita</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for t in tipi_visita %}
+              <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ t.nome }}</div>
+                  <div class="imp-row-meta">
+                    {% if t.durata_mesi %}ogni {{ t.durata_mesi }} mesi{% else %}senza scadenza{% endif %}
+                    {% if t.obbligatoria %} · <span class="imp-badge imp-badge-orange">obbligatoria</span>{% endif %}
+                    · {{ t.n_visite|default:0 }} visite registrate
+                    {% with ruoli_list=t.ruoli_operativi.all %}
+                      {% if ruoli_list %} · ruoli: {% for ro in ruoli_list %}{{ ro.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+                    {% endwith %}
+                    {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                  </div>
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
+                          data-modal="visita-edit-{{ t.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:tipo_visita_medica_delete' t.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare il tipo visita &quot;{{ t.nome|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-visita-edit-{{ t.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica tipo visita medica</div>
+                  <form method="post" action="{% url 'anagrafica:tipo_visita_medica_edit' t.id %}">
+                    {% csrf_token %}
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="150" required value="{{ t.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Periodicità (mesi, 0 = nessuna scadenza)</label>
+                        <input class="imp-input" type="number" min="0" name="durata_mesi" value="{{ t.durata_mesi }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <textarea class="imp-textarea" name="descrizione">{{ t.descrizione }}</textarea>
+                      </div>
+                      <div class="imp-field" style="flex-direction:row;gap:16px;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                          <input type="checkbox" name="obbligatoria" value="1" {% if t.obbligatoria %}checked{% endif %}>
+                          Obbligatoria
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                          <input type="checkbox" name="is_active" value="1" {% if t.is_active %}checked{% endif %}>
+                          Attiva
+                        </label>
+                      </div>
+                      {% if ruoli_operativi %}
+                      <div class="imp-field">
+                        <label class="imp-label">Ruoli operativi obbligatori</label>
+                        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                          {% for ro in ruoli_operativi %}
+                          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
+                            <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}"
+                                   {% if ro in t.ruoli_operativi.all %}checked{% endif %}>
+                            {{ ro.icona }} {{ ro.nome }}
+                          </label>
+                          {% endfor %}
+                        </div>
+                      </div>
+                      {% endif %}
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessun tipo di visita medica registrato.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= DPI ============= -->
+      <section class="imp-panel" data-panel="dpi" id="tab-dpi">
+
+        <!-- Sub-nav DPI -->
+        <div class="imp-card" style="padding:12px 16px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:12px;font-weight:700;color:#64748b;margin-right:4px;">Sezione:</span>
+            <button type="button" class="imp-btn imp-btn-primary imp-btn-sm dpi-sub-btn" data-dpi-nav="categorie">Categorie <span class="imp-tab-count" style="background:rgba(255,255,255,.25);color:#fff;">{{ dpi_categorie|length }}</span></button>
+            <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm dpi-sub-btn" data-dpi-nav="tipi-modelli">Tipi & Modelli <span class="imp-tab-count">{{ dpi_tipi|length }}+{{ dpi_modelli|length }}</span></button>
+            <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm dpi-sub-btn" data-dpi-nav="taglie">Taglie <span class="imp-tab-count">{{ dpi_taglie|length }}</span></button>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'dpi:impostazioni' %}" style="margin-left:auto;">Apri modulo DPI →</a>
+          </div>
+        </div>
+
+        <!-- ---- CATEGORIE ---- -->
+        <div class="dpi-sub-section" data-dpi-section="categorie">
+          <div class="imp-card">
+            <div class="imp-card-head">
+              <div>
+                <div class="imp-card-title">Categorie DPI</div>
+                <div class="imp-card-sub">Famiglie di dispositivi (guanti, scarpe, elmetti…)</div>
+              </div>
+            </div>
+            {% if is_admin %}
+            <form method="post" action="{% url 'anagrafica:dpi_categoria_create' %}" enctype="multipart/form-data" class="imp-add-form">
+              {% csrf_token %}
+              <div class="imp-field" style="flex:2 1 180px;">
+                <label class="imp-label">Nome *</label>
+                <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Guanti">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Icona</label>
+                <input class="imp-input" type="text" name="icona_emoji" maxlength="10" value="🦺" style="width:56px;">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Vita utile (gg)</label>
+                <input class="imp-input" type="number" name="vita_utile_giorni" min="1" placeholder="365">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">U.M.</label>
+                <input class="imp-input" type="text" name="unita_misura" maxlength="30" value="pz" style="width:56px;">
+              </div>
+              <div class="imp-field" style="justify-content:flex-end;">
+                <label class="imp-label" style="display:flex;align-items:center;gap:5px;margin-top:14px;">
+                  <input type="checkbox" name="obbligatoria_mansionario" value="1">
+                  Obblig. mansionario
+                </label>
+              </div>
+              <div class="imp-field">
+                <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+              </div>
+            </form>
+            {% endif %}
+          </div>
+          <div class="imp-card">
+            <div class="imp-list">
+              {% for cat in dpi_categorie %}
+                <div class="imp-row {% if not cat.is_active %}inactive{% endif %}">
+                  <span style="font-size:22px;width:28px;text-align:center;flex-shrink:0;">{{ cat.icona_emoji|default:"🦺" }}</span>
+                  <div class="imp-row-main">
+                    <div class="imp-row-name">{{ cat.nome }}</div>
+                    <div class="imp-row-meta">
+                      {% if cat.vita_utile_giorni %}vita utile {{ cat.vita_utile_giorni }} gg · {% endif %}{{ cat.unita_misura }}
+                      {% if cat.obbligatoria_mansionario %} · <span class="imp-badge imp-badge-orange">obbligatoria mansionario</span>{% endif %}
+                      {% if not cat.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                    </div>
+                  </div>
+                  {% if is_admin %}
+                  <div class="imp-row-actions">
+                    <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpicat-edit-{{ cat.id }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:dpi_categoria_delete' cat.id %}" style="display:inline;"
+                          onsubmit="return confirm('Eliminare la categoria DPI &quot;{{ cat.nome|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+                {% if is_admin %}
+                <div class="imp-modal-overlay" id="modal-dpicat-edit-{{ cat.id }}">
+                  <div class="imp-modal">
+                    <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                    <div class="imp-modal-title">Modifica categoria DPI</div>
+                    <form method="post" action="{% url 'anagrafica:dpi_categoria_edit' cat.id %}" enctype="multipart/form-data">
+                      {% csrf_token %}
+                      <div class="imp-modal-body">
+                        <div class="imp-field"><label class="imp-label">Nome *</label><input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ cat.nome }}"></div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                          <div class="imp-field"><label class="imp-label">Icona emoji</label><input class="imp-input" type="text" name="icona_emoji" maxlength="10" value="{{ cat.icona_emoji }}"></div>
+                          <div class="imp-field"><label class="imp-label">Unità misura</label><input class="imp-input" type="text" name="unita_misura" maxlength="30" value="{{ cat.unita_misura }}"></div>
+                          <div class="imp-field"><label class="imp-label">Vita utile (gg)</label><input class="imp-input" type="number" name="vita_utile_giorni" min="1" value="{{ cat.vita_utile_giorni|default:'' }}"></div>
+                          <div class="imp-field"><label class="imp-label">Scorta minima</label><input class="imp-input" type="number" name="scorta_minima" min="0" value="{{ cat.scorta_minima }}"></div>
+                          <div class="imp-field"><label class="imp-label">Ordine</label><input class="imp-input" type="number" name="order_index" min="0" value="{{ cat.order_index }}"></div>
+                        </div>
+                        <div class="imp-field"><label class="imp-label">Descrizione</label><textarea class="imp-textarea" name="descrizione">{{ cat.descrizione }}</textarea></div>
+                        <div class="imp-field"><label class="imp-label">Immagine (sostituisce icona)</label><input type="file" name="immagine" accept="image/*" class="imp-input" style="padding:4px;"></div>
+                        {% if cat.immagine %}<div style="font-size:11px;color:#64748b;">Immagine attuale: {{ cat.immagine.name }}</div>{% endif %}
+                        <div style="display:flex;gap:16px;">
+                          <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="obbligatoria_mansionario" value="1" {% if cat.obbligatoria_mansionario %}checked{% endif %}> Obbligatoria mansionario</label>
+                          <label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="is_active" value="1" {% if cat.is_active %}checked{% endif %}> Attiva</label>
+                        </div>
+                      </div>
+                      <div class="imp-modal-footer">
+                        <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                        <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endif %}
+              {% empty %}
+                <div class="imp-empty">Nessuna categoria DPI configurata.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- ---- TIPI & MODELLI ---- -->
+        <div class="dpi-sub-section" data-dpi-section="tipi-modelli" style="display:none;">
+
+          <!-- Form: aggiungi tipo -->
+          <div class="imp-card">
+            <div class="imp-card-head"><div><div class="imp-card-title">Nuovo tipo DPI</div><div class="imp-card-sub">Sottocategoria all'interno di una famiglia (es. Guanti nitrile)</div></div></div>
+            {% if is_admin %}
+            <form method="post" action="{% url 'anagrafica:dpi_tipo_create' %}" class="imp-add-form">
+              {% csrf_token %}
+              <div class="imp-field">
+                <label class="imp-label">Categoria *</label>
+                <select class="imp-select" name="categoria_id" required>
+                  <option value="">—</option>
+                  {% for cat in dpi_categorie %}<option value="{{ cat.id }}">{{ cat.nome }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="imp-field" style="flex:2 1 180px;">
+                <label class="imp-label">Nome tipo *</label>
+                <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Nitrile">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Ordine</label>
+                <input class="imp-input" type="number" name="ordine" min="0" value="0" style="width:70px;">
+              </div>
+              <div class="imp-field">
+                <button class="imp-btn imp-btn-green" type="submit">+ Tipo</button>
+              </div>
+            </form>
+            {% endif %}
+          </div>
+
+          <!-- Lista gerarchica tipo → modelli -->
+          {% for tipo in dpi_tipi %}
+          <div class="imp-card" style="padding:14px 18px;">
+
+            <!-- Riga tipo -->
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:{% with mods=tipo.modelli.all %}{% if mods %}10px{% else %}0{% endif %}{% endwith %};">
+              <span class="imp-badge imp-badge-blue" style="flex-shrink:0;">{{ tipo.categoria.nome }}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:800;color:#0f172a;">{{ tipo.nome }}</div>
+                {% if tipo.descrizione %}<div style="font-size:11px;color:#64748b;">{{ tipo.descrizione }}</div>{% endif %}
+              </div>
+              {% if is_admin %}
+              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                <button type="button" class="imp-btn imp-btn-primary imp-btn-sm" data-modal="dpimod-add-{{ tipo.id }}">+ Modello</button>
+                <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpitipo-edit-{{ tipo.id }}">Modifica tipo</button>
+                <form method="post" action="{% url 'anagrafica:dpi_tipo_delete' tipo.id %}" style="display:inline;"
+                      onsubmit="return confirm('Eliminare il tipo DPI &quot;{{ tipo.nome|escapejs }}&quot; e tutti i suoi modelli?');">
+                  {% csrf_token %}
+                  <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina tipo</button>
+                </form>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Modelli del tipo -->
+            {% with mods=tipo.modelli.all %}
+            {% if mods %}
+            <div class="imp-list" style="margin-left:18px;border-left:3px solid #e2e8f0;padding-left:12px;">
+              {% for mod in mods %}
+                <div class="imp-row {% if not mod.is_active %}inactive{% endif %}" style="background:#f8fafc;">
+                  <span class="imp-badge imp-badge-gray" style="flex-shrink:0;font-family:monospace;font-size:10px;">{{ mod.codice }}</span>
+                  <div class="imp-row-main">
+                    <div class="imp-row-name" style="font-size:13px;">{{ mod.nome }}</div>
+                    <div class="imp-row-meta">
+                      {% if mod.produttore %}{{ mod.produttore }}{% endif %}
+                      {% if mod.vita_utile_giorni %} · {{ mod.vita_utile_giorni }} gg{% endif %}
+                      {% if not mod.is_active %} · <span class="imp-badge imp-badge-gray">inattivo</span>{% endif %}
+                    </div>
+                  </div>
+                  {% if is_admin %}
+                  <div class="imp-row-actions">
+                    <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpimod-edit-{{ mod.id }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:dpi_modello_delete' mod.id %}" style="display:inline;"
+                          onsubmit="return confirm('Eliminare il modello &quot;{{ mod.codice|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+
+                <!-- Modale modifica modello -->
+                {% if is_admin %}
+                <div class="imp-modal-overlay" id="modal-dpimod-edit-{{ mod.id }}">
+                  <div class="imp-modal">
+                    <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                    <div class="imp-modal-title">Modifica modello — {{ mod.codice }}</div>
+                    <form method="post" action="{% url 'anagrafica:dpi_modello_edit' mod.id %}" enctype="multipart/form-data">
+                      {% csrf_token %}
+                      <div class="imp-modal-body">
+                        <div class="imp-field"><label class="imp-label">Nome *</label><input class="imp-input" type="text" name="nome" maxlength="150" required value="{{ mod.nome }}"></div>
+                        <div class="imp-field"><label class="imp-label">Produttore</label><input class="imp-input" type="text" name="produttore" maxlength="150" value="{{ mod.produttore }}"></div>
+                        <div class="imp-field"><label class="imp-label">Vita utile override (gg, vuoto = usa categoria)</label><input class="imp-input" type="number" name="vita_utile_giorni" min="1" value="{{ mod.vita_utile_giorni|default:'' }}"></div>
+                        <div class="imp-field"><label class="imp-label">Descrizione</label><textarea class="imp-textarea" name="descrizione">{{ mod.descrizione }}</textarea></div>
+                        <div class="imp-field"><label class="imp-label">Immagine</label><input type="file" name="immagine" accept="image/*" class="imp-input" style="padding:4px;"></div>
+                        {% if mod.immagine %}<div style="font-size:11px;color:#64748b;margin-bottom:6px;">Attuale: {{ mod.immagine.name }}</div>{% endif %}
+                        <div class="imp-field"><label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="is_active" value="1" {% if mod.is_active %}checked{% endif %}> Attivo</label></div>
+                      </div>
+                      <div class="imp-modal-footer">
+                        <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                        <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+            {% else %}
+              <div style="font-size:12px;color:#94a3b8;padding:4px 0 0 18px;">Nessun modello — usa "+ Modello" per aggiungerne uno.</div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Modale modifica tipo -->
+            {% if is_admin %}
+            <div class="imp-modal-overlay" id="modal-dpitipo-edit-{{ tipo.id }}">
+              <div class="imp-modal">
+                <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                <div class="imp-modal-title">Modifica tipo DPI</div>
+                <form method="post" action="{% url 'anagrafica:dpi_tipo_edit' tipo.id %}">
+                  {% csrf_token %}
+                  <div class="imp-modal-body">
+                    <div class="imp-field"><label class="imp-label">Nome *</label><input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ tipo.nome }}"></div>
+                    <div class="imp-field"><label class="imp-label">Ordine</label><input class="imp-input" type="number" name="ordine" min="0" value="{{ tipo.ordine }}"></div>
+                    <div class="imp-field"><label class="imp-label">Descrizione</label><textarea class="imp-textarea" name="descrizione">{{ tipo.descrizione }}</textarea></div>
+                    <div class="imp-field"><label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="is_active" value="1" {% if tipo.is_active %}checked{% endif %}> Attivo</label></div>
+                  </div>
+                  <div class="imp-modal-footer">
+                    <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                    <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- Modale aggiungi modello al tipo -->
+            <div class="imp-modal-overlay" id="modal-dpimod-add-{{ tipo.id }}">
+              <div class="imp-modal">
+                <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                <div class="imp-modal-title">Nuovo modello — {{ tipo.categoria.nome }} / {{ tipo.nome }}</div>
+                <form method="post" action="{% url 'anagrafica:dpi_modello_create' %}" enctype="multipart/form-data">
+                  {% csrf_token %}
+                  <input type="hidden" name="tipo_id" value="{{ tipo.id }}">
+                  <div class="imp-modal-body">
+                    <div class="imp-field"><label class="imp-label">Codice *</label><input class="imp-input" type="text" name="codice" maxlength="50" required placeholder="COD-001"></div>
+                    <div class="imp-field"><label class="imp-label">Nome *</label><input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Guanto NR400"></div>
+                    <div class="imp-field"><label class="imp-label">Produttore</label><input class="imp-input" type="text" name="produttore" maxlength="150"></div>
+                    <div class="imp-field"><label class="imp-label">Vita utile override (gg)</label><input class="imp-input" type="number" name="vita_utile_giorni" min="1" placeholder="vuoto = usa categoria"></div>
+                    <div class="imp-field"><label class="imp-label">Descrizione</label><textarea class="imp-textarea" name="descrizione"></textarea></div>
+                    <div class="imp-field"><label class="imp-label">Immagine</label><input type="file" name="immagine" accept="image/*" class="imp-input" style="padding:4px;"></div>
+                  </div>
+                  <div class="imp-modal-footer">
+                    <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                    <button type="submit" class="imp-btn imp-btn-primary">Crea modello</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+          {% empty %}
+            <div class="imp-card"><div class="imp-empty">Nessun tipo DPI configurato — aggiungine uno sopra.</div></div>
+          {% endfor %}
+
+        </div>
+
+        <!-- ---- TAGLIE ---- -->
+        <div class="dpi-sub-section" data-dpi-section="taglie" style="display:none;">
+          <div class="imp-card">
+            <div class="imp-card-head"><div><div class="imp-card-title">Taglie DPI</div><div class="imp-card-sub">Misure disponibili per ciascun modello (XS, S, M, L, XL…)</div></div></div>
+            {% if is_admin %}
+            <form method="post" action="{% url 'anagrafica:dpi_taglia_create' %}" class="imp-add-form">
+              {% csrf_token %}
+              <div class="imp-field" style="flex:2 1 200px;">
+                <label class="imp-label">Modello *</label>
+                <select class="imp-select" name="modello_id" required>
+                  <option value="">—</option>
+                  {% for mod in dpi_modelli %}<option value="{{ mod.id }}">{{ mod.tipo.categoria.nome }} / {{ mod.tipo.nome }} / {{ mod.codice }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Valore *</label>
+                <input class="imp-input" type="text" name="valore" maxlength="50" required placeholder="Es. M">
+              </div>
+              <div class="imp-field">
+                <label class="imp-label">Ordine</label>
+                <input class="imp-input" type="number" name="ordine" min="0" value="0" style="width:70px;">
+              </div>
+              <div class="imp-field">
+                <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+              </div>
+            </form>
+            {% endif %}
+          </div>
+          <div class="imp-card">
+            <div class="imp-list">
+              {% for taglia in dpi_taglie %}
+                <div class="imp-row {% if not taglia.is_active %}inactive{% endif %}">
+                  <span class="imp-badge imp-badge-green" style="flex-shrink:0;">{{ taglia.valore }}</span>
+                  <div class="imp-row-main">
+                    <div class="imp-row-name">{{ taglia.modello.codice }} — {{ taglia.modello.nome }}</div>
+                    <div class="imp-row-meta">{{ taglia.modello.tipo.categoria.nome }} / {{ taglia.modello.tipo.nome }} · ordine {{ taglia.ordine }}{% if not taglia.is_active %} · <span class="imp-badge imp-badge-gray">inattiva</span>{% endif %}</div>
+                  </div>
+                  {% if is_admin %}
+                  <div class="imp-row-actions">
+                    <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="dpitag-edit-{{ taglia.id }}">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:dpi_taglia_delete' taglia.id %}" style="display:inline;"
+                          onsubmit="return confirm('Eliminare la taglia &quot;{{ taglia.valore|escapejs }}&quot;?');">
+                      {% csrf_token %}
+                      <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </div>
+                {% if is_admin %}
+                <div class="imp-modal-overlay" id="modal-dpitag-edit-{{ taglia.id }}">
+                  <div class="imp-modal">
+                    <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                    <div class="imp-modal-title">Modifica taglia DPI</div>
+                    <form method="post" action="{% url 'anagrafica:dpi_taglia_edit' taglia.id %}">
+                      {% csrf_token %}
+                      <div class="imp-modal-body">
+                        <div class="imp-field"><label class="imp-label">Valore *</label><input class="imp-input" type="text" name="valore" maxlength="50" required value="{{ taglia.valore }}"></div>
+                        <div class="imp-field"><label class="imp-label">Ordine</label><input class="imp-input" type="number" name="ordine" min="0" value="{{ taglia.ordine }}"></div>
+                        <div class="imp-field"><label style="display:flex;align-items:center;gap:6px;font-size:13px;"><input type="checkbox" name="is_active" value="1" {% if taglia.is_active %}checked{% endif %}> Attiva</label></div>
+                      </div>
+                      <div class="imp-modal-footer">
+                        <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                        <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                {% endif %}
+              {% empty %}
+                <div class="imp-empty">Nessuna taglia DPI configurata.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============= DOCUMENTI — cartelle ============= -->
+      <section class="imp-panel" data-panel="documenti" id="tab-documenti">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">📁 Cartelle documenti</div>
+              <div class="imp-card-desc">Definisci lo scheletro di cartelle virtuale uguale per tutti i dipendenti. I documenti caricati nella scheda dipendente vengono archiviati in queste cartelle.</div>
+            </div>
+            <a href="{% url 'anagrafica:documenti_list' %}" class="imp-btn imp-btn-ghost">📄 Archivio documenti →</a>
+          </div>
+          <div class="imp-card-body">
+
+            {% if cartelle_documenti %}
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Nome</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Descrizione</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Documenti</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in cartelle_documenti %}
+                <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}</td>
+                  <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
+                  <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
+                  <td style="padding:8px 10px;text-align:center;">
+                    {% if c.attiva %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
+                    {% else %}<span style="color:#94a3b8;font-size:11px;">Disattiva</span>{% endif %}
+                  </td>
+                  <td style="padding:8px 10px;text-align:center;color:#475569;">{{ c.n_documenti }}</td>
+                  <td style="padding:8px 10px;text-align:right;">
+                    <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='block';document.getElementById('cartella-row-{{ c.id }}').style.display='none';" class="imp-btn imp-btn-ghost imp-btn-sm">Modifica</button>
+                    {% if c.n_documenti == 0 %}
+                    <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la cartella «{{ c.nome }}»?')">Elimina</button>
+                    </form>
+                    {% else %}
+                    <span title="Contiene {{ c.n_documenti }} documento/i — impossibile eliminare" style="font-size:11px;color:#94a3b8;padding:0 4px;">Non eliminabile</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {# Form modifica inline #}
+                <tr id="cartella-edit-{{ c.id }}" style="display:none;background:#f8fafc;">
+                  <td colspan="6" style="padding:12px 10px;">
+                    <form method="post" action="{% url 'anagrafica:cartella_documento_edit' c.id %}">
+                      {% csrf_token %}
+                      <div style="display:grid;grid-template-columns:1fr 2fr 80px 100px auto;gap:10px;align-items:end;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
+                          <input type="text" name="nome" value="{{ c.nome }}" required maxlength="100" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Descrizione</label>
+                          <input type="text" name="descrizione" value="{{ c.descrizione }}" maxlength="300" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
+                          <input type="number" name="ordine" value="{{ c.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Stato</label>
+                          <select name="attiva" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="1" {% if c.attiva %}selected{% endif %}>Attiva</option>
+                            <option value="0" {% if not c.attiva %}selected{% endif %}>Disattiva</option>
+                          </select>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                          <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
+                          <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='none';document.getElementById('cartella-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p style="font-size:13px;color:#94a3b8;margin-bottom:20px;">Nessuna cartella configurata. Crea la prima cartella per definire lo scheletro documentale.</p>
+            {% endif %}
+
+            {# Form nuova cartella #}
+            <div style="border-top:1px solid #e2e8f0;padding-top:16px;">
+              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
+              <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
+                {% csrf_token %}
+                <div style="display:grid;grid-template-columns:1fr 2fr 80px auto;gap:10px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
+                    <input type="text" name="nome" required maxlength="100" placeholder="es. Contratti" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Descrizione</label>
+                    <input type="text" name="descrizione" maxlength="300" placeholder="Descrizione opzionale" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
+                    <input type="number" name="ordine" value="0" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <button type="submit" class="imp-btn imp-btn-primary">+ Crea cartella</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= NAVIGAZIONE SUBNAV ============= -->
+      <section class="imp-panel" data-panel="navigazione" id="tab-navigazione">
+
+        {# --- CATEGORIE --- #}
+        <div class="imp-card" style="margin-bottom:20px;">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">🗂 Categorie (dropdown)</div>
+              <div class="imp-card-desc">Le categorie raggruppano i link in un dropdown nella subnav. Un link senza categoria appare direttamente nella barra.</div>
+            </div>
+          </div>
+          <div class="imp-card-body">
+
+            {% if subnav_categorie %}
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Nome</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Icona</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in subnav_categorie %}
+                <tr style="border-bottom:1px solid #f1f5f9;" id="scat-row-{{ c.id }}">
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">🗂 {{ c.nome }}</td>
+                  <td style="padding:8px 10px;text-align:center;font-size:18px;">{{ c.icona|default:"—" }}</td>
+                  <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
+                  <td style="padding:8px 10px;text-align:center;">
+                    {% if c.is_active %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
+                    {% else %}<span style="color:#94a3b8;font-size:11px;">Inattiva</span>{% endif %}
+                  </td>
+                  <td style="padding:8px 10px;text-align:right;">
+                    <button type="button" onclick="document.getElementById('scat-edit-{{ c.id }}').style.display='table-row';this.closest('tr').style.display='none';" class="imp-btn imp-btn-ghost imp-btn-sm">Modifica</button>
+                    <form method="post" action="{% url 'anagrafica:subnav_categoria_delete' c.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la categoria «{{ c.nome }}»?')">Elimina</button>
+                    </form>
+                  </td>
+                </tr>
+                <tr id="scat-edit-{{ c.id }}" style="display:none;background:#f8fafc;">
+                  <td colspan="5" style="padding:12px 10px;">
+                    <form method="post" action="{% url 'anagrafica:subnav_categoria_edit' c.id %}">
+                      {% csrf_token %}
+                      <div style="display:grid;grid-template-columns:2fr 80px 80px 100px auto;gap:10px;align-items:end;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
+                          <input type="text" name="nome" value="{{ c.nome }}" required maxlength="80" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Icona</label>
+                          <input type="text" name="icona" value="{{ c.icona }}" maxlength="20" placeholder="🗂" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;text-align:center;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
+                          <input type="number" name="ordine" value="{{ c.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Stato</label>
+                          <select name="is_active" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="1" {% if c.is_active %}selected{% endif %}>Attiva</option>
+                            <option value="0" {% if not c.is_active %}selected{% endif %}>Inattiva</option>
+                          </select>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                          <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
+                          <button type="button" onclick="document.getElementById('scat-edit-{{ c.id }}').style.display='none';document.getElementById('scat-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p style="font-size:13px;color:#94a3b8;margin-bottom:16px;">Nessuna categoria. I link senza categoria appaiono direttamente nella barra.</p>
+            {% endif %}
+
+            <div style="border-top:1px solid #e2e8f0;padding-top:14px;">
+              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova categoria</div>
+              <form method="post" action="{% url 'anagrafica:subnav_categoria_create' %}">
+                {% csrf_token %}
+                <div style="display:grid;grid-template-columns:2fr 80px 80px auto;gap:10px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
+                    <input type="text" name="nome" required maxlength="80" placeholder="es. HR, Sicurezza…" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Icona</label>
+                    <input type="text" name="icona" maxlength="20" placeholder="🗂" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;text-align:center;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
+                    <input type="number" name="ordine" value="10" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div><button type="submit" class="imp-btn imp-btn-primary">+ Crea</button></div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        {# --- LINK --- #}
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">🔗 Voci di navigazione</div>
+              <div class="imp-card-desc">I link di sistema (🔒) non possono essere eliminati ma puoi nasconderli o spostarli in una categoria. Puoi aggiungere link personalizzati che puntano a qualsiasi pagina o URL esterno.</div>
+            </div>
+          </div>
+          <div class="imp-card-body">
+
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px;">
+              <thead>
+                <tr style="border-bottom:2px solid #e2e8f0;">
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Etichetta</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">URL / destinazione</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Categoria</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ord.</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+                  <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in subnav_links %}
+                <tr style="border-bottom:1px solid #f1f5f9;" id="slink-row-{{ l.id }}">
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">
+                    {% if l.icona %}{{ l.icona }} {% endif %}{{ l.etichetta }}
+                    {% if l.is_sistema %}<span title="Link di sistema" style="font-size:10px;color:#94a3b8;margin-left:4px;">🔒</span>{% endif %}
+                    {% if l.apri_nuova_tab %}<span title="Apre in nuova tab" style="font-size:10px;color:#94a3b8;margin-left:4px;">↗</span>{% endif %}
+                  </td>
+                  <td style="padding:8px 10px;color:#64748b;font-size:12px;font-family:monospace;">{{ l.url_value }}</td>
+                  <td style="padding:8px 10px;color:#475569;font-size:12px;">{{ l.categoria.nome|default:"—" }}</td>
+                  <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ l.ordine }}</td>
+                  <td style="padding:8px 10px;text-align:center;">
+                    {% if l.is_active %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Visibile</span>
+                    {% else %}<span style="color:#94a3b8;font-size:11px;">Nascosto</span>{% endif %}
+                  </td>
+                  <td style="padding:8px 10px;text-align:right;white-space:nowrap;">
+                    <button type="button" onclick="document.getElementById('slink-edit-{{ l.id }}').style.display='table-row';this.closest('tr').style.display='none';" class="imp-btn imp-btn-ghost imp-btn-sm">Modifica</button>
+                    {% if not l.is_sistema %}
+                    <form method="post" action="{% url 'anagrafica:subnav_link_delete' l.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare il link «{{ l.etichetta }}»?')">Elimina</button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr id="slink-edit-{{ l.id }}" style="display:none;background:#f8fafc;">
+                  <td colspan="6" style="padding:12px 10px;">
+                    <form method="post" action="{% url 'anagrafica:subnav_link_edit' l.id %}">
+                      {% csrf_token %}
+                      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 60px 100px auto;gap:10px;align-items:end;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Etichetta *</label>
+                          <input type="text" name="etichetta" value="{{ l.etichetta }}" required maxlength="80" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        {% if not l.is_sistema %}
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">URL</label>
+                          <input type="text" name="url_value" value="{{ l.url_value }}" maxlength="255" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                        </div>
+                        {% else %}
+                        <div style="display:flex;align-items:flex-end;">
+                          <span style="font-size:12px;color:#94a3b8;padding:6px 8px;background:#f1f5f9;border-radius:5px;font-family:monospace;width:100%;">{{ l.url_value }}</span>
+                        </div>
+                        {% endif %}
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Categoria</label>
+                          <select name="categoria_id" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="">— Diretto (senza categoria) —</option>
+                            {% for c in subnav_categorie %}
+                              <option value="{{ c.id }}" {% if l.categoria_id == c.id %}selected{% endif %}>{{ c.nome }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ord.</label>
+                          <input type="number" name="ordine" value="{{ l.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Stato</label>
+                          <select name="is_active" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="1" {% if l.is_active %}selected{% endif %}>Visibile</option>
+                            <option value="0" {% if not l.is_active %}selected{% endif %}>Nascosto</option>
+                          </select>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                          <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
+                          <button type="button" onclick="document.getElementById('slink-edit-{{ l.id }}').style.display='none';document.getElementById('slink-row-{{ l.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                      <div style="margin-top:8px;display:flex;gap:16px;align-items:center;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;">
+                          <input type="checkbox" name="apri_nuova_tab" value="1" {% if l.apri_nuova_tab %}checked{% endif %}> Apri in nuova tab
+                        </label>
+                        {% if l.icona is not None %}
+                        <div style="display:flex;align-items:center;gap:6px;">
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Icona</label>
+                          <input type="text" name="icona" value="{{ l.icona }}" maxlength="20" placeholder="es. 🔗" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;text-align:center;">
+                        </div>
+                        {% endif %}
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            {# Form nuovo link personalizzato #}
+            <div style="border-top:1px solid #e2e8f0;padding-top:14px;">
+              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuovo collegamento diretto</div>
+              <form method="post" action="{% url 'anagrafica:subnav_link_create' %}">
+                {% csrf_token %}
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 60px auto;gap:10px;align-items:end;margin-bottom:8px;">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Etichetta *</label>
+                    <input type="text" name="etichetta" required maxlength="80" placeholder="es. Report mensile" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">URL *</label>
+                    <input type="text" name="url_value" required maxlength="255" placeholder="es. /anagrafica/report/ o https://…" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                    <input type="hidden" name="url_type" value="raw">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Categoria</label>
+                    <select name="categoria_id" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                      <option value="">— Diretto —</option>
+                      {% for c in subnav_categorie %}
+                        <option value="{{ c.id }}">{{ c.nome }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ord.</label>
+                    <input type="number" name="ordine" value="50" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div><button type="submit" class="imp-btn imp-btn-primary">+ Aggiungi</button></div>
+                </div>
+                <div style="display:flex;gap:16px;align-items:center;">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;">
+                    <input type="checkbox" name="apri_nuova_tab" value="1"> Apri in nuova tab
+                  </label>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Icona</label>
+                    <input type="text" name="icona" maxlength="20" placeholder="🔗" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;text-align:center;">
+                  </div>
+                </div>
+              </form>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
       <!-- ============= PERMESSI ============= -->
       <section class="imp-panel" data-panel="permessi" id="tab-permessi">
         <div class="imp-card">
@@ -999,6 +1900,40 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
                       <label>
                         <input type="checkbox" name="hr_ruolo_ids" value="{{ r.id }}"
                                {% if r.id in hr_perm.ruolo_ids %}checked{% endif %}
+                               {% if not is_admin %}disabled{% endif %}>
+                        {{ r.nome }}
+                      </label>
+                    {% endfor %}
+                  {% else %}
+                    <div class="imp-empty">Nessun ruolo ACL disponibile.</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Visite mediche permissions -->
+              <div class="imp-perm-card">
+                <div class="imp-perm-title">🩺 Visite mediche</div>
+                <p style="font-size:12px; color:#64748b; margin:0 0 10px;">Chi può vedere e registrare le visite mediche (dato sanitario sensibile — default: solo admin)</p>
+
+                <label class="imp-perm-row">
+                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_TUTTI }}" {% if visite_perm.accesso == ACCESSO_TUTTI %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
+                  Tutti gli utenti autenticati
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_ADMIN }}" {% if visite_perm.accesso == ACCESSO_ADMIN %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
+                  Solo amministratori
+                </label>
+                <label class="imp-perm-row">
+                  <input type="radio" name="visite_accesso" value="{{ ACCESSO_RUOLI }}" {% if visite_perm.accesso == ACCESSO_RUOLI %}checked{% endif %} data-perm-radio="visite" {% if not is_admin %}disabled{% endif %}>
+                  Ruoli ACL specifici
+                </label>
+
+                <div class="imp-perm-ruoli {% if visite_perm.accesso == ACCESSO_RUOLI %}open{% endif %}" data-perm-ruoli="visite">
+                  {% if ruoli_acl %}
+                    {% for r in ruoli_acl %}
+                      <label>
+                        <input type="checkbox" name="visite_ruolo_ids" value="{{ r.id }}"
+                               {% if r.id in visite_perm.ruolo_ids %}checked{% endif %}
                                {% if not is_admin %}disabled{% endif %}>
                         {{ r.nome }}
                       </label>
@@ -1098,6 +2033,31 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
       box.classList.toggle('open', radio.value === '{{ ACCESSO_RUOLI }}' && radio.checked);
     });
   });
+
+  // DPI sub-nav
+  root.querySelectorAll('.dpi-sub-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      root.querySelectorAll('.dpi-sub-section').forEach(function (s) {
+        s.style.display = s.dataset.dpiSection === btn.dataset.dpiNav ? '' : 'none';
+      });
+      root.querySelectorAll('.dpi-sub-btn').forEach(function (b) {
+        var isActive = b === btn;
+        b.classList.toggle('imp-btn-primary', isActive);
+        b.classList.toggle('imp-btn-ghost', !isActive);
+      });
+    });
+  });
+
+  // Visite mediche create form: "Tutti i ruoli" checkbox
+  var tuttiChk = document.getElementById('visita-create-tutti');
+  if (tuttiChk) {
+    tuttiChk.addEventListener('change', function () {
+      root.querySelectorAll('.visita-create-ruolo').forEach(function (c) {
+        c.checked = tuttiChk.checked;
+        c.disabled = tuttiChk.checked;
+      });
+    });
+  }
 })();
 </script>
 {% endblock %}

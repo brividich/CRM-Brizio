@@ -2,7 +2,9 @@ from django.contrib import admin
 
 from .models import (
     AnagraficaHRPermission,
+    AnagraficaVisiteMedichePermission,
     DipendenteCambiamentoOrganizzativo,
+    DocumentoDipendente,
     Fornitore,
     FornitoreDocumento,
     FornitoreOrdine,
@@ -11,6 +13,8 @@ from .models import (
     LivelloContrattuale,
     StoricoContratto,
     TipologiaContratto,
+    TipoVisitaMedica,
+    VisitaMedica,
     VoceRetributiva,
 )
 
@@ -118,3 +122,59 @@ class StoricoContrattoAdmin(admin.ModelAdmin):
     list_filter = ("tipologia_contratto", "codice_livello")
     search_fields = ("tax_code", "qualifica_nome", "ccnl")
     readonly_fields = ("created_at", "importato_da")
+
+
+# ---------------------------------------------------------------------------
+# Documenti dipendente / Visite mediche
+# ---------------------------------------------------------------------------
+
+@admin.register(DocumentoDipendente)
+class DocumentoDipendenteAdmin(admin.ModelAdmin):
+    list_display = (
+        "tipo", "nome_originale", "legacy_anagrafica_id",
+        "oggetto_riferimento_tipo", "oggetto_riferimento_id",
+        "dimensione_bytes", "created_at", "created_by_display",
+    )
+    list_filter = ("tipo", "created_at")
+    search_fields = ("nome_originale", "descrizione", "legacy_anagrafica_id")
+    readonly_fields = (
+        "file", "nome_originale", "tipo_mime", "dimensione_bytes",
+        "oggetto_riferimento_tipo", "oggetto_riferimento_id",
+        "created_at", "created_by", "created_by_display",
+    )
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(TipoVisitaMedica)
+class TipoVisitaMedicaAdmin(admin.ModelAdmin):
+    list_display = ("nome", "durata_mesi", "obbligatoria", "is_active")
+    list_filter = ("obbligatoria", "is_active")
+    list_editable = ("durata_mesi", "obbligatoria", "is_active")
+    search_fields = ("nome", "descrizione")
+    filter_horizontal = ("ruoli_operativi",)
+
+
+@admin.register(VisitaMedica)
+class VisitaMedicaAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "tipo", "data_svolgimento",
+        "data_scadenza", "esito", "medico_competente",
+    )
+    list_filter = ("tipo", "esito", "data_svolgimento")
+    search_fields = ("legacy_anagrafica_id", "medico_competente", "note")
+    readonly_fields = ("data_scadenza", "created_at", "updated_at", "created_by", "updated_by")
+    date_hierarchy = "data_svolgimento"
+
+
+@admin.register(AnagraficaVisiteMedichePermission)
+class AnagraficaVisiteMedichePermissionAdmin(admin.ModelAdmin):
+    list_display = ("accesso",)
+
+    def has_add_permission(self, request):
+        return not AnagraficaVisiteMedichePermission.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

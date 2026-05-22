@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load anagrafica_extras %}
 
 {% block title %}{{ dip.cognome }} {{ dip.nome }} | Scheda dipendente{% endblock %}
 
@@ -29,7 +30,10 @@
 
 /* Hero dipendente */
 .dp-hero { display:flex; align-items:center; gap:20px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 24px; flex-wrap:wrap; }
-.dp-avatar { width:64px; height:64px; border-radius:50%; background:#1d4ed8; color:#fff; font-size:24px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.dp-avatar { width:64px; height:64px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
+.dp-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
+.dp-avatar-fallback::before { content:""; position:absolute; top:14px; left:22px; width:18px; height:18px; border-radius:50%; background:#94a3b8; }
+.dp-avatar-fallback::after { content:""; position:absolute; left:16px; bottom:12px; width:30px; height:18px; border-radius:18px 18px 10px 10px; background:#94a3b8; }
 .dp-hero-info { flex:1; min-width:0; }
 .dp-hero-name { font-size:22px; font-weight:800; color:#0f172a; }
 .dp-hero-meta { font-size:13px; color:#64748b; margin-top:3px; }
@@ -189,6 +193,8 @@ body.theme-dark .dp-hero-meta { color:var(--text-light); }
 body.theme-dark .dp-pill-blue  { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .dp-pill-gray  { background:rgba(255,255,255,.08); color:var(--text-mid); }
 body.theme-dark .dp-pill-green { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .dp-avatar { background:rgba(255,255,255,.08); border-color:var(--border); }
+body.theme-dark .dp-avatar-fallback::before, body.theme-dark .dp-avatar-fallback::after { background:var(--text-light); }
 body.theme-dark .dp-info-label { color:var(--text-light); }
 body.theme-dark .dp-info-value { color:var(--text-mid); }
 body.theme-dark .dp-widget { background:var(--surface-alt); border-color:var(--border); }
@@ -236,6 +242,18 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .dp-retr-down { background:#fee2e2; color:#b91c1c; padding:0 5px; border-radius:999px; font-size:9px; font-weight:700; }
 .dp-retr-prev { font-size:9px; color:#94a3b8; }
 .dp-retr-footer { padding:6px 20px 10px; font-size:11px; color:#94a3b8; display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px; border-top:1px solid #f1f5f9; }
+/* Ratei ferie/ROL/ex-festività */
+.dp-ratei-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:700px; }
+.dp-ratei-th-pin,.dp-ratei-td-pin { position:sticky; left:0; z-index:1; background:#fff; padding:6px 12px; white-space:nowrap; border-bottom:1px solid #e2e8f0; }
+.dp-ratei-th-pin { background:#f8fafc; font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; z-index:2; }
+.dp-ratei-th-group { padding:5px 8px; text-align:center; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }
+.dp-ratei-th { padding:5px 10px; text-align:right; font-size:10px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dp-ratei-td { padding:6px 10px; text-align:right; font-variant-numeric:tabular-nums; border-bottom:1px solid #f8fafc; }
+.dp-ratei-row:hover .dp-ratei-td,.dp-ratei-row:hover .dp-ratei-td-pin { background:#f8fafc; }
+.dp-ratei-ferie { background:#fefce8; color:#854d0e; }
+.dp-ratei-rol   { background:#eff6ff; color:#1e40af; }
+.dp-ratei-exfest{ background:#f0fdf4; color:#166534; }
+
 /* Storico contrattuale */
 .dp-contr-table { width:100%; border-collapse:collapse; font-size:13px; }
 .dp-contr-table th { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; padding:8px 16px; border-bottom:2px solid #f1f5f9; text-align:left; }
@@ -279,7 +297,9 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 
   <!-- HERO -->
   <div class="dp-hero">
-    <div class="dp-avatar">{{ dip.nome|first|upper }}{{ dip.cognome|first|upper }}</div>
+    <div class="dp-avatar{% if not civile_foto_url %} dp-avatar-fallback{% endif %}" aria-hidden="true">
+      {% if civile_foto_url %}<img class="dp-avatar-img" src="{{ civile_foto_url }}" alt="">{% endif %}
+    </div>
     <div class="dp-hero-info">
       <div class="dp-hero-name">{{ dip.cognome }} {{ dip.nome }}</div>
       <div class="dp-hero-meta">
@@ -315,6 +335,7 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
         <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Reparto
             <button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1d4ed8;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>
@@ -362,6 +383,8 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
         <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1d4ed8;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d/m/Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d/m/Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d/m/Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d/m/Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
@@ -404,6 +427,8 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
       <div class="dp-info-grid">
         <div class="dp-info-item"><div class="dp-info-label">Data di nascita</div><div class="dp-info-value">{{ civile.data_nascita|date:"d/m/Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Luogo di nascita</div><div class="dp-info-value">{{ civile.luogo_nascita|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Provincia di nascita</div><div class="dp-info-value">{{ civile.provincia_nascita|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nazionalità</div><div class="dp-info-value">{{ civile.nazionalita|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Genere</div><div class="dp-info-value">{% if civile %}{{ civile.get_genere_display|default:"—" }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Titolo di studio</div><div class="dp-info-value">{% if civile %}{{ civile.get_titolo_studio_display|default:"—" }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Indirizzo residenza</div><div class="dp-info-value">{{ civile.indirizzo_residenza|default:"—" }}</div></div>
@@ -423,7 +448,7 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
       <!-- Form modifica anagrafica civile (campi non sensibili mostrati nel form; campi HR esclusi) -->
       <div class="dp-edit-section" id="civ-edit">
         <div class="dp-form-section-title">Modifica dati civili</div>
-        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}">
+        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="dp-form-grid">
             {% for field in form_civile %}
@@ -469,7 +494,7 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
       {% if is_admin %}
       <div class="dp-edit-section" id="hr-edit">
         <div class="dp-form-section-title">Modifica dati riservati HR</div>
-        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}">
+        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="dp-form-grid">
             {% for field in form_civile %}
@@ -847,6 +872,75 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
   </div>
   {% endif %}
 
+  <!-- RATEI FERIE / ROL / EX-FESTIVITA -->
+  {% if can_hr %}
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">📅 Ratei Ferie / Permessi</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        {% if ratei_saldi %}
+          <span style="font-size:11px;color:#92400e;font-weight:600;">
+            Ultimo cedolino: {{ ratei_saldi.0.data_competenza|date:"F Y" }}
+          </span>
+        {% endif %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:ratei_list' %}?dipendente={{ civile.codice_fiscale|default:'' }}">Vista completa</a>
+      </div>
+    </div>
+    {% if ratei_saldi %}
+    <div style="overflow-x:auto;padding:0 4px 8px;">
+      <table class="dp-ratei-table">
+        <thead>
+          <tr>
+            <th class="dp-ratei-th-pin">Periodo</th>
+            <th class="dp-ratei-th-pin" style="min-width:90px;">Anzianità</th>
+            <th colspan="3" class="dp-ratei-th-group dp-ratei-ferie">Ferie</th>
+            <th colspan="3" class="dp-ratei-th-group dp-ratei-rol">ROL</th>
+            <th colspan="3" class="dp-ratei-th-group dp-ratei-exfest">Ex-Fest.</th>
+          </tr>
+          <tr>
+            <th class="dp-ratei-th-pin"></th>
+            <th class="dp-ratei-th-pin"></th>
+            <th class="dp-ratei-th dp-ratei-ferie">Maturate</th>
+            <th class="dp-ratei-th dp-ratei-ferie">Godute</th>
+            <th class="dp-ratei-th dp-ratei-ferie">Residue</th>
+            <th class="dp-ratei-th dp-ratei-rol">Maturati</th>
+            <th class="dp-ratei-th dp-ratei-rol">Goduti</th>
+            <th class="dp-ratei-th dp-ratei-rol">Residui</th>
+            <th class="dp-ratei-th dp-ratei-exfest">Maturate</th>
+            <th class="dp-ratei-th dp-ratei-exfest">Godute</th>
+            <th class="dp-ratei-th dp-ratei-exfest">Residue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% with s=ratei_saldi.0 %}
+          <tr class="dp-ratei-row">
+            <td class="dp-ratei-td-pin" style="font-weight:600;color:#1e293b;">{{ s.data_competenza|date:"M Y" }}</td>
+            <td class="dp-ratei-td-pin" style="color:#64748b;font-size:12px;">
+              {% if s.anzianita_anni is not None %}{{ s.anzianita_anni }}a{% if s.anzianita_mesi %} {{ s.anzianita_mesi }}m{% endif %}{% else %}—{% endif %}
+            </td>
+            <td class="dp-ratei-td dp-ratei-ferie">{{ s.ferie_maturati }}</td>
+            <td class="dp-ratei-td dp-ratei-ferie">{{ s.ferie_goduti }}</td>
+            <td class="dp-ratei-td dp-ratei-ferie" style="font-weight:700;">{{ s.ferie_residui }}</td>
+            <td class="dp-ratei-td dp-ratei-rol">{{ s.rol_maturati }}</td>
+            <td class="dp-ratei-td dp-ratei-rol">{{ s.rol_goduti }}</td>
+            <td class="dp-ratei-td dp-ratei-rol" style="font-weight:700;">{{ s.rol_residui }}</td>
+            <td class="dp-ratei-td dp-ratei-exfest">{{ s.ex_fest_maturati }}</td>
+            <td class="dp-ratei-td dp-ratei-exfest">{{ s.ex_fest_goduti }}</td>
+            <td class="dp-ratei-td dp-ratei-exfest" style="font-weight:700;">{{ s.ex_fest_residui }}</td>
+          </tr>
+          {% endwith %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="dp-card-body" style="color:#64748b;font-size:13px;">
+      Nessun dato cedolino disponibile per questo dipendente.
+      {% if is_admin %}<br><a href="#" style="color:#1d4ed8;font-weight:600;" onclick="alert('Usa il comando: python manage.py import_cedolini &lt;file.xlsx&gt;')">Import cedolini →</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- RUOLI OPERATIVI -->
   <div class="dp-card">
     <div class="dp-card-head">
@@ -950,7 +1044,8 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 
       {% if is_admin and tipi_qualifica %}
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
-        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Aggiungi qualifica</div>
+        <button type="button" onclick="(function(btn){var panel=document.getElementById('qualifica-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Aggiungi qualifica':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Aggiungi qualifica</button>
+        <div id="qualifica-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}">
           {% csrf_token %}
           <div class="dp-qual-form-grid">
@@ -980,6 +1075,7 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
             <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">+ Aggiungi qualifica</button>
           </div>
         </form>
+        </div>
       </div>
       {% elif is_admin and not tipi_qualifica %}
         <p style="font-size:13px;color:#94a3b8;margin-top:10px;">
@@ -1069,7 +1165,11 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
                   <span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">{{ r.stato }}</span>
                 {% endif %}
               </td>
-              <td style="padding:7px 8px;color:#64748b;font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+              <td style="padding:7px 8px;color:#64748b;font-size:12px;">{{ r.created_at|date:"d/m/Y" }}
+                {% if r.consegna and r.consegna.id in dpi_consegna_doc_map %}
+                  &nbsp;·&nbsp;<a href="{% url 'anagrafica:documento_download' dpi_consegna_doc_map|dictlookup:r.consegna.id %}" style="color:#1d4ed8;font-weight:600;">📄 PDF</a>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -1085,6 +1185,246 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
       <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna richiesta DPI registrata.</div>
       {% endif %}
 
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- VISITE MEDICHE -->
+  {% if can_view_visite %}
+  <div class="dp-card" id="visite-mediche">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🏥 Visite mediche</div>
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:visite_mediche_dashboard' %}">📊 Vista globale</a>
+    </div>
+    <div class="dp-card-body">
+
+      {% if visite_stato_list %}
+      <div style="margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Stato visite richieste (in base ai ruoli operativi)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;">
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in visite_stato_list %}
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ row.tipo.nome }}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d/m/Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d/m/Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td style="padding:7px 8px;">
+                {% if row.stato == "mancante" %}
+                  <span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">⏳ Mancante</span>
+                {% elif row.stato == "scaduta" %}
+                  <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">🔴 Scaduta</span>
+                {% elif row.stato == "in_scadenza" %}
+                  <span style="background:#ffedd5;color:#9a3412;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">🟠 In scadenza ({{ row.giorni_a_scadenza }}g)</span>
+                {% else %}
+                  <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">🟢 Valida</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if visite_storico_list %}
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Storico visite</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #e2e8f0;">
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Data</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Esito</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
+              <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Referto</th>
+              {% if is_admin %}<th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in visite_storico_list %}
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:7px 8px;color:#1e293b;">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+              <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ v.tipo.nome }}</td>
+              <td style="padding:7px 8px;color:#475569;">{{ v.get_esito_display }}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d/m/Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
+              <td style="padding:7px 8px;">
+                {% if v.referto_documento_id %}
+                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1d4ed8;font-weight:600;">📄 Apri</a>
+                {% else %}
+                  <span style="color:#94a3b8;">—</span>
+                {% endif %}
+              </td>
+              {% if is_admin %}
+              <td style="padding:7px 8px;text-align:right;">
+                <form method="post" action="{% url 'anagrafica:dipendente_visita_delete' legacy_id v.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare la visita del {{ v.data_svolgimento|date:"d/m/Y" }}?')">🗑</button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna visita registrata.</div>
+      {% endif %}
+
+      {% if is_admin and tipi_visita_attivi %}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
+        <button type="button" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
+        <div id="visita-form-panel" style="display:none;margin-top:10px;">
+        <form method="post" action="{% url 'anagrafica:dipendente_visita_add' legacy_id %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="dp-qual-form-grid">
+            <div class="dp-qual-field" style="grid-column:1/-1;">
+              <label class="dp-qual-label">Tipo visita *</label>
+              <select name="tipo" class="dp-select" required style="width:100%;">
+                <option value="">— Seleziona —</option>
+                {% for t in tipi_visita_attivi %}
+                  <option value="{{ t.id }}">{{ t.nome }} ({{ t.durata_mesi }} mesi)</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Data svolgimento *</label>
+              <input type="date" name="data_svolgimento" class="dp-select" required style="width:100%;" max="{{ oggi|date:'Y-m-d' }}">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Esito *</label>
+              <select name="esito" class="dp-select" required style="width:100%;">
+                {% for val, label in visita_esiti %}
+                  <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Medico competente</label>
+              <input type="text" name="medico_competente" class="dp-select" maxlength="200" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Referto (PDF/immagine)</label>
+              <input type="file" name="referto_file" class="dp-select" accept=".pdf,image/*" style="width:100%;">
+            </div>
+            <div class="dp-qual-field" style="grid-column:1/-1;">
+              <label class="dp-qual-label">Prescrizioni</label>
+              <textarea name="prescrizioni" class="dp-select" rows="2" style="width:100%;"></textarea>
+            </div>
+            <div class="dp-qual-field" style="grid-column:1/-1;">
+              <label class="dp-qual-label">Note</label>
+              <textarea name="note" class="dp-select" rows="2" style="width:100%;"></textarea>
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">+ Registra visita</button>
+          </div>
+        </form>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- DOCUMENTI DIPENDENTE -->
+  {% if documenti_dipendente or is_admin %}
+  <div class="dp-card" id="documenti">
+    <div class="dp-card-head">
+      <div class="dp-card-title">📄 Documenti</div>
+      {% if is_admin %}
+        <a href="{% url 'anagrafica:documenti_list' %}" class="dp-btn dp-btn-ghost dp-btn-sm" style="font-size:12px;">Tutti i documenti →</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+
+      {# --- Sezione upload (collassabile) --- #}
+      {% if is_admin %}
+      <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;">
+        <button type="button" onclick="(function(btn){var panel=document.getElementById('doc-upload-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Carica documento':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;">+ Carica documento</button>
+        <div id="doc-upload-panel" style="display:none;margin-top:10px;">
+          <form method="post" action="{% url 'anagrafica:documento_upload' legacy_id %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="dp-qual-form-grid">
+              <div class="dp-qual-field" style="grid-column:1/-1;">
+                <label class="dp-qual-label">Cartella *</label>
+                <select name="cartella_id" class="dp-select" style="width:100%;">
+                  <option value="">— Senza cartella —</option>
+                  {% for c in cartelle_documenti %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="dp-qual-field" style="grid-column:1/-1;">
+                <label class="dp-qual-label">File (PDF, DOCX, XLS, JPG, PNG — max 20 MB) *</label>
+                <input type="file" name="file" class="dp-select" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" required style="width:100%;">
+              </div>
+              <div class="dp-qual-field" style="grid-column:1/-1;">
+                <label class="dp-qual-label">Descrizione</label>
+                <input type="text" name="descrizione" class="dp-select" maxlength="300" placeholder="Descrizione opzionale" style="width:100%;">
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">⬆ Carica</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      {# --- Lista documenti raggruppati per cartella --- #}
+      {% if documenti_dipendente %}
+        {# Raggruppa per cartella lato template: prima quelli con cartella (per nome), poi senza #}
+        {% regroup documenti_dipendente by cartella as docs_per_cartella %}
+        {% for gruppo in docs_per_cartella %}
+          <div style="margin-bottom:18px;">
+            <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #f1f5f9;">
+              {% if gruppo.grouper %}📁 {{ gruppo.grouper.nome }}{% else %}📎 Senza cartella{% endif %}
+              <span style="font-weight:400;color:#cbd5e1;margin-left:6px;">({{ gruppo.list|length }})</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <tbody>
+                {% for d in gruppo.list %}
+                <tr style="border-bottom:1px solid #f8fafc;">
+                  <td style="padding:6px 8px;color:#1e293b;font-weight:600;">
+                    {% if d.tipo == "VISITA_MEDICA_REFERTO" %}🩺 {% elif d.tipo == "DPI_CONSEGNA" %}🦺 {% else %}📄 {% endif %}
+                    {{ d.nome_originale }}
+                  </td>
+                  <td style="padding:6px 8px;color:#64748b;font-size:12px;">
+                    {% if d.descrizione %}<span style="color:#475569;">{{ d.descrizione }}</span> · {% endif %}
+                    {{ d.created_at|date:"d/m/Y" }}
+                    {% if d.created_by_display %} · {{ d.created_by_display }}{% endif %}
+                  </td>
+                  <td style="padding:6px 8px;color:#94a3b8;font-size:11px;white-space:nowrap;">
+                    {% if d.dimensione_bytes %}{{ d.dimensione_bytes|filesizeformat }}{% endif %}
+                  </td>
+                  <td style="padding:6px 8px;text-align:right;white-space:nowrap;">
+                    <a href="{% url 'anagrafica:documento_download' d.id %}" class="dp-btn dp-btn-ghost dp-btn-xs">⬇ Scarica</a>
+                    {% if is_admin %}
+                      <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">🗑</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessun documento archiviato.</div>
+      {% endif %}
     </div>
   </div>
   {% endif %}

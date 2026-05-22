@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Archivio documenti — NOVICROM HUB{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;color:#1e293b;margin:0;">📄 Archivio documenti</h1>
+      <p style="font-size:13px;color:#64748b;margin:4px 0 0;">Documenti caricati manualmente per i dipendenti.</p>
+    </div>
+    {% if is_admin %}
+    <a href="{% url 'anagrafica:impostazioni' %}?tab=documenti" class="dp-btn dp-btn-ghost dp-btn-sm">⚙ Gestisci cartelle</a>
+    {% endif %}
+  </div>
+
+  {# --- Filtri --- #}
+  <form method="get" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:180px;">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px;">Cerca dipendente / file</label>
+      <input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Nome, cognome, file…" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+    </div>
+    <div style="min-width:160px;">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px;">Cartella</label>
+      <select name="cartella" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+        <option value="">Tutte</option>
+        <option value="__nessuna__" {% if filtro_cartella == "__nessuna__" %}selected{% endif %}>— Senza cartella —</option>
+        {% for c in cartelle %}
+          <option value="{{ c.id }}" {% if filtro_cartella == c.id|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:110px;">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px;">Anno</label>
+      <select name="anno" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
+        <option value="">Tutti</option>
+        {% for a in anni_disponibili %}
+          <option value="{{ a }}" {% if filtro_anno == a|stringformat:"s" %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Filtra</button>
+      <a href="{% url 'anagrafica:documenti_list' %}" class="dp-btn dp-btn-ghost dp-btn-sm" style="margin-left:6px;">Reset</a>
+    </div>
+  </form>
+
+  {# --- Tabella documenti --- #}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+    {% if documenti %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Dipendente</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Cartella</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">File</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Descrizione</th>
+            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Caricato</th>
+            <th style="text-align:right;padding:10px 12px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in documenti %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:8px 12px;font-weight:600;color:#1e293b;">
+              <a href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}#documenti" style="color:#1e293b;text-decoration:none;">{{ d.nome_dipendente }}</a>
+            </td>
+            <td style="padding:8px 12px;color:#475569;">
+              {% if d.cartella %}📁 {{ d.cartella.nome }}{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}
+            </td>
+            <td style="padding:8px 12px;color:#1e293b;">📄 {{ d.nome_originale }}</td>
+            <td style="padding:8px 12px;color:#64748b;font-size:12px;">{{ d.descrizione|default:"—" }}</td>
+            <td style="padding:8px 12px;color:#64748b;font-size:12px;white-space:nowrap;">
+              {{ d.created_at|date:"d/m/Y" }}
+              {% if d.created_by_display %}<br><span style="color:#94a3b8;">{{ d.created_by_display }}</span>{% endif %}
+            </td>
+            <td style="padding:8px 12px;text-align:right;white-space:nowrap;">
+              <a href="{% url 'anagrafica:documento_download' d.id %}" class="dp-btn dp-btn-ghost dp-btn-xs">⬇ Scarica</a>
+              {% if is_admin %}
+                <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">🗑</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="padding:10px 16px;font-size:12px;color:#94a3b8;border-top:1px solid #f1f5f9;">
+        {{ documenti|length }} documento/i{% if documenti|length == 500 %} (limite 500 — usa i filtri per restringere){% endif %}
+      </div>
+    {% else %}
+      <div style="padding:40px;text-align:center;color:#94a3b8;font-size:14px;">
+        Nessun documento trovato{% if filtro_cerca or filtro_cartella or filtro_anno %} con i filtri selezionati{% endif %}.
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

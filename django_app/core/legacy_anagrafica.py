@@ -26,6 +26,44 @@ def normalize_legacy_alias(raw: str) -> str:
     return txt.strip()
 
 
+def generate_username(nome: str, cognome: str, existing_usernames: set) -> str:
+    """Genera username nel formato <iniziale_nome>.<cognome>.
+    In caso di conflitto (stesso <iniziale>.<cognome> già presente) usa
+    le prime due lettere del nome. Normalizza rimuovendo accenti e
+    caratteri non alfanumerici.
+    """
+    import re
+    import unicodedata
+
+    def _slug(s: str) -> str:
+        s = unicodedata.normalize("NFD", (s or "").strip().lower())
+        s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+        return re.sub(r"[^a-z0-9]", "", s)
+
+    nome_s = _slug(nome)
+    cogn_s = _slug(cognome)
+    if not nome_s or not cogn_s:
+        return ""
+
+    existing = {(u or "").lower() for u in existing_usernames}
+
+    candidate = f"{nome_s[0]}.{cogn_s}"
+    if candidate not in existing:
+        return candidate
+
+    if len(nome_s) >= 2:
+        candidate = f"{nome_s[:2]}.{cogn_s}"
+        if candidate not in existing:
+            return candidate
+
+    i = 2
+    while True:
+        candidate = f"{nome_s[:2]}.{cogn_s}{i}"
+        if candidate not in existing:
+            return candidate
+        i += 1
+
+
 def split_display_name(raw: str) -> tuple[str, str]:
     parts = [chunk for chunk in str(raw or "").strip().split() if chunk]
     if not parts:

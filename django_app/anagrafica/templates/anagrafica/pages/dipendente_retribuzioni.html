@@ -4,59 +4,122 @@
 
 {% block extra_head %}
 <style>
-.dr-page { display:flex; flex-direction:column; gap:20px; }
+.dr-page { display:flex; flex-direction:column; gap:18px; }
 .dr-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .dr-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .dr-sub { font-size:13px; color:#64748b; margin-top:2px; }
 .dr-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
 .dr-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .dr-btn-ghost:hover { background:#e2e8f0; }
-.dr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-.dr-card-head { display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid #f1f5f9; cursor:pointer; user-select:none; }
-.dr-card-title { font-size:15px; font-weight:700; color:#1e293b; }
-.dr-card-body { padding:0; }
-.dr-toggle { font-size:13px; color:#64748b; transition:transform .2s; display:inline-block; }
-.dr-card-head.open .dr-toggle { transform:rotate(180deg); }
-
-/* Sezioni voci — collassabili via <details> */
-.dr-section { padding:0; }
-.dr-section + .dr-section { border-top:1px solid #f1f5f9; }
-.dr-section summary { list-style:none; display:flex; align-items:center; justify-content:space-between; padding:11px 20px 9px; cursor:pointer; user-select:none; }
-.dr-section summary::-webkit-details-marker { display:none; }
-.dr-section summary::after { content:"▾"; font-size:11px; color:#94a3b8; transition:transform .18s; }
-.dr-section[open] summary::after { transform:rotate(180deg); }
-.dr-section-title { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
-.dr-section-body { padding:0 20px 10px; }
-
-/* Tabella voci */
-.dr-table { width:100%; border-collapse:collapse; font-size:13px; }
-.dr-table td { padding:7px 0; border-bottom:1px solid #f8fafc; vertical-align:middle; }
-.dr-table tr:last-child td { border-bottom:none; }
-.dr-voce-name { color:#334155; font-weight:500; flex:1; }
-.dr-voce-importo { color:#1e293b; font-weight:700; text-align:right; min-width:90px; font-variant-numeric:tabular-nums; }
-.dr-voce-importo.totale { color:#1d4ed8; }
-.dr-voce-importo.ral { font-size:15px; color:#166534; }
-
-/* Badge variazione */
-.dr-changed { display:inline-flex; align-items:center; gap:4px; }
-.dr-up { background:#dcfce7; color:#166534; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; }
-.dr-down { background:#fee2e2; color:#b91c1c; padding:1px 6px; border-radius:999px; font-size:10px; font-weight:700; }
-.dr-prev { font-size:10px; color:#94a3b8; margin-left:4px; }
-
-/* Data-entry manuale */
 .dr-btn-primary { background:#1d4ed8; color:#fff; border:none; }
 .dr-btn-primary:hover { background:#1e40af; }
-.dr-btn-danger-xs { background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer; }
-.dr-btn-danger-xs:hover { background:#fecaca; }
-.dr-btn-edit-xs { background:#eff6ff; color:#1d4ed8; border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer; margin-right:4px; }
-.dr-btn-edit-xs:hover { background:#dbeafe; }
-.dr-badge-manuale { background:#ede9fe; color:#5b21b6; padding:1px 7px; border-radius:999px; font-size:9px; font-weight:700; margin-left:6px; }
-.dr-input { width:100%; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; box-sizing:border-box; }
-.dr-form-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
-.dr-row-actions { white-space:nowrap; min-width:90px; text-align:right; }
-.dr-add-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:14px; display:none; }
+.dr-btn-danger { background:#fee2e2; color:#b91c1c; border:none; }
+.dr-btn-danger:hover { background:#fecaca; }
+
+/* Card data-entry manuale */
+.dr-add-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; display:none; }
 .dr-add-panel.open { display:block; }
-.dr-edit-row { background:#fefce8 !important; }
+.dr-form-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.dr-input { width:100%; padding:6px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; box-sizing:border-box; }
+
+/* Legenda */
+.dr-legend { display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:#64748b; }
+.dr-legend .sw { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:middle; margin-right:5px; border:1px solid rgba(0,0,0,.05); }
+
+/* Tabella pivot */
+.dr-pivot-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.dr-pivot-scroll { overflow-x:auto; max-height:75vh; }
+.dr-pivot { border-collapse:separate; border-spacing:0; font-size:12.5px; width:100%; min-width:max-content; }
+.dr-pivot th, .dr-pivot td { padding:7px 12px; white-space:nowrap; }
+
+/* Header colonne */
+.dr-pivot thead th {
+  position:sticky; top:0; z-index:3;
+  background:#f8fafc; color:#1e293b;
+  font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+  border-bottom:2px solid #e2e8f0;
+  text-align:right;
+}
+.dr-pivot thead th.dr-col-date {
+  text-align:left; left:0; z-index:5;
+  border-right:1px solid #e2e8f0;
+  min-width:140px;
+}
+.dr-pivot thead th.dr-col-cat-fisso    { background:#f1f5f9; color:#334155; }
+.dr-pivot thead th.dr-col-cat-variabile{ background:#fff7ed; color:#9a3412; }
+.dr-pivot thead th.dr-col-cat-altro    { background:#f5f3ff; color:#5b21b6; }
+.dr-pivot thead th.dr-col-cat-totale   { background:#ecfdf5; color:#065f46; }
+
+/* Riga anno (toggle) */
+.dr-year-row td {
+  background:#0f172a;
+  color:#f1f5f9;
+  font-weight:700;
+  cursor:pointer;
+  padding:8px 12px;
+  position:sticky; left:0; z-index:2;
+  border-bottom:1px solid #1e293b;
+}
+.dr-year-row td .dr-year-toggle { display:inline-block; width:14px; transition:transform .18s; }
+.dr-year-row.open td .dr-year-toggle { transform:rotate(90deg); }
+.dr-year-row td .dr-year-meta { font-weight:500; font-size:11px; color:#cbd5e1; margin-left:10px; }
+
+/* Riga mese */
+.dr-month-row td {
+  border-bottom:1px solid #f1f5f9;
+  vertical-align:middle;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.dr-month-row td.dr-col-date {
+  position:sticky; left:0; z-index:1;
+  background:#fff;
+  text-align:left;
+  font-weight:600;
+  color:#1e293b;
+  border-right:1px solid #e2e8f0;
+}
+.dr-month-row:nth-child(odd) td.dr-col-date { background:#fafbfc; }
+.dr-month-row:nth-child(odd) td:not(.dr-col-date) { background:#fafbfc; }
+
+/* Categorie colonna su body cell */
+.dr-cell-totale { color:#065f46; font-weight:700; }
+.dr-cell-ral    { color:#15803d; font-weight:800; }
+
+/* Variazione (cella evidenziata) */
+.dr-cell.changed { background:#dbeafe !important; }
+.dr-cell.changed.dr-cell-totale { background:#bbf7d0 !important; }
+
+/* Cella manuale: cliccabile */
+.dr-cell.manuale {
+  cursor:pointer; position:relative;
+  box-shadow:inset 0 0 0 1px #c4b5fd;
+}
+.dr-cell.manuale::after {
+  content:"✎"; position:absolute; top:1px; right:3px;
+  font-size:9px; color:#7c3aed; opacity:.7;
+}
+.dr-cell.manuale:hover { background:#ede9fe !important; }
+
+/* Valore vuoto */
+.dr-empty { color:#cbd5e1; }
+
+/* Modale edit voce manuale */
+.dr-modal-backdrop {
+  position:fixed; inset:0; background:rgba(15,23,42,.55);
+  display:none; align-items:center; justify-content:center; z-index:1000;
+}
+.dr-modal-backdrop.open { display:flex; }
+.dr-modal {
+  background:#fff; border-radius:14px; padding:22px 24px; width:min(480px,92vw);
+  box-shadow:0 25px 50px -12px rgba(0,0,0,.25);
+}
+.dr-modal h3 { margin:0 0 4px; font-size:17px; color:#0f172a; }
+.dr-modal .sub { font-size:12px; color:#64748b; margin-bottom:14px; }
+.dr-modal .grid { display:grid; gap:10px; grid-template-columns:1fr 1fr; }
+.dr-modal .grid > .full { grid-column:1/-1; }
+.dr-modal .actions { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:16px; }
+.dr-modal .right-actions { display:flex; gap:8px; }
 </style>
 {% endblock %}
 
@@ -67,9 +130,12 @@
   <div class="dr-topbar">
     <div>
       <div class="dr-title">{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo</div>
-      <div class="dr-sub">{{ n_mesi }} mese{% if n_mesi != 1 %}i{% endif %} disponibile{% if n_mesi != 1 %}i{% endif %}</div>
+      <div class="dr-sub">{{ n_mesi }} mese{% if n_mesi != 1 %}i{% endif %} · {{ n_colonne }} voce{% if n_colonne != 1 %} retributive{% else %} retributiva{% endif %}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if anni %}
+      <a href="{% url 'anagrafica:dipendente_retribuzioni_export_xlsx' legacy_id %}" class="dr-btn dr-btn-ghost" title="Esporta lo storico come foglio Excel">↓ Esporta Excel</a>
+      {% endif %}
       {% if can_hr or is_admin %}
       <button type="button" class="dr-btn dr-btn-primary" onclick="toggleAddPanel()">+ Voce manuale</button>
       {% endif %}
@@ -114,129 +180,165 @@
         <button type="button" class="dr-btn dr-btn-ghost" onclick="toggleAddPanel()">Annulla</button>
       </div>
       <div style="font-size:11px;color:#94a3b8;margin-top:8px;">
-        Le voci manuali fanno override delle voci CSV con lo stesso nome nello stesso mese. Restano modificabili ed eliminabili.
+        Le voci manuali fanno override delle voci CSV con lo stesso nome nello stesso mese. Restano modificabili ed eliminabili (click sulla cella viola).
       </div>
     </form>
   </div>
   {% endif %}
 
-  {% if not timeline %}
+  {% if not anni %}
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:40px;text-align:center;color:#94a3b8;font-size:14px;">
     Nessuna voce retributiva disponibile per questo dipendente.<br>
     <a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1d4ed8;font-weight:600;margin-top:8px;display:inline-block;">Importa il file CSV →</a>
   </div>
-  {% endif %}
+  {% else %}
 
-  {% for mese in timeline %}
-  <div class="dr-card">
-    <div class="dr-card-head" onclick="toggleMonth(this)" data-month="{{ mese.data_comp|date:'Ym' }}">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div class="dr-card-title">{{ mese.data_comp|date:"F Y" }}</div>
-        {% if mese.ral %}
-          <span style="font-size:13px;color:#166534;font-weight:700;">RAL: € {{ mese.ral.importo|floatformat:2 }}</span>
-        {% endif %}
-        {% if mese.n_changed %}
-          <span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">⚡ modificato</span>
-        {% endif %}
-      </div>
-      <span class="dr-toggle">▼</span>
-    </div>
+  <!-- Legenda -->
+  <div class="dr-legend">
+    <span><span class="sw" style="background:#dbeafe;"></span>Variazione vs mese precedente</span>
+    <span><span class="sw" style="background:#bbf7d0;"></span>Variazione su totali</span>
+    <span><span class="sw" style="background:#fff;box-shadow:inset 0 0 0 1px #c4b5fd;"></span>Voce inserita manualmente (cliccabile)</span>
+  </div>
 
-    <div class="dr-card-body" id="month-{{ mese.data_comp|date:'Ym' }}" style="display:none;">
-
-      {% if mese.fissi %}
-      <details class="dr-section" open>
-        <summary><span class="dr-section-title">🔒 Elementi Fissi</span></summary>
-        <div class="dr-section-body">
-          <table class="dr-table">
-            {% for v in mese.fissi %}
-              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
+  <div class="dr-pivot-card">
+    <div class="dr-pivot-scroll">
+      <table class="dr-pivot">
+        <thead>
+          <tr>
+            <th class="dr-col-date">Data retribuzione</th>
+            {% for col in colonne %}
+              <th class="dr-col-cat-{{ col.categoria }}" title="{{ col.label }} — {{ col.categoria }}">{{ col.label }}</th>
             {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if mese.variabili %}
-      <details class="dr-section" open>
-        <summary><span class="dr-section-title">📈 Elementi Variabili</span></summary>
-        <div class="dr-section-body">
-          <table class="dr-table">
-            {% for v in mese.variabili %}
-              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for anno in anni %}
+            <tr class="dr-year-row {% if anno.open %}open{% endif %}" data-year="{{ anno.anno }}" onclick="toggleYear(this)">
+              <td colspan="{{ n_colonne|add:1 }}">
+                <span class="dr-year-toggle">▶</span>
+                {{ anno.anno }}
+                <span class="dr-year-meta">{{ anno.n_mesi }} mese{% if anno.n_mesi != 1 %}i{% endif %}{% if anno.n_changed %} · {{ anno.n_changed }} variazion{% if anno.n_changed != 1 %}i{% else %}e{% endif %}{% endif %}</span>
+              </td>
+            </tr>
+            {% for mese in anno.mesi %}
+              <tr class="dr-month-row" data-year="{{ anno.anno }}"{% if not anno.open %} style="display:none;"{% endif %}>
+                <td class="dr-col-date">{{ mese.data|date:"d/m/Y" }}</td>
+                {% for cell in mese.celle %}
+                  <td
+                    class="dr-cell{% if cell.changed and cell.importo is not None %} changed{% endif %}{% if cell.is_totale %} dr-cell-totale{% endif %}{% if cell.is_ral %} dr-cell-ral{% endif %}{% if cell.manuale %} manuale{% endif %}"
+                    {% if cell.manuale %}
+                    data-voce-id="{{ cell.voce.pk }}"
+                    data-voce-pay-item="{{ cell.voce.pay_item }}"
+                    data-voce-importo="{{ cell.voce.importo }}"
+                    data-voce-categoria="{{ cell.voce.categoria }}"
+                    data-voce-note="{{ cell.voce.note }}"
+                    data-voce-mese="{{ cell.voce.data_competenza|date:'d/m/Y' }}"
+                    onclick="openManualeModal(this)"
+                    {% endif %}
+                  >
+                    {% if cell.importo is not None %}
+                      € {{ cell.importo|floatformat:2 }}
+                    {% else %}
+                      <span class="dr-empty">—</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
             {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if mese.altri %}
-      <details class="dr-section" open>
-        <summary><span class="dr-section-title">📋 Altri Elementi</span></summary>
-        <div class="dr-section-body">
-          <table class="dr-table">
-            {% for v in mese.altri %}
-              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp %}
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if mese.totali %}
-      <details class="dr-section" open>
-        <summary><span class="dr-section-title">Σ Totali Elementi</span></summary>
-        <div class="dr-section-body">
-          <table class="dr-table">
-            {% for v in mese.totali %}
-              {% include "anagrafica/components/_retr_voce_row.html" with v=v can_edit=can_hr or is_admin legacy_id=legacy_id categorie_voce=categorie_voce mese_data=mese.data_comp is_totale=True %}
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      <div style="padding:6px 20px 10px;font-size:11px;color:#94a3b8;text-align:right;">
-        {% if mese.importazione %}
-          Importato il {{ mese.importazione.data_importazione|date:"d/m/Y H:i" }}
-          {% if mese.importazione.importato_da %}— {{ mese.importazione.importato_da.get_full_name|default:mese.importazione.importato_da }}{% endif %}
-        {% else %}
-          Solo voci manuali per questo mese
-        {% endif %}
-        {% if mese.n_manuale %}
-          · <span style="color:#5b21b6;font-weight:600;">{{ mese.n_manuale }} voce{% if mese.n_manuale != 1 %} manuali{% else %} manuale{% endif %}</span>
-        {% endif %}
-      </div>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-  {% endfor %}
+  {% endif %}
 
 </div>
 
-<script>
-function toggleMonth(head) {
-  const month = head.dataset.month;
-  const body = document.getElementById('month-' + month);
-  if (!body) return;
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  head.classList.toggle('open', !open);
-}
+{# Modale modifica/elimina voce manuale #}
+{% if can_hr or is_admin %}
+<div class="dr-modal-backdrop" id="dr-edit-modal" onclick="if(event.target===this)closeManualeModal()">
+  <div class="dr-modal">
+    <h3>Modifica voce manuale</h3>
+    <div class="sub" id="dr-modal-sub">—</div>
+    <form id="dr-edit-form" method="post">
+      {% csrf_token %}
+      <div class="grid">
+        <div class="full">
+          <label class="dr-form-label">Voce *</label>
+          <input type="text" name="pay_item" id="dr-edit-pay-item" class="dr-input" maxlength="150" required>
+        </div>
+        <div>
+          <label class="dr-form-label">Importo (€) *</label>
+          <input type="number" name="importo" id="dr-edit-importo" class="dr-input" step="0.01" required>
+        </div>
+        <div>
+          <label class="dr-form-label">Categoria</label>
+          <select name="categoria" id="dr-edit-categoria" class="dr-input">
+            {% for code, label in categorie_voce %}
+            <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="full">
+          <label class="dr-form-label">Note</label>
+          <input type="text" name="note" id="dr-edit-note" class="dr-input" maxlength="300">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="dr-btn dr-btn-danger" id="dr-delete-btn" onclick="deleteManuale()">Elimina</button>
+        <div class="right-actions">
+          <button type="button" class="dr-btn dr-btn-ghost" onclick="closeManualeModal()">Annulla</button>
+          <button type="submit" class="dr-btn dr-btn-primary">Salva</button>
+        </div>
+      </div>
+    </form>
+    <form id="dr-delete-form" method="post" style="display:none;">{% csrf_token %}</form>
+  </div>
+</div>
+{% endif %}
 
+<script>
 function toggleAddPanel() {
   const p = document.getElementById('dr-add-panel');
   if (p) p.classList.toggle('open');
 }
 
-function toggleVoceEdit(id) {
-  const row = document.getElementById('voce-edit-' + id);
-  if (!row) return;
-  row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
+function toggleYear(row) {
+  const year = row.dataset.year;
+  const open = row.classList.toggle('open');
+  document.querySelectorAll('.dr-month-row[data-year="' + year + '"]').forEach(r => {
+    r.style.display = open ? '' : 'none';
+  });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  const firstHead = document.querySelector('.dr-card-head');
-  if (firstHead) toggleMonth(firstHead);
+{% if can_hr or is_admin %}
+const _editUrlTemplate = "{% url 'anagrafica:dipendente_retribuzione_voce_edit' legacy_id 0 %}";
+const _deleteUrlTemplate = "{% url 'anagrafica:dipendente_retribuzione_voce_delete' legacy_id 0 %}";
+
+function openManualeModal(cell) {
+  const id = cell.dataset.voceId;
+  document.getElementById('dr-modal-sub').textContent = 'Competenza: ' + (cell.dataset.voceMese || '—');
+  document.getElementById('dr-edit-pay-item').value = cell.dataset.vocePayItem || '';
+  document.getElementById('dr-edit-importo').value = cell.dataset.voceImporto || '';
+  document.getElementById('dr-edit-categoria').value = cell.dataset.voceCategoria || '';
+  document.getElementById('dr-edit-note').value = cell.dataset.voceNote || '';
+  document.getElementById('dr-edit-form').action = _editUrlTemplate.replace('/voci/0/', '/voci/' + id + '/');
+  document.getElementById('dr-delete-form').action = _deleteUrlTemplate.replace('/voci/0/', '/voci/' + id + '/');
+  document.getElementById('dr-edit-modal').classList.add('open');
+}
+
+function closeManualeModal() {
+  document.getElementById('dr-edit-modal').classList.remove('open');
+}
+
+function deleteManuale() {
+  if (!confirm('Eliminare definitivamente questa voce manuale?')) return;
+  document.getElementById('dr-delete-form').submit();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeManualeModal();
 });
+{% endif %}
 </script>
 {% endblock %}

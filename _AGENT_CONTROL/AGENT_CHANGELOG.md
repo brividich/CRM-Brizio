@@ -1,5 +1,152 @@
 # Agent Changelog
 
+## 2026-05-22 - Codex
+
+- Area: `django_app/anagrafica`.
+- Richiesta: correggere il 500 su `POST /anagrafica/dipendenti/277/documenti/upload` con `NameError: name 'Path' is not defined`.
+- File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: `documento_dipendente_upload` usa `Path(uploaded.name).suffix` ma `Path` non era importato in `views.py`; inoltre l'audit `DOCUMENTO_DIPENDENTE_UPLOAD` passava una stringa a `core.audit.log_action`, che si aspetta un dict.
+- Modifica: aggiunto `from pathlib import Path`; audit upload convertito a payload dict con id documento, nome file, cartella e `legacy_anagrafica_id`; aggiunto test `DocumentoDipendenteUploadTests`.
+- Impatto previsto: l'upload manuale dei documenti dipendente salva il file privato e torna alla scheda dipendente senza errore 500 e senza errore audit fail-soft.
+- Rischi residui: lo sniff MIME resta sul comportamento corrente della view: se `core.upload_mime.sniff_mime` non e disponibile, usa `uploaded.content_type` come fallback; nessuna modifica a policy formati/dimensione.
+- Test/check: `python django_app\manage.py test anagrafica.tests.DocumentoDipendenteUploadTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK. Un primo run del test e passato ma mostrava errore audit fail-soft; ripetuto OK dopo payload dict.
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `django_app/anagrafica`.
+- Richiesta: correggere il 500 su `POST /anagrafica/cartelle-documenti/nuovo` con `NoReverseMatch: Reverse for 'impostazioni?tab=documenti' not found`.
+- File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: `redirect("anagrafica:impostazioni" + "?tab=documenti")` concatena la querystring al nome URL prima del reverse; Django prova quindi a risolvere `anagrafica:impostazioni?tab=documenti`, che non esiste. Lo stesso pattern era presente anche nella CRUD subnav (`_SUBNAV_REDIRECT + _SUBNAV_TAB`).
+- Modifica: tutti i redirect della CRUD `CartellaDocumentoDipendente` usano `_redirect_impostazioni("documenti")`; tutti i redirect CRUD subnav usano `_redirect_impostazioni("navigazione")`; rimosse le costanti subnav non piu necessarie; aggiunti test `ImpostazioniRedirectTests`.
+- Impatto previsto: dopo creazione/modifica/eliminazione cartelle documenti o subnav, l'utente torna alla tab corretta di `/anagrafica/impostazioni/` senza errore 500.
+- Rischi residui: nessuno noto; nessuna modifica a schema DB, ACL, middleware, routing globale o settings.
+- Test/check: `python django_app\manage.py test anagrafica.tests.ImpostazioniRedirectTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK; scansione `Select-String` senza residui del pattern `redirect(... + "?tab=...")` nei punti corretti.
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `django_app/anagrafica`.
+- Richiesta: correggere il 500 su `GET /anagrafica/documenti/` con `TemplateSyntaxError: Variables and attributes may not begin with underscores: 'd._nome_dipendente'`.
+- File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/templates/anagrafica/pages/documenti_list.html`, `django_app/anagrafica/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: Django template engine blocca variabili/attributi che iniziano con underscore; inoltre `documenti_list.html` estendeva `base.html`, incoerente con gli altri template anagrafica che usano `core/base.html`.
+- Modifica: la view `documenti_list` espone `nome_dipendente` invece di `_nome_dipendente`; il template usa `{{ d.nome_dipendente }}` ed estende `core/base.html`; aggiunto test di regressione `DocumentoDipendenteListTests`.
+- Impatto previsto: `/anagrafica/documenti/` torna a renderizzare l'archivio documenti manuali con nome dipendente e link scheda senza errore 500.
+- Rischi residui: nessuno noto; nessuna modifica a schema DB, ACL, routing globale, middleware o settings.
+- Test/check: `python django_app\manage.py test anagrafica.tests.DocumentoDipendenteListTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK. Un primo run del test e fallito prima della correzione del parent template (`base.html` non trovato nel profilo test); ripetuto con esito OK dopo la fix.
+- Note: nessun backup creato.
+
+## 2026-05-22 - Codex
+
+- Area: `config/runtime`.
+- Richiesta: diagnosi traceback `django.db.utils.OperationalError ('08001')` durante comando `manage.py`, con timeout ODBC Driver 18 su SQL Server.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: il profilo `config.settings.dev` legge `django_app/.env`; in questa workspace `DB_ENGINE=sqlserver` punta a `localhost\SQLEXPRESS` con autenticazione Windows. Il traceback nasce durante i system check DB di Django/mssql-django, quando il backend apre una connessione per verificare il supporto a `JSONField`.
+- Modifica: nessuna modifica runtime o codice; eseguita solo diagnosi non sensibile su `.env`, driver ODBC, servizi SQL e comandi Django.
+- Esito verifica: `MSSQL$SQLEXPRESS` risulta avviato; ODBC Driver 18 e 17 sono installati a 32/64 bit; connessione diretta pyodbc a `localhost\SQLEXPRESS` sul database locale riuscita; `python manage.py check`, `python manage.py check --database default`, `python manage.py check --settings=config.settings.test` OK; `showmigrations anagrafica --plan` OK e mostra `anagrafica.0022_subnavlink_anagrafica` ancora da applicare.
+- Rischi residui: se SQL Server/SQLEXPRESS e appena avviato, bloccato, non raggiungibile o il database locale non e disponibile, i comandi che richiedono DB possono ripresentare lo stesso timeout; per controlli Django-only usare `--settings=config.settings.test`.
+- Test/check: comandi elencati sopra; nessuna migrazione applicata e nessun file applicativo modificato.
+- Note: nessun backup creato.
+
+## 2026-05-21 - Codex
+
+- Area: `config/runtime`.
+- Richiesta: individuare il `.env` reale in `Y:\PortaleNovicrom\prod\...`.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno; il `.env` non e stato modificato.
+- Motivo tecnico: l'ambiente mappato espone `Y:\` direttamente come root PROD, non `Y:\PortaleNovicrom\prod`; il file persistente letto per primo e `Y:\config\.env`.
+- Modifica: nessuna patch runtime; verificati solo i valori non sensibili `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS`, `SITE_URL`.
+- Esito verifica: `Y:\config\.env` contiene `DJANGO_ALLOWED_HOSTS=hub.cnovicrom.local,127.0.0.1` e `DJANGO_CSRF_TRUSTED_ORIGINS=https://hub.cnovicrom.local`, quindi manca `https://hub.costruzioninovicrom.it`; `Y:\current\django_app\.env` contiene gia il dominio pubblico ma viene caricato dopo e non sovrascrive le chiavi gia presenti.
+- Rischi residui: `Y:\venv\Scripts\python.exe` esiste ma il venv punta a `C:\Users\administrator\AppData\Local\Programs\Python\Python313\python.exe`, non presente; il check `manage.py shell` non e eseguibile finche il venv non viene ripristinato.
+- Test/check: `Select-String` mirato sui due `.env`; verifica esistenza `manage.py`, venv python e `pyvenv.cfg`; tentativo `manage.py shell` fallito per venv rotto.
+- Note: nessun backup creato.
+
+## 2026-05-21 - Codex
+
+- Area: `config/runtime`.
+- Richiesta: nuovo log produzione con `Forbidden (Origin checking failed - https://hub.costruzioninovicrom.it does not match any trusted origins.): /login/` dopo la correzione proposta.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno.
+- Motivo tecnico: il processo Django in esecuzione non sta ancora leggendo `DJANGO_CSRF_TRUSTED_ORIGINS` con l'origin pubblico, oppure legge un valore precedente dalla precedenza runtime.
+- Modifica: nessuna patch runtime; indicati comandi di verifica su PROD per stampare `settings.CSRF_TRUSTED_ORIGINS`, `settings.ALLOWED_HOSTS`, il valore env e i dotenv caricati.
+- Impatto previsto: consente di distinguere tra `.env` modificato nel percorso sbagliato, mancato recycle App Pool, nome variabile errato, separatore CSV errato o variabile di processo che sovrascrive il file.
+- Rischi residui: finche il processo non espone `https://hub.costruzioninovicrom.it` in `settings.CSRF_TRUSTED_ORIGINS`, `/login/` continuera a tornare 403 sui POST.
+- Test/check: riletti `env_config.py` e `settings/prod.py`; nessun test applicativo eseguito.
+- Note: nessun backup creato.
+
+## 2026-05-21 - Codex
+
+- Area: `config/runtime`.
+- Richiesta: mantenere l'accesso al portale sia dal dominio pubblico sia dal sito locale.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno; non sono stati modificati settings, middleware, ACL o `.env`.
+- Motivo tecnico: Django richiede che ogni host usato per raggiungere il portale sia presente in `DJANGO_ALLOWED_HOSTS`; ogni origin da cui partono POST/HTMX/form deve essere presente in `DJANGO_CSRF_TRUSTED_ORIGINS` con schema e, se non standard, porta.
+- Modifica: nessuna patch runtime; indicata configurazione `.env` multi-origin per dominio pubblico e dominio locale.
+- Impatto previsto: il portale resta raggiungibile sia da `https://hub.costruzioninovicrom.it` sia dal nome locale, senza 403 CSRF sui POST.
+- Rischi residui: se il sito locale usa HTTP invece di HTTPS e i cookie secure sono attivi, login/POST possono fallire; preferibile pubblicare anche il locale in HTTPS oppure configurare coerentemente cookie e proxy.
+- Test/check: nessun test applicativo eseguito; modifica solo documentazione agente.
+- Note: nessun backup creato.
+
+## 2026-05-21 - Codex
+
+- Area: `config/runtime`.
+- Richiesta: diagnosi errore sito web "Token di sessione non valido" con dettaglio `HTTP 403 - Origin checking failed - https://hub.costruzioninovicrom.it does not match any trusted origins`.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno; non sono stati modificati `django_app/config/settings/*.py`, middleware, ACL o `.env`.
+- Motivo tecnico: l'errore e generato dal controllo CSRF di Django quando l'origin pubblico `https://hub.costruzioninovicrom.it` non e presente in `DJANGO_CSRF_TRUSTED_ORIGINS` o non combacia con host/scheme visti dal backend dietro IIS/Waitress.
+- Modifica: nessuna patch runtime; indicata correzione operativa sul `.env` persistente di produzione con `DJANGO_CSRF_TRUSTED_ORIGINS=https://hub.costruzioninovicrom.it` e verifica di `DJANGO_ALLOWED_HOSTS`.
+- Impatto previsto: dopo aggiornamento `.env` e recycle dell'App Pool/IIS, i POST dal dominio pubblico passano il controllo Origin CSRF.
+- Rischi residui: se il proxy/IIS non inoltra correttamente host o scheme, puo servire anche verificare header `X-Forwarded-Proto`/Host e l'eventuale supporto `USE_X_FORWARDED_HOST`; modifiche a settings richiedono autorizzazione esplicita.
+- Test/check: letti `CLAUDE.md`, checkpoint e file controllo disponibili; ispezionati `django_app/config/settings/prod.py`, `base.py`, `env_config.py`, `deployment/setup_wizard.py`, `.env.example` e riferimenti CSRF/deploy. Nessun test applicativo eseguito perche non sono stati modificati file applicativi.
+- Note: nessun backup creato.
+
+## 2026-05-21 - Claude (Opus 4.7)
+
+- Area: `django_app/anagrafica` + `django_app/dpi` + `django_app/config/settings`.
+- Richiesta utente: integrare i DPI consegnati ai dipendenti con modulistica PDF prodotta dal portale e caricata automaticamente nello spazio del dipendente (anche per i DPI consegnati all'ingresso, proposti in base alla mansione), e aggiungere la gestione delle visite mediche con tipologie configurabili per ruolo operativo e scadenza calcolata dalla data dell'ultima visita.
+- File creati: `django_app/anagrafica/storage.py`, `django_app/anagrafica/services/__init__.py`, `django_app/anagrafica/services/visite.py`, `django_app/anagrafica/services/dpi_ingresso.py`, `django_app/anagrafica/templatetags/__init__.py`, `django_app/anagrafica/templatetags/anagrafica_extras.py`, `django_app/anagrafica/management/commands/send_visite_expiry_reminders.py`, `django_app/anagrafica/migrations/0018_documentodipendente_visitamedica.py`, `django_app/anagrafica/migrations/0019_seed_tipi_visita.py`, `django_app/anagrafica/templates/anagrafica/partials/_dpi_iniziali_righe.html`, `django_app/dpi/pdf.py`, `_AGENT_CONTROL/TODO_DPI_VISITE_INTEGRATION.md`.
+- File modificati: `django_app/config/settings/base.py`, `django_app/anagrafica/models.py`, `django_app/anagrafica/admin.py`, `django_app/anagrafica/forms.py`, `django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/tests.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_create.html`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/templates/anagrafica/components/subnav.html`, `django_app/dpi/views.py`, `README.md`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`.
+- File critici modificati: nessuno rilevato in `_AGENT_CONTROL/CRITICAL_FILES.md` (file non presente).
+- Motivo tecnico: lo schema esisteva già per `ConsegnaDPI`+firma ma il PDF di consegna non era persistito e non c'era spazio documenti dipendente; le visite mediche erano completamente assenti.
+- Modifica: nuovo storage privato `PrivateAnagraficaStorage` su `ANAGRAFICA_PRIVATE_ROOT`; modello unico `DocumentoDipendente` per consegne DPI/referti/altro con ACL per tipo; modelli `TipoVisitaMedica` (M2M `RuoloOperativo`, `durata_mesi`) e `VisitaMedica` con scadenza calcolata in `save()` via helper Python-only `_add_months` (no dipendenza `dateutil`); singleton `AnagraficaVisiteMedichePermission` (default `ADMIN`); helper `_can_view_visite_mediche`; generatore PDF `dpi/pdf.py::render_modulo_consegna_dpi[_multipla]` con reportlab che incorpora la firma `data:image/png;base64,...`; hook in `dpi.views::consegna_richiesta` archivia il PDF come `DocumentoDipendente` in modo idempotente; nel form di creazione dipendente, multiselect ruoli operativi + sezione HTMX "DPI consegnati all'ingresso" che propone le categorie `obbligatoria_mansionario=True` e crea automaticamente `RichiestaDPI`+`ConsegnaDPI` (firma differita) + PDF cumulativo; scheda dipendente arricchita con card "🏥 Visite mediche" (stato per ruolo + storico + form add) e "📄 Documenti"; management command `send_visite_expiry_reminders` con dry-run; 14 nuovi test (calcolo scadenza, stato visite, PDF render, ACL referto, servizio ingresso) tutti verdi; data migration 0019 con seed di 6 tipi visita comuni (art. 41, VDT, MMC, rumore, DPI III cat., lavori in quota) — `obbligatoria=False, ruoli=[]` da configurare.
+- Impatto previsto: l'utente HR può registrare consegne DPI ottenendo il PDF firmato nello spazio dipendente; può consegnare i DPI obbligatori all'ingresso e gestire le visite mediche con calendario di scadenza automatico per ruolo.
+- Rischi residui: richiede migrazione `anagrafica.0018` + `anagrafica.0019`; la cartella `media_private/anagrafica/` va creata e protetta in prod (non esposta da IIS); l'M2M `TipoVisitaMedica.ruoli_operativi` parte vuoto per i tipi seed, va popolato manualmente da admin prima che il sistema generi alert; bug pre-esistenti rilevati ma non corretti: (a) `core.audit.log_action` riceve stringa invece di dict (errore log fail-soft, non blocca), (b) `dateutil` non è installato pur essendo importato da `anagrafica/views.py:1275` per le qualifiche.
+- Test/check: `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py makemigrations --check --dry-run --settings=config.settings.dev` OK; `python django_app\manage.py test anagrafica.tests.VisitaMedicaScadenzaTests anagrafica.tests.StatoVisiteServiceTests anagrafica.tests.DPIPDFRenderTests anagrafica.tests.VisiteMedichePermissionTests anagrafica.tests.DocumentoDipendenteDownloadACLTests anagrafica.tests.DPIIngressoServiceTests --settings=config.settings.test` → 14/14 OK; suite anagrafica completa 24/25 OK (1 errore pre-esistente in `test_upload_validation.py` che importa `FornitoreDocumentoForm` spostato nel modulo `fornitori`, non regressione).
+- Note: piano completo in `C:\Users\l.bova\.claude\plans\vectorized-floating-lampson.md`. Tracciamento operativo in `_AGENT_CONTROL/TODO_DPI_VISITE_INTEGRATION.md`. UI smoke test manuale (dev server + browser) non eseguito.
+
+## 2026-05-21 - Codex
+
+- Area: `django_app/anagrafica`
+- Richiesta: su `/anagrafica/dipendenti/` ordinare sempre la tabella all'accesso da A a Z per dipendente, rimuovere il cerchio con iniziali e usare foto dipendente con upload in anagrafica/fallback grigio.
+- File modificati: `django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0017_dipendenteanagraficacivile_foto.py`, `django_app/anagrafica/forms.py`, `django_app/anagrafica/views.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendenti_list.html`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_create.html`, `django_app/anagrafica/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: rendere stabile l'ordinamento iniziale della lista dipendenti e sostituire avatar testuali con una foto reale gestita dal portale.
+- Modifica: aggiunto campo `foto` su `DipendenteAnagraficaCivile` con upload sotto `anagrafica/dipendenti/<legacy_id>/foto/`; i form civile di creazione/modifica accettano upload immagine; la lista ordina lato server per `cognome`, `nome`, `aliasusername`, `id` prima della paginazione; lista e hero scheda mostrano foto o fallback grigio CSS senza iniziali.
+- Impatto previsto: entrando in `/anagrafica/dipendenti/` la tabella parte gia in ordine alfabetico per dipendente; le foto caricate sono visibili in lista e scheda.
+- Rischi residui: richiede applicazione migrazione `0017`; le foto sono servite tramite media runtime esistente e restano dati personali da gestire secondo policy interna.
+- Test/check: `python django_app\manage.py test anagrafica.tests --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py makemigrations --check --dry-run --settings=config.settings.test` OK.
+- Note: nessun backup creato. I test di creazione dipendente sono stati riallineati alla view corrente `dipendente_create`.
+
+- Area: `django_app/anagrafica`
+- Richiesta: correggere il 500 su `GET /anagrafica/ratei/export/?periodo=2026-05-31&reparto=AMMINISTRAZIONE` con errore openpyxl `MergedCell object attribute 'value' is read-only`.
+- File modificati: `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: l'export ratei univa verticalmente `A1:A2`, `B1:B2`, `C1:C2`, `D1:D2`, poi tentava di scrivere anche nelle celle `A2:D2`, che openpyxl espone come `MergedCell` read-only.
+- Modifica: rimosse `A:D` dalla lista delle sotto-intestazioni di riga 2; restano scritte solo le sotto-intestazioni operative `E:P` per Ferie, ROL ed Ex-Festivita. Aggiunto test di regressione che crea un saldo cedolino, chiama l'export con filtro periodo/reparto, apre l'XLSX con openpyxl e verifica header/dati principali.
+- Impatto previsto: il bottone export Excel dei ratei non genera piu errore 500 con filtri attivi e produce un workbook valido.
+- Rischi residui: nessuno noto; la correzione non cambia ACL, routing, schema DB o dipendenze.
+- Test/check: `python django_app\manage.py test anagrafica.tests.AnagraficaRateiExportTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK.
+- Note: nessun backup creato.
+
 ## 2026-05-20 - Codex
 
 - Area: `git/workspace`

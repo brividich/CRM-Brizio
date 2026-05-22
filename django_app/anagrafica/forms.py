@@ -8,6 +8,8 @@ from .models import (
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
     RuoloAziendale,
+    TipoVisitaMedica,
+    VisitaMedica,
 )
 
 
@@ -33,8 +35,11 @@ class AnagraficaCivileForm(forms.ModelForm):
         model = DipendenteAnagraficaCivile
         exclude = ["legacy_anagrafica_id", "updated_by", "updated_at"]
         widgets = {
+            "foto": forms.ClearableFileInput(attrs={"class": "dp-input", "accept": "image/*"}),
             "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "luogo_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Comune di nascita"}),
+            "provincia_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. PI oppure PISA", "style": "text-transform:uppercase"}),
+            "nazionalita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. Italiana"}),
             "genere": forms.Select(attrs={"class": "dp-input"}),
             "indirizzo_residenza": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Via/Piazza..."}),
             "citta_residenza": forms.TextInput(attrs={"class": "dp-input"}),
@@ -70,11 +75,14 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "tipologia_contratto", "livello_inquadramento",
         ]
         widgets = {
+            "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
             "taglia_scarpe": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 42"}),
             "taglia_pantalone": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. 48 oppure 50/34"}),
             "taglia_maglia": forms.Select(attrs={"class": "dp-input"}),
             "data_consenso_privacy": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "data_prima_assunzione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "data_assunzione_ultima": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "data_cessazione": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "prova_data_inizio": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
@@ -102,4 +110,53 @@ class AnagraficaAziendaleForm(forms.ModelForm):
         self.fields["ruolo_aziendale"].widget = forms.Select(attrs={"class": "dp-input"})
         self.fields["ruolo_aziendale"].widget.choices = ruolo_choices
 
+    def clean_badge(self):
+        val = self.cleaned_data.get("badge", "").strip()
+        if val:
+            stripped = val.lstrip("0")
+            return stripped if stripped else "0"
+        return val
 
+
+# ---------------------------------------------------------------------------
+# Visite mediche
+# ---------------------------------------------------------------------------
+
+class VisitaMedicaForm(forms.ModelForm):
+    """Form di registrazione/modifica visita medica.
+
+    Il referto è gestito come FileField separato: la view crea un
+    ``DocumentoDipendente`` di tipo VISITA_MEDICA_REFERTO e lo aggancia
+    a ``visita.referto_documento``.
+    """
+
+    referto_file = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "dp-input", "accept": ".pdf,image/*"}),
+        help_text="Referto/documento allegato (opzionale). Storage privato.",
+    )
+
+    class Meta:
+        model = VisitaMedica
+        fields = [
+            "tipo", "data_svolgimento", "esito",
+            "prescrizioni", "medico_competente", "note",
+        ]
+        widgets = {
+            "tipo": forms.Select(attrs={"class": "dp-input"}),
+            "data_svolgimento": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            "esito": forms.Select(attrs={"class": "dp-input"}),
+            "prescrizioni": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
+            "medico_competente": forms.TextInput(attrs={"class": "dp-input"}),
+            "note": forms.Textarea(attrs={"class": "dp-input", "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipo"].queryset = TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")
+
+    def clean_data_svolgimento(self):
+        data = self.cleaned_data.get("data_svolgimento")
+        if data and data > timezone.localdate():
+            raise forms.ValidationError("La data di svolgimento non può essere nel futuro.")
+        return data

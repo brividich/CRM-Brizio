@@ -402,6 +402,9 @@ SHAREPOINT_ASSET_DRIVE_ID = env("SHAREPOINT_ASSET_DRIVE_ID", "")
 # Allegati Diario Preposto (segnalazioni di sicurezza): storage privato con
 # fallback compatibile sui file legacy in MEDIA_ROOT.
 DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Documenti dipendente (consegne DPI archiviate, referti visite mediche, contratti).
+# Storage privato, mai esposto da IIS: accessibile solo via view protetta con ACL.
+ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

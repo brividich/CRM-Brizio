@@ -1,0 +1,243 @@
+{% extends "core/base.html" %}
+
+{% block title %}Ratei Ferie / Permessi | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+<style>
+.rl-page { display:flex; flex-direction:column; gap:18px; }
+.rl-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.rl-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.rl-sub { font-size:13px; color:#64748b; margin-top:2px; }
+
+.rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.rl-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.rl-btn-ghost:hover { background:#e2e8f0; }
+.rl-btn-primary { background:#1d4ed8; color:#fff; border:none; }
+.rl-btn-primary:hover { background:#1e40af; }
+
+/* Filtri */
+.rl-filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+.rl-filter-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px; }
+.rl-filter-input { padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; min-width:180px; }
+.rl-filter-input:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+
+/* Multi-select dipendente */
+.rl-dip-wrap { position:relative; min-width:240px; max-width:320px; }
+.rl-dip-search { width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px 7px 0 0; font-size:13px; box-sizing:border-box; }
+.rl-dip-search:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+.rl-dip-select { width:100%; border:1px solid #cbd5e1; border-top:none; border-radius:0 0 7px 7px; font-size:13px; min-height:110px; max-height:160px; box-sizing:border-box; }
+.rl-dip-select:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 2px #dbeafe; }
+.rl-dip-hint { font-size:10px; color:#94a3b8; margin-top:3px; }
+
+/* Tabella */
+.rl-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.rl-scroll { overflow-x:auto; }
+.rl-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:900px; }
+
+.rl-th-pin { position:sticky; left:0; z-index:2; background:#f8fafc; padding:8px 14px; white-space:nowrap; border-bottom:2px solid #e2e8f0; text-align:left; }
+.rl-th-pin2 { position:sticky; left:160px; z-index:2; background:#f8fafc; padding:8px 14px; white-space:nowrap; border-bottom:2px solid #e2e8f0; text-align:left; }
+.rl-th-group { padding:6px 8px; text-align:center; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }
+.rl-th { padding:6px 10px; text-align:right; font-size:10px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+
+.rl-td-pin { position:sticky; left:0; z-index:1; background:#fff; padding:7px 14px; white-space:nowrap; border-bottom:1px solid #f1f5f9; font-weight:600; color:#1e293b; font-size:13px; }
+.rl-td-pin2 { position:sticky; left:160px; z-index:1; background:#fff; padding:7px 14px; white-space:nowrap; border-bottom:1px solid #f1f5f9; font-size:12px; color:#64748b; border-right:1px solid #e2e8f0; }
+.rl-td { padding:7px 10px; text-align:right; font-variant-numeric:tabular-nums; border-bottom:1px solid #f1f5f9; }
+.rl-tr:hover .rl-td,.rl-tr:hover .rl-td-pin,.rl-tr:hover .rl-td-pin2 { background:#f8fafc; }
+
+.rl-ferie  { background:#fefce8; color:#854d0e; }
+.rl-rol    { background:#eff6ff; color:#1e40af; }
+.rl-exfest { background:#f0fdf4; color:#166534; }
+.rl-bold   { font-weight:700; }
+
+/* Paginazione */
+.rl-pager { display:flex; gap:6px; justify-content:center; padding:14px; flex-wrap:wrap; }
+.rl-page-btn { padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
+.rl-page-btn:hover { background:#e2e8f0; }
+.rl-page-btn.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; cursor:default; }
+.rl-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="rl-page">
+
+  <!-- Header -->
+  <div class="rl-topbar">
+    <div>
+      <div class="rl-title">📅 Ratei Ferie / Permessi</div>
+      <div class="rl-sub">Saldi ore da cedolino paga — {{ totale }} record totali</div>
+    </div>
+    <a class="rl-btn rl-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  <!-- Filtri -->
+  <form method="get" id="rl-filter-form" class="rl-filter-bar">
+    <!-- Mensilità -->
+    <div>
+      <label class="rl-filter-label">Mensilità</label>
+      <select name="periodo" class="rl-filter-input">
+        <option value="">— Tutti i periodi —</option>
+        {% for p in periodi %}
+        <option value="{{ p|date:'Y-m-d' }}" {% if filtro_periodo == p|date:'Y-m-d' %}selected{% endif %}>
+          {{ p|date:"F Y" }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Dipendente (multi-select con ricerca) -->
+    <div class="rl-dip-wrap">
+      <label class="rl-filter-label">Dipendente</label>
+      <input type="text" id="rl-dip-search" class="rl-dip-search" placeholder="Cerca per cognome…" autocomplete="off">
+      <select name="dipendente" id="rl-dip-select" multiple class="rl-dip-select">
+        {% for d in dipendenti_options %}
+        <option value="{{ d.cf }}" {% if d.cf in filtro_dipendenti %}selected{% endif %}>{{ d.nome }}</option>
+        {% endfor %}
+      </select>
+      <div class="rl-dip-hint">Ctrl+clic per selezionare più dipendenti</div>
+    </div>
+
+    <!-- Reparto (multi-select) -->
+    <div>
+      <label class="rl-filter-label">Reparto</label>
+      <select name="reparto" id="rl-rep-select" multiple class="rl-filter-input" style="min-height:110px;max-height:160px;padding:4px 6px;">
+        {% for r in reparti_options %}
+        <option value="{{ r }}" {% if r in filtro_reparti %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      <div class="rl-dip-hint">Ctrl+clic per più reparti</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
+      <button type="submit" class="rl-btn rl-btn-primary">Filtra</button>
+      <button type="button" class="rl-btn rl-btn-ghost" onclick="rlExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
+      {% if filtro_periodo or filtro_dipendenti or filtro_reparti %}
+      <a href="{% url 'anagrafica:ratei_list' %}" class="rl-btn rl-btn-ghost">✕ Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Tabella -->
+  <div class="rl-card">
+    {% if page_obj.object_list %}
+    <div class="rl-scroll">
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th class="rl-th-pin" style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;" rowspan="2">Dipendente</th>
+            <th class="rl-th-pin2" style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;border-right:1px solid #e2e8f0;" rowspan="2">Periodo</th>
+            <th class="rl-th-group rl-ferie" colspan="4">Ferie</th>
+            <th class="rl-th-group rl-rol"   colspan="4">ROL</th>
+            <th class="rl-th-group rl-exfest" colspan="4">Ex-Festività</th>
+          </tr>
+          <tr>
+            <th class="rl-th rl-ferie">Anni Prec.</th>
+            <th class="rl-th rl-ferie">Maturate</th>
+            <th class="rl-th rl-ferie">Godute</th>
+            <th class="rl-th rl-ferie">Residue</th>
+            <th class="rl-th rl-rol">Anni Prec.</th>
+            <th class="rl-th rl-rol">Maturati</th>
+            <th class="rl-th rl-rol">Goduti</th>
+            <th class="rl-th rl-rol">Residui</th>
+            <th class="rl-th rl-exfest">Anni Prec.</th>
+            <th class="rl-th rl-exfest">Maturate</th>
+            <th class="rl-th rl-exfest">Godute</th>
+            <th class="rl-th rl-exfest">Residue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in page_obj.object_list %}
+          <tr class="rl-tr">
+            <td class="rl-td-pin">
+              {% if s.legacy_anagrafica_id %}
+                <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1d4ed8;text-decoration:none;font-size:13px;font-weight:600;">
+                  {{ s.nome_display }}
+                </a>
+              {% else %}
+                <span style="font-size:13px;font-weight:600;">{{ s.nome_display }}</span>
+              {% endif %}
+              {% if s.anzianita_anni is not None %}
+                <span style="font-size:11px;color:#94a3b8;margin-left:4px;">{{ s.anzianita_anni }}a{% if s.anzianita_mesi %} {{ s.anzianita_mesi }}m{% endif %}</span>
+              {% endif %}
+            </td>
+            <td class="rl-td-pin2">{{ s.data_competenza|date:"M Y" }}</td>
+            <td class="rl-td rl-ferie">{{ s.ferie_anni_prec }}</td>
+            <td class="rl-td rl-ferie">{{ s.ferie_maturati }}</td>
+            <td class="rl-td rl-ferie">{{ s.ferie_goduti }}</td>
+            <td class="rl-td rl-ferie rl-bold">{{ s.ferie_residui }}</td>
+            <td class="rl-td rl-rol">{{ s.rol_anni_prec }}</td>
+            <td class="rl-td rl-rol">{{ s.rol_maturati }}</td>
+            <td class="rl-td rl-rol">{{ s.rol_goduti }}</td>
+            <td class="rl-td rl-rol rl-bold">{{ s.rol_residui }}</td>
+            <td class="rl-td rl-exfest">{{ s.ex_fest_anni_prec }}</td>
+            <td class="rl-td rl-exfest">{{ s.ex_fest_maturati }}</td>
+            <td class="rl-td rl-exfest">{{ s.ex_fest_goduti }}</td>
+            <td class="rl-td rl-exfest rl-bold">{{ s.ex_fest_residui }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginazione (usa submit del form per preservare multi-select) -->
+    {% if page_obj.has_other_pages %}
+    <div class="rl-pager">
+      {% if page_obj.has_previous %}
+        <button type="button" class="rl-page-btn" onclick="rlGoPage({{ page_obj.previous_page_number }})">&laquo;</button>
+      {% endif %}
+      {% for n in page_obj.paginator.page_range %}
+        {% if n == page_obj.number %}
+          <span class="rl-page-btn active">{{ n }}</span>
+        {% elif n >= page_obj.number|add:"-3" and n <= page_obj.number|add:"3" %}
+          <button type="button" class="rl-page-btn" onclick="rlGoPage({{ n }})">{{ n }}</button>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <button type="button" class="rl-page-btn" onclick="rlGoPage({{ page_obj.next_page_number }})">&raquo;</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="rl-empty">
+      Nessun dato cedolino disponibile{% if filtro_periodo or filtro_dipendenti %} per i filtri selezionati{% endif %}.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+/* Ricerca live nel multi-select dipendenti */
+document.getElementById('rl-dip-search').addEventListener('input', function () {
+  var q = this.value.toLowerCase();
+  document.querySelectorAll('#rl-dip-select option').forEach(function (opt) {
+    opt.style.display = opt.text.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+  });
+});
+
+/* Paginazione che preserva multi-select */
+function rlGoPage(n) {
+  var form = document.getElementById('rl-filter-form');
+  var existing = form.querySelector('input[name="page"]');
+  if (existing) existing.remove();
+  var inp = document.createElement('input');
+  inp.type = 'hidden'; inp.name = 'page'; inp.value = n;
+  form.appendChild(inp);
+  form.submit();
+}
+
+/* Export Excel con i filtri attivi */
+function rlExport() {
+  var form = document.getElementById('rl-filter-form');
+  var data = new FormData(form);
+  var params = new URLSearchParams();
+  data.forEach(function (val, key) {
+    if (key !== 'page') params.append(key, val);
+  });
+  window.location.href = "{% url 'anagrafica:ratei_export' %}?" + params.toString();
+}
+</script>
+{% endblock %}

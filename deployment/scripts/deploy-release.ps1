@@ -9,6 +9,9 @@
     2. Copia .env dal config\ dell'ambiente
     3. Aggiorna le dipendenze pip nel venv condiviso
     4. Esegue collectstatic (output in static\)
+    4b. Riallinea ACL su static\ e media\ per IIS_IUSRS (mitiga la perdita
+        di ereditarieta NTFS dopo collectstatic --clear, che altrimenti
+        fa rispondere 401 a IIS StaticFileModule su tutti i CSS/JS)
     5. Esegue migrate
     6. Allinea schema legacy/runtime SQL Server
     7. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/ e sql/)
@@ -302,6 +305,37 @@ if (-not $SkipCollectStatic) {
 }
 else {
     Write-Log "[5/9] collectstatic - SALTATO (flag -SkipCollectStatic)" "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# 5b. Riallineo ACL su static\ e media\ per IIS_IUSRS
+# ---------------------------------------------------------------------------
+# collectstatic --clear svuota e ricrea STATIC_ROOT: i file creati da Python
+# non ereditano sempre le ACL del padre e l'app pool IIS perde il diritto
+# di lettura. Senza IIS_IUSRS:RX, StaticFileModule risponde 401 (Access
+# denied due to ACLs) su tutti i CSS/JS sotto /static/ e la pagina arriva
+# al browser completamente priva di stile, pur restando autenticata.
+# Riapplichiamo IIS_IUSRS:(OI)(CI)RX in modo idempotente ad ogni deploy:
+# costa pochi ms e blinda la pipeline anche se collectstatic e' saltato.
+Write-Log "[5b/9] Riallineo ACL static\ e media\ per IIS..." "STEP"
+# IIS_IUSRS copre l'identity dell'app pool; IUSR e' l'utente di Anonymous
+# Authentication e NON e' membro di IIS_IUSRS in tutte le configurazioni:
+# concediamo entrambi per essere robusti rispetto a come e' configurata
+# l'autenticazione del sito (Anonymous attiva, AppPool identity, ecc.).
+$iisPrincipals = @("IIS_IUSRS", "IUSR")
+foreach ($aclPath in @($paths.Static, $paths.Media)) {
+    if (-not (Test-Path $aclPath)) {
+        Write-Log "  Path inesistente, salto: $aclPath" "WARN"
+        continue
+    }
+    foreach ($principal in $iisPrincipals) {
+        & icacls "$aclPath" /grant "${principal}:(OI)(CI)RX" /T /Q | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "  ACL ${principal}:RX applicata su $aclPath" "INFO"
+        } else {
+            Write-Log "  icacls ${principal} exit code $LASTEXITCODE su $aclPath - verificare" "WARN"
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------

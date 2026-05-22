@@ -97,7 +97,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     <a class="dc-btn dc-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
   </div>
 
-  <form method="post" autocomplete="off" id="dc-form">
+  <form method="post" autocomplete="off" id="dc-form" enctype="multipart/form-data">
     {% csrf_token %}
 
     <!-- ══════════════════════════════════════════════════════════════════════
@@ -200,7 +200,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           <div class="dc-area-title">Ruolo e organizzazione</div>
           <div class="dc-grid">
             {% for field in form_aziendale %}
-              {% if field.html_name in "area,ruolo_aziendale" %}
+              {% if field.html_name in "area,ruolo_aziendale,badge" %}
               <div class="dc-field">
                 <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
@@ -208,6 +208,47 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
               </div>
               {% endif %}
             {% endfor %}
+          </div>
+        </div>
+
+        <!-- Ruoli operativi (preposto, RSPP, antincendio, ...) -->
+        <div class="dc-area">
+          <div class="dc-area-title">Ruoli operativi di sicurezza</div>
+          <p style="font-size:12px;color:#64748b;margin:-6px 0 12px;">
+            Selezionali ora se conosciuti. Determinano le visite mediche obbligatorie
+            e i DPI proposti all'ingresso.
+          </p>
+          <div class="dc-field">
+            <label class="dc-label" for="id_ruoli_operativi_ids">Ruoli operativi</label>
+            <select name="ruoli_operativi_ids" id="id_ruoli_operativi_ids"
+                    class="dc-input ruoli-operativi-select"
+                    multiple size="6"
+                    hx-get="{% url 'anagrafica:htmx_dpi_iniziali' %}"
+                    hx-trigger="change"
+                    hx-target="#dpi-iniziali-righe"
+                    hx-include="this">
+              {% for r in ruoli_operativi_catalogo %}
+                <option value="{{ r.id }}"
+                  {% for sel in request.POST.ruoli_operativi_ids %}{% if sel == r.id|stringformat:"s" %}selected{% endif %}{% endfor %}>
+                  {{ r.icona }} {{ r.nome }}
+                </option>
+              {% endfor %}
+            </select>
+            <span style="font-size:11px;color:#94a3b8;">Tieni premuto Ctrl/Cmd per selezionare più voci.</span>
+          </div>
+        </div>
+
+        <!-- DPI consegnati all'ingresso (proposti in base alla mansione/ruolo) -->
+        <div class="dc-area" id="dpi-iniziali">
+          <div class="dc-area-title">📦 DPI consegnati all'ingresso</div>
+          <p style="font-size:12px;color:#64748b;margin:-6px 0 12px;">
+            Le categorie obbligatorie del ruolo sono proposte qui sotto.
+            Conferma con il checkbox quelle effettivamente consegnate: il portale
+            registrerà la consegna e archivierà un PDF nello spazio documenti del dipendente.
+            La firma di ricevuta può essere registrata in un secondo momento dalla scheda dipendente.
+          </p>
+          <div id="dpi-iniziali-righe">
+            <em style="color:#94a3b8;">Seleziona uno o più ruoli operativi per vedere le proposte.</em>
           </div>
         </div>
 
@@ -264,7 +305,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           <div class="dc-area-title" style="margin-top:18px;">Periodo di prova e prima assunzione</div>
           <div class="dc-grid">
             {% for field in form_aziendale %}
-              {% if field.html_name in "data_prima_assunzione,prova_data_inizio,prova_data_fine" %}
+              {% if field.html_name in "data_prima_assunzione,data_assunzione_ultima,data_cessazione,prova_data_inizio,prova_data_fine" %}
               <div class="dc-field">
                 <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
@@ -344,7 +385,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           <div class="dc-area-title">Dati personali</div>
           <div class="dc-grid">
             {% for field in form_civile %}
-              {% if field.html_name in "data_nascita,luogo_nascita,genere,titolo_studio" %}
+              {% if field.html_name in "foto,data_nascita,luogo_nascita,provincia_nascita,nazionalita,genere,titolo_studio" %}
               <div class="dc-field">
                 <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}

@@ -1,9 +1,52 @@
 # Session Checkpoint
 
-Data: 2026-05-19
+Data: 2026-05-22
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (fix 500 upload documenti dipendente: import `Path` + audit payload dict)
+- `django_app/anagrafica/views.py` -> aggiunto `from pathlib import Path`; `DOCUMENTO_DIPENDENTE_UPLOAD` passa dict a `log_action`
+- `django_app/anagrafica/tests.py` -> aggiunto `DocumentoDipendenteUploadTests.test_documento_upload_salva_pdf_manuale`
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata fix upload documenti dipendente
+- Test/check: `python django_app\manage.py test anagrafica.tests.DocumentoDipendenteUploadTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (fix 500 POST cartelle documenti: redirect con querystring convertiti a `_redirect_impostazioni`)
+- `django_app/anagrafica/views.py` -> CRUD `CartellaDocumentoDipendente` usa `_redirect_impostazioni("documenti")`; CRUD subnav usa `_redirect_impostazioni("navigazione")`; rimosse costanti `_SUBNAV_REDIRECT/_SUBNAV_TAB`
+- `django_app/anagrafica/tests.py` -> aggiunto `ImpostazioniRedirectTests` per redirect cartelle documenti e subnav
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato fix redirect impostazioni documenti/subnav
+- Test/check: `python django_app\manage.py test anagrafica.tests.ImpostazioniRedirectTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (fix 500 `/anagrafica/documenti/`: `nome_dipendente` senza underscore + parent `core/base.html`)
+- `django_app/anagrafica/views.py` -> `documenti_list` espone `nome_dipendente` invece di `_nome_dipendente`
+- `django_app/anagrafica/templates/anagrafica/pages/documenti_list.html` -> usa `{{ d.nome_dipendente }}` ed estende `core/base.html`
+- `django_app/anagrafica/tests.py` -> aggiunto `DocumentoDipendenteListTests.test_documenti_list_renderizza_nome_dipendente`
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata fix archivio documenti
+- Test/check: `python django_app\manage.py test anagrafica.tests.DocumentoDipendenteListTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (diagnosi timeout ODBC SQL Server su `manage.py`: SQLEXPRESS locale ora raggiungibile; check Django OK)
+- `django_app/.env` -> verificato senza modifiche e senza stampare segreti: `DB_ENGINE=sqlserver`, host locale `localhost\SQLEXPRESS`, autenticazione Windows
+- `MSSQL$SQLEXPRESS` -> servizio avviato; ODBC Driver 18/17 installati; pyodbc diretto OK sul database locale
+- `python manage.py check`, `python manage.py check --database default`, `python manage.py check --settings=config.settings.test` -> OK
+- `python manage.py showmigrations anagrafica --plan` -> OK; `anagrafica.0022_subnavlink_anagrafica` ancora non applicata
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (trovato `.env` reale: `Y:\config\.env`, root PROD mappata direttamente su `Y:\`)
+- `Y:\config\.env` -> verificato senza modifiche: manca `hub.costruzioninovicrom.it` in `DJANGO_ALLOWED_HOSTS` e `DJANGO_CSRF_TRUSTED_ORIGINS`
+- `Y:\current\django_app\.env` -> verificato senza modifiche: contiene dominio pubblico ma viene caricato dopo `Y:\config\.env`, quindi non sovrascrive le chiavi gia presenti
+- `Y:\venv\pyvenv.cfg` -> venv PROD punta a `C:\Users\administrator\AppData\Local\Programs\Python\Python313\python.exe`; `manage.py shell` non eseguibile per Python base mancante
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (persistenza errore CSRF `/login/`: verificare valore effettivo letto da Django e precedenza `.env`)
+- Nota operativa: in deploy PROD `config/env_config.py` carica prima `C:\PortaleNovicrom\prod\config\.env`; se li esiste un valore `DJANGO_CSRF_TRUSTED_ORIGINS` vecchio, il `.env` dentro `current\django_app` non lo sostituisce
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (configurazione multi-origin: dominio pubblico + sito locale in `DJANGO_ALLOWED_HOSTS` e `DJANGO_CSRF_TRUSTED_ORIGINS`)
+- Nota operativa: per accesso locale aggiungere il nome host locale senza schema in `DJANGO_ALLOWED_HOSTS` e con schema in `DJANGO_CSRF_TRUSTED_ORIGINS`; se c'e una porta non standard va inclusa nell'origin CSRF
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (diagnosi 403 CSRF Origin `https://hub.costruzioninovicrom.it` non in trusted origins)
+- `django_app/config/settings/prod.py` -> `CSRF_TRUSTED_ORIGINS` letto da `DJANGO_CSRF_TRUSTED_ORIGINS` con guard anti placeholder
+- `django_app/config/env_config.py` -> in deploy legge prima `C:\PortaleNovicrom\<env>\config\.env` e poi `current\django_app\.env`
+- Correzione operativa indicata: aggiornare `.env` persistente prod con `DJANGO_CSRF_TRUSTED_ORIGINS=https://hub.costruzioninovicrom.it` (mantenendo eventuali origin gia validi), verificare `DJANGO_ALLOWED_HOSTS`, poi riciclare App Pool/IIS
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (lista dipendenti A-Z e avatar con foto/fallback grigio)
+- `django_app/anagrafica/models.py` + migration `0017_dipendenteanagraficacivile_foto.py` -> campo `DipendenteAnagraficaCivile.foto`
+- `django_app/anagrafica/views.py` -> `dipendenti_list` ordina per `cognome nome` prima della paginazione e passa `foto_url`; `dipendente_detail` passa `civile_foto_url`; form civile salva `request.FILES`
+- `django_app/anagrafica/templates/anagrafica/pages/dipendenti_list.html`, `dipendente_detail.html`, `dipendente_create.html` -> avatar foto/fallback grigio e form `multipart/form-data`
+- `django_app/anagrafica/tests.py` -> copertura ordinamento lista, foto/fallback e upload foto
+- `CHANGELOG.md`, `django_app/CHANGELOG.md`, `README.md` -> documentato ordinamento lista dipendenti e foto profilo
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (fix export XLSX ratei ferie con celle mergeate openpyxl)
+- `django_app/anagrafica/views.py` -> `ratei_export`: rimosse le sotto-intestazioni `A:D` di riga 2 per non scrivere su `MergedCell` read-only dopo i merge `A1:A2` ... `D1:D2`
+- `django_app/anagrafica/tests.py` -> `AnagraficaRateiExportTests.test_ratei_export_with_reparto_filter_returns_valid_xlsx`
+- `CHANGELOG.md`, `django_app/CHANGELOG.md`, `README.md` -> documentato fix export ratei XLSX
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-20 - Codex` (commit e push workspace su Git)
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-20 - Codex` (Assenze SharePoint sync automatico riabilitato)
 - `django_app/config/settings/base.py` -> `ASSENZE_SYNC_ON_PAGE_LOAD` default `True`

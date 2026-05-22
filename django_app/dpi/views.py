@@ -60,6 +60,87 @@ def _is_gestore(request) -> bool:
     return request.user.is_superuser or is_legacy_admin(legacy_user)
 
 
+def _archivia_pdf_consegna(request, consegna: ConsegnaDPI) -> None:
+    """Genera il PDF del modulo consegna e lo archivia in DocumentoDipendente.
+
+    Idempotente: se per la stessa ConsegnaDPI esiste già un documento lo
+    sovrascrive (es. firma aggiunta dopo la consegna iniziale).
+    Fail-soft: in caso di errore, logga e prosegue senza bloccare la consegna.
+    """
+    try:
+        from django.core.files.base import ContentFile
+
+        from anagrafica.models import DocumentoDipendente
+
+        from .pdf import render_modulo_consegna_dpi
+    except Exception:
+        logger.warning("Impossibile importare le dipendenze per archivio PDF consegna DPI", exc_info=True)
+        return
+
+    legacy_id = consegna.richiesta.richiedente_legacy_id
+    if not legacy_id:
+        # niente collegamento moderno al dipendente: salta archivio
+        return
+
+    try:
+        pdf_bytes = render_modulo_consegna_dpi(consegna)
+    except Exception:
+        logger.exception("Errore generazione PDF consegna DPI %s", consegna.pk)
+        log_action(
+            request, "DPI_CONSEGNA_PDF_ERRORE", "dpi",
+            f"Errore generazione PDF per consegna {consegna.pk}",
+        )
+        return
+
+    nome_file = f"consegna_dpi_{consegna.richiesta.numero}_{consegna.data_consegna:%Y%m%d}.pdf"
+    descrizione = (
+        f"Modulo consegna DPI {consegna.richiesta.numero}"
+        f" ({consegna.richiesta.categoria.nome})"
+    )
+
+    try:
+        doc, created = DocumentoDipendente.objects.get_or_create(
+            oggetto_riferimento_tipo="dpi.consegna",
+            oggetto_riferimento_id=consegna.pk,
+            defaults={
+                "legacy_anagrafica_id": legacy_id,
+                "tipo": DocumentoDipendente.Tipo.DPI_CONSEGNA,
+                "nome_originale": nome_file,
+                "tipo_mime": "application/pdf",
+                "dimensione_bytes": len(pdf_bytes),
+                "descrizione": descrizione,
+                "created_by": request.user if request.user.is_authenticated else None,
+                "created_by_display": (
+                    request.user.get_full_name() or request.user.username
+                ) if request.user.is_authenticated else "",
+            },
+        )
+        # In ogni caso (created o aggiornamento) scrivo il file:
+        # se la consegna cambia (firma aggiunta, note, scadenza), il PDF
+        # deve riflettere lo stato corrente.
+        if not created:
+            # rimuovo il vecchio file dal disco prima di scrivere il nuovo
+            try:
+                doc.file.delete(save=False)
+            except Exception:
+                logger.warning("Impossibile rimuovere il PDF precedente di consegna %s", consegna.pk)
+            doc.dimensione_bytes = len(pdf_bytes)
+            doc.descrizione = descrizione
+        doc.file.save(nome_file, ContentFile(pdf_bytes), save=True)
+    except Exception:
+        logger.exception("Errore archivio DocumentoDipendente per consegna DPI %s", consegna.pk)
+        log_action(
+            request, "DPI_CONSEGNA_PDF_ERRORE", "dpi",
+            f"Errore archivio DocumentoDipendente per consegna {consegna.pk}",
+        )
+        return
+
+    log_action(
+        request, "DPI_CONSEGNA_PDF_ARCHIVIATO", "dpi",
+        f"Archiviato PDF consegna {consegna.richiesta.numero} (doc {doc.pk})",
+    )
+
+
 def _richiedente_info(request) -> dict:
     """Estrae nome, email, reparto del richiedente dall'utente corrente."""
     nome = ""
@@ -740,7 +821,7 @@ def consegna_richiesta(request, pk: int):
         except ValueError:
             pass
 
-    ConsegnaDPI.objects.update_or_create(
+    consegna, _ = ConsegnaDPI.objects.update_or_create(
         richiesta=richiesta,
         defaults={
             "data_consegna": data_consegna,
@@ -754,6 +835,12 @@ def consegna_richiesta(request, pk: int):
     richiesta.stato = StatoRichiesta.CONSEGNATA
     richiesta.save(update_fields=["stato", "updated_at"])
     log_action(request, "consegna", "dpi", f"Consegnato DPI {richiesta.numero} in data {data_consegna}")
+
+    # Genera e archivia il PDF del modulo di consegna nello spazio documenti del
+    # dipendente. Idempotente: se esiste già un documento per questa consegna
+    # viene sovrascritto (es. firma aggiunta dopo). Fail-soft: un errore PDF
+    # non blocca la consegna registrata sopra.
+    _archivia_pdf_consegna(request, consegna)
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse

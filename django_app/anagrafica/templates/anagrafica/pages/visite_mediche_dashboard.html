@@ -1,0 +1,238 @@
+{% extends "core/base.html" %}
+
+{% block title %}Visite mediche · {{ INSTANCE_NAME|default:"NOVICROM HUB" }}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/subnav.html" %}
+
+<div style="display:flex;flex-direction:column;gap:18px;margin-top:14px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Visite mediche</h1>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="font-size:12px;color:#64748b;">Aggiornato al {{ oggi|date:"d/m/Y" }}</div>
+      {% if can_manage %}
+      <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}"
+         style="padding:8px 16px;background:#6366f1;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;">
+        + Registra sessione
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# KPI cards #}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+    <div style="background:#fff;border:1px solid #fecaca;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.05em;">Scadute</div>
+      <div style="font-size:28px;font-weight:800;color:#b91c1c;line-height:1.1;">{{ kpi_scadute }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #fed7aa;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.05em;">In scadenza (≤60g)</div>
+      <div style="font-size:28px;font-weight:800;color:#9a3412;line-height:1.1;">{{ kpi_in_scad }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;">Visite totali registrate</div>
+      <div style="font-size:28px;font-weight:800;color:#1e293b;line-height:1.1;">{{ kpi_totali }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;">Tipologie attive</div>
+      <div style="font-size:28px;font-weight:800;color:#1e293b;line-height:1.1;">{{ kpi_tipi_attivi }}</div>
+    </div>
+  </div>
+
+  {# Scadute o in scadenza — con filtro mese e export #}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:15px;font-weight:700;color:#1e293b;">Visite scadute o in scadenza</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        {# Filtri mese #}
+        <div style="display:flex;gap:4px;">
+          <a href="?scad=tutti"
+             style="padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;
+             {% if filtro_scad == 'tutti' %}background:#6366f1;color:#fff;{% else %}background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;{% endif %}">
+            Tutti
+          </a>
+          <a href="?scad=mese_corrente"
+             style="padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;
+             {% if filtro_scad == 'mese_corrente' %}background:#6366f1;color:#fff;{% else %}background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;{% endif %}">
+            Mese corrente
+          </a>
+          <a href="?scad=prossimo_mese"
+             style="padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;
+             {% if filtro_scad == 'prossimo_mese' %}background:#6366f1;color:#fff;{% else %}background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;{% endif %}">
+            Prossimo mese
+          </a>
+        </div>
+        <a href="{% url 'anagrafica:visite_mediche_export_scadenze' %}?scad={{ filtro_scad }}"
+           style="padding:5px 11px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
+          ↓ Excel
+        </a>
+        <div style="font-size:12px;color:#94a3b8;">{{ scad_o_in_scad|length }} record</div>
+      </div>
+    </div>
+    <div style="padding:6px 20px 16px;">
+      {% if scad_o_in_scad %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Dipendente</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in scad_o_in_scad %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:7px 6px;">
+              <a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#1d4ed8;font-weight:600;">{{ v.dipendente_nome }}</a>
+            </td>
+            <td style="padding:7px 6px;color:#1e293b;">{{ v.tipo.nome }}</td>
+            <td style="padding:7px 6px;color:#475569;">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+            <td style="padding:7px 6px;color:#475569;">{{ v.data_scadenza|date:"d/m/Y" }}</td>
+            <td style="padding:7px 6px;">
+              {% if v.giorni_a_scadenza < 0 %}
+                <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Scaduta da {{ v.giorni_a_scadenza|stringformat:"d"|cut:"-" }}g</span>
+              {% else %}
+                <span style="background:#ffedd5;color:#9a3412;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Tra {{ v.giorni_a_scadenza }}g</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:8px 0;">Nessuna visita scaduta o in scadenza nel periodo selezionato.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Copertura per tipologia #}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1e293b;">Copertura per tipologia</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Valide/Scadute = conteggio reale dal DB. Richiesti/Mancanti = attivi solo se ruoli operativi configurati.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="{% url 'anagrafica:visite_mediche_export_copertura' %}"
+           style="padding:5px 11px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;">
+          ↓ Excel
+        </a>
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:impostazioni' %}?tab=visite-mediche">⚙ Catalogo tipi</a>
+      </div>
+    </div>
+    <div style="padding:6px 20px 16px;overflow-x:auto;">
+      {% if tipologie_stats %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipologia</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Periodicità</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;" title="Dipendenti con visita valida nel DB">Valide</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;" title="Dipendenti con visita scaduta nel DB">Scadute</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;" title="Richiesti da ruoli operativi (0 se non configurati)">Richiesti</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Mancanti</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in tipologie_stats %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:7px 6px;color:#1e293b;font-weight:600;">
+              {{ row.tipo.nome }}
+              {% if not row.tipo.obbligatoria %}
+                <span style="background:#f1f5f9;color:#475569;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600;margin-left:4px;">facoltativa</span>
+              {% endif %}
+            </td>
+            <td style="padding:7px 6px;color:#475569;">{{ row.tipo.durata_mesi }} mesi</td>
+            <td style="padding:7px 6px;text-align:right;">
+              {% if row.valide_db %}
+                <span style="color:#166534;font-weight:700;">{{ row.valide_db }}</span>
+              {% else %}
+                <span style="color:#94a3b8;">0</span>
+              {% endif %}
+            </td>
+            <td style="padding:7px 6px;text-align:right;">
+              {% if row.scadute_db %}
+                <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">{{ row.scadute_db }}</span>
+              {% else %}
+                <span style="color:#94a3b8;">0</span>
+              {% endif %}
+            </td>
+            <td style="padding:7px 6px;text-align:right;color:#475569;">
+              {% if row.ha_ruoli %}{{ row.richiesti }}{% else %}<span style="color:#cbd5e1;" title="Nessun ruolo operativo collegato">—</span>{% endif %}
+            </td>
+            <td style="padding:7px 6px;text-align:right;">
+              {% if row.ha_ruoli %}
+                {% if row.mancanti %}
+                  <span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">{{ row.mancanti }}</span>
+                {% else %}
+                  <span style="color:#166534;font-weight:600;">0</span>
+                {% endif %}
+              {% else %}
+                <span style="color:#cbd5e1;" title="Configura ruoli operativi per abilitare">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:8px 0;">Nessuna tipologia configurata.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Ultime visite registrate #}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9;">
+      <div style="font-size:15px;font-weight:700;color:#1e293b;">Ultime visite registrate</div>
+      <div style="font-size:12px;color:#94a3b8;">{{ ultime_visite|length }} record</div>
+    </div>
+    <div style="padding:6px 20px 16px;">
+      {% if ultime_visite %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Data</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Dipendente</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Tipo</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Esito</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
+            <th style="text-align:left;padding:8px 6px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Referto</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in ultime_visite %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:7px 6px;color:#1e293b;">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+            <td style="padding:7px 6px;">
+              <a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#1d4ed8;font-weight:600;">{{ v.dipendente_nome }}</a>
+            </td>
+            <td style="padding:7px 6px;color:#475569;">{{ v.tipo.nome }}</td>
+            <td style="padding:7px 6px;color:#475569;">{{ v.get_esito_display }}</td>
+            <td style="padding:7px 6px;color:#475569;">
+              {% if v.data_scadenza %}{{ v.data_scadenza|date:"d/m/Y" }}
+                {% if v.is_scaduta %} <span style="color:#b91c1c;">●</span>{% elif v.in_scadenza %} <span style="color:#ea580c;">●</span>{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td style="padding:7px 6px;">
+              {% if v.referto_documento_id %}
+                <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1d4ed8;font-weight:600;">Scarica</a>
+              {% else %}
+                <span style="color:#94a3b8;">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:8px 0;">Nessuna visita registrata.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

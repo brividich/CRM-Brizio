@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import calendar
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -7,6 +9,23 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+from .storage import PrivateAnagraficaStorage
+
+
+def _add_months(d: date, months: int) -> date:
+    """Aggiunge ``months`` mesi calendariali a ``d``, mantenendo il giorno
+    quando possibile (lo clampa al fine mese se il mese di destinazione è
+    più corto). Indipendente da python-dateutil.
+    """
+    if months <= 0:
+        return d
+    month_index = (d.month - 1) + int(months)
+    year = d.year + (month_index // 12)
+    month = (month_index % 12) + 1
+    last_day_of_month = calendar.monthrange(year, month)[1]
+    day = min(d.day, last_day_of_month)
+    return date(year, month, day)
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +108,13 @@ def _fornitore_documento_upload_to(instance, filename: str) -> str:
     stem = Path(filename or "").stem[:80] or "documento"
     stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
     return f"anagrafica/fornitori/{fornitore_id}/{stamp}_{stem}{suffix}"
+
+
+def _dipendente_foto_upload_to(instance, filename: str) -> str:
+    legacy_id = instance.legacy_anagrafica_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:12] or ".jpg"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    return f"anagrafica/dipendenti/{legacy_id}/foto/{stamp}{suffix}"
 
 
 class FornitoreDocumento(models.Model):
@@ -554,9 +580,20 @@ class DipendenteAnagraficaCivile(models.Model):
     ]
 
     legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    foto = models.ImageField(
+        upload_to=_dipendente_foto_upload_to,
+        blank=True,
+        default="",
+        verbose_name="Foto dipendente",
+    )
 
     data_nascita = models.DateField(null=True, blank=True)
     luogo_nascita = models.CharField(max_length=200, blank=True, default="")
+    provincia_nascita = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Provincia di nascita: accetta sia sigla (2 lettere) sia nome esteso.",
+    )
+    nazionalita = models.CharField(max_length=100, blank=True, default="", verbose_name="Nazionalità")
     genere = models.CharField(max_length=1, choices=GENERE_CHOICES, blank=True, default="")
 
     indirizzo_residenza = models.CharField(max_length=300, blank=True, default="")
@@ -654,6 +691,8 @@ class DipendenteAnagraficaAziendale(models.Model):
 
     legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
 
+    badge = models.CharField(max_length=30, blank=True, default="", db_index=True, verbose_name="Badge")
+
     area = models.CharField(max_length=100, blank=True, default="", verbose_name="Area di appartenenza")
     ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
 
@@ -665,6 +704,16 @@ class DipendenteAnagraficaAziendale(models.Model):
     data_consenso_privacy = models.DateField(null=True, blank=True)
 
     data_prima_assunzione = models.DateField(null=True, blank=True)
+    data_assunzione_ultima = models.DateField(
+        null=True, blank=True,
+        verbose_name="Data assunzione corrente",
+        help_text="Inizio del rapporto di lavoro corrente (se diversa dalla prima assunzione)",
+    )
+    data_cessazione = models.DateField(
+        null=True, blank=True,
+        verbose_name="Data cessazione",
+        help_text="Data di fine rapporto. Se valorizzata, il dipendente è considerato cessato.",
+    )
     prova_data_inizio = models.DateField(null=True, blank=True, verbose_name="Inizio periodo di prova")
     prova_data_fine = models.DateField(null=True, blank=True, verbose_name="Fine periodo di prova")
     tipologia_contratto = models.CharField(
@@ -984,3 +1033,478 @@ class StoricoContratto(models.Model):
     @property
     def is_in_corso(self) -> bool:
         return self.data_fine is None
+
+
+# ---------------------------------------------------------------------------
+# Ratei ferie/ROL/ex-festività — importazione mensile da cedolini paga (XLSX)
+# ---------------------------------------------------------------------------
+
+class ImportazioneCedolini(models.Model):
+    """Batch di importazione mensile saldi ore da file cedolini (XLSX)."""
+    ORIGINE_XLSX = "XLSX"
+    ORIGINE_SQL = "SQL"
+    ORIGINE_CHOICES = [
+        (ORIGINE_XLSX, "Import XLSX cedolini"),
+        (ORIGINE_SQL, "Import diretto SQL"),
+    ]
+
+    data_importazione = models.DateTimeField(auto_now_add=True)
+    data_competenza = models.DateField(
+        help_text="Ultimo giorno del mese di competenza (es. 2026-05-31)"
+    )
+    origine = models.CharField(
+        max_length=10, choices=ORIGINE_CHOICES, default=ORIGINE_XLSX, db_index=True
+    )
+    importato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="importazioni_cedolini",
+    )
+    file_nome = models.CharField(max_length=255, blank=True, default="")
+    righe_totali = models.IntegerField(default=0)
+    righe_ok = models.IntegerField(default=0)
+    righe_errore = models.IntegerField(default=0)
+    righe_non_trovate = models.IntegerField(default=0)
+    note = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-data_competenza", "-data_importazione"]
+        verbose_name = "Importazione cedolini"
+        verbose_name_plural = "Importazioni cedolini"
+
+    def __str__(self) -> str:
+        mese = self.data_competenza.strftime("%B %Y") if self.data_competenza else "?"
+        return f"Cedolini {mese} ({self.righe_ok} righe)"
+
+
+class SaldoCedolino(models.Model):
+    """Saldi ore mensili per dipendente estratti dal cedolino paga.
+
+    Chiave logica: (tax_code, data_competenza) — unica per dipendente×mese.
+    Usato per visualizzare l'evoluzione di ferie/ROL/ex-festività nella scheda
+    dipendente e nella vista aggregata Anagrafica > Ratei Ferie/Permessi.
+    """
+    importazione = models.ForeignKey(
+        ImportazioneCedolini,
+        on_delete=models.CASCADE,
+        related_name="saldi",
+        null=True, blank=True,
+    )
+    tax_code = models.CharField(max_length=16, db_index=True, verbose_name="Codice fiscale")
+    legacy_anagrafica_id = models.IntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="Risolto al momento dell'import da DipendenteAnagraficaCivile.codice_fiscale",
+    )
+    data_competenza = models.DateField(
+        db_index=True,
+        help_text="Ultimo giorno del mese di competenza (es. 2026-05-31)",
+    )
+
+    anzianita_anni = models.SmallIntegerField(null=True, blank=True, verbose_name="Anzianità (anni)")
+    anzianita_mesi = models.SmallIntegerField(null=True, blank=True, verbose_name="Anzianità (mesi aggiuntivi)")
+
+    # FERIE (ore con 2 decimali)
+    ferie_anni_prec = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ferie anni prec.")
+    ferie_maturati  = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ferie maturate")
+    ferie_goduti    = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ferie godute")
+    ferie_residui   = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ferie residue")
+
+    # ROL
+    rol_anni_prec = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="ROL anni prec.")
+    rol_maturati  = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="ROL maturati")
+    rol_goduti    = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="ROL goduti")
+    rol_residui   = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="ROL residui")
+
+    # EX FESTIVITÀ
+    ex_fest_anni_prec = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ex-fest. anni prec.")
+    ex_fest_maturati  = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ex-fest. maturate")
+    ex_fest_goduti    = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ex-fest. godute")
+    ex_fest_residui   = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Ex-fest. residue")
+
+    # PERMESSI (inclusi per completezza, attualmente 0 nei cedolini)
+    permessi_anni_prec = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Permessi anni prec.")
+    permessi_maturati  = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Permessi maturati")
+    permessi_goduti    = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Permessi goduti")
+    permessi_residui   = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="Permessi residui")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data_competenza", "tax_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tax_code", "data_competenza"],
+                name="anagrafica_saldo_cedolino_tax_competenza_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "-data_competenza"]),
+            models.Index(fields=["data_competenza"]),
+        ]
+        verbose_name = "Saldo cedolino"
+        verbose_name_plural = "Saldi cedolini"
+
+    def __str__(self) -> str:
+        mese = self.data_competenza.strftime("%m/%Y") if self.data_competenza else "?"
+        return f"{self.tax_code} — {mese}"
+
+
+# ---------------------------------------------------------------------------
+# Navigazione subnav anagrafica — categorie e link configurabili
+# ---------------------------------------------------------------------------
+
+class SubnavCategoriaAnagrafica(models.Model):
+    """Categoria (dropdown) nella subnav del modulo anagrafica.
+
+    I link senza categoria appaiono come voci dirette nel menu orizzontale.
+    Le categorie con almeno un link attivo generano un dropdown.
+    """
+
+    nome = models.CharField(max_length=80)
+    icona = models.CharField(max_length=20, blank=True, default="", help_text="Emoji o testo breve mostrato prima del nome.")
+    ordine = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Categoria subnav anagrafica"
+        verbose_name_plural = "Categorie subnav anagrafica"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class SubnavLinkAnagrafica(models.Model):
+    """Voce di navigazione nella subnav del modulo anagrafica.
+
+    Un link può essere:
+    - Diretto nella barra (``categoria=None``)
+    - Dentro un dropdown (``categoria`` impostata)
+
+    I link di sistema (``is_sistema=True``) non possono essere eliminati ma
+    possono essere nascosti, rinominati o riordinati.
+    """
+
+    class UrlType(models.TextChoices):
+        NAMED = "named", "URL Django (nome view)"
+        RAW = "raw", "URL diretto (path o esterno)"
+
+    categoria = models.ForeignKey(
+        SubnavCategoriaAnagrafica,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="links",
+    )
+    etichetta = models.CharField(max_length=80)
+    icona = models.CharField(max_length=20, blank=True, default="")
+    url_type = models.CharField(max_length=10, choices=UrlType.choices, default=UrlType.NAMED)
+    url_value = models.CharField(
+        max_length=255,
+        help_text="Nome view Django (es. 'anagrafica:dipendenti_list') oppure path/URL assoluto.",
+    )
+    active_view_names = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Nomi view che rendono il link attivo (comma-separated). Solo per url_type=named.",
+    )
+    ordine = models.PositiveSmallIntegerField(default=0)
+    apri_nuova_tab = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_sistema = models.BooleanField(
+        default=False,
+        help_text="Se True il link è di sistema: non eliminabile, solo nascondibile/rinominabile.",
+    )
+
+    class Meta:
+        ordering = ["ordine", "etichetta"]
+        verbose_name = "Link subnav anagrafica"
+        verbose_name_plural = "Link subnav anagrafica"
+
+    def __str__(self) -> str:
+        return self.etichetta
+
+
+# ---------------------------------------------------------------------------
+# Cartelle documenti dipendente (catalogo "scheletro" uguale per tutti)
+# ---------------------------------------------------------------------------
+
+class CartellaDocumentoDipendente(models.Model):
+    """Cartella virtuale che definisce lo scheletro documentale uguale per tutti i dipendenti.
+
+    Gestita da Impostazioni → tab Documenti. I documenti caricati manualmente
+    vengono assegnati a una cartella; i documenti di sistema (DPI, visite) ne
+    sono esclusi (``cartella=None``).
+    """
+
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+    ordine = models.PositiveSmallIntegerField(default=0, help_text="Ordinamento nella lista.")
+    attiva = models.BooleanField(default=True, help_text="Se False non appare nel form di upload.")
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Cartella documenti dipendente"
+        verbose_name_plural = "Cartelle documenti dipendente"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Documenti dipendente (spazio documenti privato: consegne DPI, referti visite, ecc.)
+# ---------------------------------------------------------------------------
+
+def _documento_dipendente_upload_to(instance, filename: str) -> str:
+    legacy_id = instance.legacy_anagrafica_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "documento"
+    now = timezone.now()
+    return (
+        f"anagrafica/dipendenti/{legacy_id}/documenti/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
+class DocumentoDipendente(models.Model):
+    """Documento archiviato nello spazio privato del dipendente.
+
+    Storage: ``PrivateAnagraficaStorage`` → file fuori webroot. Accesso solo
+    via view protetta ``anagrafica:documento_download`` con ACL e audit.
+    Il campo ``oggetto_riferimento_*`` consente di puntare a una entity di
+    origine (es. ``dpi.consegna`` con id) senza ricorrere a GenericForeignKey.
+    """
+
+    class Tipo(models.TextChoices):
+        DPI_CONSEGNA = "DPI_CONSEGNA", "Modulo consegna DPI"
+        VISITA_MEDICA_REFERTO = "VISITA_MEDICA_REFERTO", "Referto visita medica"
+        MANUALE = "MANUALE", "Documento manuale"
+        ALTRO = "ALTRO", "Altro"
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.CharField(
+        max_length=30, choices=Tipo.choices, default=Tipo.MANUALE, db_index=True
+    )
+    cartella = models.ForeignKey(
+        CartellaDocumentoDipendente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documenti",
+        help_text="Cartella virtuale di appartenenza. Null per documenti di sistema (DPI, referti).",
+    )
+    file = models.FileField(
+        upload_to=_documento_dipendente_upload_to,
+        storage=PrivateAnagraficaStorage(),
+    )
+    nome_originale = models.CharField(max_length=255, blank=True, default="")
+    tipo_mime = models.CharField(max_length=100, blank=True, default="")
+    dimensione_bytes = models.PositiveIntegerField(default=0)
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+
+    oggetto_riferimento_tipo = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Riferimento sintetico all'entity di origine (es. 'dpi.consegna').",
+    )
+    oggetto_riferimento_id = models.IntegerField(null=True, blank=True, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documenti_dipendente_caricati",
+    )
+    created_by_display = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "tipo"]),
+            models.Index(fields=["oggetto_riferimento_tipo", "oggetto_riferimento_id"]),
+        ]
+        verbose_name = "Documento dipendente"
+        verbose_name_plural = "Documenti dipendente"
+
+    def __str__(self) -> str:
+        nome = self.nome_originale or Path(self.file.name or "").name or "documento"
+        return f"[{self.legacy_anagrafica_id}] {self.get_tipo_display()} — {nome}"
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name:
+            try:
+                if storage.exists(file_name):
+                    storage.delete(file_name)
+            except Exception:
+                # storage.exists/delete possono fallire per file mancanti: ignora
+                pass
+
+
+# ---------------------------------------------------------------------------
+# Visite mediche (catalogo tipi + registrazioni per dipendente)
+# ---------------------------------------------------------------------------
+
+class TipoVisitaMedica(models.Model):
+    """Catalogo tipologie di visita medica configurabili dall'utente.
+
+    Ogni tipologia ha una periodicità fissa in mesi e può essere associata
+    a uno o più ruoli operativi: i dipendenti con almeno uno dei ruoli
+    collegati devono effettuare quella visita con la cadenza indicata.
+    """
+
+    nome = models.CharField(max_length=150, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    durata_mesi = models.PositiveSmallIntegerField(
+        default=12,
+        help_text="Periodicità in mesi: la scadenza parte dalla data dell'ultima visita.",
+    )
+    ruoli_operativi = models.ManyToManyField(
+        RuoloOperativo,
+        blank=True,
+        related_name="tipi_visita_medica",
+        help_text="Ruoli operativi per cui questa visita è obbligatoria.",
+    )
+    obbligatoria = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Tipo visita medica"
+        verbose_name_plural = "Tipi visita medica"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class VisitaMedica(models.Model):
+    """Registrazione di una visita medica effettuata da un dipendente."""
+
+    class Esito(models.TextChoices):
+        IDONEO                    = "IDONEO",            "Idoneo"
+        IDONEO_MANSIONE           = "IDONEO_MANS",       "Idoneo mansione specifica"
+        IDONEO_CON_PRESCRIZIONI   = "IDONEO_PRESCR",     "Idoneo con prescrizioni"
+        IDONEO_CON_LIMITAZIONI    = "IDONEO_LIM",        "Idoneo con limitazioni"
+        IDONEO_LIM_PRESCR         = "IDONEO_LIM_PRESCR", "Idoneo con limitazioni e prescrizioni"
+        NON_IDONEO_TEMPORANEO     = "NON_IDONEO_TEMP",   "Non idoneo (temporaneo)"
+        NON_IDONEO_DEFINITIVO     = "NON_IDONEO_DEF",    "Non idoneo (definitivo)"
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.ForeignKey(
+        TipoVisitaMedica,
+        on_delete=models.PROTECT,
+        related_name="visite",
+    )
+    data_svolgimento = models.DateField()
+    data_scadenza = models.DateField(
+        null=True, blank=True,
+        help_text="Calcolata automaticamente: data_svolgimento + durata_mesi del tipo.",
+    )
+    esito = models.CharField(
+        max_length=20, choices=Esito.choices, default=Esito.IDONEO
+    )
+    prescrizioni = models.TextField(blank=True, default="")
+    medico_competente = models.CharField(max_length=200, blank=True, default="")
+    note = models.TextField(blank=True, default="")
+    referto_documento = models.ForeignKey(
+        DocumentoDipendente,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="DocumentoDipendente di tipo VISITA_MEDICA_REFERTO collegato.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="visite_mediche_create",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="visite_mediche_modificate",
+    )
+
+    class Meta:
+        ordering = ["-data_svolgimento", "-id"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "data_scadenza"]),
+            models.Index(fields=["tipo", "data_scadenza"]),
+        ]
+        verbose_name = "Visita medica"
+        verbose_name_plural = "Visite mediche"
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.tipo.nome} — {self.data_svolgimento}"
+
+    def save(self, *args, **kwargs):
+        if self.data_svolgimento and self.tipo_id:
+            durata = self.tipo.durata_mesi or 0
+            self.data_scadenza = _add_months(self.data_svolgimento, durata) if durata > 0 else None
+        super().save(*args, **kwargs)
+
+    @property
+    def is_scaduta(self) -> bool:
+        if self.data_scadenza is None:
+            return False
+        return self.data_scadenza < timezone.localdate()
+
+    @property
+    def in_scadenza(self) -> bool:
+        """Scade entro 60 giorni e non è ancora scaduta."""
+        if self.data_scadenza is None:
+            return False
+        oggi = timezone.localdate()
+        return oggi <= self.data_scadenza <= oggi + timedelta(days=60)
+
+
+# ---------------------------------------------------------------------------
+# Permessi accesso visite mediche (singleton — dato sanitario sensibile)
+# ---------------------------------------------------------------------------
+
+class AnagraficaVisiteMedichePermission(models.Model):
+    """Singleton: chi può vedere/registrare le visite mediche.
+
+    Il default è ADMIN: i dati di idoneità lavorativa sono sanitari e vanno
+    trattati con la massima riservatezza (RSPP / medico competente / HR sanitario).
+    """
+
+    ACCESSO_TUTTI = "TUTTI"
+    ACCESSO_ADMIN = "ADMIN"
+    ACCESSO_RUOLI = "RUOLI"
+
+    ACCESSO_CHOICES = [
+        (ACCESSO_TUTTI, "Tutti gli utenti autenticati"),
+        (ACCESSO_ADMIN, "Solo amministratori"),
+        (ACCESSO_RUOLI, "Ruoli ACL specifici"),
+    ]
+
+    accesso = models.CharField(max_length=20, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    ruolo_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
+    )
+
+    class Meta:
+        verbose_name = "Permessi visite mediche"
+        verbose_name_plural = "Permessi visite mediche"
+
+    def __str__(self) -> str:
+        return f"Permessi visite mediche ({self.get_accesso_display()})"
+
+    @classmethod
+    def get_instance(cls) -> "AnagraficaVisiteMedichePermission":
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
+        return obj
