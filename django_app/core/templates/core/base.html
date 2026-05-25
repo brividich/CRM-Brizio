@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="{% static 'core/css/components.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/hub.css' %}">
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/fm-table-enhanced.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
@@ -130,6 +131,8 @@ window.portalReadJsonResponse = async function (response, opts) {
 };
 </script>
 {% block extra_scripts %}{% endblock %}
+{# Sistema tabelle personalizzabili: auto-bind su data-table-id e tabelle dati semplici. #}
+<script src="{% static 'core/js/fm-table-enhanced.js' %}" defer></script>
 <script src="{% static 'monitoring/js/report_problem.js' %}"></script>
 <script>
 (function () {

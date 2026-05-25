@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.http import HttpResponse
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -48,6 +48,22 @@ from core.models import (
 )
 
 User = get_user_model()
+
+
+class AdminPortaleModuleCatalogTests(SimpleTestCase):
+    def test_anagrafica_hr_and_fornitori_are_separate_permission_modules(self):
+        from admin_portale.views import MODULE_CATALOG
+
+        anagrafica = MODULE_CATALOG["anagrafica"]
+        fornitori = MODULE_CATALOG["fornitori"]
+
+        self.assertEqual(anagrafica["label"], "Anagrafica HR")
+        self.assertEqual(fornitori["label"], "Anagrafica Fornitori")
+        self.assertNotIn(
+            "view_anagrafica_fornitori",
+            {button["codice"] for button in anagrafica["buttons"]},
+        )
+        self.assertIn("fornitori_list", {button["codice"] for button in fornitori["buttons"]})
 
 
 def _make_workspace_tempdir(prefix: str) -> Path:

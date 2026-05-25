@@ -980,6 +980,59 @@ def api_ui_prefs_save(request):  # route: ui_prefs_api_save
     return JsonResponse({"ok": True, "prefs": session_data})
 
 
+@login_required
+def api_table_prefs(request, table_id: str):
+    """GET/POST/DELETE delle preferenze tabella per (utente, table_id).
+
+    Vedi `docs/ai/TABELLE_PERSONALIZZABILI.md`. Lo stato è un blob JSON opaco
+    salvato dal JS `fm-table-enhanced.js`. Il backend non interpreta il contenuto.
+
+    - GET    → ritorna `{"ok": true, "state": {...}}` (vuoto se mai salvato).
+    - POST   → body JSON `{"state": {...}}`; upsert sul record (utente, table_id).
+    - DELETE → rimuove il record (reset preferenze al default).
+    """
+    from core.models import UserTablePreference
+
+    table_id = (table_id or "").strip()
+    if not table_id or len(table_id) > 100:
+        return JsonResponse({"ok": False, "error": "table_id non valido"}, status=400)
+
+    if request.method == "GET":
+        try:
+            pref = UserTablePreference.objects.get(user=request.user, table_id=table_id)
+            return JsonResponse({"ok": True, "state": pref.state_json or {}})
+        except UserTablePreference.DoesNotExist:
+            return JsonResponse({"ok": True, "state": {}})
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body or b"{}")
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+        state = data.get("state")
+        if not isinstance(state, dict):
+            return JsonResponse({"ok": False, "error": "campo 'state' deve essere un oggetto"}, status=400)
+        # Cap dimensione blob (evita abuso): 10 KB ampiamente sufficiente.
+        try:
+            blob = json.dumps(state)
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "error": "state non serializzabile"}, status=400)
+        if len(blob) > 10240:
+            return JsonResponse({"ok": False, "error": "state troppo grande"}, status=400)
+        UserTablePreference.objects.update_or_create(
+            user=request.user, table_id=table_id,
+            defaults={"state_json": state},
+        )
+        return JsonResponse({"ok": True})
+
+    if request.method == "DELETE":
+        UserTablePreference.objects.filter(user=request.user, table_id=table_id).delete()
+        return JsonResponse({"ok": True})
+
+    from django.http import HttpResponseNotAllowed
+    return HttpResponseNotAllowed(["GET", "POST", "DELETE"])
+
+
 def sidebar_toggle_save(request):
     """Endpoint dedicato e leggero per salvare solo sidebar_collapsed.
 

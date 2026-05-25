@@ -1,5 +1,82 @@
 # Agent Changelog
 
+## 2026-05-25 - Codex
+
+- Area: `django_app/assets`, sidebar/navigazione locale modulo Assets.
+- Richiesta: rendere compresse di default le voci categoria nella sidebar Assets per evitare un menu laterale troppo lungo.
+- File modificati: `django_app/assets/views.py`, `django_app/assets/templates/assets/base_shell.html`, `django_app/assets/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/assets/views.py` e `django_app/assets/templates/assets/base_shell.html` (navigazione locale del modulo Assets, autorizzata dalla richiesta esplicita). `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica ad ACL, middleware, settings, routing globale o autenticazione.
+- Motivo tecnico: la sidebar renderizzava tutte le categorie radice e tutte le sottocategorie come link piatti, producendo un menu molto lungo quando il catalogo asset era gerarchico.
+- Modifica: la costruzione della sidebar ora annida le sottovoci sotto la categoria padre, marca il ramo `expanded` solo quando il padre o un figlio e attivo, e il template renderizza gruppi richiudibili con chevron dedicato. Le sottocategorie sono chiuse di default, mentre le aperture manuali vengono ricordate in `localStorage`.
+- Impatto previsto: il menu laterale Assets resta compatto all'apertura; cliccando la freccia di una categoria si vedono le sottocategorie, e quando si entra in una sottocategoria il relativo ramo resta aperto.
+- Rischi residui: la preferenza di apertura e locale al browser; gli utenti potrebbero dover riaprire manualmente alcuni gruppi la prima volta dopo il deploy. La verifica visuale su pagina reale richiede sessione autenticata.
+- Test/check: `python django_app\manage.py check --settings=config.settings.dev` OK; `python django_app\manage.py shell --settings=config.settings.dev -c "from django.template.loader import get_template; get_template('assets/base_shell.html')"` OK; shell mirata su `_build_sidebar_groups()` conferma padre con figli chiuso di default e aperto su figlio attivo; `git diff --check` sui file Assets OK. Il run test Django mirato su `AssetsRoutingTests` ha superato la fase di setup ma e andato in timeout nella workspace Windows, quindi la copertura aggiunta non e stata completata end-to-end in questa sessione.
+- Note: nessun backup creato; workspace gia sporca con molte modifiche non correlate, lasciate intatte.
+
+## 2026-05-25 - Codex
+
+- Area: `django_app/core/static/core`, tabelle globali portale.
+- Richiesta: proseguire l'ordinamento e filtraggio delle tabelle anche sulle altre tabelle presenti nel sito.
+- File modificati: `django_app/core/static/core/js/fm-table-enhanced.js`, `django_app/core/static/core/css/fm-table-enhanced.css`, `django_app/core/templates/core/base.html`, `docs/ai/TABELLE_PERSONALIZZABILI.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/core/templates/core/base.html` (template globale caricato da tutto il portale; modifica limitata al commento descrittivo del loader tabelle). `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica ad ACL, middleware, settings, routing o autenticazione.
+- Motivo tecnico: il sistema `fm-table-enhanced` era globale ma si attivava solo su tabelle con `data-table-id` e colonne `data-col`; molte tabelle operative del portale non avevano questi attributi e quindi restavano senza sort/filtro.
+- Modifica: il JS ora scansiona le tabelle dati semplici, genera `data-table-id` stabile dalla pagina/contesto, inferisce colonne/tipi filtro dai `<th>` e dai valori, abilita sort/filtro/ricerca/preferenze anche senza intervento template-per-template, osserva tabelle aggiunte dinamicamente e lascia escluse tabelle tecniche, stampe, matrici, gantt, schema DB e mini-table. Migliorato l'ordinamento data per formati italiani `gg/mm/aaaa` e `gg-mm-aaaa`; documentato opt-out con `data-fm-table-skip="1"` o `data-table-enhanced="0"`.
+- Impatto previsto: le tabelle elenco e operative dei moduli non ancora convertite ricevono automaticamente barra ricerca, menu colonne, icone sort e filtri per colonna; le tabelle gia configurate esplicitamente continuano a usare i loro `data-table-id` stabili.
+- Rischi residui: auto-binding client-side puo aggiungere controlli a tabelle semplici che formalmente sono dati ma in alcune viste potrebbero risultare troppo compatte; per questi casi l'opt-out e documentato. Le preferenze sono salvate per id generato: se una pagina cambia molto struttura/heading, una tabella auto potrebbe ottenere un nuovo id e perdere le preferenze precedenti.
+- Test/check: `node --check django_app/core/static/core/js/fm-table-enhanced.js` OK; `python django_app\manage.py check --settings=config.settings.dev` OK; `git diff --check` sui file toccati OK; test browser su pagina fittizia servita dal dev server OK (auto-bind su tabella senza attributi, esclusione `.dbs-page`, inferenza `text/select/date`, ordinamento data italiana, binding dinamico via MutationObserver).
+- Note: nessun backup creato; `jsdom` non e installato, quindi la verifica DOM e stata fatta con Playwright/browser. La workspace conteneva gia molte modifiche non correlate, lasciate intatte.
+
+## 2026-05-25 - Codex
+
+- Area: `django_app/anagrafica` UI scheda dipendente.
+- Richiesta: eliminare le parti evidenziate in giallo nella scheda dipendente e spostare i pulsanti "Timbri" / "Torna all'elenco" dentro l'intestazione del dipendente.
+- File modificati: `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/templates/anagrafica/components/subnav.html`, `django_app/anagrafica/templates/anagrafica/partials/formazione_tab_dipendente.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/anagrafica/templates/anagrafica/components/subnav.html` impatta navigazione locale del modulo Anagrafica; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: la scheda mostrava una riga descrittiva sotto la subnav e una topbar duplicata con nome dipendente e pulsanti, aumentando lo spazio verticale; il partial Formazione conteneva un commento iniziale da rimuovere per evitare qualsiasi rendering anomalo.
+- Modifica: nascosta la notice della subnav quando la route corrente e `anagrafica:dipendente_detail`; la topbar duplicata della scheda e stata nascosta e i pulsanti "Timbri" / "Torna all'elenco" sono stati inseriti in `.dp-hero-actions`; rimosso il commento iniziale dal partial Formazione.
+- Impatto previsto: la scheda dipendente apre direttamente con la card intestazione piu compatta e con i comandi principali dentro l'intestazione; spariscono i testi descrittivi/debug evidenziati.
+- Rischi residui: verifica visuale browser non completata sulla pagina reale perche `http://127.0.0.1:8000/anagrafica/dipendenti/277/` redirige al login senza credenziali disponibili; i template sono stati caricati dal motore Django e i testi rimossi sono assenti nei sorgenti.
+- Test/check: template load via `get_template(...)` OK; `rg` non trova piu `Scheda dipendente:` / `Partial: tab Formazione` nei file modificati; `python django_app\manage.py check --settings=config.settings.dev` OK.
+- Note: nessun backup creato; la workspace conteneva gia modifiche non correlate in Anagrafica/Formazione e altri moduli, lasciate intatte.
+
+## 2026-05-25 - Codex
+
+- Area: `django_app/fornitori`, `django_app/admin_portale`, ACL.
+- Richiesta: dividere Anagrafica HR da Anagrafica Fornitori anche a livello di permessi.
+- File modificati: `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/index.html`, `django_app/admin_portale/tests.py`, `django_app/fornitori/acl_bootstrap.py`, `django_app/fornitori/migrations/__init__.py`, `django_app/fornitori/migrations/0001_split_fornitori_acl.py`, `django_app/fornitori/migrations/0002_hide_migrated_anagrafica_supplier_buttons.py`, `django_app/fornitori/tests.py`, `django_app/core/management/commands/seed_pulsanti_descrizioni.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: modifica ACL/navigazione admin su `django_app/admin_portale/views.py`; bootstrap e migration ACL su `django_app/fornitori/acl_bootstrap.py`, `django_app/fornitori/migrations/0001_split_fornitori_acl.py` e `django_app/fornitori/migrations/0002_hide_migrated_anagrafica_supplier_buttons.py`; descrizioni permessi su `django_app/core/management/commands/seed_pulsanti_descrizioni.py`. `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace.
+- Motivo tecnico: il catalogo admin esponeva ancora `view_anagrafica_fornitori` dentro `MODULE_CATALOG["anagrafica"]`; in piu le route Fornitori non avevano binding ACL v2 dedicati e potevano restare governate da voci storiche Anagrafica con lo stesso URL.
+- Modifica: `MODULE_CATALOG["anagrafica"]` ora e "Anagrafica HR" con solo Dipendenti; aggiunto modulo `fornitori` con 14 pulsanti assegnabili. Il bootstrap Fornitori espone tutte le azioni del namespace `fornitori:*` come pulsanti legacy `modulo=fornitori`. La migration `fornitori.0001_split_fornitori_acl` crea binding ACL v2 `legacy.fornitori.*`, migra/merge i permessi storici da `anagrafica` verso `fornitori` e disinnesca vecchi URL storici quando il codice target esiste gia; `0002_hide_migrated_anagrafica_supplier_buttons` esclude i pulsanti storici disinnescati dai raggruppamenti modulo.
+- Impatto previsto: in gestione ruoli Anagrafica HR e Anagrafica Fornitori sono moduli separati; togliere i permessi ad Anagrafica HR non rimuove automaticamente i permessi Fornitori e viceversa. Le 14 route Fornitori risultano bound in ACL v2 mantenendo compatibilita con i toggle legacy `permessi`.
+- Rischi residui: la migrazione e dati/ACL e va applicata in produzione; eventuali `RolePermissionGrant` canonici custom gia esistenti sulle stesse route potrebbero essere riallineati ai codici `legacy.fornitori.*`. La workspace aveva gia molte modifiche non correlate in Anagrafica/Formazione e core, lasciate intatte.
+- Test/check: `python django_app\manage.py migrate fornitori --settings=config.settings.dev` OK; `python django_app\manage.py shell --settings=config.settings.dev -c "from core.management.commands.acl_coverage_report import build_acl_coverage; ..."` conferma `fornitori {'bound': 14}`; query DB conferma 14 pulsanti e 14 azioni permesso `modulo=fornitori`; `python django_app\manage.py bootstrap_acl_v2 --dry-run --apps fornitori --settings=config.settings.dev` OK con 0 proposte; `python django_app\manage.py test admin_portale.tests.AdminPortaleModuleCatalogTests fornitori.tests.FornitoriAclBootstrapTests --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.dev` OK; `git diff --check` OK.
+- Note: nessun backup creato; DB dev aggiornato applicando `fornitori.0001_split_fornitori_acl` e `fornitori.0002_hide_migrated_anagrafica_supplier_buttons`.
+
+## 2026-05-25 - Codex
+
+- Area: `django_app/anagrafica` + ACL diagnostica.
+- Richiesta: fare un check completo del modulo Anagrafica e verificare che permessi/oggetti assegnabili a ruolo siano presenti.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: Anagrafica usa un mix di ACL legacy/canonico, Navigation Registry e singleton applicativi (`AnagraficaStatPermission`, `AnagraficaHRPermission`, `AnagraficaVisiteMedichePermission`, `AnagraficaFormazionePermission`) per sezioni sensibili.
+- Esito diagnosi: `acl_coverage_report` indica Anagrafica con 149 route bound e 0 missing; i 23 pulsanti legacy `modulo=anagrafica` hanno righe `permessi` per tutti i 6 ruoli locali. Il bootstrap legacy dichiara 19 pulsanti; nel DB esistono anche 4 voci storiche/di navigazione (`view_anagrafica_dipendenti`, `view_anagrafica_fornitori`, `anagrafica_fornitori`, `anagrafica_fornitore_create`). Il layer canonico contiene 46 `PermissionDefinition` Anagrafica ma 35 sono route-generated senza grant ruolo e i binding route-name Anagrafica risultano inattivi, quindi l'assegnazione operativa passa ancora soprattutto dal legacy e dai singleton.
+- Nota funzionale: in `/anagrafica/impostazioni/` tab Permessi sono assegnabili per ruolo statistiche, dati HR riservati e visite mediche; `AnagraficaFormazionePermission` esiste e governa visualizzazione/modifica formazione, ma non e esposta nella tab Permessi del modulo (solo admin Django/modello), quindi e il principale gap di assegnabilita role-friendly rilevato.
+- Test/check: `python django_app\manage.py check --settings=config.settings.dev` OK; `python django_app\manage.py bootstrap_acl_v2 --dry-run --apps anagrafica --settings=config.settings.dev` OK senza proposte; script Django resolver/DB su route, pulsanti, permessi, grant e navigation; `python django_app\manage.py acl_coverage_report --settings=config.settings.dev` OK; `showmigrations anagrafica/core --plan --settings=config.settings.dev` mostra migrazioni applicate; `git diff --check -- _AGENT_CONTROL\AGENT_CHANGELOG.md session_checkpoint.md` OK.
+- Note: nessun backup creato; non sono stati cambiati permessi runtime.
+
+## 2026-05-25 - Codex
+
+- Area: `django_app/assets` + ACL diagnostica.
+- Richiesta: capire perche' il ruolo `MANUTENTORE`, pur indicato come autorizzato, non vede il pulsante "Aggiungi cartella" nella card Documenti del dettaglio asset.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File applicativi modificati: nessuno.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a settings, middleware, ACL, routing globale o navigazione globale.
+- Motivo tecnico: il template `asset_detail.html` mostra il form solo con `can_manage_doc_folders`; la view valorizza quel flag tramite `_can_manage_asset_document_folders()`, che consente solo superuser/admin legacy o il permesso `assets/admin_assets`.
+- Esito diagnosi: i permessi generici del modulo, la route del dettaglio asset, l'upload documenti o `assets_gestione` non bastano a mostrare "Aggiungi cartella"; per il ruolo va verificato/abilitato il grant canonico `legacy.assets.admin_assets` oppure il relativo permesso legacy `assets/admin_assets`.
+- Test/check: lettura mirata di `CLAUDE.md`, `docs/ai/05_SECURITY_BOUNDARIES.md`, file controllo disponibili, `django_app/assets/views.py`, `asset_detail.html`, `acl_bootstrap.py`, `admin_portale/views.py`; tentativo query DB locale per ruolo `MANUTENTORE` senza risultati nella workspace dev; nessun test applicativo eseguito perche' diagnosi sola.
+- Note: nessun backup creato.
+
 ## 2026-05-22 - Codex
 
 - Area: `django_app/ai_assistant` + documentazione.

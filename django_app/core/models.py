@@ -759,6 +759,44 @@ class UserUiPreference(models.Model):
         )
 
 
+class UserTablePreference(models.Model):
+    """Preferenze per-utente per una tabella `fm-table` del portale.
+
+    `table_id` è una stringa stabile assegnata via `data-table-id` sul `<table>`.
+    Convenzione kebab/dot: `formazione.corsi.list`, `anagrafica.dipendenti.list`, ecc.
+
+    `state_json` è il blob completo dello stato salvato dal JS fm-table-enhanced:
+        {
+          "visible": ["codice", "titolo", "stato"],      // colonne visibili (in ordine)
+          "order":   ["codice", "titolo", "stato", ...], // ordine colonne (incl. nascoste)
+          "sort":    [["titolo", "asc"], ["created_at", "desc"]],
+          "filters": {"stato": "ATTIVO", "obbligatorio": "1"},
+          "q":       "ricerca globale"
+        }
+
+    Vedi `docs/ai/TABELLE_PERSONALIZZABILI.md`.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="table_prefs",
+    )
+    table_id   = models.CharField(max_length=100, db_index=True)
+    state_json = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_usertablepreference"
+        unique_together = [("user", "table_id")]
+        verbose_name = "Preferenza tabella"
+        verbose_name_plural = "Preferenze tabelle"
+        indexes = [models.Index(fields=["user", "table_id"])]
+
+    def __str__(self) -> str:
+        return f"UserTablePreference(user={self.user_id}, table={self.table_id})"
+
+
 class UserOnboarding(models.Model):
     """Traccia il completamento del wizard di primo accesso per-utente.
 

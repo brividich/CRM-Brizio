@@ -1,9 +1,48 @@
 # Session Checkpoint
 
-Data: 2026-05-22
+Data: 2026-05-25
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Assets: sidebar categorie compressa di default)
+- `django_app/assets/views.py` -> sidebar assets annidata: categorie radice con `children`, `has_children`, `expanded`; ramo aperto solo se padre/figlio attivo
+- `django_app/assets/templates/assets/base_shell.html` -> gruppi categoria richiudibili con chevron, sottocategorie nascoste di default, stato apertura ricordato in `localStorage`
+- `django_app/assets/tests.py` -> regressioni per costruzione annidata sidebar e rendering HTML dei gruppi richiudibili
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata sidebar categorie Assets compressa
+- Test/check: `manage.py check --settings=config.settings.dev` OK; template load `assets/base_shell.html` OK; shell mirata `_build_sidebar_groups()` conferma chiuso di default/aperto su figlio attivo; `git diff --check` OK; test Django mirato AssetsRoutingTests andato in timeout in workspace Windows
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (tabelle globali: auto-bind sort/filtro su tabelle dati semplici in tutto il portale)
+- `django_app/core/static/core/js/fm-table-enhanced.js` -> auto-rilevamento tabelle senza `data-table-id`, id stabile generato da pagina/contesto, inferenza `data-col`/tipo filtro, esclusioni per tabelle tecniche/stampe/matrici, MutationObserver per tabelle dinamiche, sort date italiano `gg/mm/aaaa`
+- `django_app/core/static/core/css/fm-table-enhanced.css` -> commento aggiornato per copertura auto-binding globale
+- `django_app/core/templates/core/base.html` -> commento loader tabelle aggiornato; file globale/critico toccato solo a livello descrittivo
+- `docs/ai/TABELLE_PERSONALIZZABILI.md` -> stato rev. 2, auto-rollout client-side globale, opt-out `data-fm-table-skip="1"` / `data-table-enhanced="0"`, roadmap TBL-01..04 aggiornata
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata estensione sort/filtro tabelle a tutto il portale
+- Test/check: `node --check` JS OK; `manage.py check --settings=config.settings.dev` OK; `git diff --check` OK; prova browser su tabella fittizia conferma auto-bind, skip `.dbs-page`, inferenza colonne, sort data italiana e binding dinamico
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (scheda dipendente Anagrafica HR piu compatta)
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> topbar duplicata nascosta; pulsanti "Timbri" e "Torna all'elenco" inseriti nella hero/intestazione dipendente
+- `django_app/anagrafica/templates/anagrafica/components/subnav.html` -> notice descrittiva nascosta per `anagrafica:dipendente_detail`
+- `django_app/anagrafica/templates/anagrafica/partials/formazione_tab_dipendente.html` -> rimosso commento iniziale del partial
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata compattazione scheda dipendente
+- Test/check: template load mirato OK; `rg` conferma assenza dei testi `Scheda dipendente:` e `Partial: tab Formazione` nei file modificati; `manage.py check --settings=config.settings.dev` OK; Playwright su `/anagrafica/dipendenti/277/` redirige a login, quindi verifica visuale non completata senza credenziali
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Fornitori separati da Anagrafica HR anche a livello permessi)
+- `django_app/admin_portale/views.py` -> `MODULE_CATALOG["anagrafica"]` rinominato in "Anagrafica HR" con solo Dipendenti; nuovo `MODULE_CATALOG["fornitori"]` con 14 pulsanti/azioni assegnabili
+- `django_app/fornitori/acl_bootstrap.py` -> bootstrap legacy Fornitori esteso a dashboard, lista, create, detail/edit/toggle, documenti, ordini, valutazioni e asset; sezione UI `fornitori`
+- `django_app/fornitori/migrations/0001_split_fornitori_acl.py` + `0002_hide_migrated_anagrafica_supplier_buttons.py` -> migration dati ACL: binding route `fornitori:*` su `legacy.fornitori.*`, merge permessi storici da `anagrafica`, disinnesco URL legacy duplicati ed esclusione dei pulsanti storici dai raggruppamenti modulo
+- `django_app/admin_portale/templates/admin_portale/pages/index.html` -> card admin separate "Anagrafica HR" e "Anagrafica Fornitori"
+- `django_app/core/management/commands/seed_pulsanti_descrizioni.py` -> descrizioni HR corrette e nuove descrizioni pulsanti Fornitori
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata separazione ACL/moduli HR vs Fornitori
+- DB locale dev -> applicate `fornitori.0001_split_fornitori_acl` e `fornitori.0002_hide_migrated_anagrafica_supplier_buttons`; coverage Fornitori ora `bound=14`, `missing=0`, con 14 pulsanti e 14 azioni `modulo=fornitori`
+- Test/check: `migrate fornitori --settings=config.settings.dev` OK; `acl_coverage_report` via shell conferma 14 route Fornitori bound; `bootstrap_acl_v2 --dry-run --apps fornitori` OK con 0 proposte; test mirati Admin catalog + Fornitori ACL OK; `manage.py check --settings=config.settings.dev` OK; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (diagnosi Anagrafica ACL: route bound, pulsanti legacy completi per ruoli, gap Formazione non esposta nella tab Permessi)
+- `django_app/anagrafica/urls.py` -> 149 route Anagrafica rilevate dal resolver Django
+- `django_app/anagrafica/acl_bootstrap.py` -> 19 pulsanti legacy dichiarati per il bootstrap Anagrafica
+- DB locale dev -> 23 pulsanti legacy `modulo=anagrafica`, tutti con righe `permessi` per i 6 ruoli locali; 46 `PermissionDefinition` modulo Anagrafica; 35 route-generated senza grant ruolo e binding route-name inattivi
+- `django_app/anagrafica/templates/anagrafica/pages/impostazioni.html` + `views.py` -> tab Permessi espone statistiche, dati HR riservati e visite mediche per ruolo; `AnagraficaFormazionePermission` esiste ma non e salvata/esposta dalla tab Permessi
+- Test/check: `manage.py check --settings=config.settings.dev` OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK; `acl_coverage_report` segnala Anagrafica bound=149/missing=0; `showmigrations anagrafica/core --plan` tutto applicato
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (diagnosi Assets: pulsante "Aggiungi cartella" gated da `assets/admin_assets`)
+- `django_app/assets/templates/assets/pages/asset_detail.html` -> verificato che il form nuova cartella e renderizzato solo se `can_manage_doc_folders`
+- `django_app/assets/views.py` -> verificato che `_can_manage_asset_document_folders()` consente solo superuser/admin legacy o `user_can_modulo_action(request, "assets", "admin_assets")`
+- `django_app/admin_portale/views.py` -> verificato che `admin_assets` e il pulsante catalogo "Impostazioni Assets"; `django_app/assets/acl_bootstrap.py` espone anche `assets_gestione`, che non abilita quel form
+- Test/check: query DB locale mirata per ruolo `MANUTENTORE` senza risultati nella workspace dev; nessun test applicativo eseguito perche' diagnosi sola
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-22 - Codex` (AI chat: pannello personalizzazione risposte e limiti)
 - `django_app/ai_assistant/templates/ai_assistant/chat.html` -> aggiunto pannello "Personalizzazione risposte e limiti" con stile operativo/sintetico/dettagliato, toggle limiti, box "Puo/Non puo", persistenza `localStorage` e invio preferenze nel payload chat
 - `django_app/ai_assistant/views.py` -> sanifica `preferences` dal payload API e le passa a `chat_with_ollama`; audit metadata-only con chiavi preferenze

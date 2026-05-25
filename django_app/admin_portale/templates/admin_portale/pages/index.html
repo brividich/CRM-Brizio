@@ -898,16 +898,28 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
       </div>
       {% endif %}
 
-      <!-- Anagrafica -->
+      <!-- Anagrafica HR -->
       {% if anagrafica_url %}
       <div class="ap-mod-card">
         <div class="ap-mod-card-head">
           <div class="ap-mod-card-icon">👥</div>
-          <div class="ap-mod-card-name">Anagrafica</div>
+          <div class="ap-mod-card-name">Anagrafica HR</div>
         </div>
         <div class="ap-mod-card-links">
           <a href="{{ anagrafica_url }}" class="ap-mod-link gestione">Dipendenti</a>
-          {% if fornitori_url %}<a href="{{ fornitori_url }}" class="ap-mod-link gestione">Fornitori</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Anagrafica Fornitori -->
+      {% if fornitori_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">FN</div>
+          <div class="ap-mod-card-name">Anagrafica Fornitori</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ fornitori_url }}" class="ap-mod-link gestione">Fornitori</a>
         </div>
       </div>
       {% endif %}

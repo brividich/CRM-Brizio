@@ -17,6 +17,26 @@
 .as-link:hover { background: #edf3fc; }
 .as-link.active { background: #dce8fb; color: #1f64d8; }
 .as-link.sub { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
+.as-nav-group { display: grid; gap: 2px; }
+.as-nav-parent { display: grid; grid-template-columns: minmax(0, 1fr) 24px; align-items: center; gap: 3px; }
+.as-nav-parent .as-link { min-width: 0; }
+.as-nav-toggle {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #6b84a6;
+  cursor: pointer;
+  font-size: var(--fs-base);
+  font-weight: 800;
+  line-height: 1;
+}
+.as-nav-toggle:hover { background: #edf3fc; color: #1f64d8; }
+.as-nav-arrow { display: inline-block; transition: transform .16s ease; }
+.as-nav-group.open .as-nav-arrow { transform: rotate(90deg); }
+.as-nav-children { display: none; padding-left: 8px; }
+.as-nav-group.open .as-nav-children { display: grid; gap: 2px; }
 .as-user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
 .as-user-av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
 .as-user-name { font-size: var(--fs-base); font-weight: 700; color: #1e2f4f; }
@@ -105,6 +125,8 @@ body.theme-dark .as-link { color: var(--text-mid); }
 body.theme-dark .as-link:hover { background: rgba(255,255,255,.07); color: var(--text); }
 body.theme-dark .as-link.active { background: rgba(31,100,216,.22); color: #60a5fa; }
 body.theme-dark .as-link.sub { color: var(--text-light); }
+body.theme-dark .as-nav-toggle { color: var(--text-light); }
+body.theme-dark .as-nav-toggle:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
 body.theme-dark .as-user { border-color: var(--border); }
 body.theme-dark .as-user-av { background: rgba(255,255,255,.1); color: var(--text-mid); }
 body.theme-dark .as-user-name { color: var(--text); }
@@ -148,7 +170,23 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
       {% for group in assets_sidebar_groups %}
         <div class="as-nav-head">{{ group.label }}</div>
         {% for item in group.items %}
-          <a class="as-link {% if item.is_subitem %}sub{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+          {% if item.has_children %}
+            <div class="as-nav-group{% if item.expanded %} open{% endif %}" data-as-nav-group data-as-nav-key="{{ item.id|default:item.label|slugify }}">
+              <div class="as-nav-parent">
+                <a class="as-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                <button class="as-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-as-nav-toggle>
+                  <span class="as-nav-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+              </div>
+              <div class="as-nav-children">
+                {% for child in item.children %}
+                  <a class="as-link sub{% if child.active %} active{% endif %}" href="{{ child.url }}">{{ child.label }}</a>
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            <a class="as-link{% if item.is_subitem %} sub{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+          {% endif %}
         {% endfor %}
       {% endfor %}
       {% if can_gestione_admin %}
@@ -191,5 +229,46 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+(function () {
+  var groups = Array.prototype.slice.call(document.querySelectorAll("[data-as-nav-group]"));
+  if (!groups.length) return;
+
+  var storageKey = "assets_sidebar_open_groups_v1";
+  var openKeys = [];
+  try {
+    openKeys = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    if (!Array.isArray(openKeys)) openKeys = [];
+  } catch (e) {
+    openKeys = [];
+  }
+
+  function saveOpenKeys() {
+    try {
+      var keys = groups
+        .filter(function (group) { return group.classList.contains("open"); })
+        .map(function (group) { return group.dataset.asNavKey; })
+        .filter(Boolean);
+      localStorage.setItem(storageKey, JSON.stringify(keys));
+    } catch (e) {}
+  }
+
+  groups.forEach(function (group) {
+    var key = group.dataset.asNavKey || "";
+    var toggle = group.querySelector("[data-as-nav-toggle]");
+    if (key && openKeys.indexOf(key) !== -1) {
+      group.classList.add("open");
+    }
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
+      toggle.addEventListener("click", function () {
+        var isOpen = group.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        saveOpenKeys();
+      });
+    }
+  });
+})();
+</script>
 {% block assets_shell_scripts %}{% endblock %}
 {% endblock %}

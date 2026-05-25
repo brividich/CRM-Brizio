@@ -534,6 +534,70 @@ class AssetsRoutingTests(TestCase):
             "django:assets:asset_list?asset_type=FIREWALL&rows={rows}",
         )
 
+    def test_asset_sidebar_nests_children_collapsed_by_default(self):
+        AssetSidebarButton.objects.all().delete()
+        parent = AssetSidebarButton.objects.create(
+            code="catnav-root-test",
+            section=AssetSidebarButton.SECTION_MAIN,
+            label="Apparecchi di presa",
+            target_url="django:assets:asset_list?asset_category=10&rows={rows}",
+            active_match="asset_category=10",
+            sort_order=20,
+        )
+        AssetSidebarButton.objects.create(
+            code="catnav-child-test",
+            section=AssetSidebarButton.SECTION_MAIN,
+            parent=parent,
+            label="Bitrave",
+            target_url="django:assets:asset_list?asset_category=11&rows={rows}",
+            active_match="asset_category=11",
+            sort_order=2100,
+        )
+
+        request = self.factory.get(reverse("assets:asset_list"))
+        request.user = self.user
+        groups = asset_views._build_sidebar_groups(request)
+        parent_item = groups[0]["items"][0]
+
+        self.assertTrue(parent_item["has_children"])
+        self.assertFalse(parent_item["expanded"])
+        self.assertEqual(parent_item["children"][0]["label"], "Bitrave")
+
+        active_request = self.factory.get(reverse("assets:asset_list"), {"asset_category": "11"})
+        active_request.user = self.user
+        active_parent = asset_views._build_sidebar_groups(active_request)[0]["items"][0]
+        self.assertTrue(active_parent["expanded"])
+        self.assertTrue(active_parent["children"][0]["active"])
+
+    def test_asset_sidebar_template_renders_collapsible_groups(self):
+        AssetSidebarButton.objects.all().delete()
+        parent = AssetSidebarButton.objects.create(
+            code="catnav-root-template",
+            section=AssetSidebarButton.SECTION_MAIN,
+            label="CNC",
+            target_url="django:assets:asset_list?asset_category=20&rows={rows}",
+            active_match="asset_category=20",
+            sort_order=20,
+        )
+        AssetSidebarButton.objects.create(
+            code="catnav-child-template",
+            section=AssetSidebarButton.SECTION_MAIN,
+            parent=parent,
+            label="Macchine CNC",
+            target_url="django:assets:asset_list?asset_category=21&rows={rows}",
+            active_match="asset_category=21",
+            sort_order=2100,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-as-nav-group data-as-nav-key', html=False)
+        self.assertContains(response, 'class="as-nav-children"', html=False)
+        self.assertContains(response, 'aria-expanded="false"', html=False)
+        self.assertContains(response, "Macchine CNC")
+
     def test_work_machine_list_200_when_logged(self):
         asset = Asset.objects.create(
             name="Tornio parallelo",

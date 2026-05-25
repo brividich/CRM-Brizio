@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Assets - sidebar categorie compatta
+
+- **[ux] `assets/views.py`, `assets/templates/assets/base_shell.html`**: le voci categoria radice della sidebar del modulo Assets sono ora gruppi espandibili con sottocategorie chiuse di default. Il ramo della sottocategoria filtrata resta aperto automaticamente e le aperture manuali vengono memorizzate in `localStorage`.
+- **[test] `assets/tests.py`**: aggiunte regressioni sulla costruzione annidata della sidebar e sul rendering HTML dei gruppi richiudibili.
+
+### Core - tabelle ordinabili/filtrabili globali
+
+- **[ux] `core/static/core/js/fm-table-enhanced.js`, `core/static/core/css/fm-table-enhanced.css`**: il sistema tabelle personalizzabili non richiede piu l'intervento template-per-template per le tabelle dati semplici. Le tabelle con `data-table-id` continuano a usare la configurazione esplicita; le altre vengono riconosciute automaticamente, ricevono un `table_id` stabile, colonne inferite dai `<th>`, filtri per tipo, ordinamento, ricerca globale e preferenze per utente. Escluse tabelle tecniche/di stampa/matrici e aggiunto osservatore per tabelle renderizzate dinamicamente.
+- **[fix] `core/static/core/js/fm-table-enhanced.js`**: l'ordinamento data ora gestisce anche formati italiani `gg/mm/aaaa` e `gg-mm-aaaa`, non solo date ISO.
+
+### Anagrafica HR - scheda dipendente compatta
+
+- **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/templates/anagrafica/components/subnav.html`, `anagrafica/templates/anagrafica/partials/formazione_tab_dipendente.html`**: nella scheda dipendente e stata nascosta la riga descrittiva sotto la subnav, rimossa la topbar duplicata e portati i pulsanti "Timbri" / "Torna all'elenco" nella hero del dipendente; rimosso anche il commento visibile del partial Formazione.
+
+### Fornitori - permessi separati da Anagrafica HR
+
+- **[acl] `admin_portale/views.py`, `fornitori/acl_bootstrap.py`, migrations `fornitori/0001_split_fornitori_acl.py` e `0002_hide_migrated_anagrafica_supplier_buttons.py`**: il catalogo permessi separa `Anagrafica HR` dal modulo `Anagrafica Fornitori`; le route `fornitori:*` sono bindate a permessi compatibili `legacy.fornitori.*`, i vecchi permessi fornitori sotto `anagrafica` vengono migrati verso `fornitori` e i pulsanti storici non piu attivi vengono esclusi dai raggruppamenti modulo.
+- **[ux/test] `admin_portale/templates/admin_portale/pages/index.html`, `admin_portale/tests.py`, `fornitori/tests.py`**: la dashboard admin mostra HR e Fornitori come card distinte e i test coprono la separazione dei moduli assegnabili.
+
 ### Anagrafica HR - Retribuzioni vista globale
 
 - **[feat] `anagrafica/views.py`, `anagrafica/urls.py`**: nuove view `retribuzioni_globale` e `retribuzioni_globale_export` (gate `_check_hr_permission`); pagina pivot `/anagrafica/retribuzioni/globale/` con una riga per dipendente+mese e una colonna per ogni `pay_item` raggruppata per categoria.

@@ -1,0 +1,136 @@
+/*
+ * fm-table-enhanced.css — stili minimi per il sistema tabelle personalizzabili.
+ * Viene caricato globalmente da core/templates/core/base.html.
+ * Copre <table data-table-id="…"> e tabelle dati semplici rilevate automaticamente.
+ */
+
+/* ── Barra controlli sopra la tabella ─────────────────────── */
+.fm-tbl-controls{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px;margin:0 0 6px;
+  border:1px solid #e2e8f0;border-radius:8px;
+  background:#fafbfc;
+}
+.fm-tbl-search{position:relative;flex:1;min-width:200px;max-width:340px}
+.fm-tbl-search-ico{
+  position:absolute;left:8px;top:50%;transform:translateY(-50%);
+  font-size:13px;color:#94a3b8;pointer-events:none;
+}
+.fm-tbl-search input{
+  width:100%;padding:5px 8px 5px 28px;font-size:12.5px;box-sizing:border-box;
+  border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#0f172a;
+}
+.fm-tbl-btn{
+  padding:5px 10px;font-size:12px;font-weight:600;
+  border:1px solid #d1d5db;border-radius:5px;background:#fff;color:#334155;
+  cursor:pointer;white-space:nowrap;
+}
+.fm-tbl-btn:hover{border-color:#1d4ed8;color:#1d4ed8}
+.fm-tbl-btn-ghost{background:transparent;border-style:dashed}
+.fm-tbl-menu-wrap{position:relative}
+.fm-tbl-menu{
+  display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:50;
+  min-width:220px;max-height:340px;overflow-y:auto;
+  background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+  box-shadow:0 8px 24px -8px rgba(15,23,42,.2);
+  padding:6px;
+}
+.fm-tbl-menu-open{display:block}
+.fm-tbl-col-list{list-style:none;margin:0;padding:0}
+.fm-tbl-col-item{
+  display:flex;align-items:center;gap:8px;padding:5px 8px;
+  font-size:12.5px;color:#334155;border-radius:4px;cursor:grab;
+}
+.fm-tbl-col-item:hover{background:#f1f5f9}
+.fm-tbl-col-item.fm-tbl-col-dragging{opacity:.5;background:#e0e7ff}
+.fm-tbl-col-handle{color:#94a3b8;font-size:13px;line-height:1;letter-spacing:-2px}
+.fm-tbl-col-item label{display:flex;align-items:center;gap:6px;cursor:pointer;flex:1}
+.fm-tbl-col-item input[type=checkbox]{width:14px;height:14px;accent-color:#1d4ed8;margin:0}
+.fm-tbl-status{font-size:11px;color:#64748b;font-style:italic;margin-left:auto}
+.fm-tbl-status-saving{color:#1d4ed8;font-weight:600;font-style:normal}
+.fm-tbl-count{
+  font-size:10.5px;color:#64748b;font-weight:700;
+  background:#f1f5f9;padding:3px 9px;border-radius:999px;
+}
+
+/* ── Header colonna con sort + filter on-demand ────────── */
+.fm-th{position:relative}
+.fm-th-wrap{display:flex;align-items:center;gap:4px;position:relative}
+.fm-th-label{flex:1;min-width:0}
+.fm-th-sort{
+  background:none;border:none;padding:1px 3px;cursor:pointer;
+  font-size:10px;color:#94a3b8;line-height:1;border-radius:3px;
+  -webkit-user-select:none;user-select:none;
+}
+.fm-th-sort:hover{color:#1d4ed8;background:#eff6ff}
+.fm-th-sort.active{color:#1d4ed8;font-weight:700}
+.fm-th-filter{
+  background:none;border:none;padding:2px 4px;cursor:pointer;
+  color:#94a3b8;line-height:1;border-radius:3px;
+  display:inline-flex;align-items:center;
+}
+.fm-th-filter:hover{color:#1d4ed8;background:#eff6ff}
+.fm-th-filter.active{color:#1d4ed8}
+.fm-th-filter-pop{
+  display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:9999;
+  background:#fff;border:1px solid #cbd5e1;border-radius:10px;
+  box-shadow:0 18px 44px -8px rgba(15,23,42,.28), 0 4px 12px -4px rgba(15,23,42,.14);
+  padding:10px;min-width:240px;max-width:340px;
+  font-family:inherit;color:#0f172a;text-align:left;text-transform:none;letter-spacing:normal;
+}
+.fm-th-filter-pop-open{display:block}
+.fm-th-filter-pop-inner{display:flex;flex-direction:column;gap:8px}
+.fm-th-filter-pop-title{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:10.5px;font-weight:700;color:#64748b;
+  text-transform:uppercase;letter-spacing:.06em;
+  padding-bottom:7px;margin:0;border-bottom:1px solid #e2e8f0;
+}
+.fm-th-filter-pop-title > span{
+  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fm-th-filter-pop-close{
+  background:none;border:none;cursor:pointer;font-size:13px;line-height:1;
+  color:#94a3b8;padding:2px 6px;border-radius:4px;
+}
+.fm-th-filter-pop-close:hover{color:#dc2626;background:#fee2e2}
+.fm-th-filter-input{
+  width:100%;font-size:13px;padding:7px 10px;box-sizing:border-box;
+  border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#0f172a;
+  font-weight:400;font-family:inherit;
+}
+.fm-th-filter-input:focus{outline:none;border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.18)}
+.fm-th-filter-actions{
+  display:flex;align-items:center;justify-content:flex-end;gap:6px;
+  padding-top:6px;border-top:1px solid #f1f5f9;
+}
+.fm-th-filter-clear{
+  background:#f8fafc;border:1px solid #cbd5e1;border-radius:5px;
+  padding:5px 12px;font-size:11.5px;font-weight:600;color:#475569;cursor:pointer;
+}
+.fm-th-filter-clear:hover{background:#fef2f2;border-color:#dc2626;color:#dc2626}
+
+/* ── Tema scuro ──────────────────────────────────────────── */
+body.theme-dark .fm-tbl-controls{background:#0b1220;border-color:#334155}
+body.theme-dark .fm-tbl-search input,
+body.theme-dark .fm-tbl-btn,
+body.theme-dark .fm-th-filter-input,
+body.theme-dark .fm-th-filter-clear{background:#0f172a;border-color:#334155;color:#e2e8f0}
+body.theme-dark .fm-tbl-btn:hover{color:#93c5fd}
+body.theme-dark .fm-tbl-menu,
+body.theme-dark .fm-th-filter-pop{background:#0f172a;border-color:#334155;color:#e2e8f0;box-shadow:0 18px 44px -8px rgba(0,0,0,.6)}
+body.theme-dark .fm-th-filter-pop-title{color:#94a3b8;border-bottom-color:#334155}
+body.theme-dark .fm-th-filter-pop-close{color:#64748b}
+body.theme-dark .fm-th-filter-pop-close:hover{color:#fca5a5;background:rgba(220,38,38,.2)}
+body.theme-dark .fm-th-filter-actions{border-top-color:#1e293b}
+body.theme-dark .fm-th-filter-clear{background:#1e293b;border-color:#334155;color:#94a3b8}
+body.theme-dark .fm-th-filter-clear:hover{background:rgba(220,38,38,.18);border-color:#fca5a5;color:#fca5a5}
+body.theme-dark .fm-tbl-col-item{color:#cbd5e1}
+body.theme-dark .fm-tbl-col-item:hover{background:rgba(148,163,184,.08)}
+body.theme-dark .fm-tbl-count{background:#1e293b;color:#94a3b8}
+body.theme-dark .fm-th-sort,
+body.theme-dark .fm-th-filter{color:#64748b}
+body.theme-dark .fm-th-sort:hover,
+body.theme-dark .fm-th-filter:hover{color:#93c5fd;background:rgba(29,78,216,.15)}
+body.theme-dark .fm-th-sort.active,
+body.theme-dark .fm-th-filter.active{color:#93c5fd}

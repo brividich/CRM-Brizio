@@ -6150,6 +6150,29 @@ def _sidebar_button_payload(
     }
 
 
+def _nest_sidebar_items(flat_items: list[dict]) -> list[dict]:
+    nested: list[dict] = []
+    current_parent: dict | None = None
+
+    for item in flat_items:
+        payload = dict(item)
+        payload["children"] = []
+        payload["has_children"] = False
+        payload["expanded"] = bool(payload.get("active"))
+
+        if payload.get("is_subitem") and current_parent is not None:
+            current_parent["children"].append(payload)
+            current_parent["has_children"] = True
+            if payload.get("active"):
+                current_parent["expanded"] = True
+            continue
+
+        nested.append(payload)
+        current_parent = payload if not payload.get("is_subitem") else None
+
+    return nested
+
+
 def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
     section_label = dict(AssetSidebarButton.SECTION_CHOICES)
     section_order = {
@@ -6177,12 +6200,25 @@ def _build_sidebar_groups(request: HttpRequest, rows: int = 25) -> list[dict]:
 
         for section, root_buttons in roots_by_section.items():
             for button in root_buttons:
-                grouped[section].append(_sidebar_button_payload(request, button, rows=rows, force_subitem=button.is_subitem))
+                root_payload = _sidebar_button_payload(request, button, rows=rows, force_subitem=button.is_subitem)
+                root_payload["children"] = []
+                root_payload["has_children"] = False
+                root_payload["expanded"] = bool(root_payload.get("active"))
+                grouped[section].append(root_payload)
                 for child in children_by_parent.get(button.id, []):
-                    grouped[section].append(_sidebar_button_payload(request, child, rows=rows, force_subitem=True))
+                    child_payload = _sidebar_button_payload(request, child, rows=rows, force_subitem=True)
+                    child_payload["children"] = []
+                    child_payload["has_children"] = False
+                    child_payload["expanded"] = bool(child_payload.get("active"))
+                    root_payload["children"].append(child_payload)
+                    root_payload["has_children"] = True
+                    if child_payload.get("active"):
+                        root_payload["expanded"] = True
     else:
         for payload in _default_sidebar_buttons(request, rows=rows):
             grouped[payload["section"]].append(payload)
+        for section, items in list(grouped.items()):
+            grouped[section] = _nest_sidebar_items(items)
 
     output = []
     for section, items in sorted(grouped.items(), key=lambda row: section_order.get(row[0], 99)):

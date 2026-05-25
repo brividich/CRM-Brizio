@@ -208,14 +208,29 @@ _DESCRIZIONI: dict[str, str] = {
     "pr_export_csv": "Esporta i dati di presa visione in CSV.",
 
     # ── ANAGRAFICA ───────────────────────────────────────────────────────────
-    "anagrafica_index": "Dashboard anagrafica: riepilogo dipendenti, fornitori e KPI.",
+    "anagrafica_index": "Dashboard Anagrafica HR: riepilogo dipendenti, scadenze, cataloghi e KPI del personale.",
     "anagrafica_dipendenti": "Lista dipendenti con filtri, ricerca e link alla scheda individuale.",
-    "anagrafica_fornitori": "Lista fornitori aziendali con contatti, documenti e valutazioni.",
-    "anagrafica_fornitore_create": "Registrazione di un nuovo fornitore.",
+    "anagrafica_fornitori": "Voce storica fornitori: usare il modulo separato Anagrafica Fornitori.",
+    "anagrafica_fornitore_create": "Voce storica creazione fornitore: usare il modulo separato Anagrafica Fornitori.",
     "anagrafica_ruoli_operativi": "Gestione ruoli operativi (mansioni e assegnazioni).",
     "anagrafica_mansioni": "Catalogo mansioni: definizione dei profili di ruolo operativo.",
     "anagrafica_qualifiche": "Catalogo qualifiche: titoli abilitativi e certificazioni del personale.",
     "anagrafica_widget_layout": "API: configurazione layout widget scheda dipendente.",
+    # --- FORNITORI ---
+    "fornitori_index": "Dashboard Anagrafica Fornitori: KPI fornitori, ordini, spesa e asset assegnati.",
+    "fornitori_list": "Lista fornitori aziendali con filtri, contatti e accesso alla scheda.",
+    "fornitori_create": "Registrazione di un nuovo fornitore.",
+    "fornitore_detail": "Scheda fornitore con anagrafica, documenti, ordini, valutazioni e asset collegati.",
+    "fornitore_edit": "Modifica dati anagrafici e contatti del fornitore.",
+    "fornitore_toggle_active": "Attivazione o disattivazione del fornitore.",
+    "fornitore_documento_add": "Caricamento di un documento nella scheda fornitore.",
+    "fornitore_documento_delete": "Eliminazione di un documento dalla scheda fornitore.",
+    "fornitore_ordine_add": "Inserimento di un ordine collegato al fornitore.",
+    "fornitore_ordine_stato": "Aggiornamento dello stato di un ordine fornitore.",
+    "fornitore_valutazione_add": "Inserimento di una valutazione qualita fornitore.",
+    "fornitore_valutazione_delete": "Eliminazione di una valutazione qualita fornitore.",
+    "fornitore_asset_add": "Collegamento di un asset al fornitore.",
+    "fornitore_asset_remove": "Rimozione del collegamento tra asset e fornitore.",
     "anagrafica_impostazioni_widget": "Gestione permessi di visibilità dei widget nella scheda dipendente per ruolo.",
 
     # ── ADMIN PORTALE ────────────────────────────────────────────────────────
