@@ -1,0 +1,206 @@
+{% load static %}
+
+{% if can_view_formazione_tab %}
+<style>
+.fm-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.fm-pill-valid{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+.fm-pill-missing{background:#f8fafc;color:#64748b;border:1px solid #e2e8f0}
+.fm-pill-expired{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.fm-pill-warning{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+.fm-pill-enrolled{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.fm-toggle-btn{background:none;border:1px solid #d1d5db;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#475569;min-width:22px;text-align:center;}
+.fm-expand-row>td{padding:0;}
+.fm-expand-inner{padding:10px 16px 14px;background:#f8fafc;}
+.fm-mini-grid{border-collapse:collapse;width:100%;font-size:12px;}
+.fm-mini-grid th{background:#f1f5f9;padding:5px 10px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;text-align:left;}
+.fm-mini-grid td{padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#334155;}
+</style>
+
+<div class="dp-card" data-tab="formazione">
+
+  {# ── KPI mini ─────────────────────────────────────────────────────────── #}
+  <div class="dp-card-head">
+    <div class="dp-card-title">🎓 Formazione</div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <a href="{% url 'anagrafica:formazione_plan_dipendente' legacy_id %}"
+         style="font-size:12px;color:#3b82f6;text-decoration:none;">📆 Plan →</a>
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}?q={{ dip.cognome|urlencode }} {{ dip.nome|urlencode }}"
+         style="font-size:12px;color:#3b82f6;text-decoration:none;">Scadenzario completo →</a>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px 0;border-bottom:1px solid #f1f5f9;margin-bottom:8px;">
+    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
+      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_n_completati }}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">Corsi completati</div>
+    </div>
+    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
+      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_ore_totali|floatformat:1 }}h</div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">Ore formazione</div>
+    </div>
+    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
+      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_n_attestati }}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">Attestati</div>
+    </div>
+    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
+      <div style="font-size:20px;font-weight:800;color:{% if fm_scadenze_urgenti %}#b91c1c{% else %}#065f46{% endif %};">
+        {{ fm_scadenze_urgenti|length }}
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">Scadenze urgenti</div>
+    </div>
+  </div>
+
+  {# ── Scadenze urgenti ─────────────────────────────────────────────────── #}
+  {% if fm_scadenze_urgenti %}
+  <div style="padding:10px 16px 4px;">
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
+      Corsi da rinnovare / mai frequentati
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="hr-table" style="font-size:12px;">
+        <thead>
+          <tr>
+            <th>Corso</th>
+            <th>Piano</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sc in fm_scadenze_urgenti %}
+          <tr>
+            <td style="font-weight:500;">{{ sc.corso.titolo }}</td>
+            <td style="color:#64748b;">{{ sc.corso.piano.nome|default:"—" }}</td>
+            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;">
+              {{ sc.data_scadenza|date:"d/m/Y"|default:"—" }}
+            </td>
+            <td>
+              {% if sc.stato_scadenza == "SCADUTO" %}
+                <span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif sc.stato_scadenza == "IN_SCADENZA_30" %}
+                <span class="fm-pill fm-pill-warning">≤30gg</span>
+              {% elif sc.stato_scadenza == "IN_SCADENZA_90" %}
+                <span class="fm-pill fm-pill-warning" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;">≤90gg</span>
+              {% elif sc.stato_scadenza == "MAI_FREQUENTATO" %}
+                <span class="fm-pill fm-pill-missing">Mai frequentato</span>
+              {% else %}
+                <span class="fm-pill fm-pill-missing">{{ sc.stato_scadenza }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Storico corsi completati ─────────────────────────────────────────── #}
+  <div style="padding:10px 16px 4px;">
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
+      Storico completamenti (ultimi 30)
+    </div>
+
+    {% if fm_storico %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table" style="font-size:12px;">
+        <thead>
+          <tr>
+            <th style="width:32px;"></th>
+            <th>Corso</th>
+            <th>Piano</th>
+            <th>Completato il</th>
+            <th>Scadenza</th>
+            <th>Ore</th>
+            <th>Idoneo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rec in fm_storico %}
+          <tr>
+            <td>
+              <button class="fm-toggle-btn"
+                      id="fm-toggle-{{ rec.pk }}"
+                      onclick="fmToggleExpand({{ rec.pk }})">▶</button>
+            </td>
+            <td style="font-weight:500;">
+              <span title="{{ rec.course_title_snapshot|default:rec.corso.titolo }}">
+                {{ rec.course_code_snapshot|default:rec.corso.codice }}
+              </span>
+            </td>
+            <td style="color:#64748b;">{{ rec.plan_name_snapshot|default:rec.corso.piano.nome|default:"—" }}</td>
+            <td style="white-space:nowrap;color:#334155;font-variant-numeric:tabular-nums;">
+              {{ rec.data_completamento|date:"d/m/Y" }}
+            </td>
+            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;">
+              {{ rec.data_scadenza|date:"d/m/Y"|default:"Una tantum" }}
+            </td>
+            <td style="color:#64748b;">{{ rec.ore_frequentate|default:"—" }}h</td>
+            <td>
+              {% if rec.idoneo %}<span class="fm-pill fm-pill-valid" style="font-size:10px;">✓</span>
+              {% else %}<span class="fm-pill fm-pill-expired" style="font-size:10px;">✗</span>{% endif %}
+            </td>
+          </tr>
+          {# Expand row: snapshot dettaglio #}
+          <tr id="fm-expand-{{ rec.pk }}" class="fm-expand-row" style="display:none;">
+            <td colspan="7">
+              <div class="fm-expand-inner">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;">
+                  <div><span style="color:#94a3b8;font-weight:600;">Versione:</span> {{ rec.course_version_snapshot|default:"—" }}</div>
+                  <div><span style="color:#94a3b8;font-weight:600;">Docente:</span> {{ rec.teacher_name_snapshot|default:"—" }}</div>
+                  <div><span style="color:#94a3b8;font-weight:600;">Sessione:</span> {{ rec.session_code_snapshot|default:"—" }}</div>
+                  <div><span style="color:#94a3b8;font-weight:600;">% Presenza:</span>
+                    {% if rec.percentuale_presenza %}{{ rec.percentuale_presenza }}%{% else %}—{% endif %}</div>
+                  <div><span style="color:#94a3b8;font-weight:600;">Validità:</span>
+                    {% if rec.validity_months_snapshot %}{{ rec.validity_months_snapshot }} mesi{% else %}Una tantum{% endif %}</div>
+                  {% if rec.note %}<div style="grid-column:1/-1;"><span style="color:#94a3b8;font-weight:600;">Note:</span> {{ rec.note }}</div>{% endif %}
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:12px 0;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun corso completato registrato.
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Link scadenzario completo ────────────────────────────────────────── #}
+  <div style="padding:8px 16px 16px;text-align:right;">
+    <a href="{% url 'anagrafica:formazione_scadenzario' %}"
+       style="font-size:12px;color:#3b82f6;text-decoration:none;">
+      Scadenzario formazione completo →
+    </a>
+  </div>
+
+</div>
+
+<script>
+function fmToggleExpand(pk) {
+  const row = document.getElementById('fm-expand-' + pk);
+  const btn = document.getElementById('fm-toggle-' + pk);
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    btn.textContent = '▼';
+  } else {
+    row.style.display = 'none';
+    btn.textContent = '▶';
+  }
+}
+</script>
+
+{% else %}
+{# Fallback per utenti senza accesso formazione #}
+<div class="dp-soon-card" data-tab="formazione">
+  <div class="dp-soon-badge">Accesso limitato</div>
+  <div style="margin-top:10px;font-weight:800;font-size:15px;color:#12395f;">Corsi e percorsi formativi</div>
+  <div style="margin-top:5px;font-size:13px;color:#64748b;max-width:60ch;margin-left:auto;margin-right:auto;">
+    Non hai i permessi per visualizzare la sezione formazione.
+    Contatta un amministratore HR per richiedere l'accesso.
+  </div>
+</div>
+{% endif %}

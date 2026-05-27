@@ -313,12 +313,12 @@
           <table class="abs-table" id="table-da-gestire">
             <thead>
               <tr>
-                <th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Azioni</th>
+                <th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Formazione</th><th>Azioni</th>
               </tr>
             </thead>
             <tbody>
               {% for r in da_gestire %}
-                <tr data-id="{{ r.id }}">
+                <tr data-id="{{ r.id }}"{% if r.n_corsi_conflitto %} class="row-has-corso-conflict"{% endif %}>
                   <td data-label="Dipendente">{{ r.dipendente }}</td>
                   <td data-label="Tipo">
                     <div style="display:grid;gap:6px;">
@@ -329,6 +329,26 @@
                   <td data-label="Dal">{{ r.inizio_label }}</td>
                   <td data-label="Al">{{ r.fine_label }}</td>
                   <td data-label="Motivo">{{ r.motivo|default:"-" }}</td>
+                  <td data-label="Formazione">
+                    {% if r.n_corsi_conflitto %}
+                      <details class="car-corsi-warn">
+                        <summary title="Click per dettaglio">
+                          <span class="car-corsi-badge">⚠️ {{ r.n_corsi_conflitto }} corso{{ r.n_corsi_conflitto|pluralize:"i" }}</span>
+                        </summary>
+                        <ul class="car-corsi-list">
+                          {% for cc in r.corsi_conflitto %}
+                          <li>
+                            <strong>{{ cc.data_inizio|date:"d/m" }}{% if cc.data_inizio != cc.data_fine %}–{{ cc.data_fine|date:"d/m" }}{% endif %}</strong>
+                            <a href="{{ cc.url }}" target="_blank" rel="noopener">[{{ cc.code }}] {{ cc.title|truncatechars:40 }}</a>
+                            <em>({{ cc.stato_display }})</em>
+                          </li>
+                          {% endfor %}
+                        </ul>
+                      </details>
+                    {% else %}
+                      <span class="car-corsi-ok" title="Nessun corso programmato">—</span>
+                    {% endif %}
+                  </td>
                   <td data-label="Azioni">
                     <div class="car-row-actions">
                       <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>

@@ -16,6 +16,12 @@ class AnomalieAccessLevel(models.TextChoices):
     EDIT_ALL = "EDIT_ALL", "Modifica tutto"
 
 
+class AnomalieListScope(models.TextChoices):
+    ALL = "ALL", "Tutti gli OP"
+    ASSIGNED = "ASSIGNED", "Solo OP in carico (capocommessa/CAR)"
+    OWN_ANOMALIE = "OWN_ANOMALIE", "Solo OP con proprie anomalie create"
+
+
 class AnomalieRoleDefinition(models.Model):
     """Catalogo ruoli operativi usato dalla configurazione anomalie."""
 
@@ -66,6 +72,11 @@ class AnomalieRoleAccessRule(models.Model):
         default=AnomalieAccessLevel.NONE,
         db_index=True,
     )
+    list_scope = models.CharField(
+        max_length=20,
+        choices=AnomalieListScope.choices,
+        default=AnomalieListScope.ALL,
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -91,6 +102,11 @@ class AnomalieUserAccessRule(models.Model):
         default=AnomalieAccessLevel.READ_ALL,
         db_index=True,
     )
+    list_scope = models.CharField(
+        max_length=20,
+        choices=AnomalieListScope.choices,
+        default=AnomalieListScope.ALL,
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -112,6 +128,11 @@ class AnomalieLegacyRoleAccessRule(models.Model):
         choices=AnomalieAccessLevel.choices,
         default=AnomalieAccessLevel.READ_ALL,
         db_index=True,
+    )
+    list_scope = models.CharField(
+        max_length=20,
+        choices=AnomalieListScope.choices,
+        default=AnomalieListScope.ALL,
     )
     updated_at = models.DateTimeField(auto_now=True)
 

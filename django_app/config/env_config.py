@@ -73,7 +73,7 @@ def load_env_file_values(dotenv_path: Path | None = None) -> dict[str, str]:
     try:
         if not path.exists():
             return values
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
+        for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
             line = raw_line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -127,7 +127,7 @@ def update_env_file_values(
     path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
     except FileNotFoundError:
         lines = []
 

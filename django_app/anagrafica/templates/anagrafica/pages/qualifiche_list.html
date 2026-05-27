@@ -102,15 +102,17 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
       <div class="ql-card-title" style="color:#92400e;">⚠ Scadenze in arrivo o già scadute ({{ scadenze|length }})</div>
     </div>
     <div style="overflow-x:auto;">
-      <table class="ql-table" data-sortable>
+      <table class="ql-table" data-table-id="anagrafica.qualifiche.list">
         <thead>
           <tr>
-            <th>Dipendente</th>
-            <th>Qualifica</th>
-            <th>Categoria</th>
-            <th data-sort-type="date">Conseguita</th>
-            <th data-sort-type="date">Scadenza</th>
-            <th>Stato</th>
+            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+            <th data-col="qualifica" data-col-label="Qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Qualifica</th>
+            <th data-col="categoria" data-col-label="Categoria" data-col-type="select"
+                data-col-options='[["SICUREZZA","Sicurezza"],["PROFESSIONALE","Professionale"],["GESTIONALE","Gestionale"],["ALTRO","Altro"]]'
+                data-col-sortable="1" data-col-filterable="1">Categoria</th>
+            <th data-col="conseguita" data-col-label="Conseguita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Conseguita</th>
+            <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
           </tr>
         </thead>
         <tbody>
@@ -161,14 +163,14 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
         </div>
       </div>
       <div style="overflow-x:auto;">
-        <table class="ql-table" data-sortable>
+        <table class="ql-table" data-table-id="anagrafica.qualifiche.catalogo">
           <thead>
             <tr>
-              <th>Nome qualifica</th>
-              <th>Durata validità</th>
-              <th data-sort-type="number">Assegnazioni</th>
-              <th>Stato</th>
-              {% if is_admin %}<th data-no-sort data-no-filter></th>{% endif %}
+              <th data-col="nome" data-col-label="Nome qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome qualifica</th>
+              <th data-col="durata" data-col-label="Durata validità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Durata validità</th>
+              <th data-col="assegnazioni" data-col-label="Assegnazioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Assegnazioni</th>
+              <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+              {% if is_admin %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>

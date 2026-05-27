@@ -535,19 +535,19 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
     {% endif %}
     <div class="tkt-table-wrap {% if tab_attivo == 'IT' %}tkt-table-wrap-solo{% endif %}">
       {% if tickets_it %}
-      <table class="tkt-table">
+      <table class="tkt-table" data-table-id="tickets.gestione.it">
         <thead>
           <tr>
             <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
-            <th>Numero</th>
-            <th>Titolo</th>
-            <th>Cat.</th>
-            <th>Asset</th>
-            <th>Priorità</th>
-            <th>Stato</th>
-            <th>Richiedente</th>
-            <th>Assegnato a</th>
-            <th>Apertura</th>
+            <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
+            <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Titolo</th>
+            <th data-col="cat" data-col-label="Categoria" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Cat.</th>
+            <th data-col="asset" data-col-label="Asset" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Asset</th>
+            <th data-col="priorita" data-col-label="Priorità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Priorità</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th>
+            <th data-col="assegnato" data-col-label="Assegnato a" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Assegnato a</th>
+            <th data-col="apertura" data-col-label="Apertura" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Apertura</th>
             <th>Azioni</th>
             <th>Report</th>
           </tr>
@@ -596,19 +596,19 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
     {% endif %}
     <div class="tkt-table-wrap {% if tab_attivo == 'MAN' %}tkt-table-wrap-solo{% endif %}">
       {% if tickets_man %}
-      <table class="tkt-table">
+      <table class="tkt-table" data-table-id="tickets.gestione.man">
         <thead>
           <tr>
             <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
-            <th>Numero</th>
-            <th>Titolo</th>
-            <th>Cat.</th>
-            <th>Asset / Macchinario</th>
-            <th>Priorità</th>
-            <th>Stato</th>
-            <th>Richiedente</th>
-            <th>Assegnato a</th>
-            <th>Apertura</th>
+            <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
+            <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Titolo</th>
+            <th data-col="cat" data-col-label="Categoria" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Cat.</th>
+            <th data-col="asset" data-col-label="Asset / Macchinario" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Asset / Macchinario</th>
+            <th data-col="priorita" data-col-label="Priorità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Priorità</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th>
+            <th data-col="assegnato" data-col-label="Assegnato a" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Assegnato a</th>
+            <th data-col="apertura" data-col-label="Apertura" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Apertura</th>
             <th>Azioni</th>
             <th>Report</th>
           </tr>

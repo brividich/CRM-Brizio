@@ -2047,6 +2047,97 @@ def _summarize_pending_requests(rows: list[dict]) -> dict:
     return summary
 
 
+def _attach_corsi_conflicts(rows: list[dict]) -> None:
+    """Arricchisce in-place ogni riga assenza con `corsi_conflitto` e `n_corsi_conflitto`.
+
+    Richiede `legacy_user_id`, `data_inizio_raw`, `data_fine_raw` sulle righe.
+    Fa una sola query batch su `TrainingSession` per tutti i dipendenti coinvolti.
+    Se manca legacy_user_id (es. tabella senza `utente_id`) lascia 0 conflitti.
+    """
+    if not rows:
+        return
+    try:
+        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
+    except Exception:
+        for r in rows: r["corsi_conflitto"] = []; r["n_corsi_conflitto"] = 0
+        return
+
+    # Range globale e set legacy
+    legacy_ids: set[int] = set()
+    d_min = None
+    d_max = None
+    for r in rows:
+        lid = r.get("legacy_user_id")
+        if lid is None: continue
+        try: lid = int(lid)
+        except (TypeError, ValueError): continue
+        legacy_ids.add(lid)
+        ds = r.get("data_inizio_raw"); de = r.get("data_fine_raw")
+        # normalizza datetime → date
+        if hasattr(ds, "date"): ds = ds.date()
+        if hasattr(de, "date"): de = de.date()
+        if ds is None: continue
+        d_min = ds if d_min is None or ds < d_min else d_min
+        d_max = (de or ds) if d_max is None or (de or ds) > d_max else d_max
+
+    if not legacy_ids or d_min is None:
+        for r in rows: r.setdefault("corsi_conflitto", []); r.setdefault("n_corsi_conflitto", 0)
+        return
+
+    # Sessioni iscritte per ogni legacy_id
+    enroll_pairs = list(
+        TrainingEnrollment.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .values_list("legacy_anagrafica_id", "sessione_id")
+    )
+    sess_by_dip: dict[int, set] = {}
+    all_sess_ids: set = set()
+    for lid, sid in enroll_pairs:
+        sess_by_dip.setdefault(int(lid), set()).add(int(sid))
+        all_sess_ids.add(int(sid))
+
+    # Carica le sessioni nel range globale, una sola query
+    sess_data: dict = {}
+    if all_sess_ids:
+        for s in (TrainingSession.objects
+                  .filter(pk__in=all_sess_ids, data_inizio__lte=d_max, data_fine__gte=d_min)
+                  .exclude(stato="ANNULLATA")
+                  .select_related("corso")):
+            sess_data[s.pk] = s
+
+    # Per ogni riga, calcola intersezione
+    for r in rows:
+        r.setdefault("corsi_conflitto", [])
+        r.setdefault("n_corsi_conflitto", 0)
+        lid = r.get("legacy_user_id")
+        if lid is None: continue
+        try: lid = int(lid)
+        except (TypeError, ValueError): continue
+        ds = r.get("data_inizio_raw"); de = r.get("data_fine_raw")
+        if hasattr(ds, "date"): ds = ds.date()
+        if hasattr(de, "date"): de = de.date()
+        if ds is None: continue
+        if de is None: de = ds
+        conflitti = []
+        for sid in sess_by_dip.get(lid, ()):
+            s = sess_data.get(sid)
+            if not s: continue
+            if s.data_inizio <= de and s.data_fine >= ds:
+                conflitti.append({
+                    "id": s.pk,
+                    "code": s.corso.codice,
+                    "title": s.corso.titolo,
+                    "data_inizio": s.data_inizio,
+                    "data_fine":   s.data_fine,
+                    "stato_display": s.get_stato_display(),
+                    "url": f"/anagrafica/formazione/sessioni/{s.pk}/",
+                })
+        # Ordina per data inizio
+        conflitti.sort(key=lambda c: c["data_inizio"])
+        r["corsi_conflitto"] = conflitti
+        r["n_corsi_conflitto"] = len(conflitti)
+
+
 def _load_pending_for_manager(
     legacy_user_id: int | None,
     limit: int = 25,
@@ -2068,6 +2159,7 @@ def _load_pending_for_manager(
     join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
 
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
+    _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -2077,7 +2169,7 @@ def _load_pending_for_manager(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
@@ -2100,8 +2192,12 @@ def _load_pending_for_manager(
                 "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": moderation_status,
+                "legacy_user_id": row.get("utente_id"),
+                "data_inizio_raw": row.get("data_inizio"),
+                "data_fine_raw":   row.get("data_fine"),
             }
         )
+    _attach_corsi_conflicts(out)
     return out
 
 
@@ -2128,6 +2224,7 @@ def _load_gestite_for_manager(
 
     _note_col = ", a.note_gestione" if _has_assenze_column("note_gestione") else ""
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
+    _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -2137,7 +2234,7 @@ def _load_gestite_for_manager(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_note_col}{_cert_col}
+            a.motivazione_richiesta{_note_col}{_cert_col}{_utente_col}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
@@ -2160,8 +2257,12 @@ def _load_gestite_for_manager(
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": moderation_status,
                 "note_gestione": str(row.get("note_gestione") or ""),
+                "legacy_user_id":   row.get("utente_id"),
+                "data_inizio_raw":  row.get("data_inizio"),
+                "data_fine_raw":    row.get("data_fine"),
             }
         )
+    _attach_corsi_conflicts(out)
     return out
 
 
@@ -2230,6 +2331,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
     if not _table_exists("assenze"):
         return []
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
+    _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
     base_sql = f"""
         SELECT
             a.id,
@@ -2239,7 +2341,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}
         FROM assenze a
         WHERE COALESCE(a.moderation_status, 2) = 2
     """
@@ -2259,8 +2361,12 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
                 "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": row.get("moderation_status"),
+                "legacy_user_id":  row.get("utente_id"),
+                "data_inizio_raw": row.get("data_inizio"),
+                "data_fine_raw":   row.get("data_fine"),
             }
         )
+    _attach_corsi_conflicts(out)
     return out
 
 
@@ -4060,3 +4166,89 @@ def certificazione_presenza(request):
         "minuti_list": minuti_list,
         **perm_ctx,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHECK FORMAZIONE: avviso non bloccante se richiesta assenza copre date di corsi
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def api_check_corsi(request):
+    """Ritorna corsi/sessioni del dipendente che intersecano il range
+    [date_start, date_end]. Non blocca: serve solo a popolare un avviso UI.
+
+    Query params: date_start (obbl.), date_end (opz., default=date_start),
+    legacy_id (opz., default=utente corrente; serve permesso caporeparto/admin se altro).
+
+    Response JSON: { ok, n_conflicts, conflicts: [{date, session_id, code, title, ...}] }
+    """
+    from datetime import datetime as _dt
+
+    def _parse(s):
+        if not s: return None
+        try: return _dt.strptime(s.strip(), "%Y-%m-%d").date()
+        except (TypeError, ValueError): return None
+
+    d_start = _parse(request.GET.get("date_start"))
+    d_end   = _parse(request.GET.get("date_end")) or d_start
+    if d_start is None:
+        return JsonResponse({"ok": False, "error": "date_start mancante o non valida"}, status=400)
+    if d_end < d_start:
+        d_start, d_end = d_end, d_start
+
+    _name, _email, my_legacy = _legacy_identity(request)
+    raw_legacy = (request.GET.get("legacy_id") or "").strip()
+    if raw_legacy:
+        try:
+            legacy_id = int(raw_legacy)
+        except ValueError:
+            return JsonResponse({"ok": False, "error": "legacy_id non valido"}, status=400)
+        if my_legacy is None or int(my_legacy) != legacy_id:
+            is_admin = bool(request.user.is_superuser or request.user.is_staff)
+            cap = resolve_caporeparto_legacy_user(request.user)
+            if not is_admin and not cap:
+                return JsonResponse({"ok": False, "error": "Non hai i permessi per controllare un altro dipendente"}, status=403)
+    else:
+        if my_legacy is None:
+            return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
+        legacy_id = int(my_legacy)
+
+    try:
+        from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
+    except Exception:
+        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
+
+    sess_ids = list(
+        TrainingEnrollment.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .values_list("sessione_id", flat=True)
+    )
+    if not sess_ids:
+        return JsonResponse({"ok": True, "n_conflicts": 0, "conflicts": []})
+
+    qs = (
+        TrainingSession.objects
+        .select_related("corso")
+        .filter(pk__in=sess_ids, data_inizio__lte=d_end, data_fine__gte=d_start)
+        .exclude(stato="ANNULLATA")
+        .order_by("data_inizio")
+    )
+
+    conflicts = []
+    for s in qs:
+        first_overlap = max(s.data_inizio, d_start)
+        conflicts.append({
+            "date":          first_overlap.strftime("%Y-%m-%d"),
+            "date_label":    first_overlap.strftime("%d/%m/%Y"),
+            "session_id":    s.pk,
+            "code":          s.codice_sessione,
+            "title":         s.corso.titolo,
+            "course_code":   s.corso.codice,
+            "data_inizio":   s.data_inizio.strftime("%Y-%m-%d"),
+            "data_fine":     s.data_fine.strftime("%Y-%m-%d"),
+            "stato":         s.stato,
+            "stato_display": s.get_stato_display(),
+            "url":           f"/anagrafica/formazione/sessioni/{s.pk}/",
+        })
+
+    return JsonResponse({"ok": True, "n_conflicts": len(conflicts), "conflicts": conflicts})

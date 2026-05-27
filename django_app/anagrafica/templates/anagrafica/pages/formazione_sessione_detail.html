@@ -1,0 +1,294 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ sessione.codice_sessione }} | Sessione | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {# ── Header ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_corso_detail' sessione.corso.pk %}"
+           style="color:#94a3b8;text-decoration:none;">{{ sessione.corso.codice }}</a>
+        &rsaquo; {{ sessione.codice_sessione }}
+      </div>
+      <h2 class="hr-pagehead-title">{{ sessione.codice_sessione }}</h2>
+      <p class="hr-pagehead-desc">
+        Corso: <strong>{{ sessione.corso.titolo }}</strong>
+        &nbsp;·&nbsp;
+        {{ sessione.data_inizio|date:"d/m/Y" }} → {{ sessione.data_fine|date:"d/m/Y" }}
+        &nbsp;·&nbsp;
+        {% if sessione.stato == "COMPLETATA" %}<span class="fm-pill fm-pill-valid">Completata</span>
+        {% elif sessione.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
+        {% elif sessione.stato == "PIANIFICATA" %}<span class="fm-pill fm-pill-enrolled">Pianificata</span>
+        {% else %}<span class="fm-pill fm-pill-expired">Annullata</span>{% endif %}
+      </p>
+    </div>
+    {% if is_editor %}
+    <div style="display:flex;gap:8px;">
+      <button class="hr-btn hr-btn-primary"
+              onclick="document.getElementById('modal-edit-sessione').style.display='flex'">
+        Modifica sessione
+      </button>
+      <form method="post" action="{% url 'anagrafica:formazione_sessione_delete' sessione.pk %}"
+            onsubmit="return confirm('Eliminare la sessione «{{ sessione.codice_sessione|escapejs }}»?')">
+        {% csrf_token %}
+        <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── KPI mini ────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:20px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Durata</span>
+          <span class="hr-metric-val">{{ sessione.data_inizio|date:"d/m" }} – {{ sessione.data_fine|date:"d/m/Y" }}</span>
+        </div>
+        <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">👥</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Iscritti</span>
+          <span class="hr-metric-val">{{ n_iscritti }}</span>
+        </div>
+        <div class="hr-metric-sub">Dipendenti iscritti</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">📖</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Lezioni</span>
+          <span class="hr-metric-val">{{ lezioni|length }}</span>
+        </div>
+        <div class="hr-metric-sub">Lezioni pianificate</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">👤</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Docente</span>
+          <span class="hr-metric-val" style="font-size:13px;">{{ sessione.docente_nome|default:sessione.docente|default:"—" }}</span>
+        </div>
+        <div class="hr-metric-sub">{{ sessione.sede|default:"Sede non specificata"|truncatechars:30 }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Lezioni ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📖 Lezioni <span class="fm-count">{{ lezioni|length }}</span></div>
+      {% if is_editor %}
+      <button class="hr-btn hr-btn-sm"
+              onclick="document.getElementById('panel-add-lezione').style.display=
+                document.getElementById('panel-add-lezione').style.display==='none'?'block':'none'">
+        + Aggiungi lezione
+      </button>
+      {% endif %}
+    </div>
+
+    {% if lezioni %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.sessione.lezioni">
+        <thead>
+          <tr>
+            <th class="num" data-col="numero" data-col-label="N." data-col-type="number" data-col-sortable="1" data-col-filterable="1">#</th>
+            <th data-col="data" data-col-label="Data" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data</th>
+            <th data-col="ora_inizio" data-col-label="Ora inizio" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ora inizio</th>
+            <th data-col="ora_fine" data-col-label="Ora fine" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ora fine</th>
+            <th class="num" data-col="durata" data-col-label="Durata" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata</th>
+            <th data-col="argomento" data-col-label="Argomento" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Argomento</th>
+            <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
+            {% if is_editor %}<th class="nowrap">Azioni</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for lz in lezioni %}
+          <tr>
+            <td class="num">{{ lz.numero }}</td>
+            <td class="nowrap">{{ lz.data|date:"d/m/Y" }}</td>
+            <td class="nowrap muted">{{ lz.ora_inizio|time:"H:i" }}</td>
+            <td class="nowrap muted">{{ lz.ora_fine|time:"H:i" }}</td>
+            <td class="num muted">{{ lz.durata_ore }}h</td>
+            <td>{{ lz.argomento }}</td>
+            <td class="muted">{{ lz.docente_nome|default:lz.docente|default:"—" }}</td>
+            {% if is_editor %}
+            <td class="nowrap">
+              <button class="hr-btn hr-btn-sm"
+                      onclick="openEditLezioneModal(
+                        {{ lz.pk }}, {{ lz.numero }}, '{{ lz.data|date:'Y-m-d' }}',
+                        '{{ lz.ora_inizio|time:'H:i' }}', '{{ lz.ora_fine|time:'H:i' }}',
+                        '{{ lz.argomento|escapejs }}', {{ lz.docente_id|default:'null' }},
+                        '{{ lz.docente_nome|escapejs }}', '{{ lz.note|escapejs }}'
+                      )">Modifica</button>
+              <form method="post"
+                    action="{% url 'anagrafica:formazione_lezione_delete' sessione.pk lz.pk %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('Eliminare lezione {{ lz.numero }}?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty">Nessuna lezione pianificata.</div>
+    {% endif %}
+
+    {% if is_editor %}
+    {# Form aggiunta lezione — collassabile #}
+    <div id="panel-add-lezione" style="display:none;padding:0 16px 16px;">
+      <form method="post" action="{% url 'anagrafica:formazione_lezione_add' sessione.pk %}"
+            class="fm-inline-form" style="flex-direction:column;align-items:stretch;">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div class="fm-f">
+            <label>Numero *</label>
+            <input type="number" name="numero" required min="1" value="{{ lezioni|length|add:1 }}">
+          </div>
+          <div class="fm-f">
+            <label>Data *</label>
+            <input type="date" name="data" required
+                   min="{{ sessione.data_inizio|date:'Y-m-d' }}"
+                   max="{{ sessione.data_fine|date:'Y-m-d' }}">
+          </div>
+          <div class="fm-f">
+            <label>Argomento *</label>
+            <input type="text" name="argomento" required maxlength="500" style="min-width:200px;">
+          </div>
+          <div class="fm-f">
+            <label>Ora inizio *</label>
+            <input type="time" name="ora_inizio" required>
+          </div>
+          <div class="fm-f">
+            <label>Ora fine *</label>
+            <input type="time" name="ora_fine" required>
+          </div>
+          <div class="fm-f">
+            <label>Docente</label>
+            <select name="docente">
+              <option value="">— Seleziona —</option>
+              {% for instr in lezione_form.fields.docente.queryset %}
+                <option value="{{ instr.pk }}">{{ instr.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="fm-f" style="grid-column:1/-1;">
+            <label>Note</label>
+            <textarea name="note" rows="2"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+          <button type="submit" class="hr-btn hr-btn-primary">Aggiungi lezione</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if sessione.note %}
+  <div style="margin-top:14px;padding:14px 18px;background:#f8fafc;border-radius:10px;font-size:13px;color:#334155;">
+    <strong>Note sessione:</strong><br>{{ sessione.note|linebreaksbr }}
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Modal modifica sessione ─────────────────────────────────────────────── #}
+{% if is_editor %}
+<div id="modal-edit-sessione" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Modifica sessione</strong>
+      <button onclick="document.getElementById('modal-edit-sessione').style.display='none'"
+              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_sessione_edit' sessione.pk %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=edit_form %}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-edit-sessione').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── Modal modifica lezione ──────────────────────────────────────────────── #}
+<div id="modal-edit-lezione" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:580px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Modifica lezione</strong>
+      <button onclick="document.getElementById('modal-edit-lezione').style.display='none'"
+              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form id="form-edit-lezione" method="post" action="">
+      {% csrf_token %}
+      <div id="edit-lezione-fields"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-edit-lezione').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, docenteId, docenteNome, note) {
+  const sessId = {{ sessione.pk }};
+  document.getElementById('form-edit-lezione').action = `/anagrafica/formazione/sessioni/${sessId}/lezioni/${pk}/modifica`;
+  const instrOpts = [{% for instr in lezione_form.fields.docente.queryset %}{ pk:{{ instr.pk }}, nome:'{{ instr.nome|escapejs }}' },{% endfor %}];
+  const docenteSel = instrOpts.map(o => `<option value="${o.pk}"${o.pk===docenteId?' selected':''}>${o.nome}</option>`).join('');
+  const dMin = '{{ sessione.data_inizio|date:"Y-m-d" }}';
+  const dMax = '{{ sessione.data_fine|date:"Y-m-d" }}';
+  document.getElementById('edit-lezione-fields').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Numero *</label>
+        <input name="numero" type="number" min="1" value="${numero}" required class="fm-input"></div>
+      <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Data *</label>
+        <input name="data" type="date" value="${data}" min="${dMin}" max="${dMax}" required class="fm-input"></div>
+      <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Ora inizio *</label>
+        <input name="ora_inizio" type="time" value="${oraInizio}" required class="fm-input"></div>
+      <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Ora fine *</label>
+        <input name="ora_fine" type="time" value="${oraFine}" required class="fm-input"></div>
+    </div>
+    <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Argomento *</label>
+      <input name="argomento" value="${argomento.replace(/"/g,'&quot;')}" required maxlength="500" class="fm-input"></div>
+    <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Docente</label>
+      <select name="docente" class="fm-input fm-select"><option value="">— Nessuno —</option>${docenteSel}</select></div>
+    <div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Snapshot nome docente</label>
+      <input name="docente_nome" value="${docenteNome.replace(/"/g,'&quot;')}" maxlength="200" class="fm-input"></div>
+    <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Note</label>
+      <textarea name="note" rows="2" class="fm-input">${note}</textarea></div>
+  `;
+  document.getElementById('modal-edit-lezione').style.display = 'flex';
+}
+</script>
+{% endif %}
+{% endblock %}

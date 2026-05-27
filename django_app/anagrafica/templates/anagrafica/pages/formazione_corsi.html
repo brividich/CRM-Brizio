@@ -1,0 +1,127 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Corsi Formativi | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Formazione HR</div>
+      <h2 class="hr-pagehead-title">📖 Corsi Formativi</h2>
+      <p class="hr-pagehead-desc">Catalogo corsi — {{ page_obj.paginator.count }} corsi totali.</p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <a href="{% url 'anagrafica:formazione_corso_create' %}" class="hr-btn hr-btn-primary">+ Nuovo corso</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Filtri ──────────────────────────────────────────────────────────────── #}
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center;">
+    <input type="text" name="q" value="{{ q_search }}" placeholder="Cerca codice / titolo…"
+           class="hr-filter-input" style="min-width:200px;">
+    <select name="piano" class="hr-filter-select">
+      <option value="">Tutti i piani</option>
+      {% for p in piani %}
+        <option value="{{ p.pk }}" {% if filtro_piano == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nome }}</option>
+      {% endfor %}
+    </select>
+    <select name="stato" class="hr-filter-select">
+      <option value="">Tutti gli stati</option>
+      {% for code, label in STATO_CHOICES %}
+        <option value="{{ code }}" {% if filtro_stato == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="obbligatorio" class="hr-filter-select">
+      <option value="">Tutti</option>
+      <option value="1" {% if filtro_obbligatorio == "1" %}selected{% endif %}>Solo obbligatori</option>
+      <option value="0" {% if filtro_obbligatorio == "0" %}selected{% endif %}>Solo facoltativi</option>
+    </select>
+    <button type="submit" class="hr-btn hr-btn-sm">Filtra</button>
+    <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="hr-btn hr-btn-sm hr-btn-ghost">Reset</a>
+  </form>
+
+  {# ── Tabella corsi ───────────────────────────────────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">
+        📖 Corsi <span class="fm-count">{{ page_obj.paginator.count }}</span>
+      </div>
+      <div class="muted" style="font-size:11px;color:#64748b;">
+        Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+      </div>
+    </div>
+    {% if page_obj %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.corsi.list">
+        <thead>
+          <tr>
+            <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Codice</th>
+            <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Titolo</th>
+            <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                data-col-options='[["ATTIVO","Attivo"],["BOZZA","Bozza"],["ARCHIVIATO","Archiviato"]]'
+                data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th class="num" data-col="durata" data-col-label="Durata (h)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata (h)</th>
+            <th class="num" data-col="validita" data-col-label="Validità (m)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Validità (m)</th>
+            <th data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obbligatorio</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in page_obj %}
+          <tr>
+            <td class="mono">{{ c.codice }}</td>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>
+              {% if not c.is_active %}<span class="muted" style="font-size:10px;margin-left:4px;">(inattivo)</span>{% endif %}
+            </td>
+            <td class="muted">
+              <a class="fm-link" href="{% url 'anagrafica:formazione_piano_detail' c.piano.pk %}"
+                 style="color:inherit;font-weight:500;">{{ c.piano.nome }}</a>
+            </td>
+            <td data-value="{{ c.stato }}"><span class="fm-pill fm-pill-{{ c.stato|lower }}">{{ c.get_stato_display }}</span></td>
+            <td class="num" data-sort-value="{{ c.durata_ore_teorica }}">{{ c.durata_ore_teorica }}</td>
+            <td class="num" data-sort-value="{{ c.validita_mesi|default:0 }}">{% if c.validita_mesi %}{{ c.validita_mesi }}{% else %}<span class="muted" style="font-weight:400;">una tantum</span>{% endif %}</td>
+            <td>{% if c.obbligatorio %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="nowrap"><a href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" class="hr-btn hr-btn-sm">Apri</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Paginazione #}
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div style="display:flex;gap:6px;padding:12px 16px;justify-content:flex-end;align-items:center;font-size:13px;">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}"
+           class="hr-btn hr-btn-sm">‹</a>
+      {% endif %}
+      <span style="color:#64748b;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&piano={{ filtro_piano }}&stato={{ filtro_stato }}&obbligatorio={{ filtro_obbligatorio }}&q={{ q_search }}"
+           class="hr-btn hr-btn-sm">›</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div style="padding:32px;text-align:center;color:#94a3b8;font-size:14px;">
+      Nessun corso trovato.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

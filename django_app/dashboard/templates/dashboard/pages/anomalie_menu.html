@@ -18,7 +18,7 @@
       justify-content: center;
       font-family: 'Segoe UI', Arial, sans-serif;
       position: relative;
-      overflow: hidden;
+      overflow-y: auto;
     }
 
     /* Subtle radial gradient for depth */
@@ -61,7 +61,7 @@
       align-items: center;
       width: 100%;
       max-width: 1000px;
-      padding: 20px 32px 80px;
+      padding: 60px 32px 80px;
       gap: 0;
     }
 
@@ -78,7 +78,7 @@
 
     /* Ghost title */
     .page-title {
-      font-size: clamp(36px, 6vw, 72px);
+      font-size: clamp(24px, 6vw, 72px);
       font-weight: 900;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -95,6 +95,7 @@
       gap: 28px;
       justify-content: center;
       flex-wrap: wrap;
+      width: 100%;
     }
 
     .access-note {
@@ -114,7 +115,7 @@
       color: #fff;
       border: none;
       border-radius: 16px;
-      padding: 30px 32px;
+      padding: 28px 32px;
       font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.07em;
@@ -137,23 +138,17 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
-    /* Footer */
-    .footer {
-      position: fixed;
-      bottom: 24px;
-      left: 28px;
-      z-index: 10;
-    }
+    /* Config link (bottom-right, admin only) */
     .footer-right {
       position: fixed;
       bottom: 24px;
       right: 28px;
       z-index: 10;
     }
-    .folder-link {
+    .config-link {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       color: #1a5499;
       text-decoration: none;
       font-size: 13px;
@@ -162,18 +157,60 @@
       text-transform: uppercase;
       border: 2px solid #1a5499;
       border-radius: 8px;
-      padding: 8px 16px 8px 12px;
+      padding: 8px 16px;
       background: rgba(255,255,255,0.35);
+      -webkit-backdrop-filter: blur(4px);
       backdrop-filter: blur(4px);
       transition: background 0.15s, color 0.15s;
     }
-    .folder-link:hover {
+    .config-link:hover {
       background: rgba(255,255,255,0.55);
       color: #123d72;
     }
-    .folder-icon {
-      font-size: 20px;
-      line-height: 1;
+
+    @media (max-width: 640px) {
+      body {
+        justify-content: flex-start;
+      }
+      .main {
+        padding: 52px 16px 24px;
+      }
+      .logo-wrap {
+        margin-bottom: 8px;
+      }
+      .logo-img {
+        max-height: 90px;
+        width: auto;
+        max-width: 70vw;
+      }
+      .page-title {
+        margin-bottom: 20px;
+      }
+      .btn-grid {
+        flex-direction: column;
+        gap: 14px;
+        align-items: stretch;
+      }
+      .btn-main {
+        min-width: 0;
+        width: 100%;
+        padding: 16px 20px;
+        font-size: 14px;
+        border-radius: 12px;
+      }
+      .footer-right {
+        position: static;
+        display: flex;
+        justify-content: center;
+        padding: 20px 0 24px;
+      }
+    }
+
+    @media (min-width: 641px) and (max-width: 900px) {
+      .btn-main {
+        min-width: 160px;
+        padding: 22px 24px;
+      }
     }
   </style>
 </head>
@@ -216,16 +253,9 @@
     {% endif %}
   </main>
 
-  <div class="footer">
-    <a href="{{ sp_folder_url|default:'#' }}" class="folder-link" target="_blank" rel="noopener">
-      <span class="folder-icon">&#128193;</span>
-      Visualizza la cartella con i file
-    </a>
-  </div>
-
   {% if can_manage_anomalie_config %}
     <div class="footer-right">
-      <a href="{% url 'anomalie_configurazione_page' %}" class="folder-link">
+      <a href="{% url 'anomalie_configurazione_page' %}" class="config-link">
         Configurazione liste
       </a>
     </div>

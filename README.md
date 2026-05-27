@@ -137,7 +137,7 @@ sequenceDiagram
 | 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
 | 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
 | 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
-| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | **Anagrafica HR**: dipendenti, anagrafica civile/aziendale con permesso dedicato, storico contrattuale + cambiamenti organizzativi, voci retributive, **pannello impostazioni unificato** (`/anagrafica/impostazioni/`) per cataloghi (aree, ruoli, mansioni, qualifiche, livelli CCNL, tipologie contratto) e permessi HR, report/export, creazione dipendente (con sezione contratto) |
+| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | **Anagrafica HR**: dipendenti, anagrafica civile/aziendale con permesso dedicato, storico contrattuale + cambiamenti organizzativi, voci retributive, creazione dipendente come flusso onboarding, offboarding con pratica task/restituzioni e chiusura rapporto dalla scheda dipendente, rimessa in forza inversa, **pannello impostazioni unificato** (`/anagrafica/impostazioni/`) per cataloghi, permessi HR e associazione campi onboarding/offboarding, report/export |
 | 7b | [`fornitori`](django_app/fornitori/) | Operations | `/fornitori/` | **Anagrafica Fornitori** (modulo e permessi ACL separati da Anagrafica HR): dashboard KPI spesa/ordini/asset, lista filtrabile, scheda fornitore con documenti / ordini / valutazioni qualità / asset assegnati. I modelli restano in `anagrafica.models` per compatibilità con le FK storiche di assets |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
@@ -171,6 +171,7 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **ACL middleware** con resolver canonico v2 + fallback legacy, logging throttled delle decisioni
 - **Navigation registry** (`NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`) con visibilita derivata dai permission code canonici e fallback legacy solo per voci ancora non mappate
 - **Fallback navigazione legacy** con deduplica visuale per modulo, cosi i restore/import non duplicano in sidebar le azioni `pulsanti` dello stesso modulo
+- **Restore navigazione controllato** con `restore_navigation_registry`: dry-run di default, backup snapshot in apply e ripristino solo di categorie/menu/fallback ruoli da `fixtures/nav_acl_snapshot.json`
 - **4 auth backend in cascata**: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`
 - **Audit trail** fire-and-forget via `core.audit.log_action()` su tabella `AuditLog`
 - **Centro notifiche** unificato con campanella, badge, pannello HTMX e sorgenti scadenze asset/DPI/SLA ticket
@@ -305,8 +306,9 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Storico cambiamenti organizzativi** (`DipendenteCambiamentoOrganizzativo`, gated admin): log automatico dei cambi di mansione, reparto, area e ruolo aziendale generato da hook nelle view di modifica (`dipendente_mansione_set`, nuova `dipendente_reparto_set`, `dipendente_anagrafica_aziendale_save`). Card timeline nella scheda dipendente con filtro per tipo, badge colorato e autore+timestamp. Admin Django read-only
 - **Storico contrattuale CCNL** (`StoricoContratto`, gated HR): periodi `data_inizio`/`data_fine` con tipologia contratto, livello (cataloghi `TipologiaContratto` e `LivelloContrattuale`), qualifica professionale, CCNL. Import CSV massivo `/anagrafica/contratti/` (formato `Codice fiscale;Data Inizio;Data Fine;Tipo di contratto;Qualifica;Livello;CCNL;Descrizione livello`, encoding auto-detect) + CRUD manuale con auto-chiusura del record "in corso" quando ne inizia uno nuovo
 - **Voci retributive** (`VoceRetributiva`, gated HR): card "💰 Voci retributive" nella scheda dipendente con classificazione automatica fissi/variabili/totali/altri. **Import CSV mensile** dallo studio paghe (`/anagrafica/retribuzioni/`, admin-only) con rilevamento automatico variazioni rispetto al mese precedente. **Storico retributivo a pivot** su `/anagrafica/dipendenti/<id>/retribuzioni/`: tabella mesi × voci in stile Excel, righe raggruppate per anno (collassabili — anno corrente e precedente espansi di default), colonne ordinate per categoria (Fissi → Variabili → Altri → Totali), celle con variazione rispetto al mese precedente evidenziate in azzurro/verde, header e prima colonna sticky. **Export Excel** del pivot via pulsante "↓ Esporta Excel" (`/anagrafica/dipendenti/<id>/retribuzioni/export.xlsx`) — `.xlsx` con stesso layout, freeze su prima riga/colonna, formato valuta italiano e highlight delle variazioni. **Data-entry manuale** (HR/admin): pulsante "+ Voce manuale" per inserire singole voci; modifica/eliminazione via click sulla cella manuale (bordo viola, icona ✎) che apre una modale di edit. Le voci manuali (flag `manuale=True`) fanno override delle voci CSV con stesso `pay_item_key` nello stesso mese
-- **Pannello impostazioni unico** su `/anagrafica/impostazioni/` con 8 tabs verticali per gestire tutti i cataloghi e i permessi del modulo: Mansioni, Aree aziendali, Ruoli aziendali, Ruoli operativi sicurezza, Qualifiche professionali, **Livelli contrattuali CCNL** (A1, B3…DIR — `LivelloContrattuale`), **Tipologie contratto** (`TipologiaContratto`) e Permessi (statistiche + dati HR riservati). Le URL standalone (`/anagrafica/mansioni/`, `/anagrafica/aree/`, …) restano funzionanti come scorciatoie dirette.
-- **Creazione dipendente** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione. La sezione "Contratto e inquadramento" alla creazione crea contestualmente il primo `StoricoContratto` (tipologia, livello CCNL, ccnl, qualifica, date inizio/fine) se compilata
+- **Pannello impostazioni unico** su `/anagrafica/impostazioni/` con tab verticali per gestire cataloghi, permessi e workflow del modulo: Mansioni, Aree aziendali, Ruoli aziendali, Ruoli operativi sicurezza, Qualifiche professionali, **Livelli contrattuali CCNL** (A1, B3...DIR - `LivelloContrattuale`), **Tipologie contratto** (`TipologiaContratto`), documenti/navigazione, Permessi e **Onboarding / Offboarding**. Quest'ultimo tab associa i campi reali del form `+ Nuovo dipendente` alla lista operativa onboarding/offboarding; le voci Offboarding attive generano task automatici nelle pratiche di uscita. Le URL standalone (`/anagrafica/mansioni/`, `/anagrafica/aree/`, ...) restano funzionanti come scorciatoie dirette.
+- **Creazione dipendente / onboarding** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione. La sezione "Contratto e inquadramento" alla creazione crea contestualmente il primo `StoricoContratto` (tipologia, livello CCNL, ccnl, qualifica, date inizio/fine) se compilata; eventuali passaggi di altri reparti verranno agganciati a questo flusso, non a una sezione onboarding separata.
+- **Offboarding / Rimetti in forza** dalla scheda dipendente (`/anagrafica/dipendenti/<id>/`): gli admin avviano una pratica con motivo, data cessazione prevista, ultimo giorno operativo e task di restituzione/chiusura (HR, IT, responsabile, DPI, amministrazione). Il dipendente resta in forza finche la pratica non viene chiusa; la chiusura e consentita solo quando tutti i task sono completati o marcati come eccezione e, solo allora, valorizza `data_cessazione`, disattiva il record legacy e scollega l'account portale. Il tasto "Rimetti in forza" rimuove la data cessazione, riattiva il record legacy e ricollega automaticamente l'account portale quando e disponibile l'ID pre-offboarding o viene trovato un account univoco tramite email, alias o nome/cognome.
 - **Report dipendenti** `/anagrafica/dipendenti/report/` con filtri avanzati (area, contratto, consenso privacy, categoria protetta) e export CSV (esclusi campi HR sensibili per sicurezza)
 - **Ordinamento e avatar lista dipendenti**: `/anagrafica/dipendenti/` viene ordinata all'accesso per dipendente A-Z (`cognome nome`) prima della paginazione; ogni riga mostra la foto caricata oppure un avatar grigio neutro se assente.
 - **Lista dipendenti** `/anagrafica/dipendenti/` con filtri server-side (nome, reparto, area, **tipo contratto popolato dal catalogo `TipologiaContratto`** non piu hardcoded) e tabella potenziata da `fm-table-enhanced`: sort, filtri per colonna, ricerca globale, gestione colonne e preferenze utente persistite.
@@ -731,6 +733,20 @@ prima del `.env` copiato nella release attiva, cosi un riavvio IIS applica i
 salvataggi del pannello admin. Un pre-commit hook in `tools/git-hooks/` blocca
 commit accidentali di `.env*`, chiavi private e pattern secret.
 
+`ENV/config/.env` e' la sorgente persistente dell'ambiente. Non salvare modifiche
+solo in `ENV/current/django_app/.env`: alla release successiva verrebbero perse.
+Il Release Manager e `deployment/scripts/deploy-release.ps1` confrontano il
+`.env` attivo con `config/.env` prima di copiare la configurazione nella nuova
+release; se trovano chiavi divergenti fermano il deploy e mostrano solo i nomi
+delle chiavi da allineare. La CLI puo forzare il vecchio comportamento solo con
+`-AllowEnvDrift`.
+
+I deploy Windows applicano anche `deployment/scripts/secure-env-acl.ps1`: i
+file `.env` vengono protetti via NTFS per concedere accesso solo a SYSTEM,
+Administrators locali e identita `IIS AppPool\PortaleNovicrom-ENV`. La copia
+persistente `ENV/config/.env` resta modificabile dall'AppPool per i pannelli
+admin, mentre le copie dentro le release sono solo leggibili.
+
 La configurazione Graph/SharePoint condivisa, comprese le opzioni asset per QR
 pubblici (`SHAREPOINT_ASSET_*`), si gestisce dal pannello centrale
 `/admin-portale/hub/setup-wizard/#sec-graph`; la pagina impostazioni assets usa
@@ -914,6 +930,15 @@ python django_app\manage.py bootstrap_acl_v2 --dry-run
 python django_app\manage.py acl_fallback_report --only-unbound
 python django_app\manage.py acl_coverage_report --max-missing 216
 python django_app\manage.py seed_acl_uat --reset
+
+# Restore controllato del menu dalla fixture locale (dry-run, poi apply)
+python django_app\manage.py restore_navigation_registry --settings=config.settings.prod
+python django_app\manage.py restore_navigation_registry --apply --settings=config.settings.prod
+
+# Rinomina massiva solo del nome asset: export template, dry-run, commit
+python django_app\manage.py rename_asset_names --export-template asset_names.csv
+python django_app\manage.py rename_asset_names asset_names.csv --dry-run
+python django_app\manage.py rename_asset_names asset_names.csv --commit
 
 # Release guard progressivo
 python django_app\manage.py secret_hygiene_check

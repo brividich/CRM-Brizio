@@ -4217,6 +4217,71 @@ class ImportAssetsCatalogTests(TestCase):
             self.assertEqual(asset.extra_columns.get("porta sw"), "A0.1.06")
 
 
+class RenameAssetNamesCommandTests(TestCase):
+    def setUp(self):
+        self.asset = Asset.objects.create(
+            asset_tag="ML-000001",
+            name="Macchine CNC | DMG Mori DMC 160U",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+        )
+
+    def _write_rename_csv(self, path: Path, rows: list[list[str]]) -> None:
+        lines = ["asset_tag;new_name"]
+        lines.extend(";".join(row) for row in rows)
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def test_dry_run_does_not_update_asset_name(self):
+        with _workspace_temporary_directory("assets-rename-") as tmpdir:
+            file_path = Path(tmpdir) / "rename.csv"
+            self._write_rename_csv(file_path, [["ML-000001", "DMG Mori DMC 160U"]])
+
+            call_command("rename_asset_names", str(file_path), stdout=io.StringIO())
+
+            self.asset.refresh_from_db()
+            self.assertEqual(self.asset.name, "Macchine CNC | DMG Mori DMC 160U")
+
+    def test_commit_updates_only_asset_name(self):
+        with _workspace_temporary_directory("assets-rename-") as tmpdir:
+            file_path = Path(tmpdir) / "rename.csv"
+            self._write_rename_csv(file_path, [["ML-000001", "DMG Mori DMC 160U"]])
+
+            call_command("rename_asset_names", str(file_path), commit=True, stdout=io.StringIO())
+
+            self.asset.refresh_from_db()
+            self.assertEqual(self.asset.name, "DMG Mori DMC 160U")
+            self.assertEqual(self.asset.asset_tag, "ML-000001")
+            self.assertEqual(self.asset.asset_type, Asset.TYPE_WORK_MACHINE)
+            self.assertEqual(self.asset.reparto, "CN5")
+
+    def test_export_template_contains_current_name_as_editable_new_name(self):
+        with _workspace_temporary_directory("assets-rename-template-") as tmpdir:
+            file_path = Path(tmpdir) / "template.csv"
+
+            call_command("rename_asset_names", export_template=str(file_path), stdout=io.StringIO())
+
+            text = file_path.read_text(encoding="utf-8-sig")
+            self.assertIn("asset_tag;current_name;new_name", text)
+            self.assertIn("ML-000001;Macchine CNC | DMG Mori DMC 160U;Macchine CNC | DMG Mori DMC 160U", text)
+
+    def test_missing_asset_blocks_commit_without_partial_updates(self):
+        with _workspace_temporary_directory("assets-rename-error-") as tmpdir:
+            file_path = Path(tmpdir) / "rename.csv"
+            self._write_rename_csv(
+                file_path,
+                [
+                    ["ML-000001", "DMG Mori DMC 160U"],
+                    ["ML-404", "Asset inesistente"],
+                ],
+            )
+
+            with self.assertRaisesMessage(CommandError, "Rinomina annullata"):
+                call_command("rename_asset_names", str(file_path), commit=True, stdout=io.StringIO())
+
+            self.asset.refresh_from_db()
+            self.assertEqual(self.asset.name, "Macchine CNC | DMG Mori DMC 160U")
+
+
 class ImportWorkMachinesExcelTests(TestCase):
     def test_import_creates_assets_and_work_machines(self):
         with _workspace_temporary_directory("assets-work-machines-import-") as tmpdir:

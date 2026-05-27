@@ -21,6 +21,7 @@
 .hrnav-dd-menu a:hover { background:#f1f5f9; color:#12395f; }
 .hrnav-dd-menu a.active { background:#eef2ff; color:#12395f; }
 .hrnav-notice { margin-top:10px; font-size:13px; color:#475569; }
+.hrnav-notice-hidden { display:none; }
 body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
 body.theme-dark .hrnav-tab { color:var(--text-light); }
 body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
@@ -55,14 +56,13 @@ body.theme-dark .hrnav-notice { color:var(--text-light); }
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
 </div>
-<div class="hrnav-notice">
+<div class="hrnav-notice{% if request.resolver_match.view_name == 'anagrafica:dipendente_detail' %} hrnav-notice-hidden{% endif %}">
   {% with current=request.resolver_match.view_name %}
+  {% if current != 'anagrafica:dipendente_detail' %}
   {% if current == 'anagrafica:index' %}
     <strong>Anagrafica HR:</strong> panoramica dei dipendenti, ruoli, mansioni e qualifiche.
   {% elif current == 'anagrafica:dipendenti_list' %}
     <strong>Dipendenti:</strong> elenco dei dipendenti aziendali. Clicca "Scheda" per accedere al dettaglio.
-  {% elif current == 'anagrafica:dipendente_detail' %}
-    <strong>Scheda dipendente:</strong> dati anagrafici, mansione, ruoli, qualifiche, visite mediche, DPI e documenti.
   {% elif current == 'anagrafica:ratei_list' %}
     <strong>Ratei Ferie / Permessi:</strong> saldi mensili ferie, ROL ed ex-festività da cedolino paga.
   {% elif current == 'anagrafica:retribuzioni_globale' %}
@@ -81,6 +81,7 @@ body.theme-dark .hrnav-notice { color:var(--text-light); }
     <strong>Qualifiche professionali:</strong> certificazioni e attestati con scadenze.
   {% else %}
     <strong>Anagrafica HR:</strong> gestione dipendenti, mansioni, ruoli e qualifiche.
+  {% endif %}
   {% endif %}
   {% endwith %}
 </div>

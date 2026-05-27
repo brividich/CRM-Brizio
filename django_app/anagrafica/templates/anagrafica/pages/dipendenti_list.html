@@ -110,18 +110,14 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
       <div class="hr-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
     </div>
     <div style="overflow-x:auto;">
-      <table class="hr-table" data-sortable>
+      <table class="hr-table" data-table-id="anagrafica.dipendenti.list">
         <thead>
           <tr>
-            <th>Dipendente</th>
-            <th>Username</th>
-            <th>Stato</th>
-            <th>Account</th>
-            <th>Reparto</th>
-            <th>Mansione</th>
-            <th>Email notifica</th>
-            <th data-sort-type="number">Timbri</th>
-            <th data-no-sort data-no-filter></th>
+            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+            <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+            <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+            <th data-col="email" data-col-label="Email notifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email notifica</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -135,21 +131,6 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
                 <div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div>
               </div>
             </td>
-            <td><span class="hr-pill neutral">{{ dip.aliasusername|default:"-" }}</span></td>
-            <td>
-              {% if dip.anagrafica_attivo %}
-                <span class="hr-pill ok">Attivo</span>
-              {% else %}
-                <span class="hr-pill neutral">Non attivo</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if dip.has_account %}
-                <span class="hr-pill blue">{% if dip.account_attivo %}Account attivo{% else %}Account disattivato{% endif %}</span>
-              {% else %}
-                <span class="hr-pill neutral">Nessun account</span>
-              {% endif %}
-            </td>
             <td>{% if dip.reparto %}<span class="hr-pill blue">{{ dip.reparto }}</span>{% else %}-{% endif %}</td>
             <td>{{ dip.mansione|default:"-" }}</td>
             <td>
@@ -159,19 +140,11 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
                 <span style="color:#cbd5e1;">-</span>
               {% endif %}
             </td>
-            <td data-sort-value="{{ dip.timbri_count|default:0 }}">
-              {% if dip.timbri_count %}
-                <span class="hr-pill blue">{{ dip.timbri_count }}</span>
-              {% else %}
-                <span class="hr-pill neutral">0</span>
-              {% endif %}
-            </td>
             <td>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 {% if dip.timbri_legacy_id %}
                   <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">👤 Scheda</a>
-                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' dip.timbri_legacy_id %}">Timbri</a>
-                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'timbri:operatore_report' dip.timbri_legacy_id %}" target="_blank" title="Report timbri/firma/sigla">&#128438;</a>
+                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_print' dip.timbri_legacy_id %}" target="_blank" title="Stampa scheda completa (anagrafica civile, aziendale, dati bancari)">&#128438;</a>
                 {% else %}
                   <span style="color:#cbd5e1;">-</span>
                 {% endif %}
@@ -179,7 +152,7 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
             </td>
           </tr>
           {% empty %}
-          <tr data-empty-row="1"><td colspan="9" class="hr-empty">Nessun dipendente trovato.</td></tr>
+          <tr data-empty-row="1"><td colspan="5" class="hr-empty">Nessun dipendente trovato.</td></tr>
           {% endfor %}
         </tbody>
       </table>

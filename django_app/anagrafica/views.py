@@ -12,6 +12,7 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -34,6 +35,17 @@ from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
     DipendenteLegacyForm,
+    TrainingCompletionRuleForm,
+    TrainingCourseDependencyForm,
+    TrainingCourseForm,
+    TrainingCourseVersionForm,
+    TrainingEnrollmentEditForm,
+    TrainingInstructorForm,
+    TrainingLessonAttendanceForm,
+    TrainingLessonForm,
+    TrainingPlanForm,
+    TrainingRequirementRuleForm,
+    TrainingSessionForm,
     VisitaMedicaForm,
 )
 from .models import (
@@ -54,6 +66,9 @@ from .models import (
     ImportazioneRetributiva,
     LivelloContrattuale,
     Mansione,
+    OffboardingPratica,
+    OffboardingTask,
+    OnboardingOffboardingCampo,
     RuoloAziendale,
     RuoloOperativo,
     ImportazioneCedolini,
@@ -65,6 +80,24 @@ from .models import (
     VisitaMedica,
     VoceRetributiva,
     _classify_pay_item,
+)
+from .models_formazione import (
+    AnagraficaFormazionePermission,
+    TrainingCertificate,
+    TrainingCompletionRule,
+    TrainingCourse,
+    TrainingCourseDependency,
+    TrainingCourseModule,
+    TrainingCourseVersion,
+    TrainingDeadline,
+    TrainingEmployeeRecord,
+    TrainingEnrollment,
+    TrainingInstructor,
+    TrainingLesson,
+    TrainingLessonAttendance,
+    TrainingPlan,
+    TrainingRequirementRule,
+    TrainingSession,
 )
 from .services.dpi_ingresso import (
     RigaConsegnaIniziale,
@@ -102,6 +135,281 @@ def _cessati_legacy_ids() -> set[int]:
     }
 
 
+def _audit_safe(request, azione: str, modulo: str, dettaglio: dict | None = None) -> None:
+    try:
+        from core.audit import log_action
+
+        log_action(request, azione, modulo, dettaglio or {})
+    except Exception:
+        logger.warning("Audit %s fallito", azione, exc_info=True)
+
+
+def _int_or_none(value):
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _unique_legacy_user(qs):
+    users = list(qs.order_by("id")[:2])
+    if len(users) == 1:
+        return users[0]
+    return None
+
+
+def _resolve_account_portale_dipendente(dip: dict, aziendale=None):
+    stored_id = _int_or_none(getattr(aziendale, "utente_id_pre_offboarding", None)) or 0
+    if stored_id:
+        user = UtenteLegacy.objects.filter(id=stored_id).first()
+        if user:
+            return user, "utente_id_pre_offboarding"
+
+    current_id = _int_or_none(dip.get("utente_id")) or 0
+    if current_id:
+        user = UtenteLegacy.objects.filter(id=current_id).first()
+        if user:
+            return user, "utente_id_corrente"
+
+    email = str(dip.get("email") or "").strip()
+    if email:
+        user = _unique_legacy_user(UtenteLegacy.objects.filter(email__iexact=email))
+        if user:
+            return user, "email"
+
+    alias = str(dip.get("aliasusername") or "").strip()
+    if alias:
+        if "@" in alias:
+            user = _unique_legacy_user(UtenteLegacy.objects.filter(email__iexact=alias))
+            if user:
+                return user, "alias_email"
+        else:
+            user = _unique_legacy_user(UtenteLegacy.objects.filter(email__istartswith=f"{alias}@"))
+            if user:
+                return user, "alias_upn"
+
+    nome = str(dip.get("nome") or "").strip()
+    cognome = str(dip.get("cognome") or "").strip()
+    candidate_names = [name for name in {f"{nome} {cognome}".strip(), f"{cognome} {nome}".strip()} if name]
+    if candidate_names:
+        name_filter = Q()
+        for candidate_name in candidate_names:
+            name_filter |= Q(nome__iexact=candidate_name)
+        user = _unique_legacy_user(UtenteLegacy.objects.filter(name_filter))
+        if user:
+            return user, "nome_cognome"
+
+    return None, ""
+
+
+OFFBOARDING_RESTITUZIONI_LABELS = {
+    "badge_chiavi": "Badge, chiavi, tessere",
+    "device_it": "PC, telefono, SIM, token",
+    "dpi_divise": "DPI, divise, attrezzature",
+    "mezzi_carte": "Mezzi, carte, carburante",
+    "documenti_archivi": "Documenti e archivi",
+    "accessi_account": "Accessi e account da revocare",
+}
+
+
+OFFBOARDING_TASK_BASE = [
+    {
+        "codice": "hr_documenti_finali",
+        "categoria": OffboardingTask.CATEGORIA_HR,
+        "titolo": "Preparare documenti e chiusura HR",
+        "descrizione": "Verificare comunicazioni, documenti finali e passaggi amministrativi HR.",
+    },
+    {
+        "codice": "it_revoca_accessi",
+        "categoria": OffboardingTask.CATEGORIA_IT,
+        "titolo": "Revocare accessi e account",
+        "descrizione": "Pianificare disattivazione account portale, AD/email, gruppi e credenziali collegate.",
+    },
+    {
+        "codice": "responsabile_passaggio_consegne",
+        "categoria": OffboardingTask.CATEGORIA_RESPONSABILE,
+        "titolo": "Passaggio consegne con responsabile",
+        "descrizione": "Verificare attivita aperte, documenti di reparto e consegne operative.",
+    },
+]
+
+OFFBOARDING_TASK_BY_RESTITUZIONE = {
+    "badge_chiavi": {
+        "codice": "restituzione_badge_chiavi",
+        "categoria": OffboardingTask.CATEGORIA_HR,
+        "titolo": "Recuperare badge, chiavi e tessere",
+        "descrizione": "Ritirare badge, chiavi, tessere e accessi fisici assegnati.",
+    },
+    "device_it": {
+        "codice": "restituzione_device_it",
+        "categoria": OffboardingTask.CATEGORIA_IT,
+        "titolo": "Recuperare dotazioni IT",
+        "descrizione": "Ritirare PC, telefono, SIM, token, accessori e verificare eventuali backup.",
+    },
+    "dpi_divise": {
+        "codice": "restituzione_dpi_divise",
+        "categoria": OffboardingTask.CATEGORIA_DPI,
+        "titolo": "Recuperare DPI, divise e attrezzature",
+        "descrizione": "Verificare DPI, divise, utensili e attrezzature assegnate.",
+    },
+    "mezzi_carte": {
+        "codice": "restituzione_mezzi_carte",
+        "categoria": OffboardingTask.CATEGORIA_AMMINISTRAZIONE,
+        "titolo": "Recuperare mezzi, carte e carburante",
+        "descrizione": "Ritirare veicoli, carte aziendali, carte carburante o altri strumenti amministrativi.",
+    },
+    "documenti_archivi": {
+        "codice": "restituzione_documenti_archivi",
+        "categoria": OffboardingTask.CATEGORIA_RESPONSABILE,
+        "titolo": "Recuperare documenti e archivi",
+        "descrizione": "Verificare documenti, archivi locali e materiali di reparto da rientrare.",
+    },
+    "accessi_account": {
+        "codice": "restituzione_accessi_account",
+        "categoria": OffboardingTask.CATEGORIA_IT,
+        "titolo": "Verificare accessi applicativi da revocare",
+        "descrizione": "Controllare applicativi, cartelle condivise, licenze e permessi specifici.",
+    },
+}
+
+
+def _offboarding_task_definitions(restituzioni_codes: list[str]) -> list[dict]:
+    tasks = list(OFFBOARDING_TASK_BASE)
+    existing_codes = {task["codice"] for task in tasks}
+    for code in restituzioni_codes:
+        task = OFFBOARDING_TASK_BY_RESTITUZIONE.get(code)
+        if task and task["codice"] not in existing_codes:
+            tasks.append(task)
+            existing_codes.add(task["codice"])
+    for task in _offboarding_configured_field_tasks():
+        if task["codice"] not in existing_codes:
+            tasks.append(task)
+            existing_codes.add(task["codice"])
+    return tasks
+
+
+def _offboarding_is_admin(request) -> bool:
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    return bool(request.user.is_superuser or is_legacy_admin(legacy_user))
+
+
+def _workflow_task_code(field_key: str) -> str:
+    safe = "".join(
+        ch if ch.isalnum() else "_"
+        for ch in (field_key or "").strip().lower()
+    ).strip("_")
+    return f"campo_{safe or 'configurato'}"[:60]
+
+
+def _offboarding_configured_field_tasks() -> list[dict]:
+    configured = OnboardingOffboardingCampo.objects.filter(
+        fase=OnboardingOffboardingCampo.FASE_OFFBOARDING,
+        is_active=True,
+    ).order_by("ordine", "campo_label")
+    tasks: list[dict] = []
+    for item in configured:
+        description_parts = []
+        if item.sezione:
+            description_parts.append(f"Sezione + Nuovo dipendente: {item.sezione}.")
+        if item.note:
+            description_parts.append(item.note)
+        if item.obbligatorio:
+            description_parts.append("Campo marcato come obbligatorio nel workflow.")
+        tasks.append({
+            "codice": _workflow_task_code(item.campo_key),
+            "categoria": item.categoria,
+            "titolo": f"Verificare {item.campo_label}",
+            "descrizione": " ".join(description_parts).strip(),
+        })
+    return tasks
+
+
+def _dipendente_workflow_field_groups() -> list[dict]:
+    forms_by_source = {
+        "legacy": DipendenteLegacyForm(),
+        "aziendale": AnagraficaAziendaleForm(),
+        "civile": AnagraficaCivileForm(),
+    }
+    raw_groups = [
+        ("Dati account", "legacy", [
+            "nome", "cognome", "matricola", "aliasusername", "reparto",
+            "mansione", "ruolo", "email", "email_notifica", "attivo",
+        ]),
+        ("Ruolo e organizzazione", "aziendale", ["area", "ruolo_aziendale", "badge"]),
+        ("Ruoli operativi e DPI", "manual", [
+            ("ruoli_operativi_ids", "Ruoli operativi"),
+            ("dpi_consegna_iniziale", "DPI consegnati all'ingresso"),
+        ]),
+        ("Contratto e inquadramento", "manual", [
+            ("contratto_data_inizio", "Data inizio contratto"),
+            ("contratto_data_fine", "Data fine contratto"),
+            ("contratto_tipologia_id", "Tipologia contratto"),
+            ("contratto_codice_livello", "Livello CCNL"),
+            ("contratto_ccnl", "CCNL applicato"),
+            ("contratto_qualifica_nome", "Qualifica professionale"),
+        ]),
+        ("Periodo di prova e prima assunzione", "aziendale", [
+            "data_prima_assunzione", "data_assunzione_ultima", "data_cessazione",
+            "prova_data_inizio", "prova_data_fine",
+        ]),
+        ("Contatti aziendali", "aziendale", ["email_aziendale", "telefono_aziendale"]),
+        ("Taglie DPI / abbigliamento", "aziendale", ["taglia_scarpe", "taglia_pantalone", "taglia_maglia"]),
+        ("Privacy", "aziendale", ["consenso_privacy", "data_consenso_privacy"]),
+        ("Dati personali", "civile", [
+            "foto", "data_nascita", "luogo_nascita", "provincia_nascita",
+            "nazionalita", "genere", "titolo_studio",
+        ]),
+        ("Residenza", "civile", [
+            "indirizzo_residenza", "citta_residenza", "provincia_residenza",
+            "cap_residenza", "nazione_residenza",
+        ]),
+        ("Domicilio", "civile", ["indirizzo_domicilio", "citta_domicilio", "cap_domicilio", "nazione_domicilio"]),
+        ("Contatti privati e patente", "civile", ["email_privata", "telefono_privato", "patente_auto"]),
+        ("Dati riservati HR", "civile", [
+            "codice_fiscale", "nome_banca", "iban", "intestatario_conto",
+            "categoria_protetta", "categoria_disabili", "percentuale_disabilita",
+        ]),
+    ]
+    groups: list[dict] = []
+    for section, source, fields in raw_groups:
+        rows = []
+        for entry in fields:
+            if isinstance(entry, tuple):
+                key, label = entry
+                required = False
+            else:
+                key = entry
+                field = forms_by_source.get(source).fields.get(key) if source in forms_by_source else None
+                label = field.label if field else key.replace("_", " ").title()
+                required = bool(field.required) if field else False
+            rows.append({
+                "key": key,
+                "label": label,
+                "section": section,
+                "source": source,
+                "required": required,
+            })
+        groups.append({"label": section, "fields": rows})
+    return groups
+
+
+def _dipendente_workflow_field_map() -> dict[str, dict]:
+    return {
+        field["key"]: field
+        for group in _dipendente_workflow_field_groups()
+        for field in group["fields"]
+    }
+
+
+def _offboarding_dipendente_nome(dip: dict) -> str:
+    cognome = str(dip.get("cognome") or "").strip()
+    nome = str(dip.get("nome") or "").strip()
+    legacy_id = dip.get("id") or ""
+    return f"{cognome} {nome}".strip() or f"#{legacy_id}".strip()
+
+
 # ---------------------------------------------------------------------------
 # Dashboard anagrafica
 # ---------------------------------------------------------------------------
@@ -110,8 +418,12 @@ def _cessati_legacy_ids() -> set[int]:
 def index(request):
     ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(deduplicate=True)
-    n_dipendenti = len(rows)
-    n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows if str(row.get("reparto") or "").strip()})
+    # Esclude gli ex dipendenti (rapporto cessato) dai KPI "in organico":
+    # restano a sistema solo per storico ma non concorrono al conteggio attivi.
+    cessati_ids = _cessati_legacy_ids()
+    rows_attivi = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
+    n_dipendenti = len(rows_attivi)
+    n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows_attivi if str(row.get("reparto") or "").strip()})
 
     # Conteggi catalogo per dashboard HR
     n_mansioni = Mansione.objects.filter(is_active=True).count()
@@ -751,6 +1063,28 @@ def _can_view_visite_mediche(request) -> bool:
     return False
 
 
+def _can_view_formazione(request) -> bool:
+    """Verifica se l'utente può visualizzare la sezione formazione HR.
+    Usa AnagraficaFormazionePermission.accesso_visualizzazione (singleton).
+    """
+    if request.user.is_superuser:
+        return True
+    perm = AnagraficaFormazionePermission.get_instance()
+    if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_TUTTI:
+        return True
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if is_legacy_admin(legacy_user):
+        return perm.accesso_visualizzazione in (
+            AnagraficaFormazionePermission.ACCESSO_ADMIN,
+            AnagraficaFormazionePermission.ACCESSO_TUTTI,
+        )
+    if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_ADMIN:
+        return False
+    if legacy_user and legacy_user.ruolo_id is not None:
+        return int(legacy_user.ruolo_id) in [int(r) for r in (perm.ruoli_autorizzati_json or [])]
+    return False
+
+
 def _compute_widget_counts(dip: dict) -> dict[str, int]:
     """Calcola i contatori per ogni widget statistiche del dipendente."""
     legacy_id = int(dip.get("id") or 0)
@@ -1215,6 +1549,72 @@ def dipendente_detail(request, legacy_id: int):
         livelli_json = json.dumps({l.codice: l.descrizione for l in livelli_catalogo})
         tipi_qualifica_prof = [q for q in tipi_qualifica if q.categoria == TipoQualifica.CAT_PROFESSIONALE]
 
+    # Formazione dipendente (gating su _can_view_formazione — accesso controllato)
+    can_view_formazione_tab = _can_view_formazione(request)
+    fm_storico: list = []
+    fm_scadenze_urgenti: list = []
+    fm_n_completati = 0
+    fm_ore_totali = 0.0
+    fm_n_attestati = 0
+    if can_view_formazione_tab:
+        try:
+            fm_storico = list(
+                TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id)
+                .select_related("corso", "corso__piano")
+                .order_by("-data_completamento")[:30]
+            )
+            fm_n_completati = len(fm_storico)
+            fm_ore_totali = sum(float(r.ore_frequentate or 0) for r in fm_storico)
+            fm_scadenze_urgenti = list(
+                TrainingDeadline.objects.filter(
+                    legacy_anagrafica_id=legacy_id,
+                    stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"],
+                )
+                .select_related("corso", "corso__piano")
+                .order_by("data_scadenza")[:20]
+            )
+            fm_n_attestati = TrainingCertificate.objects.filter(
+                legacy_anagrafica_id=legacy_id
+            ).count()
+        except Exception:
+            logger.exception("Errore caricamento formazione per dipendente %s", legacy_id)
+
+    offboarding_pratica_attiva = None
+    offboarding_tasks = []
+    offboarding_task_pending_count = 0
+    offboarding_task_exception_count = 0
+    offboarding_pratiche_recenti = []
+    if is_admin:
+        try:
+            offboarding_pratica_attiva = (
+                OffboardingPratica.objects
+                .filter(
+                    legacy_anagrafica_id=legacy_id,
+                    stato__in=OffboardingPratica.STATI_APERTI,
+                )
+                .prefetch_related("tasks")
+                .order_by("-created_at", "-id")
+                .first()
+            )
+            if offboarding_pratica_attiva:
+                offboarding_tasks = list(offboarding_pratica_attiva.tasks.all())
+                offboarding_task_pending_count = sum(
+                    1 for task in offboarding_tasks
+                    if task.stato == OffboardingTask.STATO_DA_FARE
+                )
+                offboarding_task_exception_count = sum(
+                    1 for task in offboarding_tasks
+                    if task.stato == OffboardingTask.STATO_ECCEZIONE
+                )
+            offboarding_pratiche_recenti = list(
+                OffboardingPratica.objects
+                .filter(legacy_anagrafica_id=legacy_id)
+                .exclude(stato__in=OffboardingPratica.STATI_APERTI)
+                .order_by("-created_at", "-id")[:5]
+            )
+        except Exception:
+            logger.exception("Errore caricamento pratiche offboarding per dipendente %s", legacy_id)
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -1269,6 +1669,65 @@ def dipendente_detail(request, legacy_id: int):
         "assenze_list": assenze_list,
         "assenze_summary_anno": assenze_summary_anno,
         "assenze_no_link": assenze_no_link,
+        # Formazione
+        "can_view_formazione_tab": can_view_formazione_tab,
+        "fm_storico": fm_storico,
+        "fm_scadenze_urgenti": fm_scadenze_urgenti,
+        "fm_n_completati": fm_n_completati,
+        "fm_ore_totali": fm_ore_totali,
+        "fm_n_attestati": fm_n_attestati,
+        # Offboarding
+        "offboarding_pratica_attiva": offboarding_pratica_attiva,
+        "offboarding_tasks": offboarding_tasks,
+        "offboarding_task_pending_count": offboarding_task_pending_count,
+        "offboarding_task_exception_count": offboarding_task_exception_count,
+        "offboarding_pratiche_recenti": offboarding_pratiche_recenti,
+        "offboarding_motivo_choices": OffboardingPratica.MOTIVO_CHOICES,
+        "offboarding_restituzioni_labels": OFFBOARDING_RESTITUZIONI_LABELS,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Stampa scheda dipendente — anagrafica civile + aziendale + dati bancari
+# ---------------------------------------------------------------------------
+
+@login_required
+def dipendente_print(request, legacy_id: int):
+    """Pagina stampa scheda dipendente completa.
+
+    Aggrega in un'unica vista A4-friendly:
+      - dati legacy base (nome, cognome, username, reparto, mansione, email);
+      - anagrafica civile (residenza, domicilio, CF, titolo studio, contatti
+        privati, patente);
+      - anagrafica aziendale (badge, area, ruolo, contratto, livello, date
+        assunzione/cessazione/prova, taglie DPI, consenso privacy);
+      - dati bancari (nome banca, IBAN, intestatario) — gated da
+        `_check_hr_permission`; per gli utenti senza permesso l'IBAN appare
+        mascherato e il blocco è etichettato come riservato.
+
+    La pagina ha un'action bar (non stampata) con bottone "Stampa" che invoca
+    `window.print()`. CSS `@media print` rimuove sfondi e action bar.
+    """
+    ensure_anagrafica_schema()
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    civile_foto_url = _file_field_url(civile.foto) if civile else ""
+
+    can_hr = _check_hr_permission(request)
+
+    return render(request, "anagrafica/pages/dipendente_print.html", {
+        "dip": dip,
+        "civile": civile,
+        "aziendale": aziendale,
+        "civile_foto_url": civile_foto_url,
+        "can_hr": can_hr,
+        "legacy_id": legacy_id,
     })
 
 
@@ -1734,6 +2193,359 @@ def dipendente_toggle_active(request, legacy_id: int):
 # ---------------------------------------------------------------------------
 # Qualifiche dipendente — assegna/rimuovi
 # ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def dipendente_offboarding_licenziamento(request, legacy_id: int):
+    if not _offboarding_is_admin(request):
+        messages.error(request, "Non hai i permessi per avviare l'offboarding del dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    from django.db import transaction
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
+    raw_date = (request.POST.get("data_cessazione") or "").strip()
+    data_cessazione = oggi
+    if raw_date:
+        try:
+            data_cessazione = date.fromisoformat(raw_date)
+        except ValueError:
+            messages.error(request, "Data cessazione non valida.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    raw_ultimo_giorno = (request.POST.get("ultimo_giorno_operativo") or "").strip()
+    ultimo_giorno_operativo = None
+    if raw_ultimo_giorno:
+        try:
+            ultimo_giorno_operativo = date.fromisoformat(raw_ultimo_giorno)
+        except ValueError:
+            messages.error(request, "Ultimo giorno operativo non valido.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    motivo = (request.POST.get("motivo") or OffboardingPratica.MOTIVO_LICENZIAMENTO).strip()
+    valid_motivi = {choice[0] for choice in OffboardingPratica.MOTIVO_CHOICES}
+    if motivo not in valid_motivi:
+        motivo = OffboardingPratica.MOTIVO_ALTRO
+    old_utente_id = _int_or_none(dip.get("utente_id")) or None
+    restituzioni_codes = [
+        code
+        for code in request.POST.getlist("restituzioni")
+        if code in OFFBOARDING_RESTITUZIONI_LABELS
+    ]
+    restituzioni_note = (request.POST.get("restituzioni_note") or "").strip()[:1000]
+    dipendente_nome = _offboarding_dipendente_nome(dip)
+
+    aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    if aziendale and aziendale.data_cessazione:
+        messages.warning(request, "Dipendente gia cessato: usa 'Rimetti in forza' se devi riaprire il rapporto.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    pratica_aperta = OffboardingPratica.objects.filter(
+        legacy_anagrafica_id=legacy_id,
+        stato__in=OffboardingPratica.STATI_APERTI,
+    ).first()
+    if pratica_aperta:
+        messages.warning(request, "Esiste gia una pratica offboarding aperta per questo dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    try:
+        with transaction.atomic():
+            pratica = OffboardingPratica.objects.create(
+                legacy_anagrafica_id=legacy_id,
+                dipendente_nome=dipendente_nome,
+                reparto=str(dip.get("reparto") or "").strip(),
+                mansione=str(dip.get("mansione") or "").strip(),
+                motivo=motivo,
+                data_cessazione_prevista=data_cessazione,
+                ultimo_giorno_operativo=ultimo_giorno_operativo,
+                note_hr=restituzioni_note,
+                utente_id_pre_offboarding=old_utente_id,
+                created_by=request.user,
+                updated_by=request.user,
+            )
+            OffboardingTask.objects.bulk_create([
+                OffboardingTask(
+                    pratica=pratica,
+                    codice=task["codice"],
+                    categoria=task["categoria"],
+                    titolo=task["titolo"],
+                    descrizione=task["descrizione"],
+                )
+                for task in _offboarding_task_definitions(restituzioni_codes)
+            ])
+
+        try:
+            from core.audit import log_action
+            log_action(
+                request,
+                "DIPENDENTE_OFFBOARDING_PRATICA_APERTA",
+                "anagrafica",
+                {
+                    "pratica_id": pratica.id,
+                    "legacy_anagrafica_id": legacy_id,
+                    "dipendente_nome": dipendente_nome,
+                    "motivo": motivo,
+                    "data_cessazione_prevista": data_cessazione.isoformat(),
+                    "ultimo_giorno_operativo": ultimo_giorno_operativo.isoformat() if ultimo_giorno_operativo else "",
+                    "legacy_attivo": bool(dip.get("attivo", True)),
+                    "account_scollegato": False,
+                    "utente_id_pre_offboarding": old_utente_id,
+                    "restituzioni_richieste": restituzioni_codes,
+                    "restituzioni_richieste_label": [
+                        OFFBOARDING_RESTITUZIONI_LABELS[code]
+                        for code in restituzioni_codes
+                    ],
+                    "restituzioni_note": restituzioni_note,
+                },
+            )
+        except Exception:
+            logger.warning("Audit DIPENDENTE_OFFBOARDING_PRATICA_APERTA fallito", exc_info=True)
+
+        messages.success(
+            request,
+            f"Pratica offboarding avviata per il {data_cessazione:%d/%m/%Y}. "
+            "Completa le restituzioni e poi conferma la chiusura del rapporto.",
+        )
+    except Exception:
+        logger.exception("Errore avvio pratica offboarding dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'avvio della pratica offboarding.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_offboarding_task_update(request, legacy_id: int, pratica_id: int, task_id: int):
+    if not _offboarding_is_admin(request):
+        messages.error(request, "Non hai i permessi per aggiornare la pratica offboarding.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    task = get_object_or_404(
+        OffboardingTask.objects.select_related("pratica"),
+        pk=task_id,
+        pratica_id=pratica_id,
+        pratica__legacy_anagrafica_id=legacy_id,
+        pratica__stato__in=OffboardingPratica.STATI_APERTI,
+    )
+    stato = (request.POST.get("stato") or "").strip()
+    valid_stati = {choice[0] for choice in OffboardingTask.STATO_CHOICES}
+    if stato not in valid_stati:
+        messages.error(request, "Stato task offboarding non valido.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    from django.utils import timezone
+
+    before = task.stato
+    task.stato = stato
+    task.note = (request.POST.get("note") or "").strip()[:1000]
+    if stato in (OffboardingTask.STATO_COMPLETATO, OffboardingTask.STATO_ECCEZIONE):
+        task.completed_at = timezone.now()
+        task.completed_by = request.user
+    else:
+        task.completed_at = None
+        task.completed_by = None
+    task.save(update_fields=["stato", "note", "completed_at", "completed_by", "updated_at"])
+
+    task.pratica.updated_by = request.user
+    task.pratica.save(update_fields=["updated_by", "updated_at"])
+    _audit_safe(request, "DIPENDENTE_OFFBOARDING_TASK_UPDATE", "anagrafica", {
+        "pratica_id": pratica_id,
+        "task_id": task_id,
+        "legacy_anagrafica_id": legacy_id,
+        "task_codice": task.codice,
+        "stato_precedente": before,
+        "stato_nuovo": task.stato,
+        "note": task.note,
+    })
+    messages.success(request, f"Task offboarding aggiornato: {task.titolo}.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_offboarding_chiudi(request, legacy_id: int, pratica_id: int):
+    if not _offboarding_is_admin(request):
+        messages.error(request, "Non hai i permessi per chiudere la pratica offboarding.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    pratica = get_object_or_404(
+        OffboardingPratica.objects.prefetch_related("tasks"),
+        pk=pratica_id,
+        legacy_anagrafica_id=legacy_id,
+        stato__in=OffboardingPratica.STATI_APERTI,
+    )
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    tasks = list(pratica.tasks.all())
+    pending = [task for task in tasks if task.stato == OffboardingTask.STATO_DA_FARE]
+    if pending:
+        messages.warning(request, "Completa o marca come eccezione tutti i task prima di chiudere il rapporto.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    from django.db import transaction
+    from django.utils import timezone
+
+    oggi = timezone.localdate()
+    data_cessazione = pratica.data_cessazione_prevista
+    if data_cessazione > oggi:
+        messages.warning(
+            request,
+            "La data cessazione prevista e futura: puoi completare i task, ma la chiusura effettiva va fatta alla data corretta.",
+        )
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    old_utente_id = pratica.utente_id_pre_offboarding or (_int_or_none(dip.get("utente_id")) or None)
+    try:
+        with transaction.atomic():
+            aziendale, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
+                legacy_anagrafica_id=legacy_id
+            )
+            old_data_cessazione = aziendale.data_cessazione
+            aziendale.data_cessazione = data_cessazione
+            update_fields = ["data_cessazione", "updated_by", "updated_at"]
+            if old_utente_id and aziendale.utente_id_pre_offboarding != old_utente_id:
+                aziendale.utente_id_pre_offboarding = old_utente_id
+                update_fields.append("utente_id_pre_offboarding")
+            aziendale.updated_by = request.user
+            aziendale.save(update_fields=update_fields)
+
+            upsert_anagrafica_dipendente(
+                row_id=legacy_id,
+                aliasusername=dip.get("aliasusername") or "",
+                nome=dip.get("nome") or "",
+                cognome=dip.get("cognome") or "",
+                reparto=dip.get("reparto") or "",
+                mansione=dip.get("mansione") or "",
+                ruolo=dip.get("ruolo") or "",
+                matricola=dip.get("matricola") or "",
+                email=dip.get("email") or "",
+                email_notifica=dip.get("email_notifica") or "",
+                attivo=False,
+                detach_account=True,
+            )
+
+            has_exceptions = any(task.stato == OffboardingTask.STATO_ECCEZIONE for task in tasks)
+            pratica.stato = (
+                OffboardingPratica.STATO_CHIUSA_CON_ECCEZIONI
+                if has_exceptions else OffboardingPratica.STATO_CHIUSA
+            )
+            pratica.closed_at = timezone.now()
+            pratica.closed_by = request.user
+            pratica.updated_by = request.user
+            pratica.save(update_fields=["stato", "closed_at", "closed_by", "updated_by", "updated_at"])
+
+        _audit_safe(request, "DIPENDENTE_OFFBOARDING_CHIUSO", "anagrafica", {
+            "pratica_id": pratica.id,
+            "legacy_anagrafica_id": legacy_id,
+            "data_cessazione": data_cessazione.isoformat(),
+            "data_cessazione_precedente": old_data_cessazione.isoformat() if old_data_cessazione else "",
+            "legacy_attivo": False,
+            "account_scollegato": True,
+            "utente_id_pre_offboarding": old_utente_id,
+            "stato_pratica": pratica.stato,
+            "task_totali": len(tasks),
+            "task_eccezioni": sum(1 for task in tasks if task.stato == OffboardingTask.STATO_ECCEZIONE),
+        })
+        messages.success(
+            request,
+            f"Pratica offboarding chiusa: dipendente cessato dal {data_cessazione:%d/%m/%Y}, "
+            "non piu in forza e account scollegato.",
+        )
+    except Exception:
+        logger.exception("Errore chiusura pratica offboarding dipendente %s", legacy_id)
+        messages.error(request, "Errore durante la chiusura della pratica offboarding.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_rimetti_in_forza(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per rimettere in forza il dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    try:
+        with transaction.atomic():
+            aziendale = DipendenteAnagraficaAziendale.objects.filter(
+                legacy_anagrafica_id=legacy_id
+            ).first()
+            old_data_cessazione = aziendale.data_cessazione if aziendale else None
+            account_user, account_match = _resolve_account_portale_dipendente(dip, aziendale)
+            account_id = int(account_user.id) if account_user else None
+            if aziendale and old_data_cessazione:
+                aziendale.data_cessazione = None
+                aziendale.updated_by = request.user
+                update_fields = ["data_cessazione", "updated_by", "updated_at"]
+                if account_id and aziendale.utente_id_pre_offboarding:
+                    aziendale.utente_id_pre_offboarding = None
+                    update_fields.append("utente_id_pre_offboarding")
+                aziendale.save(update_fields=update_fields)
+
+            upsert_anagrafica_dipendente(
+                row_id=legacy_id,
+                aliasusername=dip.get("aliasusername") or "",
+                nome=dip.get("nome") or "",
+                cognome=dip.get("cognome") or "",
+                reparto=dip.get("reparto") or "",
+                mansione=dip.get("mansione") or "",
+                ruolo=dip.get("ruolo") or "",
+                matricola=dip.get("matricola") or "",
+                email=dip.get("email") or "",
+                email_notifica=dip.get("email_notifica") or "",
+                attivo=True,
+                utente_id=account_id,
+                detach_account=False,
+            )
+
+        _audit_safe(
+            request,
+            "DIPENDENTE_RIMESSO_IN_FORZA",
+            "anagrafica",
+            {
+                "legacy_anagrafica_id": legacy_id,
+                "data_cessazione_precedente": old_data_cessazione.isoformat() if old_data_cessazione else "",
+                "legacy_attivo": True,
+                "account_ricollegato": bool(account_id),
+                "account_legacy_user_id": account_id,
+                "account_match": account_match,
+            },
+        )
+
+        if old_data_cessazione:
+            if account_id:
+                messages.success(
+                    request,
+                    "Dipendente rimesso in forza: data cessazione rimossa, stato legacy riattivato "
+                    "e account portale ricollegato automaticamente.",
+                )
+            else:
+                messages.warning(
+                    request,
+                    "Dipendente rimesso in forza: data cessazione rimossa e stato legacy riattivato. "
+                    "Non ho trovato un account portale univoco da ricollegare automaticamente.",
+                )
+        else:
+            messages.success(request, "Dipendente gia in forza: stato legacy confermato attivo.")
+    except Exception:
+        logger.exception("Errore rimessa in forza dipendente %s", legacy_id)
+        messages.error(request, "Errore durante la rimessa in forza del dipendente.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
 
 @login_required
 @require_POST
@@ -3423,6 +4235,112 @@ def _impostazioni_admin_check(request, tab: str | None = None):
     return True, None
 
 
+def _workflow_campo_payload(request, existing: OnboardingOffboardingCampo | None = None) -> tuple[dict | None, str | None]:
+    field_map = _dipendente_workflow_field_map()
+    campo_key = (request.POST.get("campo_key") or getattr(existing, "campo_key", "") or "").strip()
+    meta = field_map.get(campo_key)
+    if not meta:
+        return None, "Campo del form nuovo dipendente non valido."
+
+    fase = (request.POST.get("fase") or getattr(existing, "fase", "") or "").strip()
+    valid_fasi = {value for value, _label in OnboardingOffboardingCampo.FASE_CHOICES}
+    if fase not in valid_fasi:
+        return None, "Fase onboarding/offboarding non valida."
+
+    categoria = (request.POST.get("categoria") or getattr(existing, "categoria", "") or "").strip()
+    valid_categorie = {value for value, _label in OnboardingOffboardingCampo.CATEGORIA_CHOICES}
+    if categoria not in valid_categorie:
+        categoria = OnboardingOffboardingCampo.CATEGORIA_HR
+
+    label = (request.POST.get("campo_label") or meta["label"]).strip()[:160]
+    if not label:
+        label = meta["label"][:160]
+    try:
+        ordine = int((request.POST.get("ordine") or getattr(existing, "ordine", 50) or 50))
+    except (TypeError, ValueError):
+        ordine = 50
+    ordine = max(0, min(ordine, 9999))
+
+    return {
+        "fase": fase,
+        "campo_key": campo_key,
+        "campo_label": label,
+        "sezione": meta["section"][:120],
+        "categoria": categoria,
+        "obbligatorio": request.POST.get("obbligatorio") == "1",
+        "is_active": request.POST.get("is_active", "1") == "1",
+        "ordine": ordine,
+        "note": (request.POST.get("note") or "").strip()[:1000],
+        "updated_by": request.user,
+    }, None
+
+
+@login_required
+@require_POST
+def workflow_campo_create(request):
+    ok, resp = _impostazioni_admin_check(request, "workflow")
+    if not ok:
+        return resp
+
+    payload, error = _workflow_campo_payload(request)
+    if error:
+        messages.error(request, error)
+        return _redirect_impostazioni("workflow")
+
+    try:
+        obj, created = OnboardingOffboardingCampo.objects.get_or_create(
+            fase=payload["fase"],
+            campo_key=payload["campo_key"],
+            defaults=payload,
+        )
+        if created:
+            messages.success(request, "Campo aggiunto alla lista onboarding/offboarding.")
+        else:
+            for key, value in payload.items():
+                setattr(obj, key, value)
+            obj.save()
+            messages.info(request, "Associazione gia presente: aggiornata con i nuovi valori.")
+    except IntegrityError:
+        messages.error(request, "Esiste gia una associazione per questo campo e questa fase.")
+    return _redirect_impostazioni("workflow")
+
+
+@login_required
+@require_POST
+def workflow_campo_update(request, campo_id: int):
+    ok, resp = _impostazioni_admin_check(request, "workflow")
+    if not ok:
+        return resp
+
+    obj = get_object_or_404(OnboardingOffboardingCampo, pk=campo_id)
+    payload, error = _workflow_campo_payload(request, existing=obj)
+    if error:
+        messages.error(request, error)
+        return _redirect_impostazioni("workflow")
+
+    try:
+        for key, value in payload.items():
+            setattr(obj, key, value)
+        obj.save()
+        messages.success(request, "Associazione onboarding/offboarding aggiornata.")
+    except IntegrityError:
+        messages.error(request, "Esiste gia una associazione per questo campo e questa fase.")
+    return _redirect_impostazioni("workflow")
+
+
+@login_required
+@require_POST
+def workflow_campo_delete(request, campo_id: int):
+    ok, resp = _impostazioni_admin_check(request, "workflow")
+    if not ok:
+        return resp
+    obj = get_object_or_404(OnboardingOffboardingCampo, pk=campo_id)
+    label = obj.campo_label
+    obj.delete()
+    messages.success(request, f'Associazione "{label}" eliminata.')
+    return _redirect_impostazioni("workflow")
+
+
 # ---------------------------------------------------------------------------
 # Livelli contrattuali — catalogo (CRUD)
 # ---------------------------------------------------------------------------
@@ -3723,6 +4641,21 @@ def scadenzario(request):
     paginator  = Paginator(voci, 50)
     page_obj   = paginator.get_page(request.GET.get("page"))
 
+    # Formazione: riepilogo scadenze urgenti da mostrare come sezione aggiuntiva
+    can_view_formazione = _can_view_formazione(request)
+    fm_n_scaduti = 0
+    fm_n_30gg    = 0
+    fm_n_90gg    = 0
+    fm_is_cache_empty = True
+    if can_view_formazione:
+        try:
+            fm_n_scaduti = TrainingDeadline.objects.filter(stato_scadenza="SCADUTO").count()
+            fm_n_30gg    = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_30").count()
+            fm_n_90gg    = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_90").count()
+            fm_is_cache_empty = not TrainingDeadline.objects.exists()
+        except Exception:
+            logger.exception("Errore caricamento KPI formazione per scadenzario")
+
     return render(request, "anagrafica/pages/scadenzario.html", {
         "page_obj":      page_obj,
         "n_scadute":     n_scadute,
@@ -3735,6 +4668,11 @@ def scadenzario(request):
         "reparti":       reparti,
         "can_view_visite": can_view_visite,
         "totale":        len(voci),
+        "can_view_formazione": can_view_formazione,
+        "fm_n_scaduti":  fm_n_scaduti,
+        "fm_n_30gg":     fm_n_30gg,
+        "fm_n_90gg":     fm_n_90gg,
+        "fm_is_cache_empty": fm_is_cache_empty,
     })
 
 
@@ -4507,6 +5445,22 @@ def impostazioni(request):
         ("anagrafica:impostazioni", "Impostazioni anagrafica"),
     ]
 
+    # --- Workflow onboarding/offboarding ---
+    workflow_field_groups = _dipendente_workflow_field_groups()
+    workflow_field_map = {
+        field["key"]: field
+        for group in workflow_field_groups
+        for field in group["fields"]
+    }
+    workflow_campi = list(
+        OnboardingOffboardingCampo.objects.order_by("fase", "ordine", "campo_label")
+    )
+    for item in workflow_campi:
+        meta = workflow_field_map.get(item.campo_key)
+        item.catalog_missing = meta is None
+        item.catalog_label = meta["label"] if meta else item.campo_label
+        item.catalog_section = meta["section"] if meta else item.sezione
+
     return render(request, "anagrafica/pages/impostazioni.html", {
         "is_admin": is_admin,
         "active_tab": active_tab,
@@ -4550,6 +5504,11 @@ def impostazioni(request):
         "subnav_categorie": subnav_categorie,
         "subnav_links": subnav_links,
         "subnav_route_choices": subnav_route_choices,
+        # Workflow onboarding/offboarding
+        "workflow_campi": workflow_campi,
+        "workflow_field_groups": workflow_field_groups,
+        "workflow_fase_choices": OnboardingOffboardingCampo.FASE_CHOICES,
+        "workflow_categoria_choices": OnboardingOffboardingCampo.CATEGORIA_CHOICES,
     })
 
 
@@ -6244,3 +7203,1801 @@ def visite_mediche_export_copertura(request):
     response["Content-Disposition"] = 'attachment; filename="visite_copertura_tipologie.xlsx"'
     wb.save(response)
     return response
+
+
+# ============================================================================
+# FORMAZIONE HR — Dashboard (PATCH-02)
+# ============================================================================
+
+@login_required
+def formazione_dashboard(request):
+    """Dashboard globale formazione HR.
+
+    KPI letti da TrainingDeadline (cache ricalcolabile) e TrainingEmployeeRecord.
+    Se TrainingDeadline è vuota (non ancora ricalcolata) i KPI scadenze sono 0
+    e viene mostrato un banner informativo.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    from django.utils import timezone as _tz
+
+    oggi = _tz.localdate()
+
+    # KPI da TrainingEmployeeRecord (non dipende dalla cache)
+    kpi_dipendenti_formazione = (
+        TrainingEmployeeRecord.objects
+        .values("legacy_anagrafica_id").distinct().count()
+    )
+
+    # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata)
+    kpi_scaduti         = TrainingDeadline.objects.filter(stato_scadenza="SCADUTO").count()
+    kpi_in_scadenza_30  = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_30").count()
+    kpi_obbligatori_mancanti = TrainingDeadline.objects.filter(
+        stato_scadenza__in=["MAI_FREQUENTATO", "SCADUTO"],
+        is_required=True,
+    ).count()
+
+    # KPI catalogo
+    kpi_piani_attivi = TrainingPlan.objects.filter(stato="ATTIVO", is_active=True).count()
+    kpi_corsi_attivi = TrainingCourse.objects.filter(stato="ATTIVO", is_active=True).count()
+
+    # Scadenzario urgente TOP 20 (ordinato per urgenza crescente)
+    scadenze_raw = list(
+        TrainingDeadline.objects
+        .filter(stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"])
+        .select_related("corso", "corso__piano")
+        .order_by("data_scadenza", "legacy_anagrafica_id")[:20]
+    )
+    nomi_map = _build_nomi_map()
+    for d in scadenze_raw:
+        d.dipendente_nome = nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}")
+        d.giorni = (d.data_scadenza - oggi).days if d.data_scadenza else None
+
+    deadline_cache_empty = not TrainingDeadline.objects.exists()
+
+    return render(request, "anagrafica/pages/formazione_dashboard.html", {
+        "oggi": oggi,
+        "kpi_dipendenti_formazione": kpi_dipendenti_formazione,
+        "kpi_scaduti": kpi_scaduti,
+        "kpi_in_scadenza_30": kpi_in_scadenza_30,
+        "kpi_obbligatori_mancanti": kpi_obbligatori_mancanti,
+        "kpi_piani_attivi": kpi_piani_attivi,
+        "kpi_corsi_attivi": kpi_corsi_attivi,
+        "scadenze_urgenti": scadenze_raw,
+        "deadline_cache_empty": deadline_cache_empty,
+    })
+
+
+def _can_edit_formazione(request) -> bool:
+    """Verifica permesso di modifica sezione formazione (modifica catalogo piani/corsi/istruttori)."""
+    if request.user.is_superuser:
+        return True
+    perm = AnagraficaFormazionePermission.get_instance()
+    if perm.accesso_modifica == AnagraficaFormazionePermission.ACCESSO_TUTTI:
+        return True
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if is_legacy_admin(legacy_user):
+        return perm.accesso_modifica in (
+            AnagraficaFormazionePermission.ACCESSO_ADMIN,
+            AnagraficaFormazionePermission.ACCESSO_TUTTI,
+        )
+    if perm.accesso_modifica == AnagraficaFormazionePermission.ACCESSO_ADMIN:
+        return False
+    if legacy_user and legacy_user.ruolo_id is not None:
+        return int(legacy_user.ruolo_id) in [int(r) for r in (perm.ruoli_autorizzati_json or [])]
+    return False
+
+
+# ============================================================================
+# FORMAZIONE HR — Piani formativi (PATCH-03)
+# ============================================================================
+
+@login_required
+def formazione_piani_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    filtro_stato = request.GET.get("stato", "")
+    filtro_cat   = request.GET.get("categoria", "")
+    qs = TrainingPlan.objects.all()
+    if filtro_stato:
+        qs = qs.filter(stato=filtro_stato)
+    if filtro_cat:
+        qs = qs.filter(categoria=filtro_cat)
+    piani = list(qs.order_by("nome").annotate(n_corsi=Count("corsi")))
+
+    form = TrainingPlanForm()
+    return render(request, "anagrafica/pages/formazione_piani.html", {
+        "piani": piani,
+        "form": form,
+        "is_editor": is_editor,
+        "filtro_stato": filtro_stato,
+        "filtro_cat": filtro_cat,
+        "STATO_CHOICES": TrainingPlan.STATO_CHOICES,
+        "CATEGORIA_CHOICES": TrainingPlan.CATEGORIA_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def formazione_piano_create(request):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare piani formativi.")
+        return redirect("anagrafica:formazione_piani_list")
+    form = TrainingPlanForm(request.POST)
+    if form.is_valid():
+        piano = form.save(commit=False)
+        piano.created_by = request.user
+        piano.save()
+        messages.success(request, f'Piano "{piano.nome}" creato.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_piani_list")
+
+
+@login_required
+def formazione_piano_detail(request, piano_id: int):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    piano = get_object_or_404(TrainingPlan, pk=piano_id)
+    corsi = list(
+        TrainingCourse.objects.filter(piano=piano)
+        .order_by("titolo")
+        .annotate(n_sessioni=Count("sessioni", distinct=True))
+    )
+    regole = list(
+        TrainingRequirementRule.objects.filter(piano=piano, is_active=True)
+        .select_related("mansione", "area", "ruolo_operativo")
+        .order_by("-priority")
+    )
+    nomi_singoli: dict[int, str] = {}
+    ids_singoli = [r.legacy_anagrafica_id for r in regole if r.legacy_anagrafica_id]
+    if ids_singoli:
+        nomi_singoli = _build_nomi_map()
+    for r in regole:
+        r.dipendente_nome = nomi_singoli.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
+
+    edit_form = TrainingPlanForm(instance=piano)
+    return render(request, "anagrafica/pages/formazione_piano_detail.html", {
+        "piano": piano,
+        "corsi": corsi,
+        "regole": regole,
+        "edit_form": edit_form,
+        "is_editor": is_editor,
+    })
+
+
+@login_required
+@require_POST
+def formazione_piano_edit(request, piano_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare piani formativi.")
+        return redirect("anagrafica:formazione_piani_list")
+    piano = get_object_or_404(TrainingPlan, pk=piano_id)
+    form = TrainingPlanForm(request.POST, instance=piano)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Piano "{piano.nome}" aggiornato.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_piano_detail", piano_id=piano_id)
+
+
+@login_required
+@require_POST
+def formazione_piano_delete(request, piano_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare piani formativi.")
+        return redirect("anagrafica:formazione_piani_list")
+    piano = get_object_or_404(TrainingPlan, pk=piano_id)
+    if piano.corsi.exists():
+        messages.error(request, f'Il piano "{piano.nome}" ha corsi associati. Archivia o rimuovi prima i corsi.')
+        return redirect("anagrafica:formazione_piano_detail", piano_id=piano_id)
+    nome = piano.nome
+    piano.delete()
+    messages.success(request, f'Piano "{nome}" eliminato.')
+    return redirect("anagrafica:formazione_piani_list")
+
+
+# ============================================================================
+# FORMAZIONE HR — Corsi (PATCH-03)
+# ============================================================================
+
+@login_required
+def formazione_corsi_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    filtro_piano = request.GET.get("piano", "")
+    filtro_stato = request.GET.get("stato", "")
+    filtro_obbligatorio = request.GET.get("obbligatorio", "")
+    q_search = (request.GET.get("q") or "").strip()
+
+    qs = TrainingCourse.objects.select_related("piano").all()
+    if filtro_piano:
+        qs = qs.filter(piano_id=filtro_piano)
+    if filtro_stato:
+        qs = qs.filter(stato=filtro_stato)
+    if filtro_obbligatorio == "1":
+        qs = qs.filter(obbligatorio=True)
+    elif filtro_obbligatorio == "0":
+        qs = qs.filter(obbligatorio=False)
+    if q_search:
+        qs = qs.filter(Q(titolo__icontains=q_search) | Q(codice__icontains=q_search))
+
+    paginator = Paginator(qs.order_by("piano__nome", "titolo"), 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    piani = list(TrainingPlan.objects.filter(is_active=True).order_by("nome"))
+
+    return render(request, "anagrafica/pages/formazione_corsi.html", {
+        "page_obj": page_obj,
+        "is_editor": is_editor,
+        "filtro_piano": filtro_piano,
+        "filtro_stato": filtro_stato,
+        "filtro_obbligatorio": filtro_obbligatorio,
+        "q_search": q_search,
+        "piani": piani,
+        "STATO_CHOICES": TrainingCourse.STATO_CHOICES,
+    })
+
+
+@login_required
+def formazione_corso_create(request):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare corsi formativi.")
+        return redirect("anagrafica:formazione_corsi_list")
+    if request.method == "POST":
+        form = TrainingCourseForm(request.POST)
+        if form.is_valid():
+            corso = form.save(commit=False)
+            corso.created_by = request.user
+            corso.save()
+            messages.success(request, f'Corso "{corso.titolo}" creato.')
+            return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
+    else:
+        initial_piano = request.GET.get("piano")
+        form = TrainingCourseForm(initial={"piano": initial_piano} if initial_piano else {})
+    return render(request, "anagrafica/pages/formazione_corso_form.html", {
+        "form": form,
+        "modo": "crea",
+    })
+
+
+@login_required
+def formazione_corso_detail(request, corso_id: int):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id)
+
+    prerequisiti = list(
+        TrainingCourseDependency.objects.filter(corso_principale=corso)
+        .select_related("prerequisito")
+    )
+    moduli = list(
+        TrainingCourseModule.objects.filter(corso_padre=corso)
+        .select_related("corso_modulo")
+        .order_by("ordine")
+    )
+    versioni = list(
+        TrainingCourseVersion.objects.filter(corso=corso).order_by("-created_at")
+    )
+    regole = list(
+        TrainingRequirementRule.objects.filter(corso=corso, is_active=True)
+        .select_related("mansione", "area", "ruolo_operativo")
+        .order_by("-priority")
+    )
+    nomi_singoli: dict[int, str] = {}
+    ids_singoli = [r.legacy_anagrafica_id for r in regole if r.legacy_anagrafica_id]
+    if ids_singoli:
+        nomi_singoli = _build_nomi_map()
+    for r in regole:
+        r.dipendente_nome = nomi_singoli.get(r.legacy_anagrafica_id, "") if r.legacy_anagrafica_id else ""
+
+    try:
+        completion_rule = corso.regola_superamento
+    except TrainingCompletionRule.DoesNotExist:
+        completion_rule = None
+
+    n_sessioni = corso.sessioni.count() if hasattr(corso, "sessioni") else 0
+    n_completamenti = TrainingEmployeeRecord.objects.filter(corso=corso).count()
+
+    # Lista sessioni del corso con conteggi lezioni/iscritti per la sezione
+    # "Sessioni del corso" nel dettaglio. Limita a 100 per evitare pagine enormi
+    # su corsi storici molto frequentati (ordine: piu recenti prima).
+    sessioni_list = list(
+        corso.sessioni
+        .select_related("docente")
+        .annotate(n_lezioni=Count("lezioni", distinct=True),
+                  n_iscritti=Count("iscrizioni", distinct=True))
+        .order_by("-data_inizio")[:100]
+    )
+
+    # Aggregazione dipendenti iscritti distinti (across all sessioni del corso).
+    # Per ciascuno: n. sessioni, stato sintetico, ultimo completamento, idoneo.
+    from collections import defaultdict
+    agg_dip = defaultdict(lambda: {
+        "n_sessioni": 0,
+        "stati": set(),
+        "data_completamento": None,
+        "idoneo": None,
+        "n_completati": 0,
+    })
+    for e in (TrainingEnrollment.objects
+              .filter(sessione__corso=corso)
+              .values("legacy_anagrafica_id", "stato")):
+        a = agg_dip[e["legacy_anagrafica_id"]]
+        a["n_sessioni"] += 1
+        a["stati"].add(e["stato"])
+    for r in (TrainingEmployeeRecord.objects
+              .filter(corso=corso)
+              .order_by("-data_completamento")
+              .values("legacy_anagrafica_id", "data_completamento", "idoneo")):
+        a = agg_dip[r["legacy_anagrafica_id"]]
+        a["n_completati"] += 1
+        if a["data_completamento"] is None:
+            a["data_completamento"] = r["data_completamento"]
+            a["idoneo"] = r["idoneo"]
+
+    nomi_dipendenti = _build_nomi_map() if agg_dip else {}
+    # Ordine sintetico stati per scegliere il più rappresentativo
+    _stato_priority = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
+    dipendenti_iscritti = []
+    for lid, a in agg_dip.items():
+        stato_sint = next((s for s in _stato_priority if s in a["stati"]), next(iter(a["stati"]), ""))
+        dipendenti_iscritti.append({
+            "legacy_id": lid,
+            "nome": nomi_dipendenti.get(lid, f"#{lid}"),
+            "n_sessioni": a["n_sessioni"],
+            "n_completati": a["n_completati"],
+            "stato_sint": stato_sint,
+            "data_completamento": a["data_completamento"],
+            "idoneo": a["idoneo"],
+        })
+    dipendenti_iscritti.sort(key=lambda x: x["nome"].lower())
+    n_dipendenti_iscritti = len(dipendenti_iscritti)
+
+    edit_form = TrainingCourseForm(instance=corso)
+    dep_form = TrainingCourseDependencyForm(corso_principale=corso)
+    completion_form = TrainingCompletionRuleForm(instance=completion_rule)
+    version_form = TrainingCourseVersionForm()
+    req_rule_form = TrainingRequirementRuleForm(initial={"corso": corso})
+
+    return render(request, "anagrafica/pages/formazione_corso_detail.html", {
+        "corso": corso,
+        "prerequisiti": prerequisiti,
+        "moduli": moduli,
+        "versioni": versioni,
+        "regole": regole,
+        "completion_rule": completion_rule,
+        "n_sessioni": n_sessioni,
+        "n_completamenti": n_completamenti,
+        "sessioni_list": sessioni_list,
+        "dipendenti_iscritti": dipendenti_iscritti,
+        "n_dipendenti_iscritti": n_dipendenti_iscritti,
+        "edit_form": edit_form,
+        "dep_form": dep_form,
+        "completion_form": completion_form,
+        "version_form": version_form,
+        "req_rule_form": req_rule_form,
+        "is_editor": is_editor,
+        "tutti_corsi": TrainingCourse.objects.exclude(pk=corso_id).filter(is_active=True).order_by("titolo"),
+    })
+
+
+@login_required
+@require_POST
+def formazione_corso_edit(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corsi_list")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    form = TrainingCourseForm(request.POST, instance=corso)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_delete(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare corsi formativi.")
+        return redirect("anagrafica:formazione_corsi_list")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    if corso.sessioni.exists():
+        messages.error(request, f'Il corso "{corso.titolo}" ha sessioni associate. Archivia o rimuovi prima le sessioni.')
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    piano_id = corso.piano_id
+    nome = corso.titolo
+    corso.delete()
+    messages.success(request, f'Corso "{nome}" eliminato.')
+    return redirect("anagrafica:formazione_piano_detail", piano_id=piano_id)
+
+
+# ── Prerequisiti ────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def formazione_corso_dep_add(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    form = TrainingCourseDependencyForm(request.POST, corso_principale=corso)
+    if form.is_valid():
+        prereq_id = form.cleaned_data["prerequisito_id"]
+        prereq = get_object_or_404(TrainingCourse, pk=prereq_id)
+        if prereq == corso:
+            messages.error(request, "Un corso non può essere prerequisito di sé stesso.")
+        else:
+            _, created = TrainingCourseDependency.objects.get_or_create(
+                corso_principale=corso,
+                prerequisito=prereq,
+                defaults={"obbligatorio": form.cleaned_data.get("obbligatorio", True)},
+            )
+            if created:
+                messages.success(request, f'Prerequisito "{prereq.codice}" aggiunto.')
+            else:
+                messages.warning(request, "Prerequisito già presente.")
+    else:
+        messages.error(request, "Dati non validi per il prerequisito.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_dep_delete(request, corso_id: int, dep_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    dep = get_object_or_404(TrainingCourseDependency, pk=dep_id, corso_principale_id=corso_id)
+    dep.delete()
+    messages.success(request, "Prerequisito rimosso.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Versioni corso ───────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def formazione_corso_version_add(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    form = TrainingCourseVersionForm(request.POST)
+    if form.is_valid():
+        ver = form.save(commit=False)
+        ver.corso = corso
+        ver.revised_by = request.user
+        ver.save()
+        messages.success(request, f'Versione "{ver.version_label}" aggiunta.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_version_delete(request, corso_id: int, ver_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    ver = get_object_or_404(TrainingCourseVersion, pk=ver_id, corso_id=corso_id)
+    ver.delete()
+    messages.success(request, "Versione rimossa.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Regola superamento ───────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def formazione_corso_completion_rule_save(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    try:
+        instance = corso.regola_superamento
+    except TrainingCompletionRule.DoesNotExist:
+        instance = None
+    form = TrainingCompletionRuleForm(request.POST, instance=instance)
+    if form.is_valid():
+        rule = form.save(commit=False)
+        rule.corso = corso
+        rule.save()
+        messages.success(request, "Regola di superamento salvata.")
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Regole obbligatorietà sul corso ─────────────────────────────────────────
+
+@login_required
+@require_POST
+def formazione_corso_req_rule_add(request, corso_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    form = TrainingRequirementRuleForm(request.POST)
+    if form.is_valid():
+        rule = form.save(commit=False)
+        rule.corso = corso
+        rule.piano = None
+        rule.created_by = request.user
+        rule.save()
+        messages.success(request, "Regola di obbligatorietà aggiunta.")
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_req_rule_delete(request, corso_id: int, rule_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    rule = get_object_or_404(TrainingRequirementRule, pk=rule_id, corso_id=corso_id)
+    rule.delete()
+    messages.success(request, "Regola rimossa.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ============================================================================
+# FORMAZIONE HR — Istruttori (PATCH-03)
+# ============================================================================
+
+@login_required
+def formazione_istruttori_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    filtro_tipo = request.GET.get("tipo", "")
+    q_search = (request.GET.get("q") or "").strip()
+    qs = TrainingInstructor.objects.all()
+    if filtro_tipo:
+        qs = qs.filter(tipo=filtro_tipo)
+    if q_search:
+        qs = qs.filter(Q(nome__icontains=q_search) | Q(ragione_sociale__icontains=q_search))
+
+    istruttori = list(qs.order_by("nome"))
+    form = TrainingInstructorForm()
+    return render(request, "anagrafica/pages/formazione_istruttori.html", {
+        "istruttori": istruttori,
+        "form": form,
+        "is_editor": is_editor,
+        "filtro_tipo": filtro_tipo,
+        "q_search": q_search,
+        "TIPO_CHOICES": TrainingInstructor.TIPO_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def formazione_istruttore_create(request):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare istruttori.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    form = TrainingInstructorForm(request.POST)
+    if form.is_valid():
+        istr = form.save()
+        messages.success(request, f'Istruttore "{istr.nome}" creato.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_istruttori_list")
+
+
+@login_required
+@require_POST
+def formazione_istruttore_edit(request, istruttore_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare istruttori.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    istr = get_object_or_404(TrainingInstructor, pk=istruttore_id)
+    form = TrainingInstructorForm(request.POST, instance=istr)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Istruttore "{istr.nome}" aggiornato.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_istruttori_list")
+
+
+@login_required
+@require_POST
+def formazione_istruttore_delete(request, istruttore_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare istruttori.")
+        return redirect("anagrafica:formazione_istruttori_list")
+    istr = get_object_or_404(TrainingInstructor, pk=istruttore_id)
+    if istr.sessioni.exists() or istr.lezioni.exists():
+        istr.is_active = False
+        istr.save()
+        messages.warning(request, f'Istruttore "{istr.nome}" disattivato (ha sessioni/lezioni associate).')
+    else:
+        nome = istr.nome
+        istr.delete()
+        messages.success(request, f'Istruttore "{nome}" eliminato.')
+    return redirect("anagrafica:formazione_istruttori_list")
+
+
+# ============================================================================
+# FORMAZIONE HR — Sessioni formative (PATCH-04)
+# ============================================================================
+
+@login_required
+def formazione_sessioni_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    filtro_corso  = request.GET.get("corso", "")
+    filtro_stato  = request.GET.get("stato", "")
+    filtro_anno   = request.GET.get("anno", "")
+    q_search      = (request.GET.get("q") or "").strip()
+
+    from django.utils import timezone as _tz
+    qs = TrainingSession.objects.select_related("corso", "corso__piano", "docente").all()
+    if filtro_corso:
+        qs = qs.filter(corso_id=filtro_corso)
+    if filtro_stato:
+        qs = qs.filter(stato=filtro_stato)
+    if filtro_anno:
+        qs = qs.filter(data_inizio__year=filtro_anno)
+    if q_search:
+        qs = qs.filter(
+            Q(codice_sessione__icontains=q_search) |
+            Q(corso__titolo__icontains=q_search) |
+            Q(sede__icontains=q_search)
+        )
+
+    paginator = Paginator(qs.order_by("-data_inizio"), 50)
+    page_obj  = paginator.get_page(request.GET.get("page"))
+
+    corsi_attivi = list(TrainingCourse.objects.filter(is_active=True).order_by("titolo"))
+    anni = list(
+        TrainingSession.objects
+        .values_list("data_inizio__year", flat=True)
+        .distinct()
+        .order_by("-data_inizio__year")
+    )
+
+    return render(request, "anagrafica/pages/formazione_sessioni.html", {
+        "page_obj": page_obj,
+        "is_editor": is_editor,
+        "filtro_corso": filtro_corso,
+        "filtro_stato": filtro_stato,
+        "filtro_anno": filtro_anno,
+        "q_search": q_search,
+        "corsi_attivi": corsi_attivi,
+        "anni": anni,
+        "STATO_CHOICES": TrainingSession.STATO_CHOICES,
+    })
+
+
+@login_required
+def formazione_sessione_create(request):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per creare sessioni formative.")
+        return redirect("anagrafica:formazione_sessioni_list")
+    if request.method == "POST":
+        form = TrainingSessionForm(request.POST)
+        if form.is_valid():
+            sessione = form.save(commit=False)
+            sessione.created_by = request.user
+            sessione.save()
+            messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
+            return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
+    else:
+        initial = {}
+        if request.GET.get("corso"):
+            initial["corso"] = request.GET.get("corso")
+        form = TrainingSessionForm(initial=initial)
+    return render(request, "anagrafica/pages/formazione_sessione_form.html", {
+        "form": form,
+        "modo": "crea",
+    })
+
+
+@login_required
+def formazione_sessione_detail(request, sessione_id: int):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    sessione = get_object_or_404(
+        TrainingSession.objects.select_related("corso", "corso__piano", "docente"),
+        pk=sessione_id,
+    )
+    lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
+    n_iscritti = sessione.iscrizioni.count()
+
+    edit_form   = TrainingSessionForm(instance=sessione)
+    lezione_form = TrainingLessonForm(sessione=sessione)
+
+    return render(request, "anagrafica/pages/formazione_sessione_detail.html", {
+        "sessione":     sessione,
+        "lezioni":      lezioni,
+        "n_iscritti":   n_iscritti,
+        "edit_form":    edit_form,
+        "lezione_form": lezione_form,
+        "is_editor":    is_editor,
+    })
+
+
+@login_required
+@require_POST
+def formazione_sessione_edit(request, sessione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessioni_list")
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    form = TrainingSessionForm(request.POST, instance=sessione)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f'Sessione "{sessione.codice_sessione}" aggiornata.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_sessione_delete(request, sessione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare sessioni formative.")
+        return redirect("anagrafica:formazione_sessioni_list")
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    if sessione.iscrizioni.exists():
+        messages.error(
+            request,
+            f'La sessione "{sessione.codice_sessione}" ha iscrizioni. '
+            "Rimuovi prima gli iscritti o annulla la sessione.",
+        )
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    corso_id = sessione.corso_id
+    codice   = sessione.codice_sessione
+    sessione.delete()
+    messages.success(request, f'Sessione "{codice}" eliminata.')
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+# ── Lezioni ──────────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def formazione_lezione_add(request, sessione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    form = TrainingLessonForm(request.POST, sessione=sessione)
+    if form.is_valid():
+        lezione = form.save(commit=False)
+        lezione.sessione = sessione
+        lezione.updated_by = request.user
+        lezione.save()
+        messages.success(request, f'Lezione {lezione.numero} aggiunta.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_lezione_edit(request, sessione_id: int, lezione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+    form = TrainingLessonForm(request.POST, instance=lezione, sessione=sessione)
+    if form.is_valid():
+        lz = form.save(commit=False)
+        lz.updated_by = request.user
+        lz.save()
+        messages.success(request, f'Lezione {lezione.numero} aggiornata.')
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_lezione_delete(request, sessione_id: int, lezione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare sessioni formative.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione_id=sessione_id)
+    num = lezione.numero
+    lezione.delete()
+    messages.success(request, f'Lezione {num} eliminata.')
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+# ============================================================================
+# FORMAZIONE HR — Iscritti e Presenze (PATCH-05)
+# ============================================================================
+
+def _add_months(dt, months: int):
+    """Aggiunge N mesi a una data, gestendo correttamente fine mese."""
+    import calendar
+    month = dt.month - 1 + months
+    year  = dt.year + month // 12
+    month = month % 12 + 1
+    day   = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | None:
+    """Calcola la percentuale di presenza sull'intero monte ore della sessione."""
+    lezioni = list(enrollment.sessione.lezioni.all())
+    if not lezioni:
+        return None
+    ore_totali = sum(lz.durata_ore for lz in lezioni)
+    if ore_totali <= 0:
+        return None
+    presenze = {
+        p.lezione_id: p
+        for p in TrainingLessonAttendance.objects.filter(
+            lezione__in=lezioni,
+            legacy_anagrafica_id=enrollment.legacy_anagrafica_id,
+        )
+    }
+    ore_effettive = 0.0
+    for lz in lezioni:
+        p = presenze.get(lz.pk)
+        if p and p.stato_presenza == "PRESENTE":
+            ore_effettive += float(p.ore_effettive) if p.ore_effettive else lz.durata_ore
+        elif p and p.stato_presenza == "PARZIALE":
+            ore_effettive += float(p.ore_effettive) if p.ore_effettive else (lz.durata_ore * 0.5)
+    return round(ore_effettive / ore_totali * 100, 2)
+
+
+def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> TrainingEmployeeRecord | None:
+    """Crea TrainingEmployeeRecord con tutti i campi snapshot al completamento.
+
+    Ritorna None se il record esiste già (idempotente).
+    Segna TrainingDeadline.needs_refresh=True per invalidare la cache scadenze.
+    """
+    if hasattr(enrollment, "record_completamento") and enrollment.record_completamento_id:
+        return None
+
+    corso    = enrollment.sessione.corso
+    sessione = enrollment.sessione
+    from django.utils import timezone as _tz
+    oggi = _tz.localdate()
+
+    data_completamento = enrollment.data_completamento or oggi
+    data_scadenza = None
+    if corso.validita_mesi:
+        data_scadenza = _add_months(data_completamento, corso.validita_mesi)
+
+    try:
+        completion_rule = corso.regola_superamento
+        rule_json = {
+            "ore_minime": completion_rule.ore_minime_percentuale,
+            "presenza_minima": completion_rule.presenza_minima_percentuale,
+            "esame": completion_rule.richiede_esame_finale,
+        }
+    except TrainingCompletionRule.DoesNotExist:
+        rule_json = {}
+
+    record = TrainingEmployeeRecord.objects.create(
+        corso=corso,
+        sessione=sessione,
+        enrollment=enrollment,
+        legacy_anagrafica_id=enrollment.legacy_anagrafica_id,
+        data_completamento=data_completamento,
+        ore_frequentate=enrollment.ore_frequentate or 0,
+        percentuale_presenza=enrollment.percentuale_presenza,
+        idoneo=enrollment.idoneo if enrollment.idoneo is not None else True,
+        data_scadenza=data_scadenza,
+        # Snapshot storici
+        course_code_snapshot=corso.codice,
+        course_title_snapshot=corso.titolo,
+        course_version_snapshot=corso.versione,
+        plan_code_snapshot=corso.piano.codice if corso.piano_id else "",
+        plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
+        duration_hours_snapshot=corso.durata_ore_teorica,
+        validity_months_snapshot=corso.validita_mesi,
+        completion_rule_snapshot_json=rule_json,
+        session_code_snapshot=sessione.codice_sessione,
+        teacher_name_snapshot=sessione.docente_nome or "",
+        completion_calculation_snapshot_json={
+            "ore_frequentate": str(enrollment.ore_frequentate or 0),
+            "percentuale": str(enrollment.percentuale_presenza or ""),
+        },
+    )
+
+    # Invalida cache scadenze per questo dipendente × corso
+    TrainingDeadline.objects.filter(
+        corso=corso,
+        legacy_anagrafica_id=enrollment.legacy_anagrafica_id,
+    ).update(needs_refresh=True)
+
+    # Tenta ricalcolo immediato (stub — NON lancia eccezione se non ancora implementato)
+    try:
+        from .services.training_deadline_service import refresh_deadlines
+        refresh_deadlines(legacy_id=enrollment.legacy_anagrafica_id, corso_id=corso.pk)
+    except NotImplementedError:
+        pass  # PATCH-06 implementerà il ricalcolo completo
+
+    return record
+
+
+@login_required
+def formazione_sessione_iscritti(request, sessione_id: int):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    sessione = get_object_or_404(
+        TrainingSession.objects.select_related("corso", "corso__piano"),
+        pk=sessione_id,
+    )
+    iscrizioni = list(
+        TrainingEnrollment.objects.filter(sessione=sessione)
+        .order_by("legacy_anagrafica_id")
+    )
+    lezioni = list(sessione.lezioni.order_by("data", "ora_inizio"))
+
+    # Mappa presenze: {(legacy_id, lezione_id): stato_presenza}
+    ids = [i.legacy_anagrafica_id for i in iscrizioni]
+    presenze_qs = TrainingLessonAttendance.objects.filter(
+        lezione__in=lezioni,
+        legacy_anagrafica_id__in=ids,
+    ).values("lezione_id", "legacy_anagrafica_id", "stato_presenza")
+    presenze_map: dict[tuple, str] = {
+        (p["legacy_anagrafica_id"], p["lezione_id"]): p["stato_presenza"]
+        for p in presenze_qs
+    }
+
+    nomi_map = _build_nomi_map()
+    for i in iscrizioni:
+        i.nome_dip = nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")
+        # Griglia presenze per riga (lista parallela alle lezioni)
+        presenze_griglia = [
+            presenze_map.get((i.legacy_anagrafica_id, lz.pk), "")
+            for lz in lezioni
+        ]
+        i.lezioni_presenze = list(zip(lezioni, presenze_griglia))
+
+    # Lista dipendenti attivi per il form di iscrizione
+    dipendenti_attivi = _build_nomi_map()
+
+    return render(request, "anagrafica/pages/formazione_iscritti.html", {
+        "sessione":          sessione,
+        "iscrizioni":        iscrizioni,
+        "lezioni":           lezioni,
+        "is_editor":         is_editor,
+        "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: x[1]),
+        "STATO_CHOICES":     TrainingEnrollment.STATO_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_add(request, sessione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+
+    try:
+        legacy_id = int(request.POST.get("legacy_anagrafica_id") or 0)
+    except (TypeError, ValueError):
+        legacy_id = 0
+    if not legacy_id:
+        messages.error(request, "Selezionare un dipendente valido.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    _, created = TrainingEnrollment.objects.get_or_create(
+        sessione=sessione,
+        legacy_anagrafica_id=legacy_id,
+        defaults={
+            "stato": "ISCRITTO",
+            "iscritto_da": request.user,
+            "note": (request.POST.get("note") or "").strip(),
+        },
+    )
+    if created:
+        nomi = _build_nomi_map()
+        nome = nomi.get(legacy_id, f"#{legacy_id}")
+        messages.success(request, f'Dipendente "{nome}" iscritto alla sessione.')
+    else:
+        messages.warning(request, "Dipendente già iscritto a questa sessione.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_edit(request, sessione_id: int, iscrizione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(TrainingEnrollment, pk=iscrizione_id, sessione_id=sessione_id)
+    stato_precedente = iscrizione.stato
+
+    form = TrainingEnrollmentEditForm(request.POST, instance=iscrizione)
+    if form.is_valid():
+        iscrizione = form.save()
+        # Se diventa COMPLETATO per la prima volta, crea il record storico
+        if iscrizione.stato == "COMPLETATO" and stato_precedente != "COMPLETATO":
+            _crea_employee_record(iscrizione, request.user)
+        messages.success(request, "Iscrizione aggiornata.")
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(TrainingEnrollment, pk=iscrizione_id, sessione_id=sessione_id)
+    iscrizione.delete()
+    messages.success(request, "Iscrizione rimossa.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    iscrizioni = list(
+        TrainingEnrollment.objects.filter(sessione=sessione)
+        .order_by("legacy_anagrafica_id")
+    )
+    ids = [i.legacy_anagrafica_id for i in iscrizioni]
+    presenze_map = {
+        p.legacy_anagrafica_id: p
+        for p in TrainingLessonAttendance.objects.filter(
+            lezione=lezione, legacy_anagrafica_id__in=ids
+        )
+    }
+    nomi_map = _build_nomi_map()
+    righe = []
+    for i in iscrizioni:
+        righe.append({
+            "enrollment": i,
+            "nome": nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}"),
+            "presenza": presenze_map.get(i.legacy_anagrafica_id),
+        })
+
+    n_presenti = sum(1 for r in righe if r["presenza"] is not None)
+
+    return render(request, "anagrafica/pages/formazione_presenze.html", {
+        "sessione":   sessione,
+        "lezione":    lezione,
+        "righe":      righe,
+        "is_editor":  is_editor,
+        "n_presenti": n_presenti,
+        "STATO_PRESENZA_CHOICES": TrainingLessonAttendance.STATO_PRESENZA_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le presenze.")
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione_id=sessione_id)
+
+    try:
+        legacy_id = int(request.POST.get("legacy_anagrafica_id") or 0)
+    except (TypeError, ValueError):
+        legacy_id = 0
+    if not legacy_id:
+        messages.error(request, "ID dipendente non valido.")
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+    presenza, _ = TrainingLessonAttendance.objects.get_or_create(
+        lezione=lezione,
+        legacy_anagrafica_id=legacy_id,
+        defaults={"registrato_da": request.user},
+    )
+    form = TrainingLessonAttendanceForm(request.POST, instance=presenza)
+    if form.is_valid():
+        p = form.save(commit=False)
+        p.registrato_da = request.user
+        p.save()
+
+        # Aggiorna ore_frequentate e percentuale nell'iscrizione
+        try:
+            enrollment = TrainingEnrollment.objects.get(
+                sessione_id=sessione_id, legacy_anagrafica_id=legacy_id
+            )
+            perc = _calcola_percentuale_presenza(enrollment)
+            # Somma ore presenziate in tutte le lezioni
+            ore = sum(
+                float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
+                for lz, pr in [
+                    (lz, TrainingLessonAttendance.objects.filter(
+                        lezione=lz, legacy_anagrafica_id=legacy_id
+                    ).first())
+                    for lz in enrollment.sessione.lezioni.all()
+                ]
+                if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
+            )
+            enrollment.ore_frequentate  = round(ore, 2)
+            enrollment.percentuale_presenza = perc
+            enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+        except TrainingEnrollment.DoesNotExist:
+            pass
+
+        messages.success(request, "Presenza registrata.")
+    else:
+        for field_errors in form.errors.values():
+            for err in field_errors:
+                messages.error(request, err)
+    return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+def formazione_scadenzario(request):
+    """Scadenzario formazione: corsi scaduti, in scadenza e mai frequentati."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    filtro_stato = request.GET.get("stato", "").strip()
+    filtro_corso = request.GET.get("corso", "").strip()
+    filtro_q     = request.GET.get("q", "").strip()
+
+    qs = (
+        TrainingDeadline.objects
+        .select_related("corso", "corso__piano")
+        .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
+    )
+
+    if filtro_stato:
+        qs = qs.filter(stato_scadenza=filtro_stato)
+    else:
+        qs = qs.filter(
+            stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"]
+        )
+
+    if filtro_corso:
+        try:
+            qs = qs.filter(corso_id=int(filtro_corso))
+        except (ValueError, TypeError):
+            pass
+
+    nomi_map = _build_nomi_map()
+
+    if filtro_q:
+        q_lower = filtro_q.lower()
+        matched_ids = [lid for lid, nome in nomi_map.items() if q_lower in nome.lower()]
+        qs = qs.filter(legacy_anagrafica_id__in=matched_ids)
+
+    scadenze = list(qs)
+    for s in scadenze:
+        s.nome_dip = nomi_map.get(s.legacy_anagrafica_id, f"#{s.legacy_anagrafica_id}")
+
+    # KPI globali (su tutti, non filtrati)
+    all_qs = TrainingDeadline.objects
+    n_scaduti  = all_qs.filter(stato_scadenza="SCADUTO").count()
+    n_30gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
+    n_90gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
+    n_mai      = all_qs.filter(stato_scadenza="MAI_FREQUENTATO", is_required=True).count()
+
+    is_cache_empty = not all_qs.exists()
+
+    paginator = Paginator(scadenze, 50)
+    page_obj  = paginator.get_page(request.GET.get("page"))
+
+    corsi_list = TrainingCourse.objects.filter(is_active=True).order_by("codice")
+
+    return render(request, "anagrafica/pages/formazione_scadenzario.html", {
+        "page_obj":      page_obj,
+        "filtro_stato":  filtro_stato,
+        "filtro_corso":  filtro_corso,
+        "filtro_q":      filtro_q,
+        "corsi_list":    corsi_list,
+        "n_scaduti":     n_scaduti,
+        "n_30gg":        n_30gg,
+        "n_90gg":        n_90gg,
+        "n_mai":         n_mai,
+        "is_cache_empty": is_cache_empty,
+        "totale":        len(scadenze),
+        "STATO_SCADENZA_CHOICES": TrainingDeadline.STATO_SCADENZA_CHOICES,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PLAN — calendario mese per mese di corsi, scadenze, DPI, assenze
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def formazione_plan(request, legacy_id: int | None = None):
+    """Vista PLAN: eventi formazione/safety in 3 modalità.
+
+    Senza `legacy_id` mostra il plan aggregato (tutto il personale).
+    Con `legacy_id` filtra sui soli eventi del dipendente.
+
+    Modalità (querystring `?view=`):
+      - `mese`      (default) — card per mese con elenco eventi
+      - `calendario` — griglia mensile classica (settimane × giorni)
+      - `matrice`   — X giorni × Y dipendenti (planning resource view).
+                      Disponibile solo nella vista globale (non per-dipendente).
+
+    Eventi aggregati:
+      - Sessioni formative (`TrainingSession`) per `data_inizio`, con elenco
+        dipendenti iscritti (top 5 nomi + count totale).
+      - Scadenze formazione (`TrainingDeadline`) per `data_scadenza`.
+      - DPI scadenze — TODO PATCH successiva.
+      - Assenze programmate — TODO PATCH successiva.
+
+    Range default: mese corrente ± 3 mesi (7 mesi totali). Override via
+    querystring `?from=YYYY-MM-DD&to=YYYY-MM-DD`. Per la vista `calendario` si
+    può anche specificare `?anno=YYYY&mese=MM` per centrare su un singolo mese.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    from datetime import timedelta
+    import calendar as _calendar
+    from collections import OrderedDict, defaultdict
+
+    today = date.today()
+    view_mode = (request.GET.get("view") or "mese").lower()
+    if view_mode not in {"mese", "calendario", "matrice"}:
+        view_mode = "mese"
+
+    def _parse_iso(s: str) -> date | None:
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+    # ── Calcolo range a seconda della modalità ──────────────────────────────
+    if view_mode == "calendario":
+        try:
+            cal_anno = int(request.GET.get("anno") or today.year)
+            cal_mese = int(request.GET.get("mese") or today.month)
+        except (TypeError, ValueError):
+            cal_anno, cal_mese = today.year, today.month
+        if cal_mese < 1 or cal_mese > 12:
+            cal_mese = today.month
+        cal_first = date(cal_anno, cal_mese, 1)
+        cal_last = (_add_months(cal_first, 1) - timedelta(days=1))
+        range_from, range_to = cal_first, cal_last
+    else:
+        range_from = _parse_iso(request.GET.get("from") or "") or _add_months(today.replace(day=1), -3)
+        range_to_input = _parse_iso(request.GET.get("to") or "")
+        if range_to_input is None:
+            plus3 = _add_months(today.replace(day=1), 4)
+            range_to = plus3 - timedelta(days=1)
+        else:
+            range_to = range_to_input
+        if range_to < range_from:
+            range_from, range_to = range_to, range_from
+        cal_anno, cal_mese = today.year, today.month
+
+    # ── Mappa nomi dipendenti ──────────────────────────────────────────────
+    nomi_map = _build_nomi_map()
+
+    # ── Raccolta eventi ────────────────────────────────────────────────────
+    eventi: list[dict] = []
+
+    # 1) Sessioni formative
+    qs_sessioni = (
+        TrainingSession.objects
+        .select_related("corso", "corso__piano", "docente")
+        .filter(data_inizio__gte=range_from, data_inizio__lte=range_to)
+    )
+    if legacy_id is not None:
+        sess_ids_dip = list(
+            TrainingEnrollment.objects
+            .filter(legacy_anagrafica_id=legacy_id,
+                    sessione__data_inizio__gte=range_from,
+                    sessione__data_inizio__lte=range_to)
+            .values_list("sessione_id", flat=True)
+        )
+        qs_sessioni = qs_sessioni.filter(pk__in=sess_ids_dip)
+
+    # Pre-fetch iscritti per sessione (per mostrare nomi)
+    sess_ids = [s.pk for s in qs_sessioni]
+    iscritti_per_sess: dict[int, list[int]] = defaultdict(list)
+    if sess_ids:
+        for sess_id, lid in (
+            TrainingEnrollment.objects
+            .filter(sessione_id__in=sess_ids)
+            .values_list("sessione_id", "legacy_anagrafica_id")
+        ):
+            iscritti_per_sess[sess_id].append(lid)
+
+    for s in qs_sessioni:
+        legacy_ids = iscritti_per_sess.get(s.pk, [])
+        nomi_top = [nomi_map.get(lid, f"#{lid}") for lid in legacy_ids[:5]]
+        eventi.append({
+            "data":   s.data_inizio,
+            "data_fine": s.data_fine,
+            "tipo":   "CORSO",
+            "tipo_label": "Corso",
+            "titolo": f"{s.corso.codice} — {s.corso.titolo[:60]}",
+            "sub":    f"Sessione {s.codice_sessione} · {s.get_stato_display()}",
+            "url":    f"/anagrafica/formazione/sessioni/{s.pk}/",
+            "stato":  s.stato,
+            "badge":  s.stato.lower(),
+            "iscritti_count": len(legacy_ids),
+            "iscritti_nomi":  nomi_top,
+            "iscritti_extra": max(0, len(legacy_ids) - 5),
+            "iscritti_legacy_ids": legacy_ids,
+        })
+
+    # 2) Scadenze formazione
+    qs_scad = (
+        TrainingDeadline.objects
+        .select_related("corso", "corso__piano")
+        .filter(data_scadenza__gte=range_from, data_scadenza__lte=range_to)
+        .exclude(stato_scadenza="UNA_TANTUM")
+    )
+    if legacy_id is not None:
+        qs_scad = qs_scad.filter(legacy_anagrafica_id=legacy_id)
+
+    for d in qs_scad:
+        nome_dip = nomi_map.get(d.legacy_anagrafica_id, "") if legacy_id is None else ""
+        sub_parts = [d.get_stato_scadenza_display()]
+        if nome_dip:
+            sub_parts.insert(0, nome_dip)
+        eventi.append({
+            "data":   d.data_scadenza,
+            "data_fine": d.data_scadenza,
+            "tipo":   "SCADENZA",
+            "tipo_label": "Scadenza",
+            "titolo": f"{d.corso.codice} — {d.corso.titolo[:60]}",
+            "sub":    " · ".join(sub_parts),
+            "url":    f"/anagrafica/formazione/corsi/{d.corso_id}/",
+            "stato":  d.stato_scadenza,
+            "badge":  d.stato_scadenza.lower(),
+            "iscritti_count": 1,
+            "iscritti_nomi":  [nome_dip] if nome_dip else [],
+            "iscritti_extra": 0,
+            "iscritti_legacy_ids": [d.legacy_anagrafica_id],
+        })
+
+    # ── 3) Raggruppamento per mese (modalità "mese", per i KPI riepilogo) ──
+    mesi: "OrderedDict[tuple[int,int], dict]" = OrderedDict()
+    cursor = range_from.replace(day=1)
+    end_month = range_to.replace(day=1)
+    while cursor <= end_month:
+        mesi[(cursor.year, cursor.month)] = {
+            "anno": cursor.year, "mese": cursor.month,
+            "label_mese": cursor.strftime("%B %Y").capitalize(),
+            "is_corrente": (cursor.year, cursor.month) == (today.year, today.month),
+            "is_passato":  cursor < today.replace(day=1),
+            "is_futuro":   cursor > today.replace(day=1),
+            "eventi": [],
+        }
+        cursor = _add_months(cursor, 1)
+    for ev in eventi:
+        key = (ev["data"].year, ev["data"].month)
+        if key in mesi:
+            mesi[key]["eventi"].append(ev)
+    for m in mesi.values():
+        m["eventi"].sort(key=lambda e: (e["data"], e["tipo"]))
+        m["n_eventi"] = len(m["eventi"])
+        m["n_corsi"]    = sum(1 for e in m["eventi"] if e["tipo"] == "CORSO")
+        m["n_scadenze"] = sum(1 for e in m["eventi"] if e["tipo"] == "SCADENZA")
+
+    # ── 4) Griglia calendario mensile (modalità "calendario") ──────────────
+    calendar_weeks: list[list[dict]] = []
+    if view_mode == "calendario":
+        # Index eventi per giorno
+        eventi_per_giorno: dict[date, list[dict]] = defaultdict(list)
+        for ev in eventi:
+            eventi_per_giorno[ev["data"]].append(ev)
+        cal = _calendar.Calendar(firstweekday=0)  # 0 = lunedì
+        for week in cal.monthdatescalendar(cal_anno, cal_mese):
+            row = []
+            for d in week:
+                row.append({
+                    "data": d,
+                    "is_other_month": d.month != cal_mese,
+                    "is_today": d == today,
+                    "eventi": sorted(eventi_per_giorno.get(d, []), key=lambda e: e["tipo"]),
+                })
+            calendar_weeks.append(row)
+
+    # ── 5) Matrice giorni × dipendenti (modalità "matrice") ────────────────
+    matrice = None
+    filtro_reparto  = (request.GET.get("reparto") or "").strip()
+    filtro_mansione = (request.GET.get("mansione") or "").strip()
+    filtro_area     = (request.GET.get("area") or "").strip()
+    filtro_ruolo    = (request.GET.get("ruolo") or "").strip()
+    if view_mode == "matrice" and legacy_id is None:
+        # Cap dimensione: max 60 giorni.
+        n_days = (range_to - range_from).days + 1
+        if n_days > 60:
+            range_to = range_from + timedelta(days=59)
+            n_days = 60
+        giorni = [range_from + timedelta(days=i) for i in range(n_days)]
+
+        # Aggrega per (legacy_id, giorno) → list di eventi
+        cell_index: dict[tuple[int, date], list[dict]] = defaultdict(list)
+        legacy_ids_coinvolti: set[int] = set()
+        for ev in eventi:
+            for lid in (ev.get("iscritti_legacy_ids") or []):
+                cell_index[(lid, ev["data"])].append(ev)
+                legacy_ids_coinvolti.add(lid)
+
+        # Carica attributi dipendente (mansione/reparto da legacy; area da DipendenteAnagraficaAziendale)
+        from core.legacy_models import AnagraficaDipendente as _LegAna
+        dip_attr: dict[int, dict] = {}
+        if legacy_ids_coinvolti:
+            for r in _LegAna.objects.filter(id__in=list(legacy_ids_coinvolti)).values("id", "mansione", "reparto"):
+                dip_attr[int(r["id"])] = {
+                    "mansione": (r.get("mansione") or "").strip(),
+                    "reparto":  (r.get("reparto") or "").strip(),
+                    "area":     "",
+                }
+            for r in DipendenteAnagraficaAziendale.objects.filter(
+                legacy_anagrafica_id__in=list(legacy_ids_coinvolti)
+            ).values("legacy_anagrafica_id", "area", "ruolo_aziendale"):
+                lid = int(r["legacy_anagrafica_id"])
+                attrs = dip_attr.setdefault(lid, {"mansione": "", "reparto": "", "area": "", "ruolo": ""})
+                attrs["area"]  = (r.get("area") or "").strip()
+                attrs["ruolo"] = (r.get("ruolo_aziendale") or "").strip()
+
+        # Valori distinti per i menu filtro (calcolati PRIMA di filtrare, su tutti i coinvolti)
+        opzioni_reparto  = sorted({a.get("reparto", "")  for a in dip_attr.values() if a.get("reparto")})
+        opzioni_mansione = sorted({a.get("mansione", "") for a in dip_attr.values() if a.get("mansione")})
+        opzioni_area     = sorted({a.get("area", "")     for a in dip_attr.values() if a.get("area")})
+        opzioni_ruolo    = sorted({a.get("ruolo", "")    for a in dip_attr.values() if a.get("ruolo")})
+
+        # Applica filtri sulle righe
+        def _row_passes(lid: int) -> bool:
+            a = dip_attr.get(lid) or {}
+            if filtro_reparto  and a.get("reparto", "") != filtro_reparto:  return False
+            if filtro_mansione and a.get("mansione", "") != filtro_mansione: return False
+            if filtro_area     and a.get("area", "") != filtro_area:         return False
+            if filtro_ruolo    and a.get("ruolo", "") != filtro_ruolo:       return False
+            return True
+
+        rows_legacy = sorted(
+            (lid for lid in legacy_ids_coinvolti if _row_passes(lid)),
+            key=lambda lid: nomi_map.get(lid, f"#{lid}").lower(),
+        )
+        rows = []
+        for lid in rows_legacy:
+            a = dip_attr.get(lid) or {}
+            cells = []
+            for g in giorni:
+                evs = cell_index.get((lid, g), [])
+                cells.append({"data": g, "is_today": g == today, "eventi": evs})
+            rows.append({
+                "legacy_id": lid,
+                "nome":      nomi_map.get(lid, f"#{lid}"),
+                "reparto":   a.get("reparto", ""),
+                "mansione":  a.get("mansione", ""),
+                "area":      a.get("area", ""),
+                "ruolo":     a.get("ruolo", ""),
+                "cells":     cells,
+                "n_eventi":  sum(len(c["eventi"]) for c in cells),
+            })
+
+        matrice = {
+            "giorni":  giorni,
+            "rows":    rows,
+            "n_rows":  len(rows),
+            "n_totale_dipendenti": len(legacy_ids_coinvolti),
+            "n_days":  n_days,
+            "opzioni_reparto":  opzioni_reparto,
+            "opzioni_mansione": opzioni_mansione,
+            "opzioni_area":     opzioni_area,
+            "opzioni_ruolo":    opzioni_ruolo,
+            "filtro_reparto":   filtro_reparto,
+            "filtro_mansione":  filtro_mansione,
+            "filtro_area":      filtro_area,
+            "filtro_ruolo":     filtro_ruolo,
+            "any_filter":       bool(filtro_reparto or filtro_mansione or filtro_area or filtro_ruolo),
+        }
+
+    # ── Contesto dipendente (per vista per-dipendente) ─────────────────────
+    contesto_dipendente = None
+    if legacy_id is not None:
+        from core.legacy_models import AnagraficaDipendente
+        dip = AnagraficaDipendente.objects.filter(id=legacy_id).first()
+        if dip:
+            contesto_dipendente = {
+                "legacy_id": legacy_id,
+                "nome":      f"{(dip.cognome or '').strip()} {(dip.nome or '').strip()}".strip() or f"#{legacy_id}",
+            }
+
+    # Mese precedente/successivo per nav calendario
+    cal_prev = _add_months(date(cal_anno, cal_mese, 1), -1)
+    cal_next = _add_months(date(cal_anno, cal_mese, 1), 1)
+
+    return render(request, "anagrafica/pages/formazione_plan.html", {
+        "view_mode":       view_mode,
+        "mesi":            list(mesi.values()),
+        "calendar_weeks":  calendar_weeks,
+        "cal_anno":        cal_anno,
+        "cal_mese":        cal_mese,
+        "cal_mese_label":  date(cal_anno, cal_mese, 1).strftime("%B %Y").capitalize(),
+        "cal_prev_anno":   cal_prev.year, "cal_prev_mese": cal_prev.month,
+        "cal_next_anno":   cal_next.year, "cal_next_mese": cal_next.month,
+        "matrice":         matrice,
+        "range_from":      range_from,
+        "range_to":        range_to,
+        "totale_eventi":   sum(m["n_eventi"] for m in mesi.values()),
+        "totale_corsi":    sum(m["n_corsi"] for m in mesi.values()),
+        "totale_scadenze": sum(m["n_scadenze"] for m in mesi.values()),
+        "dip":             contesto_dipendente,
+        "is_editor":       _can_edit_formazione(request),
+        "today":           today,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RISCHI / CATEGORIE / ESPOSIZIONI — CRUD (PATCH-RISK-02)
+# ─────────────────────────────────────────────────────────────────────────────
+
+from .models_rischi import CategoriaCorso, EsposizioneRischio, FattoreRischio  # noqa: E402
+from .forms import (  # noqa: E402
+    CategoriaCorsoForm,
+    EsposizioneRischioForm,
+    FattoreRischioForm,
+)
+
+
+# ── Fattori di Rischio ──────────────────────────────────────────────────────
+
+@login_required
+def fattori_rischio_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare i fattori di rischio.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    fattori = list(
+        FattoreRischio.objects
+        .annotate(n_categorie=Count("categorie_corso", distinct=True),
+                  n_esposizioni=Count("esposizioni", distinct=True))
+        .order_by("categoria", "nome")
+    )
+    form = FattoreRischioForm()
+    return render(request, "anagrafica/pages/rischi_fattori_list.html", {
+        "fattori":   fattori,
+        "form":      form,
+        "is_editor": is_editor,
+        "CATEGORIA_CHOICES": FattoreRischio.CATEGORIA_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def fattore_rischio_create(request):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    form = FattoreRischioForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Fattore di rischio creato.")
+    else:
+        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:fattori_rischio_list")
+
+
+@login_required
+@require_POST
+def fattore_rischio_edit(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(FattoreRischio, pk=pk)
+    form = FattoreRischioForm(request.POST, instance=obj)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Fattore «{obj.nome}» aggiornato.")
+    else:
+        messages.error(request, "Errore aggiornamento: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:fattori_rischio_list")
+
+
+@login_required
+@require_POST
+def fattore_rischio_delete(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(FattoreRischio, pk=pk)
+    if obj.categorie_corso.exists() or obj.esposizioni.exists():
+        obj.is_active = False
+        obj.save(update_fields=["is_active", "updated_at"])
+        messages.warning(request, f"Fattore «{obj.nome}» disattivato (è collegato a categorie/esposizioni).")
+    else:
+        obj.delete()
+        messages.success(request, "Fattore di rischio eliminato.")
+    return redirect("anagrafica:fattori_rischio_list")
+
+
+# ── Categorie Corso ──────────────────────────────────────────────────────────
+
+@login_required
+def categorie_corso_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare le categorie corso.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    categorie = list(
+        CategoriaCorso.objects
+        .prefetch_related("fattori_rischio")
+        .annotate(n_corsi=Count("corsi", distinct=True))
+        .order_by("nome")
+    )
+    form = CategoriaCorsoForm()
+    return render(request, "anagrafica/pages/rischi_categorie_list.html", {
+        "categorie": categorie,
+        "form":      form,
+        "is_editor": is_editor,
+    })
+
+
+@login_required
+@require_POST
+def categoria_corso_create(request):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    form = CategoriaCorsoForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Categoria corso creata.")
+    else:
+        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:categorie_corso_list")
+
+
+@login_required
+@require_POST
+def categoria_corso_edit(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(CategoriaCorso, pk=pk)
+    form = CategoriaCorsoForm(request.POST, instance=obj)
+    if form.is_valid():
+        form.save()
+        messages.success(request, f"Categoria «{obj.nome}» aggiornata.")
+    else:
+        messages.error(request, "Errore aggiornamento: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:categorie_corso_list")
+
+
+@login_required
+@require_POST
+def categoria_corso_delete(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(CategoriaCorso, pk=pk)
+    if obj.corsi.exists():
+        obj.is_active = False
+        obj.save(update_fields=["is_active", "updated_at"])
+        messages.warning(request, f"Categoria «{obj.nome}» disattivata (collegata a corsi).")
+    else:
+        obj.delete()
+        messages.success(request, "Categoria eliminata.")
+    return redirect("anagrafica:categorie_corso_list")
+
+
+# ── Esposizioni Rischio ──────────────────────────────────────────────────────
+
+@login_required
+def esposizioni_rischio_list(request):
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare le esposizioni.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    esposizioni = list(
+        EsposizioneRischio.objects
+        .select_related("fattore", "mansione", "area")
+        .order_by("fattore__categoria", "fattore__nome", "mansione__nome", "area__nome")
+    )
+    form = EsposizioneRischioForm()
+    return render(request, "anagrafica/pages/rischi_esposizioni_list.html", {
+        "esposizioni": esposizioni,
+        "form":        form,
+        "is_editor":   is_editor,
+    })
+
+
+@login_required
+@require_POST
+def esposizione_rischio_create(request):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    form = EsposizioneRischioForm(request.POST)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Esposizione creata.")
+    else:
+        messages.error(request, "Errore nel form: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:esposizioni_rischio_list")
+
+
+@login_required
+@require_POST
+def esposizione_rischio_edit(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(EsposizioneRischio, pk=pk)
+    form = EsposizioneRischioForm(request.POST, instance=obj)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Esposizione aggiornata.")
+    else:
+        messages.error(request, "Errore aggiornamento: " + "; ".join(f"{k}: {v}" for k, v in form.errors.items()))
+    return redirect("anagrafica:esposizioni_rischio_list")
+
+
+@login_required
+@require_POST
+def esposizione_rischio_delete(request, pk: int):
+    if not _can_edit_formazione(request):
+        return _forbid_json_or_redirect(request, "Permessi insufficienti.")
+    obj = get_object_or_404(EsposizioneRischio, pk=pk)
+    obj.delete()
+    messages.success(request, "Esposizione eliminata.")
+    return redirect("anagrafica:esposizioni_rischio_list")
+
+
+def _forbid_json_or_redirect(request, msg: str):
+    """Helper: 403 JSON per AJAX, altrimenti messaggio flash + redirect."""
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": False, "error": msg}, status=403)
+    messages.error(request, msg)
+    return redirect("anagrafica:index")

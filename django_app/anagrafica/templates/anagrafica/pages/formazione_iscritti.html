@@ -1,0 +1,356 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Iscritti — {{ sessione.codice_sessione }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+/* Stili specifici della pagina iscritti */
+.fm-toggle-btn{background:none;border:1px solid #d1d5db;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#475569;min-width:22px;text-align:center}
+.fm-expand-row>td{padding:0}
+.fm-mini-grid{border-collapse:collapse;width:100%;font-size:12px}
+.fm-mini-grid th{background:#f1f5f9;padding:5px 10px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;text-align:left}
+.fm-mini-grid td{padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#334155}
+body.theme-dark .fm-toggle-btn{border-color:#334155;color:#94a3b8;background:#0f172a}
+body.theme-dark .fm-mini-grid th{background:#0f172a;color:#94a3b8;border-color:#334155}
+body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {# ── Header ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_corso_detail' sessione.corso.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.corso.codice }}</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a>
+        &rsaquo; Iscritti
+      </div>
+      <h2 class="hr-pagehead-title">Iscritti — {{ sessione.codice_sessione }}</h2>
+      <p class="hr-pagehead-desc">
+        {{ sessione.corso.titolo }}
+        &nbsp;·&nbsp;
+        {{ sessione.data_inizio|date:"d/m/Y" }} → {{ sessione.data_fine|date:"d/m/Y" }}
+      </p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <button class="hr-btn hr-btn-primary"
+              onclick="togglePanel('panel-add-iscritto')">+ Aggiungi iscritto</button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── KPI mini ────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:20px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">👥</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Iscritti</span>
+          <span class="hr-metric-val">{{ iscrizioni|length }}</span>
+        </div>
+        <div class="hr-metric-sub">Dipendenti iscritti alla sessione</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">📖</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Lezioni</span>
+          <span class="hr-metric-val">{{ lezioni|length }}</span>
+        </div>
+        <div class="hr-metric-sub">Lezioni pianificate</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Stato sessione</span>
+          <span class="hr-metric-val" style="font-size:12px;">
+            {% if sessione.stato == "COMPLETATA" %}<span class="fm-pill fm-pill-valid">Completata</span>
+            {% elif sessione.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
+            {% elif sessione.stato == "PIANIFICATA" %}<span class="fm-pill fm-pill-enrolled">Pianificata</span>
+            {% else %}<span class="fm-pill fm-pill-expired">{{ sessione.get_stato_display }}</span>{% endif %}
+          </span>
+        </div>
+        <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Panel aggiunta iscritto ─────────────────────────────────────────────── #}
+  {% if is_editor %}
+  <div id="panel-add-iscritto" style="display:none;margin-bottom:16px;">
+    <div class="hr-card" style="padding:16px 20px;">
+      <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:12px;">Iscrivi dipendente</div>
+      <form method="post" action="{% url 'anagrafica:formazione_iscrizione_add' sessione.pk %}"
+            class="fm-inline-form" style="display:flex;flex-direction:column;align-items:stretch;gap:8px;">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+          <div class="fm-f">
+            <label>Dipendente *</label>
+            <select name="legacy_anagrafica_id" required class="fm-input fm-select">
+              <option value="">— Seleziona —</option>
+              {% for lid, lnome in dipendenti_attivi %}
+              <option value="{{ lid }}">{{ lnome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="fm-f">
+            <label>Note</label>
+            <input type="text" name="note" maxlength="500" class="fm-input" placeholder="Opzionale">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
+          <button type="button" class="hr-btn hr-btn-ghost"
+                  onclick="togglePanel('panel-add-iscritto')">Annulla</button>
+          <button type="submit" class="hr-btn hr-btn-primary">Iscrivi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Tabella iscrizioni ──────────────────────────────────────────────────── #}
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">👥 Iscrizioni ({{ iscrizioni|length }})</div>
+    </div>
+
+    {% if iscrizioni %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table">
+        <thead>
+          <tr>
+            {% if lezioni %}<th style="width:32px;"></th>{% endif %}
+            <th>Dipendente</th>
+            <th>Stato</th>
+            <th>Ore freq.</th>
+            <th>% Presenza</th>
+            <th>Idoneo</th>
+            <th>Completato il</th>
+            {% if is_editor %}<th>Azioni</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for isc in iscrizioni %}
+          <tr>
+            {% if lezioni %}
+            <td>
+              <button class="fm-toggle-btn"
+                      id="toggle-{{ isc.pk }}"
+                      onclick="toggleExpand({{ isc.pk }})">▶</button>
+            </td>
+            {% endif %}
+            <td style="font-weight:500;">{{ isc.nome_dip }}</td>
+            <td>
+              {% if isc.stato == "ISCRITTO" %}<span class="fm-pill fm-pill-enrolled">Iscritto</span>
+              {% elif isc.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
+              {% elif isc.stato == "COMPLETATO" %}<span class="fm-pill fm-pill-valid">Completato</span>
+              {% elif isc.stato == "NON_IDONEO" %}<span class="fm-pill fm-pill-expired">Non idoneo</span>
+              {% elif isc.stato == "ASSENTE" %}<span class="fm-pill fm-pill-expired">Assente</span>
+              {% else %}<span class="fm-pill fm-pill-missing">{{ isc.get_stato_display }}</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;">
+              {% if isc.ore_frequentate %}{{ isc.ore_frequentate }}h{% else %}—{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;">
+              {% if isc.percentuale_presenza %}{{ isc.percentuale_presenza }}%{% else %}—{% endif %}
+            </td>
+            <td style="font-size:12px;">
+              {% if isc.idoneo is None %}—
+              {% elif isc.idoneo %}<span class="fm-pill fm-pill-valid">✓</span>
+              {% else %}<span class="fm-pill fm-pill-expired">✗</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;">{{ isc.data_completamento|date:"d/m/Y"|default:"—" }}</td>
+            {% if is_editor %}
+            <td>
+              <button class="hr-btn hr-btn-sm"
+                      onclick="openEditIscrizione(
+                        {{ isc.pk }},
+                        '{{ isc.stato }}',
+                        '{{ isc.ore_frequentate }}',
+                        '{{ isc.percentuale_presenza|default:'' }}',
+                        {% if isc.idoneo %}'true'{% else %}'false'{% endif %},
+                        '{{ isc.esito_esame|escapejs }}',
+                        '{{ isc.data_completamento|date:'Y-m-d'|default:'' }}',
+                        '{{ isc.note|escapejs }}'
+                      )">Modifica</button>
+              <form method="post"
+                    action="{% url 'anagrafica:formazione_iscrizione_delete' sessione.pk isc.pk %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('Rimuovere l\'iscrizione di {{ isc.nome_dip|escapejs }}?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {# ── Riga espandibile: griglia presenze per lezione ──────────────── #}
+          {% if lezioni %}
+          <tr id="expand-{{ isc.pk }}" class="fm-expand-row" style="display:none;">
+            <td colspan="{% if is_editor %}8{% else %}7{% endif %}"
+                style="background:#f8fafc;border-top:none;">
+              <div style="padding:10px 16px 14px;">
+                <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;
+                            letter-spacing:.06em;margin-bottom:8px;">Griglia presenze per lezione</div>
+                <table class="fm-mini-grid">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Data</th>
+                      <th>Argomento</th>
+                      <th>Stato presenza</th>
+                      <th>Registro</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for lz, stato in isc.lezioni_presenze %}
+                    <tr>
+                      <td style="color:#94a3b8;">{{ lz.numero }}</td>
+                      <td>{{ lz.data|date:"d/m/Y" }}</td>
+                      <td>{{ lz.argomento|truncatechars:55 }}</td>
+                      <td>
+                        {% if stato == "PRESENTE" %}
+                          <span class="fm-pill fm-pill-valid" style="font-size:10px;">✓ Presente</span>
+                        {% elif stato == "ASSENTE_GIUST" %}
+                          <span class="fm-pill fm-pill-warning" style="font-size:10px;">J Giustificato</span>
+                        {% elif stato == "ASSENTE_INGIUST" %}
+                          <span class="fm-pill fm-pill-expired" style="font-size:10px;">✗ Assente</span>
+                        {% elif stato == "PARZIALE" %}
+                          <span class="fm-pill fm-pill-warning"
+                                style="font-size:10px;background:#fff7ed;color:#c2410c;border-color:#fed7aa;">P Parziale</span>
+                        {% else %}
+                          <span style="font-size:11px;color:#94a3b8;">— Non registrata</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk lz.pk %}"
+                           style="font-size:11px;color:#3b82f6;text-decoration:none;">
+                          Registro presenze →
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:24px 16px;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun dipendente iscritto a questa sessione.
+      {% if is_editor %}
+      <br><span style="margin-top:6px;display:inline-block;">
+        Usa il pulsante <strong>Aggiungi iscritto</strong> per iscrivere dipendenti.
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Modal modifica iscrizione ───────────────────────────────────────────── #}
+{% if is_editor %}
+<div id="modal-edit-iscrizione"
+     style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;
+            justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;
+              max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Modifica iscrizione</strong>
+      <button onclick="document.getElementById('modal-edit-iscrizione').style.display='none'"
+              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form id="form-edit-iscrizione" method="post" action="">
+      {% csrf_token %}
+      <div id="edit-iscrizione-fields"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-edit-iscrizione').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleExpand(pk) {
+  const row = document.getElementById('expand-' + pk);
+  const btn = document.getElementById('toggle-' + pk);
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    btn.textContent = '▼';
+  } else {
+    row.style.display = 'none';
+    btn.textContent = '▶';
+  }
+}
+
+const STATO_OPTS = [{% for v, l in STATO_CHOICES %}{ v: '{{ v }}', l: '{{ l }}' },{% endfor %}];
+
+function openEditIscrizione(pk, stato, oreFq, percPresenza, idoneo, esitoEsame, dataCompl, note) {
+  const sessId = {{ sessione.pk }};
+  document.getElementById('form-edit-iscrizione').action =
+    `/anagrafica/formazione/sessioni/${sessId}/iscritti/${pk}/modifica`;
+
+  const statoSel = STATO_OPTS
+    .map(o => `<option value="${o.v}"${o.v === stato ? ' selected' : ''}>${o.l}</option>`)
+    .join('');
+
+  const fld = (label, html) => `
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">${label}</label>
+      ${html}
+    </div>`;
+
+  const inp = (name, type, value, extra) =>
+    `<input name="${name}" type="${type}" value="${value}" class="fm-input" ${extra || ''}>`;
+
+  document.getElementById('edit-iscrizione-fields').innerHTML = [
+    fld('Stato *',
+      `<select name="stato" required class="fm-input fm-select">${statoSel}</select>`),
+    fld('Ore frequentate',
+      inp('ore_frequentate', 'number', oreFq, 'min="0" step="0.5"')),
+    fld('% Presenza',
+      inp('percentuale_presenza', 'number', percPresenza, 'min="0" max="100" step="0.01"')),
+    fld('Idoneo',
+      `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+        <input type="checkbox" name="idoneo" ${idoneo === 'true' ? 'checked' : ''}
+               style="width:auto;cursor:pointer;"> Sì, idoneo
+      </label>`),
+    fld('Esito esame',
+      inp('esito_esame', 'text', esitoEsame.replace(/"/g, '&quot;'), 'maxlength="100"')),
+    fld('Data completamento',
+      inp('data_completamento', 'date', dataCompl, '')),
+    fld('Note',
+      `<textarea name="note" rows="3" class="fm-input">${note}</textarea>`),
+  ].join('');
+
+  document.getElementById('modal-edit-iscrizione').style.display = 'flex';
+}
+</script>
+{% endif %}
+{% endblock %}

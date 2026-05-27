@@ -195,10 +195,21 @@
       .card-body { grid-template-columns: 1fr; }
       .topbar-user { display: none; }
     }
-    .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid rgba(0,0,0,.1); margin: 0 0 0; padding: 10px 16px 0; background: rgba(255,255,255,.18); }
-    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: var(--fs-base); color: rgba(255,255,255,.8); border: 1px solid transparent; border-bottom: none; }
-    .ga-tab:hover { background: rgba(255,255,255,.15); color: #fff; }
-    .ga-tab.active { background: rgba(255,255,255,.95); color: #1a5499; margin-bottom: -2px; }
+    @media (max-width: 600px) {
+      .topbar a { font-size: var(--fs-sm); }
+      .ga-tabs { gap: 2px; padding: 8px 8px 0; overflow-x: auto; flex-wrap: nowrap; }
+      .ga-tab { padding: 6px 10px; font-size: var(--fs-sm); white-space: nowrap; }
+      .page { padding: 0 10px; }
+      .card-head, .ga-card-head { padding: 12px 14px; }
+      .ga-card-body { padding: 10px 12px; }
+    }
+    .ga-tbl { min-width: 560px; }
+    .ga-card-body > div[style*="overflow-x"],
+    .ga-card-body > form > div[style*="overflow-x"] { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #c7d8f0; margin: 0 0 0; padding: 10px 16px 0; background: #e8f0fb; }
+    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: var(--fs-base); color: #3a5a8a; border: 1px solid transparent; border-bottom: none; }
+    .ga-tab:hover { background: rgba(255,255,255,.6); color: #1a5499; }
+    .ga-tab.active { background: #fff; color: #1a5499; border-color: #c7d8f0; margin-bottom: -2px; }
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; }
     .kpi { background: rgba(255,255,255,.9); border-radius: 11px; padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
     .kpi-label { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
@@ -284,117 +295,6 @@
 
   {# ========== TAB CONFIG (originale) ========== #}
   {% if tab == 'config' or not tab %}
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">SharePoint / Microsoft Graph</div>
-        <div class="card-sub">
-          Configurazione del push manuale anomalie verso SharePoint. Tenant, client, site e secret sono condivisi con gli altri moduli che usano Graph.
-        </div>
-      </div>
-
-      <div class="card-body">
-        <div class="kpi-row" style="grid-column:1 / -1;">
-          <div class="kpi">
-            <div class="kpi-label">Runtime Graph</div>
-            <div class="kpi-val" >{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
-            <div class="kpi-sub">
-              {% if sharepoint_admin_config.runtime_ready %}
-                Configurazione completa per il push anomalie.
-              {% else %}
-                {{ sharepoint_admin_config.sync_issue|default:"Parametri Graph incompleti." }}
-              {% endif %}
-            </div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-label">Secret</div>
-            <div class="kpi-val" >{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
-            <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-label">Lista anomalie DB</div>
-            <div class="kpi-val" >{{ sharepoint_admin_config.list_id_anomalie_db|default:"-" }}</div>
-            <div class="kpi-sub">ID lista usato da `POST /api/anomalie/sync`.</div>
-          </div>
-        </div>
-
-        {% if sharepoint_admin_config.env_override_active %}
-          <div class="field full">
-            <small style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;">
-              Alcuni valori Graph arrivano dall'ambiente processo. In quel caso hanno priorita rispetto a <code>.env</code>.
-            </small>
-          </div>
-        {% endif %}
-
-        <div class="field">
-          <label for="sharepoint_tenant_id">Tenant ID</label>
-          <input id="sharepoint_tenant_id" type="text" value="{{ sharepoint_admin_config.tenant_id }}" readonly>
-          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.tenant_id }}</small>
-        </div>
-
-        <div class="field">
-          <label for="sharepoint_client_id_runtime">Client ID</label>
-          <input id="sharepoint_client_id_runtime" type="text" value="{{ sharepoint_admin_config.client_id }}" readonly>
-          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.client_id }}</small>
-        </div>
-
-        <div class="field">
-          <label for="sharepoint_site_id_runtime">Site ID</label>
-          <input id="sharepoint_site_id_runtime" type="text" value="{{ sharepoint_admin_config.site_id }}" readonly>
-          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.site_id }}</small>
-        </div>
-
-        <div class="field">
-          <label for="sharepoint_list_id_runtime">List ID runtime</label>
-          <input id="sharepoint_list_id_runtime" type="text" value="{{ sharepoint_admin_config.list_id_anomalie_db }}" readonly>
-          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.list_id_anomalie_db }}</small>
-        </div>
-      </div>
-
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_sharepoint_config">
-        <div class="card-body" style="padding-top:0;">
-          <div class="field">
-            <label for="sharepoint_tenant_id_edit">Tenant ID</label>
-            <input id="sharepoint_tenant_id_edit" name="sharepoint_tenant_id" type="text" value="{{ sharepoint_admin_config.tenant_id }}" placeholder="GUID tenant">
-          </div>
-
-          <div class="field">
-            <label for="sharepoint_client_id_edit">Client ID</label>
-            <input id="sharepoint_client_id_edit" name="sharepoint_client_id" type="text" value="{{ sharepoint_admin_config.client_id }}" placeholder="App registration client id">
-          </div>
-
-          <div class="field">
-            <label for="sharepoint_site_id_edit">Site ID</label>
-            <input id="sharepoint_site_id_edit" name="sharepoint_site_id" type="text" value="{{ sharepoint_admin_config.site_id }}" placeholder="sharepoint.com,...">
-          </div>
-
-          <div class="field">
-            <label for="sharepoint_client_secret">Client Secret</label>
-            <input id="sharepoint_client_secret" name="sharepoint_client_secret" type="text" value="" placeholder="{% if sharepoint_admin_config.client_secret_configured %}Lascia vuoto per mantenere{% else %}Inserisci secret{% endif %}">
-          </div>
-
-          <div class="field full">
-            <label for="sharepoint_list_id_anomalie_db">List ID anomalie DB</label>
-            <input id="sharepoint_list_id_anomalie_db" name="sharepoint_list_id_anomalie_db" type="text" value="{{ sharepoint_admin_config.list_id_anomalie_db }}" placeholder="GUID lista SharePoint anomalie DB">
-            <small>Puoi cambiarlo se sposti il modulo su una lista SharePoint diversa.</small>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn btn-main" type="submit">Salva configurazione SharePoint</button>
-        </div>
-      </form>
-
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="test_sharepoint_config">
-        <div class="actions" style="padding-top:0;">
-          <button class="btn btn-secondary" type="submit">Test connessione Graph</button>
-        </div>
-      </form>
-    </div>
-
     <div class="card" id="card-logo">
       <div class="card-head">
         <div class="card-title">Logo Menu Anomalie</div>
@@ -673,8 +573,18 @@
       </div>
       <div class="ga-card-body">
         <div style="margin-bottom:14px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#475569;line-height:1.5;">
-          Il permesso pagina resta la prima barriera. Queste regole decidono cosa l'utente puo' modificare dentro Gestione Anomalie:
-          Capocommessa/CAR valgono sull'OP in cui l'utente compare; i ruoli custom, i ruoli aziendali e gli override utente valgono globalmente.
+          <strong style="display:block;margin-bottom:6px;color:#1e3a5f;">Due controlli indipendenti per ogni regola:</strong>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+            <li><strong>Regola accesso</strong> &mdash; cosa pu&ograve; <em>modificare</em> l'utente. Capocommessa/CAR valgono sull'OP specifico in cui compare; gli altri valgono globalmente.</li>
+            <li><strong>Visibilit&agrave; lista OP</strong> &mdash; quali OP <em>vede nella lista</em>. Tre opzioni:
+              <ul style="margin-top:4px;padding-left:16px;display:flex;flex-direction:column;gap:2px;">
+                <li><strong>Tutti gli OP</strong> &mdash; nessun filtro (comportamento attuale).</li>
+                <li><strong>Solo OP in carico</strong> &mdash; vede solo gli OP dove compare come capocommessa o CAR/incaricato.</li>
+                <li><strong>Solo OP con proprie anomalie</strong> &mdash; vede solo gli OP con almeno un'anomalia creata da lui (utile per i controllori).</li>
+              </ul>
+            </li>
+          </ul>
+          <p style="margin:8px 0 0;font-size:12px;">Vince sempre il livello pi&ugrave; permissivo tra tutte le regole applicabili. Superuser e admin vedono sempre tutto.</p>
         </div>
 
         <form method="get" class="ga-search">
@@ -693,7 +603,17 @@
           <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo operativo</h3>
           <div style="overflow-x:auto;margin-bottom:20px;">
             <table class="ga-tbl">
-              <thead><tr><th>Ruolo</th><th>Ambito</th><th>Regola</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Ruolo</th>
+                  <th>Ambito</th>
+                  <th>Regola accesso</th>
+                  <th>
+                    Visibilit&agrave; lista OP
+                    <span title="Filtra quali OP vengono mostrati nella lista principale. Indipendente dal livello di modifica." style="cursor:help;color:#7e94b2;font-weight:400;font-size:11px;display:block;">Quali OP vede nella lista?</span>
+                  </th>
+                </tr>
+              </thead>
               <tbody>
                 {% for row in access_role_rows %}
                   <tr>
@@ -706,6 +626,13 @@
                         {% endfor %}
                       </select>
                     </td>
+                    <td>
+                      <select name="list_scope_role__{{ row.code }}" class="ga-select">
+                        {% for value, label in list_scope_choices %}
+                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -715,7 +642,14 @@
           <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo aziendale</h3>
           <div style="overflow-x:auto;margin-bottom:20px;">
             <table class="ga-tbl">
-              <thead><tr><th>Ruolo aziendale</th><th>Origine</th><th>Regola</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Ruolo aziendale</th>
+                  <th>Origine</th>
+                  <th>Regola accesso</th>
+                  <th>Visibilit&agrave; lista OP</th>
+                </tr>
+              </thead>
               <tbody>
                 {% for row in access_legacy_role_rows %}
                   <tr>
@@ -731,9 +665,16 @@
                         {% endfor %}
                       </select>
                     </td>
+                    <td>
+                      <select name="list_scope_legacy_role__{{ row.id }}" class="ga-select">
+                        {% for value, label in list_scope_choices %}
+                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
                   </tr>
                 {% empty %}
-                  <tr><td colspan="3" style="color:#9aadcb;text-align:center;padding:24px;">Nessun ruolo aziendale trovato.</td></tr>
+                  <tr><td colspan="4" style="color:#9aadcb;text-align:center;padding:24px;">Nessun ruolo aziendale trovato.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -742,7 +683,14 @@
           <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Override per singolo utente</h3>
           <div style="overflow-x:auto;">
             <table class="ga-tbl">
-              <thead><tr><th>Utente</th><th>Email</th><th>Override modulo</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Utente</th>
+                  <th>Email</th>
+                  <th>Override accesso</th>
+                  <th>Visibilit&agrave; lista OP</th>
+                </tr>
+              </thead>
               <tbody>
                 {% for row in access_user_rows %}
                   <tr>
@@ -758,9 +706,16 @@
                         {% endfor %}
                       </select>
                     </td>
+                    <td>
+                      <select name="list_scope_user__{{ row.id }}" class="ga-select">
+                        {% for value, label in list_scope_choices %}
+                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
                   </tr>
                 {% empty %}
-                  <tr><td colspan="3" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
+                  <tr><td colspan="4" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
                 {% endfor %}
               </tbody>
             </table>

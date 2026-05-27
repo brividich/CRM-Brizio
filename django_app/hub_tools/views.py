@@ -36,14 +36,16 @@ from PIL import Image, UnidentifiedImageError
 
 from admin_portale.decorators import legacy_admin_required as _staff_required
 from config.app_version import build_module_version_env_block, load_app_version
-from config.env_config import update_env_file_values
+from config.env_config import primary_runtime_env_path, update_env_file_values
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 logger = logging.getLogger(__name__)
 
 _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
 _TOOLS_DIR = _APP_DIR.parent / "tools"
-_ENV_PATH = _APP_DIR / ".env"
+# In deploy TEST/PROD the persistent source is ENV/config/.env. The release
+# copy in current/django_app/.env is only a fallback copied during deploy.
+_ENV_PATH = primary_runtime_env_path(_APP_DIR)
 _GENERIC_ERROR_MESSAGE = "Operazione fallita. Controlla i log."
 _ENV_TRUE_VALUES = {"1", "true", "yes", "on", "y", "t", "si"}
 _ENV_FALSE_VALUES = {"0", "false", "no", "off", "n", "f", ""}
@@ -559,7 +561,7 @@ def _read_env() -> dict:
     values = {}
     if not _ENV_PATH.exists():
         return values
-    for raw in _ENV_PATH.read_text(encoding="utf-8").splitlines():
+    for raw in _ENV_PATH.read_text(encoding="utf-8-sig").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
@@ -1104,6 +1106,9 @@ def api_reconfigure(request):
     instance_name = s("instance_name", current_env.get("INSTANCE_NAME", "NOVICROM HUB"))
     app_version = s("app_version", current_env.get("APP_VERSION", load_app_version()))
     module_version_lines = build_module_version_env_block(app_version)
+    nav_registry_value = b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "1"))
+    nav_legacy_fallback_value = "0" if nav_registry_value == "1" else "1"
+
     env_updates = {
         "INSTANCE_NAME": instance_name,
         "DJANGO_SECRET_KEY": secret_key,
@@ -1124,8 +1129,8 @@ def api_reconfigure(request):
         "DB_DRIVER": s("db_driver", current_env.get("DB_DRIVER", "ODBC Driver 18 for SQL Server")),
         "DB_TRUST_CERT": b("db_trust_cert", current_env.get("DB_TRUST_CERT", "0")),
         "LEGACY_AUTH_ENABLED": current_env.get("LEGACY_AUTH_ENABLED", "1"),
-        "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "0")),
-        "NAVIGATION_LEGACY_FALLBACK_ENABLED": "1",
+        "NAVIGATION_REGISTRY_ENABLED": nav_registry_value,
+        "NAVIGATION_LEGACY_FALLBACK_ENABLED": nav_legacy_fallback_value,
         "ASSENZE_SYNC_ON_PAGE_LOAD": current_env.get("ASSENZE_SYNC_ON_PAGE_LOAD", "1"),
         "SESSION_IDLE_TIMEOUT_SECONDS": s("session_timeout", current_env.get("SESSION_IDLE_TIMEOUT_SECONDS", "3600")),
         "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", current_env.get("SESSION_EXPIRE_AT_BROWSER_CLOSE", "1")),

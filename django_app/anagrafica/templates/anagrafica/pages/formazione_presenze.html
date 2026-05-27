@@ -1,0 +1,258 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Presenze — Lezione {{ lezione.numero }} | {{ sessione.codice_sessione }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+/* Stili specifici della pagina presenze */
+.fm-toggle-btn{background:none;border:1px solid #d1d5db;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#475569;min-width:22px;text-align:center}
+.fm-form-row>td{padding:0}
+.fm-form-panel{padding:12px 16px 16px;background:#f8fafc;border-top:1px solid #e2e8f0}
+body.theme-dark .fm-toggle-btn{border-color:#334155;color:#94a3b8;background:#0f172a}
+body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#334155}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {# ── Header ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">{{ sessione.codice_sessione }}</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" style="color:#94a3b8;text-decoration:none;">Iscritti</a>
+        &rsaquo; Lezione {{ lezione.numero }}
+      </div>
+      <h2 class="hr-pagehead-title">Registro presenze — Lezione {{ lezione.numero }}</h2>
+      <p class="hr-pagehead-desc">
+        {{ lezione.argomento }}
+        &nbsp;·&nbsp;
+        {{ lezione.data|date:"d/m/Y" }},
+        {{ lezione.ora_inizio|time:"H:i" }}–{{ lezione.ora_fine|time:"H:i" }}
+        &nbsp;·&nbsp; {{ lezione.durata_ore }}h
+        {% if lezione.docente_nome %}&nbsp;·&nbsp; {{ lezione.docente_nome }}{% endif %}
+      </p>
+    </div>
+  </div>
+
+  {# ── KPI mini ────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:20px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">👥</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Partecipanti</span>
+          <span class="hr-metric-val">{{ righe|length }}</span>
+        </div>
+        <div class="hr-metric-sub">Iscritti alla sessione</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">✅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Registrati</span>
+          <span class="hr-metric-val">{{ n_presenti }}</span>
+        </div>
+        <div class="hr-metric-sub">Con presenza registrata</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">⏱</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Durata</span>
+          <span class="hr-metric-val">{{ lezione.durata_ore }}h</span>
+        </div>
+        <div class="hr-metric-sub">{{ lezione.ora_inizio|time:"H:i" }} – {{ lezione.ora_fine|time:"H:i" }}</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Data</span>
+          <span class="hr-metric-val" style="font-size:14px;">{{ lezione.data|date:"d/m/Y" }}</span>
+        </div>
+        <div class="hr-metric-sub">{{ sessione.codice_sessione }}</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Tabella presenze ────────────────────────────────────────────────────── #}
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">📋 Registro presenze</div>
+      {% if is_editor %}
+      <span style="font-size:11px;color:#94a3b8;">Clicca ✏ per registrare o modificare la presenza</span>
+      {% endif %}
+    </div>
+
+    {% if righe %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table">
+        <thead>
+          <tr>
+            {% if is_editor %}<th style="width:32px;"></th>{% endif %}
+            <th>Dipendente</th>
+            <th>Stato presenza</th>
+            <th>Ore effettive</th>
+            <th>Firma ingr.</th>
+            <th>Firma usc.</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for riga in righe %}
+          <tr>
+            {% if is_editor %}
+            <td>
+              <button class="fm-toggle-btn"
+                      id="toggle-p-{{ riga.enrollment.pk }}"
+                      onclick="toggleFormRow('form-row-{{ riga.enrollment.pk }}', 'toggle-p-{{ riga.enrollment.pk }}')">✏</button>
+            </td>
+            {% endif %}
+            <td style="font-weight:500;">{{ riga.nome }}</td>
+            <td>
+              {% if riga.presenza %}
+                {% if riga.presenza.stato_presenza == "PRESENTE" %}
+                  <span class="fm-pill fm-pill-valid">✓ Presente</span>
+                {% elif riga.presenza.stato_presenza == "ASSENTE_GIUST" %}
+                  <span class="fm-pill fm-pill-warning">J Giustificato</span>
+                {% elif riga.presenza.stato_presenza == "ASSENTE_INGIUST" %}
+                  <span class="fm-pill fm-pill-expired">✗ Assente</span>
+                {% elif riga.presenza.stato_presenza == "PARZIALE" %}
+                  <span class="fm-pill fm-pill-warning"
+                        style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;">P Parziale</span>
+                {% else %}
+                  <span class="fm-pill fm-pill-missing">{{ riga.presenza.get_stato_presenza_display }}</span>
+                {% endif %}
+              {% else %}
+                <span style="font-size:11px;color:#94a3b8;">— Non registrata</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;">
+              {% if riga.presenza and riga.presenza.ore_effettive %}{{ riga.presenza.ore_effettive }}h{% else %}—{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;text-align:center;">
+              {% if riga.presenza %}
+                {% if riga.presenza.firma_ingresso %}✓{% else %}—{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;text-align:center;">
+              {% if riga.presenza %}
+                {% if riga.presenza.firma_uscita %}✓{% else %}—{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              {% if riga.presenza %}{{ riga.presenza.note|default:"—" }}{% else %}—{% endif %}
+            </td>
+          </tr>
+
+          {# ── Form inline registrazione/modifica presenza ─────────────────── #}
+          {% if is_editor %}
+          <tr id="form-row-{{ riga.enrollment.pk }}" class="fm-form-row" style="display:none;">
+            <td colspan="7">
+              <div class="fm-form-panel">
+                <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;
+                            letter-spacing:.06em;margin-bottom:10px;">
+                  Presenza — {{ riga.nome }}
+                </div>
+                <form method="post"
+                      action="{% url 'anagrafica:formazione_presenza_set' sessione.pk lezione.pk %}"
+                      class="fm-inline-form"
+                      style="display:flex;flex-direction:column;align-items:stretch;gap:8px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="legacy_anagrafica_id" value="{{ riga.enrollment.legacy_anagrafica_id }}">
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+                    <div class="fm-f" style="grid-column:1/3;">
+                      <label>Stato presenza *</label>
+                      <select name="stato_presenza" required class="fm-input fm-select">
+                        {% for val, lbl in STATO_PRESENZA_CHOICES %}
+                        <option value="{{ val }}"
+                          {% if riga.presenza and riga.presenza.stato_presenza == val %}selected{% endif %}>
+                          {{ lbl }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="fm-f">
+                      <label>Ore effettive</label>
+                      <input type="number" name="ore_effettive" min="0" step="0.25"
+                             value="{% if riga.presenza and riga.presenza.ore_effettive %}{{ riga.presenza.ore_effettive }}{% endif %}"
+                             class="fm-input" placeholder="{{ lezione.durata_ore }}">
+                    </div>
+                    <div class="fm-f" style="justify-content:flex-end;">
+                      <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;margin-top:auto;padding-bottom:3px;">
+                        <input type="checkbox" name="firma_ingresso"
+                               {% if riga.presenza and riga.presenza.firma_ingresso %}checked{% endif %}
+                               style="width:auto;cursor:pointer;"> Firma ingresso
+                      </label>
+                      <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;">
+                        <input type="checkbox" name="firma_uscita"
+                               {% if riga.presenza and riga.presenza.firma_uscita %}checked{% endif %}
+                               style="width:auto;cursor:pointer;"> Firma uscita
+                      </label>
+                    </div>
+                    <div class="fm-f" style="grid-column:1/-1;">
+                      <label>Note</label>
+                      <input type="text" name="note" maxlength="500" class="fm-input"
+                             value="{% if riga.presenza %}{{ riga.presenza.note|escapejs }}{% endif %}">
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+                    <button type="button" class="hr-btn hr-btn-ghost"
+                            onclick="toggleFormRow('form-row-{{ riga.enrollment.pk }}', 'toggle-p-{{ riga.enrollment.pk }}')">
+                      Annulla
+                    </button>
+                    <button type="submit" class="hr-btn hr-btn-primary">Salva presenza</button>
+                  </div>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:24px 16px;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun dipendente iscritto a questa sessione.
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Navigazione lezioni ─────────────────────────────────────────────────── #}
+  <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+    <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}"
+       style="font-size:13px;color:#3b82f6;text-decoration:none;">← Torna alla lista iscritti</a>
+    <a href="{% url 'anagrafica:formazione_sessione_detail' sessione.pk %}"
+       style="font-size:13px;color:#3b82f6;text-decoration:none;">← Dettaglio sessione</a>
+  </div>
+
+</div>
+
+<script>
+function toggleFormRow(rowId, btnId) {
+  const row = document.getElementById(rowId);
+  const btn = document.getElementById(btnId);
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    if (btn) btn.textContent = '✕';
+  } else {
+    row.style.display = 'none';
+    if (btn) btn.textContent = '✏';
+  }
+}
+</script>
+{% endblock %}

@@ -54,7 +54,8 @@
 
     /* KPI */
     .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    @media (max-width: 600px) { .kpi-row { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .kpi-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 500px)  { .kpi-row { grid-template-columns: 1fr; } }
     .kpi {
       background: rgba(255,255,255,.9);
       border-radius: 14px;
@@ -91,9 +92,25 @@
     .bar-wrap { height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden; min-width: 80px; }
     .bar-fill { height: 100%; background: linear-gradient(90deg, #1a5499, #3b82f6); border-radius: 99px; transition: width .4s ease; }
 
+    /* Tabelle: overflow su mobile */
+    .card-body { overflow-x: auto; }
+
     /* Per mese — grid a 2 col */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Topbar responsive */
+    @media (max-width: 600px) {
+      .topbar { gap: 8px; padding: 0 10px; }
+      .topbar-user { display: none; }
+      .topbar a { font-size: var(--fs-sm); }
+    }
+    /* Filtri responsive */
+    @media (max-width: 480px) {
+      .filter-row { flex-direction: column; align-items: stretch; }
+      .filter-field { min-width: 0; width: 100%; }
+      .bar-wrap { min-width: 40px; }
+    }
 
     /* Bottoni */
     .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: var(--fs-base); font-weight: 800; cursor: pointer; border: none; text-decoration: none; }

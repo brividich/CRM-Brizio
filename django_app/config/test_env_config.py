@@ -8,7 +8,13 @@ from uuid import uuid4
 
 from django.test import SimpleTestCase
 
-from config.env_config import default_env_path, iter_runtime_env_paths, load_dotenv_into_environ, primary_runtime_env_path
+from config.env_config import (
+    default_env_path,
+    iter_runtime_env_paths,
+    load_dotenv_into_environ,
+    load_env_file_values,
+    primary_runtime_env_path,
+)
 
 
 def _make_workspace_tempdir(prefix: str) -> Path:
@@ -77,5 +83,18 @@ class RuntimeEnvPathTests(SimpleTestCase):
 
             with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(persistent_env)}, clear=True):
                 self.assertEqual(default_env_path(), persistent_env)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_env_loader_accepts_utf8_bom_from_notepad(self):
+        tmpdir = _make_workspace_tempdir("env-config-bom-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text("\ufeffNAVIGATION_REGISTRY_ENABLED=1\n", encoding="utf-8")
+
+            values = load_env_file_values(env_path)
+
+            self.assertEqual(values["NAVIGATION_REGISTRY_ENABLED"], "1")
+            self.assertNotIn("\ufeffNAVIGATION_REGISTRY_ENABLED", values)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

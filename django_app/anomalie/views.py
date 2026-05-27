@@ -40,6 +40,7 @@ from core.models import AuditLog, Notifica, Profile
 from .models import (
     AnomalieAccessLevel,
     AnomalieLegacyRoleAccessRule,
+    AnomalieListScope,
     AnomalieRoleAccessRule,
     AnomalieRoleAssignment,
     AnomalieRoleDefinition,
@@ -112,6 +113,11 @@ ANOMALIE_ACCESS_LEVEL_ORDER = {
     AnomalieAccessLevel.READ_ALL: 1,
     AnomalieAccessLevel.EDIT_ASSIGNED: 2,
     AnomalieAccessLevel.EDIT_ALL: 3,
+}
+ANOMALIE_LIST_SCOPE_ORDER = {
+    AnomalieListScope.OWN_ANOMALIE: 0,
+    AnomalieListScope.ASSIGNED: 1,
+    AnomalieListScope.ALL: 2,
 }
 SYSTEM_ANOMALIE_ROLE_DEFINITIONS = (
     (
@@ -313,6 +319,100 @@ def _max_anomalie_access_level(levels: list[str]) -> str:
     if not levels:
         return AnomalieAccessLevel.NONE
     return max(levels, key=lambda level: ANOMALIE_ACCESS_LEVEL_ORDER.get(level, 0))
+
+
+def _max_anomalie_list_scope(scopes: list[str]) -> str:
+    if not scopes:
+        return AnomalieListScope.ALL
+    return max(scopes, key=lambda s: ANOMALIE_LIST_SCOPE_ORDER.get(s, 2))
+
+
+def _request_anomalie_list_scope(request) -> str:
+    """Calcola lo scope di visibilità lista OP dell'utente corrente.
+
+    ALL            → vede tutti gli OP (default)
+    ASSIGNED       → vede solo gli OP in cui compare come capocommessa/CAR
+    OWN_ANOMALIE   → vede solo gli OP con almeno una propria anomalia creata
+
+    Priorità (vince il più permissivo): superuser/admin > EDIT_ALL > user override
+    > legacy role > custom role. I ruoli di sistema (CC, CAR) vengono applicati solo
+    se l'utente risulta effettivamente capocommessa/CAR su almeno un OP.
+    """
+    user = getattr(request, "user", None)
+    if bool(getattr(user, "is_superuser", False)):
+        return AnomalieListScope.ALL
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
+    if legacy_user and is_legacy_admin(legacy_user):
+        return AnomalieListScope.ALL
+
+    global_level = _request_anomalie_global_access_level(request)
+    if _access_level_at_least(global_level, AnomalieAccessLevel.EDIT_ALL):
+        return AnomalieListScope.ALL
+
+    if not getattr(user, "is_authenticated", False):
+        return AnomalieListScope.ALL
+
+    scopes: list[str] = []
+
+    # 1. Override per singolo utente
+    try:
+        scopes.append(user.anomalie_access_rule.list_scope)
+    except AnomalieUserAccessRule.DoesNotExist:
+        pass
+
+    # 2. Ruolo aziendale legacy
+    role_id = _request_legacy_role_id(request)
+    if role_id is not None:
+        s = (
+            AnomalieLegacyRoleAccessRule.objects.filter(legacy_role_id=role_id)
+            .values_list("list_scope", flat=True)
+            .first()
+        )
+        if s:
+            scopes.append(s)
+
+    # 3. Ruoli custom assegnati
+    custom_role_codes = {
+        role.code
+        for role in _anomalie_role_definitions(include_inactive=False)
+        if not role.is_system
+    }
+    if custom_role_codes:
+        assigned_codes = list(
+            AnomalieRoleAssignment.objects.filter(
+                user=user, role_type__in=custom_role_codes
+            ).values_list("role_type", flat=True)
+        )
+        if assigned_codes:
+            scopes.extend(
+                AnomalieRoleAccessRule.objects.filter(
+                    role_type__in=assigned_codes
+                ).values_list("list_scope", flat=True)
+            )
+
+    # 4. Ruoli di sistema (CC, CAR): applica solo se l'utente compare su almeno un OP
+    system_rule_map = {
+        r["role_type"]: r["list_scope"]
+        for r in AnomalieRoleAccessRule.objects.filter(
+            role_type__in=[AnomalieRoleType.CAPO_COMMESSA, AnomalieRoleType.CAR]
+        ).values("role_type", "list_scope")
+    }
+    non_all_system = [s for s in system_rule_map.values() if s != AnomalieListScope.ALL]
+    if non_all_system and _has_table("ordini_produzione"):
+        identity = _current_user_identity(request)
+        user_name = identity["name"]
+        if user_name:
+            try:
+                match = _fetch_all_dict(
+                    "SELECT TOP 1 1 AS m FROM ordini_produzione WHERE capocomessa LIKE %s OR incaricato LIKE %s",
+                    [f"%{user_name}%", f"%{user_name}%"],
+                )
+                if match:
+                    scopes.extend(system_rule_map.values())
+            except Exception:
+                pass
+
+    return _max_anomalie_list_scope(scopes) if scopes else AnomalieListScope.ALL
 
 
 def _has_table(table_name: str) -> bool:
@@ -1518,19 +1618,26 @@ def _handle_anomalie_access_post(request):
     legacy_role_rows = _anomalie_legacy_role_rows()
     legacy_role_labels = {int(row["id"]): str(row["label"]) for row in legacy_role_rows}
     valid_levels = {choice for choice, _label in AnomalieAccessLevel.choices}
+    valid_scopes = {choice for choice, _label in AnomalieListScope.choices}
 
     for role_code in role_codes:
         level = (request.POST.get(f"access_role__{role_code}") or AnomalieAccessLevel.NONE).strip()
         if level not in valid_levels:
             level = AnomalieAccessLevel.NONE
+        scope = (request.POST.get(f"list_scope_role__{role_code}") or AnomalieListScope.ALL).strip()
+        if scope not in valid_scopes:
+            scope = AnomalieListScope.ALL
         AnomalieRoleAccessRule.objects.update_or_create(
             role_type=role_code,
-            defaults={"access_level": level},
+            defaults={"access_level": level, "list_scope": scope},
         )
 
     visible_ids = [int(v) for v in request.POST.getlist("visible_access_user_id") if str(v).isdigit()]
     for user_id in visible_ids:
         level = (request.POST.get(f"access_user__{user_id}") or "").strip()
+        scope = (request.POST.get(f"list_scope_user__{user_id}") or AnomalieListScope.ALL).strip()
+        if scope not in valid_scopes:
+            scope = AnomalieListScope.ALL
         if not level:
             AnomalieUserAccessRule.objects.filter(user_id=user_id).delete()
             continue
@@ -1539,7 +1646,7 @@ def _handle_anomalie_access_post(request):
             continue
         AnomalieUserAccessRule.objects.update_or_create(
             user_id=user_id,
-            defaults={"access_level": level},
+            defaults={"access_level": level, "list_scope": scope},
         )
 
     visible_legacy_role_ids = [
@@ -1549,6 +1656,9 @@ def _handle_anomalie_access_post(request):
     ]
     for role_id in visible_legacy_role_ids:
         level = (request.POST.get(f"access_legacy_role__{role_id}") or "").strip()
+        scope = (request.POST.get(f"list_scope_legacy_role__{role_id}") or AnomalieListScope.ALL).strip()
+        if scope not in valid_scopes:
+            scope = AnomalieListScope.ALL
         if not level or level == AnomalieAccessLevel.NONE:
             AnomalieLegacyRoleAccessRule.objects.filter(legacy_role_id=role_id).delete()
             continue
@@ -1560,6 +1670,7 @@ def _handle_anomalie_access_post(request):
             defaults={
                 "legacy_role_name": legacy_role_labels.get(role_id, f"Ruolo #{role_id}")[:100],
                 "access_level": level,
+                "list_scope": scope,
             },
         )
 
@@ -1671,7 +1782,6 @@ def gestione_anomalie_page(request):
     is_admin = user_can_modulo_action(request, "anomalie", "admin_anomalie")
     identity = _current_user_identity(request)
     lists_cfg = _load_anomalie_lists()
-    sync_config_issue = _graph_config_issue()
     context = {
         "page_title": "Gestione Anomalie",
         "legacy_user": legacy_user,
@@ -1685,8 +1795,6 @@ def gestione_anomalie_page(request):
             sorted({identity["name_norm"], *_current_user_name_norms(request)} - {""}),
             ensure_ascii=False,
         ),
-        "sharepoint_sync_available": not sync_config_issue,
-        "sharepoint_sync_error": sync_config_issue,
         "access_context_json": json.dumps(_anomalie_frontend_access_context(request), ensure_ascii=False),
     }
     return render(request, "anomalie/pages/gestione_anomalie_react.html", context)
@@ -1709,7 +1817,44 @@ def api_db_ordini(request):
     if not _has_table("ordini_produzione"):
         return JsonResponse([])
     try:
-        sql = """
+        list_scope = _request_anomalie_list_scope(request)
+        identity = _current_user_identity(request)
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+
+        scope_where = ""
+        scope_params: list = []
+
+        if list_scope == AnomalieListScope.ASSIGNED:
+            user_name = identity["name"]
+            if user_name:
+                scope_where = "WHERE (op.capocomessa LIKE %s OR op.incaricato LIKE %s)"
+                scope_params = [f"%{user_name}%", f"%{user_name}%"]
+            # se il nome non è disponibile, mostra nulla per sicurezza
+            else:
+                scope_where = "WHERE 1=0"
+
+        elif list_scope == AnomalieListScope.OWN_ANOMALIE:
+            has_created_by = "created_by_user_id" in (legacy_table_columns("anomalie") or set())
+            if has_created_by and legacy_user:
+                scope_where = (
+                    "WHERE EXISTS ("
+                    "SELECT 1 FROM anomalie a "
+                    "WHERE a.op_lookup_id = TRY_CAST(op.sharepoint_item_id AS INT) "
+                    "AND a.created_by_user_id = %s)"
+                )
+                scope_params = [legacy_user.id]
+            elif legacy_user:
+                # fallback: filtra per nome come ASSIGNED se created_by_user_id assente
+                user_name = identity["name"]
+                if user_name:
+                    scope_where = "WHERE (op.capocomessa LIKE %s OR op.incaricato LIKE %s)"
+                    scope_params = [f"%{user_name}%", f"%{user_name}%"]
+                else:
+                    scope_where = "WHERE 1=0"
+            else:
+                scope_where = "WHERE 1=0"
+
+        sql = f"""
             SELECT
                 op.sharepoint_item_id AS item_id,
                 op.title AS op_title,
@@ -1722,12 +1867,13 @@ def api_db_ordini(request):
             FROM ordini_produzione op
             LEFT JOIN anomalie a
                 ON a.op_lookup_id = TRY_CAST(op.sharepoint_item_id AS INT)
+            {scope_where}
             GROUP BY
                 op.sharepoint_item_id, op.title, op.part_number,
                 op.incaricato, op.capocomessa, op.stato
             ORDER BY op.title
         """
-        rows = _fetch_all_dict(sql)
+        rows = _fetch_all_dict(sql, scope_params or None)
         result = [
             {
                 "item_id": r.get("item_id"),
@@ -2554,20 +2700,6 @@ def anomalie_configurazione_page(request):
             return _handle_anomalie_roles_post(request)
         if action == "save_access":
             return _handle_anomalie_access_post(request)
-        if action == "save_sharepoint_config":
-            ok, text = _handle_sharepoint_config_request(request)
-            if ok:
-                messages.success(request, text)
-            else:
-                messages.error(request, text)
-            return config_redirect
-        if action == "test_sharepoint_config":
-            ok, text = _graph_healthcheck()
-            if ok:
-                messages.success(request, text)
-            else:
-                messages.error(request, text)
-            return config_redirect
 
     raw_tab = request.GET.get("tab")
     tab = _normalize_anomalie_settings_tab(raw_tab, default="config")
@@ -2661,19 +2793,24 @@ def anomalie_configurazione_page(request):
         filtered_users = _filter_anomalie_user_rows(all_users, access_filter_q)
         legacy_role_rows = _anomalie_legacy_role_rows()
         role_rule_map = {
-            role_type: access_level
-            for role_type, access_level in AnomalieRoleAccessRule.objects.values_list("role_type", "access_level")
+            role_type: {"access_level": access_level, "list_scope": list_scope}
+            for role_type, access_level, list_scope in AnomalieRoleAccessRule.objects.values_list(
+                "role_type", "access_level", "list_scope"
+            )
         }
         legacy_role_rule_map = {
-            role_id: access_level
-            for role_id, access_level in AnomalieLegacyRoleAccessRule.objects.values_list(
-                "legacy_role_id", "access_level"
+            role_id: {"access_level": access_level, "list_scope": list_scope}
+            for role_id, access_level, list_scope in AnomalieLegacyRoleAccessRule.objects.values_list(
+                "legacy_role_id", "access_level", "list_scope"
             )
         }
         user_rule_map = {
-            user_id: access_level
-            for user_id, access_level in AnomalieUserAccessRule.objects.values_list("user_id", "access_level")
+            user_id: {"access_level": access_level, "list_scope": list_scope}
+            for user_id, access_level, list_scope in AnomalieUserAccessRule.objects.values_list(
+                "user_id", "access_level", "list_scope"
+            )
         }
+        list_scope_choices = list(AnomalieListScope.choices)
         access_context = {
             "access_filter_q": access_filter_q,
             "access_role_rows": [
@@ -2687,7 +2824,8 @@ def anomalie_configurazione_page(request):
                         else "Ruolo di sistema collegato all'OP."
                     ),
                     "is_system": role.is_system,
-                    "access_level": role_rule_map.get(role.code, AnomalieAccessLevel.NONE),
+                    "access_level": role_rule_map.get(role.code, {}).get("access_level", AnomalieAccessLevel.NONE),
+                    "list_scope": role_rule_map.get(role.code, {}).get("list_scope", AnomalieListScope.ALL),
                 }
                 for role in role_definitions
             ],
@@ -2695,7 +2833,8 @@ def anomalie_configurazione_page(request):
                 {
                     "id": row["id"],
                     "label": row["label"],
-                    "access_level": legacy_role_rule_map.get(row["id"], ""),
+                    "access_level": legacy_role_rule_map.get(row["id"], {}).get("access_level", ""),
+                    "list_scope": legacy_role_rule_map.get(row["id"], {}).get("list_scope", AnomalieListScope.ALL),
                 }
                 for row in legacy_role_rows
             ],
@@ -2704,7 +2843,8 @@ def anomalie_configurazione_page(request):
                     "id": user.id,
                     "label": user.get_full_name() or user.username,
                     "email": user.email or "",
-                    "access_level": user_rule_map.get(user.id, ""),
+                    "access_level": user_rule_map.get(user.id, {}).get("access_level", ""),
+                    "list_scope": user_rule_map.get(user.id, {}).get("list_scope", AnomalieListScope.ALL),
                 }
                 for user in filtered_users
             ],
@@ -2726,15 +2866,20 @@ def anomalie_configurazione_page(request):
                 (AnomalieAccessLevel.EDIT_ASSIGNED, "Vede tutto + modifica solo OP/anomalie in carico"),
                 (AnomalieAccessLevel.EDIT_ALL, "Vede e modifica tutto il modulo"),
             ],
+            "list_scope_choices": list_scope_choices,
             "access_stats": {
                 "role_rules": len(role_rule_map),
                 "legacy_role_rules": len(legacy_role_rule_map),
                 "user_overrides": len(user_rule_map),
-                "edit_all_roles": sum(1 for level in role_rule_map.values() if level == AnomalieAccessLevel.EDIT_ALL),
-                "edit_all_legacy_roles": sum(
-                    1 for level in legacy_role_rule_map.values() if level == AnomalieAccessLevel.EDIT_ALL
+                "edit_all_roles": sum(
+                    1 for v in role_rule_map.values() if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
                 ),
-                "edit_all_users": sum(1 for level in user_rule_map.values() if level == AnomalieAccessLevel.EDIT_ALL),
+                "edit_all_legacy_roles": sum(
+                    1 for v in legacy_role_rule_map.values() if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
+                ),
+                "edit_all_users": sum(
+                    1 for v in user_rule_map.values() if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
+                ),
                 "total_users": len(all_users),
                 "filtered_users": len(filtered_users),
                 "legacy_roles": len(legacy_role_rows),
@@ -2754,7 +2899,6 @@ def anomalie_configurazione_page(request):
         "anomalie_record": anomalie_record,
         "q_anomalie": q_anomalie,
         "audit_entries": audit_entries,
-        "sharepoint_admin_config": _sharepoint_admin_config(),
     }
     context.update(ruoli_context)
     context.update(access_context)

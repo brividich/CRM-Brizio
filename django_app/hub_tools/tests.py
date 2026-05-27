@@ -366,6 +366,70 @@ class HubSetupWizardEnvTests(TestCase):
         self.assertEqual(updated["DB_TRUST_CERT"], "1")
         self.assertEqual(updated["LDAP_ENABLED"], "1")
 
+    def test_reconfigure_does_not_force_navigation_legacy_fallback(self):
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "INSTANCE_NAME=NOVICROM HUB",
+                    "APP_VERSION=1.0.0",
+                    "DJANGO_SECRET_KEY=test-secret",
+                    "NAVIGATION_REGISTRY_ENABLED=1",
+                    "NAVIGATION_LEGACY_FALLBACK_ENABLED=0",
+                    "LDAP_ENABLED=1",
+                    "LDAP_SERVER=ldap://dc.test.local",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            self._admin_access(),
+            patch("hub_tools.views._ENV_PATH", self.env_path),
+            patch("hub_tools.views.update_env_file_values", side_effect=self._update_env_without_process),
+        ):
+            response = self.client.post(
+                reverse("hub_tools:hub_api_reconfigure"),
+                data=json.dumps({"nav_registry": True}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        updated = load_env_file_values(self.env_path)
+        self.assertEqual(updated["NAVIGATION_REGISTRY_ENABLED"], "1")
+        self.assertEqual(updated["NAVIGATION_LEGACY_FALLBACK_ENABLED"], "0")
+        self.assertEqual(updated["LDAP_ENABLED"], "1")
+        self.assertEqual(updated["LDAP_SERVER"], "ldap://dc.test.local")
+
+    def test_reconfigure_enables_legacy_fallback_only_when_registry_disabled(self):
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "DJANGO_SECRET_KEY=test-secret",
+                    "NAVIGATION_REGISTRY_ENABLED=1",
+                    "NAVIGATION_LEGACY_FALLBACK_ENABLED=0",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            self._admin_access(),
+            patch("hub_tools.views._ENV_PATH", self.env_path),
+            patch("hub_tools.views.update_env_file_values", side_effect=self._update_env_without_process),
+        ):
+            response = self.client.post(
+                reverse("hub_tools:hub_api_reconfigure"),
+                data=json.dumps({"nav_registry": False}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        updated = load_env_file_values(self.env_path)
+        self.assertEqual(updated["NAVIGATION_REGISTRY_ENABLED"], "0")
+        self.assertEqual(updated["NAVIGATION_LEGACY_FALLBACK_ENABLED"], "1")
+
     def test_reconfigure_saves_asset_sharepoint_public_link_settings(self):
         self.env_path.write_text(
             "\n".join(

@@ -1,0 +1,151 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Categorie Corso | Safety | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Safety &rsaquo; Categorie Corso
+      </div>
+      <h2 class="hr-pagehead-title">🏷 Categorie Corso</h2>
+      <p class="hr-pagehead-desc">
+        Catalogo categorie formative. Ogni categoria può essere collegata a uno
+        o più fattori di rischio, che ne determinano la periodicità di rinnovo.
+      </p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-cat').style.display='flex'">+ Nuova categoria</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">Categorie <span class="fm-count">{{ categorie|length }}</span></div>
+      <div>
+        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori di rischio</a>
+        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:esposizioni_rischio_list' %}">→ Esposizioni</a>
+      </div>
+    </div>
+    {% if categorie %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="anagrafica.rischi.categorie.list">
+        <thead>
+          <tr>
+            <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
+            <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Nome</th>
+            <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
+            <th data-col="fattori" data-col-label="Fattori collegati" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Fattori</th>
+            <th class="num" data-col="n_corsi" data-col-label="Corsi" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Corsi</th>
+            <th data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in categorie %}
+          <tr>
+            <td class="mono">{{ c.codice }}</td>
+            <td><strong>{{ c.nome }}</strong></td>
+            <td class="muted">{{ c.descrizione|truncatechars:60|default:"—" }}</td>
+            <td>
+              {% for fr in c.fattori_rischio.all %}<span class="fm-pill fm-pill-missing" style="margin:1px 2px 1px 0;">{{ fr.codice }}</span>{% empty %}<span class="muted">—</span>{% endfor %}
+            </td>
+            <td class="num">{{ c.n_corsi }}</td>
+            <td>{% if c.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="fm-pill fm-pill-missing">No</span>{% endif %}</td>
+            <td class="nowrap">
+              {% if is_editor %}
+              <button class="hr-btn hr-btn-sm"
+                      onclick="openCatEdit({{ c.pk }}, '{{ c.codice|escapejs }}', '{{ c.nome|escapejs }}', '{{ c.descrizione|escapejs }}', {{ c.is_active|yesno:'true,false' }}, [{% for fr in c.fattori_rischio.all %}{{ fr.pk }}{% if not forloop.last %},{% endif %}{% endfor %}])">
+                Modifica
+              </button>
+              <form method="post" action="{% url 'anagrafica:categoria_corso_delete' c.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Eliminare categoria «{{ c.nome|escapejs }}»? (Se collegata a corsi verrà solo disattivata.)')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty" style="text-align:center;padding:32px;">
+      Nessuna categoria.{% if is_editor %}<br><a href="#" onclick="document.getElementById('modal-crea-cat').style.display='flex'">Aggiungi la prima</a>.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% if is_editor %}
+<div id="modal-crea-cat" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:15px;">Nuova categoria corso</strong>
+      <button type="button" onclick="document.getElementById('modal-crea-cat').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:categoria_corso_create' %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-cat').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="modal-edit-cat" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:15px;">Modifica categoria</strong>
+      <button type="button" onclick="document.getElementById('modal-edit-cat').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form id="form-edit-cat" method="post" action="">
+      {% csrf_token %}
+      <div id="edit-cat-fields"></div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-cat').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const FR_OPTS = [
+  {% for fr in form.fields.fattori_rischio.queryset %}{ pk:{{ fr.pk }}, label:'[{{ fr.codice|escapejs }}] {{ fr.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+function openCatEdit(pk, codice, nome, descrizione, isActive, frSelectedIds) {
+  document.getElementById('form-edit-cat').action = `/anagrafica/formazione/rischi/categorie/${pk}/modifica`;
+  const sel = new Set(frSelectedIds);
+  const frHtml = FR_OPTS.map(o => `<option value="${o.pk}"${sel.has(o.pk)?' selected':''}>${o.label}</option>`).join('');
+  document.getElementById('edit-cat-fields').innerHTML = `
+    <div class="fm-form-grid-2">
+      <div class="fm-form-field"><label>Codice *</label><input name="codice" class="fm-input" value="${codice.replace(/"/g,'&quot;')}" required maxlength="20"></div>
+      <div class="fm-form-field"><label>Nome *</label><input name="nome" class="fm-input" value="${nome.replace(/"/g,'&quot;')}" required maxlength="200"></div>
+    </div>
+    <div class="fm-form-field"><label>Descrizione</label><textarea name="descrizione" class="fm-input" rows="2">${descrizione}</textarea></div>
+    <div class="fm-form-field"><label>Fattori di rischio collegati</label><select name="fattori_rischio" class="fm-input fm-select" multiple size="6">${frHtml}</select></div>
+    <label class="fm-form-check"><input type="checkbox" name="is_active"${isActive?' checked':''}> <span>Attiva</span></label>
+  `;
+  document.getElementById('modal-edit-cat').style.display = 'flex';
+}
+</script>
+{% endif %}
+{% endblock %}

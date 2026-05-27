@@ -117,11 +117,18 @@
 .imp-perm-ruoli.open { display:flex; }
 .imp-perm-ruoli label { display:flex; align-items:center; gap:8px; font-size:12px; color:#1e293b; cursor:pointer; padding:3px 4px; border-radius:5px; }
 .imp-perm-ruoli label:hover { background:#f1f5f9; }
+.imp-workflow-form { display:grid; grid-template-columns:minmax(220px,2fr) repeat(3,minmax(120px,1fr)) auto; gap:10px; align-items:end; }
+.imp-workflow-row { align-items:flex-start; }
+.imp-workflow-edit { display:grid; grid-template-columns:minmax(160px,1.4fr) repeat(4,minmax(96px,.8fr)); gap:8px; flex:2 1 620px; align-items:end; }
+.imp-workflow-checks { display:flex; gap:10px; flex-wrap:wrap; align-items:center; font-size:12px; color:#475569; }
+.imp-workflow-note { grid-column:1 / -1; }
+.imp-workflow-source { font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:11px; color:#64748b; }
 
 @media (max-width:900px) {
   .imp-layout { grid-template-columns:1fr; }
   .imp-tabs { position:static; flex-direction:row; flex-wrap:wrap; }
   .imp-perm-grid { grid-template-columns:1fr; }
+  .imp-workflow-form, .imp-workflow-edit { grid-template-columns:1fr; }
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
@@ -150,6 +157,8 @@ body.theme-dark .imp-perm-row { color:var(--text-mid); }
 body.theme-dark .imp-perm-ruoli { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-perm-ruoli label { color:var(--text-mid); }
 body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
+body.theme-dark .imp-workflow-checks { color:var(--text-mid); }
+body.theme-dark .imp-workflow-source { color:var(--text-light); }
 </style>
 {% endblock %}
 
@@ -220,6 +229,10 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
       <button class="imp-tab" data-tab="navigazione" type="button">
         <span class="imp-tab-icon">🔗</span> Navigazione
         <span class="imp-tab-count">{{ subnav_links|length }}</span>
+      </button>
+      <button class="imp-tab" data-tab="workflow" type="button">
+        <span class="imp-tab-icon">WF</span> Onboarding / Offboarding
+        <span class="imp-tab-count">{{ workflow_campi|length }}</span>
       </button>
       <button class="imp-tab" data-tab="permessi" type="button">
         <span class="imp-tab-icon">🔒</span> Permessi
@@ -1846,6 +1859,145 @@ body.theme-dark .imp-perm-ruoli label:hover { background:var(--surface-alt); }
           </div>
         </div>
 
+      </section>
+
+      <!-- ============= ONBOARDING / OFFBOARDING ============= -->
+      <section class="imp-panel" data-panel="workflow" id="tab-workflow">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Campi onboarding / offboarding</div>
+              <div class="imp-card-sub">Associa i campi del form "+ Nuovo dipendente" alla lista operativa di ingresso e uscita</div>
+            </div>
+          </div>
+
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:workflow_campo_create' %}" class="imp-workflow-form">
+            {% csrf_token %}
+            <div class="imp-field">
+              <label class="imp-label">Campo + Nuovo dipendente *</label>
+              <select class="imp-select" name="campo_key" required>
+                <option value="">-- Seleziona campo --</option>
+                {% for group in workflow_field_groups %}
+                  <optgroup label="{{ group.label }}">
+                    {% for field in group.fields %}
+                      <option value="{{ field.key }}">{{ field.label }}{% if field.required %} *{% endif %}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Fase</label>
+              <select class="imp-select" name="fase">
+                {% for value,label in workflow_fase_choices %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Categoria</label>
+              <select class="imp-select" name="categoria">
+                {% for value,label in workflow_categoria_choices %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Ordine</label>
+              <input class="imp-input" type="number" name="ordine" value="50" min="0" max="9999">
+            </div>
+            <div>
+              <button type="submit" class="imp-btn imp-btn-primary">+ Associa</button>
+            </div>
+            <div class="imp-workflow-checks" style="grid-column:1 / -1;">
+              <label><input type="checkbox" name="obbligatorio" value="1"> Obbligatorio nel workflow</label>
+              <label><input type="checkbox" name="is_active" value="1" checked> Attivo</label>
+            </div>
+            <div class="imp-field imp-workflow-note">
+              <label class="imp-label">Note operative</label>
+              <textarea class="imp-textarea" name="note" maxlength="1000" placeholder="Es. da verificare prima dell'ultimo giorno, o da completare entro l'ingresso"></textarea>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Lista configurata</div>
+              <div class="imp-card-sub">Le voci Offboarding attive generano task automatici nella pratica di uscita</div>
+            </div>
+          </div>
+
+          <div class="imp-list">
+            {% for item in workflow_campi %}
+              <div class="imp-row imp-workflow-row {% if not item.is_active %}inactive{% endif %}">
+                <div class="imp-row-main">
+                  <div class="imp-row-name">
+                    {{ item.campo_label }}
+                    {% if item.obbligatorio %}<span class="imp-badge imp-badge-orange">Obbligatorio</span>{% endif %}
+                    {% if not item.is_active %}<span class="imp-badge imp-badge-gray">Disattivo</span>{% endif %}
+                    {% if item.catalog_missing %}<span class="imp-badge imp-badge-red">Campo non trovato</span>{% endif %}
+                  </div>
+                  <div class="imp-row-meta">
+                    {{ item.get_fase_display }} · {{ item.get_categoria_display }} · {{ item.catalog_section }}
+                    <span class="imp-workflow-source">({{ item.campo_key }})</span>
+                  </div>
+                  {% if item.note %}<div class="imp-row-meta">{{ item.note }}</div>{% endif %}
+                </div>
+
+                {% if is_admin %}
+                <form method="post" action="{% url 'anagrafica:workflow_campo_update' item.id %}" class="imp-workflow-edit">
+                  {% csrf_token %}
+                  <input type="hidden" name="campo_key" value="{{ item.campo_key }}">
+                  <div class="imp-field">
+                    <label class="imp-label">Etichetta</label>
+                    <input class="imp-input" type="text" name="campo_label" value="{{ item.campo_label }}" maxlength="160">
+                  </div>
+                  <div class="imp-field">
+                    <label class="imp-label">Fase</label>
+                    <select class="imp-select" name="fase">
+                      {% for value,label in workflow_fase_choices %}
+                        <option value="{{ value }}" {% if value == item.fase %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="imp-field">
+                    <label class="imp-label">Categoria</label>
+                    <select class="imp-select" name="categoria">
+                      {% for value,label in workflow_categoria_choices %}
+                        <option value="{{ value }}" {% if value == item.categoria %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="imp-field">
+                    <label class="imp-label">Ordine</label>
+                    <input class="imp-input" type="number" name="ordine" value="{{ item.ordine }}" min="0" max="9999">
+                  </div>
+                  <div class="imp-field">
+                    <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                  </div>
+                  <div class="imp-workflow-checks">
+                    <label><input type="checkbox" name="obbligatorio" value="1" {% if item.obbligatorio %}checked{% endif %}> Obbligatorio</label>
+                    <label><input type="checkbox" name="is_active" value="1" {% if item.is_active %}checked{% endif %}> Attivo</label>
+                  </div>
+                  <div class="imp-field imp-workflow-note">
+                    <label class="imp-label">Note</label>
+                    <textarea class="imp-textarea" name="note" maxlength="1000">{{ item.note }}</textarea>
+                  </div>
+                </form>
+                <form method="post" action="{% url 'anagrafica:workflow_campo_delete' item.id %}" onsubmit="return confirm('Eliminare questa associazione?');">
+                  {% csrf_token %}
+                  <button type="submit" class="imp-btn imp-btn-danger">Elimina</button>
+                </form>
+                {% endif %}
+              </div>
+            {% empty %}
+              <div class="imp-empty">Nessun campo associato alla lista onboarding/offboarding.</div>
+            {% endfor %}
+          </div>
+        </div>
       </section>
 
       <!-- ============= PERMESSI ============= -->

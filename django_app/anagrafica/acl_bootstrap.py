@@ -19,6 +19,14 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_dipendenti_report", "label": "Anagrafica - Report/export dipendenti", "url": "/anagrafica/dipendenti/report/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_aree", "label": "Anagrafica - Aree aziendali catalogo", "url": "/anagrafica/aree/", "hide": True},
     {"modulo": "anagrafica", "codice": "anagrafica_ruoli_aziendali", "label": "Anagrafica - Ruoli aziendali catalogo", "url": "/anagrafica/ruoli-aziendali/", "hide": True},
+    # ── Formazione HR (PATCH-01 stub — URL definitivi in PATCH-02/03) ──────
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_dashboard", "label": "Formazione - Dashboard", "url": "/anagrafica/formazione/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_piani", "label": "Formazione - Piani formativi", "url": "/anagrafica/formazione/piani/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_corsi", "label": "Formazione - Corsi", "url": "/anagrafica/formazione/corsi/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_sessioni", "label": "Formazione - Sessioni", "url": "/anagrafica/formazione/sessioni/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_istruttori", "label": "Formazione - Istruttori", "url": "/anagrafica/formazione/istruttori/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_scadenzario", "label": "Formazione - Scadenzario", "url": "/anagrafica/formazione/scadenzario/", "hide": True},
+    {"modulo": "anagrafica", "codice": "anagrafica_formazione_export", "label": "Formazione - Export Excel", "url": "/anagrafica/formazione/export/", "hide": True},
 ]
 
 

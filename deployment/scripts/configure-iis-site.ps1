@@ -61,7 +61,7 @@ $siteRoot    = $paths.Base          # C:\PortaleNovicrom\test (o prod)
 $binding     = if ($Hostname) { "${Hostname}:${Port}:" } else { "*:${Port}:" }
 
 Write-LogSeparator
-Write-Log "CONFIGURAZIONE IIS — $siteName (porta $Port)" "STEP"
+Write-Log "CONFIGURAZIONE IIS - $siteName (porta $Port)" "STEP"
 Write-LogSeparator
 
 Import-Module WebAdministration -ErrorAction Stop
@@ -70,9 +70,10 @@ Import-Module WebAdministration -ErrorAction Stop
 # Application Pool
 # ---------------------------------------------------------------------------
 Write-Log "Configurazione Application Pool: $appPoolName" "STEP"
-if (Test-Path "IIS:\AppPools\$appPoolName") {
-    Write-Log "App pool già esistente — aggiornamento configurazione..." "WARN"
-} else {
+if (Test-Path -LiteralPath "IIS:\AppPools\$appPoolName") {
+    Write-Log "App pool gia esistente - aggiornamento configurazione..." "WARN"
+}
+else {
     New-WebAppPool -Name $appPoolName | Out-Null
     Write-Log "App pool creato: $appPoolName" "SUCCESS"
 }
@@ -93,17 +94,18 @@ Write-Log "App pool configurato (No Managed Code, AlwaysRunning)." "SUCCESS"
 # ---------------------------------------------------------------------------
 Write-Log "Configurazione sito IIS: $siteName" "STEP"
 
-if (Test-Path "IIS:\Sites\$siteName") {
-    Write-Log "Sito già esistente — verifica configurazione..." "WARN"
+if (Test-Path -LiteralPath "IIS:\Sites\$siteName") {
+    Write-Log "Sito gia esistente - verifica configurazione..." "WARN"
     Set-ItemProperty "IIS:\Sites\$siteName" -Name "physicalPath" -Value $siteRoot
-} else {
+}
+else {
     New-Website -Name $siteName `
                 -PhysicalPath $siteRoot `
                 -ApplicationPool $appPoolName `
                 -Port $Port `
                 -HostHeader $Hostname `
                 -Force | Out-Null
-    Write-Log "Sito creato: $siteName → $siteRoot" "SUCCESS"
+    Write-Log "Sito creato: $siteName -> $siteRoot" "SUCCESS"
 }
 
 # Associa app pool al sito
@@ -117,27 +119,29 @@ Write-Log "Configurazione virtual directories..." "STEP"
 
 # Assicura che le cartelle esistano
 foreach ($vdir in @($paths.Static, $paths.Media)) {
-    if (-not (Test-Path $vdir)) {
+    if (-not (Test-Path -LiteralPath $vdir)) {
         New-Item -ItemType Directory -Path $vdir -Force | Out-Null
     }
 }
 
 # Virtual directory /static/
 $staticVdirPath = "IIS:\Sites\$siteName\static"
-if (-not (Test-Path $staticVdirPath)) {
+if (-not (Test-Path -LiteralPath $staticVdirPath)) {
     New-WebVirtualDirectory -Site $siteName -Name "static" -PhysicalPath $paths.Static | Out-Null
-    Write-Log "Virtual directory /static/ → $($paths.Static)" "SUCCESS"
-} else {
+    Write-Log "Virtual directory /static/ -> $($paths.Static)" "SUCCESS"
+}
+else {
     Set-ItemProperty $staticVdirPath -Name "physicalPath" -Value $paths.Static
     Write-Log "Virtual directory /static/ aggiornata." "INFO"
 }
 
 # Virtual directory /media/
 $mediaVdirPath = "IIS:\Sites\$siteName\media"
-if (-not (Test-Path $mediaVdirPath)) {
+if (-not (Test-Path -LiteralPath $mediaVdirPath)) {
     New-WebVirtualDirectory -Site $siteName -Name "media" -PhysicalPath $paths.Media | Out-Null
-    Write-Log "Virtual directory /media/ → $($paths.Media)" "SUCCESS"
-} else {
+    Write-Log "Virtual directory /media/ -> $($paths.Media)" "SUCCESS"
+}
+else {
     Set-ItemProperty $mediaVdirPath -Name "physicalPath" -Value $paths.Media
     Write-Log "Virtual directory /media/ aggiornata." "INFO"
 }
@@ -147,7 +151,7 @@ if (-not (Test-Path $mediaVdirPath)) {
 # ---------------------------------------------------------------------------
 Write-Log "Installazione web.config..." "STEP"
 $webConfigDest = "$siteRoot\web.config"
-if (Test-Path $WebConfigTemplate) {
+if (Test-Path -LiteralPath $WebConfigTemplate) {
     $content = Get-Content $WebConfigTemplate -Raw -Encoding UTF8
     # Sostituisce segnaposto ENVIRONMENT nel template
     $content = $content -replace "%%ENVIRONMENT%%",  $Environment
@@ -168,7 +172,8 @@ if (Test-Path $WebConfigTemplate) {
 
     $content | Set-Content $webConfigDest -Encoding UTF8
     Write-Log "web.config scritto in: $webConfigDest" "SUCCESS"
-} else {
+}
+else {
     Write-Log "Template web.config non trovato: $WebConfigTemplate" "WARN"
     Write-Log "Crea manualmente web.config in: $webConfigDest" "WARN"
 }
@@ -193,9 +198,19 @@ foreach ($acl in $acls) {
                       $iisUser, $acl.Rights, "ContainerInherit,ObjectInherit", "None", "Allow")
         $aclObj.SetAccessRule($rule)
         Set-Acl -Path $acl.Path -AclObject $aclObj
-        Write-Log "  $($acl.Rights) → $($acl.Path)" "INFO"
+        Write-Log "  $($acl.Rights) -> $($acl.Path)" "INFO"
     } catch {
         Write-Log "  Permesso non impostato per $($acl.Path): $_" "WARN"
+    }
+}
+
+$secureEnvScript = Join-Path $PSScriptRoot "secure-env-acl.ps1"
+if (Test-Path $secureEnvScript) {
+    try {
+        & $secureEnvScript -Environment $Environment -Quiet
+        Write-Log "ACL .env ristrette." "SUCCESS"
+    } catch {
+        Write-Log "Hardening ACL .env non completato: $_" "WARN"
     }
 }
 

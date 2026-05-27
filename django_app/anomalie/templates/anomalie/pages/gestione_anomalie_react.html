@@ -43,13 +43,10 @@
     window.CURRENT_USER_EMAIL = "{{ current_user_email|escapejs }}";
     window.CURRENT_USER_NAME_NORMS = JSON.parse("{{ current_user_name_norms_json|escapejs }}");
     window.ANOMALIE_ACCESS = JSON.parse("{{ access_context_json|escapejs }}");
-    window.ANOMALIE_SYNC_AVAILABLE = {% if sharepoint_sync_available %}true{% else %}false{% endif %};
-    window.ANOMALIE_SYNC_ERROR = "{{ sharepoint_sync_error|escapejs }}";
     window.ANOMALIE_API = {
       ordini: "{% url 'api_anomalie_ordini' %}",
       anomalie: "{% url 'api_anomalie_anomalie' %}",
       salva: "{% url 'api_anomalie_salva' %}",
-      sync: "{% url 'api_anomalie_sync' %}",
       allegati_list: "{% url 'api_anomalie_allegati' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
       allegati_delete: "{% url 'api_anomalie_allegati_delete' %}",
@@ -68,13 +65,10 @@
     const CURRENT_USER_NAME_NORMS = Array.isArray(window.CURRENT_USER_NAME_NORMS)
       ? window.CURRENT_USER_NAME_NORMS
       : [];
-    const SYNC_AVAILABLE = window.ANOMALIE_SYNC_AVAILABLE !== false;
-    const SYNC_ERROR = String(window.ANOMALIE_SYNC_ERROR || "").trim();
     const API = window.ANOMALIE_API || {
       ordini: "/api/anomalie/ordini",
       anomalie: "/api/anomalie/anomalie",
       salva: "/api/anomalie/salva",
-      sync: "/api/anomalie/sync",
       allegati_list: "/api/anomalie/allegati",
       allegati_upload: "/api/anomalie/allegati/upload",
       allegati_delete: "/api/anomalie/allegati/delete",
@@ -206,17 +200,7 @@
       return idx >= 0 ? String(name).slice(idx).toLowerCase() : "";
     };
 
-    const attachmentSyncLabel = (file) => {
-      const status = String(file?.sync_status || "").toLowerCase();
-      if (status === "synced") return "Sync SP OK";
-      if (status === "error") {
-        const retries = Number(file?.sync_retry_count || 0);
-        return retries > 0 ? `Errore sync (${retries})` : "Errore sync";
-      }
-      return "In coda sync";
-    };
-
-    // â"€â"€â"€ Utility: colore per avanzamento â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    //â"€â"€â"€ Utility: colore per avanzamento â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     const snColor = (avanz) => {
       if (avanz === "Accetto lo stato") return "#10b981";
       if (avanz === "In attesa")        return "#f59e0b";
@@ -295,7 +279,7 @@
       const [saving,        setSaving]         = useState(false);
       const [syncing,       setSyncing]        = useState(false);
       const [saveMsg,       setSaveMsg]        = useState(null);  // { ok, text }
-      const [currentItemId, setCurrentItemId]  = useState(null); // item_id SharePoint anomalia aperta
+      const [currentItemId, setCurrentItemId]  = useState(null);
       const [currentLocalId, setCurrentLocalId] = useState(null);
       const [attachments, setAttachments] = useState([]);
       const [loadingAttachments, setLoadingAttachments] = useState(false);
@@ -310,11 +294,15 @@
       const [searchSn,    setSearchSn]    = useState("");
       const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
 
-      // ── Mobile navigation ──
+      // ── Mobile / tablet navigation ──
       const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+      const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1100);
       const [mobilePanel, setMobilePanel] = useState("ordini"); // "ordini" | "serie" | "dettaglio"
       useEffect(() => {
-        const onResize = () => setIsMobile(window.innerWidth < 768);
+        const onResize = () => {
+          setIsMobile(window.innerWidth < 768);
+          setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1100);
+        };
         window.addEventListener("resize", onResize);
         return () => window.removeEventListener("resize", onResize);
       }, []);
@@ -354,40 +342,6 @@
           setAvanzamento(avanzamentoOptions[0] || DEFAULT_AVANZAMENTO);
         }
       }, [avanzamento, avanzamentoOptions]);
-
-      // Push manuale locale -> SharePoint (anomalie e allegati in coda)
-      const handleSync = async () => {
-        if (!SYNC_AVAILABLE) {
-          setSaveMsg({ ok: false, text: SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata." });
-          setTimeout(() => setSaveMsg(null), 6000);
-          return;
-        }
-        setSyncing(true);
-        setSaveMsg({ ok: true, text: "Invio anomalie a SharePoint in corso..." });
-        try {
-          const r = await fetch(API.sync, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
-            credentials: "same-origin",
-          });
-          const d = await readJsonOrThrow(r, "Sync DB");
-          if (d.success) {
-            const op = d.ordini || { inseriti: 0, aggiornati: 0 };
-            const an = d.anomalie || { inseriti: 0, aggiornati: 0 };
-            const at = d.attachments || { synced: 0, failed: 0, pending: 0 };
-            setSaveMsg({
-              ok: true,
-              text: `Push SharePoint completato | Ordini: +${op.inseriti} / upd ${op.aggiornati} | Anomalie: +${an.inseriti} / upd ${an.aggiornati} | Allegati: sync ${at.synced} / err ${at.failed} / coda ${at.pending}`,
-            });
-          } else {
-            setSaveMsg({ ok: false, text: "Push SharePoint: " + (d.error || "errore sconosciuto") });
-          }
-        } catch (e) {
-          setSaveMsg({ ok: false, text: "Push SharePoint: " + e.message });
-        }
-        setSyncing(false);
-        setTimeout(() => setSaveMsg(null), 6000);
-      };
 
       // Carica ordini dal DB locale.
       const loadOrdini = () => {
@@ -580,7 +534,7 @@
             const newLocalId = data.local_id || currentLocalId;
             setCurrentItemId(newItemId);
             setCurrentLocalId(newLocalId || null);
-            setSaveMsg({ ok: true, text: "Salvato \u2014 sincronizza per aggiornare il conteggio" });
+            setSaveMsg({ ok: true, text: "Salvato" });
             if (newLocalId) {
               loadAttachments(newLocalId);
             }
@@ -797,6 +751,14 @@
                   &#9881; Gestione Admin
                 </a>
               )}
+              {isMobile && IS_ADMIN && ADMIN_URL && (
+                <a href={ADMIN_URL} title="Gestione Admin" style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, borderRadius: 8,
+                  background: "#1f64d8", color: "#fff", textDecoration: "none",
+                  fontSize: 16,
+                }}>&#9881;</a>
+              )}
               {/* Messaggio di salvataggio / sync */}
               {saveMsg && !isMobile && (
                 <span className="text-base font-medium" style={{
@@ -807,34 +769,6 @@
                 }}>
                   {saveMsg.text}
                 </span>
-              )}
-              {!isMobile && IS_ADMIN && (
-                <button onClick={handleSync} disabled={syncing || !SYNC_AVAILABLE} title={SYNC_AVAILABLE ? "Invia anomalie e allegati locali a SharePoint" : (SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata")} style={{
-                  background: syncing || !SYNC_AVAILABLE ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 8, padding: "7px 14px", color: syncing ? "#64748b" : "#94a3b8",
-                  fontWeight: 500, cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                    style={{ animation: syncing ? "spin 1s linear infinite" : "none" }}>
-                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                  </svg>
-                  {syncing ? "Sync…" : "Invia a SP"}
-                </button>
-              )}
-              {isMobile && IS_ADMIN && (
-                <button onClick={handleSync} disabled={syncing || !SYNC_AVAILABLE} title={SYNC_AVAILABLE ? "Invia anomalie e allegati locali a SharePoint" : (SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata")} style={{
-                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 8, padding: "7px 10px", color: syncing ? "#64748b" : "#94a3b8",
-                  cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center",
-                }}>
-                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-                    style={{ animation: syncing ? "spin 1s linear infinite" : "none" }}>
-                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                  </svg>
-                </button>
               )}
               {!isMobile && <button style={{
                 background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
@@ -902,12 +836,15 @@
             </div>
           </header>
 
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <style>{`
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    `}</style>
 
           {/* â"€â"€ Layout 3 colonne â"€â"€ */}
           <div style={{
             flex: 1, display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "340px 280px 1fr",
+            gridTemplateColumns: isMobile ? "1fr" : isTablet ? "260px 220px 1fr" : "340px 280px 1fr",
             height: isMobile ? "auto" : "calc(100vh - 56px)",
             overflow: isMobile ? "visible" : "hidden",
           }}>
@@ -917,7 +854,7 @@
               borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fff",
               display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
-              minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
+              minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
             }}>
               <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1053,7 +990,7 @@
               borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fafbfc",
               display: isMobile && mobilePanel !== "serie" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
-              minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
+              minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
             }}>
               {isMobile && (
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("ordini")} style={{
@@ -1206,12 +1143,6 @@
                       {op.pn || '\u2014'}
                     </span>
                   </div>
-                  <div>
-                    <FieldLabel>Item ID SharePoint</FieldLabel>
-                    <span className="text-sm" style={{ color: "#94a3b8" }}>
-                      {currentItemId || "nuovo record"}
-                    </span>
-                  </div>
                   <div style={{ marginLeft: "auto" }}>
                     <FieldLabel>Stato</FieldLabel>
                     <StatusBadge text={statoBadge.text} variant={statoBadge.variant} />
@@ -1233,7 +1164,7 @@
               </div>
 
               {/* Body form */}
-              <div style={{ padding: isMobile ? "16px" : "20px 24px", flex: 1, paddingBottom: isMobile ? 80 : 24 }}>
+              <div style={{ padding: isMobile ? "16px" : "20px 24px", flex: 1, paddingBottom: isMobile ? 72 : 24 }}>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 24 }}>
                   {/* Colonna sinistra */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1446,13 +1377,8 @@
                                           {file.name}
                                         </div>
                                         <div className="text-xs" style={{ color: "#64748b", marginTop: 2 }}>
-                                          {formatBytes(file.size)} • {file.mime_type || "file"} • {attachmentSyncLabel(file)}
+                                          {formatBytes(file.size)} • {file.mime_type || "file"}
                                         </div>
-                                        {file.sync_last_error ? (
-                                          <div className="text-2xs" title={file.sync_last_error} style={{ color: "#b91c1c", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                            {file.sync_last_error}
-                                          </div>
-                                        ) : null}
                                       </div>
                                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                         <IconBtn onClick={(e) => { e.stopPropagation(); openAttachment(file.file_id, false); }} title="Apri">
@@ -1503,6 +1429,68 @@
             </div>
 
           </div>
+
+          {/* ── Toast mobile per saveMsg ── */}
+          {isMobile && saveMsg && (
+            <div style={{
+              position: "fixed", bottom: 64, left: 12, right: 12, zIndex: 200,
+              background: saveMsg.ok ? "#059669" : "#dc2626",
+              color: "#fff", padding: "12px 16px", borderRadius: 10,
+              fontWeight: 600, fontSize: 14, lineHeight: 1.4,
+              boxShadow: "0 4px 16px rgba(0,0,0,.25)",
+              animation: "fadeInUp 0.2s ease",
+            }}>
+              {saveMsg.text}
+            </div>
+          )}
+
+          {/* ── Bottom tab bar mobile ── */}
+          {isMobile && (
+            <nav style={{
+              position: "fixed", bottom: 0, left: 0, right: 0, height: 56,
+              background: "#1e293b", borderTop: "1px solid rgba(255,255,255,.12)",
+              display: "flex", zIndex: 150,
+            }}>
+              {[
+                { id: "ordini", label: "Ordini", icon: (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                    <rect x="9" y="3" width="6" height="4" rx="1"/>
+                    <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+                  </svg>
+                )},
+                { id: "serie", label: "S/N", icon: (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                  </svg>
+                )},
+                { id: "dettaglio", label: "Dettaglio", icon: (
+                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                )},
+              ].map(tab => {
+                const active = mobilePanel === tab.id;
+                return (
+                  <button key={tab.id} onClick={() => setMobilePanel(tab.id)} style={{
+                    flex: 1, background: "none", border: "none",
+                    color: active ? "#60a5fa" : "#64748b",
+                    cursor: "pointer",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                    borderTop: active ? "2px solid #60a5fa" : "2px solid transparent",
+                    fontSize: 10, fontWeight: active ? 700 : 500,
+                    letterSpacing: "0.04em", transition: "color 0.15s, border-color 0.15s",
+                    WebkitTapHighlightColor: "transparent",
+                  }}>
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
         </div>
       );
     }

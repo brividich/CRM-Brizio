@@ -1,0 +1,22 @@
+{# Partial: renderizza i campi di un ModelForm con stile fm-* compatto. #}
+{# Uso: {% include "anagrafica/partials/_fm_form_fields.html" with form=myform %} #}
+{# I checkbox vengono renderizzati inline (label a destra) per non sembrare input giganti. #}
+{% for field in form %}
+  {% if field.field.widget.input_type == "checkbox" %}
+<label class="fm-form-check" for="{{ field.id_for_label }}">
+  {{ field }}
+  <span>{{ field.label }}{% if field.field.required %} <span class="fm-req">*</span>{% endif %}</span>
+</label>
+{% if field.errors %}{% for err in field.errors %}<div class="fm-err" style="margin-top:-6px;margin-bottom:8px;">{{ err }}</div>{% endfor %}{% endif %}
+{% if field.help_text %}<div class="fm-help" style="margin-top:-6px;margin-bottom:8px;">{{ field.help_text }}</div>{% endif %}
+  {% else %}
+<div class="fm-form-field">
+  <label for="{{ field.id_for_label }}">
+    {{ field.label }}{% if field.field.required %}<span class="fm-req">*</span>{% endif %}
+  </label>
+  {{ field }}
+  {% if field.errors %}{% for err in field.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}{% endif %}
+  {% if field.help_text %}<div class="fm-help">{{ field.help_text }}</div>{% endif %}
+</div>
+  {% endif %}
+{% endfor %}

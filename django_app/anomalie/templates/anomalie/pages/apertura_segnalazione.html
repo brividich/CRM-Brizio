@@ -409,6 +409,24 @@
       .form-body { padding-left: 18px; padding-right: 18px; }
       .create-grid { grid-template-columns: 1fr; }
       .op-info-bar { padding: 10px 14px; }
+      .toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
+    }
+    @media (max-width: 480px) {
+      .topbar { padding: 0 10px; gap: 6px; }
+      .topbar-back { font-size: var(--fs-sm); }
+      .topbar-title { font-size: var(--fs-xs); letter-spacing: 0.03em; }
+      .content { padding-top: 62px; }
+      .step-card { margin: 0 10px; border-radius: 14px; }
+      .step-header { padding: 12px 14px 10px; gap: 10px; }
+      .create-op-wrap,
+      .search-wrap,
+      .op-row,
+      .form-body { padding-left: 14px; padding-right: 14px; }
+      .op-list { max-height: 320px; }
+      .action-bar { flex-direction: column; }
+      .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+      .range-row { flex-direction: column; gap: 6px; }
+      .range-sep { display: none; }
     }
   </style>
 </head>

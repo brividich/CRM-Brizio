@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 from datetime import date
 from io import BytesIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
@@ -13,8 +14,16 @@ from django.urls import reverse
 from openpyxl import load_workbook
 
 from core.legacy_anagrafica import cleanup_duplicate_anagrafica_rows, ensure_anagrafica_schema
+from core.legacy_models import UtenteLegacy
 from assets.models import Asset, AssetCategory, SoftwareLicense
-from .models import DipendenteAnagraficaAziendale, DipendenteAnagraficaCivile, SaldoCedolino
+from .models import (
+    DipendenteAnagraficaAziendale,
+    DipendenteAnagraficaCivile,
+    OffboardingPratica,
+    OffboardingTask,
+    OnboardingOffboardingCampo,
+    SaldoCedolino,
+)
 
 User = get_user_model()
 
@@ -70,6 +79,42 @@ def _ensure_anagrafica_table() -> None:
                 """
             )
     ensure_anagrafica_schema()
+
+
+def _ensure_utenti_table() -> None:
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == "sqlite":
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS utenti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome VARCHAR(200) NOT NULL,
+                    email VARCHAR(200) NULL,
+                    password VARCHAR(500) NOT NULL,
+                    ruolo VARCHAR(100) NULL,
+                    attivo INTEGER NOT NULL DEFAULT 1,
+                    deve_cambiare_password INTEGER NOT NULL DEFAULT 0,
+                    ruolo_id INTEGER NULL
+                )
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                IF OBJECT_ID('utenti', 'U') IS NULL
+                CREATE TABLE utenti (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    nome NVARCHAR(200) NOT NULL,
+                    email NVARCHAR(200) NULL,
+                    password NVARCHAR(500) NOT NULL,
+                    ruolo NVARCHAR(100) NULL,
+                    attivo BIT NOT NULL DEFAULT 1,
+                    deve_cambiare_password BIT NOT NULL DEFAULT 0,
+                    ruolo_id INT NULL
+                )
+                """
+            )
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -148,8 +193,10 @@ class AnagraficaRateiExportTests(TestCase):
 class AnagraficaDipendentiViewTests(TestCase):
     def setUp(self):
         _ensure_anagrafica_table()
+        _ensure_utenti_table()
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute("DELETE FROM utenti")
         self.user = User.objects.create_superuser(
             username="anagrafica-view",
             email="anagrafica-view@example.com",
@@ -381,6 +428,271 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.assertIn(">Cessato Elia<", ex_html)
         self.assertNotIn(">Attivo Marco<", ex_html)
         self.assertEqual(ex_response.context["page_obj"].paginator.count, 1)
+
+    def test_offboarding_licenziamento_creates_pratica_then_closes_employee(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti
+                    (aliasusername, nome, cognome, attivo, utente_id)
+                VALUES
+                    (%s, %s, %s, %s, %s)
+                """,
+                ["l.licenziamento", "Luca", "Licenziamento", 1, 123],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["l.licenziamento"],
+            )
+            legacy_id = int(cursor.fetchone()[0])
+
+        self.client.force_login(self.user)
+        detail_response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Avvia uscita dipendente")
+        self.assertContains(detail_response, "Restituzioni da pianificare")
+        self.assertNotContains(detail_response, "Onboarding / Offboarding")
+        index_response = self.client.get(reverse("anagrafica:index"))
+        self.assertContains(index_response, "Nuovo dipendente")
+        self.assertNotContains(index_response, "Onboarding / Offboarding")
+
+        data_cessazione = date.today()
+        ultimo_giorno = data_cessazione
+        with patch("core.audit.log_action") as log_action:
+            response = self.client.post(
+                reverse("anagrafica:dipendente_offboarding_licenziamento", args=[legacy_id]),
+                {
+                    "motivo": OffboardingPratica.MOTIVO_LICENZIAMENTO,
+                    "data_cessazione": data_cessazione.isoformat(),
+                    "ultimo_giorno_operativo": ultimo_giorno.isoformat(),
+                    "restituzioni": ["badge_chiavi", "device_it"],
+                    "restituzioni_note": "Recuperare anche il telecomando cancello.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        audit_detail = log_action.call_args.args[3]
+        self.assertEqual(audit_detail["data_cessazione_prevista"], data_cessazione.isoformat())
+        self.assertEqual(audit_detail["ultimo_giorno_operativo"], ultimo_giorno.isoformat())
+        self.assertFalse(audit_detail["account_scollegato"])
+        self.assertEqual(audit_detail["restituzioni_richieste"], ["badge_chiavi", "device_it"])
+        self.assertEqual(
+            audit_detail["restituzioni_richieste_label"],
+            ["Badge, chiavi, tessere", "PC, telefono, SIM, token"],
+        )
+        self.assertEqual(audit_detail["restituzioni_note"], "Recuperare anche il telecomando cancello.")
+
+        pratica = OffboardingPratica.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertEqual(pratica.stato, OffboardingPratica.STATO_IN_CORSO)
+        self.assertEqual(pratica.data_cessazione_prevista, data_cessazione)
+        self.assertEqual(pratica.ultimo_giorno_operativo, ultimo_giorno)
+        self.assertEqual(pratica.utente_id_pre_offboarding, 123)
+        self.assertEqual(pratica.tasks.count(), 5)
+        self.assertTrue(pratica.tasks.filter(codice="hr_documenti_finali").exists())
+        self.assertTrue(pratica.tasks.filter(codice="it_revoca_accessi").exists())
+        self.assertTrue(pratica.tasks.filter(codice="responsabile_passaggio_consegne").exists())
+        self.assertTrue(pratica.tasks.filter(codice="restituzione_badge_chiavi").exists())
+        self.assertTrue(pratica.tasks.filter(codice="restituzione_device_it").exists())
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT attivo, utente_id FROM anagrafica_dipendenti WHERE id = %s",
+                [legacy_id],
+            )
+            row = cursor.fetchone()
+        self.assertEqual(int(row[0] or 0), 1)
+        self.assertEqual(int(row[1] or 0), 123)
+
+        list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
+        ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
+        self.assertIn(">Licenziamento Luca<", list_html)
+        self.assertNotIn(">Licenziamento Luca<", ex_html)
+
+        detail_response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
+        self.assertContains(detail_response, "Pratica offboarding in corso")
+        self.assertContains(detail_response, "Conferma chiusura rapporto")
+
+        response = self.client.post(
+            reverse("anagrafica:dipendente_offboarding_chiudi", args=[legacy_id, pratica.id])
+        )
+        self.assertEqual(response.status_code, 302)
+        pratica.refresh_from_db()
+        self.assertEqual(pratica.stato, OffboardingPratica.STATO_IN_CORSO)
+
+        for task in pratica.tasks.all():
+            response = self.client.post(
+                reverse(
+                    "anagrafica:dipendente_offboarding_task_update",
+                    args=[legacy_id, pratica.id, task.id],
+                ),
+                {"stato": OffboardingTask.STATO_COMPLETATO, "note": "OK"},
+            )
+            self.assertEqual(response.status_code, 302)
+
+        response = self.client.post(
+            reverse("anagrafica:dipendente_offboarding_chiudi", args=[legacy_id, pratica.id])
+        )
+        self.assertEqual(response.status_code, 302)
+        pratica.refresh_from_db()
+        self.assertEqual(pratica.stato, OffboardingPratica.STATO_CHIUSA)
+        self.assertIsNotNone(pratica.closed_at)
+
+        aziendale = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertEqual(aziendale.data_cessazione, data_cessazione)
+        self.assertEqual(aziendale.utente_id_pre_offboarding, 123)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT attivo, utente_id FROM anagrafica_dipendenti WHERE id = %s",
+                [legacy_id],
+            )
+            row = cursor.fetchone()
+        self.assertEqual(int(row[0] or 0), 0)
+        self.assertIsNone(row[1])
+
+        list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
+        ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
+        self.assertNotIn(">Licenziamento Luca<", list_html)
+        self.assertIn(">Licenziamento Luca<", ex_html)
+
+    def test_offboarding_creates_tasks_from_configured_fields(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti
+                    (aliasusername, nome, cognome, attivo, utente_id)
+                VALUES
+                    (%s, %s, %s, %s, %s)
+                """,
+                ["c.config", "Carlo", "Config", 1, 321],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["c.config"],
+            )
+            legacy_id = int(cursor.fetchone()[0])
+
+        OnboardingOffboardingCampo.objects.create(
+            fase=OnboardingOffboardingCampo.FASE_OFFBOARDING,
+            campo_key="badge",
+            campo_label="Badge",
+            sezione="Ruolo e organizzazione",
+            categoria=OnboardingOffboardingCampo.CATEGORIA_HR,
+            obbligatorio=True,
+            ordine=5,
+            note="Recuperare badge fisico.",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("anagrafica:dipendente_offboarding_licenziamento", args=[legacy_id]),
+            {"data_cessazione": date.today().isoformat()},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        pratica = OffboardingPratica.objects.get(legacy_anagrafica_id=legacy_id)
+        task = pratica.tasks.get(codice="campo_badge")
+        self.assertEqual(task.titolo, "Verificare Badge")
+        self.assertEqual(task.categoria, OffboardingTask.CATEGORIA_HR)
+        self.assertIn("Recuperare badge fisico.", task.descrizione)
+
+    def test_rimetti_in_forza_relinks_saved_pre_offboarding_account(self):
+        legacy_user = UtenteLegacy.objects.create(
+            nome="Account Storico",
+            email="portal.storico@example.com",
+            password="x",
+            ruolo="Dipendente",
+            attivo=True,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti
+                    (aliasusername, nome, cognome, email, attivo, utente_id)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                """,
+                ["s.storico", "Sara", "Storico", "legacy.storico@example.com", 0, None],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["s.storico"],
+            )
+            legacy_id = int(cursor.fetchone()[0])
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=legacy_id,
+            data_cessazione=date(2026, 2, 15),
+            utente_id_pre_offboarding=legacy_user.id,
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("anagrafica:dipendente_rimetti_in_forza", args=[legacy_id]))
+        self.assertEqual(response.status_code, 302)
+
+        aziendale = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertIsNone(aziendale.data_cessazione)
+        self.assertIsNone(aziendale.utente_id_pre_offboarding)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT attivo, utente_id FROM anagrafica_dipendenti WHERE id = %s",
+                [legacy_id],
+            )
+            row = cursor.fetchone()
+        self.assertEqual(int(row[0] or 0), 1)
+        self.assertEqual(int(row[1] or 0), legacy_user.id)
+
+    def test_rimetti_in_forza_clears_cessazione_and_restores_active_status(self):
+        legacy_user = UtenteLegacy.objects.create(
+            nome="Rita Forza",
+            email="r.forza@example.com",
+            password="x",
+            ruolo="Dipendente",
+            attivo=True,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti
+                    (aliasusername, nome, cognome, email, attivo, utente_id)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                """,
+                ["r.forza", "Rita", "Forza", "r.forza@example.com", 0, None],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["r.forza"],
+            )
+            legacy_id = int(cursor.fetchone()[0])
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=legacy_id,
+            data_cessazione=date(2026, 1, 31),
+        )
+
+        self.client.force_login(self.user)
+        detail_response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Rimetti in forza")
+
+        response = self.client.post(reverse("anagrafica:dipendente_rimetti_in_forza", args=[legacy_id]))
+        self.assertEqual(response.status_code, 302)
+
+        aziendale = DipendenteAnagraficaAziendale.objects.get(legacy_anagrafica_id=legacy_id)
+        self.assertIsNone(aziendale.data_cessazione)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT attivo, utente_id FROM anagrafica_dipendenti WHERE id = %s",
+                [legacy_id],
+            )
+            row = cursor.fetchone()
+        self.assertEqual(int(row[0] or 0), 1)
+        self.assertEqual(int(row[1] or 0), legacy_user.id)
+
+        list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
+        ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
+        self.assertIn(">Forza Rita<", list_html)
+        self.assertNotIn(">Forza Rita<", ex_html)
 
     def test_list_orders_employees_by_surname_and_name_on_first_load(self):
         with connection.cursor() as cursor:
@@ -893,6 +1205,52 @@ class ImpostazioniRedirectTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], f"{reverse('anagrafica:impostazioni')}?tab=navigazione#tab-navigazione")
         self.assertTrue(SubnavCategoriaAnagrafica.objects.filter(nome="Custom").exists())
+
+    def test_workflow_settings_maps_new_employee_field(self):
+        self.client.force_login(self.user_super)
+        response = self.client.get(reverse("anagrafica:impostazioni"), {"tab": "workflow"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Campi onboarding / offboarding")
+        self.assertContains(response, "Data inizio contratto")
+
+        response = self.client.post(
+            reverse("anagrafica:workflow_campo_create"),
+            {
+                "campo_key": "contratto_data_inizio",
+                "fase": OnboardingOffboardingCampo.FASE_ONBOARDING,
+                "categoria": OnboardingOffboardingCampo.CATEGORIA_HR,
+                "obbligatorio": "1",
+                "is_active": "1",
+                "ordine": "10",
+                "note": "Da compilare prima dell'ingresso.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(resp_url := response["Location"], f"{reverse('anagrafica:impostazioni')}?tab=workflow#tab-workflow")
+        self.assertIn("tab=workflow", resp_url)
+
+        mapping = OnboardingOffboardingCampo.objects.get(campo_key="contratto_data_inizio")
+        self.assertEqual(mapping.campo_label, "Data inizio contratto")
+        self.assertEqual(mapping.sezione, "Contratto e inquadramento")
+        self.assertTrue(mapping.obbligatorio)
+
+        response = self.client.post(
+            reverse("anagrafica:workflow_campo_update", args=[mapping.id]),
+            {
+                "campo_key": "contratto_data_inizio",
+                "campo_label": "Data inizio rapporto",
+                "fase": OnboardingOffboardingCampo.FASE_OFFBOARDING,
+                "categoria": OnboardingOffboardingCampo.CATEGORIA_AMMINISTRAZIONE,
+                "is_active": "1",
+                "ordine": "20",
+                "note": "Verifica documentale finale.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        mapping.refresh_from_db()
+        self.assertEqual(mapping.fase, OnboardingOffboardingCampo.FASE_OFFBOARDING)
+        self.assertEqual(mapping.campo_label, "Data inizio rapporto")
+        self.assertFalse(mapping.obbligatorio)
 
 
 class VisiteMedicheDashboardTests(TestCase):

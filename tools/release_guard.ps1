@@ -172,41 +172,6 @@ function Assert-Regex {
     }
 }
 
-function Test-IsExcludedByWizardBundleRules {
-    param(
-        [string]$BaseDir,
-        [System.IO.FileInfo]$File,
-        [string[]]$ExcludeDirNames,
-        [string[]]$ExcludeFilePatterns
-    )
-
-    $normalizedBaseDir = [System.IO.Path]::GetFullPath($BaseDir).TrimEnd('\', '/')
-    $normalizedFilePath = [System.IO.Path]::GetFullPath($File.FullName)
-    if ($normalizedFilePath.StartsWith($normalizedBaseDir, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $relativePath = $normalizedFilePath.Substring($normalizedBaseDir.Length).TrimStart('\', '/')
-    } else {
-        $relativePath = $File.Name
-    }
-    $pathSegments = $relativePath -split '[\\/]'
-
-    if ($pathSegments.Count -gt 1) {
-        $lastDirectoryIndex = $pathSegments.Count - 2
-        foreach ($segment in $pathSegments[0..$lastDirectoryIndex]) {
-            if ($ExcludeDirNames -contains $segment) {
-                return $true
-            }
-        }
-    }
-
-    foreach ($pattern in $ExcludeFilePatterns) {
-        if ($File.Name -like $pattern) {
-            return $true
-        }
-    }
-
-    return $false
-}
-
 function Resolve-Python {
     param([string]$RootPath)
 
@@ -391,23 +356,16 @@ Assert-Contains -Text $packageReleaseText -Needle "release_guard.ps1" -Label "de
 Assert-Contains -Text $setupWizardSpecText -Needle "setup_wizard_bundle_rules.json" -Label "deployment/SetupWizard.spec"
 
 $bundleRules = $null
-$wizardExcludedDirNames = @()
-$wizardExcludedFilePatterns = @()
 try {
     $bundleRules = $setupWizardBundleRulesText | ConvertFrom-Json
 } catch {
     Add-Failure("deployment/setup_wizard_bundle_rules.json non e JSON valido: $($_.Exception.Message)")
 }
 
-if ($bundleRules -and $bundleRules.exclude_dir_names) {
-    $wizardExcludedDirNames = @($bundleRules.exclude_dir_names | ForEach-Object { [string]$_ })
-} else {
+if (-not ($bundleRules -and $bundleRules.exclude_dir_names)) {
     Add-Failure("deployment/setup_wizard_bundle_rules.json deve definire exclude_dir_names")
 }
-
-if ($bundleRules -and $bundleRules.exclude_file_patterns) {
-    $wizardExcludedFilePatterns = @($bundleRules.exclude_file_patterns | ForEach-Object { [string]$_ })
-} else {
+if (-not ($bundleRules -and $bundleRules.exclude_file_patterns)) {
     Add-Failure("deployment/setup_wizard_bundle_rules.json deve definire exclude_file_patterns")
 }
 
@@ -432,15 +390,9 @@ if (Test-Path -LiteralPath $deploymentConfigDir) {
     }
 }
 
-$djangoAppDir = Join-Path $SourcePath "django_app"
-if (Test-Path -LiteralPath $djangoAppDir) {
-    $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse -ErrorAction SilentlyContinue | Where-Object {
-        -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $wizardExcludedDirNames -ExcludeFilePatterns $wizardExcludedFilePatterns)
-    }
-    foreach ($file in $djangoFiles) {
-        $triggerFiles.Add($file)
-    }
-}
+# django_app/ escluso intenzionalmente dai trigger del wizard:
+# gli aggiornamenti applicativi usano il pacchetto zip + deploy-release.ps1,
+# non richiedono la rebuild del wizard (riservato alle installazioni fresh).
 
 $newestTrigger = $triggerFiles | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 $wizardFreshnessGrace = [TimeSpan]::FromMinutes(2)

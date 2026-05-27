@@ -1,9 +1,93 @@
 # Session Checkpoint
 
-Data: 2026-05-25
+Data: 2026-05-26
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Assets: rinomina massiva solo nome asset)
+- `django_app/assets/management/commands/rename_asset_names.py` -> nuovo comando operativo con export template CSV `asset_tag;current_name;new_name`, dry-run di default e `--commit` esplicito; aggiorna solo `Asset.name` e `updated_at` tramite `asset_tag`, con validazioni su duplicati, nomi vuoti/lunghi e asset mancanti.
+- `django_app/assets/tests.py` -> regressioni per dry-run senza scrittura, commit limitato al nome, export template e blocco commit su asset mancante.
+- `django_app/assets/README.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata procedura: esportare template, modificare solo `new_name`, provare dry-run e poi commit.
+- Test/check: `py_compile` comando OK; `RenameAssetNamesCommandTests` OK (4 test); `manage.py check --settings=config.settings.test` OK; `help rename_asset_names` OK; `git diff --check` OK sui file modificati in questa sessione.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (configurazione runtime: hardening `.env` e fix drift Navigation Registry)
+- `django_app/hub_tools/views.py` -> Setup Wizard Hub ora usa `primary_runtime_env_path(_APP_DIR)` invece della sola copia `django_app/.env`; in deploy scrive/legge il persistente `ENV/config/.env`. Il salvataggio non forza piu `NAVIGATION_LEGACY_FALLBACK_ENABLED=1`: con `NAVIGATION_REGISTRY_ENABLED=1` imposta fallback legacy a `0`, con registry disabilitato lo imposta a `1`.
+- `django_app/hub_tools/templates/hub_tools/setup_wizard.html` -> testo sezione Navigazione riallineato: Navigation Registry come percorso principale, fallback legacy Pulsante solo quando registry viene disattivato.
+- `django_app/config/env_config.py` -> lettura `.env` con `utf-8-sig` per tollerare salvataggi Notepad con BOM UTF-8; `django_app/config/test_env_config.py` aggiunge regressione dedicata.
+- `deployment/scripts/secure-env-acl.ps1` -> nuovo script hardening NTFS: protegge `ENV/config/.env` e copie release `.env` con accesso solo SYSTEM, Administrators locali e `IIS AppPool\PortaleNovicrom-ENV`; persistente modificabile dall'AppPool, copie release read-only.
+- `deployment/scripts/deploy-release.ps1`, `deployment/scripts/configure-iis-site.ps1` -> invocano `secure-env-acl.ps1`; `configure-iis-site.ps1` ripulito da tre caratteri Unicode che rompevano il parser PowerShell su questa console.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato hardening `.env`, fix Hub Setup Wizard e parser BOM.
+- Test/check: parser PowerShell OK su `secure-env-acl.ps1`, `deploy-release.ps1`, `configure-iis-site.ps1`; `python django_app\manage.py test hub_tools.tests.HubSetupWizardEnvTests config.test_env_config.RuntimeEnvPathTests --settings=config.settings.test --verbosity 1` OK (10 test); AST Python OK sui file modificati; `python django_app\manage.py check --settings=config.settings.dev` OK; `git diff --check` OK. `py_compile` non completato per Access denied in `django_app/config/__pycache__`, sostituito con AST check.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Navigation Registry: comando restore dalla working copy locale)
+- `django_app/core/management/commands/restore_navigation_registry.py` -> nuovo comando dry-run/apply per ripristinare solo `ModuleCategory`, `NavigationItem` e `NavigationRoleAccess` da `django_app/fixtures/nav_acl_snapshot.json` o altro dump JSON Django serializer; in apply pubblica prima snapshot backup, sostituisce il registry e invalida cache menu.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato comando operativo per restore controllato menu/topbar.
+- Sorgente working copy locale `C:\Dev\Portale Novicrom` -> dry-run conferma 15 topbar: `Assenze`, `Diario preposto`, `Rentri`, `Tickets`, `Asset`, `Segnalazioni sicurezza`, `Anagrafica`, `KICK-OFF`, `Notizie`, `Gestione Anomalie`, `Gestione Attrezzatura`, `Timbri`, `Accessi azienda`, `DPI`, `Presa Visione`.
+- Target `Y:` -> restore non applicato: la connessione SQL diretta da questa sessione viene rifiutata dall'autenticazione Windows dell'utente locale; eseguire il comando sul target con account runtime/admin DB.
+- Test/check: `restore_navigation_registry --settings=config.settings.dev` dry-run OK; `py_compile` comando OK; `help restore_navigation_registry` OK; `manage.py check --settings=config.settings.dev` OK.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (diagnosi Navigation Builder/topbar vuota)
+- Navigazione globale -> verificato in sola lettura che il DB locale `config.settings.dev` ha `NavigationItem total=37`, con `topbar=15` visibili/attive; quindi lo screenshot non corrisponde allo stato locale corrente oppure e influenzato da filtro/cache/ambiente diverso.
+- `django_app/fixtures/nav_acl_snapshot.json` -> ispezionato in sola lettura: contiene 37 `NavigationItem`, 15 in `topbar`, coerenti con lo stato sano locale; lo snapshot DB interno disponibile e vecchio/incompleto (`v1`, 4 item, 3 topbar).
+- `Y:\config\.env` + `config.settings.prod` -> tentata verifica read-only dei conteggi navigation, ma la connessione e andata in timeout; il processo Python appeso e stato chiuso. Nessun valore `.env` o segreto stampato.
+- Ripristino non eseguito: nessuna modifica a `NavigationItem`, ACL, settings, cache, routing o dati applicativi.
+- Test/check: query Django read-only su dev OK; ispezione fixture JSON OK; controllo processi Python dopo timeout OK.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Anagrafica HR: campi onboarding/offboarding configurabili in impostazioni)
+- `django_app/anagrafica/models.py` + migration `0031_onboardingoffboardingcampo.py` -> nuovo modello `OnboardingOffboardingCampo` per associare i campi del form `+ Nuovo dipendente` a fase onboarding/offboarding, categoria, obbligatorieta, ordine, stato e note
+- `django_app/anagrafica/admin.py` -> registrata la nuova configurazione campi workflow in Django admin
+- `django_app/anagrafica/views.py`, `urls.py` -> nuovo CRUD locale per creare/modificare/eliminare associazioni da `/anagrafica/impostazioni/`; le associazioni Offboarding attive generano task automatici nelle pratiche di uscita
+- `django_app/anagrafica/templates/anagrafica/pages/impostazioni.html` -> aggiunto tab "Onboarding / Offboarding" con selezione dei campi reali del nuovo dipendente e lista configurata modificabile
+- `django_app/anagrafica/tests.py` -> regressioni per tab impostazioni, creazione/aggiornamento associazioni e generazione task offboarding da campi configurati
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la nuova sezione impostazioni e il comportamento dei task offboarding automatici
+- Test/check: `makemigrations anagrafica --check --dry-run --settings=config.settings.dev` OK; test mirati Anagrafica su impostazioni workflow e task offboarding OK; `manage.py check --settings=config.settings.dev` OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK con 0 proposte; `acl_coverage_report` conferma Anagrafica `bound=157`, `missing=0`; `git diff --check` OK
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Deploy: diagnosi `.env` PROD su `Y:\` e guardia anti-drift release)
+- `Y:\` -> verificato che il drive punta a `\\pclogsys\PortaleNovicrom\prod`; `Y:\Portale Novicrom\` non esiste. `Y:\current` e una junction verso `C:\PortaleNovicrom\prod\releases\20260525_150722`.
+- `Y:\config\.env` e `Y:\current\django_app\.env` -> confrontati senza stampare segreti: inizialmente identici, poi `Y:\current\django_app\.env` aggiornato alle 09:51 e diventato divergente/piu completo rispetto a `Y:\config\.env` (molte chiavi solo in current). Diagnosi: una nuova release copia sempre `config\.env`, quindi modifiche fatte solo su `current\django_app\.env` vengono perse.
+- `deployment/scripts/deploy-release.ps1` + `Y:\current\deployment\scripts\deploy-release.ps1` -> aggiunto controllo anti-drift tra `ENV/config/.env` e `ENV/current/django_app/.env` prima della copia nella nuova release; in caso di divergenza blocca il deploy mostrando solo le chiavi divergenti, con override CLI `-AllowEnvDrift`. Corretto anche il marker `.release_info` per passare il parser PowerShell.
+- `deployment/setup_wizard.py` + `Y:\current\deployment\setup_wizard.py` -> `Promuovi Release` applica la stessa guardia anti-drift nel Release Manager grafico.
+- `README.md`, `CHANGELOG.md` -> documentata la regola operativa: `ENV/config/.env` e la sorgente persistente, non `current/django_app/.env`.
+- Test/check: parser PowerShell OK su script locale e `Y:\current`; `py_compile` OK su setup wizard locale e `Y:\current`; `git diff --check` OK sui file sorgente/documentazione/sessione modificati.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Anagrafica HR: workflow offboarding con pratica task prima della cessazione)
+- `django_app/anagrafica/models.py` + migration `0030_offboarding_pratiche.py` -> nuovi modelli `OffboardingPratica` e `OffboardingTask` per stato pratica, motivo uscita, date, account pre-offboarding e task/restituzioni
+- `django_app/anagrafica/admin.py` -> registrata la pratica offboarding con inline task in Django admin
+- `django_app/anagrafica/views.py`, `urls.py` -> l'azione offboarding apre una pratica senza cessare subito il dipendente; nuove POST locali per aggiornare task e chiudere la pratica, con blocco su task pendenti/data futura e cessazione effettiva solo alla chiusura
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> UI in scheda dipendente per avvio pratica, card pratica in corso, aggiornamento task, conteggi e conferma chiusura rapporto
+- `django_app/anagrafica/tests.py` -> regressione aggiornata per apertura pratica, blocco chiusura con task pendenti, completamento task, chiusura finale e rimessa in forza
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato offboarding come pratica task/restituzioni con dipendente in forza fino alla chiusura
+- Test/check: `makemigrations anagrafica --check --dry-run --settings=config.settings.dev` OK; 3 test mirati Anagrafica su offboarding/rimessa in forza OK; `manage.py check --settings=config.settings.dev` OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK con 0 proposte; `acl_coverage_report` conferma Anagrafica `bound=154`, `missing=0`; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Anagrafica HR: onboarding come "Nuovo dipendente" e offboarding con restituzioni)
+- `django_app/anagrafica/urls.py`, `django_app/anagrafica/views.py` -> rimosse route/API/view della sezione separata `/anagrafica/onboarding-offboarding/`; resta il flusso "Nuovo dipendente" per l'onboarding
+- `django_app/anagrafica/templates/anagrafica/pages/index.html`, `dipendente_detail.html`, `components/subnav.html` -> rimossi link/testi "Onboarding / Offboarding"; aggiunto nel form offboarding il promemoria restituzioni da verificare con note
+- `django_app/anagrafica/templatetags/anagrafica_extras.py`, migration `0028_subnav_onboarding_offboarding.py` -> vecchi link subnav onboarding/offboarding rimossi/ignorati se non piu risolvibili
+- `django_app/anagrafica/templates/anagrafica/pages/onboarding_offboarding.html` + `onboarding_offboarding_dipendente.html` -> template rimossi
+- `django_app/anagrafica/tests.py` -> regressioni aggiornate per assenza della sezione separata, presenza di "Nuovo dipendente", audit restituzioni offboarding e rimessa in forza
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato onboarding tramite creazione dipendente e offboarding con promemoria restituzioni
+- Test/check: `manage.py check --settings=config.settings.dev` OK; 3 test mirati Anagrafica su offboarding/rimessa in forza OK; `makemigrations anagrafica --check --dry-run --settings=config.settings.dev` OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK con 0 proposte; `acl_coverage_report` conferma Anagrafica `bound=152`, `missing=0`; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Anagrafica HR: rimessa in forza con ricollegamento account automatico)
+- `django_app/anagrafica/models.py` + migration `0029_aziendale_account_pre_offboarding.py` -> nuovo campo `DipendenteAnagraficaAziendale.utente_id_pre_offboarding` per ricordare l'account portale scollegato dall'offboarding
+- `django_app/anagrafica/views.py` -> l'offboarding licenziamento salva il vecchio `utente_id`; `dipendente_rimetti_in_forza` ricollega l'account da ID salvato o fallback univoci su `utente_id`, email, alias/UPN e nome/cognome, con warning se nessun account e univoco
+- `django_app/anagrafica/tests.py` -> regressione per ricollegamento da `utente_id_pre_offboarding` e fallback per vecchi record senza storico account
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la rimessa in forza con ricollegamento account automatico quando identificabile
+- Test/check: `manage.py check --settings=config.settings.dev` OK; 3 test mirati Anagrafica su offboarding/rimessa in forza OK; `makemigrations anagrafica --check --dry-run --settings=config.settings.dev` OK; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Anagrafica HR: onboarding/offboarding replicato nel modulo e rimessa in forza)
+- `django_app/anagrafica/views.py` -> nuove view/API locali `onboarding_offboarding`, `onboarding_offboarding_dipendente`, CRUD JSON voci checklist e salvataggio esecuzioni; nuova POST view `dipendente_rimetti_in_forza`
+- `django_app/anagrafica/urls.py` -> nuove route `/anagrafica/onboarding-offboarding/`, dettaglio dipendente, API locali e route `/anagrafica/dipendenti/<legacy_id>/rimetti-in-forza`
+- `django_app/anagrafica/templates/anagrafica/pages/onboarding_offboarding.html` + `onboarding_offboarding_dipendente.html` -> replica in Anagrafica HR di configurazione voci, panoramica dipendenti, gestione singola checklist e storico
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> link "Onboarding / Offboarding" nella hero e tasto admin "Rimetti in forza" quando il dipendente e cessato
+- `django_app/anagrafica/templates/anagrafica/components/subnav.html`, `django_app/anagrafica/templates/anagrafica/pages/index.html`, migration `0028_subnav_onboarding_offboarding.py` -> navigazione locale Anagrafica aggiornata per la nuova sezione
+- `django_app/anagrafica/tests.py` -> regressioni per rimessa in forza, pagina checklist Anagrafica e salvataggio check-in via API locale
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentati onboarding/offboarding in Anagrafica HR e rimessa in forza
+- Test/check: `manage.py check --settings=config.settings.dev` OK; 3 test mirati Anagrafica OK; template load nuove pagine OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK con 0 proposte; `acl_coverage_report` conferma Anagrafica `bound=159`, `missing=0`; `git diff --check` OK
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Anagrafica HR: offboarding licenziamento da scheda dipendente)
+- `django_app/anagrafica/views.py` -> nuova POST view `dipendente_offboarding_licenziamento`: valida data cessazione non futura, crea/aggiorna anagrafica aziendale, imposta `data_cessazione`, disattiva `anagrafica_dipendenti.attivo`, scollega `utente_id` e registra audit metadata-only
+- `django_app/anagrafica/urls.py` -> nuova route locale `/anagrafica/dipendenti/<legacy_id>/offboarding/licenziamento`
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> tasto admin "Avvia offboarding licenziamento" nella hero con data cessazione; nascosto se il rapporto e gia cessato
+- `django_app/anagrafica/tests.py` -> regressione per verificare uscita dalla lista dipendenti in forza e presenza nella vista ex dipendenti dopo offboarding
+- `README.md`, `docs/ai/03_BACKEND_MODULES.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato offboarding licenziamento Anagrafica HR
+- Test/check: `manage.py check --settings=config.settings.dev` OK; test mirato `AnagraficaDipendentiViewTests.test_offboarding_licenziamento_marks_employee_as_no_longer_in_force` OK; template load scheda dipendente OK; `bootstrap_acl_v2 --dry-run --apps anagrafica` OK con 0 proposte; `acl_coverage_report` conferma Anagrafica `bound=151`, `missing=0`; `git diff --check` OK
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-25 - Codex` (Assets: sidebar categorie compressa di default)
 - `django_app/assets/views.py` -> sidebar assets annidata: categorie radice con `children`, `has_children`, `expanded`; ramo aperto solo se padre/figlio attivo
 - `django_app/assets/templates/assets/base_shell.html` -> gruppi categoria richiudibili con chevron, sottocategorie nascoste di default, stato apertura ricordato in `localStorage`

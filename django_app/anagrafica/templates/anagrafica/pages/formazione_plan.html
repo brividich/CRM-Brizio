@@ -1,0 +1,393 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Plan Formazione | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+/* ── Switch modalità ─────────────────────────────────────── */
+.fm-plan-modeswitch{display:inline-flex;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;background:#fff}
+.fm-plan-modeswitch a{
+  padding:5px 12px;font-size:12px;font-weight:600;color:#475569;text-decoration:none;
+  border-right:1px solid #e2e8f0;background:#fff;
+}
+.fm-plan-modeswitch a:last-child{border-right:none}
+.fm-plan-modeswitch a:hover{background:#f1f5f9}
+.fm-plan-modeswitch a.is-active{background:#1d4ed8;color:#fff}
+body.theme-dark .fm-plan-modeswitch{background:#0f172a;border-color:#334155}
+body.theme-dark .fm-plan-modeswitch a{background:#0f172a;color:#cbd5e1;border-color:#334155}
+body.theme-dark .fm-plan-modeswitch a.is-active{background:#1d4ed8;color:#fff}
+
+/* ── MODE: mese (card per mese) ──────────────────────────── */
+.fm-plan-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.fm-plan-month{border:1px solid #e2e8f0;border-radius:10px;background:#fff;display:flex;flex-direction:column;min-height:140px}
+.fm-plan-month.is-corrente{border-color:#1d4ed8;box-shadow:0 0 0 1px #1d4ed8}
+.fm-plan-month.is-passato{opacity:.85}
+.fm-plan-month-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#fafbfc;border-radius:10px 10px 0 0}
+.fm-plan-month.is-corrente .fm-plan-month-head{background:#eff6ff}
+.fm-plan-month-title{font-size:13px;font-weight:700;color:#0f172a}
+.fm-plan-month-now{font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:.04em;text-transform:uppercase}
+.fm-plan-counts{display:flex;gap:6px;font-size:10.5px}
+.fm-plan-count{padding:1px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-weight:700}
+.fm-plan-count.fm-plan-count-corso{background:#eff6ff;color:#1d4ed8}
+.fm-plan-count.fm-plan-count-scadenza{background:#fef2f2;color:#b91c1c}
+.fm-plan-event-list{list-style:none;margin:0;padding:6px 8px;flex:1}
+.fm-plan-event{display:flex;align-items:flex-start;gap:8px;padding:6px 6px;border-radius:5px;font-size:12px;color:#334155}
+.fm-plan-event:hover{background:#f8fafc}
+.fm-plan-event + .fm-plan-event{border-top:1px dashed #f1f5f9}
+.fm-plan-event-day{flex-shrink:0;width:34px;text-align:center;font-weight:700;font-size:13px;color:#0f172a;font-variant-numeric:tabular-nums}
+.fm-plan-event-day small{display:block;font-size:9px;color:#94a3b8;font-weight:600;text-transform:uppercase}
+.fm-plan-event-body{flex:1;min-width:0}
+.fm-plan-event-title{font-weight:600;color:#12395f}
+.fm-plan-event-title a{color:inherit;text-decoration:none}
+.fm-plan-event-title a:hover{text-decoration:underline}
+.fm-plan-event-sub{font-size:11px;color:#64748b;margin-top:1px}
+.fm-plan-event-iscritti{font-size:11px;color:#475569;margin-top:3px;line-height:1.4}
+.fm-plan-event-iscritti .nome{display:inline-block;padding:1px 6px;margin:1px 2px 1px 0;background:#f1f5f9;border-radius:3px;font-weight:500}
+.fm-plan-event-empty{padding:14px 12px;font-size:12px;color:#94a3b8;font-style:italic;text-align:center}
+.fm-plan-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#64748b;margin:0 0 12px}
+.fm-plan-legend .legend-chip{display:inline-flex;align-items:center;gap:5px}
+.fm-plan-legend .legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+/* ── MODE: calendario ───────────────────────────────────── */
+.fm-cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.fm-cal-nav .fm-cal-title{font-size:16px;font-weight:700;color:#0f172a;flex:1}
+.fm-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}
+.fm-cal-dow{background:#fafbfc;padding:6px 8px;font-size:10.5px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;text-align:center;border-bottom:1px solid #e2e8f0;border-right:1px solid #e2e8f0}
+.fm-cal-dow:last-child{border-right:none}
+.fm-cal-cell{min-height:110px;padding:5px 6px;border-right:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;font-size:11px}
+.fm-cal-cell:nth-child(7n){border-right:none}
+.fm-cal-cell.is-other{background:#fafbfc;color:#cbd5e1}
+.fm-cal-cell.is-today{background:#eff6ff;border:1px solid #1d4ed8}
+.fm-cal-day{font-size:12px;font-weight:700;color:#0f172a;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center}
+.fm-cal-cell.is-other .fm-cal-day{color:#cbd5e1}
+.fm-cal-evlist{display:flex;flex-direction:column;gap:2px}
+.fm-cal-ev{padding:1px 5px;font-size:10.5px;border-radius:3px;line-height:1.3;cursor:pointer;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-cal-ev a{color:inherit;text-decoration:none}
+.fm-cal-ev.tipo-CORSO{background:#dbeafe;border-left:3px solid #1d4ed8}
+.fm-cal-ev.tipo-SCADENZA{background:#fee2e2;border-left:3px solid #b91c1c}
+.fm-cal-ev:hover{filter:brightness(.96)}
+.fm-cal-ev .count-pill{display:inline-block;background:#fff;color:#1d4ed8;font-weight:700;padding:0 5px;border-radius:8px;margin-left:4px;font-size:9.5px}
+body.theme-dark .fm-cal-grid{background:#0f172a;border-color:#334155}
+body.theme-dark .fm-cal-dow{background:#0b1220;color:#94a3b8;border-color:#334155}
+body.theme-dark .fm-cal-cell{border-color:#1e293b}
+body.theme-dark .fm-cal-cell.is-other{background:#0b1220;color:#475569}
+body.theme-dark .fm-cal-day{color:#e2e8f0}
+body.theme-dark .fm-cal-cell.is-today{background:rgba(29,78,216,.15);border-color:#1d4ed8}
+body.theme-dark .fm-cal-ev.tipo-CORSO{background:rgba(59,130,246,.18);color:#dbeafe}
+body.theme-dark .fm-cal-ev.tipo-SCADENZA{background:rgba(220,38,38,.18);color:#fecaca}
+
+/* ── MODE: matrice ──────────────────────────────────────── */
+.fm-mat-scroll{overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+.fm-mat{border-collapse:separate;border-spacing:0;font-size:11px;min-width:100%}
+.fm-mat thead th{
+  position:sticky;top:0;z-index:3;
+  background:#fafbfc;border-bottom:1px solid #e2e8f0;
+  padding:5px 4px;font-size:10px;font-weight:700;color:#475569;
+  text-align:center;white-space:nowrap;
+}
+.fm-mat thead th.fm-mat-empname{
+  position:sticky;left:0;z-index:5;
+  background:#fafbfc;text-align:left;padding-left:10px;min-width:180px;border-right:1px solid #e2e8f0;
+}
+.fm-mat thead th.is-today{background:#eff6ff;color:#1d4ed8}
+.fm-mat thead th.is-weekend{background:#f8fafc;color:#94a3b8}
+.fm-mat thead th .dow{display:block;font-size:8.5px;color:#94a3b8;font-weight:600;text-transform:uppercase}
+.fm-mat tbody td{padding:3px;border-bottom:1px solid #f1f5f9;text-align:center;vertical-align:middle}
+.fm-mat tbody td.fm-mat-empname{
+  position:sticky;left:0;z-index:2;background:#fff;
+  text-align:left;padding:5px 10px;font-weight:600;color:#12395f;
+  border-right:1px solid #e2e8f0;font-size:12px;
+}
+.fm-mat tbody tr:hover td{background:#f8fafc}
+.fm-mat tbody tr:hover td.fm-mat-empname{background:#eff6ff}
+.fm-mat-cell.is-today{background:rgba(29,78,216,.05)}
+.fm-mat-cell.is-weekend{background:#f8fafc}
+.fm-mat-marker{
+  display:inline-block;width:14px;height:14px;border-radius:3px;
+  margin:1px;vertical-align:middle;font-size:9px;line-height:14px;
+  color:#fff;font-weight:700;text-align:center;
+}
+.fm-mat-marker.tipo-CORSO{background:#1d4ed8}
+.fm-mat-marker.tipo-SCADENZA{background:#b91c1c}
+.fm-mat-empty{padding:24px;text-align:center;color:#94a3b8;font-size:12px;font-style:italic}
+body.theme-dark .fm-mat-scroll{background:#0f172a;border-color:#334155}
+body.theme-dark .fm-mat thead th{background:#0b1220;color:#94a3b8;border-color:#334155}
+body.theme-dark .fm-mat thead th.fm-mat-empname{background:#0b1220;border-color:#334155}
+body.theme-dark .fm-mat tbody td{border-color:#1e293b;color:#e2e8f0}
+body.theme-dark .fm-mat tbody td.fm-mat-empname{background:#0f172a;color:#93c5fd;border-color:#334155}
+body.theme-dark .fm-mat tbody tr:hover td{background:rgba(148,163,184,.06)}
+body.theme-dark .fm-mat-cell.is-weekend{background:rgba(148,163,184,.05)}
+
+/* shared month card */
+body.theme-dark .fm-plan-month{background:#0f172a;border-color:#334155}
+body.theme-dark .fm-plan-month-head{background:#0b1220;border-color:#334155}
+body.theme-dark .fm-plan-month-title{color:#e2e8f0}
+body.theme-dark .fm-plan-event{color:#cbd5e1}
+body.theme-dark .fm-plan-event:hover{background:rgba(148,163,184,.06)}
+body.theme-dark .fm-plan-event-day{color:#e2e8f0}
+body.theme-dark .fm-plan-event-title{color:#93c5fd}
+body.theme-dark .fm-plan-event-iscritti .nome{background:#1e293b;color:#cbd5e1}
+body.theme-dark .fm-plan-count{background:#1e293b;color:#94a3b8}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Plan
+        {% if dip %}&rsaquo; <a href="{% url 'anagrafica:dipendente_detail' dip.legacy_id %}" style="color:#94a3b8;text-decoration:none;">{{ dip.nome }}</a>{% endif %}
+      </div>
+      <h2 class="hr-pagehead-title">📆 Plan formazione{% if dip %} — {{ dip.nome }}{% endif %}</h2>
+      <p class="hr-pagehead-desc">
+        Corsi pianificati e scadenze formative.
+        {% if not dip %}Disponibili 3 viste: mensile, calendario, matrice (giorni × dipendenti).{% endif %}
+        DPI e assenze programmate in patch successiva.
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      {# View switcher #}
+      <div class="fm-plan-modeswitch">
+        {% if dip %}
+        <a href="?view=mese" class="{% if view_mode == 'mese' %}is-active{% endif %}">📋 Mensile</a>
+        <a href="?view=calendario" class="{% if view_mode == 'calendario' %}is-active{% endif %}">📅 Calendario</a>
+        {% else %}
+        <a href="?view=mese" class="{% if view_mode == 'mese' %}is-active{% endif %}">📋 Mensile</a>
+        <a href="?view=calendario" class="{% if view_mode == 'calendario' %}is-active{% endif %}">📅 Calendario</a>
+        <a href="?view=matrice" class="{% if view_mode == 'matrice' %}is-active{% endif %}">🗂 Matrice</a>
+        {% endif %}
+      </div>
+      <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost hr-btn-sm">← Dashboard</a>
+    </div>
+  </div>
+
+  {# ── Toolbar specifica per vista ───────────────────────────────────────── #}
+  {% if view_mode == "calendario" %}
+  <div class="fm-cal-nav">
+    <a class="hr-btn hr-btn-sm" href="?view=calendario&anno={{ cal_prev_anno }}&mese={{ cal_prev_mese }}">‹</a>
+    <div class="fm-cal-title">{{ cal_mese_label }}</div>
+    <a class="hr-btn hr-btn-sm" href="?view=calendario&anno={{ cal_next_anno }}&mese={{ cal_next_mese }}">›</a>
+    <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?view=calendario">Oggi</a>
+  </div>
+  {% else %}
+  <form method="get" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+    <input type="hidden" name="view" value="{{ view_mode }}">
+    <label for="plan-from" style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;">Dal</label>
+    <input id="plan-from" aria-label="Data inizio range" type="date" name="from" value="{{ range_from|date:'Y-m-d' }}" class="hr-input" style="font-size:12px;padding:5px 8px;">
+    <label for="plan-to" style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;">Al</label>
+    <input id="plan-to" aria-label="Data fine range" type="date" name="to" value="{{ range_to|date:'Y-m-d' }}" class="hr-input" style="font-size:12px;padding:5px 8px;">
+    <button class="hr-btn hr-btn-sm hr-btn-primary" type="submit">Applica</button>
+    {% if view_mode == "matrice" %}<span class="muted" style="font-size:11px;color:#94a3b8;">(matrice cappata a 60 giorni)</span>{% endif %}
+  </form>
+  {% endif %}
+
+  {# ── KPI ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:16px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Eventi totali</span><span class="hr-metric-val">{{ totale_eventi }}</span></div>
+        <div class="hr-metric-sub">{{ range_from|date:"d/m/Y" }} → {{ range_to|date:"d/m/Y" }}</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">🎓</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Corsi</span><span class="hr-metric-val">{{ totale_corsi }}</span></div>
+        <div class="hr-metric-sub">Sessioni nel periodo</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⚠️</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Scadenze</span><span class="hr-metric-val">{{ totale_scadenze }}</span></div>
+        <div class="hr-metric-sub">Da rinnovare/mai frequentati</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fm-plan-legend">
+    <span class="legend-chip"><span class="legend-dot" style="background:#bfdbfe;"></span>Corso</span>
+    <span class="legend-chip"><span class="legend-dot" style="background:#fecaca;"></span>Scadenza</span>
+    <span class="legend-chip" style="opacity:.6;"><span class="legend-dot" style="background:#e2e8f0;"></span>DPI / Assenze — prossima patch</span>
+  </div>
+
+  {# ── MODE: MESE ──────────────────────────────────────────────────────── #}
+  {% if view_mode == "mese" %}
+  <div class="fm-plan-grid">
+    {% for m in mesi %}
+    <div class="fm-plan-month{% if m.is_corrente %} is-corrente{% endif %}{% if m.is_passato %} is-passato{% endif %}">
+      <div class="fm-plan-month-head">
+        <div>
+          <div class="fm-plan-month-title">{{ m.label_mese }}</div>
+          {% if m.is_corrente %}<div class="fm-plan-month-now">Mese corrente</div>{% endif %}
+        </div>
+        <div class="fm-plan-counts">
+          {% if m.n_corsi %}<span class="fm-plan-count fm-plan-count-corso">{{ m.n_corsi }} corsi</span>{% endif %}
+          {% if m.n_scadenze %}<span class="fm-plan-count fm-plan-count-scadenza">{{ m.n_scadenze }} scad.</span>{% endif %}
+          {% if not m.n_eventi %}<span class="fm-plan-count">vuoto</span>{% endif %}
+        </div>
+      </div>
+      {% if m.eventi %}
+      <ul class="fm-plan-event-list">
+        {% for ev in m.eventi %}
+        <li class="fm-plan-event">
+          <div class="fm-plan-event-day">
+            {{ ev.data|date:"d" }}<small>{{ ev.data|date:"D"|slice:":3" }}</small>
+          </div>
+          <div class="fm-plan-event-body">
+            <div class="fm-plan-event-title"><a href="{{ ev.url }}">{{ ev.titolo }}</a></div>
+            <div class="fm-plan-event-sub">
+              <span class="fm-pill fm-pill-{{ ev.badge }}">{{ ev.tipo_label }}</span>
+              <span style="margin-left:6px;">{{ ev.sub }}</span>
+            </div>
+            {% if ev.iscritti_nomi %}
+            <div class="fm-plan-event-iscritti">
+              👥
+              {% for n in ev.iscritti_nomi %}<span class="nome">{{ n }}</span>{% endfor %}
+              {% if ev.iscritti_extra %}<span class="muted" style="color:#94a3b8;">+ altri {{ ev.iscritti_extra }}</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="fm-plan-event-empty">Nessun evento in questo mese.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── MODE: CALENDARIO ─────────────────────────────────────────────────── #}
+  {% if view_mode == "calendario" %}
+  <div class="fm-cal-grid">
+    <div class="fm-cal-dow">LUN</div><div class="fm-cal-dow">MAR</div><div class="fm-cal-dow">MER</div>
+    <div class="fm-cal-dow">GIO</div><div class="fm-cal-dow">VEN</div><div class="fm-cal-dow">SAB</div><div class="fm-cal-dow">DOM</div>
+    {% for week in calendar_weeks %}
+      {% for cell in week %}
+      <div class="fm-cal-cell{% if cell.is_other_month %} is-other{% endif %}{% if cell.is_today %} is-today{% endif %}">
+        <div class="fm-cal-day">
+          <span>{{ cell.data|date:"d" }}</span>
+          {% if cell.eventi %}<span class="muted" style="font-size:9px;color:#94a3b8;">{{ cell.eventi|length }}</span>{% endif %}
+        </div>
+        <div class="fm-cal-evlist">
+          {% for ev in cell.eventi|slice:":4" %}
+          <div class="fm-cal-ev tipo-{{ ev.tipo }}" title="{{ ev.titolo }} — {{ ev.sub }}{% if ev.iscritti_count %} · {{ ev.iscritti_count }} iscritti{% endif %}">
+            <a href="{{ ev.url }}">
+              {{ ev.titolo|truncatechars:24 }}
+              {% if ev.tipo == "CORSO" and ev.iscritti_count %}<span class="count-pill">{{ ev.iscritti_count }}</span>{% endif %}
+            </a>
+          </div>
+          {% endfor %}
+          {% if cell.eventi|length > 4 %}
+          <div class="muted" style="font-size:9.5px;color:#94a3b8;padding:1px 5px;">+ altri {{ cell.eventi|length|add:'-4' }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── MODE: MATRICE ───────────────────────────────────────────────────── #}
+  {% if view_mode == "matrice" %}
+    {% if matrice %}
+    {# Filtri per restringere le righe (reparto / mansione / area) #}
+    <form method="get" class="fm-mat-filterbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fafbfc;margin-bottom:10px;">
+      <input type="hidden" name="view" value="matrice">
+      <input type="hidden" name="from" value="{{ range_from|date:'Y-m-d' }}">
+      <input type="hidden" name="to" value="{{ range_to|date:'Y-m-d' }}">
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label for="flt-reparto" style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase;">Reparto</label>
+        <select id="flt-reparto" name="reparto" class="hr-input" style="font-size:12px;padding:5px 8px;min-width:160px;">
+          <option value="">— tutti —</option>
+          {% for r in matrice.opzioni_reparto %}<option value="{{ r }}" {% if matrice.filtro_reparto == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label for="flt-mansione" style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase;">Mansione</label>
+        <select id="flt-mansione" name="mansione" class="hr-input" style="font-size:12px;padding:5px 8px;min-width:180px;">
+          <option value="">— tutte —</option>
+          {% for m in matrice.opzioni_mansione %}<option value="{{ m }}" {% if matrice.filtro_mansione == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label for="flt-area" style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase;">Area</label>
+        <select id="flt-area" name="area" class="hr-input" style="font-size:12px;padding:5px 8px;min-width:160px;">
+          <option value="">— tutte —</option>
+          {% for a in matrice.opzioni_area %}<option value="{{ a }}" {% if matrice.filtro_area == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        <label for="flt-ruolo" style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase;">Ruolo aziendale</label>
+        <select id="flt-ruolo" name="ruolo" class="hr-input" style="font-size:12px;padding:5px 8px;min-width:160px;">
+          <option value="">— tutti —</option>
+          {% for r in matrice.opzioni_ruolo %}<option value="{{ r }}" {% if matrice.filtro_ruolo == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Applica filtri</button>
+      {% if matrice.any_filter %}
+      <a href="?view=matrice&from={{ range_from|date:'Y-m-d' }}&to={{ range_to|date:'Y-m-d' }}" class="hr-btn hr-btn-sm hr-btn-ghost">Azzera</a>
+      {% endif %}
+      <span class="muted" style="margin-left:auto;font-size:11px;color:#64748b;">
+        Mostrati <strong>{{ matrice.n_rows }}</strong> di {{ matrice.n_totale_dipendenti }} dipendenti coinvolti
+      </span>
+    </form>
+    {% endif %}
+    {% if matrice and matrice.rows %}
+    <div class="fm-mat-scroll">
+      <table class="fm-mat">
+        <thead>
+          <tr>
+            <th class="fm-mat-empname">Dipendente</th>
+            {% for g in matrice.giorni %}
+            <th class="{% if g == today %}is-today{% endif %}{% if g.weekday >= 5 %} is-weekend{% endif %}">
+              {{ g|date:"d" }}<span class="dow">{{ g|date:"D"|slice:":3" }}</span>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrice.rows %}
+          <tr>
+            <td class="fm-mat-empname">
+              <a class="fm-link" href="{% url 'anagrafica:formazione_plan_dipendente' row.legacy_id %}">{{ row.nome }}</a>
+              <span class="muted" style="font-weight:400;font-size:10px;color:#94a3b8;margin-left:4px;">({{ row.n_eventi }})</span>
+            </td>
+            {% for c in row.cells %}
+            <td class="fm-mat-cell{% if c.is_today %} is-today{% endif %}{% if c.data.weekday >= 5 %} is-weekend{% endif %}">
+              {% for ev in c.eventi %}
+              <a href="{{ ev.url }}" class="fm-mat-marker tipo-{{ ev.tipo }}"
+                 title="{{ ev.titolo }} — {{ ev.sub }}"
+                 >{% if ev.tipo == "CORSO" %}C{% else %}S{% endif %}</a>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="muted" style="font-size:11px;color:#94a3b8;margin-top:6px;">
+      <strong>Matrice</strong>: righe = dipendenti coinvolti nel periodo · colonne = giorni · ogni cella mostra i marker
+      (<span class="fm-mat-marker tipo-CORSO" style="width:11px;height:11px;font-size:7px;line-height:11px;">C</span> Corso,
+      <span class="fm-mat-marker tipo-SCADENZA" style="width:11px;height:11px;font-size:7px;line-height:11px;">S</span> Scadenza)
+      cliccabili per aprire il dettaglio. Click sul nome per aprire il Plan personale.
+    </div>
+    {% else %}
+    <div class="fm-mat-empty">Nessun evento per dipendenti nel periodo selezionato.</div>
+    {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}

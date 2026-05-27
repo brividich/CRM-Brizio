@@ -126,6 +126,37 @@
     body.theme-dark .abs-toggle-sub { color:#6ee7b7; }
     body.theme-dark .abs-time-sep { color:var(--text-light); }
     body.theme-dark .abs-section-kicker { color:#2dd4bf; }
+
+    /* ── Avviso corsi formativi non bloccante ── */
+    .abs-corsi-banner{
+      display:flex;align-items:flex-start;gap:12px;
+      margin-top:14px;padding:12px 14px;
+      background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+      font-size:13px;color:#78350f;position:relative;
+    }
+    .abs-corsi-icon{font-size:20px;line-height:1;flex-shrink:0;margin-top:2px}
+    .abs-corsi-body{flex:1;min-width:0}
+    .abs-corsi-body strong{display:block;margin-bottom:4px;font-size:13px;color:#7c2d12}
+    .abs-corsi-list{list-style:none;margin:6px 0;padding:0}
+    .abs-corsi-list li{
+      padding:5px 8px;margin:3px 0;background:#fef3c7;border-radius:5px;
+      font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    }
+    .abs-corsi-list li .corsi-date{font-weight:700;color:#92400e;min-width:90px}
+    .abs-corsi-list li a{color:#7c2d12;text-decoration:underline;font-weight:600}
+    .abs-corsi-help{display:block;font-size:11px;color:#92400e;font-style:italic;margin-top:4px}
+    .abs-corsi-close{
+      background:none;border:none;font-size:20px;line-height:1;cursor:pointer;
+      color:#92400e;padding:0 4px;flex-shrink:0;
+    }
+    .abs-corsi-close:hover{color:#7c2d12}
+    body.theme-dark .abs-corsi-banner{background:rgba(254,249,195,.08);border-color:#a16207;color:#fde68a}
+    body.theme-dark .abs-corsi-body strong{color:#fef08a}
+    body.theme-dark .abs-corsi-list li{background:rgba(254,249,195,.12)}
+    body.theme-dark .abs-corsi-list li .corsi-date,
+    body.theme-dark .abs-corsi-list li a,
+    body.theme-dark .abs-corsi-help,
+    body.theme-dark .abs-corsi-close{color:#fde68a}
   </style>
 {% endblock %}
 
@@ -287,6 +318,18 @@
                       <label for="time_end">Ora fine</label>
                       <input id="time_end" type="time" name="time_end" class="abs-input" value="{{ form_data.time_end|default:'14:00' }}">
                     </div>
+                  </div>
+
+                  {# ── Avviso non bloccante: corsi formativi nei giorni richiesti ── #}
+                  <div id="corsi-conflict-banner" class="abs-corsi-banner" hidden>
+                    <span class="abs-corsi-icon">📚</span>
+                    <div class="abs-corsi-body">
+                      <strong id="corsi-conflict-title"></strong>
+                      <ul id="corsi-conflict-list" class="abs-corsi-list"></ul>
+                      <small class="abs-corsi-help">Avviso non bloccante — verifica con il tuo capo reparto se necessario.</small>
+                    </div>
+                    <button type="button" class="abs-corsi-close" aria-label="Chiudi avviso"
+                            onclick="document.getElementById('corsi-conflict-banner').hidden=true">×</button>
                   </div>
                 </div>
               </div>
@@ -531,6 +574,60 @@
         }
       }
     });
+  })();
+
+  // ── Check corsi formativi (avviso non bloccante) ─────────────────────────
+  (function() {
+    "use strict";
+    var startEl  = document.getElementById("date_start");
+    var endEl    = document.getElementById("date_end");
+    var banner   = document.getElementById("corsi-conflict-banner");
+    var titleEl  = document.getElementById("corsi-conflict-title");
+    var listEl   = document.getElementById("corsi-conflict-list");
+    if (!startEl || !banner) return;
+
+    var debounceTimer = null;
+    function scheduleCheck() {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runCheck, 400);
+    }
+
+    function runCheck() {
+      var ds = (startEl.value || "").trim();
+      if (!ds) { banner.hidden = true; return; }
+      var de = (endEl && endEl.value || "").trim() || ds;
+      var url = "/assenze/api/check-corsi?date_start=" + encodeURIComponent(ds) +
+                "&date_end=" + encodeURIComponent(de);
+      fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.ok) { banner.hidden = true; return; }
+          if (!data.n_conflicts) { banner.hidden = true; return; }
+          // Costruisci la lista
+          var html = "";
+          data.conflicts.forEach(function(c) {
+            var range = (c.data_inizio === c.data_fine)
+              ? "il " + c.date_label
+              : "dal " + c.data_inizio.split("-").reverse().join("/") +
+                " al " + c.data_fine.split("-").reverse().join("/");
+            html += "<li><span class='corsi-date'>" + range + "</span>" +
+                    "<a href='" + c.url + "' target='_blank' rel='noopener'>[" +
+                    c.course_code + "] " + c.title + "</a>" +
+                    " <span style='color:#92400e;font-size:11px;'>(" + c.stato_display + ")</span></li>";
+          });
+          titleEl.textContent = data.n_conflicts === 1
+            ? "Attenzione: c'è 1 corso formativo nei giorni richiesti"
+            : "Attenzione: ci sono " + data.n_conflicts + " corsi formativi nei giorni richiesti";
+          listEl.innerHTML = html;
+          banner.hidden = false;
+        })
+        .catch(function() { banner.hidden = true; });
+    }
+
+    startEl.addEventListener("change", scheduleCheck);
+    if (endEl) endEl.addEventListener("change", scheduleCheck);
+    // Esegui al caricamento se le date sono già valorizzate
+    if (startEl.value) scheduleCheck();
   })();
   </script>
 {% endblock %}

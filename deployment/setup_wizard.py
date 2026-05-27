@@ -391,6 +391,29 @@ def _realign_db_driver_in_env(env_content: str) -> tuple[str, str]:
     return updated, f"  ✓ DB_DRIVER riallineato: {label} → '{best}'"
 
 
+def _env_key_values(env_content: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in env_content.splitlines():
+        match = re.match(r"^\s*([^#=]+)=(.*)$", line)
+        if not match:
+            continue
+        key = match.group(1).strip()
+        if key:
+            values[key] = match.group(2).strip()
+    return values
+
+
+def _env_drift_keys(config_content: str, current_content: str) -> list[str]:
+    config_values = _env_key_values(config_content)
+    current_values = _env_key_values(current_content)
+    keys = sorted(set(config_values) | set(current_values))
+    return [
+        key
+        for key in keys
+        if config_values.get(key) != current_values.get(key)
+    ]
+
+
 def _missing_static_assets(static_root: Path) -> list[tuple[str, Path]]:
     root = Path(static_root)
     return [
@@ -5287,6 +5310,30 @@ class ReleaseRunPage(Page):
                         env_src.write_text(env_content, encoding="utf-8")
                     except Exception:
                         pass
+                current_env = ep / "current" / "django_app" / ".env"
+                if current_env.exists():
+                    current_content = current_env.read_text(encoding="utf-8")
+                    drift_keys = _env_drift_keys(env_content, current_content)
+                    if drift_keys:
+                        keys_label = ", ".join(drift_keys)
+                        self._append_error(errors, "config .env non allineato")
+                        self._log_line("  ERRORE: .env attivo diverso da config\\.env; deploy interrotto", "err")
+                        self._log_line(f"  Persistente : {env_src}", "warn")
+                        self._log_line(f"  Attivo      : {current_env}", "warn")
+                        self._log_line(f"  Chiavi      : {keys_label}", "warn")
+                        self._log_line("  Allinea le modifiche desiderate in config\\.env e riprova.", "warn")
+                        try:
+                            shutil.rmtree(rel_dir, ignore_errors=True)
+                        except Exception:
+                            pass
+                        self._set_progress(100, "Errore - .env non allineato")
+                        if self._log_path:
+                            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+                        if self._log_file:
+                            try: self._log_file.close()
+                            except: pass
+                        self._log.after(800, self._on_done)
+                        return
                 (django_app / ".env").write_text(env_content, encoding="utf-8")
                 self._log_line(f"  ✓ .env copiato da {env_src}", "ok")
             except Exception as e:

@@ -132,17 +132,17 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
 
   <div class="dpi-table-wrap">
     {% if page_obj %}
-    <table class="dpi-table">
+    <table class="dpi-table" data-table-id="dpi.gestione.list">
       <thead>
         <tr>
-          <th>Numero</th>
-          <th>DPI</th>
-          <th>Richiedente</th>
-          <th>Reparto</th>
-          <th>Qtà</th>
-          <th>Stato</th>
-          <th>Scadenza</th>
-          <th>Data</th>
+          <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
+          <th data-col="dpi" data-col-label="DPI" data-col-type="text" data-col-sortable="1" data-col-filterable="1">DPI</th>
+          <th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th>
+          <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+          <th data-col="qta" data-col-label="Quantità" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Qtà</th>
+          <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+          <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+          <th data-col="data" data-col-label="Data richiesta" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data</th>
           <th></th>
         </tr>
       </thead>

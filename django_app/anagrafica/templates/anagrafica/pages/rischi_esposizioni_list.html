@@ -1,0 +1,157 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Esposizioni a Rischio | Safety | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Safety &rsaquo; Esposizioni
+      </div>
+      <h2 class="hr-pagehead-title">🎯 Esposizioni a Rischio</h2>
+      <p class="hr-pagehead-desc">
+        Esposizione di Mansioni e/o Aree ai fattori di rischio. Da queste relazioni
+        si genereranno (PATCH-RISK-03) le regole di obbligatorietà formativa.
+      </p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-esp').style.display='flex'">+ Nuova esposizione</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">Esposizioni <span class="fm-count">{{ esposizioni|length }}</span></div>
+      <div>
+        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:fattori_rischio_list' %}">→ Fattori</a>
+        <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:categorie_corso_list' %}">→ Categorie</a>
+      </div>
+    </div>
+    {% if esposizioni %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="anagrafica.rischi.esposizioni.list">
+        <thead>
+          <tr>
+            <th data-col="fattore" data-col-label="Fattore" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Fattore</th>
+            <th data-col="categoria" data-col-label="Categoria fattore" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Categoria</th>
+            <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+            <th data-col="area" data-col-label="Area" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Area</th>
+            <th data-col="note" data-col-label="Note" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Note</th>
+            <th data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in esposizioni %}
+          <tr>
+            <td><strong>[{{ e.fattore.codice }}]</strong> {{ e.fattore.nome }}</td>
+            <td class="muted">{{ e.fattore.get_categoria_display }}</td>
+            <td>{% if e.mansione %}{{ e.mansione.nome }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{% if e.area %}{{ e.area.nome }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="muted">{{ e.note|truncatechars:50|default:"—" }}</td>
+            <td>{% if e.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="fm-pill fm-pill-missing">No</span>{% endif %}</td>
+            <td class="nowrap">
+              {% if is_editor %}
+              <button class="hr-btn hr-btn-sm"
+                      onclick="openEspEdit({{ e.pk }}, {{ e.fattore_id }}, {{ e.mansione_id|default:'null' }}, {{ e.area_id|default:'null' }}, '{{ e.note|escapejs }}', {{ e.is_active|yesno:'true,false' }})">
+                Modifica
+              </button>
+              <form method="post" action="{% url 'anagrafica:esposizione_rischio_delete' e.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Eliminare esposizione?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty" style="text-align:center;padding:32px;">
+      Nessuna esposizione.{% if is_editor %}<br><a href="#" onclick="document.getElementById('modal-crea-esp').style.display='flex'">Aggiungi la prima</a>.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% if is_editor %}
+<div id="modal-crea-esp" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:15px;">Nuova esposizione</strong>
+      <button type="button" onclick="document.getElementById('modal-crea-esp').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:esposizione_rischio_create' %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+      <div class="muted" style="font-size:11px;color:#94a3b8;margin-top:4px;">Specificare almeno Mansione o Area.</div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-esp').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="modal-edit-esp" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong style="font-size:15px;">Modifica esposizione</strong>
+      <button type="button" onclick="document.getElementById('modal-edit-esp').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form id="form-edit-esp" method="post" action="">
+      {% csrf_token %}
+      <div id="edit-esp-fields"></div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-esp').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const FAT_OPTS = [
+  {% for fr in form.fields.fattore.queryset %}{ pk:{{ fr.pk }}, label:'[{{ fr.codice|escapejs }}] {{ fr.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+const MAN_OPTS = [
+  {% for m in form.fields.mansione.queryset %}{ pk:{{ m.pk }}, label:'{{ m.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+const ARE_OPTS = [
+  {% for a in form.fields.area.queryset %}{ pk:{{ a.pk }}, label:'{{ a.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}
+];
+function openEspEdit(pk, fattoreId, mansioneId, areaId, note, isActive) {
+  document.getElementById('form-edit-esp').action = `/anagrafica/formazione/rischi/esposizioni/${pk}/modifica`;
+  const fOpt = FAT_OPTS.map(o => `<option value="${o.pk}"${o.pk===fattoreId?' selected':''}>${o.label}</option>`).join('');
+  const mOpt = '<option value="">— nessuna —</option>' + MAN_OPTS.map(o => `<option value="${o.pk}"${o.pk===mansioneId?' selected':''}>${o.label}</option>`).join('');
+  const aOpt = '<option value="">— nessuna —</option>' + ARE_OPTS.map(o => `<option value="${o.pk}"${o.pk===areaId?' selected':''}>${o.label}</option>`).join('');
+  document.getElementById('edit-esp-fields').innerHTML = `
+    <div class="fm-form-field"><label>Fattore di rischio *</label><select name="fattore" class="fm-input fm-select" required>${fOpt}</select></div>
+    <div class="fm-form-grid-2">
+      <div class="fm-form-field"><label>Mansione</label><select name="mansione" class="fm-input fm-select">${mOpt}</select></div>
+      <div class="fm-form-field"><label>Area</label><select name="area" class="fm-input fm-select">${aOpt}</select></div>
+    </div>
+    <div class="fm-form-field"><label>Note</label><textarea name="note" class="fm-input" rows="2">${note}</textarea></div>
+    <label class="fm-form-check"><input type="checkbox" name="is_active"${isActive?' checked':''}> <span>Attiva</span></label>
+  `;
+  document.getElementById('modal-edit-esp').style.display = 'flex';
+}
+</script>
+{% endif %}
+{% endblock %}

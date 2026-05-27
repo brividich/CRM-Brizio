@@ -39,6 +39,11 @@
 .PARAMETER SkipCollectStatic
     Salta collectstatic. Utile se i file statici non sono cambiati.
 
+.PARAMETER AllowEnvDrift
+    Forza il deploy anche se current\django_app\.env e config\.env non sono
+    allineati. Default: il deploy si ferma per evitare ripristini silenziosi
+    di configurazioni modificate nel file .env della release attiva.
+
 .EXAMPLE
     .\deploy-release.ps1 -Environment test  -PackagePath "C:\PortaleNovicrom\shared\packages\portale-novicrom-vX.Y.Z-20260321_143000.zip"
     .\deploy-release.ps1 -Environment prod  -PackagePath "C:\...\portale-novicrom-vX.Y.Z-20260321_143000.zip" -AutoActivate
@@ -56,7 +61,8 @@ param(
     [switch]$AutoActivate,
     [switch]$SkipMigrate,
     [switch]$SkipCollectStatic,
-    [switch]$SkipSqlTriggers
+    [switch]$SkipSqlTriggers,
+    [switch]$AllowEnvDrift
 )
 
 Set-StrictMode -Version Latest
@@ -189,6 +195,87 @@ function Sync-ReleaseEnvSqlDriver {
     Write-Log "  DB_DRIVER '$configuredDriver' non installato: riallineato a '$preferredDriver'." "WARN"
 }
 
+function Get-EnvKeyValueMap {
+    param([string]$Path)
+
+    $map = @{}
+    foreach ($line in Get-Content -Path $Path -Encoding UTF8) {
+        if ($line -notmatch "^\s*([^#=]+)=(.*)$") {
+            continue
+        }
+        $key = $Matches[1].Trim()
+        if (-not $key) {
+            continue
+        }
+        $map[$key] = $Matches[2].Trim()
+    }
+    return $map
+}
+
+function Get-EnvDriftKeys {
+    param(
+        [string]$ConfigEnvPath,
+        [string]$CurrentEnvPath
+    )
+
+    $configMap = Get-EnvKeyValueMap -Path $ConfigEnvPath
+    $currentMap = Get-EnvKeyValueMap -Path $CurrentEnvPath
+    $allKeys = @($configMap.Keys + $currentMap.Keys) | Sort-Object -Unique
+    $driftKeys = @()
+
+    foreach ($key in $allKeys) {
+        if (-not $configMap.ContainsKey($key) -or -not $currentMap.ContainsKey($key)) {
+            $driftKeys += $key
+            continue
+        }
+        if ($configMap[$key] -ne $currentMap[$key]) {
+            $driftKeys += $key
+        }
+    }
+    return $driftKeys
+}
+
+function Assert-EnvConfigMatchesCurrent {
+    param(
+        [string]$ConfigEnvPath,
+        [string]$CurrentEnvPath,
+        [switch]$AllowDrift
+    )
+
+    if (-not (Test-Path $CurrentEnvPath)) {
+        return
+    }
+
+    $configHash = (Get-FileHash -Path $ConfigEnvPath -Algorithm SHA256).Hash
+    $currentHash = (Get-FileHash -Path $CurrentEnvPath -Algorithm SHA256).Hash
+    if ($configHash -eq $currentHash) {
+        Write-Log "  .env persistente allineato alla release attiva." "INFO"
+        return
+    }
+
+    $driftKeys = Get-EnvDriftKeys -ConfigEnvPath $ConfigEnvPath -CurrentEnvPath $CurrentEnvPath
+    $keysLabel = if ($driftKeys.Count -gt 0) { $driftKeys -join ", " } else { "(solo commenti/ordine/encoding)" }
+
+    if ($AllowDrift) {
+        Write-Log "  .env attivo diverso da config\.env; continuo per -AllowEnvDrift." "WARN"
+        Write-Log "  Chiavi divergenti: $keysLabel" "WARN"
+        return
+    }
+
+    $message = @(
+        "Il .env attivo differisce dal .env persistente dell'ambiente.",
+        "Deploy interrotto per evitare di ripristinare configurazioni vecchie.",
+        "",
+        "Persistente : $ConfigEnvPath",
+        "Attivo      : $CurrentEnvPath",
+        "Chiavi      : $keysLabel",
+        "",
+        "Allinea le modifiche desiderate in config\.env, poi riesegui il deploy.",
+        "Usa -AllowEnvDrift solo se vuoi forzare il comportamento storico."
+    ) -join [Environment]::NewLine
+    throw $message
+}
+
 function Assert-StaticAssetsPresent {
     param([string]$StaticRoot)
 
@@ -238,9 +325,29 @@ if (-not (Test-Path $envFile)) {
     Remove-Item $releaseDir -Recurse -Force
     exit 1
 }
+try {
+    Assert-EnvConfigMatchesCurrent `
+        -ConfigEnvPath $envFile `
+        -CurrentEnvPath "$($paths.Current)\django_app\.env" `
+        -AllowDrift:$AllowEnvDrift
+}
+catch {
+    Write-Log "$_" "ERROR"
+    Remove-Item $releaseDir -Recurse -Force
+    exit 1
+}
 Copy-Item $envFile "$djangoApp\.env" -Force
 Write-Log "  .env copiato." "INFO"
 Sync-ReleaseEnvSqlDriver -EnvPath "$djangoApp\.env"
+$secureEnvScript = Join-Path $PSScriptRoot "secure-env-acl.ps1"
+if (Test-Path $secureEnvScript) {
+    try {
+        & $secureEnvScript -Environment $Environment -AdditionalEnvPath "$djangoApp\.env" -Quiet
+        Write-Log "  ACL .env ristrette." "INFO"
+    } catch {
+        Write-Log "  Hardening ACL .env non completato: $_" "WARN"
+    }
+}
 
 # ---------------------------------------------------------------------------
 # 3. Verifica / crea venv
@@ -521,12 +628,14 @@ else {
 # ---------------------------------------------------------------------------
 # Salva marker release
 # ---------------------------------------------------------------------------
-@"
-RELEASE_TAG=$releaseTag
-PACKAGE=$PackagePath
-DEPLOYED=$(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-ENVIRONMENT=$Environment
-"@ | Set-Content "$releaseDir\.release_info" -Encoding UTF8
+$releaseInfo = @(
+    "RELEASE_TAG=$releaseTag",
+    "PACKAGE=$PackagePath",
+    "DEPLOYED=$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+    "ENVIRONMENT=$Environment"
+) -join [Environment]::NewLine
+$releaseInfoPath = Join-Path $releaseDir ".release_info"
+$releaseInfo | Set-Content -Path $releaseInfoPath -Encoding UTF8
 
 Write-LogSeparator
 Write-Log "Deploy completato: $releaseTag" "SUCCESS"

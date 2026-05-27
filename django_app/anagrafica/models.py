@@ -714,6 +714,13 @@ class DipendenteAnagraficaAziendale(models.Model):
         verbose_name="Data cessazione",
         help_text="Data di fine rapporto. Se valorizzata, il dipendente è considerato cessato.",
     )
+    utente_id_pre_offboarding = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Account portale pre-offboarding",
+        help_text="ID legacy dell'account portale da ricollegare se il dipendente viene rimesso in forza.",
+    )
     prova_data_inizio = models.DateField(null=True, blank=True, verbose_name="Inizio periodo di prova")
     prova_data_fine = models.DateField(null=True, blank=True, verbose_name="Fine periodo di prova")
     tipologia_contratto = models.CharField(
@@ -739,6 +746,203 @@ class DipendenteAnagraficaAziendale(models.Model):
 
     def __str__(self) -> str:
         return f"Anagrafica aziendale [{self.legacy_anagrafica_id}]"
+
+
+class OffboardingPratica(models.Model):
+    """Pratica operativa di uscita dipendente.
+
+    La pratica raccoglie i task di restituzione/chiusura prima della cessazione
+    effettiva del rapporto nel record aziendale e legacy.
+    """
+    STATO_IN_CORSO = "IN_CORSO"
+    STATO_CHIUSA = "CHIUSA"
+    STATO_CHIUSA_CON_ECCEZIONI = "CHIUSA_CON_ECCEZIONI"
+    STATO_ANNULLATA = "ANNULLATA"
+    STATO_CHOICES = [
+        (STATO_IN_CORSO, "In corso"),
+        (STATO_CHIUSA, "Chiusa"),
+        (STATO_CHIUSA_CON_ECCEZIONI, "Chiusa con eccezioni"),
+        (STATO_ANNULLATA, "Annullata"),
+    ]
+    STATI_APERTI = (STATO_IN_CORSO,)
+
+    MOTIVO_LICENZIAMENTO = "licenziamento"
+    MOTIVO_DIMISSIONI = "dimissioni"
+    MOTIVO_FINE_CONTRATTO = "fine_contratto"
+    MOTIVO_PENSIONAMENTO = "pensionamento"
+    MOTIVO_ALTRO = "altro"
+    MOTIVO_CHOICES = [
+        (MOTIVO_LICENZIAMENTO, "Licenziamento"),
+        (MOTIVO_DIMISSIONI, "Dimissioni"),
+        (MOTIVO_FINE_CONTRATTO, "Fine contratto"),
+        (MOTIVO_PENSIONAMENTO, "Pensionamento"),
+        (MOTIVO_ALTRO, "Altro"),
+    ]
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    dipendente_nome = models.CharField(max_length=250, blank=True, default="")
+    reparto = models.CharField(max_length=200, blank=True, default="")
+    mansione = models.CharField(max_length=200, blank=True, default="")
+    motivo = models.CharField(max_length=30, choices=MOTIVO_CHOICES, default=MOTIVO_LICENZIAMENTO)
+    data_cessazione_prevista = models.DateField()
+    ultimo_giorno_operativo = models.DateField(null=True, blank=True)
+    note_hr = models.TextField(blank=True, default="")
+    stato = models.CharField(max_length=30, choices=STATO_CHOICES, default=STATO_IN_CORSO, db_index=True)
+    utente_id_pre_offboarding = models.IntegerField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offboarding_pratiche_create",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offboarding_pratiche_aggiornate",
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offboarding_pratiche_chiuse",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "stato", "-created_at"]),
+        ]
+        verbose_name = "Pratica offboarding"
+        verbose_name_plural = "Pratiche offboarding"
+
+    def __str__(self) -> str:
+        nome = self.dipendente_nome or f"#{self.legacy_anagrafica_id}"
+        return f"Offboarding {nome} - {self.get_stato_display()}"
+
+    @property
+    def is_aperta(self) -> bool:
+        return self.stato in self.STATI_APERTI
+
+
+class OffboardingTask(models.Model):
+    CATEGORIA_HR = "HR"
+    CATEGORIA_IT = "IT"
+    CATEGORIA_RESPONSABILE = "RESPONSABILE"
+    CATEGORIA_DPI = "DPI"
+    CATEGORIA_AMMINISTRAZIONE = "AMMINISTRAZIONE"
+    CATEGORIA_ALTRO = "ALTRO"
+    CATEGORIA_CHOICES = [
+        (CATEGORIA_HR, "HR"),
+        (CATEGORIA_IT, "IT / Sistemi informatici"),
+        (CATEGORIA_RESPONSABILE, "Responsabile reparto"),
+        (CATEGORIA_DPI, "DPI / Sicurezza"),
+        (CATEGORIA_AMMINISTRAZIONE, "Amministrazione"),
+        (CATEGORIA_ALTRO, "Altro"),
+    ]
+
+    STATO_DA_FARE = "DA_FARE"
+    STATO_COMPLETATO = "COMPLETATO"
+    STATO_ECCEZIONE = "ECCEZIONE"
+    STATO_CHOICES = [
+        (STATO_DA_FARE, "Da fare"),
+        (STATO_COMPLETATO, "Completato"),
+        (STATO_ECCEZIONE, "Eccezione"),
+    ]
+
+    pratica = models.ForeignKey(OffboardingPratica, on_delete=models.CASCADE, related_name="tasks")
+    codice = models.CharField(max_length=60)
+    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES, default=CATEGORIA_HR, db_index=True)
+    titolo = models.CharField(max_length=200)
+    descrizione = models.TextField(blank=True, default="")
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_DA_FARE, db_index=True)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offboarding_task_completati",
+    )
+
+    class Meta:
+        ordering = ["categoria", "id"]
+        unique_together = [("pratica", "codice")]
+        indexes = [
+            models.Index(fields=["pratica", "stato"]),
+            models.Index(fields=["categoria", "stato"]),
+        ]
+        verbose_name = "Task offboarding"
+        verbose_name_plural = "Task offboarding"
+
+    def __str__(self) -> str:
+        return f"{self.titolo} ({self.get_stato_display()})"
+
+
+class OnboardingOffboardingCampo(models.Model):
+    """Associazione configurabile tra campi del form nuovo dipendente e workflow."""
+
+    FASE_ONBOARDING = "ONBOARDING"
+    FASE_OFFBOARDING = "OFFBOARDING"
+    FASE_CHOICES = [
+        (FASE_ONBOARDING, "Onboarding"),
+        (FASE_OFFBOARDING, "Offboarding"),
+    ]
+
+    CATEGORIA_HR = "HR"
+    CATEGORIA_IT = "IT"
+    CATEGORIA_RESPONSABILE = "RESPONSABILE"
+    CATEGORIA_DPI = "DPI"
+    CATEGORIA_AMMINISTRAZIONE = "AMMINISTRAZIONE"
+    CATEGORIA_ALTRO = "ALTRO"
+    CATEGORIA_CHOICES = [
+        (CATEGORIA_HR, "HR"),
+        (CATEGORIA_IT, "IT / Sistemi informatici"),
+        (CATEGORIA_RESPONSABILE, "Responsabile reparto"),
+        (CATEGORIA_DPI, "DPI / Sicurezza"),
+        (CATEGORIA_AMMINISTRAZIONE, "Amministrazione"),
+        (CATEGORIA_ALTRO, "Altro"),
+    ]
+
+    fase = models.CharField(max_length=20, choices=FASE_CHOICES, db_index=True)
+    campo_key = models.CharField(max_length=120)
+    campo_label = models.CharField(max_length=160)
+    sezione = models.CharField(max_length=120, blank=True, default="")
+    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES, default=CATEGORIA_HR, db_index=True)
+    obbligatorio = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    ordine = models.PositiveIntegerField(default=50)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anagrafica_workflow_campi_aggiornati",
+    )
+
+    class Meta:
+        ordering = ["fase", "ordine", "campo_label"]
+        unique_together = [("fase", "campo_key")]
+        indexes = [
+            models.Index(fields=["fase", "is_active", "ordine"]),
+        ]
+        verbose_name = "Campo onboarding/offboarding"
+        verbose_name_plural = "Campi onboarding/offboarding"
+
+    def __str__(self) -> str:
+        return f"{self.get_fase_display()} - {self.campo_label}"
 
 
 # ---------------------------------------------------------------------------
@@ -1281,6 +1485,7 @@ class DocumentoDipendente(models.Model):
     class Tipo(models.TextChoices):
         DPI_CONSEGNA = "DPI_CONSEGNA", "Modulo consegna DPI"
         VISITA_MEDICA_REFERTO = "VISITA_MEDICA_REFERTO", "Referto visita medica"
+        CERTIFICATO_FORMAZIONE = "CERTIFICATO_FORMAZIONE", "Attestato formazione"
         MANUALE = "MANUALE", "Documento manuale"
         ALTRO = "ALTRO", "Altro"
 
@@ -1508,3 +1713,14 @@ class AnagraficaVisiteMedichePermission(models.Model):
     def get_instance(cls) -> "AnagraficaVisiteMedichePermission":
         obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
         return obj
+
+
+# ---------------------------------------------------------------------------
+# Modelli safety (FattoreRischio / CategoriaCorso / EsposizioneRischio) e
+# Modelli formazione HR (file separati — non modificare l'ordine).
+# `models_rischi` viene PRIMA di `models_formazione` perché `TrainingCourse`
+# referenzia `CategoriaCorso`.
+# ---------------------------------------------------------------------------
+
+from .models_rischi import *      # noqa: E402, F401, F403
+from .models_formazione import *  # noqa: E402, F401, F403

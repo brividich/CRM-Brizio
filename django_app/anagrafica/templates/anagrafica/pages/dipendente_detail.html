@@ -11,7 +11,7 @@
 
 /* Layout */
 .dp-page { display:flex; flex-direction:column; gap:14px; }
-.dp-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dp-topbar { display:none; }
 .dp-title { font-size:24px; font-weight:800; color:#12395f; letter-spacing:-.02em; }
 .dp-sub { font-size:13px; color:#64748b; margin-top:2px; }
 
@@ -42,10 +42,28 @@
 .dp-hero-name { font-size:22px; font-weight:800; color:#12395f; }
 .dp-hero-meta { font-size:13px; color:#64748b; margin-top:3px; }
 .dp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.dp-offboarding-form { display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.dp-offboarding-date { height:28px; border:1px solid #fecaca; border-radius:.55rem; padding:3px 7px; font-size:12px; color:#7f1d1d; background:#fff; }
+.dp-offboarding-return { flex-basis:100%; min-width:260px; max-width:520px; border:1px solid #fecaca; border-radius:.65rem; background:#fff7f7; padding:6px 9px; }
+.dp-offboarding-return summary { cursor:pointer; font-size:11px; font-weight:800; color:#991b1b; }
+.dp-offboarding-return-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:6px 10px; margin-top:8px; }
+.dp-offboarding-return label { display:flex; align-items:center; gap:6px; font-size:12px; color:#7f1d1d; }
+.dp-offboarding-note { margin-top:8px; width:100%; min-height:46px; resize:vertical; border:1px solid #fecaca; border-radius:.55rem; padding:6px 8px; font-size:12px; color:#7f1d1d; background:#fff; box-sizing:border-box; }
+.dp-offboarding-select { height:28px; border:1px solid #fecaca; border-radius:.55rem; padding:3px 7px; font-size:12px; color:#7f1d1d; background:#fff; }
+.dp-offboarding-panel { border-color:#fecaca; }
+.dp-offboarding-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:12px; }
+.dp-offboarding-task { display:grid; grid-template-columns:minmax(180px, 1fr) minmax(220px, 1.4fr); gap:10px; align-items:start; padding:10px 0; border-top:1px solid #f1f5f9; }
+.dp-offboarding-task:first-child { border-top:none; }
+.dp-task-title { font-size:13px; font-weight:800; color:#0f172a; }
+.dp-task-desc { font-size:12px; color:#64748b; margin-top:2px; }
+.dp-task-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.dp-task-note { flex:1 1 180px; min-height:30px; border:1px solid #e2e8f0; border-radius:.55rem; padding:5px 7px; font-size:12px; resize:vertical; }
 .dp-pill { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px; border:1px solid transparent; font-size:11px; font-weight:700; }
 .dp-pill-blue { background:#eff6ff; color:#1f5c91; border-color:#bfdbfe; }
 .dp-pill-gray { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
 .dp-pill-green { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+.dp-pill-red { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+.dp-pill-amber { background:#fffbeb; color:#92400e; border-color:#fde68a; }
 
 /* Info grid */
 .dp-info-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; }
@@ -187,6 +205,17 @@ body.theme-dark .dp-title { color:var(--text); }
 body.theme-dark .dp-sub { color:var(--text-light); }
 body.theme-dark .dp-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .dp-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .dp-offboarding-date { background:var(--surface); color:#fecaca; border-color:rgba(252,165,165,.35); }
+body.theme-dark .dp-offboarding-return { background:rgba(185,28,28,.12); border-color:rgba(252,165,165,.3); }
+body.theme-dark .dp-offboarding-return summary,
+body.theme-dark .dp-offboarding-return label { color:#fecaca; }
+body.theme-dark .dp-offboarding-note { background:var(--surface); color:#fecaca; border-color:rgba(252,165,165,.35); }
+body.theme-dark .dp-offboarding-select { background:var(--surface); color:#fecaca; border-color:rgba(252,165,165,.35); }
+body.theme-dark .dp-offboarding-panel { border-color:rgba(252,165,165,.35); }
+body.theme-dark .dp-offboarding-task { border-color:var(--border); }
+body.theme-dark .dp-task-title { color:var(--text); }
+body.theme-dark .dp-task-desc { color:var(--text-light); }
+body.theme-dark .dp-task-note { background:var(--surface-alt); color:var(--text); border-color:var(--border); }
 body.theme-dark .dp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .dp-card-head { border-color:var(--border); background:var(--bg); }
 body.theme-dark .dp-card-title { color:var(--text); }
@@ -340,10 +369,50 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
       </div>
     </div>
     <div class="dp-hero-actions">
+      {% if legacy_id %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' legacy_id %}" title="Report timbri">Timbri</a>
+      {% endif %}
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
       {% if dip.email_notifica %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}">✉ {{ dip.email_notifica }}</a>
       {% endif %}
       {% if is_admin %}
+        {% if aziendale.data_cessazione %}
+          <form method="post" action="{% url 'anagrafica:dipendente_rimetti_in_forza' legacy_id %}" style="display:inline;" onsubmit="return confirm('Rimettere in forza questo dipendente? La data cessazione verra rimossa e lo stato legacy tornera attivo.');">
+            {% csrf_token %}
+            <button type="submit" class="dp-btn dp-btn-ghost dp-btn-sm" style="color:#16a34a;border-color:#bbf7d0;">Rimetti in forza</button>
+          </form>
+        {% endif %}
+        {% if not aziendale.data_cessazione %}
+          {% if offboarding_pratica_attiva %}
+            <a class="dp-btn dp-btn-danger dp-btn-sm" href="#offboarding-pratica">Pratica offboarding in corso</a>
+          {% else %}
+          <form method="post" action="{% url 'anagrafica:dipendente_offboarding_licenziamento' legacy_id %}" class="dp-offboarding-form" onsubmit="return confirm('Avviare la pratica offboarding? Il dipendente restera in forza finche la pratica non viene chiusa.');">
+            {% csrf_token %}
+            <select name="motivo" class="dp-offboarding-select" aria-label="Motivo uscita">
+              {% for value,label in offboarding_motivo_choices %}
+                <option value="{{ value }}"{% if value == 'licenziamento' %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <input type="date" name="data_cessazione" class="dp-offboarding-date" value="{{ oggi|date:'Y-m-d' }}" aria-label="Data cessazione prevista">
+            <input type="date" name="ultimo_giorno_operativo" class="dp-offboarding-date" aria-label="Ultimo giorno operativo">
+            <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Avvia uscita dipendente</button>
+            <details class="dp-offboarding-return">
+              <summary>Restituzioni da pianificare</summary>
+              <div class="dp-offboarding-return-grid">
+                <label><input type="checkbox" name="restituzioni" value="badge_chiavi"> Badge, chiavi, tessere</label>
+                <label><input type="checkbox" name="restituzioni" value="device_it"> PC, telefono, SIM, token</label>
+                <label><input type="checkbox" name="restituzioni" value="dpi_divise"> DPI, divise, attrezzature</label>
+                <label><input type="checkbox" name="restituzioni" value="mezzi_carte"> Mezzi, carte, carburante</label>
+                <label><input type="checkbox" name="restituzioni" value="documenti_archivi"> Documenti e archivi</label>
+                <label><input type="checkbox" name="restituzioni" value="accessi_account"> Accessi e account da revocare</label>
+              </div>
+              <textarea name="restituzioni_note" class="dp-offboarding-note" maxlength="1000" placeholder="Note su altro materiale da recuperare o passaggi da fare"></textarea>
+            </details>
+          </form>
+          {% endif %}
+        {% endif %}
+        {% if not aziendale.data_cessazione %}
         {% if dip.attivo %}
           <form method="post" action="{% url 'anagrafica:dipendente_toggle_active' legacy_id %}" style="display:inline;" onsubmit="return confirm('Disattivare questo dipendente? L\'account portale verrà scollegato. L\'operazione è reversibile.');">
             {% csrf_token %}
@@ -355,9 +424,104 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             <button type="submit" class="dp-btn dp-btn-ghost dp-btn-sm" style="color:#16a34a;border-color:#bbf7d0;">Riattiva</button>
           </form>
         {% endif %}
+        {% endif %}
       {% endif %}
     </div>
   </div>
+
+  {% if offboarding_pratica_attiva %}
+  <div class="dp-card dp-offboarding-panel" id="offboarding-pratica">
+    <div class="dp-card-head">
+      <div>
+        <div class="dp-card-title">Pratica offboarding in corso</div>
+        <div class="dp-sub">Completa le restituzioni e poi conferma la chiusura effettiva del rapporto.</div>
+      </div>
+      <span class="dp-pill dp-pill-amber">{{ offboarding_task_pending_count }} da fare</span>
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-offboarding-summary">
+        <div class="dp-info-item">
+          <span class="dp-info-label">Motivo</span>
+          <span class="dp-info-value">{{ offboarding_pratica_attiva.get_motivo_display }}</span>
+        </div>
+        <div class="dp-info-item">
+          <span class="dp-info-label">Data cessazione prevista</span>
+          <span class="dp-info-value">{{ offboarding_pratica_attiva.data_cessazione_prevista|date:"d/m/Y" }}</span>
+        </div>
+        <div class="dp-info-item">
+          <span class="dp-info-label">Ultimo giorno operativo</span>
+          <span class="dp-info-value">{% if offboarding_pratica_attiva.ultimo_giorno_operativo %}{{ offboarding_pratica_attiva.ultimo_giorno_operativo|date:"d/m/Y" }}{% else %}-{% endif %}</span>
+        </div>
+        <div class="dp-info-item">
+          <span class="dp-info-label">Stato</span>
+          <span class="dp-info-value">{{ offboarding_pratica_attiva.get_stato_display }}</span>
+        </div>
+      </div>
+      {% if offboarding_pratica_attiva.note_hr %}
+        <div style="font-size:12px;color:#64748b;margin-bottom:10px;">{{ offboarding_pratica_attiva.note_hr }}</div>
+      {% endif %}
+
+      {% for task in offboarding_tasks %}
+      <div class="dp-offboarding-task">
+        <div>
+          <div class="dp-task-title">{{ task.titolo }}</div>
+          <div class="dp-task-desc">{{ task.get_categoria_display }}{% if task.descrizione %} · {{ task.descrizione }}{% endif %}</div>
+          <div style="margin-top:6px;">
+            {% if task.stato == 'COMPLETATO' %}
+              <span class="dp-pill dp-pill-green">{{ task.get_stato_display }}</span>
+            {% elif task.stato == 'ECCEZIONE' %}
+              <span class="dp-pill dp-pill-red">{{ task.get_stato_display }}</span>
+            {% else %}
+              <span class="dp-pill dp-pill-amber">{{ task.get_stato_display }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_offboarding_task_update' legacy_id offboarding_pratica_attiva.id task.id %}" class="dp-task-actions">
+          {% csrf_token %}
+          <textarea name="note" class="dp-task-note" maxlength="1000" placeholder="Note / eccezioni">{{ task.note }}</textarea>
+          <button type="submit" name="stato" value="COMPLETATO" class="dp-btn dp-btn-ghost dp-btn-xs" style="color:#047857;border-color:#a7f3d0;">Fatto</button>
+          <button type="submit" name="stato" value="ECCEZIONE" class="dp-btn dp-btn-ghost dp-btn-xs" style="color:#b91c1c;border-color:#fecaca;">Eccezione</button>
+          {% if task.stato != 'DA_FARE' %}
+            <button type="submit" name="stato" value="DA_FARE" class="dp-btn dp-btn-ghost dp-btn-xs">Riapri</button>
+          {% endif %}
+        </form>
+      </div>
+      {% endfor %}
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px;border-top:1px solid #f1f5f9;padding-top:14px;">
+        <div class="dp-sub">
+          {% if offboarding_task_pending_count %}
+            Mancano {{ offboarding_task_pending_count }} task: completa o marca come eccezione prima della chiusura.
+          {% elif offboarding_task_exception_count %}
+            Tutti i task sono chiusi, con {{ offboarding_task_exception_count }} eccezion{% if offboarding_task_exception_count == 1 %}e{% else %}i{% endif %}.
+          {% else %}
+            Tutti i task sono completati.
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_offboarding_chiudi' legacy_id offboarding_pratica_attiva.id %}" onsubmit="return confirm('Chiudere la pratica e cessare effettivamente il dipendente? Verranno disattivati stato legacy e account collegato.');">
+          {% csrf_token %}
+          <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm"{% if offboarding_task_pending_count %} disabled style="opacity:.45;cursor:not-allowed;"{% endif %}>Conferma chiusura rapporto</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% elif offboarding_pratiche_recenti %}
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">Storico offboarding</div>
+    </div>
+    <div class="dp-card-body">
+      {% for pratica in offboarding_pratiche_recenti %}
+        <div class="dp-qual-item">
+          <div>
+            <div class="dp-qual-name">{{ pratica.get_motivo_display }} · {{ pratica.data_cessazione_prevista|date:"d/m/Y" }}</div>
+            <div class="dp-qual-cat">{{ pratica.get_stato_display }}{% if pratica.closed_at %} · chiusa il {{ pratica.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- TAB BAR INTERNA SCHEDA -->
   <div class="dp-tabs" id="dp-tabbar">
@@ -373,15 +537,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
     <button type="button" class="dp-tab" data-tab-target="asset">💻 Asset</button>
   </div>
 
-  <!-- FORMAZIONE — placeholder corsi (feature futura) -->
-  <div class="dp-soon-card" data-tab="formazione">
-    <div class="dp-soon-badge">In arrivo</div>
-    <div style="margin-top:10px;font-weight:800;font-size:15px;color:#12395f;">Corsi e percorsi formativi</div>
-    <div style="margin-top:5px;font-size:13px;color:#64748b;max-width:60ch;margin-left:auto;margin-right:auto;">
-      La gestione dei corsi e degli attestati di formazione sarà disponibile in un aggiornamento successivo.
-      Qui sotto restano consultabili le qualifiche professionali e i ruoli operativi già registrati.
-    </div>
-  </div>
+  <!-- FORMAZIONE -->
+  {% include "anagrafica/partials/formazione_tab_dipendente.html" %}
 
   <!-- ANAGRAFICA AZIENDALE -->
   {% if is_admin %}

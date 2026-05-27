@@ -80,6 +80,8 @@ def subnav_anagrafica(context):
 
     def _build_link_item(link):
         resolved = _resolve_url(link)
+        if resolved == "#":
+            return None
         return {
             "type": "link",
             "label": link.etichetta,
@@ -130,10 +132,14 @@ def subnav_anagrafica(context):
 
     for kind, _, obj in entries:
         if kind == "link":
-            items.append(_build_link_item(obj))
+            item = _build_link_item(obj)
+            if item:
+                items.append(item)
         else:
             cat, child_links = obj
-            built_children = [_build_link_item(l) for l in child_links]
+            built_children = [item for item in (_build_link_item(l) for l in child_links) if item]
+            if not built_children:
+                continue
             items.append({
                 "type": "category",
                 "label": cat.nome,

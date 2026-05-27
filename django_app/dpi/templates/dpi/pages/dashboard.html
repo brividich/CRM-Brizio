@@ -160,15 +160,15 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     <div class="dpi-section-title">Richieste recenti</div>
     <div class="dpi-table-wrap">
       {% if ultime %}
-      <table class="dpi-table">
+      <table class="dpi-table" data-table-id="dpi.dashboard.ultime">
         <thead>
           <tr>
-            <th>Numero</th>
-            <th>DPI</th>
-            {% if is_gestore %}<th>Richiedente</th><th>Reparto</th>{% endif %}
-            <th>Qtà</th>
-            <th>Stato</th>
-            <th>Data</th>
+            <th data-col="numero" data-col-label="Numero" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Numero</th>
+            <th data-col="dpi" data-col-label="DPI" data-col-type="text" data-col-sortable="1" data-col-filterable="1">DPI</th>
+            {% if is_gestore %}<th data-col="richiedente" data-col-label="Richiedente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Richiedente</th><th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>{% endif %}
+            <th data-col="qta" data-col-label="Quantità" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Qtà</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th data-col="data" data-col-label="Data" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data</th>
             <th></th>
           </tr>
         </thead>

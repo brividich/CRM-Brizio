@@ -141,15 +141,15 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
 
     {% if page_obj.object_list %}
     <div style="overflow-x:auto;">
-      <table class="hr-table" data-sortable>
+      <table class="hr-table" data-table-id="anagrafica.scadenzario">
         <thead>
           <tr>
-            <th>Dipendente</th>
-            <th>Reparto</th>
-            <th>Tipo</th>
-            <th>Descrizione</th>
-            <th data-sort-type="date">Scadenza</th>
-            <th>Stato</th>
+            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+            <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+            <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
+            <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
+            <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
           </tr>
         </thead>
         <tbody>
@@ -206,6 +206,40 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
     </div>
     {% endif %}
   </div>
+
+  {# ── Sezione Formazione (se abilitata) ──────────────────────────────────── #}
+  {% if can_view_formazione %}
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">🎓 Scadenzario formazione</div>
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-sm hr-btn-outline">
+        Apri scadenzario formazione →
+      </a>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px;">
+      <div style="text-align:center;padding:8px 16px;background:#fef2f2;border-radius:8px;min-width:80px;">
+        <div style="font-size:20px;font-weight:800;color:#b91c1c;">{{ fm_n_scaduti }}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Scaduti</div>
+      </div>
+      <div style="text-align:center;padding:8px 16px;background:#fffbeb;border-radius:8px;min-width:80px;">
+        <div style="font-size:20px;font-weight:800;color:#92400e;">{{ fm_n_30gg }}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Entro 30gg</div>
+      </div>
+      <div style="text-align:center;padding:8px 16px;background:#fff7ed;border-radius:8px;min-width:80px;">
+        <div style="font-size:20px;font-weight:800;color:#c2410c;">{{ fm_n_90gg }}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">Entro 90gg</div>
+      </div>
+      {% if fm_is_cache_empty %}
+      <div style="padding:8px 16px;background:#f8fafc;border-radius:8px;font-size:12px;color:#94a3b8;display:flex;align-items:center;">
+        Cache scadenze formazione vuota — eseguire
+        <code style="margin-left:6px;font-size:11px;background:#f1f5f9;padding:1px 4px;border-radius:4px;">
+          manage.py refresh_training_deadlines --all
+        </code>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
 </div>
 {% endblock %}

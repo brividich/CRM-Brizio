@@ -85,6 +85,21 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 - Da scheda dipendente admin (`/admin-portale/utenti/<id>/`, tab Anagrafica) puoi assegnare in blocco uno o piu asset.
 - Il salvataggio bulk e "replace": gli asset selezionati vengono assegnati al dipendente, quelli prima assegnati ma non piu selezionati vengono sganciati.
 
+## Rinomina massiva solo nome asset
+Command sicuro per aggiornare esclusivamente `Asset.name`, lasciando invariati `asset_tag`, categorie, stato, reparto, SharePoint e relazioni:
+
+```bash
+python manage.py rename_asset_names --export-template asset_names.csv
+python manage.py rename_asset_names asset_names.csv --dry-run
+python manage.py rename_asset_names asset_names.csv --commit
+```
+
+Il template contiene `asset_tag;current_name;new_name`: modifica solo `new_name`, poi controlla il dry-run prima del commit. Se parti dall'export della lista asset, usa `Tag` come colonna identificativa e passa la colonna del nuovo nome con `--name-column`, ad esempio:
+
+```bash
+python manage.py rename_asset_names asset_export.csv --tag-column Tag --name-column "Nuovo Nome" --dry-run
+```
+
 ## Import Excel massivo
 Command:
 

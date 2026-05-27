@@ -1,0 +1,169 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ piano.nome }} | Piani Formativi | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_piani_list' %}" style="color:#94a3b8;text-decoration:none;">Piani</a>
+        &rsaquo; {{ piano.codice }}
+      </div>
+      <h2 class="hr-pagehead-title">{{ piano.nome }}</h2>
+      <p class="hr-pagehead-desc">
+        {{ piano.get_categoria_display }} &nbsp;·&nbsp;
+        {% if piano.stato == "ATTIVO" %}<span class="fm-pill fm-pill-valid">Attivo</span>
+        {% elif piano.stato == "BOZZA" %}<span class="fm-pill fm-pill-missing">Bozza</span>
+        {% else %}<span class="fm-pill fm-pill-expired">Archiviato</span>{% endif %}
+        {% if not piano.is_active %}&nbsp;— <em style="color:#94a3b8;">inattivo</em>{% endif %}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      {% if is_editor %}
+      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-edit-piano').style.display='flex'">
+        Modifica piano
+      </button>
+      <form method="post" action="{% url 'anagrafica:formazione_piano_delete' piano.pk %}"
+            onsubmit="return confirm('Eliminare il piano?')">
+        {% csrf_token %}
+        <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
+      </form>
+      {% endif %}
+      <a href="{% url 'anagrafica:formazione_corso_create' %}?piano={{ piano.pk }}"
+         class="hr-btn hr-btn-primary {% if not is_editor %}hr-btn-ghost{% endif %}">
+        + Nuovo corso
+      </a>
+    </div>
+  </div>
+
+  {% if piano.descrizione %}
+  <div style="margin-bottom:16px;padding:14px 18px;background:#f8fafc;border-radius:10px;font-size:13px;color:#334155;">
+    {{ piano.descrizione|linebreaksbr }}
+  </div>
+  {% endif %}
+
+  {# ── Corsi del piano ─────────────────────────────────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📖 Corsi <span class="fm-count">{{ corsi|length }}</span></div>
+      {% if is_editor %}
+      <a href="{% url 'anagrafica:formazione_corso_create' %}?piano={{ piano.pk }}" class="hr-btn hr-btn-sm hr-btn-primary">+ Aggiungi corso</a>
+      {% endif %}
+    </div>
+    {% if corsi %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.piano.corsi">
+        <thead>
+          <tr>
+            <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Codice</th>
+            <th data-col="titolo" data-col-label="Titolo" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Titolo</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                data-col-options='[["ATTIVO","Attivo"],["BOZZA","Bozza"],["ARCHIVIATO","Archiviato"]]'
+                data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th class="num" data-col="durata" data-col-label="Durata (h)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata (h)</th>
+            <th class="num" data-col="validita" data-col-label="Validità (m)" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Validità (m)</th>
+            <th data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obbligatorio</th>
+            <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in corsi %}
+          <tr>
+            <td class="mono">{{ c.codice }}</td>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>
+            </td>
+            <td><span class="fm-pill fm-pill-{{ c.stato|lower }}">{{ c.get_stato_display }}</span></td>
+            <td class="num">{{ c.durata_ore_teorica }}</td>
+            <td class="num">{% if c.validita_mesi %}{{ c.validita_mesi }}{% else %}<span class="muted" style="font-weight:400;">una tantum</span>{% endif %}</td>
+            <td>{% if c.obbligatorio %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="num">{{ c.n_sessioni }}</td>
+            <td class="nowrap"><a href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" class="hr-btn hr-btn-sm">Apri</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty" style="text-align:center;padding:24px;">
+      Nessun corso in questo piano.
+      {% if is_editor %}<a href="{% url 'anagrafica:formazione_corso_create' %}?piano={{ piano.pk }}">Aggiungi il primo</a>.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Regole obbligatorietà del piano ─────────────────────────────────────── #}
+  {% if regole %}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📌 Regole obbligatorietà piano <span class="fm-count">{{ regole|length }}</span></div>
+    </div>
+    <div class="fm-table-wrap">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th>Mansione</th>
+            <th>Area</th>
+            <th>Ruolo</th>
+            <th>Dipendente</th>
+            <th>Obbligatoria</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in regole %}
+          <tr>
+            <td>{{ r.mansione.nome|default:"—" }}</td>
+            <td>{{ r.area.nome|default:"—" }}</td>
+            <td>{{ r.ruolo_operativo.nome|default:"—" }}</td>
+            <td class="muted">{% if r.legacy_anagrafica_id %}#{{ r.legacy_anagrafica_id }}{% if r.dipendente_nome %} {{ r.dipendente_nome }}{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="muted">{{ r.note|truncatechars:50|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Modal modifica piano ────────────────────────────────────────────────── #}
+{% if is_editor %}
+<div id="modal-edit-piano" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Modifica piano</strong>
+      <button onclick="document.getElementById('modal-edit-piano').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_piano_edit' piano.pk %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=edit_form %}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-edit-piano').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<style>
+.fm-input{width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box}
+.fm-select{background:#fff}
+.fm-check{width:auto}
+</style>
+{% endblock %}

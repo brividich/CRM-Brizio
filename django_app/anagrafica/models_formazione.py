@@ -1,0 +1,845 @@
+"""Modelli formazione HR — NOVICROM HUB.
+
+File separato importato da anagrafica/models.py tramite `from .models_formazione import *`.
+Non spostare, non rinominare senza aggiornare l'import nel file principale.
+"""
+from __future__ import annotations
+
+from django.conf import settings
+from django.db import models
+
+__all__ = [
+    "AnagraficaFormazionePermission",
+    "TrainingPlan",
+    "TrainingCourse",
+    "TrainingCourseVersion",
+    "TrainingCompletionRule",
+    "TrainingCourseDependency",
+    "TrainingCourseModule",
+    "TrainingRequirementRule",
+    "TrainingInstructor",
+    "TrainingAssignment",
+    "TrainingSession",
+    "TrainingLesson",
+    "TrainingEnrollment",
+    "TrainingLessonAttendance",
+    "TrainingEmployeeRecord",
+    "TrainingCertificate",
+    "TrainingDeadline",
+    "TrainingExportLog",
+]
+
+
+# ─────────────────────────────────────────────────────────────
+# PERMESSO ACCESSO (Singleton)
+# ─────────────────────────────────────────────────────────────
+
+class AnagraficaFormazionePermission(models.Model):
+    """Singleton — chi può accedere/gestire la sezione formazione.
+    Pattern identico a AnagraficaVisiteMedichePermission.
+    """
+
+    ACCESSO_TUTTI = "TUTTI"
+    ACCESSO_ADMIN = "ADMIN"
+    ACCESSO_RUOLI = "RUOLI"
+
+    ACCESSO_CHOICES = [
+        (ACCESSO_TUTTI, "Tutti gli utenti autenticati"),
+        (ACCESSO_ADMIN, "Solo amministratori"),
+        (ACCESSO_RUOLI, "Ruoli ACL specifici"),
+    ]
+
+    accesso_visualizzazione = models.CharField(max_length=10, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    accesso_modifica        = models.CharField(max_length=10, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    accesso_export          = models.CharField(max_length=10, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    accesso_validazione     = models.CharField(max_length=10, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    accesso_report_firma    = models.CharField(max_length=10, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    ruoli_autorizzati_json  = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        verbose_name = "Permesso accesso formazione"
+        verbose_name_plural = "Permessi accesso formazione"
+
+    def __str__(self) -> str:
+        return f"Permessi formazione ({self.get_accesso_visualizzazione_display()})"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls) -> "AnagraficaFormazionePermission":
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso_visualizzazione": cls.ACCESSO_ADMIN})
+        return obj
+
+
+# ─────────────────────────────────────────────────────────────
+# PIANO FORMATIVO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingPlan(models.Model):
+    """Macro-contenitore di corsi (es. 'Sistemi Informatici', 'Sicurezza', 'ESG')."""
+
+    CATEGORIA_CHOICES = [
+        ("OBBLIGATORIA", "Obbligatoria"),
+        ("CONSIGLIATA",  "Consigliata"),
+        ("FACOLTATIVA",  "Facoltativa"),
+    ]
+
+    STATO_CHOICES = [
+        ("BOZZA",      "Bozza"),
+        ("ATTIVO",     "Attivo"),
+        ("ARCHIVIATO", "Archiviato"),
+    ]
+
+    codice             = models.CharField(max_length=20, unique=True)
+    nome               = models.CharField(max_length=200)
+    categoria          = models.CharField(max_length=20, choices=CATEGORIA_CHOICES, default="CONSIGLIATA")
+    stato              = models.CharField(max_length=15, choices=STATO_CHOICES, default="ATTIVO")
+    descrizione        = models.TextField(blank=True)
+    note               = models.TextField(blank=True)
+    ore_totali_stimate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    costo_stimato      = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    provider_esterno   = models.BooleanField(default=False)
+    is_active          = models.BooleanField(default=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+    updated_at         = models.DateTimeField(auto_now=True)
+    created_by         = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Piano formativo"
+        verbose_name_plural = "Piani formativi"
+        indexes = [models.Index(fields=["categoria", "is_active"])]
+
+    def __str__(self) -> str:
+        return f"[{self.codice}] {self.nome}"
+
+
+# ─────────────────────────────────────────────────────────────
+# CORSO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCourse(models.Model):
+    """Corso formativo, appartenente a un piano."""
+
+    STATO_CHOICES = [
+        ("BOZZA",      "Bozza"),
+        ("ATTIVO",     "Attivo"),
+        ("ARCHIVIATO", "Archiviato"),
+    ]
+
+    piano              = models.ForeignKey(TrainingPlan, on_delete=models.PROTECT, related_name="corsi")
+    categoria          = models.ForeignKey(
+        "anagrafica.CategoriaCorso", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="corsi",
+        help_text="Categoria che lega il corso ai fattori di rischio. Null = nessuna derivazione.",
+    )
+    codice             = models.CharField(max_length=30, unique=True)
+    titolo             = models.CharField(max_length=300)
+    descrizione        = models.TextField(blank=True)
+    durata_ore_teorica = models.DecimalField(max_digits=7, decimal_places=2)
+    validita_mesi      = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
+    )
+    obbligatorio   = models.BooleanField(default=False)
+    costo_unitario = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    stato          = models.CharField(max_length=15, choices=STATO_CHOICES, default="BOZZA")
+    note           = models.TextField(blank=True)
+    versione       = models.CharField(max_length=10, default="1.0")
+    is_active      = models.BooleanField(default=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
+    updated_at     = models.DateTimeField(auto_now=True)
+    created_by     = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["titolo"]
+        verbose_name = "Corso formativo"
+        verbose_name_plural = "Corsi formativi"
+        indexes = [
+            models.Index(fields=["piano", "stato"]),
+            models.Index(fields=["obbligatorio", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.codice}] {self.titolo}"
+
+
+# ─────────────────────────────────────────────────────────────
+# VERSIONE CORSO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCourseVersion(models.Model):
+    """Snapshot versionato di un corso.
+    Permette modifiche al corso senza alterare lo storico delle sessioni già tenute.
+    """
+
+    corso                  = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="versioni")
+    version_label          = models.CharField(max_length=10, help_text="Es. '1.0', '2.1'")
+    titolo_snapshot        = models.CharField(max_length=300, blank=True)
+    durata_ore_snapshot    = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    validita_mesi_snapshot = models.PositiveSmallIntegerField(null=True, blank=True)
+    data_inizio_validita   = models.DateField(null=True, blank=True)
+    data_fine_validita     = models.DateField(null=True, blank=True)
+    note                   = models.TextField(blank=True)
+    is_active              = models.BooleanField(default=True)
+    revised_by             = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("corso", "version_label")]
+        verbose_name = "Versione corso"
+        verbose_name_plural = "Versioni corso"
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} v{self.version_label}"
+
+
+# ─────────────────────────────────────────────────────────────
+# REGOLA DI SUPERAMENTO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCompletionRule(models.Model):
+    """Regola configurabile di superamento per un corso. OneToOne su TrainingCourse."""
+
+    corso   = models.OneToOneField(TrainingCourse, on_delete=models.CASCADE, related_name="regola_superamento")
+    version = models.ForeignKey(
+        TrainingCourseVersion, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    ore_minime_percentuale      = models.PositiveSmallIntegerField(
+        default=80,
+        help_text="Percentuale minima di ore frequentate rispetto al totale",
+    )
+    presenza_minima_percentuale = models.PositiveSmallIntegerField(
+        default=80,
+        help_text="Percentuale minima di presenze alle lezioni",
+    )
+    richiede_esame_finale   = models.BooleanField(default=False)
+    richiede_firma_presenza = models.BooleanField(default=True)
+    richiede_attestato      = models.BooleanField(default=False)
+    richiede_validazione_hr = models.BooleanField(default=False)
+    rule_json               = models.JSONField(default=dict, blank=True, help_text="Estensioni future regola")
+    valid_from              = models.DateField(null=True, blank=True)
+    valid_to                = models.DateField(null=True, blank=True)
+    is_active               = models.BooleanField(default=True)
+    note                    = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Regola di superamento"
+        verbose_name_plural = "Regole di superamento"
+
+    def __str__(self) -> str:
+        return f"Regola superamento — {self.corso.codice}"
+
+
+# ─────────────────────────────────────────────────────────────
+# PREREQUISITI CORSO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCourseDependency(models.Model):
+    """Prerequisito: il corso 'prerequisito' deve essere completato prima di 'corso_principale'."""
+
+    corso_principale = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="prerequisiti")
+    prerequisito     = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="sblocca_corsi")
+    obbligatorio     = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = [("corso_principale", "prerequisito")]
+        verbose_name = "Prerequisito corso"
+        verbose_name_plural = "Prerequisiti corso"
+
+    def __str__(self) -> str:
+        return f"{self.prerequisito.codice} → {self.corso_principale.codice}"
+
+
+# ─────────────────────────────────────────────────────────────
+# COMPOSIZIONE CORSO (moduli / sotto-corsi)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCourseModule(models.Model):
+    """Un corso può essere composto da sotto-moduli (altri corsi)."""
+
+    corso_padre  = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="moduli")
+    corso_modulo = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="usato_come_modulo")
+    ordine       = models.PositiveSmallIntegerField(default=0)
+    obbligatorio = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = [("corso_padre", "corso_modulo")]
+        ordering = ["ordine"]
+        verbose_name = "Modulo corso"
+        verbose_name_plural = "Moduli corso"
+
+    def __str__(self) -> str:
+        return f"{self.corso_padre.codice} → modulo {self.corso_modulo.codice}"
+
+
+# ─────────────────────────────────────────────────────────────
+# REGOLA OBBLIGATORIETÀ (D4)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingRequirementRule(models.Model):
+    """Regola di obbligatorietà formativa per corso/piano e per target (mansione, area, ruolo, singolo).
+    Almeno uno dei target deve essere valorizzato (vincolo verificato a livello form).
+    """
+
+    # Oggetto della regola: corso singolo OPPURE intero piano
+    corso = models.ForeignKey(
+        TrainingCourse, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_obbligo",
+    )
+    piano = models.ForeignKey(
+        TrainingPlan, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_obbligo",
+    )
+
+    # Target della regola (uno o più possono essere valorizzati)
+    mansione = models.ForeignKey(
+        "anagrafica.Mansione", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_formazione",
+    )
+    area = models.ForeignKey(
+        "anagrafica.AreaAziendale", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_formazione",
+    )
+    ruolo_operativo = models.ForeignKey(
+        "anagrafica.RuoloOperativo", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_formazione",
+    )
+    legacy_anagrafica_id = models.IntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="Se valorizzato: regola per singolo dipendente",
+    )
+
+    is_mandatory            = models.BooleanField(default=True)
+    override_frequenza_mesi = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Sovrascrive la frequenza del corso. Null = usa la frequenza del corso.",
+    )
+    data_inizio_validita = models.DateField(null=True, blank=True)
+    data_fine_validita   = models.DateField(null=True, blank=True)
+    priority             = models.PositiveSmallIntegerField(default=0, help_text="Priorità relativa della regola")
+    note                 = models.TextField(blank=True)
+    is_active            = models.BooleanField(default=True)
+    created_by           = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Regola di obbligatorietà"
+        verbose_name_plural = "Regole di obbligatorietà"
+        indexes = [
+            models.Index(fields=["mansione", "is_active"]),
+            models.Index(fields=["area", "is_active"]),
+            models.Index(fields=["ruolo_operativo", "is_active"]),
+            models.Index(fields=["legacy_anagrafica_id", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        target = self.corso or self.piano
+        return f"Regola obbligo — {target}"
+
+
+# ─────────────────────────────────────────────────────────────
+# DOCENTE / FORMATORE (D5)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingInstructor(models.Model):
+    """Catalogo docenti/formatori interni ed esterni."""
+
+    TIPO_CHOICES = [
+        ("INTERNO", "Interno"),
+        ("ESTERNO", "Esterno / Provider"),
+    ]
+
+    tipo                 = models.CharField(max_length=10, choices=TIPO_CHOICES, default="ESTERNO")
+    nome                 = models.CharField(max_length=200)
+    ragione_sociale      = models.CharField(max_length=300, blank=True)
+    email                = models.EmailField(blank=True)
+    telefono             = models.CharField(max_length=30, blank=True)
+    legacy_anagrafica_id = models.IntegerField(
+        null=True, blank=True, db_index=True,
+        help_text="Se interno: legacy_anagrafica_id del dipendente",
+    )
+    qualification_notes = models.TextField(blank=True)
+    is_active           = models.BooleanField(default=True)
+    created_at          = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Docente / Formatore"
+        verbose_name_plural = "Docenti / Formatori"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ─────────────────────────────────────────────────────────────
+# ASSEGNAZIONE CORSO A DIPENDENTE
+# ─────────────────────────────────────────────────────────────
+
+class TrainingAssignment(models.Model):
+    """Assegnazione esplicita di un corso a un dipendente da parte di HR.
+    Distinto da TrainingEnrollment (iscrizione a una sessione specifica).
+    """
+
+    STATO_CHOICES = [
+        ("ASSEGNATO",  "Assegnato"),
+        ("IN_CORSO",   "In corso"),
+        ("COMPLETATO", "Completato"),
+        ("SCADUTO",    "Scaduto"),
+        ("RIMANDATO",  "Rimandato"),
+        ("ESONERATO",  "Esonerato"),
+    ]
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="assegnazioni")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    piano                = models.ForeignKey(
+        TrainingPlan, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="assegnazioni",
+    )
+    requirement_rule = models.ForeignKey(
+        TrainingRequirementRule, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="assegnazioni",
+    )
+    stato             = models.CharField(max_length=15, choices=STATO_CHOICES, default="ASSEGNATO")
+    data_assegnazione = models.DateField(auto_now_add=True)
+    due_date          = models.DateField(null=True, blank=True, help_text="Entro quando completare")
+    note              = models.TextField(blank=True)
+    assigned_by       = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("corso", "legacy_anagrafica_id")]
+        verbose_name = "Assegnazione corso"
+        verbose_name_plural = "Assegnazioni corsi"
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "stato"])]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} ({self.stato})"
+
+
+# ─────────────────────────────────────────────────────────────
+# SESSIONE FORMATIVA
+# ─────────────────────────────────────────────────────────────
+
+class TrainingSession(models.Model):
+    """Una sessione (edizione) di un corso: data, luogo, docente."""
+
+    STATO_CHOICES = [
+        ("PIANIFICATA", "Pianificata"),
+        ("IN_CORSO",    "In corso"),
+        ("COMPLETATA",  "Completata"),
+        ("ANNULLATA",   "Annullata"),
+    ]
+    MODALITA_CHOICES = [
+        ("IN_SEDE",  "In sede"),
+        ("REMOTO",   "Remoto / Online"),
+        ("ESTERNO",  "Esterno (provider)"),
+        ("MISTO",    "Misto"),
+    ]
+
+    corso           = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="sessioni")
+    codice_sessione = models.CharField(max_length=40, unique=True)
+    stato           = models.CharField(max_length=15, choices=STATO_CHOICES, default="PIANIFICATA")
+    modalita        = models.CharField(max_length=10, choices=MODALITA_CHOICES, default="IN_SEDE")
+    data_inizio     = models.DateField()
+    data_fine       = models.DateField()
+    sede            = models.CharField(max_length=200, blank=True, help_text="Aula, indirizzo o link remoto")
+    docente         = models.ForeignKey(
+        TrainingInstructor, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="sessioni",
+    )
+    docente_nome    = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
+    note            = models.TextField(blank=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
+    created_by      = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-data_inizio"]
+        verbose_name = "Sessione formativa"
+        verbose_name_plural = "Sessioni formative"
+        indexes = [
+            models.Index(fields=["corso", "stato"]),
+            models.Index(fields=["data_inizio", "data_fine"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.codice_sessione}] {self.corso.titolo} — {self.data_inizio}"
+
+
+# ─────────────────────────────────────────────────────────────
+# LEZIONE
+# ─────────────────────────────────────────────────────────────
+
+class TrainingLesson(models.Model):
+    """Singola lezione di una sessione."""
+
+    sessione     = models.ForeignKey(TrainingSession, on_delete=models.CASCADE, related_name="lezioni")
+    numero       = models.PositiveSmallIntegerField(default=1)
+    data         = models.DateField()
+    ora_inizio   = models.TimeField()
+    ora_fine     = models.TimeField()
+    argomento    = models.CharField(max_length=500)
+    docente      = models.ForeignKey(
+        TrainingInstructor, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="lezioni",
+    )
+    docente_nome = models.CharField(max_length=200, blank=True, help_text="Snapshot nome docente per stabilità storica")
+    note         = models.TextField(blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_by   = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["data", "ora_inizio"]
+        unique_together = [("sessione", "numero")]
+        verbose_name = "Lezione"
+        verbose_name_plural = "Lezioni"
+
+    @property
+    def durata_ore(self) -> float:
+        from datetime import datetime, date as _date
+        dt_inizio = datetime.combine(_date.today(), self.ora_inizio)
+        dt_fine   = datetime.combine(_date.today(), self.ora_fine)
+        return round((dt_fine - dt_inizio).total_seconds() / 3600, 2)
+
+    def __str__(self) -> str:
+        return f"Lezione {self.numero} — {self.sessione.codice_sessione} — {self.data}"
+
+
+# ─────────────────────────────────────────────────────────────
+# ISCRIZIONE (Enrollment)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingEnrollment(models.Model):
+    """Iscrizione di un dipendente a una sessione formativa."""
+
+    STATO_CHOICES = [
+        ("ISCRITTO",   "Iscritto"),
+        ("IN_CORSO",   "In corso"),
+        ("COMPLETATO", "Completato"),
+        ("NON_IDONEO", "Non idoneo"),
+        ("ASSENTE",    "Assente"),
+        ("RITIRATO",   "Ritirato"),
+    ]
+
+    sessione             = models.ForeignKey(TrainingSession, on_delete=models.CASCADE, related_name="iscrizioni")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    assignment           = models.ForeignKey(
+        TrainingAssignment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="iscrizioni",
+    )
+    stato                = models.CharField(max_length=15, choices=STATO_CHOICES, default="ISCRITTO")
+    ore_frequentate      = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    percentuale_presenza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    idoneo               = models.BooleanField(null=True, blank=True)
+    esito_esame          = models.CharField(max_length=100, blank=True)
+    data_completamento   = models.DateField(null=True, blank=True)
+    note                 = models.TextField(blank=True)
+    iscritto_da          = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("sessione", "legacy_anagrafica_id")]
+        verbose_name = "Iscrizione"
+        verbose_name_plural = "Iscrizioni"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "stato"]),
+            models.Index(fields=["legacy_anagrafica_id", "data_completamento"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] → {self.sessione.codice_sessione} ({self.stato})"
+
+
+# ─────────────────────────────────────────────────────────────
+# PRESENZE LEZIONE
+# ─────────────────────────────────────────────────────────────
+
+class TrainingLessonAttendance(models.Model):
+    """Presenza di un dipendente a una singola lezione."""
+
+    STATO_PRESENZA_CHOICES = [
+        ("PRESENTE",        "Presente"),
+        ("ASSENTE_GIUST",   "Assente giustificato"),
+        ("ASSENTE_INGIUST", "Assente ingiustificato"),
+        ("PARZIALE",        "Presenza parziale"),
+    ]
+
+    SIGNATURE_STATUS_CHOICES = [
+        ("NESSUNA",  "Nessuna firma"),
+        ("PENDENTE", "Firma pendente"),
+        ("FIRMATO",  "Firmato"),
+        ("RIFIUTATO","Rifiutato"),
+    ]
+
+    SIGNATURE_METHOD_CHOICES = [
+        ("CARTACEO", "Foglio cartaceo"),
+        ("DIGITALE", "Firma digitale"),
+        ("UPLOAD",   "Upload scan"),
+    ]
+
+    lezione              = models.ForeignKey(TrainingLesson, on_delete=models.CASCADE, related_name="presenze")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    enrollment           = models.ForeignKey(
+        TrainingEnrollment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="presenze_lezione",
+    )
+    stato_presenza   = models.CharField(max_length=15, choices=STATO_PRESENZA_CHOICES, default="PRESENTE")
+    ore_effettive    = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    firma_ingresso   = models.BooleanField(default=False)
+    firma_uscita     = models.BooleanField(default=False)
+    signature_status = models.CharField(max_length=10, choices=SIGNATURE_STATUS_CHOICES, default="NESSUNA")
+    signature_method = models.CharField(max_length=10, choices=SIGNATURE_METHOD_CHOICES, blank=True)
+    signed_at        = models.DateTimeField(null=True, blank=True)
+    signature_file   = models.ForeignKey(
+        "anagrafica.DocumentoDipendente", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="firme_presenze_formazione",
+    )
+    uploaded_signed_register = models.ForeignKey(
+        "anagrafica.DocumentoDipendente", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="registri_firma_formazione",
+    )
+    note         = models.TextField(blank=True)
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("lezione", "legacy_anagrafica_id")]
+        verbose_name = "Presenza lezione"
+        verbose_name_plural = "Presenze lezioni"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "lezione"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] — {self.lezione} — {self.stato_presenza}"
+
+
+# ─────────────────────────────────────────────────────────────
+# RECORD COMPLETAMENTO (storico dipendente × corso)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingEmployeeRecord(models.Model):
+    """Record storico di completamento corso per dipendente.
+
+    I campi snapshot_ garantiscono integrità storica anche se corso/sessione/piano
+    cambiano in seguito. Compilare alla creazione; non aggiornare mai i snapshot.
+    """
+
+    corso    = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="record_completamenti")
+    sessione = models.ForeignKey(
+        TrainingSession, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="record_completamenti",
+    )
+    enrollment = models.OneToOneField(
+        TrainingEnrollment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="record_completamento",
+    )
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    data_completamento   = models.DateField()
+    ore_frequentate      = models.DecimalField(max_digits=7, decimal_places=2, default=0)
+    percentuale_presenza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    idoneo               = models.BooleanField(default=True)
+    data_scadenza        = models.DateField(
+        null=True, blank=True,
+        help_text="Null se corso una tantum (validita_mesi=0)",
+    )
+    validato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    validato_il = models.DateField(null=True, blank=True)
+    note        = models.TextField(blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    # ── Snapshot storici ─────────────────────────────────────
+    # Compilare alla creazione del record — non aggiornare mai.
+    course_code_snapshot               = models.CharField(max_length=30, blank=True)
+    course_title_snapshot              = models.CharField(max_length=300, blank=True)
+    course_version_snapshot            = models.CharField(max_length=10, blank=True)
+    plan_code_snapshot                 = models.CharField(max_length=20, blank=True)
+    plan_name_snapshot                 = models.CharField(max_length=200, blank=True)
+    duration_hours_snapshot            = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    validity_months_snapshot           = models.PositiveSmallIntegerField(null=True, blank=True)
+    completion_rule_snapshot_json      = models.JSONField(default=dict, blank=True)
+    session_code_snapshot              = models.CharField(max_length=40, blank=True)
+    teacher_name_snapshot              = models.CharField(max_length=200, blank=True)
+    completion_calculation_snapshot_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-data_completamento"]
+        verbose_name = "Record completamento"
+        verbose_name_plural = "Record completamenti"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "corso"]),
+            models.Index(fields=["legacy_anagrafica_id", "data_scadenza"]),
+            models.Index(fields=["data_scadenza"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.data_completamento}"
+
+
+# ─────────────────────────────────────────────────────────────
+# ATTESTATO / CERTIFICATO
+# ─────────────────────────────────────────────────────────────
+
+class TrainingCertificate(models.Model):
+    """Attestato di completamento, collegato a un record completamento."""
+
+    record               = models.OneToOneField(TrainingEmployeeRecord, on_delete=models.CASCADE, related_name="attestato")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    numero_attestato     = models.CharField(max_length=100, blank=True)
+    data_rilascio        = models.DateField()
+    rilasciato_da        = models.CharField(max_length=200, blank=True)
+    file_attestato       = models.ForeignKey(
+        "anagrafica.DocumentoDipendente", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="certificati_formazione",
+    )
+    note       = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Attestato formazione"
+        verbose_name_plural = "Attestati formazione"
+        indexes = [models.Index(fields=["legacy_anagrafica_id"])]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] Attestato — {self.data_rilascio}"
+
+
+# ─────────────────────────────────────────────────────────────
+# SCADENZARIO FORMAZIONE (cache ricalcolabile — D9)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingDeadline(models.Model):
+    """Cache calcolata delle scadenze formazione per dipendente × corso.
+
+    NON modificare manualmente — è un dato derivato.
+    Il ricalcolo avviene tramite management command `refresh_training_deadlines`
+    o il service `training_deadline_service.refresh_deadlines()`.
+    I signal su TrainingEmployeeRecord settano solo `needs_refresh=True`.
+    """
+
+    STATO_SCADENZA_CHOICES = [
+        ("VALIDO",          "Valido"),
+        ("IN_SCADENZA_30",  "In scadenza ≤30gg"),
+        ("IN_SCADENZA_90",  "In scadenza ≤90gg"),
+        ("SCADUTO",         "Scaduto"),
+        ("MAI_FREQUENTATO", "Mai frequentato"),
+        ("UNA_TANTUM",      "Completato (una tantum)"),
+    ]
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="scadenze")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    requirement_rule     = models.ForeignKey(
+        TrainingRequirementRule, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="scadenze",
+    )
+    assignment = models.ForeignKey(
+        TrainingAssignment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="scadenza",
+    )
+    ultimo_completamento = models.ForeignKey(
+        TrainingEmployeeRecord, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    data_ultimo_completamento = models.DateField(null=True, blank=True)
+    data_scadenza             = models.DateField(null=True, blank=True, db_index=True)
+    stato_scadenza            = models.CharField(
+        max_length=20, choices=STATO_SCADENZA_CHOICES, default="MAI_FREQUENTATO",
+    )
+    giorni_alla_scadenza      = models.IntegerField(null=True, blank=True)
+    is_required               = models.BooleanField(default=False)
+    reason_snapshot           = models.JSONField(default=dict, blank=True)
+    last_recalculation_source = models.CharField(max_length=100, blank=True)
+    needs_refresh             = models.BooleanField(default=False, db_index=True)
+    ricalcolato_il            = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("corso", "legacy_anagrafica_id")]
+        verbose_name = "Scadenza formazione"
+        verbose_name_plural = "Scadenze formazione"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "stato_scadenza"]),
+            models.Index(fields=["data_scadenza"]),
+            models.Index(fields=["stato_scadenza"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.stato_scadenza}"
+
+
+# ─────────────────────────────────────────────────────────────
+# LOG EXPORT
+# ─────────────────────────────────────────────────────────────
+
+class TrainingExportLog(models.Model):
+    """Audit trail degli export Excel/PDF generati dalla sezione formazione."""
+
+    TIPO_EXPORT_CHOICES = [
+        ("PIANI",        "Elenco piani formativi"),
+        ("CORSI",        "Elenco corsi"),
+        ("ISCRITTI",     "Iscritti sessione"),
+        ("PRESENZE",     "Presenze lezione"),
+        ("STORICO_DIP",  "Storico dipendente"),
+        ("SCADENZARIO",  "Scadenzario formazione"),
+        ("MATRICE",      "Matrice dipendente × corso"),
+        ("KPI",          "Report KPI direzionale"),
+        ("REPORT_FIRMA", "Report firma lezione PDF"),
+    ]
+
+    tipo            = models.CharField(max_length=20, choices=TIPO_EXPORT_CHOICES)
+    filtri_json     = models.JSONField(default=dict, blank=True)
+    righe_esportate = models.PositiveIntegerField(default=0)
+    generato_da     = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    generato_il = models.DateTimeField(auto_now_add=True)
+    ip_address  = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-generato_il"]
+        verbose_name = "Log export formazione"
+        verbose_name_plural = "Log export formazione"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} — {self.generato_il}"

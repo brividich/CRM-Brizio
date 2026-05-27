@@ -1,0 +1,124 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Sessioni Formative | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Formazione HR</div>
+      <h2 class="hr-pagehead-title">📅 Sessioni Formative</h2>
+      <p class="hr-pagehead-desc">Elenco edizioni corsi — {{ page_obj.paginator.count }} sessioni totali.</p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <a href="{% url 'anagrafica:formazione_sessione_create' %}" class="hr-btn hr-btn-primary">+ Nuova sessione</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Filtri ──────────────────────────────────────────────────────────────── #}
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center;">
+    <input type="text" name="q" value="{{ q_search }}" placeholder="Codice / titolo / sede…"
+           class="hr-filter-input" style="min-width:180px;">
+    <select name="corso" class="hr-filter-select">
+      <option value="">Tutti i corsi</option>
+      {% for c in corsi_attivi %}
+        <option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:"s" %}selected{% endif %}>
+          [{{ c.codice }}] {{ c.titolo|truncatechars:40 }}
+        </option>
+      {% endfor %}
+    </select>
+    <select name="stato" class="hr-filter-select">
+      <option value="">Tutti gli stati</option>
+      {% for code, label in STATO_CHOICES %}
+        <option value="{{ code }}" {% if filtro_stato == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="anno" class="hr-filter-select">
+      <option value="">Tutti gli anni</option>
+      {% for anno in anni %}
+        <option value="{{ anno }}" {% if filtro_anno == anno|stringformat:"s" %}selected{% endif %}>{{ anno }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="hr-btn hr-btn-sm">Filtra</button>
+    <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="hr-btn hr-btn-sm hr-btn-ghost">Reset</a>
+  </form>
+
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📅 Sessioni <span class="fm-count">{{ page_obj.paginator.count }}</span></div>
+      <div class="muted" style="font-size:11px;color:#64748b;">
+        Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+      </div>
+    </div>
+    {% if page_obj %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.sessioni.list">
+        <thead>
+          <tr>
+            <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
+            <th data-col="corso" data-col-label="Corso" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso</th>
+            <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
+            <th data-col="inizio" data-col-label="Inizio" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Inizio</th>
+            <th data-col="fine" data-col-label="Fine" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Fine</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
+                data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th data-col="modalita" data-col-label="Modalità" data-col-type="select"
+                data-col-options='[["IN_SEDE","In sede"],["REMOTO","Remoto / Online"],["ESTERNO","Esterno (provider)"],["MISTO","Misto"]]'
+                data-col-sortable="1" data-col-filterable="1">Modalità</th>
+            <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in page_obj %}
+          <tr>
+            <td class="mono">{{ s.codice_sessione }}</td>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' s.corso.pk %}">
+                {{ s.corso.titolo|truncatechars:40 }}
+              </a>
+            </td>
+            <td class="muted">{{ s.corso.piano.nome|truncatechars:25 }}</td>
+            <td class="nowrap" data-sort-value="{{ s.data_inizio|date:'Y-m-d' }}">{{ s.data_inizio|date:"d/m/Y" }}</td>
+            <td class="nowrap muted" data-sort-value="{{ s.data_fine|date:'Y-m-d' }}">{{ s.data_fine|date:"d/m/Y" }}</td>
+            <td data-value="{{ s.stato }}"><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
+            <td class="muted" data-value="{{ s.modalita }}">{{ s.get_modalita_display }}</td>
+            <td class="muted">{{ s.docente_nome|default:s.docente|default:"—" }}</td>
+            <td class="nowrap"><a href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}" class="hr-btn hr-btn-sm">Apri</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div style="display:flex;gap:6px;padding:10px 14px;justify-content:flex-end;align-items:center;font-size:12px;">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}"
+           class="hr-btn hr-btn-sm">‹</a>
+      {% endif %}
+      <span style="color:#64748b;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&corso={{ filtro_corso }}&stato={{ filtro_stato }}&anno={{ filtro_anno }}&q={{ q_search }}"
+           class="hr-btn hr-btn-sm">›</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="fm-empty" style="text-align:center;padding:32px;">Nessuna sessione trovata.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -214,6 +214,41 @@ def set_ui_meta(
         pass
 
 
+def prune_stale_pulsanti(
+    modulo: str,
+    valid_codici: set[str],
+    *,
+    dry_run: bool = False,
+) -> tuple[int, int]:
+    """Rimuove dalla tabella Pulsante le righe di *modulo* il cui codice
+    non è più presente nelle definizioni correnti.
+    Rimuove anche i record Permesso orfani (stesso modulo, azione rimossa).
+
+    Restituisce (n_pulsanti_rimossi, n_permessi_rimossi).
+    Con dry_run=True conta senza modificare il DB.
+    """
+    try:
+        from core.legacy_models import Permesso, Pulsante
+
+        stale_qs = Pulsante.objects.filter(modulo__iexact=modulo).exclude(
+            codice__in=valid_codici
+        )
+        stale_codici: set[str] = set(stale_qs.values_list("codice", flat=True))
+        n_pulsanti = stale_qs.count()
+        n_permessi = (
+            Permesso.objects.filter(modulo__iexact=modulo, azione__in=stale_codici).count()
+            if stale_codici
+            else 0
+        )
+        if not dry_run:
+            if stale_codici:
+                Permesso.objects.filter(modulo__iexact=modulo, azione__in=stale_codici).delete()
+            stale_qs.delete()
+        return n_pulsanti, n_permessi
+    except Exception:
+        return 0, 0
+
+
 def init_missing_permessi(modulo: str, azione: str) -> int:
     """Per ogni ruolo che non ha ancora un record Permesso per (modulo, azione),
     crea un record con tutti i flag a 0 (deny-by-default).
@@ -332,6 +367,21 @@ def run_bootstrap(
     except Exception as exc:
         logger.debug("ACL bootstrap %s skipped: %s", app_name, exc)
         return
+
+    if force:
+        valid_codici = {d["codice"] for d in definitions if d.get("codice")}
+        try:
+            n_p, n_perm = prune_stale_pulsanti(app_name, valid_codici)
+            if n_p or n_perm:
+                changed = True
+                logger.debug(
+                    "ACL bootstrap %s: rimossi %d pulsanti stale e %d permessi stale",
+                    app_name,
+                    n_p,
+                    n_perm,
+                )
+        except Exception as exc:
+            logger.debug("ACL bootstrap %s: prune stale fallito: %s", app_name, exc)
 
     if bootstrap_nav_fn is not None:
         try:

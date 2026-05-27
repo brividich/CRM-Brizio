@@ -504,8 +504,22 @@ _ADMIN_ROLE_IDS_CACHE_KEY = "legacy_acl:admin_role_ids"
 _ADMIN_ROLE_IDS_TTL = 120  # secondi — stessa finestra dell'ACL cache
 
 
+def _get_admin_role_names() -> frozenset[str]:
+    """Nomi ruolo considerati admin, configurabili via PORTAL_ADMIN_ROLE_NAMES.
+
+    Default: {"admin"} per compatibilità legacy.
+    """
+    from django.conf import settings as _settings
+    names = getattr(_settings, "PORTAL_ADMIN_ROLE_NAMES", None)
+    if names and isinstance(names, (list, tuple, set, frozenset)):
+        result = {str(n).strip().lower() for n in names if str(n).strip()}
+        if result:
+            return frozenset(result)
+    return frozenset({"admin"})
+
+
 def get_admin_role_ids() -> set[int]:
-    """Restituisce gli ID dei ruoli con nome 'admin'.
+    """Restituisce gli ID dei ruoli admin (da PORTAL_ADMIN_ROLE_NAMES).
 
     Usa Django cache (invalidabile via bump_legacy_cache_version) invece di
     lru_cache Python in-process, che non veniva mai resettata a runtime.
@@ -515,7 +529,8 @@ def get_admin_role_ids() -> set[int]:
     if cached is not None:
         return cached
     try:
-        ids = {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}
+        admin_names = _get_admin_role_names()
+        ids = {int(r.id) for r in Ruolo.objects.all() if (r.nome or "").strip().lower() in admin_names}
     except DatabaseError:
         ids = set()
     cache.set(_ADMIN_ROLE_IDS_CACHE_KEY, ids, timeout=_ADMIN_ROLE_IDS_TTL)
@@ -525,7 +540,8 @@ def get_admin_role_ids() -> set[int]:
 def is_legacy_admin(legacy_user: UtenteLegacy | None) -> bool:
     if not legacy_user:
         return False
-    if str(legacy_user.ruolo or "").strip().lower() == "admin":
+    admin_names = _get_admin_role_names()
+    if str(legacy_user.ruolo or "").strip().lower() in admin_names:
         return True
     if legacy_user.ruolo_id is None:
         return False

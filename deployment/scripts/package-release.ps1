@@ -97,10 +97,6 @@ function Get-SetupWizardNewestTrigger {
         throw "setup_wizard_bundle_rules.json non trovato: $bundleRulesPath"
     }
 
-    $bundleRules = Get-Content -LiteralPath $bundleRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $excludeDirNames = @($bundleRules.exclude_dir_names | ForEach-Object { [string]$_ })
-    $excludeFilePatterns = @($bundleRules.exclude_file_patterns | ForEach-Object { [string]$_ })
-
     $triggerFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
     foreach ($path in @(
         (Join-Path $RootPath "VERSION"),
@@ -124,15 +120,9 @@ function Get-SetupWizardNewestTrigger {
         }
     }
 
-    $djangoAppDir = Join-Path $RootPath "django_app"
-    if (Test-Path -LiteralPath $djangoAppDir) {
-        $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse -ErrorAction SilentlyContinue | Where-Object {
-            -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $excludeDirNames -ExcludeFilePatterns $excludeFilePatterns)
-        }
-        foreach ($file in $djangoFiles) {
-            $triggerFiles.Add($file)
-        }
-    }
+    # django_app/ escluso intenzionalmente dai trigger del wizard:
+    # gli aggiornamenti applicativi usano il pacchetto zip + deploy-release.ps1,
+    # non richiedono la rebuild del wizard (riservato alle installazioni fresh).
 
     if ($triggerFiles.Count -eq 0) {
         throw "Nessun trigger valido trovato per SetupWizard.exe"

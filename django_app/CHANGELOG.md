@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Assets - rinomina massiva solo nome asset
+
+- **[ops] `assets/management/commands/rename_asset_names.py`**: nuovo command per esportare un template CSV `asset_tag;current_name;new_name` e aggiornare solo `Asset.name` da CSV, con dry-run di default e commit esplicito.
+- **[test/docs] `assets/tests.py`, `assets/README.md`, root `README.md`**: regressioni su dry-run, commit, blocco errori e template; documentata procedura operativa.
+
+### Config - hardening `.env` e navigazione
+
+- **[fix] `hub_tools/views.py`, `hub_tools/templates/hub_tools/setup_wizard.html`**: il Setup Wizard Hub usa ora il percorso runtime persistente (`ENV/config/.env` nei deploy) e non forza piu `NAVIGATION_LEGACY_FALLBACK_ENABLED=1` quando il Navigation Registry e' attivo. Se il registry viene disabilitato esplicitamente, il fallback legacy viene riattivato in modo coerente.
+- **[fix] `config/env_config.py`**: lettura `.env` robusta con `utf-8-sig`, cosi un salvataggio da Notepad con BOM UTF-8 non rompe la prima chiave del file.
+- **[ops] `deployment/scripts/secure-env-acl.ps1`, `deployment/scripts/deploy-release.ps1`, `deployment/scripts/configure-iis-site.ps1`**: nuovo hardening NTFS per proteggere `ENV/config/.env` e le copie release `.env`; deploy e configurazione IIS lo invocano automaticamente.
+- **[test] `hub_tools/tests.py`, `config/test_env_config.py`**: regressioni per impedire il ritorno automatico al fallback legacy e per accettare `.env` con BOM UTF-8.
+
+### Core - ripristino Navigation Registry
+
+- **[ops] `core/management/commands/restore_navigation_registry.py`**: nuovo comando dry-run/apply per ripristinare il registry menu (`ModuleCategory`, `NavigationItem`, `NavigationRoleAccess`) dalla fixture locale `fixtures/nav_acl_snapshot.json` o da un dump JSON Django serializer. In apply pubblica prima uno snapshot di backup, sostituisce solo la navigazione e invalida la cache menu.
+
 ### Assets - sidebar categorie compatta
 
 - **[ux] `assets/views.py`, `assets/templates/assets/base_shell.html`**: le voci categoria radice della sidebar del modulo Assets sono ora gruppi espandibili con sottocategorie chiuse di default. Il ramo della sottocategoria filtrata resta aperto automaticamente e le aperture manuali vengono memorizzate in `localStorage`.
@@ -15,6 +31,22 @@
 ### Anagrafica HR - scheda dipendente compatta
 
 - **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/templates/anagrafica/components/subnav.html`, `anagrafica/templates/anagrafica/partials/formazione_tab_dipendente.html`**: nella scheda dipendente e stata nascosta la riga descrittiva sotto la subnav, rimossa la topbar duplicata e portati i pulsanti "Timbri" / "Torna all'elenco" nella hero del dipendente; rimosso anche il commento visibile del partial Formazione.
+
+### Anagrafica HR - offboarding con pratica task
+
+- **[feat] `anagrafica/models.py`, migration `0030_offboarding_pratiche.py`, `anagrafica/admin.py`, `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: il tasto admin di offboarding apre una pratica con motivo, data cessazione prevista, ultimo giorno operativo e task HR/IT/responsabile/restituzioni. Il dipendente resta in forza finche la pratica e aperta; la chiusura del rapporto e bloccata se ci sono task "Da fare" o se la data cessazione e futura. Alla chiusura vengono impostati `DipendenteAnagraficaAziendale.data_cessazione`, record legacy `attivo=0`, account portale scollegato (`utente_id=NULL`) e audit metadata-only.
+- **[test] `anagrafica/tests.py`**: copertura per apertura pratica, blocco chiusura con task pendenti, completamento task e passaggio finale fuori dalla lista in forza verso la vista ex dipendenti.
+
+### Anagrafica HR - campi onboarding/offboarding configurabili
+
+- **[feat] `anagrafica/models.py`, migration `0031_onboardingoffboardingcampo.py`, `anagrafica/admin.py`, `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/impostazioni.html`**: nuovo tab "Onboarding / Offboarding" in `/anagrafica/impostazioni/` per associare i campi reali del form `+ Nuovo dipendente` alle liste operative di ingresso/uscita. Ogni associazione salva fase, categoria, obbligatorieta, ordine, stato e note; le voci Offboarding attive generano task automatici nelle pratiche di uscita.
+- **[test] `anagrafica/tests.py`**: regressioni per rendering tab impostazioni, creazione/aggiornamento associazioni e generazione task offboarding da campi configurati.
+
+### Anagrafica HR - nuovo dipendente, offboarding e rimessa in forza
+
+- **[feat] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templatetags/anagrafica_extras.py`, `anagrafica/templates/anagrafica/pages/index.html`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `anagrafica/templates/anagrafica/components/subnav.html`, migration `0028_subnav_onboarding_offboarding.py`**: rimossa la sezione separata onboarding/offboarding in Anagrafica HR; l'onboarding resta il flusso "Nuovo dipendente", la migration elimina eventuali vecchi link subnav locali e la subnav ignora link named non piu risolvibili.
+- **[feat] `anagrafica/models.py`, migration `0029_aziendale_account_pre_offboarding.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: mantenuto il tasto admin "Rimetti in forza" quando il rapporto ha `data_cessazione`; la rimessa rimuove la cessazione, riattiva il record legacy e ricollega automaticamente l'account portale usando l'ID salvato prima dell'offboarding o una ricerca univoca per email, alias o nome/cognome.
+- **[test] `anagrafica/tests.py`**: regressioni per pratica offboarding, memorizzazione account pre-offboarding, assenza della sezione onboarding/offboarding separata, rimessa in forza con ricollegamento account.
 
 ### Fornitori - permessi separati da Anagrafica HR
 

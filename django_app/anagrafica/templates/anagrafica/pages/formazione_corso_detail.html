@@ -1,0 +1,496 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ corso.codice }} | Corso | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {# ── Page header ─────────────────────────────────────────────────────────── #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_piani_list' %}" style="color:#94a3b8;text-decoration:none;">Piani</a>
+        &rsaquo;
+        <a href="{% url 'anagrafica:formazione_piano_detail' corso.piano.pk %}"
+           style="color:#94a3b8;text-decoration:none;">{{ corso.piano.codice }}</a>
+        &rsaquo; {{ corso.codice }}
+      </div>
+      <h2 class="hr-pagehead-title">{{ corso.titolo }}</h2>
+      <p class="hr-pagehead-desc">
+        Piano: <strong>{{ corso.piano.nome }}</strong> &nbsp;·&nbsp;
+        Versione {{ corso.versione }} &nbsp;·&nbsp;
+        {% if corso.stato == "ATTIVO" %}<span class="fm-pill fm-pill-valid">Attivo</span>
+        {% elif corso.stato == "BOZZA" %}<span class="fm-pill fm-pill-missing">Bozza</span>
+        {% else %}<span class="fm-pill fm-pill-expired">Archiviato</span>{% endif %}
+        {% if corso.obbligatorio %}&nbsp;<span class="fm-pill fm-pill-enrolled">Obbligatorio</span>{% endif %}
+      </p>
+    </div>
+    {% if is_editor %}
+    <div style="display:flex;gap:8px;">
+      <button class="hr-btn hr-btn-primary"
+              onclick="document.getElementById('modal-edit-corso').style.display='flex'">
+        Modifica corso
+      </button>
+      <form method="post" action="{% url 'anagrafica:formazione_corso_delete' corso.pk %}"
+            onsubmit="return confirm('Eliminare il corso «{{ corso.titolo|escapejs }}»? Operazione irreversibile.')">
+        {% csrf_token %}
+        <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── KPI mini ────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:20px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">⏱</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Durata teorica</span>
+          <span class="hr-metric-val">{{ corso.durata_ore_teorica }}h</span>
+        </div>
+        <div class="hr-metric-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">📅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Sessioni totali</span>
+          <span class="hr-metric-val">{{ n_sessioni }}</span>
+        </div>
+        <div class="hr-metric-sub">Sessioni pianificate</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">✅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Completamenti</span>
+          <span class="hr-metric-val">{{ n_completamenti }}</span>
+        </div>
+        <div class="hr-metric-sub">Dipendenti con storico</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+    {# ── Colonna sinistra ──────────────────────────────────────────────────── #}
+    <div>
+
+      {# Prerequisiti #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">🔗 Prerequisiti <span class="fm-count">{{ prerequisiti|length }}</span></div>
+        </div>
+        {% if prerequisiti %}
+        <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead><tr><th>Corso</th><th>Obbligatorio</th><th class="nowrap"></th></tr></thead>
+          <tbody>
+            {% for dep in prerequisiti %}
+            <tr>
+              <td>
+                <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' dep.prerequisito.pk %}">
+                  [{{ dep.prerequisito.codice }}] {{ dep.prerequisito.titolo }}
+                </a>
+              </td>
+              <td>{% if dep.obbligatorio %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">No</span>{% endif %}</td>
+              <td class="nowrap">
+                {% if is_editor %}
+                <form method="post"
+                      action="{% url 'anagrafica:formazione_corso_dep_delete' corso.pk dep.pk %}"
+                      onsubmit="return confirm('Rimuovere prerequisito?')" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="fm-empty">Nessun prerequisito.</div>
+        {% endif %}
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_corso_dep_add' corso.pk %}"
+              class="fm-inline-form">
+          {% csrf_token %}
+          <div class="fm-f" style="flex:1;min-width:220px;">
+            <label>Corso prerequisito</label>
+            <select name="prerequisito_id" required>
+              <option value="">— Seleziona —</option>
+              {% for c in tutti_corsi %}
+                <option value="{{ c.pk }}">[{{ c.codice }}] {{ c.titolo|truncatechars:50 }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <label class="fm-f-check">
+            <input type="checkbox" name="obbligatorio" value="1" checked> Obbligatorio
+          </label>
+          <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Aggiungi</button>
+        </form>
+        {% endif %}
+      </div>
+
+      {# Versioni corso #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">🏷 Versioni <span class="fm-count">{{ versioni|length }}</span></div>
+        </div>
+        {% if versioni %}
+        <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead><tr><th>Versione</th><th>Titolo snapshot</th><th>Data</th><th class="nowrap"></th></tr></thead>
+          <tbody>
+            {% for v in versioni %}
+            <tr>
+              <td class="mono">{{ v.version_label }}</td>
+              <td>{{ v.titolo_snapshot|truncatechars:40|default:"—" }}</td>
+              <td class="nowrap muted">{{ v.created_at|date:"d/m/Y" }}</td>
+              <td class="nowrap">
+                {% if is_editor %}
+                <form method="post"
+                      action="{% url 'anagrafica:formazione_corso_version_delete' corso.pk v.pk %}"
+                      onsubmit="return confirm('Eliminare versione {{ v.version_label|escapejs }}?')" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="fm-empty">Nessuna versione registrata.</div>
+        {% endif %}
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_corso_version_add' corso.pk %}"
+              class="fm-inline-form">
+          {% csrf_token %}
+          <div class="fm-f">
+            <label>Label versione *</label>
+            <input type="text" name="version_label" required maxlength="10" placeholder="es. 2.0">
+          </div>
+          <div class="fm-f">
+            <label>Titolo snapshot</label>
+            <input type="text" name="titolo_snapshot" maxlength="300" placeholder="Titolo al momento">
+          </div>
+          <div class="fm-f">
+            <label>Note</label>
+            <input type="text" name="note" placeholder="Modifiche rispetto alla versione precedente">
+          </div>
+          <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary" style="align-self:flex-end;">Aggiungi</button>
+        </form>
+        {% endif %}
+      </div>
+
+    </div>{# fine colonna sinistra #}
+
+    {# ── Colonna destra ────────────────────────────────────────────────────── #}
+    <div>
+
+      {# Regola superamento #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">🎯 Regola di superamento</div>
+        </div>
+        {% if is_editor %}
+        <form method="post" action="{% url 'anagrafica:formazione_corso_completion_rule_save' corso.pk %}">
+          {% csrf_token %}
+          <div style="padding:12px 14px;">
+            {# Riga 1: numerici percentuali #}
+            <div class="fm-form-grid-2">
+              <div class="fm-form-field">
+                <label for="{{ completion_form.ore_minime_percentuale.id_for_label }}">
+                  Ore minime %{% if completion_form.ore_minime_percentuale.field.required %}<span class="fm-req">*</span>{% endif %}
+                </label>
+                {{ completion_form.ore_minime_percentuale }}
+                {% for err in completion_form.ore_minime_percentuale.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}
+              </div>
+              <div class="fm-form-field">
+                <label for="{{ completion_form.presenza_minima_percentuale.id_for_label }}">
+                  Presenze minime %{% if completion_form.presenza_minima_percentuale.field.required %}<span class="fm-req">*</span>{% endif %}
+                </label>
+                {{ completion_form.presenza_minima_percentuale }}
+                {% for err in completion_form.presenza_minima_percentuale.errors %}<div class="fm-err">{{ err }}</div>{% endfor %}
+              </div>
+            </div>
+
+            {# Riga 2: 4 checkbox "richiede_*" inline #}
+            <div class="fm-form-checks-row">
+              <label class="fm-form-check">
+                {{ completion_form.richiede_esame_finale }} <span>Esame finale</span>
+              </label>
+              <label class="fm-form-check">
+                {{ completion_form.richiede_firma_presenza }} <span>Firma presenza</span>
+              </label>
+              <label class="fm-form-check">
+                {{ completion_form.richiede_attestato }} <span>Attestato</span>
+              </label>
+              <label class="fm-form-check">
+                {{ completion_form.richiede_validazione_hr }} <span>Validazione HR</span>
+              </label>
+            </div>
+
+            {# Riga 3: date validità #}
+            <div class="fm-form-grid-2">
+              <div class="fm-form-field">
+                <label for="{{ completion_form.valid_from.id_for_label }}">Valido da</label>
+                {{ completion_form.valid_from }}
+              </div>
+              <div class="fm-form-field">
+                <label for="{{ completion_form.valid_to.id_for_label }}">Valido fino al</label>
+                {{ completion_form.valid_to }}
+              </div>
+            </div>
+
+            {# Riga 4: note (textarea full width) + is_active #}
+            <div class="fm-form-field">
+              <label for="{{ completion_form.note.id_for_label }}">Note</label>
+              {{ completion_form.note }}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
+              <label class="fm-form-check" style="margin-bottom:0;">
+                {{ completion_form.is_active }} <span>Regola attiva</span>
+              </label>
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Salva regola</button>
+            </div>
+          </div>
+        </form>
+        {% else %}
+          {% if completion_rule %}
+          <div style="padding:12px 14px;font-size:12.5px;">
+            <div>Ore minime: <strong>{{ completion_rule.ore_minime_percentuale }}%</strong></div>
+            <div>Presenze minime: <strong>{{ completion_rule.presenza_minima_percentuale }}%</strong></div>
+            <div>Richiede esame finale: <strong>{% if completion_rule.richiede_esame_finale %}Sì{% else %}No{% endif %}</strong></div>
+            <div>Richiede firma presenza: <strong>{% if completion_rule.richiede_firma_presenza %}Sì{% else %}No{% endif %}</strong></div>
+          </div>
+          {% else %}
+          <div class="fm-empty">Nessuna regola configurata.</div>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      {# Regole obbligatorietà sul corso #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">📌 Regole obbligatorietà <span class="fm-count">{{ regole|length }}</span></div>
+        </div>
+        {% if regole %}
+        <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead>
+            <tr>
+              <th>Target</th>
+              <th>Obbligatoria</th>
+              <th>Note</th>
+              <th class="nowrap"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in regole %}
+            <tr>
+              <td>
+                {% if r.mansione %}<span class="muted">Mansione:</span> {{ r.mansione.nome }}{% endif %}
+                {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
+                {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
+                {% if r.legacy_anagrafica_id %}
+                  <span class="muted">Dip.</span> #{{ r.legacy_anagrafica_id }}{% if r.dipendente_nome %} ({{ r.dipendente_nome }}){% endif %}
+                {% endif %}
+              </td>
+              <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="muted">{{ r.note|truncatechars:40|default:"—" }}</td>
+              <td class="nowrap">
+                {% if is_editor %}
+                <form method="post"
+                      action="{% url 'anagrafica:formazione_corso_req_rule_delete' corso.pk r.pk %}"
+                      onsubmit="return confirm('Rimuovere regola?')" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="fm-empty">Nessuna regola di obbligatorietà sul corso.</div>
+        {% endif %}
+        {% if is_editor %}
+        <div style="padding:10px 16px;">
+          <button class="hr-btn hr-btn-sm"
+                  onclick="document.getElementById('panel-add-rule').style.display=
+                    document.getElementById('panel-add-rule').style.display==='none'?'block':'none'">
+            + Aggiungi regola
+          </button>
+          <div id="panel-add-rule" style="display:none;margin-top:12px;">
+            <form method="post" action="{% url 'anagrafica:formazione_corso_req_rule_add' corso.pk %}">
+              {% csrf_token %}
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;background:#f8fafc;border-radius:8px;">
+                {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form %}
+              </div>
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary" style="margin-top:8px;">Aggiungi regola</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>{# fine colonna destra #}
+
+  </div>{# fine grid 2 colonne #}
+
+</div>
+
+{# ── Sessioni del corso ─────────────────────────────────────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">
+      🗓 Sessioni del corso <span class="fm-count">{{ n_sessioni }}</span>
+    </div>
+    {% if is_editor %}
+    <a class="hr-btn hr-btn-sm hr-btn-primary"
+       href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ corso.pk }}">+ Nuova sessione</a>
+    {% endif %}
+  </div>
+  {% if sessioni_list %}
+  <div class="fm-table-wrap">
+    <table class="fm-table" data-table-id="formazione.corso.sessioni">
+      <thead>
+        <tr>
+          <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
+          <th data-col="inizio" data-col-label="Inizio" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data inizio</th>
+          <th data-col="fine" data-col-label="Fine" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data fine</th>
+          <th data-col="modalita" data-col-label="Modalità" data-col-type="select"
+              data-col-options='[["IN_SEDE","In sede"],["REMOTO","Remoto"],["ESTERNO","Esterno"],["MISTO","Misto"]]'
+              data-col-sortable="1" data-col-filterable="1">Modalità</th>
+          <th data-col="stato" data-col-label="Stato" data-col-type="select"
+              data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
+              data-col-sortable="1" data-col-filterable="1">Stato</th>
+          <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
+          <th class="num" data-col="lezioni" data-col-label="Lezioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Lezioni</th>
+          <th class="num" data-col="iscritti" data-col-label="Iscritti" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Iscritti</th>
+          <th class="nowrap">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessioni_list %}
+        <tr>
+          <td class="mono">
+            <a class="fm-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
+          </td>
+          <td class="nowrap">{{ s.data_inizio|date:"d/m/Y" }}</td>
+          <td class="nowrap muted">{{ s.data_fine|date:"d/m/Y" }}</td>
+          <td class="muted">{{ s.get_modalita_display }}</td>
+          <td><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
+          <td class="muted">{{ s.docente_nome|default:s.docente|default:"—" }}</td>
+          <td class="num">{{ s.n_lezioni }}</td>
+          <td class="num">{{ s.n_iscritti }}</td>
+          <td class="nowrap">
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">Dettaglio</a>
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_iscritti' s.pk %}">Iscritti</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if n_sessioni > 100 %}
+  <div class="fm-empty">Mostrate le 100 sessioni più recenti su {{ n_sessioni }} totali.</div>
+  {% endif %}
+  {% else %}
+  <div class="fm-empty">Nessuna sessione registrata per questo corso.</div>
+  {% endif %}
+</div>
+
+{# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">
+      👥 Dipendenti iscritti <span class="fm-count">{{ n_dipendenti_iscritti }}</span>
+    </div>
+    <div class="muted" style="font-size:11px;">Aggregato su tutte le sessioni del corso</div>
+  </div>
+  {% if dipendenti_iscritti %}
+  <div class="fm-table-wrap">
+    <table class="fm-table" data-table-id="formazione.corso.dipendenti">
+      <thead>
+        <tr>
+          <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+          <th data-col="stato" data-col-label="Stato" data-col-type="select"
+              data-col-options='[["COMPLETATO","Completato"],["IN_CORSO","In corso"],["ISCRITTO","Iscritto"],["NON_IDONEO","Non idoneo"],["ASSENTE","Assente"],["RITIRATO","Ritirato"]]'
+              data-col-sortable="1" data-col-filterable="1">Stato</th>
+          <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
+          <th class="num" data-col="completati" data-col-label="Completati" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Completati</th>
+          <th class="nowrap" data-col="ultimo" data-col-label="Ultimo completamento" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultimo completamento</th>
+          <th data-col="idoneo" data-col-label="Idoneo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Idoneo</th>
+          <th class="nowrap">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dipendenti_iscritti %}
+        <tr>
+          <td>
+            <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">{{ d.nome }}</a>
+            <span class="muted" style="font-size:10.5px;">#{{ d.legacy_id }}</span>
+          </td>
+          <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
+          <td class="num">{{ d.n_sessioni }}</td>
+          <td class="num">{{ d.n_completati }}</td>
+          <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td>
+            {% if d.idoneo is True %}<span class="fm-pill fm-pill-valid">Sì</span>
+            {% elif d.idoneo is False %}<span class="fm-pill fm-pill-expired">No</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td class="nowrap">
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">Scheda</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="fm-empty">Nessun dipendente iscritto al corso.</div>
+  {% endif %}
+</div>
+
+{# ── Modal modifica corso ────────────────────────────────────────────────── #}
+{% if is_editor %}
+<div id="modal-edit-corso" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Modifica corso</strong>
+      <button onclick="document.getElementById('modal-edit-corso').style.display='none'"
+              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_corso_edit' corso.pk %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=edit_form %}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-edit-corso').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

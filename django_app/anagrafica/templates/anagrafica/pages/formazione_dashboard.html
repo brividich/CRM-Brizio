@@ -1,0 +1,290 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Formazione HR | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h2 class="hr-pagehead-title">🎓 Formazione</h2>
+      <p class="hr-pagehead-desc">Panoramica formazione aziendale. Aggiornato al {{ oggi|date:"d/m/Y" }}.</p>
+    </div>
+  </div>
+
+  {# ── Banner cache vuota ──────────────────────────────────────────────── #}
+  {% if deadline_cache_empty %}
+  <div class="fm-cache-banner">
+    <span style="font-size:18px;flex-shrink:0;">ℹ️</span>
+    <div>
+      <strong>Lo scadenzario formazione non è ancora stato calcolato.</strong><br>
+      I KPI di scadenza mostrano 0 perché la cache <em>TrainingDeadline</em> è vuota.<br>
+      Eseguire: <code>python manage.py refresh_training_deadlines --all</code>
+      (disponibile da PATCH-06) oppure aggiungere corsi e sessioni per popolare i dati.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── KPI ──────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid">
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">👤</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Dipendenti con formazione</span>
+          <span class="hr-metric-val">{{ kpi_dipendenti_formazione }}</span>
+        </div>
+        <div class="hr-metric-sub">Con almeno un corso completato</div>
+      </div>
+    </div>
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⚠️</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Scaduti</span>
+          <span class="hr-metric-val">{{ kpi_scaduti }}</span>
+        </div>
+        <div class="hr-metric-sub">Corsi da rinnovare con priorità</div>
+      </div>
+    </div>
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">🕑</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">In scadenza ≤30gg</span>
+          <span class="hr-metric-val">{{ kpi_in_scadenza_30 }}</span>
+        </div>
+        <div class="hr-metric-sub">Scadenze in avvicinamento</div>
+      </div>
+    </div>
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">🟠</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Obbligatori mancanti</span>
+          <span class="hr-metric-val">{{ kpi_obbligatori_mancanti }}</span>
+        </div>
+        <div class="hr-metric-sub">Mai frequentati o scaduti (obbligatori)</div>
+      </div>
+    </div>
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">📋</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Piani formativi attivi</span>
+          <span class="hr-metric-val">{{ kpi_piani_attivi }}</span>
+        </div>
+        <div class="hr-metric-sub">Catalogo piani</div>
+      </div>
+    </div>
+
+    <div class="hr-metric">
+      <div class="hr-metric-ico navy">📖</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top">
+          <span class="hr-metric-lbl">Corsi attivi</span>
+          <span class="hr-metric-val">{{ kpi_corsi_attivi }}</span>
+        </div>
+        <div class="hr-metric-sub">Catalogo corsi</div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Navigazione modulo ──────────────────────────────────────────────── #}
+  <div class="hr-card" style="margin-top:18px;">
+    <div class="hr-card-head">
+      <div class="hr-card-title">🧭 Aree del modulo</div>
+      <span style="font-size:12px;color:#94a3b8;">Accedi alle sezioni operative</span>
+    </div>
+    <div style="padding:14px 16px;">
+      <div class="fm-nav-grid">
+        <a href="{% url 'anagrafica:formazione_piani_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">📋</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Piani formativi</span>
+            <span class="fm-nav-tile-sub">Catalogo piani · regole obbligatorietà</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">📖</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Corsi</span>
+            <span class="fm-nav-tile-sub">Catalogo corsi · versioni · prerequisiti</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🗓️</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Sessioni</span>
+            <span class="fm-nav-tile-sub">Edizioni · lezioni · iscritti · presenze</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🎙️</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Docenti / Formatori</span>
+            <span class="fm-nav-tile-sub">Catalogo interni ed esterni</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">⏰</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Scadenzario formazione</span>
+            <span class="fm-nav-tile-sub">Scaduti · ≤30gg · ≤90gg · mai frequentati</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:formazione_plan' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">📆</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Plan</span>
+            <span class="fm-nav-tile-sub">Calendario corsi · scadenze · (DPI/assenze)</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:fattori_rischio_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">⚠️</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Fattori di rischio</span>
+            <span class="fm-nav-tile-sub">Catalogo fattori · periodicità · DPI/visite</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:categorie_corso_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🏷</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Categorie corso</span>
+            <span class="fm-nav-tile-sub">Tassonomia corsi ↔ fattori di rischio</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:esposizioni_rischio_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🎯</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Esposizioni</span>
+            <span class="fm-nav-tile-sub">Mansione/Area → fattore di rischio</span>
+          </div>
+        </a>
+        <a href="{% url 'anagrafica:scadenzario' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">📆</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Scadenzario HR generale</span>
+            <span class="fm-nav-tile-sub">Qualifiche · visite mediche · formazione</span>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {# ── Scadenzario urgente TOP 20 ──────────────────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">
+        ⏰ Scadenzario urgente
+        {% if scadenze_urgenti %}<span class="fm-count">{{ scadenze_urgenti|length }}</span>{% endif %}
+      </div>
+      <span class="muted" style="font-size:11px;color:#94a3b8;">TOP 20 ordinati per urgenza</span>
+    </div>
+
+    {% if scadenze_urgenti %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.dashboard.scadenze_top">
+        <thead>
+          <tr>
+            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+            <th data-col="corso" data-col-label="Corso" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso</th>
+            <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
+            <th class="nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+            <th class="num" data-col="giorni" data-col-label="Giorni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Giorni</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"]]'
+                data-col-sortable="1" data-col-filterable="1">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in scadenze_urgenti %}
+          <tr>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}"
+                 title="Vai alla scheda dipendente">{{ d.dipendente_nome }}</a>
+              <span class="muted" style="font-size:10.5px;margin-left:4px;">#{{ d.legacy_anagrafica_id }}</span>
+            </td>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' d.corso.pk %}"
+                 title="{{ d.corso.titolo }}">{{ d.corso.codice }}</a>
+              <div class="muted" style="font-size:11px;margin-top:1px;">{{ d.corso.titolo|truncatechars:45 }}</div>
+            </td>
+            <td class="muted">
+              {% if d.corso.piano %}{{ d.corso.piano.nome|truncatechars:30 }}{% else %}—{% endif %}
+            </td>
+            <td class="nowrap muted" data-sort-value="{{ d.data_scadenza|date:'Y-m-d' }}">
+              {% if d.data_scadenza %}{{ d.data_scadenza|date:"d/m/Y" }}{% else %}—{% endif %}
+            </td>
+            <td class="num" data-sort-value="{{ d.giorni|default:9999 }}">
+              {% if d.giorni is not None %}
+                {% if d.giorni < 0 %}
+                  <span class="fm-days-tag fm-days-neg">{{ d.giorni }}gg</span>
+                {% elif d.giorni <= 30 %}
+                  <span class="fm-days-tag fm-days-30">+{{ d.giorni }}gg</span>
+                {% else %}
+                  <span class="fm-days-tag fm-days-90">+{{ d.giorni }}gg</span>
+                {% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if d.stato_scadenza == "SCADUTO" %}
+                <span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif d.stato_scadenza == "IN_SCADENZA_30" %}
+                <span class="fm-pill fm-pill-expiring">In scadenza ≤30gg</span>
+              {% elif d.stato_scadenza == "IN_SCADENZA_90" %}
+                <span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+              {% elif d.stato_scadenza == "MAI_FREQUENTATO" %}
+                <span class="fm-pill fm-pill-missing">Mai frequentato</span>
+              {% else %}
+                <span class="fm-pill fm-pill-valid">{{ d.get_stato_scadenza_display }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:10px 16px;border-top:1px solid #f1f5f9;">
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-outline hr-btn-sm">
+        Vedi scadenzario completo →
+      </a>
+    </div>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:#94a3b8;font-size:14px;">
+      {% if deadline_cache_empty %}
+        Nessun dato disponibile — lo scadenzario non è ancora stato calcolato.
+      {% else %}
+        Nessuna scadenza urgente. ✅
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Note operative ──────────────────────────────────────────────────── #}
+  <div style="margin-top:14px;font-size:12px;color:#94a3b8;text-align:right;">
+    I dati di scadenza si aggiornano tramite
+    <code style="font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px;color:#475569;">
+      python manage.py refresh_training_deadlines --all
+    </code>
+    (disponibile da PATCH-06).
+  </div>
+
+</div>
+{% endblock %}

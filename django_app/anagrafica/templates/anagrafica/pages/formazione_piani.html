@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Piani Formativi | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Formazione HR</div>
+      <h2 class="hr-pagehead-title">📋 Piani Formativi</h2>
+      <p class="hr-pagehead-desc">Catalogo piani di formazione aziendale.</p>
+    </div>
+    {% if is_editor %}
+    <div>
+      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-piano').style.display='flex'">
+        + Nuovo piano
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Filtri ──────────────────────────────────────────────────────────────── #}
+  <form method="get" class="hr-filter-bar" style="margin-bottom:16px;">
+    <select name="stato" class="hr-filter-select">
+      <option value="">Tutti gli stati</option>
+      {% for code, label in STATO_CHOICES %}
+        <option value="{{ code }}" {% if filtro_stato == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="categoria" class="hr-filter-select">
+      <option value="">Tutte le categorie</option>
+      {% for code, label in CATEGORIA_CHOICES %}
+        <option value="{{ code }}" {% if filtro_cat == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="hr-btn hr-btn-sm">Filtra</button>
+    <a href="{% url 'anagrafica:formazione_piani_list' %}" class="hr-btn hr-btn-sm hr-btn-ghost">Reset</a>
+  </form>
+
+  {# ── Tabella piani ───────────────────────────────────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📋 Piani <span class="fm-count">{{ piani|length }}</span></div>
+    </div>
+    {% if piani %}
+    <div class="fm-table-wrap">
+      <table class="fm-table" data-table-id="formazione.piani.list">
+        <thead>
+          <tr>
+            <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Codice</th>
+            <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome</th>
+            <th data-col="categoria" data-col-label="Categoria" data-col-type="select"
+                data-col-options='[["OBBLIGATORIA","Obbligatoria"],["CONSIGLIATA","Consigliata"],["FACOLTATIVA","Facoltativa"]]'
+                data-col-sortable="1" data-col-filterable="1">Categoria</th>
+            <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                data-col-options='[["ATTIVO","Attivo"],["BOZZA","Bozza"],["ARCHIVIATO","Archiviato"]]'
+                data-col-sortable="1" data-col-filterable="1">Stato</th>
+            <th class="num" data-col="n_corsi" data-col-label="Corsi" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Corsi</th>
+            <th data-col="provider" data-col-label="Provider esterno" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Provider</th>
+            <th class="nowrap">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in piani %}
+          <tr>
+            <td class="mono">{{ p.codice }}</td>
+            <td>
+              <a class="fm-link" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">{{ p.nome }}</a>
+              {% if not p.is_active %}<span class="muted" style="font-size:10px;margin-left:4px;">(inattivo)</span>{% endif %}
+            </td>
+            <td class="muted">{{ p.get_categoria_display }}</td>
+            <td><span class="fm-pill fm-pill-{{ p.stato|lower }}">{{ p.get_stato_display }}</span></td>
+            <td class="num">{{ p.n_corsi }}</td>
+            <td>{% if p.provider_esterno %}<span class="fm-pill fm-pill-enrolled">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="nowrap">
+              <a href="{% url 'anagrafica:formazione_piano_detail' p.pk %}" class="hr-btn hr-btn-sm">Apri</a>
+              {% if is_editor %}
+              <form method="post" action="{% url 'anagrafica:formazione_piano_delete' p.pk %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('Eliminare il piano «{{ p.nome|escapejs }}»?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty" style="text-align:center;padding:32px;">
+      Nessun piano trovato.
+      {% if is_editor %}<br><a href="#" onclick="document.getElementById('modal-crea-piano').style.display='flex'">Crea il primo piano</a>.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Modal crea piano ────────────────────────────────────────────────────── #}
+{% if is_editor %}
+<div id="modal-crea-piano" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <strong style="font-size:16px;">Nuovo piano formativo</strong>
+      <button onclick="document.getElementById('modal-crea-piano').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <form method="post" action="{% url 'anagrafica:formazione_piano_create' %}">
+      {% csrf_token %}
+      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-crea-piano').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Crea piano</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

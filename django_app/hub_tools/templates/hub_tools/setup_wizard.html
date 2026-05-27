@@ -476,16 +476,15 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
     <div class="sw-section-body open">
 
       <div class="sw-alert sw-alert-info" style="margin-bottom:16px">
-        ℹ️ La navigazione è gestita dalla tabella <strong>Pulsante</strong> (legacy).
-        Per ogni ruolo puoi stabilire quali pulsanti sono visibili dalla pagina <strong>Accessi</strong>.
-        Il <em>Navigation Registry</em> è un sistema avanzato opzionale — di default è disabilitato.
+        La navigazione principale usa il <strong>Navigation Registry</strong>.
+        Il fallback legacy <strong>Pulsante</strong> resta solo come compatibilita quando il registry viene disattivato.
       </div>
 
       <!-- Toggle registry -->
       <div class="sw-tog" style="margin-bottom:18px">
         <input type="checkbox" id="f_nav_registry" {% if env.NAVIGATION_REGISTRY_ENABLED == '1' %}checked{% endif %}>
-        <label for="f_nav_registry">Abilita Navigation Registry (avanzato)</label>
-        <span class="hint">Lascia disabilitato per usare il sistema Pulsante standard</span>
+        <label for="f_nav_registry">Abilita Navigation Registry</label>
+        <span class="hint">Se lo disabiliti, il portale torna al fallback legacy Pulsante</span>
       </div>
 
       <hr class="sw-sep">

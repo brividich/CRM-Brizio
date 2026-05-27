@@ -163,13 +163,14 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
     <div id="card-scad-body">
       {% if scad_o_in_scad %}
       <div style="overflow-x:auto;">
-        <table class="hr-table" data-sortable>
+        <table class="hr-table" data-table-id="anagrafica.visite_mediche.dashboard_top">
           <thead>
             <tr>
-              <th>Dipendente</th><th>Tipo</th>
-              <th data-sort-type="date">Ultima visita</th>
-              <th data-sort-type="date">Scadenza</th>
-              <th>Stato</th>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
+              <th data-col="ultima" data-col-label="Ultima visita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultima visita</th>
+              <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+              <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
             </tr>
           </thead>
           <tbody>
@@ -340,12 +341,15 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
     <div id="card-ultime-body">
       {% if ultime_visite %}
       <div style="overflow-x:auto;">
-        <table class="hr-table" data-sortable>
+        <table class="hr-table" data-table-id="anagrafica.visite_mediche.storico">
           <thead>
             <tr>
-              <th data-sort-type="date">Data</th><th>Dipendente</th><th>Tipo</th>
-              <th>Esito</th><th data-sort-type="date">Scadenza</th>
-              <th data-no-sort data-no-filter>Referto</th>
+              <th data-col="data" data-col-label="Data" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data</th>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
+              <th data-col="esito" data-col-label="Esito" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Esito</th>
+              <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+              <th>Referto</th>
             </tr>
           </thead>
           <tbody>

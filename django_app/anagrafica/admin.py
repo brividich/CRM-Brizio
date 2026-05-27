@@ -11,11 +11,39 @@ from .models import (
     FornitoreValutazione,
     ImportazioneRetributiva,
     LivelloContrattuale,
+    OffboardingPratica,
+    OffboardingTask,
+    OnboardingOffboardingCampo,
     StoricoContratto,
     TipologiaContratto,
     TipoVisitaMedica,
     VisitaMedica,
     VoceRetributiva,
+)
+from .models_rischi import (
+    CategoriaCorso,
+    EsposizioneRischio,
+    FattoreRischio,
+)
+from .models_formazione import (
+    AnagraficaFormazionePermission,
+    TrainingAssignment,
+    TrainingCertificate,
+    TrainingCompletionRule,
+    TrainingCourse,
+    TrainingCourseDependency,
+    TrainingCourseModule,
+    TrainingCourseVersion,
+    TrainingDeadline,
+    TrainingEmployeeRecord,
+    TrainingEnrollment,
+    TrainingExportLog,
+    TrainingInstructor,
+    TrainingLesson,
+    TrainingLessonAttendance,
+    TrainingPlan,
+    TrainingRequirementRule,
+    TrainingSession,
 )
 
 
@@ -115,6 +143,35 @@ class DipendenteCambiamentoOrganizzativoAdmin(admin.ModelAdmin):
         return request.user.is_superuser
 
 
+class OffboardingTaskInline(admin.TabularInline):
+    model = OffboardingTask
+    extra = 0
+    readonly_fields = ("created_at", "updated_at", "completed_at", "completed_by")
+    fields = ("categoria", "titolo", "stato", "note", "completed_at", "completed_by")
+
+
+@admin.register(OffboardingPratica)
+class OffboardingPraticaAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "dipendente_nome", "motivo",
+        "data_cessazione_prevista", "stato", "created_at", "closed_at",
+    )
+    list_filter = ("stato", "motivo", "data_cessazione_prevista")
+    search_fields = ("legacy_anagrafica_id", "dipendente_nome", "reparto", "mansione", "note_hr")
+    readonly_fields = ("created_at", "updated_at", "closed_at", "created_by", "updated_by", "closed_by")
+    date_hierarchy = "created_at"
+    inlines = [OffboardingTaskInline]
+
+
+@admin.register(OnboardingOffboardingCampo)
+class OnboardingOffboardingCampoAdmin(admin.ModelAdmin):
+    list_display = ("fase", "campo_label", "campo_key", "sezione", "categoria", "obbligatorio", "is_active", "ordine")
+    list_filter = ("fase", "categoria", "obbligatorio", "is_active")
+    search_fields = ("campo_label", "campo_key", "sezione", "note")
+    list_editable = ("categoria", "obbligatorio", "is_active", "ordine")
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(StoricoContratto)
 class StoricoContrattoAdmin(admin.ModelAdmin):
     list_display = ("tax_code", "legacy_anagrafica_id", "data_inizio", "data_fine",
@@ -178,3 +235,245 @@ class AnagraficaVisiteMedichePermissionAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# ---------------------------------------------------------------------------
+# Formazione HR — Admin minimale (PATCH-01)
+# ---------------------------------------------------------------------------
+
+@admin.register(AnagraficaFormazionePermission)
+class AnagraficaFormazionePermissionAdmin(admin.ModelAdmin):
+    list_display = ("accesso_visualizzazione", "accesso_modifica", "accesso_export", "accesso_validazione")
+
+    def has_add_permission(self, request):
+        return not AnagraficaFormazionePermission.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TrainingPlan)
+class TrainingPlanAdmin(admin.ModelAdmin):
+    list_display = ("codice", "nome", "categoria", "stato", "is_active", "created_at")
+    list_filter = ("categoria", "stato", "is_active")
+    search_fields = ("codice", "nome")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+
+
+@admin.register(TrainingCourse)
+class TrainingCourseAdmin(admin.ModelAdmin):
+    list_display = ("codice", "titolo", "piano", "categoria", "durata_ore_teorica", "validita_mesi", "obbligatorio", "stato", "is_active")
+    list_filter = ("stato", "obbligatorio", "is_active", "piano", "categoria")
+    search_fields = ("codice", "titolo")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+    autocomplete_fields = ("categoria",)
+
+
+# ─────────────────────────────────────────────────────────────
+# Safety — Fattori di Rischio / Categorie Corso / Esposizioni
+# ─────────────────────────────────────────────────────────────
+
+@admin.register(FattoreRischio)
+class FattoreRischioAdmin(admin.ModelAdmin):
+    list_display = (
+        "codice", "nome", "categoria",
+        "periodicita_formazione_mesi", "periodicita_sorveglianza_mesi",
+        "richiede_formazione", "richiede_visita_medica", "richiede_dpi", "is_active",
+    )
+    list_filter = ("categoria", "is_active", "richiede_formazione", "richiede_visita_medica", "richiede_dpi")
+    search_fields = ("codice", "nome", "descrizione")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(CategoriaCorso)
+class CategoriaCorsoAdmin(admin.ModelAdmin):
+    list_display = ("codice", "nome", "n_fattori", "n_corsi", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("codice", "nome", "descrizione")
+    filter_horizontal = ("fattori_rischio",)
+    readonly_fields = ("created_at", "updated_at")
+
+    def n_fattori(self, obj):
+        return obj.fattori_rischio.count()
+    n_fattori.short_description = "Fattori"
+
+    def n_corsi(self, obj):
+        return obj.corsi.count()
+    n_corsi.short_description = "Corsi"
+
+
+@admin.register(EsposizioneRischio)
+class EsposizioneRischioAdmin(admin.ModelAdmin):
+    list_display = ("fattore", "mansione", "area", "is_active", "created_at")
+    list_filter = ("is_active", "fattore__categoria")
+    search_fields = ("fattore__codice", "fattore__nome", "mansione__nome", "area__nome")
+    autocomplete_fields = ("fattore",)
+    raw_id_fields = ("mansione", "area")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(TrainingCourseVersion)
+class TrainingCourseVersionAdmin(admin.ModelAdmin):
+    list_display = ("corso", "version_label", "titolo_snapshot", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("corso__codice", "version_label", "titolo_snapshot")
+    readonly_fields = ("created_at", "revised_by")
+
+
+@admin.register(TrainingCompletionRule)
+class TrainingCompletionRuleAdmin(admin.ModelAdmin):
+    list_display = (
+        "corso", "ore_minime_percentuale", "presenza_minima_percentuale",
+        "richiede_esame_finale", "richiede_firma_presenza", "richiede_attestato",
+        "richiede_validazione_hr", "is_active",
+    )
+    list_filter = ("richiede_esame_finale", "richiede_attestato", "richiede_validazione_hr", "is_active")
+    search_fields = ("corso__codice", "corso__titolo")
+    readonly_fields = ("corso",)
+
+
+@admin.register(TrainingCourseDependency)
+class TrainingCourseDependencyAdmin(admin.ModelAdmin):
+    list_display = ("corso_principale", "prerequisito", "obbligatorio")
+    list_filter = ("obbligatorio",)
+    search_fields = ("corso_principale__codice", "prerequisito__codice")
+
+
+@admin.register(TrainingCourseModule)
+class TrainingCourseModuleAdmin(admin.ModelAdmin):
+    list_display = ("corso_padre", "corso_modulo", "ordine", "obbligatorio")
+    list_filter = ("obbligatorio",)
+    search_fields = ("corso_padre__codice", "corso_modulo__codice")
+
+
+@admin.register(TrainingRequirementRule)
+class TrainingRequirementRuleAdmin(admin.ModelAdmin):
+    list_display = (
+        "corso", "piano", "mansione", "area", "ruolo_operativo",
+        "legacy_anagrafica_id", "is_mandatory", "is_active", "created_at",
+    )
+    list_filter = ("is_mandatory", "is_active", "mansione", "area")
+    search_fields = ("corso__codice", "piano__codice", "legacy_anagrafica_id")
+    readonly_fields = ("created_at", "created_by")
+
+
+@admin.register(TrainingInstructor)
+class TrainingInstructorAdmin(admin.ModelAdmin):
+    list_display = ("nome", "tipo", "ragione_sociale", "email", "telefono", "is_active")
+    list_filter = ("tipo", "is_active")
+    search_fields = ("nome", "ragione_sociale", "email")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(TrainingAssignment)
+class TrainingAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("legacy_anagrafica_id", "corso", "stato", "data_assegnazione", "due_date")
+    list_filter = ("stato",)
+    search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
+    readonly_fields = ("data_assegnazione", "created_at", "assigned_by")
+
+
+@admin.register(TrainingSession)
+class TrainingSessionAdmin(admin.ModelAdmin):
+    list_display = ("codice_sessione", "corso", "stato", "modalita", "data_inizio", "data_fine", "docente")
+    list_filter = ("stato", "modalita")
+    search_fields = ("codice_sessione", "corso__codice", "corso__titolo")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+    date_hierarchy = "data_inizio"
+
+
+@admin.register(TrainingLesson)
+class TrainingLessonAdmin(admin.ModelAdmin):
+    list_display = ("sessione", "numero", "data", "ora_inizio", "ora_fine", "argomento", "docente")
+    list_filter = ("sessione__stato",)
+    search_fields = ("sessione__codice_sessione", "argomento")
+    readonly_fields = ("created_at", "updated_by")
+    date_hierarchy = "data"
+
+
+@admin.register(TrainingEnrollment)
+class TrainingEnrollmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "sessione", "stato",
+        "ore_frequentate", "percentuale_presenza", "idoneo", "data_completamento",
+    )
+    list_filter = ("stato", "idoneo")
+    search_fields = ("legacy_anagrafica_id", "sessione__codice_sessione")
+    readonly_fields = ("created_at", "updated_at", "iscritto_da")
+    date_hierarchy = "data_completamento"
+
+
+@admin.register(TrainingLessonAttendance)
+class TrainingLessonAttendanceAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "lezione", "stato_presenza",
+        "ore_effettive", "firma_ingresso", "firma_uscita", "signature_status",
+    )
+    list_filter = ("stato_presenza", "signature_status", "firma_ingresso", "firma_uscita")
+    search_fields = ("legacy_anagrafica_id", "lezione__sessione__codice_sessione")
+    readonly_fields = ("created_at", "updated_at", "registrato_da", "signed_at")
+
+
+_SNAPSHOT_FIELDS_EMPLOYEE_RECORD = (
+    "course_code_snapshot", "course_title_snapshot", "course_version_snapshot",
+    "plan_code_snapshot", "plan_name_snapshot", "duration_hours_snapshot",
+    "validity_months_snapshot", "completion_rule_snapshot_json",
+    "session_code_snapshot", "teacher_name_snapshot", "completion_calculation_snapshot_json",
+)
+
+
+@admin.register(TrainingEmployeeRecord)
+class TrainingEmployeeRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "corso", "data_completamento",
+        "ore_frequentate", "percentuale_presenza", "idoneo", "data_scadenza",
+    )
+    list_filter = ("idoneo",)
+    search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
+    readonly_fields = ("created_at", "validato_da") + _SNAPSHOT_FIELDS_EMPLOYEE_RECORD
+    date_hierarchy = "data_completamento"
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+
+@admin.register(TrainingCertificate)
+class TrainingCertificateAdmin(admin.ModelAdmin):
+    list_display = ("legacy_anagrafica_id", "record", "numero_attestato", "data_rilascio", "rilasciato_da")
+    search_fields = ("legacy_anagrafica_id", "numero_attestato")
+    readonly_fields = ("created_at", "created_by")
+    date_hierarchy = "data_rilascio"
+
+
+@admin.register(TrainingDeadline)
+class TrainingDeadlineAdmin(admin.ModelAdmin):
+    list_display = (
+        "legacy_anagrafica_id", "corso", "stato_scadenza",
+        "data_scadenza", "giorni_alla_scadenza", "is_required", "needs_refresh", "ricalcolato_il",
+    )
+    list_filter = ("stato_scadenza", "is_required", "needs_refresh")
+    search_fields = ("legacy_anagrafica_id", "corso__codice")
+    readonly_fields = ("ricalcolato_il",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TrainingExportLog)
+class TrainingExportLogAdmin(admin.ModelAdmin):
+    list_display = ("tipo", "righe_esportate", "generato_da", "generato_il", "ip_address")
+    list_filter = ("tipo",)
+    readonly_fields = ("tipo", "filtri_json", "righe_esportate", "generato_da", "generato_il", "ip_address")
+    date_hierarchy = "generato_il"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
