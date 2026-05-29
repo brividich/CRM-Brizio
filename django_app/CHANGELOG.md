@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fix
+
+- **[fix] `assenze/views.py`** — URL notifica accettazione/rifiuto assenza corretta da `/assenze/gestione/` (inesistente) a `/assenze/impostazioni/`.
+
 ### Autenticazione a due fattori (2FA)
 
 - **[feat] `twofa/` (nuova app)** — modulo 2FA completo con supporto TOTP (app authenticator) ed Email OTP.

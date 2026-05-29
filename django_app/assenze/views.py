@@ -3597,7 +3597,7 @@ def api_car_aggiorna_consenso(request, item_id: int):
                 legacy_user_id=richiedente_id,
                 tipo=tipo,
                 messaggio=msg,
-                url_azione="/assenze/gestione/",
+                url_azione="/assenze/impostazioni/",
             )
     except Exception:
         pass
