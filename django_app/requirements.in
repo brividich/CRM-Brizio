@@ -43,4 +43,4 @@ django-htmx>=1.17               # middleware + script bundled per htmx SSR
 
 # --- Dev server (django-extensions runserver_plus) ---
 django-extensions>=4.1
-Werkzeug>=3.0,<4                # richiesto da runserver_plus; versione controllata esplicitamente
+Werkzeug>=3.1.8,<4                # richiesto da runserver_plus; versione controllata esplicitamente
