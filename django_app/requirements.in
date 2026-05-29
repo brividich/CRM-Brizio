@@ -24,7 +24,7 @@ openpyxl>=3.1.5                 # lettura/scrittura Excel (VRF MOD.073)
 reportlab>=4.0                  # generazione PDF
 
 # --- Task queue ---
-django-q2>=1.7,<2               # code automazioni e task asincroni
+django-q2>=1.10.0,<2               # code automazioni e task asincroni
 
 # --- Utilità runtime ---
 cachetools>=5.3                 # TTLCache per _SPNEGO_CONTEXTS
