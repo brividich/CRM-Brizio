@@ -100,6 +100,27 @@ def _users_for_role(role_type: str):
         return assigned.order_by("first_name", "last_name", "username")
     return User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
+
+def _users_for_capo_commessa():
+    """Utenti caporeparto da anagrafica, con fallback ai role assignments kickoff."""
+    try:
+        from anagrafica.models import Reparto
+        ids = set(
+            Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+            .exclude(caporeparto_legacy_id=0)
+            .values_list("caporeparto_legacy_id", flat=True)
+        )
+        if ids:
+            qs = User.objects.filter(
+                profile__legacy_user_id__in=ids,
+                is_active=True,
+            ).distinct().order_by("first_name", "last_name", "username")
+            if qs.exists():
+                return qs
+    except Exception:
+        pass
+    return _users_for_role(TaskRoleType.CAPO_COMMESSA)
+
 User = get_user_model()
 
 
@@ -179,7 +200,7 @@ class ProjectKickoffForm(forms.ModelForm):
         self.reused_existing_project: Project | None = None
         self.project_queryset = project_queryset if project_queryset is not None else Project.objects.all()
         self.fields["project_manager"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
-        self.fields["capo_commessa"].queryset   = _users_for_role(TaskRoleType.CAPO_COMMESSA)
+        self.fields["capo_commessa"].queryset   = _users_for_capo_commessa()
         self.fields["programmer"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
         for name in ("part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
@@ -470,7 +491,7 @@ class TaskForm(forms.ModelForm):
         self.fields["project_choice"].queryset = project_qs
         self.fields["category"].queryset = TaskCategory.objects.filter(is_active=True).order_by("order_index", "name")
         self.fields["project_new_manager"].queryset       = _users_for_role(TaskRoleType.PROJECT_MANAGER)
-        self.fields["project_new_capo_commessa"].queryset = _users_for_role(TaskRoleType.CAPO_COMMESSA)
+        self.fields["project_new_capo_commessa"].queryset = _users_for_capo_commessa()
         self.fields["project_new_programmer"].queryset    = _users_for_role(TaskRoleType.PROGRAMMER)
         self.fields["project_similar_choice"].queryset = project_qs
         self.fields["tooling_existing_attrezzatura"].queryset = Attrezzatura.objects.order_by("codice", "part_number", "id")

@@ -569,7 +569,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             </td>
             <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
             <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
-            <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
+            <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome }}</a>{% else %}{{ t.richiedente_nome }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
             <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
             <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
@@ -630,7 +630,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             </td>
             <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
             <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
-            <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
+            <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome }}</a>{% else %}{{ t.richiedente_nome }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
             <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
             <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>

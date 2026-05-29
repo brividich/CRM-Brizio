@@ -1,0 +1,88 @@
+{% extends "core/base.html" %}
+
+{% block title %}Configura Autenticatore | 2FA{% endblock %}
+{% block body_class %}login-page{% endblock %}
+{% block layout_sidebar %}{% endblock %}
+{% block layout_header %}{% endblock %}
+{% block subnav %}{% endblock %}
+{% block extra_js %}{% endblock %}
+
+{% block extra_head %}
+<style>
+body.login-page {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%);
+  min-height: 100vh;
+}
+.main-wrap { min-height: 100vh; width: 100%; }
+.content { position:relative; width:100vw; max-width:none; margin:0; min-height:100vh; padding:0; overflow:hidden; }
+.twofa-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+.twofa-box {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  padding: 40px 36px 32px;
+  width: 100%;
+  max-width: 480px;
+}
+.twofa-icon { font-size: 2.4rem; text-align: center; margin-bottom: 8px; }
+.twofa-title { font-size: 1.3rem; font-weight: 700; text-align: center; color: var(--text); margin-bottom: 4px; }
+.twofa-sub { font-size: .9rem; color: var(--text-muted); text-align: center; margin-bottom: 20px; }
+.twofa-steps { list-style: none; padding: 0; margin: 0 0 20px; counter-reset: step; }
+.twofa-steps li { counter-increment: step; display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; font-size: .9rem; color: var(--text); }
+.twofa-steps li::before { content: counter(step); background: var(--primary); color: #fff; font-weight: 700; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .8rem; margin-top: 1px; }
+.qr-wrap { text-align: center; margin: 16px 0; }
+.qr-wrap svg { max-width: 180px; height: auto; }
+.secret-code { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; padding: 10px 14px; font-family: monospace; font-size: 1rem; letter-spacing: .1em; text-align: center; word-break: break-all; margin: 0 0 16px; color: var(--text); }
+.twofa-field { margin-bottom: 16px; }
+.twofa-field label { display:block; font-size:.85rem; font-weight:600; color:var(--text); margin-bottom:6px; }
+.twofa-field .input { width:100%; box-sizing:border-box; text-align:center; font-size:1.5rem; letter-spacing:.2em; }
+.twofa-btn { width:100%; padding:11px; border:none; border-radius:7px; font-size:1rem; font-weight:600; cursor:pointer; background:var(--primary); color:#fff; }
+.twofa-btn:hover { background:var(--primary-mid); }
+.twofa-error { background:#fff0f0; border:1px solid #fca5a5; color:#b91c1c; border-radius:7px; padding:10px 14px; font-size:.88rem; margin-bottom:14px; }
+.toggle-secret { font-size:.8rem; color:var(--primary); cursor:pointer; text-decoration:underline; display:block; text-align:center; margin-bottom:8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="twofa-wrap">
+  <div class="twofa-box">
+    <div class="twofa-icon">📱</div>
+    <div class="twofa-title">Configura l'Autenticatore</div>
+    <div class="twofa-sub">Scansiona il QR code con un'app Authenticator per abilitare il 2FA sul tuo account.</div>
+
+    {% if error %}
+      <div class="twofa-error">{{ error }}</div>
+    {% endif %}
+
+    <ol class="twofa-steps">
+      <li>Installa un'app come <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> sul tuo smartphone.</li>
+      <li>Scansiona il QR code qui sotto oppure inserisci manualmente il codice segreto.</li>
+      <li>Inserisci il codice a 6 cifre mostrato dall'app per confermare la configurazione.</li>
+    </ol>
+
+    <div class="qr-wrap">{{ qr_svg|safe }}</div>
+
+    <span class="toggle-secret" onclick="document.getElementById('secret-block').style.display=document.getElementById('secret-block').style.display==='none'?'block':'none'">
+      Mostra codice manuale
+    </span>
+    <div id="secret-block" style="display:none;">
+      <div class="secret-code">{{ secret_plain }}</div>
+    </div>
+
+    <form method="post" autocomplete="off">
+      {% csrf_token %}
+      <div class="twofa-field">
+        {{ form.code.label_tag }}
+        {{ form.code }}
+      </div>
+      <button type="submit" class="twofa-btn">Conferma e attiva →</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

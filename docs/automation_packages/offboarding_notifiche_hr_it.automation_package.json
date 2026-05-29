@@ -1,0 +1,105 @@
+{
+  "flow_name": "Offboarding - notifiche HR e IT",
+  "package_version": "1.0",
+  "source_candidate": {
+    "source_code": "anagrafica_offboarding"
+  },
+  "approved_field_mapping": {
+    "id": "id",
+    "legacy_anagrafica_id": "legacy_anagrafica_id",
+    "dipendente_nome": "dipendente_nome",
+    "reparto": "reparto",
+    "mansione": "mansione",
+    "motivo": "motivo",
+    "data_cessazione_prevista": "data_cessazione_prevista",
+    "ultimo_giorno_operativo": "ultimo_giorno_operativo",
+    "stato": "stato",
+    "note_hr": "note_hr",
+    "closed_at": "closed_at"
+  },
+  "compatibility": true,
+  "issues": [],
+  "proposed_rules": [
+    {
+      "code": "offboarding-apertura-notifica-hr-it",
+      "name": "Apertura pratica offboarding - notifica HR e IT",
+      "description": "Avvisa HR e IT quando viene aperta una nuova pratica di offboarding.",
+      "source_code": "anagrafica_offboarding",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email HR e IT",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "hr@costruzioninovicrom.it,it@costruzioninovicrom.it",
+            "subject_template": "Offboarding aperto - {dipendente_nome}",
+            "body_text_template": "E stata aperta una pratica di offboarding.\n\nDipendente: {dipendente_nome}\nReparto: {reparto}\nMansione: {mansione}\nMotivo: {motivo}\nData cessazione prevista: {data_cessazione_prevista}\nUltimo giorno operativo: {ultimo_giorno_operativo}\n\nVerificare task HR, IT, badge, accessi e restituzioni."
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log apertura pratica",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Offboarding aperto per {dipendente_nome} ({legacy_anagrafica_id}) - motivo {motivo}."
+          }
+        }
+      ]
+    },
+    {
+      "code": "offboarding-chiusura-notifica-hr-it",
+      "name": "Chiusura pratica offboarding - notifica HR e IT",
+      "description": "Avvisa HR e IT quando una pratica di offboarding viene chiusa.",
+      "source_code": "anagrafica_offboarding",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "stato",
+          "operator": "changed_to",
+          "expected_value": "CHIUSA",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email chiusura HR e IT",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "hr@costruzioninovicrom.it,it@costruzioninovicrom.it",
+            "subject_template": "Offboarding chiuso - {dipendente_nome}",
+            "body_text_template": "La pratica di offboarding e stata chiusa.\n\nDipendente: {dipendente_nome}\nReparto: {reparto}\nData cessazione prevista: {data_cessazione_prevista}\nChiuso il: {closed_at}\nNote HR: {note_hr}"
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log chiusura pratica",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Offboarding chiuso per {dipendente_nome} ({legacy_anagrafica_id})."
+          }
+        }
+      ]
+    }
+  ]
+}

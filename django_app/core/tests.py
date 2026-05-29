@@ -2119,6 +2119,69 @@ class CoreBacklogCFeatureTests(TestCase):
         self.assertContains(response, "Centro notifiche")
         self.assertContains(response, "SLA ticket scaduto")
 
+    def test_live_notifications_api_returns_badge_count_and_popup_payload(self):
+        Notifica.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            tipo="ticket_sla",
+            messaggio="Popup live",
+            url_azione="/tickets/",
+        )
+        Notifica.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            tipo="dpi_scadenza",
+            messaggio="Gia mostrata",
+            popup_shown=True,
+        )
+        Notifica.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            tipo="generico",
+            messaggio="Gia letta",
+            letta=True,
+        )
+        other = UtenteLegacy.objects.create(nome="Other", email="other@example.com", password="x", attivo=True)
+        Notifica.objects.create(legacy_user_id=other.id, tipo="generico", messaggio="Non mia")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("api_notifiche_live"), HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["unread_count"], 2)
+        self.assertEqual(len(data["popup_notifications"]), 1)
+        self.assertEqual(data["popup_notifications"][0]["messaggio"], "Popup live")
+        self.assertEqual(data["popup_notifications"][0]["url_azione"], "/tickets/")
+
+    def test_popup_ack_marks_only_current_user_notifications(self):
+        own = Notifica.objects.create(legacy_user_id=self.legacy_user.id, tipo="generico", messaggio="Mia")
+        other_user = UtenteLegacy.objects.create(nome="Other", email="other2@example.com", password="x", attivo=True)
+        other = Notifica.objects.create(legacy_user_id=other_user.id, tipo="generico", messaggio="Altra")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("api_notifiche_popup_ack"),
+            data=json.dumps({"ids": [own.id, other.id]}),
+            content_type="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        own.refresh_from_db()
+        other.refresh_from_db()
+        self.assertTrue(own.popup_shown)
+        self.assertFalse(other.popup_shown)
+
+    def test_base_template_loads_live_notification_client(self):
+        Notifica.objects.create(legacy_user_id=self.legacy_user.id, tipo="generico", messaggio="Badge live")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("profilo"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("api_notifiche_live"))
+        self.assertContains(response, "data-notification-badge-host")
+        self.assertContains(response, "data-notification-badge")
+
     def test_mark_all_notifications_read(self):
         Notifica.objects.create(legacy_user_id=self.legacy_user.id, tipo="dpi_scadenza", messaggio="DPI in scadenza")
         self.client.force_login(self.user)

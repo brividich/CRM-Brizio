@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
-from core.legacy_utils import is_legacy_admin
+from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import (
@@ -56,7 +56,7 @@ DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
 
 def _is_gestore(request) -> bool:
     from core.legacy_models import UtenteLegacy
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     return request.user.is_superuser or is_legacy_admin(legacy_user)
 
 

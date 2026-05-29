@@ -2064,6 +2064,368 @@ def execute_safe_update(
             }
 
 
+_ASSENZE_SPLIT_DEFAULT_COPY_COLUMNS = (
+    "dipendente_id",
+    "nome_lookup_id",
+    "copia_nome",
+    "email_esterna",
+    "capo_reparto_id",
+    "capo_reparto_lookup_id",
+    "motivazione_richiesta",
+    "motivazione",
+    "certificato_medico",
+    "note_gestione",
+)
+_ASSENZE_SPLIT_DEFAULT_DAY_COUNT_FIELDS = (
+    "giorni_permesso",
+    "giornipermesso",
+    "Giornipermesso",
+    "giorni",
+)
+_ASSENZE_SPLIT_DEFAULT_DEDUPE_FIELDS = (
+    "dipendente_id",
+    "copia_nome",
+    "email_esterna",
+    "tipo_assenza",
+    "data_inizio",
+    "data_fine",
+    "motivazione_richiesta",
+)
+
+
+def _local_naive_now() -> datetime:
+    now = timezone.now()
+    if timezone.is_aware(now):
+        return timezone.localtime(now).replace(tzinfo=None)
+    return now
+
+
+def _as_local_naive_datetime(value: Any, *, field_label: str) -> datetime:
+    parsed = _parse_datetime(value)
+    if parsed is None or parsed is _UNCASTABLE:
+        raise ValueError(f"split_assenza_giornaliera: `{field_label}` non contiene una data/ora valida.")
+    if timezone.is_aware(parsed):
+        parsed = timezone.localtime(parsed).replace(tzinfo=None)
+    return parsed.replace(tzinfo=None)
+
+
+def _render_split_value(raw_value: Any, payload_context: dict[str, Any]) -> Any:
+    rendered = _render_action_value(raw_value, payload_context)
+    if isinstance(rendered, str):
+        return rendered.strip()
+    return rendered
+
+
+def _split_config_int(config: dict[str, Any], key: str, default: int, *, minimum: int, maximum: int) -> int:
+    raw_value = config.get(key, default)
+    try:
+        value = int(Decimal(str(raw_value).replace(",", ".").strip()))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"split_assenza_giornaliera: `{key}` deve essere un intero.") from exc
+    if value < minimum or value > maximum:
+        raise ValueError(f"split_assenza_giornaliera: `{key}` deve essere tra {minimum} e {maximum}.")
+    return value
+
+
+def _split_config_bool(
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+    keys: tuple[str, ...],
+    default: bool,
+) -> bool:
+    raw_value = default
+    for key in keys:
+        if key in config:
+            raw_value = config.get(key)
+            break
+    normalized = _normalize_runtime_bool(_render_split_value(raw_value, payload_context))
+    return default if normalized is None else normalized
+
+
+def _split_config_list(config: dict[str, Any], key: str, default: tuple[str, ...]) -> list[str]:
+    raw_value = config.get(key)
+    if raw_value is None and key == "days_count_fields":
+        raw_value = config.get("days_count_field")
+    if raw_value is None:
+        return list(default)
+    if isinstance(raw_value, str):
+        return [chunk.strip() for chunk in raw_value.split(",") if chunk.strip()]
+    if isinstance(raw_value, (list, tuple, set)):
+        return [str(item).strip() for item in raw_value if str(item).strip()]
+    return list(default)
+
+
+def _payload_first_value(payload_context: dict[str, Any], *field_names: str) -> Any:
+    for field_name in field_names:
+        value = safe_get_payload_value(payload_context, field_name)
+        if value is not None:
+            return value
+    return None
+
+
+def _resolve_split_day_count(config: dict[str, Any], payload_context: dict[str, Any]) -> int | None:
+    for field_name in _split_config_list(
+        config,
+        "days_count_fields",
+        _ASSENZE_SPLIT_DEFAULT_DAY_COUNT_FIELDS,
+    ):
+        value = safe_get_payload_value(payload_context, field_name)
+        if value is None or value == "":
+            continue
+        try:
+            parsed = Decimal(str(value).replace(",", ".").strip())
+        except (InvalidOperation, TypeError, ValueError):
+            continue
+        if parsed > 1:
+            return int(parsed)
+    return None
+
+
+def _split_assenza_offsets(
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+) -> tuple[datetime, datetime, list[int], str]:
+    start_field = str(config.get("start_field") or "data_inizio").strip() or "data_inizio"
+    end_field = str(config.get("end_field") or "data_fine").strip() or "data_fine"
+    start_dt = _as_local_naive_datetime(
+        safe_get_payload_value(payload_context, start_field),
+        field_label=start_field,
+    )
+    end_dt = _as_local_naive_datetime(
+        safe_get_payload_value(payload_context, end_field),
+        field_label=end_field,
+    )
+    if end_dt < start_dt:
+        raise ValueError("split_assenza_giornaliera: `data_fine` precede `data_inizio`.")
+
+    include_first_day = _split_config_bool(config, payload_context, ("include_first_day",), False)
+    first_offset = 0 if include_first_day else 1
+    days_from_payload = _resolve_split_day_count(config, payload_context)
+    source_label = "date"
+
+    if days_from_payload is not None:
+        last_offset = max(days_from_payload - 1, 0)
+        source_label = "days_count"
+    else:
+        last_offset = (end_dt.date() - start_dt.date()).days
+
+    if last_offset < first_offset:
+        return start_dt, end_dt, [], source_label
+
+    offsets = list(range(first_offset, last_offset + 1))
+    max_days = _split_config_int(config, "max_days", 60, minimum=1, maximum=366)
+    if len(offsets) > max_days:
+        raise ValueError(
+            "split_assenza_giornaliera: lo split genererebbe "
+            f"{len(offsets)} record, oltre il limite max_days={max_days}."
+        )
+    return start_dt, end_dt, offsets, source_label
+
+
+def _table_column_map(table_name: str) -> dict[str, str]:
+    if not table_name or not _SAFE_IDENTIFIER_PATTERN.match(table_name):
+        raise AutomationSafetyError(f"Tabella Assenze non ammessa per split_assenza_giornaliera: {table_name}.")
+
+    quoted_table = connection.ops.quote_name(table_name)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {quoted_table} WHERE 1 = 0")
+            return {
+                str(column[0]).strip().lower(): str(column[0]).strip()
+                for column in (cursor.description or [])
+                if str(column[0]).strip()
+            }
+    except Exception as exc:
+        raise ValueError(f"split_assenza_giornaliera: impossibile leggere la tabella `{table_name}`.") from exc
+
+
+def _resolve_table_column(column_map: dict[str, str], column_name: str) -> str | None:
+    return column_map.get(str(column_name or "").strip().lower())
+
+
+def _set_split_row_value(
+    row: dict[str, Any],
+    column_map: dict[str, str],
+    column_name: str,
+    value: Any,
+    *,
+    allow_empty: bool = False,
+) -> None:
+    actual_column = _resolve_table_column(column_map, column_name)
+    if not actual_column:
+        return
+    if not allow_empty and (value is None or value == ""):
+        return
+    row[actual_column] = value
+
+
+def _build_assenza_split_base_row(
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+    column_map: dict[str, str],
+) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    for column_name in _split_config_list(config, "copy_columns", _ASSENZE_SPLIT_DEFAULT_COPY_COLUMNS):
+        value = safe_get_payload_value(payload_context, column_name)
+        if value is None and column_name == "copia_nome":
+            value = _payload_first_value(payload_context, "dipendente_nome", "richiedente_nome")
+        elif value is None and column_name == "email_esterna":
+            value = _payload_first_value(payload_context, "dipendente_email", "richiedente_email")
+        _set_split_row_value(row, column_map, column_name, value)
+
+    tipo_template = config.get("tipo_assenza_template", config.get("created_type_template", "{tipo_assenza}"))
+    tipo_assenza = _render_split_value(tipo_template, payload_context)
+    _set_split_row_value(row, column_map, "tipo_assenza", tipo_assenza)
+
+    salta_approvazione = _split_config_bool(
+        config,
+        payload_context,
+        ("salta_approvazione", "set_salta_approvazione"),
+        True,
+    )
+    _set_split_row_value(row, column_map, "salta_approvazione", salta_approvazione, allow_empty=True)
+
+    moderation_raw = config.get("moderation_status", config.get("set_moderation_status", 0))
+    moderation_value = _render_split_value(moderation_raw, payload_context)
+    if moderation_value is not None and moderation_value != "":
+        try:
+            moderation_value = int(str(moderation_value).strip())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("split_assenza_giornaliera: `moderation_status` deve essere intero.") from exc
+        _set_split_row_value(row, column_map, "moderation_status", moderation_value, allow_empty=True)
+
+    consenso_template = config.get("consenso_template", config.get("set_consenso", "Approvato"))
+    consenso_value = _render_split_value(consenso_template, payload_context)
+    _set_split_row_value(row, column_map, "consenso", consenso_value)
+
+    now_value = _local_naive_now()
+    _set_split_row_value(row, column_map, "created_datetime", now_value, allow_empty=True)
+    _set_split_row_value(row, column_map, "modified_datetime", now_value, allow_empty=True)
+    if _split_config_bool(config, payload_context, ("set_approval_datetime",), True):
+        _set_split_row_value(row, column_map, "approvazione_datetime", now_value, allow_empty=True)
+    _set_split_row_value(row, column_map, "giornipermesso", 1, allow_empty=True)
+    _set_split_row_value(row, column_map, "giorni_permesso", 1, allow_empty=True)
+    _set_split_row_value(row, column_map, "fattomultipli", False, allow_empty=True)
+    return row
+
+
+def _build_assenza_split_rows(
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+    column_map: dict[str, str],
+) -> tuple[list[dict[str, Any]], str]:
+    start_dt, end_dt, offsets, source_label = _split_assenza_offsets(config, payload_context)
+    data_inizio_col = _resolve_table_column(column_map, "data_inizio")
+    data_fine_col = _resolve_table_column(column_map, "data_fine")
+    if not data_inizio_col or not data_fine_col:
+        raise ValueError("split_assenza_giornaliera: la tabella Assenze richiede `data_inizio` e `data_fine`.")
+
+    base_row = _build_assenza_split_base_row(config, payload_context, column_map)
+    rows: list[dict[str, Any]] = []
+    start_time = start_dt.time().replace(tzinfo=None)
+    end_time = end_dt.time().replace(tzinfo=None)
+
+    for offset in offsets:
+        current_day = start_dt.date() + timedelta(days=offset)
+        row = dict(base_row)
+        row[data_inizio_col] = datetime.combine(current_day, start_time)
+        row[data_fine_col] = datetime.combine(current_day, end_time)
+        rows.append(row)
+    return rows, source_label
+
+
+def _assenza_split_row_exists(
+    table_name: str,
+    row: dict[str, Any],
+    config: dict[str, Any],
+    column_map: dict[str, str],
+) -> bool:
+    if not _split_config_bool(config, row, ("dedupe",), True):
+        return False
+
+    dedupe_columns = _split_config_list(config, "dedupe_fields", _ASSENZE_SPLIT_DEFAULT_DEDUPE_FIELDS)
+    where_parts: list[str] = []
+    params: list[Any] = []
+    for column_name in dedupe_columns:
+        actual_column = _resolve_table_column(column_map, column_name)
+        if not actual_column or actual_column not in row or row[actual_column] is None or row[actual_column] == "":
+            continue
+        where_parts.append(f"{connection.ops.quote_name(actual_column)} = %s")
+        params.append(row[actual_column])
+
+    if not where_parts:
+        return False
+
+    quoted_table = connection.ops.quote_name(table_name)
+    where_sql = " AND ".join(where_parts)
+    if connection.vendor == "sqlite":
+        sql = f"SELECT 1 FROM {quoted_table} WHERE {where_sql} LIMIT 1"
+    else:
+        sql = f"SELECT TOP 1 1 FROM {quoted_table} WHERE {where_sql}"
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchone() is not None
+
+
+def execute_split_assenza_giornaliera(
+    *,
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+    source_code: str,
+) -> dict[str, Any]:
+    configured_source = str(config.get("source_code") or "").strip()
+    effective_source = source_code or configured_source
+    if effective_source != "assenze":
+        raise AutomationSafetyError(
+            "split_assenza_giornaliera puo' essere eseguita solo sulla sorgente `assenze`."
+        )
+
+    source_definition = get_source_definition("assenze") or {}
+    table_name = str(source_definition.get("table_name") or "assenze").strip()
+    column_map = _table_column_map(table_name)
+    rows, day_source = _build_assenza_split_rows(config, payload_context, column_map)
+    if not rows:
+        return {"planned": 0, "inserted": 0, "skipped": 0, "day_source": day_source}
+
+    inserted = 0
+    skipped = 0
+    with transaction.atomic():
+        for row in rows:
+            if _assenza_split_row_exists(table_name, row, config, column_map):
+                skipped += 1
+                continue
+            columns = list(row.keys())
+            quoted_table = connection.ops.quote_name(table_name)
+            quoted_columns = ", ".join(connection.ops.quote_name(column) for column in columns)
+            placeholders = ", ".join(["%s"] * len(columns))
+            params = [row[column] for column in columns]
+            sql = f"INSERT INTO {quoted_table} ({quoted_columns}) VALUES ({placeholders})"
+            with connection.cursor() as cursor:
+                cursor.execute(sql, params)
+            inserted += 1
+
+    return {"planned": len(rows), "inserted": inserted, "skipped": skipped, "day_source": day_source}
+
+
+def preview_split_assenza_giornaliera(
+    *,
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+) -> dict[str, Any]:
+    start_dt, end_dt, offsets, day_source = _split_assenza_offsets(config, payload_context)
+    dates = [
+        (start_dt.date() + timedelta(days=offset)).isoformat()
+        for offset in offsets
+    ]
+    return {
+        "start": start_dt,
+        "end": end_dt,
+        "planned": len(offsets),
+        "dates": dates,
+        "day_source": day_source,
+    }
+
+
 def find_matching_rules(queue_event: dict[str, Any]) -> list[AutomationRule]:
     source_code = str(queue_event.get("source_code") or "").strip()
     operation_type = str(queue_event.get("operation_type") or "").strip().lower()
@@ -2272,6 +2634,25 @@ def _preview_action_for_dry_run(
                 "message": (
                     f"DRY-RUN update_trigger_record: aggiornerebbe {source_code}#{source_pk} "
                     f"set [{_format_dry_run_values(columns)}]."
+                ),
+            }
+
+        if action.action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+            preview_source = source_code or str(config.get("source_code") or "").strip()
+            if preview_source != "assenze":
+                raise AutomationSafetyError(
+                    "split_assenza_giornaliera puo' essere validata solo sulla sorgente `assenze`."
+                )
+            preview = preview_split_assenza_giornaliera(config=config, payload_context=payload_context)
+            return {
+                "status": AutomationActionLogStatus.SUCCESS,
+                "action_id": action.pk,
+                "action_type": action.action_type,
+                "message": (
+                    "DRY-RUN split_assenza_giornaliera: "
+                    f"creerebbe {preview['planned']} record giornalieri "
+                    f"({', '.join(preview['dates']) or 'nessun giorno da creare'}; "
+                    f"sorgente giorni={preview['day_source']})."
                 ),
             }
 
@@ -2751,6 +3132,19 @@ def execute_action(
             body_html = render_template_string(config.get("body_html_template"), payload_context)
             fail_silently = bool(config.get("fail_silently"))
 
+            # Wrappa frammenti HTML nel layout grafico standard.
+            # Se body_html è già un documento completo (<!DOCTYPE / <html), viene usato direttamente.
+            if body_html and not body_html.lstrip().lower().startswith(("<!doctype", "<html")):
+                from django.template.loader import render_to_string
+                from django.utils.safestring import mark_safe
+                body_html = render_to_string("core/email/base_email.html", {
+                    "email_type": (config.get("email_type") or "Automazioni"),
+                    "badge": (config.get("badge") or ""),
+                    "section_label": (config.get("section_label") or ""),
+                    "title": render_template_string(config.get("title_template"), payload_context),
+                    "body_content": mark_safe(body_html),
+                })
+
             message = EmailMultiAlternatives(
                 subject=subject,
                 body=body_text,
@@ -3104,6 +3498,25 @@ def execute_action(
             result_message = (
                 f"Record triggerante {source_code}#{result['source_pk']} aggiornato"
                 f" con colonne [{columns}]. Record aggiornati={result['rowcount']}."
+            )
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+            result = execute_split_assenza_giornaliera(
+                config=config,
+                payload_context=payload_context,
+                source_code=source_code,
+            )
+            result_message = (
+                "Split assenza giornaliera completato: "
+                f"pianificati={result['planned']}, inseriti={result['inserted']}, "
+                f"saltati={result['skipped']} (sorgente giorni={result['day_source']})."
             )
             action_log = _create_action_log(
                 run_log=run_log,

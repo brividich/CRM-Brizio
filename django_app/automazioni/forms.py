@@ -643,6 +643,17 @@ class AutomationActionForm(forms.ModelForm):
         help_text="Un mapping per riga: `campo_sorgente = valore template`. Supportato anche JSON object.",
     )
 
+    split_start_field = forms.CharField(required=False, label="Campo data inizio")
+    split_end_field = forms.CharField(required=False, label="Campo data fine")
+    split_days_count_fields = forms.CharField(required=False, label="Campi numero giorni")
+    split_max_days = forms.IntegerField(required=False, label="Max giorni creati", min_value=1, max_value=366)
+    split_tipo_assenza_template = forms.CharField(required=False, label="Tipo assenza righe create")
+    split_moderation_status = forms.IntegerField(required=False, label="Moderation status righe create")
+    split_consenso_template = forms.CharField(required=False, label="Consenso righe create")
+    split_salta_approvazione = forms.BooleanField(required=False, label="Salta approvazione sulle righe create")
+    split_include_first_day = forms.BooleanField(required=False, label="Crea anche il primo giorno")
+    split_dedupe = forms.BooleanField(required=False, label="Evita duplicati")
+
     delay_mode = forms.ChoiceField(required=False, choices=DELAY_MODE_CHOICES, label="Modalita' delay")
     delay_value_template = forms.CharField(required=False, label="Valore delay")
     delay_unit = forms.ChoiceField(required=False, choices=DELAY_UNIT_CHOICES, label="Unita' delay")
@@ -872,6 +883,15 @@ class AutomationActionForm(forms.ModelForm):
                 self.fields["is_enabled"].initial = True
                 self.fields["delay_mode"].initial = "relative"
                 self.fields["delay_unit"].initial = "days"
+                self.fields["split_start_field"].initial = "data_inizio"
+                self.fields["split_end_field"].initial = "data_fine"
+                self.fields["split_days_count_fields"].initial = "giorni_permesso,giornipermesso,Giornipermesso,giorni"
+                self.fields["split_max_days"].initial = 60
+                self.fields["split_tipo_assenza_template"].initial = "Permesso"
+                self.fields["split_moderation_status"].initial = 0
+                self.fields["split_consenso_template"].initial = "Approvato"
+                self.fields["split_salta_approvazione"].initial = True
+                self.fields["split_dedupe"].initial = True
                 self.fields["http_method"].initial = "POST"
                 self.fields["http_timeout_seconds"].initial = 20
                 self.fields["loop_check_operator"].initial = AutomationConditionOperator.EQUALS
@@ -906,6 +926,8 @@ class AutomationActionForm(forms.ModelForm):
         _mark_smart_target(self.fields.get("update_where_value_template"), mode="template-input", role="update-where-value", source_role="template")
         _mark_smart_target(self.fields.get("update_fields_text"), mode="mapping-input", role="update-fields", source_role="template")
         _mark_smart_target(self.fields.get("trigger_update_fields_text"), mode="mapping-input", role="trigger-update-fields", source_role="template")
+        _mark_smart_target(self.fields.get("split_tipo_assenza_template"), mode="template-input", role="split-tipo-assenza", source_role="template")
+        _mark_smart_target(self.fields.get("split_consenso_template"), mode="template-input", role="split-consenso", source_role="template")
         _mark_smart_target(self.fields.get("delay_value_template"), mode="template-input", role="delay-value", source_role="template")
         _mark_smart_target(self.fields.get("delay_until_template"), mode="template-input", role="delay-until", source_role="template")
         _mark_smart_target(self.fields.get("http_url_template"), mode="template-input", role="http-url", source_role="template")
@@ -947,6 +969,11 @@ class AutomationActionForm(forms.ModelForm):
         self.fields["insert_field_mappings_text"].help_text = _build_whitelist_help(AutomationActionType.INSERT_RECORD)
         self.fields["update_fields_text"].help_text = _build_whitelist_help(AutomationActionType.UPDATE_RECORD)
         self.fields["trigger_update_fields_text"].help_text = _build_source_update_help(self._effective_source_code)
+        self.fields["split_days_count_fields"].help_text = (
+            "CSV opzionale di campi payload da usare come numero giorni. "
+            "Se non disponibili, lo split usa la differenza tra data_inizio e data_fine."
+        )
+        self.fields["split_tipo_assenza_template"].help_text = "Template o valore fisso; per replicare il flow storico usa `Permesso`."
         self.fields["delay_value_template"].help_text = "Numero o placeholder, es. `1`, `4`, `{giorni}`."
         self.fields["delay_until_template"].help_text = "Data/ora ISO o placeholder, es. `2026-04-10T15:30:00`."
         self.fields["branch_if_true_actions_json"].help_text = (
@@ -1046,6 +1073,19 @@ class AutomationActionForm(forms.ModelForm):
                 "trigger_update_fields_text",
                 _serialize_mapping_for_textarea(config.get("update_fields")),
             )
+            self.initial.setdefault("split_start_field", config.get("start_field", "data_inizio"))
+            self.initial.setdefault("split_end_field", config.get("end_field", "data_fine"))
+            split_days_count_fields = config.get("days_count_fields", config.get("days_count_field", "giorni_permesso,giornipermesso,Giornipermesso,giorni"))
+            if isinstance(split_days_count_fields, list):
+                split_days_count_fields = ",".join(str(item) for item in split_days_count_fields if str(item).strip())
+            self.initial.setdefault("split_days_count_fields", split_days_count_fields)
+            self.initial.setdefault("split_max_days", config.get("max_days", 60))
+            self.initial.setdefault("split_tipo_assenza_template", config.get("tipo_assenza_template", config.get("created_type_template", "Permesso")))
+            self.initial.setdefault("split_moderation_status", config.get("moderation_status", config.get("set_moderation_status", 0)))
+            self.initial.setdefault("split_consenso_template", config.get("consenso_template", config.get("set_consenso", "Approvato")))
+            self.initial.setdefault("split_salta_approvazione", config.get("salta_approvazione", config.get("set_salta_approvazione", True)))
+            self.initial.setdefault("split_include_first_day", bool(config.get("include_first_day")))
+            self.initial.setdefault("split_dedupe", config.get("dedupe", True))
             self.initial.setdefault("delay_mode", config.get("mode", "relative"))
             self.initial.setdefault("delay_value_template", config.get("value_template", config.get("giorni", "")))
             self.initial.setdefault("delay_unit", config.get("unit", "days"))
@@ -1279,6 +1319,35 @@ class AutomationActionForm(forms.ModelForm):
                     "trigger_update_fields_text",
                     "Campi non aggiornabili sulla sorgente selezionata: " + ", ".join(invalid_fields) + ".",
                 )
+
+        elif action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+            days_count_fields = [
+                chunk.strip()
+                for chunk in str(cleaned_data.get("split_days_count_fields") or "").split(",")
+                if chunk.strip()
+            ]
+            config_json = {
+                "source_code": "assenze",
+                "start_field": str(cleaned_data.get("split_start_field") or "data_inizio").strip(),
+                "end_field": str(cleaned_data.get("split_end_field") or "data_fine").strip(),
+                "days_count_fields": days_count_fields,
+                "max_days": cleaned_data.get("split_max_days") or 60,
+                "tipo_assenza_template": str(cleaned_data.get("split_tipo_assenza_template") or "Permesso").strip(),
+                "salta_approvazione": bool(cleaned_data.get("split_salta_approvazione")),
+                "moderation_status": cleaned_data.get("split_moderation_status") if cleaned_data.get("split_moderation_status") is not None else 0,
+                "consenso_template": str(cleaned_data.get("split_consenso_template") or "Approvato").strip(),
+                "include_first_day": bool(cleaned_data.get("split_include_first_day")),
+                "dedupe": bool(cleaned_data.get("split_dedupe")),
+                "set_approval_datetime": True,
+            }
+            if self._effective_source_code != "assenze":
+                self.add_error("action_type", "Lo split giornaliero e' disponibile solo per la sorgente Assenze.")
+            if not config_json["start_field"]:
+                self.add_error("split_start_field", "Il campo data inizio e' obbligatorio.")
+            if not config_json["end_field"]:
+                self.add_error("split_end_field", "Il campo data fine e' obbligatorio.")
+            if not config_json["tipo_assenza_template"]:
+                self.add_error("split_tipo_assenza_template", "Il tipo assenza delle righe create e' obbligatorio.")
 
         elif action_type == AutomationActionType.DELAY_SCHEDULE:
             config_json = {

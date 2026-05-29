@@ -143,6 +143,8 @@
     body.theme-dark .settings-summary-label { color:var(--text-light); }
     body.theme-dark .settings-summary-value { color:var(--text); }
     body.theme-dark .settings-summary-note { color:var(--text-light); }
+    .ts-tipi-layout { display:grid; grid-template-columns:260px 1fr; gap:18px; align-items:start; }
+    @media(max-width:768px) { .ts-tipi-layout { grid-template-columns:1fr; } }
   </style>
 {% endblock %}
 
@@ -806,7 +808,7 @@
           </div>
         </div>
         <div class="ts-panel-body">
-          <div style="display:grid; grid-template-columns: 260px 1fr; gap:18px; align-items:start;">
+          <div class="ts-tipi-layout">
 
             {# --- COLONNA SX: lista categorie + form nuovo tipo --- #}
             <aside style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">

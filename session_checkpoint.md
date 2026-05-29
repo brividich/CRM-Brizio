@@ -1,8 +1,79 @@
 # Session Checkpoint
 
-Data: 2026-05-26
+Data: 2026-05-29
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-29 - Codex` (mockup grafico email automazioni)
+- `docs/email_templates/automation_email_graphic_template.html` -> nuovo mockup HTML statico per layout grafico email automazioni: header NOVICROM HUB con logo reale `django_app/core/static/core/img/logo_novicrom.png`, badge automazione, riepilogo a tabella, box scadenza, CTA e footer.
+- Test/check: verifica manuale del file creato; nessun test Django eseguito perche modifica documentale/prototipale.
+- Note: nessun file runtime o critico modificato; README/CHANGELOG non aggiornati perche non cambia comportamento operativo.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Assenze: richiesta con caporeparto HR e regole orario)
+- `django_app/assenze/views.py` -> dropdown caporeparto ora prioritaria da Reparti Anagrafica HR; default sul caporeparto effettivo del dipendente da `DipendenteAnagraficaAziendale`/Reparto; data inizio/fine default sul giorno corrente; Ferie normalizzate a `00:00-23:59`; Permesso bloccato sullo stesso giorno.
+- `django_app/assenze/templates/assenze/pages/richiesta_assenze.html` -> JS del form allinea tipo richiesta: ferie a giornata intera, permesso con data fine uguale alla data inizio, controllo submit per permessi multi-giorno.
+- `django_app/assenze/tests.py` -> regressioni su caporeparto Anagrafica HR, default giorno corrente, ferie full-day e blocco permesso multi-giorno.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato comportamento richiesta assenza/caporeparto.
+- Test/check: `AssenzeSubmitTokenTests` + `AssenzeCaporepartoLocalSourceTests` OK (15 test); `manage.py check --settings=config.settings.test` e `git diff --check` eseguiti a fine sessione.
+- Note: area `assenze` modificata su richiesta esplicita; nessun file critico rilevato perche `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente; nessuna modifica a ACL, middleware, settings, autenticazione, routing globale o navigazione globale; nessun backup creato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Admin Portale: vista utenti fullpage)
+- `django_app/admin_portale/templates/admin_portale/pages/utenti_list.html` -> pagina `/admin-portale/utenti/` trasformata in workspace fullpage: body class dedicata, form "Nuovo Utente" richiudibile, filtri compatti, toolbar azioni massive e tabella con scroll interno.
+- `django_app/admin_portale/tests.py` -> regressione `AdminPortaleUtentiListLayoutTests` sul render della shell fullpage e della tabella utenti.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la modifica UX della vista utenti.
+- Test/check: `AdminPortaleUtentiListLayoutTests` OK; `manage.py check --settings=config.settings.test` OK; `git diff --check` sui file modificati OK; browser locale fino a redirect login OK.
+- Note: area `admin_portale` modificata su richiesta esplicita; nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, permessi o navigazione globale. Template `utenti_list.html` sbloccato da read-only per applicare la patch; nessun backup creato; README non aggiornato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (diagnosi cancellazione utente prod: tabella AI governance mancante)
+- `django_app/ai_assistant/models.py` / migration `0002_aitoolprivacyreview.py` -> verificato che `AiToolPrivacyReview.reviewed_by` ha FK a `auth.User` con `SET_NULL`; durante `profile.user.delete()` Django interroga la tabella.
+- `django_app/admin_portale/views.py` -> verificato che `_delete_legacy_user_with_dependencies` elimina il profilo Django collegato nella cancellazione utente legacy.
+- `Y:\current\django_app\ai_assistant\migrations` -> migration `0002_aitoolprivacyreview.py` e `0003_aichatfeedback.py` presenti nella release prod corrente; probabile schema DB prod non migrato o migration marcata incoerente.
+- Test/check: sola lettura codice/migration + presenza file su `Y:\current`; nessuna modifica runtime e nessun test eseguito.
+- Note operative: eseguire in prod `showmigrations ai_assistant`, verificare tabella `dbo.ai_assistant_aitoolprivacyreview` e applicare `migrate ai_assistant --settings=config.settings.prod` con account runtime/admin DB; poi riciclare App Pool/IIS.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Core: notifiche live con popup in-app)
+- `django_app/core/views.py`, `django_app/core/urls.py` -> nuovo endpoint `api_notifiche_live` (`/api/notifiche/live/`) con conteggio non lette e popup non ancora mostrati, filtrati sull'utente legacy corrente.
+- `django_app/core/templates/core/base.html` -> client polling ogni 15 secondi, toast popup live, ack popup sicuro, refresh pannello HTMX e aggiornamento badge senza refresh pagina.
+- `django_app/core/templates/core/components/topnav.html`, `django_app/core/templates/core/components/sidebar.html` -> badge notifiche marcati con attributi `data-notification-badge*` per aggiornamento live.
+- `django_app/core/static/core/css/theme.css` -> stile toast live desktop/mobile e dark mode.
+- `django_app/core/tests.py` -> regressioni per API live, ack solo utente corrente e presenza client live nel layout.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentate notifiche live con popup in-app.
+- Test/check: test mirati `CoreBacklogCFeatureTests` notifiche OK; `manage.py check --settings=config.settings.test` OK; `git diff --check` sui file modificati OK.
+- Note: file globali core trattati come critici (`views.py`, `urls.py`, `base.html`, `topnav.html`, `sidebar.html`); nessuna modifica a ACL, middleware, settings, autenticazione o permessi. `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun backup creato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Anagrafica HR: offboarding compatto a data unica)
+- `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html` -> form uscita nella hero piu compatto, una sola `Data uscita`, menu restituzioni a comparsa e riepilogo pratica senza "Ultimo giorno operativo" quando coincide con la data uscita.
+- `django_app/anagrafica/views.py` -> `ultimo_giorno_operativo` valorizzato automaticamente con la data uscita se non viene passato dal form, mantenendo compatibilita con POST/integration legacy.
+- `django_app/anagrafica/tests.py` -> regressione aggiornata per verificare data unica, assenza del secondo input data e default backend.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato offboarding a data unica.
+- Test/check: `manage.py check --settings=config.settings.test` OK; test mirato offboarding OK; `git diff --check` sui file modificati OK.
+- Note: nessun file critico modificato; `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun backup creato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Automazioni: conversione package da Power Automate calendario assenze)
+- `docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json` -> nuovo package da export Power Automate `BCK - Calendario assenze - avviso di inserimento.json`, sorgente `assenze`, 6 regole draft/inattive per approvazione caporeparto, `salta_approvazione`, avviso post-approvazione, assemblea sindacale, flessibilita e malattia.
+- Nota mapping: gli insert/update SharePoint del flow sono trattati come equivalenti al DB SQL Server `assenze`; gli update di stato sono `update_trigger_record`, mentre lo split multi-giorno `Do until`/`addDays` resta documentato come logica runtime/custom action da completare.
+- `docs/automation_packages/README.md` -> aggiunto il nuovo package all'indice dei flussi importabili.
+- Test/check: parse JSON OK; `analyze_package_dict` con `config.settings.test` OK (`status=ready`, 6/6 regole importabili); `run_package_dry_run` OK su campioni pending approval, skip approval e flessibilita approvata; `git diff --check` sui due file docs OK.
+- Note: nessun file critico modificato; `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; README/CHANGELOG di progetto non aggiornati perche non cambia il comportamento runtime.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Automazioni: designer diagramma workspace leggibile)
+- `django_app/automazioni/templates/automazioni/pages/rule_designer.html` -> ripuliti label/simboli visibili del diagramma di flusso (`Diagramma di flusso`, `PNG`, `Chiudi`, `+ Aggiungi azione`), normalizzati fallback JS, maniglia drag via CSS, inspector sinistro senza overflow orizzontale, editor inline a colonna singola e lock anche su `html`.
+- `django_app/automazioni/tests.py` -> regressione sul rendering dei testi puliti del diagramma e sull'assenza dei vecchi label corrotti.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la fix UX del designer automazioni.
+- Test/check: designer test mirato OK; `manage.py check --settings=config.settings.test` OK; `git diff --check` sui file modificati OK; Playwright su `127.0.0.1:8000` fermo al login locale.
+- Note: nessun file critico modificato; `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; README non aggiornato perche non cambia comportamento operativo/URL/setup.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (Automazioni: package JSON pronti all'import)
+- `docs/automation_packages/README.md` -> nuova guida rapida per importare i package da `Automazioni -> Regole -> Importa package` e verificare destinatari/template prima dell'attivazione.
+- `docs/automation_packages/assenze_approvazione_caporeparto.automation_package.json` -> flusso `assenze`: richiesta approvazione email al caporeparto su nuova assenza non bypassata, notifica dipendente, log e aggiornamento `moderation_status` via `update_trigger_record`.
+- `docs/automation_packages/tickets_notifiche_operativi.automation_package.json` -> flussi `tickets`: notifica nuovo ticket critico, notifica ticket con impatto sicurezza, email al richiedente su cambio stato.
+- `docs/automation_packages/dpi_richiesta_stato.automation_package.json` -> flussi `dpi`: notifica nuova richiesta ai gestori, email al richiedente su `APPROVATA` e `CONSEGNATA`.
+- `docs/automation_packages/offboarding_notifiche_hr_it.automation_package.json` -> flussi `anagrafica_offboarding`: email HR/IT ad apertura e chiusura pratica.
+- `docs/automation_packages/formazione_completamento_hr.automation_package.json` -> flusso `anagrafica_formazione_record`: notifica HR Formazione su nuovo completamento idoneo.
+- `docs/automation_packages/visite_mediche_esiti_critici.automation_package.json` -> flusso `anagrafica_visite_mediche`: notifica HR/RSPP su esiti `NON_IDONEO_TEMP` o `NON_IDONEO_DEF`.
+- `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` -> flusso `rentri`: notifica HSE/Ambiente su movimento consolidato da trasmettere.
+- Test/check: JSON parse OK su 7 package; `analyze_package_dict` con `config.settings.test` OK (`status=ready`, 12/12 regole importabili); `run_package_dry_run` OK con payload sintetici; `git diff --check -- docs/automation_packages` OK.
+- Note: nessun file critico modificato; `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; README/CHANGELOG di progetto non aggiornati perche non cambia il comportamento runtime.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-26 - Codex` (Assets: rinomina massiva solo nome asset)
 - `django_app/assets/management/commands/rename_asset_names.py` -> nuovo comando operativo con export template CSV `asset_tag;current_name;new_name`, dry-run di default e `--commit` esplicito; aggiorna solo `Asset.name` e `updated_at` tramite `asset_tag`, con validazioni su duplicati, nomi vuoti/lunghi e asset mancanti.
@@ -176,6 +247,14 @@ Ultime voci viste/aggiunte in questa sessione:
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (trovato `.env` reale: `Y:\config\.env`, root PROD mappata direttamente su `Y:\`)
 - `Y:\config\.env` -> verificato senza modifiche: manca `hub.costruzioninovicrom.it` in `DJANGO_ALLOWED_HOSTS` e `DJANGO_CSRF_TRUSTED_ORIGINS`
 - `Y:\current\django_app\.env` -> verificato senza modifiche: contiene dominio pubblico ma viene caricato dopo `Y:\config\.env`, quindi non sovrascrive le chiavi gia presenti
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-28 - Codex` (action runtime `split_assenza_giornaliera` per Assenze multi-giorno, package calendario assenze v1.1 aggiornato)
+- `django_app/automazioni/models.py` + migration `0014_split_assenza_giornaliera_action.py` -> nuova choice action `split_assenza_giornaliera`
+- `django_app/automazioni/services.py` -> executor split giornaliero Assenze con calcolo date da `data_inizio`/`data_fine` o campi numero giorni, deduplica naturale, reset contatore giorni derivati e stato approvato
+- `django_app/automazioni/forms.py`, `views.py`, template designer/action card -> configurazione/preset/preview UI per l'action split Assenze
+- `django_app/automazioni/package_importer.py` -> normalizzazione, validazione e dry-run import package per `split_assenza_giornaliera`, anche dentro branch `send_approval`
+- `docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json` -> v1.1 con split nei rami approvato e salta-approvazione; rimosso issue "split runtime mancante"
+- `docs/automation_packages/README.md`, `docs/ai/AUTOMATION_PACKAGE_REFERENCE.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la nuova action/runtime
+- Test/check: split action tests OK; importer/form targeted OK; `AutomationPackageImportTests` + `AutomationActionFormExtendedTests` OK (31 test); `manage.py check` OK; `makemigrations automazioni --check --dry-run` OK; package analysis OK (`status=ready`, 6/6); `git diff --check` OK; Playwright locale arriva al redirect login
 - `Y:\venv\pyvenv.cfg` -> venv PROD punta a `C:\Users\administrator\AppData\Local\Programs\Python\Python313\python.exe`; `manage.py shell` non eseguibile per Python base mancante
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-21 - Codex` (persistenza errore CSRF `/login/`: verificare valore effettivo letto da Django e precedenza `.env`)
 - Nota operativa: in deploy PROD `config/env_config.py` carica prima `C:\PortaleNovicrom\prod\config\.env`; se li esiste un valore `DJANGO_CSRF_TRUSTED_ORIGINS` vecchio, il `.env` dentro `current\django_app` non lo sostituisce

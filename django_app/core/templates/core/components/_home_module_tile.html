@@ -1,0 +1,55 @@
+{% if mod.accessible %}
+<div class="hp-tile-wrap hp-tone-{{ mod.tone }}" data-tile="{{ mod.id }}">
+  <button type="button" class="hp-tile" data-mod="{{ mod.id }}"
+          aria-expanded="false" aria-controls="hp-panel-{{ mod.id }}">
+    <span class="hp-tile-ico hp-tone-{{ mod.tone }}">
+      {% if mod.icon_image %}
+        <img src="{{ mod.icon_image }}" alt="" loading="lazy">
+      {% else %}
+        <span class="hp-tile-letter">{{ mod.label|slice:":1"|upper }}</span>
+      {% endif %}
+    </span>
+    <span class="hp-tile-body">
+      <span class="hp-tile-lbl">{{ mod.label }}</span>
+      <span class="hp-tile-sub">{{ mod.sub }}</span>
+    </span>
+    {% if mod.kpi_value is not None %}
+    <span class="hp-tile-kpi hp-tone-{{ mod.tone }}">
+      <span class="hp-tile-kpi-n">{{ mod.kpi_value }}</span>
+      {% if mod.kpi_unit %}<span class="hp-tile-kpi-u">{{ mod.kpi_unit }}</span>{% endif %}
+    </span>
+    {% endif %}
+    <span class="hp-tile-corner" aria-hidden="true"></span>
+  </button>
+  <div class="hp-tile-panel" id="hp-panel-{{ mod.id }}" hidden>
+    <div class="hp-tile-panel-row">
+      <div class="hp-tile-panel-info">
+        {% if mod.kpis %}
+        <div class="hp-tile-panel-kpis">
+          {% for k in mod.kpis %}
+          <span class="hp-tile-panel-kpi hp-tone-{{ k.tone }}">
+            {% if k.value is not None %}<span class="hp-tile-panel-kpi-n">{{ k.value }}</span>{% endif %}
+            <span class="hp-tile-panel-kpi-u">{{ k.unit }}</span>
+          </span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <span class="hp-tile-panel-sub">{{ mod.sub }}</span>
+      </div>
+      <a href="{{ mod.url }}" class="hp-tile-go">Vai al modulo →</a>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="hp-tile hp-tile-lock" aria-disabled="true" title="Modulo non accessibile con il tuo ruolo">
+  <span class="hp-tile-ico">
+    <span class="hp-tile-letter">{{ mod.label|slice:":1"|upper }}</span>
+  </span>
+  <span class="hp-tile-body">
+    <span class="hp-tile-lbl">{{ mod.label }}</span>
+    <span class="hp-tile-sub">Accesso non consentito</span>
+  </span>
+  <span class="hp-tile-lock-ic" aria-hidden="true">&#128274;</span>
+  <span class="hp-tile-corner" aria-hidden="true"></span>
+</div>
+{% endif %}

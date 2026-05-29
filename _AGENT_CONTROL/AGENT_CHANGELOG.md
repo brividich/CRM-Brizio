@@ -1,5 +1,123 @@
 # Agent Changelog
 
+## 2026-05-29 - Codex
+
+- Area: `docs/email_templates`, mockup grafico email automazioni.
+- Richiesta: chiarimento su template grafico per le email delle automazioni, inteso come layout visivo.
+- File modificati/creati: `docs/email_templates/automation_email_graphic_template.html` (nuovo), `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a runtime, ACL, middleware, settings, autenticazione, routing globale o navigazione globale.
+- Motivo tecnico: fornire una preview grafica concreta e apribile nel browser, separata dalla logica automazioni, da usare come riferimento prima di integrare un renderer email nel portale.
+- Modifica: creato mockup HTML statico con layout email-safe a tabelle/inline style: header NOVICROM HUB con logo reale `django_app/core/static/core/img/logo_novicrom.png`, badge automazione, riepilogo richiesta, box scadenza, CTA approva/rifiuta/dettaglio, footer e pannello laterale con palette/varianti.
+- Impatto previsto: nessun impatto runtime; il file e solo un prototipo visuale/documentale.
+- Rischi residui: prima dell'uso reale in produzione andra verificata la resa nei client email target, in particolare Outlook desktop.
+- Test/check: verifica manuale del file creato; nessun test Django eseguito perche modifica documentale/prototipale.
+- Note: nessun backup creato; README, `CHANGELOG.md` e `django_app/CHANGELOG.md` non aggiornati perche non cambia comportamento operativo, URL, setup o dipendenze.
+
+## 2026-05-28 - Codex
+
+- Area: `django_app/assenze`, richiesta assenza / caporeparto e regole orario.
+- Richiesta: nella nuova richiesta assenza, leggere il capo reparto dai caporeparto configurati in Anagrafica HR e predefinire quello effettivo del dipendente; impostare data inizio/fine sul giorno corrente e controllare permessi/ferie.
+- File modificati: `django_app/assenze/views.py`, `django_app/assenze/templates/assenze/pages/richiesta_assenze.html`, `django_app/assenze/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno rilevato; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Modifica in area `assenze` eseguita su richiesta esplicita dell'utente; nessuna modifica a ACL, middleware, settings, autenticazione, routing globale o navigazione globale.
+- Motivo tecnico: il form usava ancora sorgenti locali/legacy per il menu caporeparto e precompilava con mapping/storico; inoltre il default data fine era domani e mancavano regole specifiche per ferie e permessi.
+- Modifica: `_load_capi_options()` privilegia i caporeparto dei Reparti Anagrafica HR, mappando il caporeparto HR al relativo utente legacy quando disponibile; `_resolve_default_capo_for_user()` usa prima il caporeparto effettivo del dipendente da `DipendenteAnagraficaAziendale`/Reparto. La richiesta apre data inizio e fine sul giorno corrente; Ferie forza `00:00-23:59`, Permesso resta nello stesso giorno. Aggiunti controlli coerenti lato JS e backend.
+- Impatto previsto: il capo reparto selezionabile e quello predefinito seguono Anagrafica HR, riducendo selezioni manuali sbagliate; ferie e permessi non generano intervalli incoerenti.
+- Rischi residui: se un caporeparto HR non ha account `utenti` collegato in `anagrafica_dipendenti.utente_id`, puo comparire in lista ma non essere assegnabile come approvatore legacy; va mantenuto il collegamento account in Anagrafica HR.
+- Test/check: `python django_app\manage.py test assenze.tests.AssenzeSubmitTokenTests assenze.tests.AssenzeCaporepartoLocalSourceTests --settings=config.settings.test --verbosity 2` OK (15 test). `manage.py check` e `git diff --check` eseguiti a fine sessione.
+- Note: nessun backup creato; README, CHANGELOG e `django_app/CHANGELOG.md` aggiornati.
+
+- Area: `django_app/admin_portale`, vista utenti.
+- Richiesta: sistemare `/admin-portale/utenti/` e renderla fullpage.
+- File modificati: `django_app/admin_portale/templates/admin_portale/pages/utenti_list.html`, `django_app/admin_portale/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno da `_AGENT_CONTROL/CRITICAL_FILES.md` perche il file non e presente nella workspace; area `admin_portale` modificata su richiesta esplicita. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, permessi o navigazione globale.
+- Motivo tecnico: la pagina utenti era composta da card impilate e lasciava poco spazio operativo alla tabella, rendendo scomoda la gestione utenti/ruoli su schermi desktop.
+- Modifica: aggiunta classe pagina fullpage, contenitore workspace a tutta larghezza/altezza, form "Nuovo Utente" richiudibile, filtri compatti in barra superiore, toolbar azioni massive e tabella utenti con scroll interno e header sticky. Il link import LDAP/AD resta nel page header; endpoint e azioni POST esistenti invariati.
+- Impatto previsto: gestione utenti piu densa e leggibile, con tabella come superficie principale della pagina e creazione utente ancora disponibile senza occupare spazio costante.
+- Rischi residui: verifica visuale reale oltre login non eseguita per assenza di sessione admin nel browser locale; test client copre render/route/template. Il template `utenti_list.html` era read-only ed e stato sbloccato per applicare la patch.
+- Test/check: `python django_app\manage.py test admin_portale.tests.AdminPortaleUtentiListLayoutTests --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check -- django_app/admin_portale/templates/admin_portale/pages/utenti_list.html django_app/admin_portale/tests.py` OK; browser locale su `http://127.0.0.1:8000/admin-portale/utenti/` arriva correttamente al redirect login.
+- Note: nessun backup creato; README non aggiornato perche cambia solo layout UX della vista, non URL/setup/dipendenze o comportamento operativo backend.
+
+- Area: `django_app/ai_assistant` / `django_app/admin_portale`, diagnosi errore cancellazione utente in produzione.
+- Richiesta: analizzare errore SQL Server `42S02` su cancellazione utente per tabella mancante `ai_assistant_aitoolprivacyreview`.
+- File modificati: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica a codice runtime, ACL, middleware, settings, autenticazione, routing o navigazione globale.
+- Motivo tecnico: `admin_portale.views._delete_legacy_user_with_dependencies` elimina anche il profilo `auth.User`; la cancellazione Django segue le FK verso `AiToolPrivacyReview.reviewed_by` (`on_delete=SET_NULL`) e quindi interroga la tabella `ai_assistant_aitoolprivacyreview`.
+- Diagnosi: i file migration `ai_assistant/0002_aitoolprivacyreview.py` e `0003_aichatfeedback.py` sono presenti sia nella workspace locale sia in `Y:\current`; l'errore indica schema DB produzione non allineato alla release, oppure migration marcata applicata senza tabella fisica.
+- Impatto previsto: applicare/verificare le migration prod `ai_assistant.0002` e successive risolve la cancellazione utente e riallinea la console Governance AI.
+- Rischi residui: se `django_migrations` in prod segnala `ai_assistant.0002` come applicata ma la tabella non esiste, serve intervento DB controllato (`migrate --fake ai_assistant zero` non va usato alla cieca su prod); verificare prima tabella e righe `django_migrations`.
+- Test/check: lettura codice `AiToolPrivacyReview`, migration `0002`, `utente_delete`/`_delete_legacy_user_with_dependencies`; verifica presenza migration su `Y:\current`. Nessun test eseguito per assenza di modifica runtime.
+- Note: correzione operativa consigliata: eseguire `showmigrations ai_assistant` e `migrate ai_assistant` sull'ambiente prod con account runtime/admin DB, poi riciclare App Pool/IIS.
+
+- Area: `django_app/core`, notifiche portale.
+- Richiesta: verificare e rendere essenziale il funzionamento delle notifiche interne al portale, incluso popup live.
+- File modificati: `django_app/core/views.py`, `django_app/core/urls.py`, `django_app/core/templates/core/base.html`, `django_app/core/templates/core/components/topnav.html`, `django_app/core/templates/core/components/sidebar.html`, `django_app/core/static/core/css/theme.css`, `django_app/core/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/core/urls.py`, `django_app/core/views.py`, `django_app/core/templates/core/base.html`, `django_app/core/templates/core/components/topnav.html`, `django_app/core/templates/core/components/sidebar.html` per routing API notifiche e layout globale autenticato. `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace; nessuna modifica a ACL, middleware, settings, autenticazione o permessi.
+- Motivo tecnico: il centro notifiche aggiornava il pannello via HTMX e il banner popup solo al render pagina; una notifica creata durante la sessione non produceva popup live senza refresh.
+- Modifica: aggiunto endpoint JSON `/api/notifiche/live/` filtrato sull'utente legacy corrente, con conteggio non lette e payload popup non ancora mostrati; il layout globale ora polla ogni 15 secondi, aggiorna i badge topbar/sidebar, mostra toast live in-app, marca `popup_shown` solo per notifiche dell'utente corrente e rinfresca il pannello HTMX quando arrivano popup.
+- Impatto previsto: le notifiche restano consultabili dal centro esistente e quelle nuove possono apparire come popup live senza ricaricare la pagina; l'ack popup resta limitato all'utente autenticato.
+- Rischi residui: verifica visuale browser/in-app non eseguita per tool browser non esposto e Playwright Python non installato; copertura tramite test client Django, render template e check statici OK. La latenza live e polling leggero di circa 15 secondi, non WebSocket.
+- Test/check: `python django_app\manage.py test core.tests.CoreBacklogCFeatureTests.test_live_notifications_api_returns_badge_count_and_popup_payload core.tests.CoreBacklogCFeatureTests.test_popup_ack_marks_only_current_user_notifications core.tests.CoreBacklogCFeatureTests.test_base_template_loads_live_notification_client core.tests.CoreBacklogCFeatureTests.test_notification_panel_lists_unread_notifications core.tests.CoreBacklogCFeatureTests.test_mark_all_notifications_read --settings=config.settings.test --verbosity 1` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check -- django_app/core/views.py django_app/core/urls.py django_app/core/templates/core/base.html django_app/core/templates/core/components/topnav.html django_app/core/templates/core/components/sidebar.html django_app/core/static/core/css/theme.css django_app/core/tests.py README.md CHANGELOG.md django_app/CHANGELOG.md` OK.
+- Note: nessun backup creato; README e CHANGELOG aggiornati per documentare notifiche live.
+
+- Area: `django_app/anagrafica`, scheda dipendente / offboarding.
+- Richiesta: rendere piu carino e compatto il blocco uscita dipendente e togliere la doppia data visibile.
+- File modificati: `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, navigazione globale o dati sensibili.
+- Motivo tecnico: il form offboarding nella hero esponeva due date (`data_cessazione` e `ultimo_giorno_operativo`) creando ambiguita e ingombro visivo.
+- Modifica: nella hero resta una sola "Data uscita"; il campo restituzioni e diventato un menu compatto a comparsa; il riepilogo pratica mostra "Ultimo giorno operativo" solo se differisce dalla data uscita. La view mantiene compatibilita: se `ultimo_giorno_operativo` non viene inviato, lo imposta uguale alla data uscita.
+- Impatto previsto: avvio pratica offboarding piu chiaro e compatto; nessuna migrazione DB e nessuna rottura per eventuali integrazioni che passano ancora `ultimo_giorno_operativo` esplicitamente.
+- Rischi residui: verifica visuale browser non eseguita su pagina reale autenticata; copertura template/view via test client OK.
+- Test/check: `python django_app\manage.py check --settings=config.settings.test` OK; `python django_app\manage.py test anagrafica.tests.AnagraficaDipendentiViewTests.test_offboarding_licenziamento_creates_pratica_then_closes_employee --settings=config.settings.test --verbosity 2` OK; `git diff --check -- django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html django_app/anagrafica/views.py django_app/anagrafica/tests.py README.md CHANGELOG.md django_app/CHANGELOG.md` OK.
+- Note: nessun backup creato; README aggiornato per allineare la descrizione offboarding alla data unica.
+
+- Area: `django_app/automazioni`, action runtime Assenze / package Power Automate.
+- Richiesta: chiarire e implementare lo split multi-giorno del flow Power Automate calendario assenze (`Do until` + `addDays`) nel portale.
+- File modificati/creati: `django_app/automazioni/models.py`, `django_app/automazioni/migrations/0014_split_assenza_giornaliera_action.py` (nuovo), `django_app/automazioni/services.py`, `django_app/automazioni/forms.py`, `django_app/automazioni/views.py`, `django_app/automazioni/package_importer.py`, `django_app/automazioni/templates/automazioni/components/action_card.html`, `django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/tests.py`, `docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json`, `docs/automation_packages/README.md`, `docs/ai/AUTOMATION_PACKAGE_REFERENCE.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, navigazione globale o dati sensibili.
+- Motivo tecnico: il package precedente rappresentava approval/update/email ma non aveva un equivalente runtime per creare le righe giornaliere derivate che il flow Power Automate generava su SharePoint.
+- Modifica: aggiunta action `split_assenza_giornaliera` con choice/migration, executor SQL Server/SQLite su sorgente `assenze`, calcolo date da `data_inizio`/`data_fine` o campi numero giorni, deduplica naturale, reset contatore giorni derivati a 1 e stato approvato sulle righe create. Aggiunti form, preset/preview designer, stile diagramma, normalizzazione/validazione/dry-run import package e documentazione. Il package calendario assenze v1.1 ora inserisce lo split nei rami approvato e salta-approvazione e blocca la regola skip sui record gia approvati per evitare loop sulle righe derivate.
+- Impatto previsto: importando/aggiornando il package, il portale puo sostituire anche il loop multi-giorno del flow storico creando record `assenze` giornalieri derivati senza duplicarli in caso di retry.
+- Rischi residui: la deduplica usa campi naturali (`dipendente`, date, tipo, motivazione) perche lo schema legacy non espone un parent id dedicato; se un caso reale richiede due permessi identici per stesso dipendente/stesso orario/stessa motivazione potrebbero essere considerati duplicati. I destinatari email del package restano da verificare prima dell'attivazione.
+- Test/check: `python django_app/manage.py test automazioni.tests.AutomationAssenzeSplitActionTests` OK; `python django_app/manage.py test automazioni.tests.AutomationAssenzeSplitActionTests automazioni.tests.AutomationActionFormExtendedTests.test_split_assenza_giornaliera_form_builds_config_for_assenze automazioni.tests.AutomationPackageImportTests.test_dry_run_supports_split_assenza_giornaliera_inline_action` OK; `python django_app/manage.py test automazioni.tests.AutomationPackageImportTests automazioni.tests.AutomationActionFormExtendedTests` OK (31 test); `python django_app/manage.py check` OK; `python django_app/manage.py makemigrations automazioni --check --dry-run` OK; package JSON `analyze_package_dict` OK (`status=ready`, 6/6 importabili); `git diff --check` OK sui file toccati; Playwright aperto su `https://hub.cnovicrom.local/.../designer/` fino al redirect login.
+- Note: nessun backup creato; migration `automazioni.0014_split_assenza_giornaliera_action` da applicare prima di usare la nuova action in ambienti non migrati.
+
+## 2026-05-28 - Codex
+
+- Area: `docs/automation_packages`, conversione Power Automate calendario assenze.
+- Richiesta: usare `docs/automation_packages/power automate/BCK - Calendario assenze - avviso di inserimento.json` come base per un package Automazioni, trattando insert/update SharePoint come equivalenti alla tabella SQL Server del portale.
+- File modificati/creati: `docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json` (nuovo), `docs/automation_packages/README.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, navigazione globale o codice runtime.
+- Motivo tecnico: il flow Power Automate e un export ARM con trigger su nuovo elemento calendario assenze, approval, notifiche email e azioni su elementi SharePoint; nel portale queste azioni corrispondono alla sorgente `assenze` su SQL Server.
+- Modifica: aggiunto package draft/inattivo con 6 regole importabili: richiesta approvazione caporeparto, ramo `salta_approvazione`, avviso post-approvazione, assemblea sindacale, flessibilita e malattia. Gli update di stato sono modellati con `update_trigger_record`; le email usano mailbox di ruolo o placeholder runtime. Lo split multi-giorno del flow originale e documentato come logica runtime/custom action da completare, per evitare insert derivati senza calcolo date equivalente.
+- Impatto previsto: il package puo essere importato da `Automazioni -> Regole -> Importa package`, verificato nel designer e attivato dopo rifinitura destinatari/template. Non contiene URL SharePoint, token o segreti.
+- Rischi residui: la parte Power Automate `Do until`/`addDays` che crea record giornalieri derivati non e automatizzata dal package; se serve sostituirla completamente va implementata nel modulo Assenze o come action dedicata. I destinatari di ruolo vanno confermati prima dell'attivazione.
+- Test/check: parse JSON OK; `analyze_package_dict` con `config.settings.test` OK (`status=ready`, 6/6 regole importabili); `run_package_dry_run` OK su campioni pending approval, skip approval e flessibilita approvata; `git diff --check -- docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json docs/automation_packages/README.md` OK.
+- Note: nessun backup creato; README di cartella aggiornato, README/CHANGELOG di progetto non aggiornati perche non cambia comportamento runtime.
+
+## 2026-05-28 - Codex
+
+- Area: `django_app/automazioni`, designer visuale / workspace diagramma.
+- Richiesta: sistemare la schermata del diagramma di flusso aperta da `/admin-portale/automazioni/regole/<id>/designer/`.
+- File modificati: `django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, navigazione globale o dati runtime.
+- Motivo tecnico: il template del designer conteneva label/simboli gia corrotti da mojibake nel pulsante e nella toolbar del diagramma (`ðŸ...`, `âœ...`, `Â·`) e l'editor inline nel pannello sinistro poteva generare overflow orizzontale/taglio dei campi.
+- Modifica: sostituiti i label visibili del diagramma con testi puliti (`Diagramma di flusso`, `PNG`, `Chiudi`, `+ Aggiungi azione`), normalizzati i fallback JS del diagramma, disegnata la maniglia drag via CSS invece di testo corrotto, aggiunto `box-sizing` ai campi, inspector sinistro con `overflow-x:hidden`, editor inline a colonna singola e lock anche su `html` quando la workspace e aperta.
+- Impatto previsto: la workspace del diagramma risulta leggibile senza caratteri corrotti e il pannello inspector resta stabile mentre si modifica una card azione.
+- Rischi residui: verifica browser locale completa non conclusa perche il server gia attivo su `127.0.0.1:8000` reindirizza al login; copertura via test client e check Django OK.
+- Test/check: `python django_app\manage.py test automazioni.tests.AutomazioniAdminPageTests.test_rule_designer_page_renders_visual_blocks_and_human_summary --settings=config.settings.test --verbosity 2` OK; `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check -- django_app/automazioni/templates/automazioni/pages/rule_designer.html django_app/automazioni/tests.py CHANGELOG.md django_app/CHANGELOG.md` OK; Playwright su `127.0.0.1:8000` verificato fino alla pagina login.
+- Note: nessun backup creato; README non aggiornato perche non cambia comportamento operativo, URL, setup o dipendenze.
+
+- Area: `docs/automation_packages`, automazioni importabili.
+- Richiesta: creare flussi importabili facendo riferimento a `docs/ai/AUTOMATION_PACKAGE_REFERENCE.md`.
+- File modificati/creati: `docs/automation_packages/README.md` (nuovo), `docs/automation_packages/assenze_approvazione_caporeparto.automation_package.json` (nuovo), `docs/automation_packages/tickets_notifiche_operativi.automation_package.json` (nuovo), `docs/automation_packages/dpi_richiesta_stato.automation_package.json` (nuovo), `docs/automation_packages/offboarding_notifiche_hr_it.automation_package.json` (nuovo), `docs/automation_packages/formazione_completamento_hr.automation_package.json` (nuovo), `docs/automation_packages/visite_mediche_esiti_critici.automation_package.json` (nuovo), `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` (nuovo), `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, routing globale, navigazione globale o dati runtime.
+- Motivo tecnico: serviva un set di package `.automation_package.json` gia pronti per l'import nel modulo Automazioni, coerenti con la guida e con il validatore reale `automazioni.package_importer`.
+- Modifica: aggiunta cartella `docs/automation_packages/` con 7 package separati per sorgente (`assenze`, `tickets`, `dpi`, `anagrafica_offboarding`, `anagrafica_formazione_record`, `anagrafica_visite_mediche`, `rentri`) e un README operativo. Ogni package contiene `approved_field_mapping`, regole draft/inattive, condizioni conservative, azioni email/log e, per il flusso assenze, `update_trigger_record` per impostare `moderation_status` dopo approvazione/rifiuto.
+- Impatto previsto: l'operatore puo importare i file da `Automazioni -> Regole -> Importa package`, verificarli in dry-run e adattare destinatari/template prima dell'attivazione. I package non contengono segreti, webhook URL o token.
+- Rischi residui: gli indirizzi email sono mailbox di ruolo placeholder (`hr@`, `it@`, `dpi@`, ecc.) e vanno confermati prima dell'attivazione; i flussi che notificano su condizioni frequenti possono generare email duplicate se piu regole combaciano sullo stesso evento.
+- Test/check: parser JSON OK su 7 package; `analyze_package_dict` con `config.settings.test` OK, tutti `status=ready` e `importable=12/12` regole totali; `run_package_dry_run` con payload sintetico registry OK su 7 package; `git diff --check -- docs/automation_packages` OK.
+- Note: nessun backup creato; nessuna modifica a README/CHANGELOG di progetto perche sono stati aggiunti solo artifact documentali/importabili senza cambiare comportamento runtime.
+
 ## 2026-05-26 - Codex
 
 - Area: `django_app/assets`.

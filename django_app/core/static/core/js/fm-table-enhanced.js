@@ -264,6 +264,15 @@
     return "text";
   }
 
+  // Inferisce il tipo dalla sola etichetta, senza scansionare le celle.
+  // Restituisce null se non è possibile determinarlo senza leggere i valori.
+  function inferColumnTypeFromLabel(label) {
+    const s = slugText(label, "");
+    if (/(data|scadenza|inizio|fine|aggiornato|creato|chiuso|aperto)/.test(s)) return "date";
+    if (/(nome|dipendente|ragione|descrizione|titolo|email|codice|matricola|asset|fornitore|utente|note|seriale|modello|telefono|piva|indirizzo)/.test(s)) return "text";
+    return null;
+  }
+
   function applyInferredColumns(table) {
     const firstRow = table.tHead && table.tHead.rows[0];
     if (!firstRow) return false;
@@ -297,9 +306,23 @@
         return;
       }
 
-      const values = valuesForColumn(table, idx);
-      if (!th.dataset.colType) th.dataset.colType = inferColumnType(label, values);
-      if (th.dataset.colType === "select" && !th.dataset.colOptions) {
+      if (!th.dataset.colType) {
+        // Fast path: se il label è sufficiente non scansionare le celle.
+        const fastType = inferColumnTypeFromLabel(label);
+        if (fastType) {
+          th.dataset.colType = fastType;
+        } else {
+          const values = valuesForColumn(table, idx);
+          th.dataset.colType = inferColumnType(label, values);
+          if (th.dataset.colType === "select" && !th.dataset.colOptions) {
+            const opts = Array.from(new Set(values.map(cleanText).filter(Boolean))).slice(0, 30)
+              .sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base", numeric: true }))
+              .map(v => [v, v]);
+            th.dataset.colOptions = JSON.stringify(opts);
+          }
+        }
+      } else if (th.dataset.colType === "select" && !th.dataset.colOptions) {
+        const values = valuesForColumn(table, idx);
         const opts = Array.from(new Set(values.map(cleanText).filter(Boolean))).slice(0, 30)
           .sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base", numeric: true }))
           .map(v => [v, v]);
@@ -675,13 +698,14 @@
         input.placeholder = col.type === "number" ? "≥ valore" : (col.type === "date" ? "gg/mm/aaaa" : "contiene…");
         input.value = state.filters[col.key] || "";
         input.setAttribute("autocomplete", "off");
-        // Datalist con suggerimenti unici della colonna (autocomplete nativo browser)
+        // Datalist con suggerimenti unici della colonna (autocomplete nativo browser).
+        // Popolato in modo lazy al primo click sul filtro per non scansionare
+        // le celle al caricamento della pagina.
         if (col.type === "text") {
           const tableIdSlug = slugText(col.th.closest("table").dataset.tableId || "tbl", "tbl");
           const dlId = "fm-dl-" + tableIdSlug + "-" + slugText(col.key, "c") + "-" + shortHash(tableIdSlug + col.key);
           datalist = document.createElement("datalist");
           datalist.id = dlId;
-          rebuildDatalistOptions(datalist, valuesForColumn(col.th.closest("table"), col.idx));
           input.setAttribute("list", dlId);
         }
       }
@@ -727,6 +751,7 @@
       col._fmDatalist = datalist;
       col._fmFilterBtn = filterBtn;
 
+      let _dlPopulated = false;
       filterBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         // Chiudi tutti gli altri popover
@@ -736,6 +761,11 @@
         const willOpen = !pop.classList.contains("fm-th-filter-pop-open");
         pop.classList.toggle("fm-th-filter-pop-open");
         if (willOpen) {
+          // Popola il datalist testo in modo lazy al primo click (evita scan DOM al load)
+          if (datalist && !_dlPopulated) {
+            rebuildDatalistOptions(datalist, valuesForColumn(col.th.closest("table"), col.idx));
+            _dlPopulated = true;
+          }
           positionFilterPopover(pop, filterBtn);
           setTimeout(() => { try { input.focus(); if (input.select) input.select(); } catch (_) {} }, 0);
         }

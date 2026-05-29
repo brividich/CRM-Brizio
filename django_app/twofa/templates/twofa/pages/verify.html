@@ -1,0 +1,95 @@
+{% extends "core/base.html" %}
+
+{% block title %}Verifica identità | 2FA{% endblock %}
+{% block body_class %}login-page{% endblock %}
+{% block layout_sidebar %}{% endblock %}
+{% block layout_header %}{% endblock %}
+{% block subnav %}{% endblock %}
+{% block extra_js %}{% endblock %}
+
+{% block extra_head %}
+<style>
+body.login-page {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%);
+  min-height: 100vh;
+}
+.main-wrap { min-height: 100vh; width: 100%; }
+.content { position:relative; width:100vw; max-width:none; margin:0; min-height:100vh; padding:0; overflow:hidden; }
+.twofa-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+.twofa-box {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  padding: 40px 36px 32px;
+  width: 100%;
+  max-width: 420px;
+}
+.twofa-icon { font-size: 2.4rem; text-align: center; margin-bottom: 8px; }
+.twofa-title { font-size: 1.3rem; font-weight: 700; text-align: center; color: var(--text); margin-bottom: 4px; }
+.twofa-sub { font-size: .9rem; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
+.twofa-field { margin-bottom: 16px; }
+.twofa-field label { display:block; font-size:.85rem; font-weight:600; color:var(--text); margin-bottom:6px; }
+.twofa-field .input { width:100%; box-sizing:border-box; text-align:center; font-size:1.5rem; letter-spacing:.2em; }
+.twofa-actions { display:flex; gap:10px; margin-top:8px; }
+.twofa-btn { flex:1; padding:11px; border:none; border-radius:7px; font-size:1rem; font-weight:600; cursor:pointer; }
+.twofa-btn-primary { background:var(--primary); color:#fff; }
+.twofa-btn-primary:hover { background:var(--primary-mid); }
+.twofa-btn-sec { background:#f0f4fa; color:var(--text); }
+.twofa-btn-sec:hover { background:#e2e8f0; }
+.twofa-error { background:#fff0f0; border:1px solid #fca5a5; color:#b91c1c; border-radius:7px; padding:10px 14px; font-size:.88rem; margin-bottom:14px; }
+.twofa-info { background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; border-radius:7px; padding:10px 14px; font-size:.88rem; margin-bottom:14px; }
+.twofa-hint { font-size:.8rem; color:var(--text-muted); text-align:center; margin-top:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="twofa-wrap">
+  <div class="twofa-box">
+    <div class="twofa-icon">🔐</div>
+    <div class="twofa-title">Verifica identità</div>
+    <div class="twofa-sub">
+      {% if method == "email" %}
+        Inserisci il codice a 6 cifre inviato a <strong>{{ otp_email }}</strong>
+      {% else %}
+        Inserisci il codice dall'app Authenticator
+      {% endif %}
+    </div>
+
+    {% if error %}
+      <div class="twofa-error">{{ error }}</div>
+    {% endif %}
+
+    {% if email_sent %}
+      <div class="twofa-info">Nuovo codice inviato.</div>
+    {% endif %}
+
+    <form method="post" autocomplete="off">
+      {% csrf_token %}
+      <div class="twofa-field">
+        {{ form.code.label_tag }}
+        {{ form.code }}
+      </div>
+      <div class="twofa-actions">
+        <button type="submit" name="action" value="verify" class="twofa-btn twofa-btn-primary">Verifica →</button>
+        {% if method == "email" %}
+          <button type="submit" name="action" value="resend" class="twofa-btn twofa-btn-sec">Reinvia codice</button>
+        {% endif %}
+      </div>
+    </form>
+
+    <div class="twofa-hint">
+      {% if method == "totp" %}
+        Apri Google Authenticator, Microsoft Authenticator o un'app TOTP compatibile.
+      {% else %}
+        Il codice scade dopo 10 minuti. Controlla anche la cartella spam.
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

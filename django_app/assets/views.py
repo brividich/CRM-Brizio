@@ -190,7 +190,7 @@ ASSET_DOCUMENT_ALLOWED_MIMES = {
 }
 # File di sistema da ignorare silenziosamente negli upload di intere cartelle.
 ASSET_DOCUMENT_IGNORED_FILENAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
-ASSET_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024
+ASSET_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024
 ASSET_DOCUMENT_UPLOAD_FIELDS = {
     AssetDocument.CATEGORY_SPECIFICHE: "upload_specs_files",
     AssetDocument.CATEGORY_MANUALI: "upload_manuals_files",

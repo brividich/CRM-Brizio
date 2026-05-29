@@ -329,6 +329,73 @@ def _sync_django_user_fields(django_user, legacy_user: UtenteLegacy) -> None:
     django_user.is_active = bool(legacy_user.attivo)
 
 
+def _maybe_link_anagrafica(legacy_user: UtenteLegacy) -> None:
+    """Collega AnagraficaDipendente.utente_id se il dipendente esiste ma non è ancora collegato.
+
+    Sicuro da chiamare dentro transaction.atomic(): usa un savepoint interno.
+    Non sovrascrive link esistenti (utente_id != NULL), non propaga eccezioni.
+    Gestisce sia il match per aliasusername (alias breve AD) sia per email (UPN).
+    """
+    legacy_id = int(legacy_user.id)
+    alias = extract_identity_alias(legacy_user.email or "")
+    upn = (legacy_user.email or "").strip().lower()
+
+    if not alias and not upn:
+        return
+    if not legacy_table_has_column("anagrafica_dipendenti", "utente_id"):
+        return
+
+    try:
+        with transaction.atomic():
+            vendor = connections["default"].vendor
+            with connections["default"].cursor() as cur:
+                if vendor == "sqlite":
+                    cur.execute(
+                        """
+                        SELECT id FROM anagrafica_dipendenti
+                        WHERE utente_id IS NULL
+                          AND (
+                            (? <> '' AND UPPER(COALESCE(aliasusername,'')) = UPPER(?))
+                            OR (? <> '' AND LOWER(COALESCE(email,'')) = ?)
+                          )
+                        ORDER BY id DESC LIMIT 1
+                        """,
+                        [alias, alias, upn, upn],
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT TOP 1 id FROM anagrafica_dipendenti
+                        WHERE utente_id IS NULL
+                          AND (
+                            (%s <> '' AND UPPER(COALESCE(aliasusername,'')) = UPPER(%s))
+                            OR (%s <> '' AND LOWER(COALESCE(email,'')) = %s)
+                          )
+                        ORDER BY id DESC
+                        """,
+                        [alias, alias, upn, upn],
+                    )
+                row = cur.fetchone()
+                if not row:
+                    return
+                anagrafica_id = int(row[0])
+                cur.execute(
+                    "UPDATE anagrafica_dipendenti SET utente_id = %s WHERE id = %s AND utente_id IS NULL",
+                    [legacy_id, anagrafica_id],
+                )
+                if cur.rowcount:
+                    logger.info(
+                        "_maybe_link_anagrafica: collegato anagrafica_id=%s a legacy_user_id=%s (alias=%s)",
+                        anagrafica_id,
+                        legacy_id,
+                        alias,
+                    )
+    except DatabaseError as exc:
+        logger.warning("_maybe_link_anagrafica: DB error legacy_user_id=%s: %s", legacy_id, exc)
+    except Exception as exc:
+        logger.warning("_maybe_link_anagrafica: errore inatteso legacy_user_id=%s: %s", legacy_id, exc)
+
+
 def sync_django_user_from_legacy(legacy_user: UtenteLegacy):
     User = get_user_model()
     legacy_id = int(legacy_user.id)
@@ -408,6 +475,7 @@ def sync_django_user_from_legacy(legacy_user: UtenteLegacy):
         if profile_updates:
             user_profile.save(update_fields=profile_updates)
 
+        _maybe_link_anagrafica(legacy_user)
         return django_user
 
 

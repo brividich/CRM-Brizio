@@ -669,7 +669,7 @@ def _base_dashboard_context(request) -> dict[str, Any]:
 
 @login_required
 def dashboard_home(request):
-    return redirect("dashboard_hub_preview")
+    return redirect("home_portale:index")
 
 
 @login_required

@@ -515,19 +515,58 @@ class DipendenteQualifica(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# Catalogo aree aziendali (dropdown per DipendenteAnagraficaAziendale.area)
+# Aree aziendali (raggruppamento di alto livello: es. "Produzione", "Uffici")
 # ---------------------------------------------------------------------------
 
 class AreaAziendale(models.Model):
     nome = models.CharField(max_length=100, unique=True)
     descrizione = models.TextField(blank=True, default="")
+    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "anagrafica_area_aziendale"
         ordering = ["nome"]
         verbose_name = "Area aziendale"
         verbose_name_plural = "Aree aziendali"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Reparti (sotto-unità dell'area aziendale, con caporeparto)
+# La tabella DB mantiene il nome storico ``anagrafica_areaaziendale`` per
+# compatibilità con migrazioni esistenti.
+# ---------------------------------------------------------------------------
+
+class Reparto(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    area_aziendale = models.ForeignKey(
+        AreaAziendale,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reparti",
+        verbose_name="Area aziendale",
+    )
+    caporeparto_legacy_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Caporeparto",
+        help_text="ID legacy del dipendente assegnato come caporeparto.",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "anagrafica_areaaziendale"
+        ordering = ["nome"]
+        verbose_name = "Reparto"
+        verbose_name_plural = "Reparti"
 
     def __str__(self) -> str:
         return self.nome
@@ -693,7 +732,21 @@ class DipendenteAnagraficaAziendale(models.Model):
 
     badge = models.CharField(max_length=30, blank=True, default="", db_index=True, verbose_name="Badge")
 
-    area = models.CharField(max_length=100, blank=True, default="", verbose_name="Area di appartenenza")
+    area = models.CharField(max_length=100, blank=True, default="", verbose_name="Reparto")
+    area_aziendale_nome = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="Area aziendale",
+        help_text="Compilato automaticamente dall'area aziendale del reparto assegnato.",
+    )
+    caporeparto_legacy_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Caporeparto",
+        help_text="ID legacy del caporeparto, compilato automaticamente dal reparto assegnato.",
+    )
     ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
 
     taglia_scarpe = models.CharField(max_length=10, blank=True, default="")
@@ -1154,8 +1207,8 @@ class DipendenteCambiamentoOrganizzativo(models.Model):
 
     TIPO_CHOICES = [
         (TIPO_MANSIONE, "Mansione"),
-        (TIPO_REPARTO, "Reparto"),
-        (TIPO_AREA, "Area aziendale"),
+        (TIPO_REPARTO, "Reparto (legacy)"),
+        (TIPO_AREA, "Reparto"),
         (TIPO_RUOLO_AZIENDALE, "Ruolo aziendale"),
     ]
 

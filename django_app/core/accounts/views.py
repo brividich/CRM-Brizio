@@ -91,11 +91,40 @@ class LegacyLoginView(LoginView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        response = super().form_valid(form)  # crea la sessione autenticata
-        legacy_user = get_legacy_user(self.request.user)
+        from django.contrib.auth import login as auth_login
+        from django.urls import reverse as url_reverse
+
+        user = form.get_user()
+        auth_login(self.request, user)
+
+        try:
+            from core.audit import _get_client_ip, log_action
+            from core.audit_signals import _ip_origin_label
+            ip = _get_client_ip(self.request)
+            log_action(self.request, "login_ok", "core", {
+                "username": user.username,
+                "ip": ip,
+                "origine": _ip_origin_label(ip),
+            })
+        except Exception:
+            pass
+
+        legacy_user = get_legacy_user(user)
         if legacy_auth_enabled() and legacy_user and bool(legacy_user.deve_cambiare_password):
             return redirect("cambia_password")
-        return response
+
+        # 2FA: se richiesto, blocca e redirige alla verifica
+        try:
+            from twofa.utils import initiate_2fa, should_require_2fa
+            if should_require_2fa(self.request, user):
+                success_url = self.get_success_url()
+                self.request.session["twofa_next"] = success_url
+                initiate_2fa(self.request, user)
+                return redirect(url_reverse("twofa:verify"))
+        except ImportError:
+            pass
+
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         raw_next = (
@@ -161,5 +190,18 @@ def cambia_password(request):
 
 
 def logout_view(request):
+    # log PRIMA di logout(): dopo, request.user è già AnonymousUser
+    try:
+        from core.audit import _get_client_ip, log_action
+        from core.audit_signals import _ip_origin_label
+        if request.user.is_authenticated:
+            ip = _get_client_ip(request)
+            log_action(request, "logout", "core", {
+                "username": request.user.username,
+                "ip": ip,
+                "origine": _ip_origin_label(ip),
+            })
+    except Exception:
+        pass
     logout(request)
     return redirect(f"{reverse('login')}?reason=logout")

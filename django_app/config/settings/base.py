@@ -267,6 +267,7 @@ INSTALLED_APPS = [
     "django_extensions",
     "django_q",
     "django_htmx",
+    "twofa.apps.TwoFaConfig",
 ]
 
 MIDDLEWARE = [
@@ -278,11 +279,13 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "core.csrf_cookie_middleware.EnsureCSRFCookieMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.audit_middleware.AuditRequestMiddleware",
     "axes.middleware.AxesMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "monitoring.middleware.IssueCaptureMiddleware",
     "core.session_middleware.SessionIdleTimeoutMiddleware",
     "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
+    "twofa.middleware.TwoFactorMiddleware",
     "core.middleware.ACLMiddleware",
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -450,6 +453,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/admin-portale/automazioni/approvazione/",
     "/automazioni/approvazione/",  # token-based, no login required
     "/approval-actions/",          # token-based, Entra Application Proxy frontend
+    "/2fa/",                       # 2FA verify/setup — gestiti internamente
 )
 
 AUTHENTICATION_BACKENDS = [

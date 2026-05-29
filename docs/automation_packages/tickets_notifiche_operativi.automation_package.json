@@ -1,0 +1,172 @@
+{
+  "flow_name": "Tickets - notifiche operative e aggiornamenti richiedente",
+  "package_version": "1.0",
+  "source_candidate": {
+    "source_code": "tickets"
+  },
+  "approved_field_mapping": {
+    "numero_ticket": "numero_ticket",
+    "tipo": "tipo",
+    "titolo": "titolo",
+    "descrizione": "descrizione",
+    "categoria": "categoria",
+    "priorita": "priorita",
+    "stato": "stato",
+    "incide_sicurezza": "incide_sicurezza",
+    "asset_id": "asset_id",
+    "asset_descrizione_libera": "asset_descrizione_libera",
+    "richiedente_nome": "richiedente_nome",
+    "richiedente_email": "richiedente_email",
+    "assegnato_a": "assegnato_a",
+    "data_prevista_risoluzione": "data_prevista_risoluzione"
+  },
+  "compatibility": true,
+  "issues": [],
+  "proposed_rules": [
+    {
+      "code": "tickets-nuovo-critico-notifica-operativa",
+      "name": "Nuovo ticket critico - notifica operativa",
+      "description": "Avvisa manutenzione/IT quando viene aperto un ticket con priorita CRITICA.",
+      "source_code": "tickets",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "priorita",
+          "operator": "equals",
+          "expected_value": "CRITICA",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email gruppo operativo",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "manutenzione@costruzioninovicrom.it,it@costruzioninovicrom.it",
+            "subject_template": "[{numero_ticket}] Ticket CRITICO - {titolo}",
+            "body_text_template": "Nuovo ticket critico aperto da {richiedente_nome}.\n\nTipo: {tipo}\nCategoria: {categoria}\nAsset ID: {asset_id}\nAsset libero: {asset_descrizione_libera}\nDescrizione: {descrizione}\n\nStato attuale: {stato}"
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log notifica ticket critico",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Ticket critico {numero_ticket} notificato ai gruppi operativi."
+          }
+        }
+      ]
+    },
+    {
+      "code": "tickets-nuovo-impatto-sicurezza-notifica-rspp",
+      "name": "Nuovo ticket con impatto sicurezza - notifica RSPP",
+      "description": "Avvisa RSPP e manutenzione quando un ticket dichiara impatto sulla sicurezza.",
+      "source_code": "tickets",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "incide_sicurezza",
+          "operator": "is_true",
+          "expected_value": "",
+          "value_type": "bool",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email sicurezza",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "rspp@costruzioninovicrom.it,manutenzione@costruzioninovicrom.it",
+            "subject_template": "[{numero_ticket}] Ticket con impatto sicurezza",
+            "body_text_template": "E stato aperto un ticket con impatto sicurezza.\n\nRichiedente: {richiedente_nome}\nTitolo: {titolo}\nTipo: {tipo}\nPriorita: {priorita}\nAsset: {asset_id} {asset_descrizione_libera}\nDescrizione: {descrizione}"
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log notifica sicurezza",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Ticket sicurezza {numero_ticket} notificato a RSPP/manutenzione."
+          }
+        }
+      ]
+    },
+    {
+      "code": "tickets-cambio-stato-email-richiedente",
+      "name": "Cambio stato ticket - email richiedente",
+      "description": "Notifica il richiedente quando cambia lo stato del ticket.",
+      "source_code": "tickets",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "stato",
+          "operator": "changed",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "richiedente_email",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email aggiornamento al richiedente",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "{richiedente_email}",
+            "subject_template": "[{numero_ticket}] Stato aggiornato: {stato}",
+            "body_text_template": "Ciao {richiedente_nome},\n\nil ticket {numero_ticket} - {titolo} e stato aggiornato.\n\nNuovo stato: {stato}\nAssegnato a: {assegnato_a}\nData prevista risoluzione: {data_prevista_risoluzione}\n\nGrazie."
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log cambio stato",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Ticket {numero_ticket} notificato al richiedente per cambio stato a {stato}."
+          }
+        }
+      ]
+    }
+  ]
+}

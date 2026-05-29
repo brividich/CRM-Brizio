@@ -11,7 +11,7 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Case, When, Value, IntegerField, Count
+from django.db.models import Q, Case, When, Value, IntegerField, Count, OuterRef, Subquery
 from django.contrib.auth.views import redirect_to_login
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -382,7 +382,8 @@ def _ticket_access_flags(request, ticket: Ticket) -> dict:
     is_admin = bool(legacy_user and is_legacy_admin(legacy_user))
     is_gestore = _can_manage_tickets(request, ticket.tipo)
     is_richiedente = (
-        (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
+        ticket.richiedente_user_id == request.user.id
+        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
         or ticket.richiedente_nome == name
         or ticket.richiedente_email.lower() == email.lower()
     )
@@ -890,6 +891,7 @@ def ticket_nuovo(request):
             richiedente_nome=name,
             richiedente_email=email,
             richiedente_legacy_user_id=legacy_id,
+            richiedente_user=request.user,
             include_in_maintenance_register=include_maintenance if tipo_post == TipoTicket.MAN else False,
         )
         ticket.save()
@@ -921,7 +923,7 @@ def ticket_nuovo(request):
 
 @login_required
 def ticket_detail(request, pk: int):
-    ticket = get_object_or_404(Ticket, pk=pk)
+    ticket = get_object_or_404(Ticket.objects.select_related("richiedente_user"), pk=pk)
     access = _ticket_access_flags(request, ticket)
     is_admin = access["is_admin"]
     is_gestore = access["is_gestore"]
@@ -933,6 +935,16 @@ def ticket_detail(request, pk: int):
     if not (is_gestore or is_admin):
         commenti = commenti.filter(is_interno=False)
 
+    from core.legacy_models import AnagraficaDipendente
+    richiedente_anagrafica_id = None
+    if ticket.richiedente_user_id:
+        richiedente_anagrafica_id = (
+            AnagraficaDipendente.objects
+            .filter(aliasusername=ticket.richiedente_user.username)
+            .values_list("id", flat=True)
+            .first()
+        )
+
     ctx = {
         "ticket":        ticket,
         "commenti":      commenti,
@@ -940,6 +952,7 @@ def ticket_detail(request, pk: int):
         "is_gestore":    is_gestore,
         "is_admin":      is_admin,
         "is_richiedente":is_richiedente,
+        "richiedente_anagrafica_id": richiedente_anagrafica_id,
     }
     return render(request, "tickets/pages/detail.html", ctx)
 
@@ -1122,7 +1135,14 @@ def ticket_gestione_list(request):
         else:
             return qs.order_by("-created_at")
 
-    base = Ticket.objects.select_related("asset")
+    from core.legacy_models import AnagraficaDipendente
+    base = Ticket.objects.select_related("asset", "richiedente_user").annotate(
+        richiedente_anagrafica_id=Subquery(
+            AnagraficaDipendente.objects.filter(
+                aliasusername=OuterRef("richiedente_user__username")
+            ).values("id")[:1]
+        )
+    )
     if tipo_f in (TipoTicket.IT, TipoTicket.MAN):
         tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))  if tipo_f == TipoTicket.IT  else None
         tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if tipo_f == TipoTicket.MAN else None
@@ -1165,7 +1185,7 @@ def ticket_gestione_list(request):
 
 @_tickets_gestione_required
 def ticket_gestione_detail(request, pk: int):
-    ticket = get_object_or_404(Ticket, pk=pk)
+    ticket = get_object_or_404(Ticket.objects.select_related("richiedente_user"), pk=pk)
     name, email, legacy_id = _legacy_identity(request)
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin    = bool(legacy_user and is_legacy_admin(legacy_user))
@@ -1191,6 +1211,16 @@ def ticket_gestione_detail(request, pk: int):
         float(i.materiali_costo_eur) for i in interventi if i.materiali_costo_eur
     )
 
+    from core.legacy_models import AnagraficaDipendente
+    richiedente_anagrafica_id = None
+    if ticket.richiedente_user_id:
+        richiedente_anagrafica_id = (
+            AnagraficaDipendente.objects
+            .filter(aliasusername=ticket.richiedente_user.username)
+            .values_list("id", flat=True)
+            .first()
+        )
+
     ctx = {
         "ticket":           ticket,
         "commenti":         commenti,
@@ -1215,6 +1245,7 @@ def ticket_gestione_detail(request, pk: int):
         "costo_manodopera_tot":  round(costo_manodopera_tot, 2) if costo_manodopera_tot else None,
         "costo_materiali_tot":   round(costo_materiali_tot, 2) if costo_materiali_tot else None,
         "costo_totale":          round(costo_manodopera_tot + costo_materiali_tot, 2) if (costo_manodopera_tot or costo_materiali_tot) else None,
+        "richiedente_anagrafica_id": richiedente_anagrafica_id,
     }
     return render(request, "tickets/pages/gestione_detail.html", ctx)
 
@@ -1418,7 +1449,8 @@ def api_commento(request):
 
     # Verifica che l'utente possa commentare su questo ticket
     is_richiedente = (
-        (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
+        ticket.richiedente_user_id == request.user.id
+        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
         or ticket.richiedente_nome == name
         or ticket.richiedente_email.lower() == email.lower()
     )
@@ -1494,7 +1526,8 @@ def api_allegato(request):
     legacy_user= getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin   = bool(legacy_user and is_legacy_admin(legacy_user))
     is_richiedente = (
-        (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
+        ticket.richiedente_user_id == request.user.id
+        or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
         or ticket.richiedente_nome == name
     )
     if not (is_richiedente or is_gestore or is_admin):
@@ -1907,8 +1940,74 @@ def api_test_sp(request):
 
 
 # ---------------------------------------------------------------------------
-# API: import CSV ticket (solo admin)
+# API: import CSV/Excel ticket (solo admin)
 # ---------------------------------------------------------------------------
+
+def _xlsx_rows_to_dicts(file_obj) -> list[dict]:
+    """Parses the first non-Mappa sheet of an xlsx file into a list of row dicts."""
+    import openpyxl
+    wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+    ws = next(
+        (wb[s] for s in wb.sheetnames if "mappa" not in s.lower()),
+        wb.active,
+    )
+    rows_iter = ws.iter_rows(values_only=True)
+    headers = [str(v or "").strip() for v in next(rows_iter)]
+    result = []
+    for row in rows_iter:
+        if all(v is None for v in row):
+            continue
+        d: dict[str, str] = {}
+        for h, v in zip(headers, row):
+            if v is None:
+                d[h] = ""
+            elif isinstance(v, bool):
+                d[h] = "1" if v else "0"
+            elif hasattr(v, "isoformat"):
+                d[h] = v.isoformat(sep=" ")[:19]
+            else:
+                d[h] = str(v)
+        result.append(d)
+    return result
+
+
+def _resolve_asset_by_name(name: str, all_assets: list) -> "object | None":
+    """3-level asset matching: exact → forward icontains → reverse icontains.
+
+    Reverse: ticket name 'HH - HERMLE C1200U' contains asset name 'HERMLE C1200U'.
+    Only returns a result when the match is unambiguous.
+    """
+    if not name:
+        return None
+    try:
+        from assets.models import Asset as _Asset
+        # 1. Exact (case-insensitive)
+        exact = list(_Asset.objects.filter(name__iexact=name))
+        if len(exact) == 1:
+            return exact[0]
+        if len(exact) > 1:
+            return None
+        # 2. Forward: DB asset name contains the ticket machine name
+        forward = list(_Asset.objects.filter(name__icontains=name))
+        if len(forward) == 1:
+            return forward[0]
+        if len(forward) > 1:
+            return None
+        # 3. Reverse: ticket machine name contains the DB asset name (Python filter)
+        name_lower = name.lower()
+        reverse = [a for a in all_assets if len(a.name) > 4 and a.name.lower() in name_lower]
+        if not reverse:
+            return None
+        reverse.sort(key=lambda a: len(a.name), reverse=True)
+        if len(reverse) == 1:
+            return reverse[0]
+        # Multiple candidates: accept only if top is clearly more specific than second
+        if len(reverse[0].name) > len(reverse[1].name) + 3:
+            return reverse[0]
+    except Exception:
+        pass
+    return None
+
 
 @require_POST
 @login_required
@@ -1923,16 +2022,32 @@ def api_import_csv(request):
     if not csv_file:
         return _json_err("Nessun file caricato")
 
-    try:
-        raw = csv_file.read()
-        try:
-            content = raw.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            content = raw.decode("latin-1")
-    except Exception:
-        return _json_err("Impossibile leggere il file. Usa codifica UTF-8.")
+    filename = (csv_file.name or "").lower()
+    is_excel = filename.endswith(".xlsx") or filename.endswith(".xlsm")
 
-    reader          = csv.DictReader(io.StringIO(content))
+    if is_excel:
+        try:
+            rows = _xlsx_rows_to_dicts(csv_file)
+        except Exception as exc:
+            return _json_err(f"Impossibile leggere il file Excel: {exc}")
+        reader = iter(rows)
+    else:
+        try:
+            raw = csv_file.read()
+            try:
+                content = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                content = raw.decode("latin-1")
+        except Exception:
+            return _json_err("Impossibile leggere il file. Usa codifica UTF-8.")
+        reader = csv.DictReader(io.StringIO(content))
+
+    # Preload all assets once for reverse-matching (avoids N+1)
+    try:
+        from assets.models import Asset as _AssetModel
+        _all_assets = list(_AssetModel.objects.only("id", "name"))
+    except Exception:
+        _all_assets = []
     update_existing = request.POST.get("update_existing") == "1"
     tipo_override   = (request.POST.get("tipo_override") or "").strip().upper()
 
@@ -1957,6 +2072,7 @@ def api_import_csv(request):
     created = 0
     updated = 0
     skipped = 0
+    linked  = 0
     errors  = []
 
     def _parse_dt(raw: str):
@@ -1970,7 +2086,7 @@ def api_import_csv(request):
     def _build_fields(row, tipo, priorita, stato, incide_sicurezza) -> dict:
         return dict(
             tipo=tipo,
-            titolo=_get(row, "titolo", "Problema")[:300],
+            titolo=_get(row, "titolo", "Titolo", "Problema")[:300],
             descrizione=_get(row, "descrizione", "Descrizione del problema"),
             categoria=_get(row, "categoria", "Tipologia problema", "Tipologia")[:30],
             priorita=priorita,
@@ -1995,7 +2111,7 @@ def api_import_csv(request):
                 errors.append(f"Riga {row_num}: tipo '{tipo}' non valido (usa IT o MAN)")
                 continue
 
-        titolo           = _get(row, "titolo", "Problema")
+        titolo           = _get(row, "titolo", "Titolo", "Problema")
         descrizione      = _get(row, "descrizione", "Descrizione del problema")
         categoria        = _get(row, "categoria", "Tipologia problema", "Tipologia")
         richiedente_nome = _get(row, "richiedente_nome", "Problema registrato da")
@@ -2085,25 +2201,17 @@ def api_import_csv(request):
 
         # ── Auto-link asset: se asset_descrizione_libera è valorizzato e FK è vuota ──
         if not ticket.asset_id and ticket.asset_descrizione_libera:
-            try:
-                from assets.models import Asset as AssetModel
-                matches = list(
-                    AssetModel.objects.filter(name__iexact=ticket.asset_descrizione_libera)
-                )
-                if not matches:
-                    matches = list(
-                        AssetModel.objects.filter(name__icontains=ticket.asset_descrizione_libera)
-                    )
-                if len(matches) == 1:
-                    Ticket.objects.filter(pk=ticket.pk).update(asset=matches[0])
-            except Exception:
-                pass
+            matched = _resolve_asset_by_name(ticket.asset_descrizione_libera, _all_assets)
+            if matched:
+                Ticket.objects.filter(pk=ticket.pk).update(asset=matched)
+                linked += 1
 
     return JsonResponse({
         "ok":      True,
         "created": created,
         "updated": updated,
         "skipped": skipped,
+        "linked":  linked,
         "errors":  errors[:30],
     })
 

@@ -503,21 +503,27 @@ def _render_dashboard_form(request, notizia: Notizia, *, is_create: bool):
 
             if is_create:
                 if save_and_publish:
+                    log_action(request, "notizia_creata_pubblicata" if is_create else "notizia_ripubblicata", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo})
                     messages.success(request, "Notizia creata e pubblicata.")
                 else:
+                    log_action(request, "notizia_creata" if is_create else "notizia_modificata", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo, "stato": obj.stato})
                     messages.success(request, "Notizia creata in bozza.")
             elif was_published:
                 if save_and_publish:
+                    log_action(request, "notizia_ripubblicata", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo})
                     messages.success(request, "Notizia aggiornata e ripubblicata con nuova versione.")
                 else:
+                    log_action(request, "notizia_riportata_bozza", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo})
                     messages.success(
                         request,
                         "Notizia aggiornata e riportata in bozza. Pubblica per rendere attiva la nuova versione.",
                     )
             else:
                 if save_and_publish:
+                    log_action(request, "notizia_pubblicata", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo})
                     messages.success(request, "Notizia salvata e pubblicata.")
                 else:
+                    log_action(request, "notizia_modificata", "notizie", {"notizia_id": obj.pk, "titolo": obj.titolo, "stato": obj.stato})
                     messages.success(request, "Notizia aggiornata.")
 
             return redirect(reverse("notizie_dashboard_edit", args=[obj.id]))
@@ -675,6 +681,7 @@ def dashboard_publish(request, notizia_id: int):
         pubblica_notizia(notizia, prima_pubblicazione=prima_pubblicazione)
 
     _invalidate_mandatory_cache_for_all_profiles()
+    log_action(request, "notizia_pubblicata" if prima_pubblicazione else "notizia_ripubblicata", "notizie", {"notizia_id": notizia.pk, "titolo": notizia.titolo, "versione": notizia.versione})
     messages.success(
         request,
         "Notizia pubblicata." if prima_pubblicazione else "Notizia ripubblicata con nuova versione.",
@@ -693,6 +700,7 @@ def dashboard_archive(request, notizia_id: int):
         notizia.stato = STATO_ARCHIVIATA
         notizia.save(update_fields=["stato"])
         _invalidate_mandatory_cache_for_all_profiles()
+        log_action(request, "notizia_archiviata", "notizie", {"notizia_id": notizia.pk, "titolo": notizia.titolo})
         messages.success(request, "Notizia archiviata.")
     else:
         messages.info(request, "La notizia era gia archiviata.")

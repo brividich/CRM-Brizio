@@ -163,7 +163,7 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
         {% if ticket.asset %}
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:13px;">
           <span style="color:#64748b;font-weight:600;">Asset:</span>
-          <span style="color:#0369a1;font-weight:700;">{{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]</span>
+          <a href="{% url 'assets:asset_view' ticket.asset.pk %}" style="color:#0369a1;font-weight:700;">{{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]</a>
         </div>
         {% elif ticket.asset_descrizione_libera %}
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:13px;">
@@ -245,7 +245,7 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
         </div>
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Richiedente</span>
-          <span class="tkt-meta-val">{{ ticket.richiedente_nome }}</span>
+          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome }}</a>{% else %}{{ ticket.richiedente_nome }}{% endif %}</span>
         </div>
         {% if ticket.assegnato_a %}
         <div class="tkt-meta-item">

@@ -25,6 +25,7 @@ from anagrafica.models import (
     FornitoreOrdine,
     FornitoreValutazione,
 )
+from core.audit import log_action
 
 from .forms import (
     FornitoreAssetForm,
@@ -160,6 +161,7 @@ def fornitore_create(request):
         form = FornitoreForm(request.POST)
         if form.is_valid():
             fornitore = form.save()
+            log_action(request, "fornitore_creato", "fornitori", {"fornitore_id": fornitore.pk, "ragione_sociale": fornitore.ragione_sociale})
             messages.success(request, f'Fornitore "{fornitore.ragione_sociale}" creato.')
             return redirect("fornitori:fornitore_detail", fornitore_id=fornitore.pk)
     else:
@@ -177,6 +179,7 @@ def fornitore_edit(request, fornitore_id):
         form = FornitoreForm(request.POST, instance=fornitore)
         if form.is_valid():
             form.save()
+            log_action(request, "fornitore_modificato", "fornitori", {"fornitore_id": fornitore.pk, "ragione_sociale": fornitore.ragione_sociale})
             messages.success(request, "Fornitore aggiornato.")
             return redirect("fornitori:fornitore_detail", fornitore_id=fornitore.pk)
     else:
@@ -195,6 +198,7 @@ def fornitore_toggle_active(request, fornitore_id):
     fornitore.is_active = not fornitore.is_active
     fornitore.save(update_fields=["is_active", "updated_at"])
     stato = "attivato" if fornitore.is_active else "disattivato"
+    log_action(request, f"fornitore_{stato}", "fornitori", {"fornitore_id": fornitore.pk, "ragione_sociale": fornitore.ragione_sociale})
     messages.success(request, f'Fornitore "{fornitore.ragione_sociale}" {stato}.')
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore.pk)
 
@@ -213,6 +217,7 @@ def fornitore_documento_add(request, fornitore_id):
         doc.fornitore = fornitore
         doc.uploaded_by = request.user
         doc.save()
+        log_action(request, "fornitore_documento_caricato", "fornitori", {"fornitore_id": fornitore.pk, "doc_id": doc.pk, "nome": doc.nome})
         messages.success(request, f'Documento "{doc.nome}" caricato.')
     else:
         messages.error(request, "Errore nel caricamento: verifica i campi obbligatori.")
@@ -225,6 +230,7 @@ def fornitore_documento_delete(request, fornitore_id, doc_id):
     doc = get_object_or_404(FornitoreDocumento, pk=doc_id, fornitore_id=fornitore_id)
     nome = doc.nome
     doc.delete()
+    log_action(request, "fornitore_documento_eliminato", "fornitori", {"fornitore_id": fornitore_id, "doc_id": doc_id, "nome": nome})
     messages.success(request, f'Documento "{nome}" eliminato.')
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore_id)
 
@@ -243,6 +249,7 @@ def fornitore_ordine_add(request, fornitore_id):
         ordine.fornitore = fornitore
         ordine.created_by = request.user
         ordine.save()
+        log_action(request, "fornitore_ordine_aggiunto", "fornitori", {"fornitore_id": fornitore.pk, "ordine_id": ordine.pk})
         messages.success(request, "Ordine aggiunto.")
     else:
         messages.error(request, "Errore nel salvataggio dell'ordine.")
@@ -258,6 +265,7 @@ def fornitore_ordine_stato(request, fornitore_id, ordine_id):
     if nuovo_stato in stati_validi:
         ordine.stato = nuovo_stato
         ordine.save(update_fields=["stato", "updated_at"])
+        log_action(request, "fornitore_ordine_stato_aggiornato", "fornitori", {"fornitore_id": fornitore_id, "ordine_id": ordine_id, "nuovo_stato": nuovo_stato})
         messages.success(request, f"Stato aggiornato: {stati_validi[nuovo_stato]}.")
     else:
         messages.error(request, "Stato non valido.")
@@ -278,6 +286,7 @@ def fornitore_valutazione_add(request, fornitore_id):
         val.fornitore = fornitore
         val.valutato_da = request.user
         val.save()
+        log_action(request, "fornitore_valutazione_aggiunta", "fornitori", {"fornitore_id": fornitore.pk, "valutazione_id": val.pk})
         messages.success(request, "Valutazione aggiunta.")
     else:
         messages.error(request, "Errore nel salvataggio della valutazione.")
@@ -289,6 +298,7 @@ def fornitore_valutazione_add(request, fornitore_id):
 def fornitore_valutazione_delete(request, fornitore_id, val_id):
     val = get_object_or_404(FornitoreValutazione, pk=val_id, fornitore_id=fornitore_id)
     val.delete()
+    log_action(request, "fornitore_valutazione_eliminata", "fornitori", {"fornitore_id": fornitore_id, "valutazione_id": val_id})
     messages.success(request, "Valutazione eliminata.")
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore_id)
 
@@ -307,6 +317,7 @@ def fornitore_asset_add(request, fornitore_id):
         fa.fornitore = fornitore
         fa.created_by = request.user
         fa.save()
+        log_action(request, "fornitore_asset_assegnato", "fornitori", {"fornitore_id": fornitore.pk, "asset_id": fa.asset_id})
         messages.success(request, f'Asset "{fa.asset}" assegnato al fornitore.')
     else:
         messages.error(request, "Errore nell'assegnazione dell'asset.")
@@ -319,5 +330,6 @@ def fornitore_asset_remove(request, fornitore_id, fa_id):
     fa = get_object_or_404(FornitoreAsset, pk=fa_id, fornitore_id=fornitore_id)
     nome = str(fa.asset)
     fa.delete()
+    log_action(request, "fornitore_asset_rimosso", "fornitori", {"fornitore_id": fornitore_id, "fa_id": fa_id, "asset": nome})
     messages.success(request, f'Asset "{nome}" rimosso dal fornitore.')
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore_id)

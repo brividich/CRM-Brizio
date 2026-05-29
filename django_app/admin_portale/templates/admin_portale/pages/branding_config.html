@@ -6,6 +6,13 @@
   {% include "admin_portale/components/admin_subnav.html" %}
 {% endblock %}
 
+{% block extra_head %}
+<style>
+.bc-layout { display:grid; grid-template-columns:1fr 300px; gap:20px; max-width:900px; }
+@media(max-width:768px) { .bc-layout { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Branding portale" page_subtitle="Personalizza il favicon che appare nella scheda del browser per tutte le pagine del portale." %}
 
@@ -17,7 +24,7 @@
     </div>
   {% endif %}
 
-  <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;max-width:900px;">
+  <div class="bc-layout">
 
     <!-- COLONNA SINISTRA -->
     <div style="display:flex;flex-direction:column;gap:20px;">

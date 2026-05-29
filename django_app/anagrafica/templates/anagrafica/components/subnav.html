@@ -56,13 +56,11 @@ body.theme-dark .hrnav-notice { color:var(--text-light); }
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
 </div>
-<div class="hrnav-notice{% if request.resolver_match.view_name == 'anagrafica:dipendente_detail' %} hrnav-notice-hidden{% endif %}">
+<div class="hrnav-notice{% if request.resolver_match.view_name == 'anagrafica:dipendente_detail' or request.resolver_match.view_name == 'anagrafica:dipendenti_list' or request.resolver_match.view_name == 'anagrafica:ex_dipendenti_list' %} hrnav-notice-hidden{% endif %}">
   {% with current=request.resolver_match.view_name %}
-  {% if current != 'anagrafica:dipendente_detail' %}
+  {% if current != 'anagrafica:dipendente_detail' and current != 'anagrafica:dipendenti_list' and current != 'anagrafica:ex_dipendenti_list' %}
   {% if current == 'anagrafica:index' %}
     <strong>Anagrafica HR:</strong> panoramica dei dipendenti, ruoli, mansioni e qualifiche.
-  {% elif current == 'anagrafica:dipendenti_list' %}
-    <strong>Dipendenti:</strong> elenco dei dipendenti aziendali. Clicca "Scheda" per accedere al dettaglio.
   {% elif current == 'anagrafica:ratei_list' %}
     <strong>Ratei Ferie / Permessi:</strong> saldi mensili ferie, ROL ed ex-festività da cedolino paga.
   {% elif current == 'anagrafica:retribuzioni_globale' %}

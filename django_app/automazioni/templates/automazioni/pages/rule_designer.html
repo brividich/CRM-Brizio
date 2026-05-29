@@ -37,7 +37,7 @@
   .designer-trigger-copy { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
   .designer-field { display:grid; gap:6px; }
   .designer-field label { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#475569; }
-  .designer-field input, .designer-field select, .designer-field textarea { width:100%; padding:10px 11px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .designer-field input, .designer-field select, .designer-field textarea { width:100%; min-width:0; box-sizing:border-box; padding:10px 11px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
   .designer-field textarea { min-height:88px; }
   .designer-field-wide { grid-column:1 / -1; }
   .designer-field-choice-grid { grid-column:1 / -1; display:grid; gap:12px; grid-template-columns:minmax(0, 1.25fr) minmax(260px, .75fr); align-items:start; }
@@ -65,7 +65,7 @@
   .designer-editor-shell { border-top:1px dashed #cbd5e1; padding-top:12px; }
   .designer-editor-summary { cursor:pointer; font-weight:800; color:#0f172a; list-style:none; display:flex; align-items:center; gap:8px; }
   .designer-editor-summary::-webkit-details-marker { display:none; }
-  .designer-editor-summary::before { content:"â–¾"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
+  .designer-editor-summary::before { content:"\25BE"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
   .designer-editor-shell:not([open]) .designer-editor-summary::before { transform:rotate(-90deg); }
   .designer-editor-stack { display:grid; gap:12px; }
   .designer-editor-panel { padding:14px; border:1px solid #e2e8f0; border-radius:16px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
@@ -74,7 +74,7 @@
   .designer-subeditor-summary { cursor:pointer; font-size:13px; font-weight:700; color:#334155; list-style:none; }
   .designer-subeditor-summary::-webkit-details-marker { display:none; }
   .designer-subeditor-summary::before { content:"+"; display:inline-flex; width:18px; justify-content:center; color:#1d4ed8; font-weight:900; }
-  .designer-subeditor[open] .designer-subeditor-summary::before { content:"âˆ’"; }
+  .designer-subeditor[open] .designer-subeditor-summary::before { content:"\2212"; }
   .designer-field-compact-toggle { align-content:start; }
   .designer-toggle-wrap { min-height:44px; display:flex; align-items:center; padding:0 2px; }
   .designer-toggle-wrap input[type="checkbox"] { width:18px; height:18px; }
@@ -208,15 +208,15 @@
   .email-preview-ph-hint { font-size:11px; color:#94a3b8; }
 
   /* â”€â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  .flow-workspace-overlay { position: fixed; inset: 0; z-index: 950; background: rgba(15,23,42,.38); padding: 18px; }
+  .flow-workspace-overlay { position: fixed; inset: 0; z-index: 950; box-sizing:border-box; background: rgba(15,23,42,.38); padding: 18px; }
   .flow-workspace-overlay[hidden] { display: none !important; }
-  .flow-workspace-shell { width: 100%; height: calc(100vh - 36px); display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); border-radius: 24px; overflow: hidden; background: #f8fafc; box-shadow: 0 26px 80px rgba(15,23,42,.24); }
-  .flow-workspace-side { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-right: 1px solid #dbeafe; }
+  .flow-workspace-shell { width: 100%; max-width:100%; height: calc(100vh - 36px); display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); border-radius: 24px; overflow: hidden; background: #f8fafc; box-shadow: 0 26px 80px rgba(15,23,42,.24); }
+  .flow-workspace-side { min-width: 0; min-height: 0; overflow:hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-right: 1px solid #dbeafe; }
   .flow-workspace-side-head { padding: 18px 20px 16px; border-bottom: 1px solid #dbeafe; background: rgba(255,255,255,.86); backdrop-filter: blur(8px); display: grid; gap: 12px; }
   .flow-workspace-kicker { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #1d4ed8; }
   .flow-workspace-title { font-size: 22px; font-weight: 900; color: #0f172a; }
   .flow-workspace-copy { color: #475569; font-size: 13px; line-height: 1.5; }
-  .flow-workspace-side-scroll { min-height: 0; overflow: auto; padding: 18px 20px 22px; display: grid; gap: 16px; }
+  .flow-workspace-side-scroll { min-height: 0; overflow-y: auto; overflow-x:hidden; padding: 18px 20px 22px; display: grid; gap: 16px; scrollbar-gutter:stable; }
   .flow-workspace-summary { display: grid; gap: 8px; padding: 14px 16px; border-radius: 18px; border: 1px solid #dbeafe; background: linear-gradient(160deg, #eff6ff 0%, #ffffff 100%); }
   .flow-workspace-summary-line { font-size: 13px; font-weight: 700; color: #1e3a8a; }
   .flow-workspace-nav { display: grid; gap: 8px; }
@@ -227,9 +227,10 @@
   .flow-workspace-empty-title { font-size: 15px; font-weight: 900; color: #0f172a; }
   .flow-workspace-main { min-width: 0; min-height: 0; display: grid; }
   .flow-diagram-shell { height: 100%; background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden; margin-bottom: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-  .flow-diagram-topbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(255,255,255,.7); border-bottom: 1px solid #dbeafe; }
+  .flow-diagram-topbar { display: flex; align-items: center; gap: 12px; min-width:0; padding: 12px 20px; background: rgba(255,255,255,.7); border-bottom: 1px solid #dbeafe; }
   .flow-diagram-label { font-size: 13px; font-weight: 800; color: #1e40af; }
-  .flow-diagram-hint { flex: 1; font-size: 12px; color: #64748b; }
+  .flow-diagram-hint { flex: 1; min-width:0; font-size: 12px; color: #64748b; }
+  .flow-diagram-topbar .btn { white-space:nowrap; }
   .flow-diagram-canvas { display: flex; flex-direction: column; align-items: center; padding: 28px 24px 44px; gap: 0; overflow: auto; min-height: 0; background-image: radial-gradient(circle at 1px 1px, rgba(148,163,184,.28) 1px, transparent 0); background-size: 24px 24px; }
   .flow-diagram-loading { padding: 40px; color: #64748b; font-size: 14px; }
 
@@ -242,8 +243,8 @@
   /* Nodo base */
   .flow-node { width: 480px; max-width: 100%; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 6px rgba(15,23,42,.06); transition: box-shadow .15s, transform .12s; flex-shrink: 0; }
   .flow-node:hover { box-shadow: 0 4px 20px rgba(15,23,42,.1); transform: translateY(-1px); }
-  .flow-node-inner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
-  .flow-node-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .flow-node-inner { display: flex; gap: 12px; align-items: flex-start; min-width:0; padding: 14px 16px; }
+  .flow-node-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight:900; line-height:1; flex-shrink: 0; }
   .flow-node-body { flex: 1; min-width: 0; }
   .flow-node-app { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; }
   .flow-node-title { font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -313,7 +314,8 @@
   .flow-node--drag-over { outline: 3px solid #3b82f6 !important; outline-offset: 3px; transform: none !important; }
   .flow-node--dragging { opacity: .3; pointer-events: none; }
   .flow-node--pending { border-style: dashed !important; }
-  .flow-node-drag-handle { cursor: grab; color: #d1d5db; font-size: 16px; padding: 0 8px; user-select: none; flex-shrink: 0; display: flex; align-items: center; border-right: 1px solid #f1f5f9; }
+  .flow-node-drag-handle { cursor: grab; width:26px; padding: 0; user-select: none; flex-shrink: 0; display: flex; align-items: center; justify-content:center; border-right: 1px solid #f1f5f9; }
+  .flow-node-drag-handle::before { content:""; width:4px; height:18px; background:radial-gradient(circle, #cbd5e1 1.5px, transparent 2px) 0 0 / 4px 6px; }
   .flow-node-drag-handle:hover { color: #94a3b8; background: #f8fafc; }
   .flow-node-delete-btn { cursor: pointer; color: #d1d5db; background: none; border: none; font-size: 14px; font-weight: 900; padding: 4px 6px; border-radius: 6px; line-height: 1; flex-shrink: 0; transition: color .12s, background .12s; }
   .flow-node-delete-btn:hover { color: #dc2626; background: #fee2e2; }
@@ -321,12 +323,18 @@
   .flow-diagram-add-row { display: flex; flex-direction: column; align-items: center; }
   .flow-diagram-add-btn { display: flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 999px; border: 2px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
   .flow-diagram-add-btn:hover { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
-  .flow-inline-editor { display: grid; gap: 14px; width: 100%; padding: 0; border-top: 0; background: transparent; }
+  .flow-inline-editor { display: grid; gap: 14px; width: 100%; min-width:0; padding: 0; border-top: 0; background: transparent; }
   .flow-inline-editor[hidden] { display: none !important; }
   .flow-inline-editor-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
   .flow-inline-editor-title { font-size: 18px; font-weight: 900; color: #0f172a; }
-  .flow-inline-editor-body { display: grid; gap: 12px; }
-  .flow-inline-editor .designer-meta-card { margin: 0; border-color: #bfdbfe; box-shadow: 0 10px 28px rgba(15,23,42,.08); }
+  .flow-inline-editor-body { display: grid; gap: 12px; min-width:0; }
+  .flow-inline-editor .designer-meta-card { margin: 0; min-width:0; max-width:100%; overflow:hidden; border-color: #bfdbfe; box-shadow: 0 10px 28px rgba(15,23,42,.08); }
+  .flow-inline-editor .designer-header,
+  .flow-inline-editor .designer-trigger-copy,
+  .flow-inline-editor .designer-editor-stack,
+  .flow-inline-editor .designer-editor-panel,
+  .flow-inline-editor .designer-field { min-width:0; max-width:100%; }
+  .flow-inline-editor .designer-trigger-copy { grid-template-columns:1fr; }
   .flow-inline-editor .designer-actions [data-move] { display: none; }
   .flow-inline-editor [data-card-details] { margin-top: 0 !important; border-top: 0; padding-top: 0; }
   .flow-inline-editor [data-card-details] > summary { display: none; }
@@ -360,9 +368,10 @@
   .diagram-action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .diagram-action-item { width: 100%; appearance: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px 10px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .1s; font: inherit; text-align: center; }
   .diagram-action-item:hover { border-color: var(--ac, #3b82f6); box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
-  .diagram-action-item-icon { font-size: 22px; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .diagram-action-item-icon { font-size: 13px; font-weight:900; line-height:1; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .diagram-action-item-label { font-size: 11px; font-weight: 800; color: #334155; text-align: center; line-height: 1.3; }
   .diagram-action-item-app { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  html.flow-workspace-open,
   body.flow-workspace-open { overflow: hidden; }
   @media (max-width: 1180px) {
     .flow-workspace-overlay { padding: 8px; }
@@ -550,12 +559,12 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
         <div class="designer-section-body">
           <div class="designer-header">
             <div>
-              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}Â· Nuova regola{% else %}Â· Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}| Nuova regola{% else %}| Regola {{ rule.id }}{% endif %}</div>
               <div class="designer-section-title">{{ rule_name_value }}</div>
               <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
             </div>
             <div class="designer-actions">
-              <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">ðŸ”€ Diagramma di flusso</button>
+              <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">Diagramma di flusso</button>
               {% if not is_new_rule %}
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Builder classico</a>
@@ -597,7 +606,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
             </div>
           </div>
 
-          {# â”€â”€ Flow Diagram Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
+          {# Flow Diagram Panel #}
           <div id="flowDiagramPanel" class="flow-workspace-overlay" hidden>
             <div class="flow-workspace-shell" role="dialog" aria-modal="true" aria-label="Workspace diagramma di flusso">
               <aside class="flow-workspace-side">
@@ -656,13 +665,13 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
               <section class="flow-workspace-main">
                 <div class="flow-diagram-shell">
               <div class="flow-diagram-topbar">
-                <span class="flow-diagram-label">ðŸ”€ Diagramma di flusso</span>
-                <span class="flow-diagram-hint">Trascina per riordinare Â· click sul nodo per modificare Â· ï¼‹ per aggiungere Â· âœ• per rimuovere</span>
-                <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">â¬‡ PNG</button>
-                <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">âœ• Chiudi</button>
+                <span class="flow-diagram-label">Diagramma di flusso</span>
+                <span class="flow-diagram-hint">Trascina per riordinare | click sul nodo per modificare | + per aggiungere | x per rimuovere</span>
+                <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">PNG</button>
+                <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">Chiudi</button>
               </div>
               <div class="flow-diagram-canvas" id="flowDiagramCanvas">
-                <div class="flow-diagram-loading">Generazione diagrammaâ€¦</div>
+                <div class="flow-diagram-loading">Generazione diagramma...</div>
               </div>
                 </div>
               </section>
@@ -825,16 +834,16 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
     <aside class="designer-side">
 
-      {# â”€â”€ Test live panel â”€â”€ #}
+      {# Test live panel #}
       {% if not is_new_rule %}
       <div class="designer-section-card" id="livetest-panel">
         <div class="designer-section-head">
           <div>
             <div class="designer-section-title" style="display:flex;align-items:center;gap:8px;">
               Test live
-              <span class="designer-pill designer-pill-success" style="font-size:10px;padding:3px 8px;">â–¶ Pronto</span>
+              <span class="designer-pill designer-pill-success" style="font-size:10px;padding:3px 8px;">Pronto</span>
             </div>
-            <div class="designer-section-subtitle">Esegui con dati campione o un record reale â€” risultati azione per azione.</div>
+            <div class="designer-section-subtitle">Esegui con dati campione o un record reale - risultati azione per azione.</div>
           </div>
         </div>
         <div class="designer-section-body">
@@ -845,7 +854,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
             <button class="livetest-tab" type="button" data-livetest-tab="real">Record reale</button>
           </div>
 
-          {# â”€â”€ Tab: Dati campione â”€â”€ #}
+          {# Tab: Dati campione #}
           <div data-livetest-panel="sample">
             <div class="designer-field" style="margin-top:10px;">
               <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload ({{ trigger_descriptor.source_label }})</label>
@@ -859,13 +868,13 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
             {% endif %}
           </div>
 
-          {# â”€â”€ Tab: Record reale â”€â”€ #}
+          {# Tab: Record reale #}
           <div data-livetest-panel="real" hidden>
             <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
               <div class="designer-field" style="flex:1;min-width:130px;">
                 <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Record {{ trigger_descriptor.source_label }}</label>
                 <select id="livetest-record-select" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;">
-                  <option value="">â€” premi Carica â€”</option>
+                  <option value="">- premi Carica -</option>
                 </select>
               </div>
               <button type="button" class="btn btn-light" id="livetest-load-records-btn"
@@ -875,7 +884,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
             <button type="button" class="btn btn-light" id="livetest-use-record-btn"
                     data-payload-url-template="{% url 'admin_portale:automazioni_api_record_payload' source_code=rule.source_code record_id='RECORD_ID' %}"
                     disabled style="margin-top:8px;width:100%;">
-              Usa come payload â†’
+              Usa come payload
             </button>
             <div class="designer-field" style="margin-top:10px;">
               <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload caricato</label>
@@ -895,7 +904,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
                     data-test-url="{% url 'admin_portale:automazioni_api_test_rule_ajax' rule_id=rule.id %}"
                     data-is-update="{{ rule_is_update|yesno:'true,false' }}"
                     data-run-log-base="{% url 'admin_portale:automazioni_run_log_list' %}">
-              â–¶ Esegui test
+              Esegui test
             </button>
             <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test completo</a>
           </div>
@@ -920,7 +929,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       <div class="designer-section-card">
         <div class="designer-section-body">
           <div class="designer-summary-kicker">Test live</div>
-          <div class="designer-note" style="margin-top:8px;">Il test live sarÃ  disponibile dopo il primo salvataggio della regola.</div>
+          <div class="designer-note" style="margin-top:8px;">Il test live sara' disponibile dopo il primo salvataggio della regola.</div>
           <div style="margin-top:10px;">
             <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">Payload campione</div>
             <pre style="margin:0;padding:12px;border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:11px;max-height:160px;overflow:auto;">{{ sample_payload_json }}</pre>
@@ -934,15 +943,15 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   </form>
   </div>
 
-{# â”€â”€ Hidden empty-form templates per clonazione JS â”€â”€ #}
+{# Hidden empty-form templates per clonazione JS #}
 <div id="empty-condition-card" hidden>
 {% with ef=condition_formset.empty_form %}
 <article class="designer-meta-card" data-condition-card data-is-existing="false">
   {% for hf in ef.hidden_fields %}{{ hf }}{% endfor %}
   <div class="designer-header">
     <div>
-      <div class="designer-summary-kicker">Condizione <span data-order-badge>â€”</span></div>
-      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>â€”</div>
+      <div class="designer-summary-kicker">Condizione <span data-order-badge>-</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>-</div>
       <div class="designer-section-subtitle" data-condition-human-summary>Nuova condizione</div>
     </div>
     <div class="designer-actions">
@@ -1010,12 +1019,12 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 {% include "automazioni/components/action_card.html" with entry=empty_action_entry %}
 </div>
 
-{# â”€â”€ Modal aggiunta azione dal diagramma â”€â”€ #}
+{# Modal aggiunta azione dal diagramma #}
 <div id="diagramAddModal" class="diagram-modal-overlay" hidden aria-modal="true" role="dialog">
   <div class="diagram-modal-box">
     <div class="diagram-modal-head">
       <span class="diagram-modal-title">Aggiungi azione al flusso</span>
-      <button class="diagram-modal-close" type="button" onclick="closeDiagramAddModal()" aria-label="Chiudi">âœ•</button>
+      <button class="diagram-modal-close" type="button" onclick="closeDiagramAddModal()" aria-label="Chiudi">x</button>
     </div>
     <div class="diagram-modal-body">
       <div class="diagram-action-grid" id="diagramActionGrid">
@@ -1939,7 +1948,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     var value = String(text || '').trim();
     if (!value) return '';
     if (value.length <= maxLength) return value;
-    return value.slice(0, Math.max(0, maxLength - 1)).trim() + '…';
+    return value.slice(0, Math.max(0, maxLength - 3)).trim() + '...';
   }
 
   function _countConfigKeys(value) {
@@ -1951,7 +1960,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     if (typeof _DIAG_STYLES !== 'undefined' && _DIAG_STYLES && _DIAG_STYLES[actionType]) {
       return _DIAG_STYLES[actionType];
     }
-    return { icon: '⚡', color: '#64748b', bg: '#f8fafc', label: actionType || 'Azione', app: 'Azione' };
+    return { icon: '\u26A1', color: '#64748b', bg: '#f8fafc', label: actionType || 'Azione', app: 'Azione' };
   }
 
   function _describeInlineActionConfig(config) {
@@ -1978,6 +1987,9 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     }
     if (actionType === 'update_trigger_record') {
       return 'Aggiorna ' + _countConfigKeys(cfg.update_fields) + ' campi del record triggerante.';
+    }
+    if (actionType === 'split_assenza_giornaliera') {
+      return 'Crea righe giornaliere derivate da ' + (cfg.start_field || 'data_inizio') + ' a ' + (cfg.end_field || 'data_fine') + '.';
     }
     if (actionType === 'branch') {
       return 'Branch annidato: apri il JSON avanzato per rifinire il ramo.';
@@ -2022,6 +2034,26 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
           body_text_template: 'Gestione ' + label.toLowerCase() + ' per il record {id}.',
           body_html_template: '',
           fail_silently: false,
+        }
+      };
+    }
+    if (actionType === 'split_assenza_giornaliera') {
+      return {
+        action_type: 'split_assenza_giornaliera',
+        description: 'Split giornaliero ' + label,
+        config_json: {
+          source_code: 'assenze',
+          start_field: 'data_inizio',
+          end_field: 'data_fine',
+          days_count_fields: ['giorni_permesso', 'giornipermesso', 'Giornipermesso', 'giorni'],
+          max_days: 60,
+          tipo_assenza_template: 'Permesso',
+          salta_approvazione: true,
+          moderation_status: 0,
+          consenso_template: 'Approvato',
+          include_first_day: false,
+          dedupe: true,
+          set_approval_datetime: true
         }
       };
     }
@@ -2118,7 +2150,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       html += '<div class="designer-inline-item-head">';
       html += '<div class="designer-inline-item-main">';
       html += '<div class="designer-inline-item-title">';
-      html += '<span class="designer-inline-item-icon" style="color:' + _escapeInlineHtml(style.color || '#64748b') + ';">' + _escapeInlineHtml(style.icon || '⚡') + '</span>';
+      html += '<span class="designer-inline-item-icon" style="color:' + _escapeInlineHtml(style.color || '#64748b') + ';">' + _escapeInlineHtml(style.icon || '\u26A1') + '</span>';
       html += '<span>' + _escapeInlineHtml(title) + '</span>';
       html += '</div>';
       html += '<div class="designer-inline-item-meta">' + _escapeInlineHtml(_describeInlineActionConfig(item)) + '</div>';
@@ -2167,7 +2199,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       summaryNode.textContent = (fieldRaw || 'campo') + ' ' + (operatorRaw || 'operatore') + (expectedValue ? ' ' + expectedValue : '');
     }
     if (humanNode) {
-      humanNode.textContent = fieldLabel + ' â€¢ ' + operatorLabel;
+      humanNode.textContent = fieldLabel + ' - ' + operatorLabel;
     }
   }
 
@@ -2366,6 +2398,14 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       previewLines = [
         'Target: record triggerante',
         'Update fields: ' + triggerCount
+      ];
+    } else if (actionType === 'split_assenza_giornaliera') {
+      previewLines = [
+        'Periodo: ' + (String((getCardField(card, 'split_start_field') || {}).value || '').trim() || 'data_inizio')
+          + ' -> '
+          + (String((getCardField(card, 'split_end_field') || {}).value || '').trim() || 'data_fine'),
+        'Max giorni creati: ' + (String((getCardField(card, 'split_max_days') || {}).value || '').trim() || '60'),
+        'Tipo righe create: ' + (String((getCardField(card, 'split_tipo_assenza_template') || {}).value || '').trim() || 'Permesso')
       ];
     } else if (actionType === 'delay_schedule') {
       var delayMode = String((getCardField(card, 'delay_mode') || {}).value || '').trim() || 'relative';
@@ -3233,7 +3273,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
               }
               var records = data.records || [];
               recordSelect.innerHTML = records.length
-                ? '<option value="">â€” seleziona â€”</option>'
+                ? '<option value="">- seleziona -</option>'
                 : '<option value="">Nessun record trovato</option>';
               records.forEach(function(rec) {
                 var opt = document.createElement('option');
@@ -3255,7 +3295,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
         recordSelect.addEventListener('change', function() { useRecordBtn.disabled = !recordSelect.value; });
       }
 
-      // Use record â†’ fetch full payload
+      // Use record: fetch full payload
       if (useRecordBtn) {
         useRecordBtn.addEventListener('click', function() {
           var recordId = recordSelect ? recordSelect.value : '';
@@ -3308,7 +3348,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
         livetestIsRunning = true;
         runBtn.disabled = true;
-        runBtn.textContent = 'âŸ³ Esecuzione...';
+        runBtn.textContent = 'Esecuzione...';
 
         var body = { payload: payload };
         if (oldPayload) body.old_payload = oldPayload;
@@ -3320,11 +3360,11 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
         })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'Esegui test';
             renderLivetestResults(data, runLogBase);
           })
           .catch(function(err) {
-            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'Esegui test';
             renderLivetestResults({ ok: false, status: 'error', result_message: 'Errore di rete: ' + String(err.message || err) }, runLogBase);
           });
       });
@@ -3341,10 +3381,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       resultsEl.hidden = false;
 
       var statusMap = {
-        success: { label: 'SUCCESSO', cls: 'designer-pill-success', icon: 'âœ“' },
-        error:   { label: 'ERRORE',   cls: 'designer-pill',         icon: 'âœ—' },
-        skipped: { label: 'SALTATA',  cls: 'designer-pill-warning', icon: 'â€”' },
-        test:    { label: 'TEST OK',  cls: 'designer-pill-success', icon: 'âœ“' },
+        success: { label: 'SUCCESSO', cls: 'designer-pill-success', icon: 'OK' },
+        error:   { label: 'ERRORE',   cls: 'designer-pill',         icon: 'ERR' },
+        skipped: { label: 'SALTATA',  cls: 'designer-pill-warning', icon: '-' },
+        test:    { label: 'TEST OK',  cls: 'designer-pill-success', icon: 'OK' },
       };
       var s = String(data.status || '').toLowerCase();
       var si = statusMap[s] || { label: String(data.status || 'N/D').toUpperCase(), cls: '', icon: '?' };
@@ -3370,7 +3410,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
           var ai = statusMap[as] || { label: as.toUpperCase(), cls: '', icon: '?' };
           var stepCls = as === 'success' ? 'success' : (as === 'error' ? 'error' : 'skipped');
           var aType = alog.action_type ? alog.action_type.replace(/_/g, ' ') : ('azione ' + (i + 1));
-          var aDesc = alog.action_desc ? ' â€” ' + alog.action_desc : '';
+          var aDesc = alog.action_desc ? ' - ' + alog.action_desc : '';
           var div = document.createElement('div');
           div.className = 'livetest-result-step ' + stepCls;
           div.innerHTML =
@@ -3390,7 +3430,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
         if (hasGlobal) errorTrace.textContent = data.error_trace || '';
       }
       if (linkEl && data.run_log_id && runLogBase) {
-        linkEl.innerHTML = '<a href="' + runLogBase + data.run_log_id + '/" style="color:#1d4ed8;">Apri run log #' + data.run_log_id + ' â†’</a>';
+        linkEl.innerHTML = '<a href="' + runLogBase + data.run_log_id + '/" style="color:#1d4ed8;">Apri run log #' + data.run_log_id + '</a>';
       }
       if (resultsEl.scrollIntoView) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -3417,9 +3457,9 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       var toNode   = preview.querySelector('[data-preview-to]');
       var subNode  = preview.querySelector('[data-preview-subject]');
       var bodyNode = preview.querySelector('[data-preview-body]');
-      if (fromNode) fromNode.textContent = (fromEl && fromEl.value) || 'â€”';
-      if (toNode)   toNode.textContent   = (toEl   && toEl.value)   || 'â€”';
-      if (subNode)  subNode.innerHTML    = highlightPh((subEl  && subEl.value)  || 'â€”');
+      if (fromNode) fromNode.textContent = (fromEl && fromEl.value) || '-';
+      if (toNode)   toNode.textContent   = (toEl   && toEl.value)   || '-';
+      if (subNode)  subNode.innerHTML    = highlightPh((subEl  && subEl.value)  || '-');
       if (bodyNode) bodyNode.innerHTML   = highlightPh((bodyEl && bodyEl.value) || '(corpo non compilato)');
     }
 
@@ -3455,21 +3495,22 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   var _diagramNodes   = [];   // stato corrente nodi (arricchiti)
   var _dragNodeId     = null; // nodo attualmente in drag
 
-  // Stili azioni â€” specchio di _ACTION_NODE_STYLES in views.py
+  // Stili azioni: specchio di _ACTION_NODE_STYLES in views.py
   var _DIAG_STYLES = {
-    'send_email':             {icon:'âœ‰ï¸',  color:'#2563eb', bg:'#eff6ff', label:'Send email',           app:'Email'},
-    'insert_record':          {icon:'âž•',  color:'#16a34a', bg:'#f0fdf4', label:'Insert record',         app:'Database'},
-    'update_record':          {icon:'âœï¸',  color:'#0d9488', bg:'#f0fdfa', label:'Update record',         app:'Database'},
-    'update_trigger_record':  {icon:'ðŸ”„',  color:'#0d9488', bg:'#f0fdfa', label:'Update trigger record', app:'Database'},
-    'update_dashboard_metric':{icon:'ðŸ“Š',  color:'#7c3aed', bg:'#f5f3ff', label:'Update metric',         app:'Dashboard'},
-    'write_log':              {icon:'ðŸ“',  color:'#475569', bg:'#f8fafc', label:'Write log',             app:'Log'},
-    'delay_schedule':         {icon:'â°',  color:'#d97706', bg:'#fffbeb', label:'Delay / Schedule',      app:'Scheduler'},
-    'http_request':           {icon:'ðŸŒ',  color:'#0369a1', bg:'#f0f9ff', label:'HTTP request',          app:'HTTP'},
-    'teams_webhook':          {icon:'ðŸ’¬',  color:'#5b5fc7', bg:'#eef2ff', label:'Teams webhook',         app:'Teams'},
-    'send_approval':          {icon:'âœ…',  color:'#9333ea', bg:'#faf5ff', label:'Richiedi Approvazione', app:'Approvazione'},
-    'do_until':               {icon:'ðŸ”',  color:'#0891b2', bg:'#ecfeff', label:'Do Until',              app:'Loop'},
-    'for_each':               {icon:'ðŸ”‚',  color:'#4f46e5', bg:'#eef2ff', label:'Per Ogni Elemento',     app:'Iterazione'},
-    'branch':                 {icon:'ðŸ”€',  color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
+    'send_email':             {icon:'\u2709\uFE0F', color:'#2563eb', bg:'#eff6ff', label:'Send email',           app:'Email'},
+    'insert_record':          {icon:'\u002B',       color:'#16a34a', bg:'#f0fdf4', label:'Insert record',         app:'Database'},
+    'update_record':          {icon:'\u270E',       color:'#0d9488', bg:'#f0fdfa', label:'Update record',         app:'Database'},
+    'update_trigger_record':  {icon:'\u21BB',       color:'#0d9488', bg:'#f0fdfa', label:'Update trigger record', app:'Database'},
+    'split_assenza_giornaliera': {icon:'DAY',       color:'#0284c7', bg:'#e0f2fe', label:'Split assenza giornaliera', app:'Assenze'},
+    'update_dashboard_metric':{icon:'KPI',          color:'#7c3aed', bg:'#f5f3ff', label:'Update metric',         app:'Dashboard'},
+    'write_log':              {icon:'LOG',          color:'#475569', bg:'#f8fafc', label:'Write log',             app:'Log'},
+    'delay_schedule':         {icon:'\u23F1',       color:'#d97706', bg:'#fffbeb', label:'Delay / Schedule',      app:'Scheduler'},
+    'http_request':           {icon:'HTTP',         color:'#0369a1', bg:'#f0f9ff', label:'HTTP request',          app:'HTTP'},
+    'teams_webhook':          {icon:'TM',           color:'#5b5fc7', bg:'#eef2ff', label:'Teams webhook',         app:'Teams'},
+    'send_approval':          {icon:'\u2713',       color:'#9333ea', bg:'#faf5ff', label:'Richiedi Approvazione', app:'Approvazione'},
+    'do_until':               {icon:'LOOP',         color:'#0891b2', bg:'#ecfeff', label:'Do Until',              app:'Loop'},
+    'for_each':               {icon:'EACH',         color:'#4f46e5', bg:'#eef2ff', label:'Per Ogni Elemento',     app:'Iterazione'},
+    'branch':                 {icon:'IF',           color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
   };
 
   function getDiagramActionChoices() {
@@ -3486,7 +3527,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   getDiagramActionChoices().forEach(function(choice) {
     if (!choice || !choice.value) return;
     _DIAG_STYLES[String(choice.value)] = {
-      icon: choice.icon || 'âš¡',
+      icon: choice.icon || '\u26A1',
       color: choice.color || '#64748b',
       bg: choice.bg || '#f8fafc',
       label: choice.label || choice.value,
@@ -3501,6 +3542,9 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   function _setFlowWorkspaceBodyLock(isLocked) {
     if (!document.body) return;
     document.body.classList.toggle('flow-workspace-open', !!isLocked);
+    if (document.documentElement) {
+      document.documentElement.classList.toggle('flow-workspace-open', !!isLocked);
+    }
   }
 
   function _setFlowDiagramToggleState(isOpen) {
@@ -3633,11 +3677,11 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     for (var index = 0; index < configs.length; index += 1) {
       var cfg = configs[index];
       var actionType = cfg && cfg.action_type ? String(cfg.action_type) : '';
-      var style = _DIAG_STYLES[actionType] || { icon: '⚡', color: '#64748b', label: actionType || 'Azione' };
+      var style = _DIAG_STYLES[actionType] || { icon: '\u26A1', color: '#64748b', label: actionType || 'Azione' };
       nodes.push({
         action_type: actionType,
         title: (cfg && cfg.description) ? String(cfg.description) : (style.label || actionType || 'Azione'),
-        icon: style.icon || '⚡',
+        icon: style.icon || '\u26A1',
         color: style.color || '#64748b'
       });
     }
@@ -3646,11 +3690,11 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
   function _updateFieldsActionNode(title, count) {
     if (!count) return null;
-    var style = _DIAG_STYLES.update_trigger_record || { icon: '🔄', color: '#0d9488' };
+    var style = _DIAG_STYLES.update_trigger_record || { icon: '\u21BB', color: '#0d9488' };
     return {
       action_type: 'update_trigger_record',
       title: title + ' (' + count + ' campi)',
-      icon: style.icon || '🔄',
+      icon: style.icon || '\u21BB',
       color: style.color || '#0d9488'
     };
   }
@@ -3794,7 +3838,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     var selectedOption = actionTypeField && actionTypeField.options ? actionTypeField.options[actionTypeField.selectedIndex] : null;
     var actionLabel = selectedOption ? String(selectedOption.text || '').trim() : (actionType || 'Azione');
     var description = descriptionField ? String(descriptionField.value || '').trim() : '';
-    var style = _DIAG_STYLES[actionType] || { icon: 'Ã¢Å¡Â¡', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
+    var style = _DIAG_STYLES[actionType] || { icon: '\u26A1', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
 
     node.action_type = actionType;
     node.type = _getActionTypeNodeKind(actionType);
@@ -3918,7 +3962,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   function makeInlineActionNode(a) {
     return '<div class="flow-branch-inner-node" style="border-left:3px solid ' + esc(a.color || '#64748b') + ';">'
       + '<div class="flow-branch-inner-node-inner">'
-      + '<span class="flow-branch-inner-icon">' + esc(a.icon || 'âš¡') + '</span>'
+      + '<span class="flow-branch-inner-icon">' + esc(a.icon || '\u26A1') + '</span>'
       + '<span class="flow-branch-inner-title">' + esc(a.title || a.action_type) + '</span>'
       + '</div></div>';
   }
@@ -3946,7 +3990,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     var type       = node.type || 'action';
     var accentColor = node.color || '#64748b';
     var bgColor     = node.bg || '#f8fafc';
-    var icon        = node.icon || 'âš¡';
+    var icon        = node.icon || '\u26A1';
     var app         = node.app || '';
     var title       = node.title || '';
     var subtitle    = node.subtitle || '';
@@ -3966,7 +4010,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
     // Accent bar + inner
     html += '<div style="display:flex;">';
-    if (isInteractive) html += '<div class="flow-node-drag-handle" title="Trascina per riordinare">â ¿</div>';
+    if (isInteractive) html += '<div class="flow-node-drag-handle" title="Trascina per riordinare" aria-label="Trascina per riordinare"></div>';
     html += '<div class="flow-node-accent" style="background:' + accentColor + ';"></div>';
     html += '<div class="flow-node-inner" style="flex:1;">';
 
@@ -3993,10 +4037,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
     // Pills per tipo speciale
     if (type === 'send_approval') {
-      html += '<span class="flow-pill flow-pill-blue">â¸ Pausa flusso</span><span class="flow-pill flow-pill-orange">Attende decisione umana</span>';
+      html += '<span class="flow-pill flow-pill-blue">Pausa flusso</span><span class="flow-pill flow-pill-orange">Attende decisione umana</span>';
     } else if (type === 'do_until') {
       var loop = node.loop || {};
-      html += '<span class="flow-pill flow-pill-blue">ðŸ” max ' + esc(loop.max_iterations || '10') + ' iter.</span>';
+      html += '<span class="flow-pill flow-pill-blue">Loop max ' + esc(loop.max_iterations || '10') + ' iter.</span>';
       if (loop.retry_delay) html += '<span class="flow-pill flow-pill-gray">ogni ' + esc(loop.retry_delay) + '</span>';
     } else if (type === 'for_each') {
       var each = node.each || {};
@@ -4018,8 +4062,8 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     // Azioni nodo: delete + modifica
     if (type !== 'trigger' && type !== 'end' && type !== 'conditions') {
       html += '<div class="flow-node-actions">';
-      html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">âœ•</button>';
-      if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Modifica â†“</button>';
+      html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">x</button>';
+      if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Apri editor</button>';
       html += '</div>';
     }
 
@@ -4048,8 +4092,8 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       html += '<div class="flow-branch-split">';
       html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
       html += '<div style="display:flex;gap:24px;">';
-      html += makeBranchColumn({label:'âœ… Se Vero', actions: ie.if_true_actions}, 'flow-branch-pill--true');
-      html += makeBranchColumn({label:'âŒ Se Falso', actions: ie.if_false_actions}, 'flow-branch-pill--false');
+      html += makeBranchColumn({label:'Se vero', actions: ie.if_true_actions}, 'flow-branch-pill--true');
+      html += makeBranchColumn({label:'Se falso', actions: ie.if_false_actions}, 'flow-branch-pill--false');
       html += '</div>';
       html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
       html += '</div>';
@@ -4059,7 +4103,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       var lp = node.loop;
       html += '<div class="flow-loop-wrap">';
       html += '<div class="flow-loop-body">';
-      html += '<div class="flow-loop-header"><span>ðŸ”</span><span class="flow-loop-header-text">Corpo del loop (eseguito ogni iterazione)</span></div>';
+      html += '<div class="flow-loop-header"><span>Loop</span><span class="flow-loop-header-text">Corpo del loop (eseguito ogni iterazione)</span></div>';
       if (lp.check_field) {
         html += '<div class="flow-loop-condition">Uscita quando: <strong>' + esc(lp.check_field) + ' ' + esc(lp.check_operator) + ' ' + esc(lp.check_value) + '</strong></div>';
       }
@@ -4072,7 +4116,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
           html += makeInlineActionNode(a);
         });
       }
-      html += '<div class="flow-loop-back">â†© Ricontrolla condizione dopo ' + esc(lp.retry_delay || '24 hours') + '</div>';
+      html += '<div class="flow-loop-back">Ricontrolla condizione dopo ' + esc(lp.retry_delay || '24 hours') + '</div>';
       html += '</div>';
       html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
       html += '</div>';
@@ -4080,7 +4124,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       var ea = node.each;
       html += '<div class="flow-each-wrap">';
       html += '<div class="flow-each-body">';
-      html += '<div class="flow-each-header"><span>ðŸ”‚</span><span>Per ogni record in &ldquo;' + esc(ea.source_code || '?') + '&rdquo;</span></div>';
+      html += '<div class="flow-each-header"><span>Each</span><span>Per ogni record in &quot;' + esc(ea.source_code || '?') + '&quot;</span></div>';
       var eachActions = ea.each_actions || [];
       if (eachActions.length === 0) {
         html += '<div class="flow-branch-empty">Nessuna azione per elemento</div>';
@@ -4123,10 +4167,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       if (idx > 0) html += makeConnector();
       html += nodeHtml(node);
     });
-    // Pulsante "ï¼‹ Aggiungi azione" in fondo
+    // Pulsante "Aggiungi azione" in fondo
     html += makeConnector();
     html += '<div class="flow-diagram-add-row">'
-      + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">ï¼‹ Aggiungi azione</button>'
+      + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">+ Aggiungi azione</button>'
       + '</div>';
     canvas.innerHTML = html;
     canvas.querySelectorAll('.flow-node-end-btn').forEach(function(button) {
@@ -4308,7 +4352,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   // â”€â”€ Modal aggiunta azione â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _initDiagramAddModal() {
     var grid = document.getElementById('diagramActionGrid');
-    if (!grid || grid.querySelector('.diagram-action-item')) return; // giÃ  popolato
+    if (!grid || grid.querySelector('.diagram-action-item')) return; // gia' popolato
     var html = '';
     Object.keys(_DIAG_STYLES).forEach(function(type) {
       var s = _DIAG_STYLES[type];
@@ -4322,7 +4366,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
   }
 
   window.openDiagramAddModal = function() {
-    _initDiagramAddModal(); // garantisce griglia popolata anche se il diagramma non Ã¨ stato ancora aperto
+    _initDiagramAddModal(); // garantisce griglia popolata anche se il diagramma non e' stato ancora aperto
     var modal = document.getElementById('diagramAddModal');
     if (modal) modal.hidden = false;
   };
@@ -4349,14 +4393,14 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     }
 
     // Nodo pending nel diagramma
-    var style = _DIAG_STYLES[actionType] || {icon:'âš¡', color:'#64748b', bg:'#f8fafc', label: actionType, app:'Azione'};
+    var style = _DIAG_STYLES[actionType] || {icon:'\u26A1', color:'#64748b', bg:'#f8fafc', label: actionType, app:'Azione'};
     var pendingId = 'pending-' + Date.now();
     _diagramNodes.push({
       id: pendingId,
       type: 'action',
       action_type: actionType,
       title: style.label,
-      subtitle: 'Nuova azione â€” compila il form e salva',
+      subtitle: 'Nuova azione - compila il form e salva',
       icon: style.icon,
       color: style.color,
       bg: style.bg,
@@ -4427,10 +4471,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     var canvas = document.getElementById('flowDiagramCanvas');
     if (!canvas) return;
     var btn = document.getElementById('flowDiagramPngBtn');
-    if (btn) { btn.textContent = 'â€¦'; btn.disabled = true; }
+    if (btn) { btn.textContent = '...'; btn.disabled = true; }
     if (typeof html2canvas === 'undefined') {
       alert('html2canvas non disponibile. Ricarica la pagina e riprova.');
-      if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'PNG'; btn.disabled = false; }
       return;
     }
     html2canvas(canvas, {backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false})
@@ -4447,7 +4491,7 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
         alert('Errore durante la generazione del PNG.');
       })
       .finally(function() {
-        if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
+        if (btn) { btn.textContent = 'PNG'; btn.disabled = false; }
       });
   };
 

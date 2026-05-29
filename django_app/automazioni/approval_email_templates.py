@@ -104,8 +104,9 @@ def _build_facts_html(facts: list[dict[str, str]]) -> str:
 
 def _button_html(label: str, url: str, color: str) -> str:
     return (
-        f'<a href="{url}" style="display:inline-block;padding:10px 24px;background:{color};'
-        f'color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">'
+        f'<a href="{url}" class="ecta" style="display:inline-block;padding:12px 22px;background:{color};'
+        f'color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;'
+        f'margin:0 10px 10px 0;">'
         f"{_escape_html(label)}</a>"
     )
 
@@ -259,63 +260,41 @@ def render_approval_email(
 
         inner_html = "\n".join(parts_html)
 
-    # ── Assemblaggio HTML completo ────────────────────────────────────────────
-    title_html = (
-        f'<h2 style="font-size:18px;font-weight:800;color:#0f172a;margin:0 0 12px 0;">'
-        f"{_escape_html(title)}</h2>"
-        if title
-        else ""
-    )
-
+    # ── Assemblaggio HTML completo via base template ──────────────────────────
     all_cta_html = ""
     if portal_cta_html or mailto_cta_html:
-        all_cta_html = (
-            f'<p style="margin:20px 0 8px 0;">'
-            f"{portal_cta_html}{mailto_cta_html}"
-            f"</p>"
-        )
+        all_cta_html = portal_cta_html + mailto_cta_html
 
     expires_at = ctx.get("expires_at")
     expires_html = ""
     expires_text = ""
     if expires_at:
         expires_label = str(expires_at)
-        expires_html = f'<p style="font-size:12px;color:#64748b;margin-top:16px;">Questa richiesta scade il {_escape_html(expires_label)}.</p>'
+        expires_html = (
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">'
+            f'<tr><td style="padding:14px 16px;border-left:4px solid #d69e2e;background:#fffaf0;border-radius:10px;'
+            f'color:#6b4f0f;font-size:13px;line-height:1.55;">'
+            f'La richiesta scade il <strong>{_escape_html(expires_label)}</strong>.'
+            f'</td></tr></table>'
+        )
         expires_text = f"\nScade il: {expires_label}"
 
-    html_body = f"""<!DOCTYPE html>
-<html lang="it">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-        <tr>
-          <td style="background:#1e40af;padding:20px 28px;">
-            <span style="color:#fff;font-size:14px;font-weight:700;letter-spacing:.05em;">
-              NOVICROM HUB — Richiesta Approvazione
-            </span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:28px 28px 24px 28px;">
-            {title_html}
-            {inner_html}
-            {all_cta_html}
-            {expires_html}
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#f8fafc;padding:12px 28px;font-size:11px;color:#94a3b8;">
-            Messaggio automatico generato da NOVICROM HUB. Non rispondere direttamente a questa email.
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+    from django.template.loader import render_to_string
+    from django.utils.safestring import mark_safe
+
+    section_label = str(getattr(template, "section_label", "") or "").strip() or "Workflow approvazione"
+    email_type = str(getattr(template, "email_type_label", "") or "").strip() or "Automazioni"
+
+    html_body = render_to_string("core/email/base_email.html", {
+        "email_type": email_type,
+        "badge": "Richiede azione",
+        "section_label": section_label,
+        "title": title,
+        "body_content": mark_safe(inner_html),
+        "expires_html": mark_safe(expires_html),
+        "cta_buttons": mark_safe(all_cta_html),
+        "footer_note": "Messaggio automatico generato da NOVICROM HUB. Non rispondere direttamente a questa email.",
+    })
 
     # ── Testo plain ───────────────────────────────────────────────────────────
     text_parts: list[str] = []

@@ -1,9 +1,6 @@
 import json
-import shutil
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase, override_settings
@@ -20,76 +17,6 @@ from anomalie.models import (
     AnomalieUserAccessRule,
 )
 from core.legacy_models import Ruolo
-
-
-def _make_workspace_tempdir(prefix: str) -> Path:
-    root = Path.cwd() / "django_app" / ".tmp_tests"
-    root.mkdir(parents=True, exist_ok=True)
-    target = root / f"{prefix}{uuid4().hex}"
-    target.mkdir(parents=True, exist_ok=False)
-    return target
-
-
-@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class AnomalieSharePointSyncTests(TestCase):
-    def setUp(self):
-        super().setUp()
-        self.user = get_user_model().objects.create_user(username="anom-sync-user", password="pass12345")
-        self.factory = RequestFactory()
-
-    def _graph_config(self, list_id: str = "<GRAPH_LIST_ID_ANOMALIE_DB>") -> dict[str, str]:
-        return {
-            "GRAPH_TENANT_ID": "tenant-test",
-            "GRAPH_CLIENT_ID": "client-test",
-            "GRAPH_CLIENT_SECRET": "secret-test",
-            "GRAPH_SITE_ID": "site-test",
-            "GRAPH_LIST_ID_ANOMALIE_DB": list_id,
-        }
-
-    def test_graph_config_detects_placeholder_list_id(self):
-        with patch.dict("anomalie.views.os.environ", self._graph_config(), clear=True):
-            self.assertFalse(anomalie_views._graph_configured())
-            self.assertEqual(
-                anomalie_views._graph_config_issue(),
-                "Configurazione Graph anomalie incompleta: list_id_anomalie_db",
-            )
-
-    def test_api_sync_returns_503_when_graph_is_not_configured(self):
-        request = self.factory.post(
-            reverse("api_anomalie_sync"),
-            data=json.dumps({}),
-            content_type="application/json",
-        )
-        request.user = self.user
-        request.legacy_user = SimpleNamespace(id=10, ruolo="gestore", ruolo_id=None)
-
-        with patch(
-            "anomalie.views._graph_config_issue",
-            return_value="Configurazione Graph anomalie incompleta: list_id_anomalie_db",
-        ):
-            response = anomalie_views.api_sync.__wrapped__(request)
-
-        self.assertEqual(response.status_code, 503)
-        self.assertJSONEqual(
-            response.content,
-            {"error": "Configurazione Graph anomalie incompleta: list_id_anomalie_db"},
-        )
-
-    def test_page_exposes_sync_disabled_state_when_graph_config_is_missing(self):
-        self.client.force_login(self.user)
-
-        with (
-            patch("anomalie.views.user_can_modulo_action", return_value=True),
-            patch("anomalie.views.get_legacy_user", return_value=None),
-            patch("anomalie.views._has_table", return_value=True),
-            patch.dict("anomalie.views.os.environ", self._graph_config(), clear=True),
-        ):
-            response = self.client.get(reverse("gestione_anomalie_page"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "window.ANOMALIE_SYNC_AVAILABLE = false;", html=False)
-        self.assertContains(response, "list_id_anomalie_db", html=False)
-        self.assertContains(response, "Invia a SP")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -147,7 +74,6 @@ class AnomalieOrdiniApiTests(TestCase):
             patch("anomalie.views.user_can_modulo_action", return_value=True),
             patch("anomalie.views.get_legacy_user", return_value=None),
             patch("anomalie.views._has_table", return_value=True),
-            patch("anomalie.views._graph_config_issue", return_value=""),
             patch("anomalie.views._load_anomalie_lists", return_value={}),
             patch("anomalie.views._current_user_identity", return_value={"name": "", "email": ""}),
         ):
@@ -169,39 +95,6 @@ class AnomalieConfigPageTests(TestCase):
             password="pass12345",
         )
 
-    def test_config_page_shows_sharepoint_config_card(self):
-        self.client.force_login(self.admin)
-
-        tmpdir = _make_workspace_tempdir("anomalie-config-")
-        try:
-            env_path = tmpdir / ".env"
-            env_path.write_text(
-                "\n".join(
-                    [
-                        "GRAPH_TENANT_ID=tenant-test",
-                        "GRAPH_CLIENT_ID=client-test",
-                        "GRAPH_CLIENT_SECRET=secret-test",
-                        "GRAPH_SITE_ID=site-test",
-                        "GRAPH_LIST_ID_ANOMALIE_DB=list-test",
-                    ]
-                ),
-                encoding="utf-8",
-            )
-
-            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
-                "anomalie.views.os.environ",
-                {},
-                clear=True,
-            ):
-                response = self.client.get(reverse("anomalie_configurazione_page") + "?tab=config")
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "SharePoint / Microsoft Graph")
-        self.assertContains(response, 'name="sharepoint_list_id_anomalie_db"', html=False)
-        self.assertContains(response, "list-test")
-
     def test_config_page_shows_roles_and_access_tabs(self):
         self.client.force_login(self.admin)
 
@@ -213,40 +106,6 @@ class AnomalieConfigPageTests(TestCase):
         self.assertContains(response, "Regole per ruolo aziendale")
         self.assertContains(response, "Capocommessa")
         self.assertContains(response, "CAR / Incaricato")
-
-    def test_config_page_can_save_sharepoint_config(self):
-        self.client.force_login(self.admin)
-
-        tmpdir = _make_workspace_tempdir("anomalie-save-")
-        try:
-            env_path = tmpdir / ".env"
-            env_path.write_text("GRAPH_CLIENT_SECRET=old-secret\n", encoding="utf-8")
-
-            with patch("config.env_config.default_env_path", return_value=env_path):
-                response = self.client.post(
-                    reverse("anomalie_configurazione_page") + "?tab=config",
-                    {
-                        "action": "save_sharepoint_config",
-                        "sharepoint_tenant_id": "tenant-new",
-                        "sharepoint_client_id": "client-new",
-                        "sharepoint_client_secret": "",
-                        "sharepoint_site_id": "site-new",
-                        "sharepoint_list_id_anomalie_db": "list-new",
-                    },
-                )
-
-            self.assertEqual(response.status_code, 302)
-            self.assertEqual(response.headers["Location"], f"{reverse('anomalie_configurazione_page')}?tab=config")
-
-            content = env_path.read_text(encoding="utf-8")
-            self.assertIn("GRAPH_TENANT_ID=tenant-new", content)
-            self.assertIn("GRAPH_CLIENT_ID=client-new", content)
-            self.assertIn("GRAPH_SITE_ID=site-new", content)
-            self.assertIn("GRAPH_LIST_ID_ANOMALIE_DB=list-new", content)
-            self.assertIn("GRAPH_CLIENT_SECRET=old-secret", content)
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AnomalieAccessRuleTests(TestCase):

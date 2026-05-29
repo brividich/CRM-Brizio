@@ -1,0 +1,142 @@
+{
+  "flow_name": "Assenze - approvazione caporeparto con notifica dipendente",
+  "package_version": "1.0",
+  "source_candidate": {
+    "source_code": "assenze"
+  },
+  "approved_field_mapping": {
+    "id": "id",
+    "dipendente_nome": "dipendente_nome",
+    "data_inizio": "data_inizio",
+    "data_fine": "data_fine",
+    "tipo_assenza": "tipo_assenza",
+    "motivazione_richiesta": "motivazione_richiesta",
+    "moderation_status": "moderation_status",
+    "capo_email": "capo_email",
+    "dipendente_email": "dipendente_email",
+    "salta_approvazione": "salta_approvazione"
+  },
+  "compatibility": true,
+  "issues": [],
+  "proposed_rules": [
+    {
+      "code": "assenze-approvazione-caporeparto",
+      "name": "Nuova assenza - richiesta approvazione caporeparto",
+      "description": "Invia una richiesta di approvazione al caporeparto quando viene inserita una nuova assenza non bypassata. Aggiorna lo stato tecnico e notifica il dipendente in base alla decisione.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": true,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "salta_approvazione",
+          "operator": "is_false",
+          "expected_value": "",
+          "value_type": "bool",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "capo_email",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 3,
+          "field_name": "dipendente_email",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_approval",
+          "description": "Richiede approvazione al caporeparto",
+          "is_enabled": true,
+          "config_json": {
+            "delivery_mode": "email",
+            "to_template": "{capo_email}",
+            "subject_template": "Richiesta assenza da approvare - {dipendente_nome}",
+            "message_template": "{dipendente_nome} ha richiesto {tipo_assenza} dal {data_inizio} al {data_fine}.\n\nMotivazione: {motivazione_richiesta}\n\nVerifica e registra la decisione dal portale.",
+            "expiry_days": 3,
+            "approve_label": "Approva",
+            "reject_label": "Rifiuta",
+            "approved_actions": [
+              {
+                "order": 1,
+                "action_type": "update_trigger_record",
+                "description": "Marca la richiesta come approvata",
+                "config_json": {
+                  "update_fields": {
+                    "moderation_status": "1"
+                  }
+                }
+              },
+              {
+                "order": 2,
+                "action_type": "send_email",
+                "description": "Notifica approvazione al dipendente",
+                "config_json": {
+                  "from_email": "noreply@costruzioninovicrom.it",
+                  "to": "{dipendente_email}",
+                  "subject_template": "Richiesta {tipo_assenza} approvata",
+                  "body_text_template": "Ciao {dipendente_nome},\n\nla tua richiesta di {tipo_assenza} dal {data_inizio} al {data_fine} e stata approvata.\n\nGrazie."
+                }
+              },
+              {
+                "order": 3,
+                "action_type": "write_log",
+                "description": "Log approvazione",
+                "config_json": {
+                  "message_template": "Assenza {id} approvata per {dipendente_nome}."
+                }
+              }
+            ],
+            "rejected_actions": [
+              {
+                "order": 1,
+                "action_type": "update_trigger_record",
+                "description": "Marca la richiesta come rifiutata",
+                "config_json": {
+                  "update_fields": {
+                    "moderation_status": "2"
+                  }
+                }
+              },
+              {
+                "order": 2,
+                "action_type": "send_email",
+                "description": "Notifica rifiuto al dipendente",
+                "config_json": {
+                  "from_email": "noreply@costruzioninovicrom.it",
+                  "to": "{dipendente_email}",
+                  "subject_template": "Richiesta {tipo_assenza} rifiutata",
+                  "body_text_template": "Ciao {dipendente_nome},\n\nla tua richiesta di {tipo_assenza} dal {data_inizio} al {data_fine} e stata rifiutata.\n\nContatta il tuo responsabile per chiarimenti."
+                }
+              },
+              {
+                "order": 3,
+                "action_type": "write_log",
+                "description": "Log rifiuto",
+                "config_json": {
+                  "message_template": "Assenza {id} rifiutata per {dipendente_nome}."
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

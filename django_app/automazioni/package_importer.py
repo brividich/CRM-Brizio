@@ -26,6 +26,7 @@ from .models import (
 from .services import (
     enrich_payload_for_source,
     evaluate_condition,
+    preview_split_assenza_giornaliera,
     render_template_string,
     safe_get_payload_value,
     validate_target_table_and_fields,
@@ -225,6 +226,64 @@ def _sample_value_for_field(source_code: str | None, field_name: str, data_type:
             return "APERTO"
         if normalized_field == "seriale":
             return "SN-EXAMPLE-001"
+
+    if normalized_source == "anagrafica_qualifiche":
+        if normalized_field == "data_scadenza":
+            return "2027-03-31"
+        if normalized_field == "data_conseguimento":
+            return "2026-03-31"
+
+    if normalized_source == "anagrafica_visite_mediche":
+        if normalized_field == "esito":
+            return "IDONEO"
+        if normalized_field == "medico_competente":
+            return "Dr. Esempio"
+        if normalized_field == "data_svolgimento":
+            return "2026-03-11"
+        if normalized_field == "data_scadenza":
+            return "2027-03-11"
+
+    if normalized_source == "anagrafica_formazione_enrollment":
+        if normalized_field == "stato":
+            return "COMPLETATO"
+        if normalized_field == "ore_frequentate":
+            return 8.0
+        if normalized_field == "percentuale_presenza":
+            return 100.0
+        if normalized_field == "idoneo":
+            return True
+
+    if normalized_source == "anagrafica_formazione_record":
+        if normalized_field == "course_title_snapshot":
+            return "Corso sicurezza di esempio"
+        if normalized_field == "course_code_snapshot":
+            return "CORS-001"
+        if normalized_field == "plan_name_snapshot":
+            return "Piano formativo annuale"
+        if normalized_field == "idoneo":
+            return True
+        if normalized_field == "data_scadenza":
+            return "2028-03-11"
+
+    if normalized_source == "anagrafica_offboarding":
+        if normalized_field == "dipendente_nome":
+            return "Mario Rossi"
+        if normalized_field == "stato":
+            return "IN_CORSO"
+        if normalized_field == "motivo":
+            return "dimissioni"
+        if normalized_field == "reparto":
+            return "Produzione"
+        if normalized_field == "mansione":
+            return "Operaio specializzato"
+
+    if normalized_source == "anagrafica_fornitori":
+        if normalized_field == "ragione_sociale":
+            return "Fornitore S.r.l."
+        if normalized_field == "categoria":
+            return "MATERIALI"
+        if normalized_field == "is_active":
+            return True
 
     return SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio")
 
@@ -701,6 +760,30 @@ def _normalize_action_config(raw_action: dict[str, Any], action_type: str) -> di
             "update_fields": update_fields if isinstance(update_fields, dict) else {},
         }
 
+    if action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+        days_count_fields = pick("days_count_fields", "days_count_field", default=[
+            "giorni_permesso",
+            "giornipermesso",
+            "Giornipermesso",
+            "giorni",
+        ])
+        if isinstance(days_count_fields, str):
+            days_count_fields = [chunk.strip() for chunk in days_count_fields.split(",") if chunk.strip()]
+        return {
+            "source_code": "assenze",
+            "start_field": pick("start_field", default="data_inizio"),
+            "end_field": pick("end_field", default="data_fine"),
+            "days_count_fields": days_count_fields if isinstance(days_count_fields, list) else [],
+            "max_days": pick("max_days", default=60),
+            "tipo_assenza_template": pick("tipo_assenza_template", "created_type_template", "created_type", default="Permesso"),
+            "salta_approvazione": _bool(pick("salta_approvazione", "set_salta_approvazione", default=True)),
+            "moderation_status": pick("moderation_status", "set_moderation_status", default=0),
+            "consenso_template": pick("consenso_template", "set_consenso", default="Approvato"),
+            "include_first_day": _bool(pick("include_first_day", default=False)),
+            "dedupe": True if pick("dedupe", default=True) in {True, "true", "True", "1", 1} else _bool(pick("dedupe", default=True)),
+            "set_approval_datetime": True if pick("set_approval_datetime", default=True) in {True, "true", "True", "1", 1} else _bool(pick("set_approval_datetime", default=True)),
+        }
+
     if action_type == AutomationActionType.SEND_APPROVAL:
         approved_actions = pick("approved_actions", default=[])
         rejected_actions = pick("rejected_actions", default=[])
@@ -946,6 +1029,23 @@ def _validate_action_structure(
         if not _string(config_json.get("where_value_template")):
             errors.append("update_record richiede where_value_template valorizzato.")
 
+    elif action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+        if source_code != "assenze":
+            errors.append("split_assenza_giornaliera richiede sorgente `assenze`.")
+        if not _string(config_json.get("start_field")):
+            errors.append("split_assenza_giornaliera richiede start_field.")
+        if not _string(config_json.get("end_field")):
+            errors.append("split_assenza_giornaliera richiede end_field.")
+        try:
+            max_days = int(config_json.get("max_days") or 60)
+        except (TypeError, ValueError):
+            errors.append("split_assenza_giornaliera richiede max_days intero.")
+        else:
+            if max_days < 1 or max_days > 366:
+                errors.append("split_assenza_giornaliera richiede max_days tra 1 e 366.")
+        if not _string(config_json.get("tipo_assenza_template")):
+            errors.append("split_assenza_giornaliera richiede tipo_assenza_template.")
+
     elif action_type == AutomationActionType.SEND_APPROVAL:
         delivery_mode = _string(config_json.get("delivery_mode")).lower() or "email"
         valid_delivery_modes = {"email", "teams_webhook_legacy", "teams_chat_flow", "email_and_teams_chat_flow"}
@@ -1091,6 +1191,18 @@ def _simulate_action(
             f" where {config_json.get('where_field') or '-'}={rendered_where or '-'}"
             f" set {json.dumps(rendered_fields, ensure_ascii=False, sort_keys=True)}"
         )
+
+    elif action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+        try:
+            split_preview = preview_split_assenza_giornaliera(config=config_json, payload_context=payload)
+            preview = (
+                "Split assenza dry-run -> "
+                f"{split_preview['planned']} record "
+                f"({', '.join(split_preview['dates']) or 'nessun giorno da creare'})"
+            )
+        except Exception as exc:
+            errors.append(str(exc))
+            preview = "Split assenza dry-run -> non simulabile"
 
     elif action_type == AutomationActionType.SEND_APPROVAL:
         delivery_mode = _string(config_json.get("delivery_mode")).lower() or "email"

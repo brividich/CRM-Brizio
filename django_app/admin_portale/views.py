@@ -5381,6 +5381,9 @@ def utenti_list(request):
     roles = _role_choices()
     role_map = {int(r.id): r for r in roles}
 
+    # Attacca info 2FA direttamente su ogni oggetto utente (twofa_info o None)
+    _attach_twofa_to_users(utenti_page)
+
     return render(
         request,
         "admin_portale/pages/utenti_list.html",
@@ -5393,6 +5396,42 @@ def utenti_list(request):
             "current_legacy_user_id": int(current_legacy_user.id) if current_legacy_user else None,
         },
     )
+
+
+def _attach_twofa_to_users(users: list) -> None:
+    """Attacca `twofa_info` (dict o None) a ogni UtenteLegacy della lista."""
+    if not users:
+        return
+    try:
+        from core.models import Profile
+        from twofa.models import UserTwoFactor
+
+        legacy_ids = [int(u.id) for u in users if u.id]
+        profiles = Profile.objects.filter(legacy_user_id__in=legacy_ids).values("legacy_user_id", "user_id")
+        legacy_to_django = {int(p["legacy_user_id"]): int(p["user_id"]) for p in profiles}
+
+        django_ids = list(legacy_to_django.values())
+        u2f_records = UserTwoFactor.objects.filter(user_id__in=django_ids).values(
+            "user_id", "method", "is_active", "totp_confirmed", "force_setup"
+        )
+        django_to_u2f = {int(r["user_id"]): r for r in u2f_records}
+
+        for u in users:
+            django_id = legacy_to_django.get(int(u.id)) if u.id else None
+            u2f = django_to_u2f.get(django_id) if django_id else None
+            if django_id is None:
+                u.twofa_info = None
+            else:
+                u.twofa_info = {
+                    "django_user_id": django_id,
+                    "method": u2f["method"] if u2f else None,
+                    "is_active": u2f["is_active"] if u2f else None,
+                    "totp_confirmed": u2f["totp_confirmed"] if u2f else False,
+                    "configured": u2f is not None,
+                }
+    except Exception:
+        for u in users:
+            u.twofa_info = None
 
 
 def _attach_anagrafica_to_users(users: list[UtenteLegacy]) -> None:
@@ -6700,122 +6739,6 @@ _TIPI_OPZIONE_LABELS = {
     "caporeparto": "Capireparto",
     "macchina":    "Macchine",
 }
-
-
-@legacy_admin_required
-@require_GET
-def anagrafica_config(request):
-    """Pagina di configurazione per dropdown e campi extra dell'anagrafica utente."""
-    from core.models import RepartoCapoMapping
-
-    tipi = list(_TIPI_OPZIONE_LABELS.keys())
-    opzioni_by_tipo: dict[str, list] = {t: [] for t in tipi}
-    for o in OptioneConfig.objects.all():
-        if o.tipo in opzioni_by_tipo:
-            opzioni_by_tipo[o.tipo].append(o)
-        else:
-            opzioni_by_tipo.setdefault(o.tipo, []).append(o)
-
-    for option in opzioni_by_tipo.get("caporeparto", []):
-        legacy_user_id = _int_or_none(getattr(option, "legacy_user_id", None))
-        if legacy_user_id is None:
-            resolved_user = resolve_caporeparto_legacy_user(option.valore)
-            legacy_user_id = int(resolved_user.id) if resolved_user else None
-        option.display_label = format_caporeparto_label(
-            option.valore,
-            legacy_user_id=legacy_user_id,
-            include_role=True,
-        )
-        option.resolved_legacy_user_id = legacy_user_id
-
-    anagrafica_voci = list(AnagraficaVoce.objects.all().order_by("categoria", "ordine", "id"))
-    for v in anagrafica_voci:
-        v.scelte_json = json.dumps(v.scelte)
-
-    # Mappings reparto â†’ caporeparto
-    reparto_capo_mappings = list(
-        RepartoCapoMapping.objects.filter(is_active=True).order_by("reparto", "id")
-    )
-    # Per ogni reparto configurato, marca se ha giÃ  un mapping
-    for mapping in reparto_capo_mappings:
-        mapping.caporeparto_label = format_caporeparto_label(mapping.caporeparto)
-    reparti_con_mapping = {m.reparto for m in reparto_capo_mappings}
-
-    context = {
-        "tipi_opzione": tipi,
-        "tipi_opzione_labels": _TIPI_OPZIONE_LABELS,
-        "opzioni_by_tipo": opzioni_by_tipo,
-        "anagrafica_voci": anagrafica_voci,
-        "email_domain_default": (getattr(settings, "LDAP_UPN_SUFFIX", "") or "").lstrip("@") or "example.local",
-        "reparto_capo_mappings": reparto_capo_mappings,
-        "reparti_con_mapping": reparti_con_mapping,
-    }
-    try:
-        return render(request, "admin_portale/pages/anagrafica_config.html", context)
-    except OSError:
-        logger.exception("Template anagrafica_config non leggibile: uso fallback")
-        messages.warning(
-            request,
-            "Template principale non disponibile sul filesystem. "
-            "Mostro una versione semplificata della pagina.",
-        )
-        return render(request, "admin_portale/pages/anagrafica_config_fallback.html", context)
-
-
-@legacy_admin_required
-@require_POST
-def anagrafica_import_csv(request):
-    upload = request.FILES.get("dipendenti_csv")
-    if not upload:
-        messages.error(request, "Seleziona un file CSV prima di avviare l'import.")
-        return redirect("admin_portale:anagrafica_config")
-
-    email_domain = (request.POST.get("email_domain") or "").strip().lstrip("@").lower()
-    dry_run = bool(request.POST.get("dry_run"))
-    sync_legacy_users = bool(request.POST.get("sync_legacy_users"))
-    default_password = (request.POST.get("default_password") or "").strip()
-    if sync_legacy_users and not default_password:
-        messages.error(request, "Per creare utenti offline devi inserire una password iniziale.")
-        return redirect("admin_portale:anagrafica_config")
-    temp_path = ""
-    cmd_out = StringIO()
-    cmd_err = StringIO()
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-            for chunk in upload.chunks():
-                tmp.write(chunk)
-            temp_path = tmp.name
-
-        call_command(
-            "import_dipendenti_csv",
-            temp_path,
-            email_domain=email_domain,
-            dry_run=dry_run,
-            sync_legacy_users=sync_legacy_users,
-            default_password=default_password,
-            skip_checks=True,
-            stdout=cmd_out,
-            stderr=cmd_err,
-        )
-        output = (cmd_out.getvalue() or "").strip()
-        if dry_run:
-            messages.warning(request, f"Import CSV (dry-run) completato. {output}")
-        else:
-            messages.success(request, f"Import CSV completato. {output}")
-    except Exception as exc:
-        detail = (cmd_err.getvalue() or cmd_out.getvalue() or str(exc)).strip()
-        if len(detail) > 900:
-            detail = detail[:900] + "..."
-        messages.error(request, f"Import CSV fallito: {detail}")
-    finally:
-        if temp_path:
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
-
-    return redirect("admin_portale:anagrafica_config")
 
 
 @legacy_admin_required
@@ -11221,4 +11144,182 @@ def ai_feedback_scarta(request: HttpRequest, feedback_id: int):
     )
     messages.success(request, "Feedback scartato.")
     return redirect(f"{reverse('admin_portale:ai_settings')}?tab=feedback")
+
+
+# ---------------------------------------------------------------------------
+# 2FA — Configurazione policy e gestione utenti
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+@require_GET
+def twofa_config(request: HttpRequest):
+    from twofa.models import TwoFactorPolicy, UserTwoFactor
+    from core.legacy_models import Ruolo
+
+    policy = TwoFactorPolicy.get()
+    all_roles = list(Ruolo.objects.order_by("nome"))
+    # Utenti con record 2FA
+    user_2fa_qs = (
+        UserTwoFactor.objects.select_related("user")
+        .order_by("user__username")
+    )
+    return render(request, "admin_portale/pages/twofa_config.html", {
+        "policy": policy,
+        "all_roles": all_roles,
+        "user_2fa_list": user_2fa_qs,
+        "allowed_methods": policy.allowed_methods or ["totp", "email"],
+    })
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_twofa_policy_save(request: HttpRequest):
+    from twofa.models import TwoFactorPolicy
+
+    policy = TwoFactorPolicy.get()
+    policy.enabled = request.POST.get("enabled") == "1"
+    policy.when_required = request.POST.get("when_required", "external_only")
+    if policy.when_required not in ("always", "external_only"):
+        policy.when_required = "external_only"
+
+    # Ruoli richiesti: lista di ID interi
+    raw_roles = request.POST.getlist("required_role_ids")
+    try:
+        policy.required_role_ids = [int(r) for r in raw_roles if str(r).isdigit()]
+    except (ValueError, TypeError):
+        policy.required_role_ids = []
+
+    # Reti interne: una per riga
+    raw_nets = (request.POST.get("internal_networks") or "").strip()
+    nets = [n.strip() for n in raw_nets.splitlines() if n.strip()]
+    import ipaddress
+    valid_nets = []
+    invalid_nets = []
+    for n in nets:
+        try:
+            ipaddress.ip_network(n, strict=False)
+            valid_nets.append(n)
+        except ValueError:
+            invalid_nets.append(n)
+    policy.internal_networks = valid_nets
+
+    # Metodi ammessi
+    methods = request.POST.getlist("allowed_methods")
+    policy.allowed_methods = [m for m in methods if m in ("totp", "email")] or ["totp", "email"]
+
+    try:
+        policy.session_validity_seconds = max(300, int(request.POST.get("session_validity_seconds", 28800)))
+    except (ValueError, TypeError):
+        policy.session_validity_seconds = 28800
+
+    policy.updated_by = request.user
+    policy.save()
+
+    _audit_safe(request, "twofa_policy_save", "twofa", {
+        "enabled": policy.enabled,
+        "when_required": policy.when_required,
+        "required_role_ids": policy.required_role_ids,
+        "allowed_methods": policy.allowed_methods,
+    })
+
+    if invalid_nets:
+        messages.warning(request, f"CIDR non validi ignorati: {', '.join(invalid_nets)}")
+    messages.success(request, "Configurazione 2FA salvata.")
+    return redirect(reverse("admin_portale:twofa_config"))
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_twofa_user_toggle(request: HttpRequest, user_id: int):
+    """Attiva/disattiva il 2FA per un singolo utente."""
+    from twofa.models import UserTwoFactor
+
+    User = get_user_model()
+    target_user = get_object_or_404(User, pk=user_id)
+    u2f, _ = UserTwoFactor.objects.get_or_create(user=target_user)
+    u2f.is_active = not u2f.is_active
+    u2f.save(update_fields=["is_active"])
+    _audit_safe(request, "twofa_user_toggle", "twofa", {
+        "target_user": target_user.username,
+        "is_active": u2f.is_active,
+    })
+    stato = "attivato" if u2f.is_active else "disattivato"
+    return JsonResponse({"ok": True, "is_active": u2f.is_active, "msg": f"2FA {stato} per {target_user.username}."})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_twofa_user_reset(request: HttpRequest, user_id: int):
+    """Resetta la configurazione 2FA (TOTP) per un utente: forza re-setup al prossimo accesso."""
+    from twofa.models import UserTwoFactor, TwoFactorChallenge
+
+    User = get_user_model()
+    target_user = get_object_or_404(User, pk=user_id)
+    try:
+        u2f = target_user.twofa
+        u2f.totp_secret_enc = ""
+        u2f.totp_confirmed = False
+        u2f.force_setup = True
+        u2f.save(update_fields=["totp_secret_enc", "totp_confirmed", "force_setup"])
+    except UserTwoFactor.DoesNotExist:
+        pass
+    # Invalida challenge email attivi
+    TwoFactorChallenge.objects.filter(user=target_user, used=False).update(used=True)
+    _audit_safe(request, "twofa_user_reset", "twofa", {"target_user": target_user.username})
+    return JsonResponse({"ok": True, "msg": f"2FA reimpostato per {target_user.username}. Al prossimo accesso dovrà ri-configurarlo."})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_twofa_user_method_set(request: HttpRequest, user_id: int):
+    """Imposta il metodo 2FA per un utente (totp / email)."""
+    from twofa.models import UserTwoFactor
+
+    User = get_user_model()
+    target_user = get_object_or_404(User, pk=user_id)
+    method = (request.POST.get("method") or "").strip()
+    if method not in ("totp", "email"):
+        return JsonResponse({"ok": False, "error": "Metodo non valido."}, status=400)
+
+    u2f, _ = UserTwoFactor.objects.get_or_create(user=target_user)
+    if u2f.method != method:
+        u2f.method = method
+        # Cambio metodo → forza ri-setup
+        u2f.totp_secret_enc = ""
+        u2f.totp_confirmed = False
+        u2f.force_setup = (method == "totp")
+        u2f.save(update_fields=["method", "totp_secret_enc", "totp_confirmed", "force_setup"])
+    _audit_safe(request, "twofa_user_method_set", "twofa", {
+        "target_user": target_user.username,
+        "method": method,
+    })
+    return JsonResponse({"ok": True, "msg": f"Metodo 2FA aggiornato a «{method}» per {target_user.username}."})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_twofa_user_email_set(request: HttpRequest, user_id: int):
+    """Imposta o rimuove l'email override per OTP di un utente."""
+    from twofa.models import UserTwoFactor
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    User = get_user_model()
+    target_user = get_object_or_404(User, pk=user_id)
+    email = (request.POST.get("email_override") or "").strip()
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            return JsonResponse({"ok": False, "error": "Email non valida."}, status=400)
+    u2f, _ = UserTwoFactor.objects.get_or_create(user=target_user)
+    u2f.email_override = email
+    u2f.save(update_fields=["email_override"])
+    _audit_safe(request, "twofa_user_email_set", "twofa", {"target_user": target_user.username, "email_override": email})
+    return JsonResponse({"ok": True, "msg": "Email OTP aggiornata."})
 

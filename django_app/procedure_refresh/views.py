@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
-from core.legacy_utils import is_legacy_admin
+from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .models import (
@@ -45,7 +45,7 @@ User = get_user_model()
 def _is_manager(request) -> bool:
     from core.legacy_models import UtenteLegacy
 
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     return request.user.is_superuser or is_legacy_admin(legacy_user)
 
 

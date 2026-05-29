@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% if email_title %}{{ email_title }}{% else %}NOVICROM HUB{% endif %}</title>
+  <style>
+    @media (max-width:680px) {
+      .ew { width:100% !important; }
+      .ep { padding-left:22px !important; padding-right:22px !important; }
+      .ecta { display:block !important; margin:0 0 10px 0 !important; text-align:center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
+
+  {% if preheader %}<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#eef3f8;mso-hide:all;">{{ preheader }}</div>{% endif %}
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#eef3f8;">
+    <tr>
+      <td align="center" style="padding:32px 12px 48px;">
+
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="ew"
+               style="width:640px;max-width:640px;border-collapse:separate;border-spacing:0;
+                      background:#ffffff;border-radius:18px;overflow:hidden;
+                      box-shadow:0 18px 45px rgba(15,23,42,.16);">
+
+          <!-- ── HEADER ──────────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:0;background:#002b5c;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                <tr>
+                  <td class="ep" style="padding:20px 30px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td valign="middle" style="vertical-align:middle;">
+                          <img src="{% if logo_url %}{{ logo_url }}{% else %}https://costruzioninovicrom.it/wp-content/uploads/2026/05/novicrmhub.png{% endif %}"
+                               width="210" alt="NOVICROM HUB"
+                               style="display:block;width:210px;max-width:210px;height:auto;border:0;outline:none;text-decoration:none;">
+                        </td>
+                        <td valign="middle" align="right" style="vertical-align:middle;text-align:right;padding-left:12px;">
+                          {% if email_type %}<div style="color:#c7d6e8;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:6px;">{{ email_type }}</div>{% endif %}
+                          {% if badge %}<span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 11px;color:#ffffff;font-size:12px;font-weight:700;background:rgba(255,255,255,.08);">{{ badge }}</span>{% endif %}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="height:5px;background:#ff6b00;line-height:5px;font-size:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ── TITOLO + INTRO ──────────────────────────────────────── -->
+          {% if section_label or title or intro %}
+          <tr>
+            <td class="ep" style="padding:30px 34px 8px;background:#ffffff;">
+              {% if section_label %}<div style="font-size:13px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;">{{ section_label }}</div>{% endif %}
+              {% if title %}<h2 style="margin:0;color:#182232;font-size:24px;line-height:1.22;font-weight:800;">{{ title }}</h2>{% endif %}
+              {% if intro %}<p style="margin:14px 0 0;color:#475569;font-size:15px;line-height:1.62;">{{ intro }}</p>{% endif %}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- ── CORPO PRINCIPALE (facts, HTML libero, ecc.) ─────────── -->
+          {% if body_content %}
+          <tr>
+            <td class="ep" style="padding:18px 34px 8px;background:#ffffff;">
+              {{ body_content|safe }}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- ── AVVISO SCADENZA ─────────────────────────────────────── -->
+          {% if expires_html %}
+          <tr>
+            <td class="ep" style="padding:4px 34px 4px;background:#ffffff;">
+              {{ expires_html|safe }}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- ── BOTTONI CTA ─────────────────────────────────────────── -->
+          {% if cta_buttons %}
+          <tr>
+            <td class="ep" style="padding:22px 34px 28px;background:#ffffff;">
+              {{ cta_buttons|safe }}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- ── DIVIDER ─────────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:0 34px;background:#ffffff;">
+              <div style="height:1px;background:#d8e1ec;line-height:1px;font-size:0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- ── FOOTER ──────────────────────────────────────────────── -->
+          <tr>
+            <td class="ep" style="padding:18px 34px 24px;background:#ffffff;">
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.55;">
+                {% if footer_note %}{{ footer_note }}{% else %}Messaggio automatico generato da NOVICROM HUB. Non inoltrare link di approvazione: sono personali e tracciati.{% endif %}
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <div style="padding:15px 0 0;color:#94a3b8;font-size:11px;line-height:1.45;text-align:center;">
+          NOVICROM HUB &middot; Portale interno &middot; Email automatica
+        </div>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

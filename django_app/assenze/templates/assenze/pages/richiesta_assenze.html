@@ -460,6 +460,41 @@
       return normalizedType() === "malattia";
     }
 
+    function isFerie() {
+      return normalizedType() === "ferie";
+    }
+
+    function isPermesso() {
+      return normalizedType() === "permesso";
+    }
+
+    var startInput = document.getElementById("time_start");
+    var endInput = document.getElementById("time_end");
+    var dateStartInput = document.getElementById("date_start");
+    var dateEndInput = document.getElementById("date_end");
+
+    function applyTypeDefaults() {
+      if (isFerie()) {
+        if (startInput) {
+          startInput.value = "00:00";
+          startInput.readOnly = true;
+        }
+        if (endInput) {
+          endInput.value = "23:59";
+          endInput.readOnly = true;
+        }
+        if (dateStartInput && dateEndInput && dateStartInput.value && !dateEndInput.value) {
+          dateEndInput.value = dateStartInput.value;
+        }
+        return;
+      }
+      if (startInput) startInput.readOnly = false;
+      if (endInput) endInput.readOnly = false;
+      if (isPermesso() && dateStartInput && dateEndInput && dateStartInput.value) {
+        dateEndInput.value = dateStartInput.value;
+      }
+    }
+
     function switchForm() {
       if (isPresenza()) {
         standardSec.classList.add("hidden");
@@ -471,6 +506,7 @@
       if (certificatoWrap) {
         certificatoWrap.classList.toggle("visible", isMalattia());
       }
+      applyTypeDefaults();
     }
 
     if (tipoSel) {
@@ -478,10 +514,20 @@
       switchForm();
     }
 
-    var startInput = document.getElementById("time_start");
-    var endInput = document.getElementById("time_end");
+    if (dateStartInput) {
+      dateStartInput.addEventListener("change", function() {
+        if ((isPermesso() || isFerie()) && dateEndInput) {
+          dateEndInput.value = dateStartInput.value;
+        }
+      });
+    }
+
     document.querySelectorAll('input[name="shortcut"]').forEach(function(radio) {
       radio.addEventListener("change", function() {
+        if (isFerie()) {
+          applyTypeDefaults();
+          return;
+        }
         var p = presets[this.value];
         if (!p || !startInput || !endInput) return;
         startInput.value = p[0];
@@ -544,6 +590,22 @@
       var dateEnd = String((document.getElementById("date_end") || {}).value || "").trim();
       var timeStart = String((document.getElementById("time_start") || {}).value || "00:00").trim() || "00:00";
       var timeEnd = String((document.getElementById("time_end") || {}).value || "23:59").trim() || "23:59";
+
+      if ((tipo === "permesso" || tipo === "ferie") && dateStart && !dateEnd) {
+        dateEnd = dateStart;
+        if (dateEndInput) dateEndInput.value = dateEnd;
+      }
+      if (tipo === "ferie") {
+        timeStart = "00:00";
+        timeEnd = "23:59";
+        if (startInput) startInput.value = timeStart;
+        if (endInput) endInput.value = timeEnd;
+      }
+      if (tipo === "permesso" && dateStart !== dateEnd) {
+        evt.preventDefault();
+        window.alert("Il permesso deve iniziare e finire nello stesso giorno.");
+        return;
+      }
 
       var start = new Date(dateStart + "T" + timeStart);
       var end = new Date(dateEnd + "T" + timeEnd);

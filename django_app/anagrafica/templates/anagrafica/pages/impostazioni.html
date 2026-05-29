@@ -190,8 +190,12 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
         <span class="imp-tab-icon">👷</span> Mansioni
         <span class="imp-tab-count">{{ mansioni|length }}</span>
       </button>
+      <button class="imp-tab" data-tab="aree-aziendali" type="button">
+        <span class="imp-tab-icon">🏭</span> Aree aziendali
+        <span class="imp-tab-count">{{ aree_aziendali|length }}</span>
+      </button>
       <button class="imp-tab" data-tab="aree" type="button">
-        <span class="imp-tab-icon">🏢</span> Aree aziendali
+        <span class="imp-tab-icon">🏢</span> Reparti
         <span class="imp-tab-count">{{ aree|length }}</span>
       </button>
       <button class="imp-tab" data-tab="ruoli-aziendali" type="button">
@@ -361,12 +365,109 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
       </section>
 
       <!-- ============= AREE AZIENDALI ============= -->
-      <section class="imp-panel" data-panel="aree" id="tab-aree">
+      <section class="imp-panel" data-panel="aree-aziendali" id="tab-aree-aziendali">
         <div class="imp-card">
           <div class="imp-card-head">
             <div>
               <div class="imp-card-title">Aree aziendali</div>
-              <div class="imp-card-sub">Catalogo aree selezionabili nell'anagrafica aziendale del dipendente</div>
+              <div class="imp-card-sub">Raggruppamenti di alto livello (stabilimento, divisione…) a cui appartengono i reparti</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:area_aziendale_create' %}" class="imp-add-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_tab" value="aree-aziendali">
+            <div class="imp-field" style="flex:2 1 220px;">
+              <label class="imp-label">Nome *</label>
+              <input class="imp-input" type="text" name="nome" maxlength="100" required placeholder="Es. Produzione">
+            </div>
+            <div class="imp-field" style="flex:3 1 280px;">
+              <label class="imp-label">Descrizione</label>
+              <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
+            </div>
+            <div class="imp-field">
+              <label class="imp-label">Colore</label>
+              <input class="imp-color" type="color" name="colore" value="#64748b">
+            </div>
+            <div class="imp-field">
+              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+
+        <div class="imp-card">
+          <div class="imp-list">
+            {% for az in aree_aziendali %}
+              <div class="imp-row {% if not az.is_active %}inactive{% endif %}">
+                <span class="imp-dot" style="background:{{ az.colore|default:'#64748b' }};"></span>
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ az.nome }}</div>
+                  {% if az.descrizione %}<div class="imp-row-meta">{{ az.descrizione }}</div>{% endif %}
+                  <div class="imp-row-meta">{{ az.reparti.count }} reparti{% if not az.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}</div>
+                </div>
+                {% if is_admin %}
+                <div class="imp-row-actions">
+                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="area-az-edit-{{ az.id }}">Modifica</button>
+                  <form method="post" action="{% url 'anagrafica:area_aziendale_delete' az.id %}" style="display:inline;"
+                        onsubmit="return confirm('Eliminare l\'area &quot;{{ az.nome|escapejs }}&quot;?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="aree-aziendali">
+                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
+                  </form>
+                </div>
+                {% endif %}
+              </div>
+              {% if is_admin %}
+              <div class="imp-modal-overlay" id="modal-area-az-edit-{{ az.id }}">
+                <div class="imp-modal">
+                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
+                  <div class="imp-modal-title">Modifica area aziendale</div>
+                  <form method="post" action="{% url 'anagrafica:area_aziendale_edit' az.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next_tab" value="aree-aziendali">
+                    <div class="imp-modal-body">
+                      <div class="imp-field">
+                        <label class="imp-label">Nome *</label>
+                        <input class="imp-input" type="text" name="nome" maxlength="100" required value="{{ az.nome }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Descrizione</label>
+                        <textarea class="imp-textarea" name="descrizione">{{ az.descrizione }}</textarea>
+                      </div>
+                      <div class="imp-field" style="flex-direction:row;align-items:center;gap:8px;">
+                        <label class="imp-label" style="margin:0;">Colore</label>
+                        <input class="imp-color" type="color" name="colore" value="{{ az.colore|default:'#64748b' }}">
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
+                          <input type="checkbox" name="is_active" value="1" {% if az.is_active %}checked{% endif %}>
+                          Attiva
+                        </label>
+                      </div>
+                    </div>
+                    <div class="imp-modal-footer">
+                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
+                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              {% endif %}
+            {% empty %}
+              <div class="imp-empty">Nessuna area aziendale registrata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <!-- ============= REPARTI ============= -->
+      <section class="imp-panel" data-panel="aree" id="tab-aree">
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Reparti</div>
+              <div class="imp-card-sub">Catalogo dei reparti aziendali con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
             </div>
           </div>
           {% if is_admin %}
@@ -380,6 +481,24 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             <div class="imp-field" style="flex:3 1 280px;">
               <label class="imp-label">Descrizione</label>
               <input class="imp-input" type="text" name="descrizione" placeholder="Opzionale">
+            </div>
+            <div class="imp-field" style="flex:2 1 200px;">
+              <label class="imp-label">Area aziendale</label>
+              <select class="imp-select" name="area_aziendale_id">
+                <option value="">— Nessuna —</option>
+                {% for az in aree_aziendali %}
+                  <option value="{{ az.id }}">{{ az.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="imp-field" style="flex:3 1 240px;">
+              <label class="imp-label">Caporeparto</label>
+              <select class="imp-select" name="caporeparto_legacy_id">
+                <option value="">— Nessuno —</option>
+                {% for dip in dipendenti_picker %}
+                  <option value="{{ dip.id }}">{{ dip.label }}</option>
+                {% endfor %}
+              </select>
             </div>
             <div class="imp-field">
               <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi</button>
@@ -395,13 +514,25 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                 <div class="imp-row-main">
                   <div class="imp-row-name">{{ a.nome }}</div>
                   {% if a.descrizione %}<div class="imp-row-meta">{{ a.descrizione }}</div>{% endif %}
-                  {% if not a.is_active %}<span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
+                  <div class="imp-row-meta">
+                    {% if a.area_aziendale %}
+                      <span class="imp-badge imp-badge-blue" style="margin-right:4px;">🏢 {{ a.area_aziendale.nome }}</span>
+                    {% else %}
+                      <span style="color:#f59e0b;font-size:11px;margin-right:6px;">Nessuna area</span>
+                    {% endif %}
+                    {% if a.caporeparto_label %}
+                      <span class="imp-badge" style="background:#dbeafe;color:#1e40af;">👤 {{ a.caporeparto_label }}</span>
+                    {% else %}
+                      <span style="color:#94a3b8;font-size:12px;">caporeparto non assegnato</span>
+                    {% endif %}
+                  </div>
+                  {% if not a.is_active %}<span class="imp-badge imp-badge-gray">disattivo</span>{% endif %}
                 </div>
                 {% if is_admin %}
                 <div class="imp-row-actions">
                   <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="area-edit-{{ a.id }}">Modifica</button>
                   <form method="post" action="{% url 'anagrafica:area_delete' a.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare l\'area &quot;{{ a.nome|escapejs }}&quot;?');">
+                        onsubmit="return confirm('Eliminare il reparto &quot;{{ a.nome|escapejs }}&quot;?');">
                     {% csrf_token %}
                     <input type="hidden" name="next_tab" value="aree">
                     <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
@@ -413,7 +544,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div class="imp-modal-overlay" id="modal-area-edit-{{ a.id }}">
                 <div class="imp-modal">
                   <button class="imp-modal-close" type="button" data-close-modal>×</button>
-                  <div class="imp-modal-title">Modifica area</div>
+                  <div class="imp-modal-title">Modifica reparto</div>
                   <form method="post" action="{% url 'anagrafica:area_edit' a.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="next_tab" value="aree">
@@ -427,9 +558,27 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <textarea class="imp-textarea" name="descrizione">{{ a.descrizione }}</textarea>
                       </div>
                       <div class="imp-field">
+                        <label class="imp-label">Area aziendale</label>
+                        <select class="imp-select" name="area_aziendale_id">
+                          <option value="">— Nessuna —</option>
+                          {% for az in aree_aziendali %}
+                            <option value="{{ az.id }}" {% if a.area_aziendale_id == az.id %}selected{% endif %}>{{ az.nome }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Caporeparto</label>
+                        <select class="imp-select" name="caporeparto_legacy_id">
+                          <option value="">— Nessuno —</option>
+                          {% for dip in dipendenti_picker %}
+                            <option value="{{ dip.id }}" {% if a.caporeparto_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="imp-field">
                         <label class="imp-label" style="display:flex;align-items:center;gap:6px;">
                           <input type="checkbox" name="is_active" value="1" {% if a.is_active %}checked{% endif %}>
-                          Attiva
+                          Attivo
                         </label>
                       </div>
                     </div>
@@ -442,7 +591,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               </div>
               {% endif %}
             {% empty %}
-              <div class="imp-empty">Nessuna area registrata.</div>
+              <div class="imp-empty">Nessun reparto registrato.</div>
             {% endfor %}
           </div>
         </div>
@@ -474,6 +623,31 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             </div>
           </form>
           {% endif %}
+        </div>
+
+        <!-- Capireparto derivati dai reparti — fonte di verità per l'organigramma -->
+        <div class="imp-card">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Capireparto designati</div>
+              <div class="imp-card-sub">Derivati automaticamente dalla configurazione reparti — base per l'organigramma aziendale</div>
+            </div>
+          </div>
+          <div class="imp-list" id="capireparto-list">
+            {% for rep in aree %}{% if rep.caporeparto_label %}
+              <div class="imp-row">
+                <div class="imp-row-main">
+                  <div class="imp-row-name">{{ rep.caporeparto_label }}</div>
+                  <div class="imp-row-meta">
+                    Caporeparto — {{ rep.nome }}
+                    {% if rep.area_aziendale %}<span style="color:#94a3b8;"> / {{ rep.area_aziendale.nome }}</span>{% endif %}
+                  </div>
+                </div>
+                <span class="imp-badge imp-badge-blue">Caporeparto</span>
+              </div>
+            {% endif %}{% endfor %}
+            {% if not aree %}<div class="imp-empty">Nessun reparto configurato.</div>{% endif %}
+          </div>
         </div>
 
         <div class="imp-card">

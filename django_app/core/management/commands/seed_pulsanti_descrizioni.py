@@ -248,7 +248,7 @@ _DESCRIZIONI: dict[str, str] = {
     "acl_diagnostica": "Diagnostica ACL combinata (legacy + canonico): simula la decisione di accesso per un utente su un path.",
     "mappa_permessi_navigazione": "Mappa completa route/menu con sorgente permesso, ruoli abilitati e override.",
     "ldap_diagnostica": "Diagnostica connessione LDAP/Active Directory: cerca utenti, verifica credenziali.",
-    "anagrafica_config": "Configurazione modulo anagrafica: voci personalizzate, campi aggiuntivi.",
+
     "login_config": "Personalizzazione pagina di login: logo, banner, testo di benvenuto.",
     "checklist_index": "Gestione checklist onboarding/configurazione per utente.",
     "audit_log": "Log audit: storico operazioni eseguite dagli utenti (CRUD, export, accessi).",

@@ -77,8 +77,7 @@ urlpatterns = [
     path("api/navigation/redirect/delete", views.api_legacy_redirect_delete, name="api_legacy_redirect_delete"),
     path("api/navigation/user-override/<int:legacy_user_id>/toggle", views.api_nav_user_override_toggle, name="api_nav_user_override_toggle"),
     path("api/navigation/user-override/<int:legacy_user_id>/clear", views.api_nav_user_override_clear, name="api_nav_user_override_clear"),
-    path("anagrafica-config/", views.anagrafica_config, name="anagrafica_config"),
-    path("anagrafica-config/import-csv", views.anagrafica_import_csv, name="anagrafica_import_csv"),
+
     path("login-config/", views.login_config, name="login_config"),
     path("api/login-config/save", views.api_login_config_save, name="api_login_config_save"),
     path("api/login-config/logo/upload", views.api_login_logo_upload, name="api_login_logo_upload"),
@@ -128,4 +127,11 @@ urlpatterns = [
     path("crea-release/download/", views.download_release_package, name="download_release_package"),
     path("crea-release/api/restart-service/", views.api_release_restart_service, name="api_release_restart_service"),
     path("crea-release/api/terminal/", views.api_release_terminal_command, name="api_release_terminal_command"),
+    # 2FA
+    path("2fa/", views.twofa_config, name="twofa_config"),
+    path("api/2fa/policy/save", views.api_twofa_policy_save, name="api_twofa_policy_save"),
+    path("api/2fa/utenti/<int:user_id>/toggle", views.api_twofa_user_toggle, name="api_twofa_user_toggle"),
+    path("api/2fa/utenti/<int:user_id>/reset", views.api_twofa_user_reset, name="api_twofa_user_reset"),
+    path("api/2fa/utenti/<int:user_id>/method", views.api_twofa_user_method_set, name="api_twofa_user_method_set"),
+    path("api/2fa/utenti/<int:user_id>/email", views.api_twofa_user_email_set, name="api_twofa_user_email_set"),
 ]

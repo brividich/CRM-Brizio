@@ -802,6 +802,11 @@ class AutomazioniAdminPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Designer visuale")
+        self.assertContains(response, "Diagramma di flusso")
+        self.assertContains(response, "Trascina per riordinare | click sul nodo")
+        self.assertContains(response, ">PNG<", html=False)
+        self.assertNotContains(response, "ðŸ”€ Diagramma")
+        self.assertNotContains(response, "â¬‡ PNG")
         self.assertContains(response, "Trigger")
         self.assertContains(response, "Condizioni")
         self.assertContains(response, "Azioni")
@@ -2386,6 +2391,74 @@ class AutomationPackageImportTests(TestCase):
         self.assertContains(response, template.code)
         self.assertContains(response, "approved_actions=1")
         self.assertContains(response, "rejected_actions=1")
+
+    def test_dry_run_supports_split_assenza_giornaliera_inline_action(self):
+        package = {
+            "package_version": "2026.05",
+            "input": {"flow_name": "Assenze Split Dry Run"},
+            "source_candidate": {"source_code": "assenze", "label": "Assenze"},
+            "compatibility": {"compatible": True, "status": "ok"},
+            "issues": [],
+            "proposed_rules": [
+                {
+                    "code": "pa-assenze-split-dry-run",
+                    "name": "Assenze split dry run",
+                    "source_code": "assenze",
+                    "operation_type": "insert",
+                    "trigger_scope": "all_inserts",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "send_approval",
+                            "config_json": {
+                                "delivery_mode": "email",
+                                "to_template": "{capo_email}",
+                                "subject_template": "Approval {id}",
+                                "message_template": "Body {tipo_assenza}",
+                                "approved_actions": [
+                                    {
+                                        "action_type": "split_assenza_giornaliera",
+                                        "config_json": {
+                                            "source_code": "assenze",
+                                            "start_field": "data_inizio",
+                                            "end_field": "data_fine",
+                                            "days_count_fields": ["giornipermesso"],
+                                            "max_days": 10,
+                                            "tipo_assenza_template": "Permesso",
+                                            "salta_approvazione": True,
+                                            "moderation_status": 0,
+                                            "consenso_template": "Approvato",
+                                            "include_first_day": False,
+                                            "dedupe": True,
+                                        },
+                                    }
+                                ],
+                                "rejected_actions": [],
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        self._analyze_package(package)
+
+        response = self._run_dry_run(
+            sample_mode="json",
+            payload={
+                **build_example_payload("assenze"),
+                "id": 101,
+                "capo_email": "capo@example.test",
+                "dipendente_email": "dip@example.test",
+                "data_inizio": "2026-06-01T08:00:00",
+                "data_fine": "2026-06-01T17:00:00",
+                "giornipermesso": 3,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Split assenza dry-run")
+        self.assertContains(response, "2 record")
 
     def test_import_creates_draft_rules_and_metadata(self):
         package = self._base_package(
@@ -4078,6 +4151,32 @@ class AutomationActionFormExtendedTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("trigger_update_fields_text", form.errors)
 
+    def test_split_assenza_giornaliera_form_builds_config_for_assenze(self):
+        form = AutomationActionForm(
+            data={
+                "order": "2",
+                "action_type": AutomationActionType.SPLIT_ASSENZA_GIORNALIERA,
+                "is_enabled": "on",
+                "description": "Split multi giorno",
+                "split_start_field": "data_inizio",
+                "split_end_field": "data_fine",
+                "split_days_count_fields": "giornipermesso,Giornipermesso",
+                "split_max_days": "60",
+                "split_tipo_assenza_template": "Permesso",
+                "split_moderation_status": "0",
+                "split_consenso_template": "Approvato",
+                "split_salta_approvazione": "on",
+                "split_dedupe": "on",
+            },
+            source_code="assenze",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form._config_json["source_code"], "assenze")
+        self.assertEqual(form._config_json["days_count_fields"], ["giornipermesso", "Giornipermesso"])
+        self.assertEqual(form._config_json["tipo_assenza_template"], "Permesso")
+        self.assertTrue(form._config_json["dedupe"])
+
     def test_send_approval_form_requires_teams_recipient_email_for_chat_flow(self):
         endpoint = AutomationDeliveryEndpoint.objects.create(
             code="teams-flow-form-recipient",
@@ -4766,6 +4865,155 @@ class AutomationDatabaseExecutorTests(TestCase):
         self.assertEqual(action_log.status, AutomationActionLogStatus.ERROR)
         self.assertIn("Safety guardrail", action_log.result_message)
         self.assertIn(f"action_id={action.id}", "\n".join(logs.output))
+
+
+class AutomationAssenzeSplitActionTests(TestCase):
+    def setUp(self):
+        self.table_name = "assenze_split_test"
+        self._drop_table_if_exists()
+        quoted = connection.ops.quote_name(self.table_name)
+        with connection.cursor() as cursor:
+            if connection.vendor == "sqlite":
+                cursor.execute(
+                    f"""
+CREATE TABLE {quoted} (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dipendente_id INTEGER NULL,
+    copia_nome TEXT NULL,
+    email_esterna TEXT NULL,
+    capo_reparto_id INTEGER NULL,
+    tipo_assenza TEXT NULL,
+    motivazione_richiesta TEXT NULL,
+    data_inizio DATETIME NULL,
+    data_fine DATETIME NULL,
+    salta_approvazione BOOLEAN NULL,
+    moderation_status INTEGER NULL,
+    consenso TEXT NULL,
+    approvazione_datetime DATETIME NULL,
+    created_datetime DATETIME NULL,
+    modified_datetime DATETIME NULL,
+    giornipermesso INTEGER NULL
+)
+"""
+                )
+            else:
+                cursor.execute(
+                    f"""
+CREATE TABLE {quoted} (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    dipendente_id INT NULL,
+    copia_nome NVARCHAR(255) NULL,
+    email_esterna NVARCHAR(255) NULL,
+    capo_reparto_id INT NULL,
+    tipo_assenza NVARCHAR(100) NULL,
+    motivazione_richiesta NVARCHAR(500) NULL,
+    data_inizio DATETIME2 NULL,
+    data_fine DATETIME2 NULL,
+    salta_approvazione BIT NULL,
+    moderation_status INT NULL,
+    consenso NVARCHAR(100) NULL,
+    approvazione_datetime DATETIME2 NULL,
+    created_datetime DATETIME2 NULL,
+    modified_datetime DATETIME2 NULL,
+    giornipermesso INT NULL
+)
+"""
+                )
+
+    def tearDown(self):
+        self._drop_table_if_exists()
+
+    def _drop_table_if_exists(self):
+        quoted = connection.ops.quote_name(self.table_name)
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"DROP TABLE {quoted}")
+        except Exception:
+            pass
+
+    def _action(self):
+        return SimpleNamespace(
+            pk=None,
+            rule=SimpleNamespace(source_code="assenze"),
+            action_type=AutomationActionType.SPLIT_ASSENZA_GIORNALIERA,
+            config_json={
+                "source_code": "assenze",
+                "start_field": "data_inizio",
+                "end_field": "data_fine",
+                "days_count_fields": ["giornipermesso"],
+                "max_days": 10,
+                "tipo_assenza_template": "Permesso",
+                "salta_approvazione": True,
+                "moderation_status": 0,
+                "consenso_template": "Approvato",
+                "include_first_day": False,
+                "dedupe": True,
+                "set_approval_datetime": True,
+            },
+        )
+
+    def _payload(self):
+        return {
+            "id": 100,
+            "dipendente_id": 77,
+            "dipendente_nome": "Mario Rossi",
+            "dipendente_email": "m.rossi@example.test",
+            "capo_reparto_id": 9,
+            "tipo_assenza": "Ferie",
+            "motivazione_richiesta": "Permesso multi giorno",
+            "data_inizio": "2026-06-01T08:00:00",
+            "data_fine": "2026-06-01T17:00:00",
+            "giornipermesso": 3,
+        }
+
+    def _rows(self):
+        quoted = connection.ops.quote_name(self.table_name)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+SELECT dipendente_id, copia_nome, email_esterna, capo_reparto_id,
+       tipo_assenza, motivazione_richiesta, data_inizio, data_fine,
+       salta_approvazione, moderation_status, consenso, giornipermesso
+FROM {quoted}
+ORDER BY data_inizio
+"""
+            )
+            return cursor.fetchall()
+
+    @patch("automazioni.services.get_source_definition")
+    def test_split_assenza_giornaliera_creates_daily_derived_rows(self, mock_source):
+        mock_source.return_value = {"table_name": self.table_name}
+
+        result = execute_action(self._action(), self._payload(), run_log=None)
+        rows = self._rows()
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertIn("pianificati=2", result["result_message"])
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0][0], 77)
+        self.assertEqual(rows[0][1], "Mario Rossi")
+        self.assertEqual(rows[0][2], "m.rossi@example.test")
+        self.assertEqual(rows[0][4], "Permesso")
+        self.assertEqual(rows[0][9], 0)
+        self.assertEqual(rows[0][10], "Approvato")
+        self.assertEqual(rows[0][11], 1)
+        self.assertIn("2026-06-02", str(rows[0][6]))
+        self.assertIn("08:00", str(rows[0][6]))
+        self.assertIn("2026-06-03", str(rows[1][6]))
+        self.assertIn("17:00", str(rows[1][7]))
+
+    @patch("automazioni.services.get_source_definition")
+    def test_split_assenza_giornaliera_is_idempotent(self, mock_source):
+        mock_source.return_value = {"table_name": self.table_name}
+
+        first = execute_action(self._action(), self._payload(), run_log=None)
+        second = execute_action(self._action(), self._payload(), run_log=None)
+
+        self.assertEqual(first["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertEqual(second["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertIn("inseriti=0", second["result_message"])
+        self.assertIn("saltati=2", second["result_message"])
+        self.assertEqual(len(self._rows()), 2)
 
 
 class AutomationRunRuleExecutorIntegrationTests(TestCase):

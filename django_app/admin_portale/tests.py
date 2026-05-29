@@ -3255,6 +3255,60 @@ class AdminPortaleDecoratorJsonResponseTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleUtentiListLayoutTests(TestCase):
+    def setUp(self):
+        _ensure_ruoli_table()
+        _ensure_utenti_table()
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute("DELETE FROM utenti")
+            cursor.execute("DELETE FROM ruoli")
+
+        _legacy_upsert_by_id("ruoli", 1, {"nome": "admin"})
+        _legacy_upsert_by_id("ruoli", 6, {"nome": "utente"})
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-users-layout",
+            email="admin.users.layout@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Users Layout",
+            email="admin.users.layout@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.target_legacy = UtenteLegacy.objects.create(
+            nome="Target Layout",
+            email="target.layout@test.local",
+            password="*AD_MANAGED*",
+            ruolo="utente",
+            ruolo_id=6,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def test_utenti_list_renders_fullpage_workspace(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(reverse("admin_portale:utenti_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin-users-fullpage", html=False)
+        self.assertContains(response, 'class="users-fullpage-shell"', html=False)
+        self.assertContains(response, 'class="users-create-panel"', html=False)
+        self.assertContains(response, 'class="users-table-scroll"', html=False)
+        self.assertContains(response, "Target Layout", html=False)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AdminPortaleOpenRedirectTests(TestCase):
     """Testa che i parametri next/HTTP_REFERER non permettano redirect verso domini esterni."""
 

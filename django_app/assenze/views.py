@@ -895,6 +895,13 @@ def _validate_business_rules(
 
     tipo_ui = _norm_tipo(tipo)
     warning = ""
+    if tipo_ui == "Permesso" and dt_start.date() != dt_end.date():
+        return "Il permesso deve iniziare e finire nello stesso giorno.", ""
+    if tipo_ui == "Ferie":
+        if dt_end.date() < dt_start.date():
+            return "La data fine ferie non puo essere precedente alla data inizio.", ""
+        if (dt_start.hour, dt_start.minute, dt_end.hour, dt_end.minute) != (0, 0, 23, 59):
+            return "Le ferie devono coprire giornate intere: orario 00:00-23:59.", ""
     if tipo_ui == "Flessibilità":
         diff_hours = (dt_end - dt_start).total_seconds() / 3600.0
         if diff_hours < 9:
@@ -977,16 +984,37 @@ def _resolve_capo_local_id_from_option_config(raw: str) -> int | None:
     return None
 
 
+def _resolve_capo_local_id_from_anagrafica_hr(raw: str) -> int | None:
+    raw_key = _norm_text_key(raw)
+    if not raw_key:
+        return None
+    for option in _load_anagrafica_hr_capi_options():
+        candidates = {
+            _norm_text_key(_capo_option_value(option)),
+            _norm_text_key(option.get("Email")),
+            _norm_text_key(option.get("LookupId")),
+            _norm_text_key(option.get("Value")),
+            _norm_text_key(option.get("AnagraficaLegacyId")),
+        }
+        candidates.discard("")
+        if raw_key in candidates:
+            legacy_user_id = _as_int(option.get("LegacyUserId"))
+            if legacy_user_id is not None:
+                return legacy_user_id
+    return None
+
+
 def _resolve_capo_local_id(capo_value: str | None) -> int | None:
     raw = str(capo_value or "").strip()
     if not raw:
         return None
+    anagrafica_hr_user_id = _resolve_capo_local_id_from_anagrafica_hr(raw)
     if not _legacy_capi_table_exists():
-        return _resolve_capo_local_id_from_option_config(raw)
+        return anagrafica_hr_user_id or _resolve_capo_local_id_from_option_config(raw)
 
     cols = legacy_table_columns("capi_reparto")
     if "id" not in cols:
-        return None
+        return anagrafica_hr_user_id
 
     legacy_user = _resolve_local_capo_legacy_user(raw)
     legacy_user_id = _as_int(getattr(legacy_user, "id", None)) if legacy_user is not None else None
@@ -1012,8 +1040,10 @@ def _resolve_capo_local_id(capo_value: str | None) -> int | None:
             return capo_id
 
     if numeric is not None:
-        return _find_local_capo_id_by_column("id", int(numeric))
-    return None
+        capo_id = _find_local_capo_id_by_column("id", int(numeric))
+        if capo_id is not None:
+            return capo_id
+    return anagrafica_hr_user_id
 
 
 def _resolve_capo_option_value_from_ids(
@@ -2527,6 +2557,106 @@ def _resolve_legacy_capo_lookup_by_raw_value(raw_value: str | None) -> int | Non
     return None
 
 
+def _anagrafica_hr_capo_ids() -> set[int]:
+    try:
+        from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+    except Exception:
+        return set()
+
+    ids: set[int] = set()
+    try:
+        for value in Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False).values_list(
+            "caporeparto_legacy_id", flat=True
+        ):
+            capo_id = _as_int(value)
+            if capo_id is not None and capo_id > 0:
+                ids.add(capo_id)
+        for value in (
+            DipendenteAnagraficaAziendale.objects.filter(caporeparto_legacy_id__isnull=False)
+            .exclude(caporeparto_legacy_id=0)
+            .values_list("caporeparto_legacy_id", flat=True)
+            .distinct()
+        ):
+            capo_id = _as_int(value)
+            if capo_id is not None and capo_id > 0:
+                ids.add(capo_id)
+    except Exception:
+        return set()
+    return ids
+
+
+def _anagrafica_row_label(row: dict) -> str:
+    nome = str(row.get("nome") or "").strip()
+    cognome = str(row.get("cognome") or "").strip()
+    alias = str(row.get("aliasusername") or "").strip()
+    email = str(row.get("email_notifica") or row.get("email") or "").strip()
+    return " ".join(part for part in [cognome, nome] if part) or alias or email or f"#{row.get('id')}"
+
+
+def _fetch_anagrafica_rows_by_ids(ids: set[int]) -> dict[int, dict]:
+    clean_ids = sorted({int(v) for v in ids if _as_int(v) is not None and int(v) > 0})
+    if not clean_ids or not _table_exists("anagrafica_dipendenti"):
+        return {}
+    cols = legacy_table_columns("anagrafica_dipendenti")
+    select_cols = [c for c in ["id", "nome", "cognome", "aliasusername", "email", "email_notifica", "utente_id"] if c in cols]
+    if "id" not in select_cols:
+        return {}
+    placeholders = ", ".join(["%s"] * len(clean_ids))
+    rows = _fetch_all_dict(
+        f"SELECT {_quoted_columns(select_cols)} FROM anagrafica_dipendenti WHERE id IN ({placeholders})",
+        clean_ids,
+    )
+    return {int(row["id"]): row for row in rows if _as_int(row.get("id")) is not None}
+
+
+def _legacy_user_for_anagrafica_row(row: dict):
+    legacy_user_id = _as_int(row.get("utente_id"))
+    if legacy_user_id is not None:
+        user = _resolve_local_capo_legacy_user("", legacy_user_id=legacy_user_id)
+        if user is not None:
+            return user
+    for raw in [row.get("email"), row.get("email_notifica"), row.get("aliasusername")]:
+        user = _resolve_local_capo_legacy_user(str(raw or "").strip())
+        if user is not None:
+            return user
+    return None
+
+
+def _build_anagrafica_hr_capo_option(row: dict) -> dict:
+    anagrafica_id = _as_int(row.get("id"))
+    legacy_user = _legacy_user_for_anagrafica_row(row)
+    legacy_user_id = _as_int(getattr(legacy_user, "id", None)) if legacy_user is not None else _as_int(row.get("utente_id"))
+    email = str(getattr(legacy_user, "email", "") or "").strip()
+    label = str(getattr(legacy_user, "nome", "") or "").strip() or _anagrafica_row_label(row)
+    lookup_value = f"legacy_user:{legacy_user_id}" if legacy_user_id is not None else f"anagrafica:{anagrafica_id or ''}"
+    option_value = email or lookup_value
+    return {
+        "Value": label,
+        "Email": email,
+        "LookupId": lookup_value,
+        "LegacyLookupId": str(_resolve_legacy_capo_lookup_by_raw_value(option_value) or "").strip(),
+        "LegacyUserId": str(legacy_user_id or "").strip(),
+        "AnagraficaLegacyId": str(anagrafica_id or "").strip(),
+    }
+
+
+def _load_anagrafica_hr_capi_options() -> list[dict]:
+    rows_by_id = _fetch_anagrafica_rows_by_ids(_anagrafica_hr_capo_ids())
+    if not rows_by_id:
+        return []
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in sorted(rows_by_id.values(), key=lambda item: _anagrafica_row_label(item).casefold()):
+        option = _build_anagrafica_hr_capo_option(row)
+        key = str(option.get("LegacyUserId") or option.get("AnagraficaLegacyId") or option.get("Email") or "").casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(option)
+    return out
+
+
 def _build_local_capo_option(raw_value: str, *, legacy_user_id: int | None = None) -> dict:
     raw = str(raw_value or "").strip()
     legacy_user = _resolve_local_capo_legacy_user(raw, legacy_user_id=legacy_user_id)
@@ -2607,6 +2737,9 @@ def _load_legacy_capi_options() -> list[dict]:
 
 
 def _load_capi_options() -> list[dict]:
+    anagrafica_options = _load_anagrafica_hr_capi_options()
+    if anagrafica_options:
+        return anagrafica_options
     local_options = _load_local_capi_options()
     if local_options:
         return local_options
@@ -2719,6 +2852,156 @@ def _find_reparto_for_user(name: str, email: str, username: str) -> str:
     return ""
 
 
+def _resolve_anagrafica_employee_id_for_user(
+    *,
+    legacy_user_id: int | None,
+    email: str,
+    username: str,
+    name: str,
+) -> int | None:
+    if not _table_exists("anagrafica_dipendenti"):
+        return None
+    cols = legacy_table_columns("anagrafica_dipendenti")
+    if "id" not in cols:
+        return None
+
+    clauses: list[str] = []
+    params: list[str | int] = []
+    if legacy_user_id is not None and "utente_id" in cols:
+        clauses.append("utente_id = %s")
+        params.append(int(legacy_user_id))
+
+    email = str(email or "").strip()
+    if email:
+        if "email" in cols:
+            clauses.append("UPPER(COALESCE(email,'')) = UPPER(%s)")
+            params.append(email)
+        if "email_notifica" in cols:
+            clauses.append("UPPER(COALESCE(email_notifica,'')) = UPPER(%s)")
+            params.append(email)
+
+    username = str(username or "").strip()
+    alias_candidates = {username}
+    if "@" in username:
+        alias_candidates.add(username.split("@", 1)[0].strip())
+    if email and "@" in email:
+        alias_candidates.add(email.split("@", 1)[0].strip())
+    alias_candidates.discard("")
+    if "aliasusername" in cols:
+        for alias in sorted(alias_candidates):
+            clauses.append("UPPER(COALESCE(aliasusername,'')) = UPPER(%s)")
+            params.append(alias)
+
+    if clauses:
+        sql = _select_limited(
+            f"SELECT id FROM anagrafica_dipendenti WHERE {' OR '.join(clauses)}",
+            "ORDER BY id DESC",
+            1,
+        )
+        rows = _fetch_all_dict(sql, params)
+        if rows:
+            return _as_int(rows[0].get("id"))
+
+    target_name = _norm_text_key(name)
+    if not target_name or not {"nome", "cognome"}.issubset(cols):
+        return None
+    sql = _select_limited(
+        "SELECT id, nome, cognome FROM anagrafica_dipendenti",
+        "ORDER BY id DESC",
+        3000,
+    )
+    for row in _fetch_all_dict(sql):
+        nome = str(row.get("nome") or "").strip()
+        cognome = str(row.get("cognome") or "").strip()
+        candidates = {
+            _norm_text_key(f"{cognome} {nome}"),
+            _norm_text_key(f"{nome} {cognome}"),
+        }
+        candidates.discard("")
+        if target_name in candidates:
+            return _as_int(row.get("id"))
+    return None
+
+
+def _legacy_user_id_from_anagrafica_employee_id(anagrafica_id: int | None) -> int | None:
+    if anagrafica_id is None:
+        return None
+    row = _fetch_anagrafica_rows_by_ids({int(anagrafica_id)}).get(int(anagrafica_id))
+    if not row:
+        return None
+    user = _legacy_user_for_anagrafica_row(row)
+    return _as_int(getattr(user, "id", None)) if user is not None else _as_int(row.get("utente_id"))
+
+
+def _resolve_anagrafica_hr_effective_capo_ids(
+    *,
+    legacy_user_id: int | None,
+    email: str,
+    username: str,
+    name: str,
+) -> tuple[int | None, int | None]:
+    employee_id = _resolve_anagrafica_employee_id_for_user(
+        legacy_user_id=legacy_user_id,
+        email=email,
+        username=username,
+        name=name,
+    )
+    capo_anagrafica_id: int | None = None
+    reparto = ""
+    try:
+        from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+
+        if employee_id is not None:
+            aziendale = (
+                DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=employee_id)
+                .only("caporeparto_legacy_id", "area")
+                .first()
+            )
+            if aziendale is not None:
+                capo_anagrafica_id = _as_int(getattr(aziendale, "caporeparto_legacy_id", None))
+                reparto = str(getattr(aziendale, "area", "") or "").strip()
+
+        if capo_anagrafica_id is None:
+            reparto = reparto or _find_reparto_for_user(name=name, email=email, username=username)
+            if reparto:
+                rep = Reparto.objects.filter(nome__iexact=reparto, is_active=True).only("caporeparto_legacy_id").first()
+                if rep is not None:
+                    capo_anagrafica_id = _as_int(getattr(rep, "caporeparto_legacy_id", None))
+    except Exception:
+        capo_anagrafica_id = None
+
+    return _legacy_user_id_from_anagrafica_employee_id(capo_anagrafica_id), capo_anagrafica_id
+
+
+def _resolve_anagrafica_hr_default_capo_option(
+    *,
+    name: str,
+    email: str,
+    username: str,
+    capi: list[dict],
+    legacy_user_id: int | None = None,
+) -> str:
+    if not capi:
+        return ""
+    capo_legacy_user_id, capo_anagrafica_id = _resolve_anagrafica_hr_effective_capo_ids(
+        legacy_user_id=legacy_user_id,
+        email=email,
+        username=username,
+        name=name,
+    )
+    if capo_legacy_user_id is not None:
+        option = _resolve_capo_option_value_from_ids(local_id=capo_legacy_user_id, lookup_id=None, capi=capi)
+        if option:
+            return option
+    if capo_anagrafica_id is not None:
+        for capo in capi:
+            if _as_int(capo.get("AnagraficaLegacyId")) == capo_anagrafica_id:
+                option = _capo_option_value(capo)
+                if option:
+                    return option
+    return ""
+
+
 def _resolve_default_capo_for_user(
     *,
     name: str,
@@ -2752,7 +3035,18 @@ def _resolve_default_capo_for_user(
         if title:
             by_title[title] = option
 
-    # Step 1: UserExtraInfo.caporeparto (da RepartoCapoMapping) — priorità massima
+    # Step 1: caporeparto effettivo da Anagrafica HR.
+    anagrafica_option = _resolve_anagrafica_hr_default_capo_option(
+        name=name,
+        email=email,
+        username=username,
+        capi=capi,
+        legacy_user_id=legacy_user_id,
+    )
+    if anagrafica_option:
+        return anagrafica_option
+
+    # Step 2: UserExtraInfo.caporeparto (compatibilita RepartoCapoMapping)
     if legacy_user_id:
         try:
             from core.models import UserExtraInfo
@@ -2768,7 +3062,7 @@ def _resolve_default_capo_for_user(
         except Exception:
             pass
 
-    # Step 2: storico assenze precedenti (locale o legacy)
+    # Step 3: storico assenze precedenti (locale o legacy)
     clauses = []
     params: list[str] = []
     if name:
@@ -2795,7 +3089,7 @@ def _resolve_default_capo_for_user(
             if option:
                 return option
 
-    # Step 3: mapping reparto → caporeparto locale
+    # Step 4: mapping reparto -> caporeparto locale
     reparto = _find_reparto_for_user(name=name, email=email, username=username)
     if reparto:
         option = ""
@@ -2929,8 +3223,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
         username=request.user.get_username(),
         fallback_name=name,
     )
-    today = datetime.now(dt_timezone.utc).date()
-    tomorrow = today + timedelta(days=1)
+    today = timezone.localdate()
     capi = _load_capi_options()
     motivazioni = _graph_get_motivazioni() or _load_motivazioni_local()
     copy_from = str(request.GET.get("copy_from") or "").strip()
@@ -2948,7 +3241,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             legacy_user_id=_legacy_id,
         ),
         "date_start": today.strftime("%Y-%m-%d"),
-        "date_end": tomorrow.strftime("%Y-%m-%d"),
+        "date_end": today.strftime("%Y-%m-%d"),
         "time_start": "06:00",
         "time_end": "14:00",
         "salta_approvazione": "0",
@@ -3612,6 +3905,11 @@ def invio_placeholder(request):
     time_end = str(request.POST.get("time_end") or "23:59").strip() or "23:59"
     capo_raw = str(request.POST.get("caporeparto") or "").strip()
     salta_approvazione = bool(_as_bool(request.POST.get("salta_approvazione"))) if perms.get("can_skip_approval") else False
+    tipo_ui = _norm_tipo(tipo)
+
+    if tipo_ui == "Ferie":
+        time_start = "00:00"
+        time_end = "23:59"
 
     if not date_start or not date_end:
         return _render_richiesta(request, error="Compila data inizio e data fine.", form_data=request.POST.dict())
@@ -3624,6 +3922,13 @@ def invio_placeholder(request):
 
     dt_start = start_local
     dt_end = end_local
+
+    if tipo_ui == "Permesso" and dt_start.date() != dt_end.date():
+        return _render_richiesta(
+            request,
+            error="Il permesso deve iniziare e finire nello stesso giorno.",
+            form_data=request.POST.dict(),
+        )
 
     name, email, legacy_id = _legacy_identity(request)
     display_name = _resolve_request_display_name(

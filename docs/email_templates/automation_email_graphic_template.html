@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NOVICROM HUB - Template grafico email automazioni</title>
+  <style>
+    :root {
+      --page-bg: #eef3f8;
+      --surface: #ffffff;
+      --ink: #182232;
+      --muted: #64748b;
+      --line: #d8e1ec;
+      --primary: #002b5c;
+      --primary-mid: #2f5f89;
+      --accent: #ff6b00;
+      --success: #38a169;
+      --danger: #e53e3e;
+      --warning: #d69e2e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 16% 0%, rgba(47, 95, 137, .18), transparent 34%),
+        radial-gradient(circle at 92% 8%, rgba(255, 107, 0, .14), transparent 28%),
+        linear-gradient(180deg, #ffffff 0%, var(--page-bg) 310px, var(--page-bg) 100%);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .preview-shell {
+      width: min(100%, 1120px);
+      margin: 0 auto;
+      padding: 36px 18px 48px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 28px;
+      align-items: start;
+    }
+
+    .preview-title {
+      margin: 0 0 16px;
+      color: var(--primary);
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 800;
+    }
+
+    .preview-note {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .email-frame {
+      padding: 24px;
+      border: 1px solid rgba(0, 43, 92, .12);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .58);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, .13);
+    }
+
+    .design-panel {
+      border: 1px solid rgba(0, 43, 92, .12);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .76);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+      padding: 18px;
+    }
+
+    .design-panel h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      color: var(--primary);
+    }
+
+    .token-row {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 0;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .swatches {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin: 6px 0 16px;
+    }
+
+    .swatch {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      border: 1px solid rgba(15, 23, 42, .08);
+    }
+
+    .mini-variant {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      margin-top: 10px;
+    }
+
+    .mini-variant strong {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .mini-variant span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 920px) {
+      .preview-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .email-frame {
+        padding: 12px;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .email-width {
+        width: 100% !important;
+      }
+
+      .email-pad {
+        padding-left: 22px !important;
+        padding-right: 22px !important;
+      }
+
+      .email-cta {
+        display: block !important;
+        margin: 0 0 10px !important;
+        text-align: center !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="preview-shell">
+    <section>
+      <h1 class="preview-title">Template grafico email automazioni</h1>
+      <p class="preview-note">
+        Mockup HTML statico, pensato come base visuale per le email generate dalle automazioni.
+        Il blocco centrale usa tabelle e stili inline, quindi puo essere convertito in template email reale.
+      </p>
+
+      <div class="email-frame">
+        <!-- Email-safe body: da qui il layout puo essere portato in un renderer Django/email. -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#eef3f8;">
+          <tr>
+            <td align="center" style="padding:32px 12px;">
+              <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="email-width" style="width:640px;max-width:640px;border-collapse:separate;border-spacing:0;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.16);">
+                <tr>
+                  <td style="padding:0;background:#002b5c;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td class="email-pad" style="padding:20px 30px;">
+                          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                            <tr>
+                              <td valign="middle" style="vertical-align:middle;">
+                                <!-- Logo NOVICROM HUB full-brand (CN icon + testo + tagline), PNG trasparente su header blu -->
+                                <img src="https://costruzioninovicrom.it/wp-content/uploads/2026/05/novicrmhub.png" width="210" alt="NOVICROM HUB — High Tech Manufacturing" style="display:block;width:210px;max-width:210px;height:auto;border:0;outline:none;text-decoration:none;">
+                              </td>
+                              <td valign="middle" align="right" style="vertical-align:middle;text-align:right;">
+                                <div style="color:#c7d6e8;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:6px;">Automazioni</div>
+                                <span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 11px;color:#ffffff;font-size:12px;font-weight:700;background:rgba(255,255,255,.08);">Richiede azione</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="height:5px;background:#ff6b00;line-height:5px;font-size:0;">&nbsp;</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="email-pad" style="padding:30px 34px 8px;background:#ffffff;">
+                    <div style="font-size:13px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;">Workflow approvazione</div>
+                    <h2 style="margin:0;color:#182232;font-size:24px;line-height:1.22;font-weight:800;">Richiesta assenza da approvare</h2>
+                    <p style="margin:14px 0 0;color:#475569;font-size:15px;line-height:1.62;">
+                      Mario Rossi ha inserito una nuova richiesta di ferie. Controlla i dettagli e conferma l'esito dal portale.
+                    </p>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="email-pad" style="padding:18px 34px 8px;background:#ffffff;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #d8e1ec;border-radius:14px;overflow:hidden;background:#fbfdff;">
+                      <tr>
+                        <td colspan="2" style="padding:14px 18px;background:#f6f9fc;border-bottom:1px solid #d8e1ec;color:#002b5c;font-size:13px;font-weight:800;">Riepilogo richiesta</td>
+                      </tr>
+                      <tr>
+                        <td style="width:38%;padding:13px 18px;border-bottom:1px solid #e7edf4;color:#64748b;font-size:13px;font-weight:700;">Dipendente</td>
+                        <td style="padding:13px 18px;border-bottom:1px solid #e7edf4;color:#182232;font-size:14px;font-weight:700;">Mario Rossi</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:13px 18px;border-bottom:1px solid #e7edf4;color:#64748b;font-size:13px;font-weight:700;">Periodo</td>
+                        <td style="padding:13px 18px;border-bottom:1px solid #e7edf4;color:#182232;font-size:14px;">05/06/2026 - 09/06/2026</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:13px 18px;border-bottom:1px solid #e7edf4;color:#64748b;font-size:13px;font-weight:700;">Tipo</td>
+                        <td style="padding:13px 18px;border-bottom:1px solid #e7edf4;color:#182232;font-size:14px;">
+                          <span style="display:inline-block;border-radius:999px;background:#fff4ed;color:#c2410c;padding:5px 9px;font-size:12px;font-weight:800;">Ferie</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:13px 18px;color:#64748b;font-size:13px;font-weight:700;">Reparto</td>
+                        <td style="padding:13px 18px;color:#182232;font-size:14px;">Produzione</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="email-pad" style="padding:18px 34px 4px;background:#ffffff;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td style="padding:14px 16px;border-left:4px solid #d69e2e;background:#fffaf0;border-radius:10px;color:#6b4f0f;font-size:13px;line-height:1.55;">
+                          La richiesta scade il <strong>12/06/2026 alle 18:00</strong>. Se non viene gestita, restera in attesa nel log approvazioni.
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="email-pad" style="padding:22px 34px 28px;background:#ffffff;">
+                    <a href="{approve_url}" class="email-cta" style="display:inline-block;margin:0 10px 10px 0;padding:12px 22px;border-radius:9px;background:#38a169;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;">Approva</a>
+                    <a href="{reject_url}" class="email-cta" style="display:inline-block;margin:0 10px 10px 0;padding:12px 22px;border-radius:9px;background:#e53e3e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;">Rifiuta</a>
+                    <a href="{detail_url}" class="email-cta" style="display:inline-block;margin:0 0 10px 0;padding:12px 22px;border-radius:9px;background:#ffffff;color:#002b5c;text-decoration:none;font-size:14px;font-weight:800;border:1px solid #c7d6e8;">Apri dettaglio</a>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:0 34px;background:#ffffff;">
+                    <div style="height:1px;background:#d8e1ec;line-height:1px;font-size:0;">&nbsp;</div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="email-pad" style="padding:18px 34px 24px;background:#ffffff;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td style="color:#64748b;font-size:12px;line-height:1.55;">
+                          Messaggio automatico generato da NOVICROM HUB. Non inoltrare link di approvazione: sono personali e tracciati.
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="padding:15px 0 0;color:#94a3b8;font-size:11px;line-height:1.45;text-align:center;">
+                NOVICROM HUB &middot; Portale interno &middot; Email automatica
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <aside class="design-panel">
+      <h2>Palette proposta</h2>
+      <div class="swatches" aria-label="Palette colori">
+        <span class="swatch" style="background:#002b5c"></span>
+        <span class="swatch" style="background:#2f5f89"></span>
+        <span class="swatch" style="background:#ff6b00"></span>
+        <span class="swatch" style="background:#38a169"></span>
+        <span class="swatch" style="background:#e53e3e"></span>
+        <span class="swatch" style="background:#eef3f8"></span>
+      </div>
+
+      <div class="token-row">
+        <strong>Header</strong>
+        <span>Brand scuro, logo/monogramma, tipo automazione.</span>
+      </div>
+      <div class="token-row">
+        <strong>Corpo</strong>
+        <span>Titolo breve, messaggio operativo, riepilogo a tabella.</span>
+      </div>
+      <div class="token-row">
+        <strong>CTA</strong>
+        <span>Bottoni primari per approvazione, rifiuto e dettaglio.</span>
+      </div>
+      <div class="token-row">
+        <strong>Footer</strong>
+        <span>Nota automatica, tracciabilita e istruzioni minime.</span>
+      </div>
+
+      <div class="mini-variant">
+        <strong>Variante informativa</strong>
+        <span>Una sola CTA blu: "Apri nel portale"; nessun blocco warning.</span>
+      </div>
+      <div class="mini-variant">
+        <strong>Variante reminder</strong>
+        <span>Accent arancio e box scadenza piu evidente.</span>
+      </div>
+      <div class="mini-variant">
+        <strong>Variante critica</strong>
+        <span>Badge rosso, subject urgente e tabella con priorita.</span>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

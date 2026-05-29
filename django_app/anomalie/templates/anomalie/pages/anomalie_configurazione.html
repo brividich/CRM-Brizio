@@ -1,282 +1,81 @@
+{% extends "core/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Configurazione Anomalie | Portale Applicativo</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      min-height: 100vh;
-      font-family: "Outfit", sans-serif;
-      font-size: var(--fs-base);
-      line-height: var(--lh-base);
-      background: var(--bg);
-      background:
-        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
-        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
-        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
-      color: #1f2937;
-    }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      height: 54px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 0 16px;
-      background: rgba(26, 84, 153, 0.93);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    }
-    .topbar a {
-      color: rgba(255, 255, 255, 0.92);
-      text-decoration: none;
-      font-size: var(--fs-base);
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      white-space: nowrap;
-    }
-    .topbar a:hover { color: #fff; }
-    .topbar-sep { width: 1px; height: 22px; background: rgba(255, 255, 255, 0.28); }
-    .topbar-title {
-      flex: 1;
-      color: #fff;
-      font-size: var(--fs-md);
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .topbar-user {
-      color: rgba(255, 255, 255, 0.74);
-      font-size: var(--fs-sm);
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .page {
-      max-width: 980px;
-      margin: 22px auto 36px;
-      padding: 0 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .card {
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-      overflow: hidden;
-    }
-    .card-head {
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    }
-    .card-title {
-      font-size: var(--fs-title-md);
-      font-weight: 800;
-      color: #1e3a5f;
-      letter-spacing: 0.02em;
-    }
-    .card-sub {
-      margin-top: 6px;
-      font-size: var(--fs-base);
-      color: #64748b;
-      line-height: 1.4;
-    }
-    .card-body {
-      padding: 18px 20px 20px;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-    .field.full { grid-column: 1 / -1; }
-    .field label {
-      font-size: var(--fs-base);
-      font-weight: 800;
-      color: #374151;
-      letter-spacing: 0.02em;
-    }
-    .field small {
-      color: #64748b;
-      font-size: var(--fs-sm);
-      line-height: 1.35;
-      margin-top: -2px;
-    }
-    .field textarea,
-    .field input[type="text"] {
-      width: 100%;
-      border: 1.5px solid #cbd5e1;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: var(--fs-base);
-      line-height: 1.35;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
-      outline: none;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .field textarea {
-      min-height: 150px;
-      resize: vertical;
-    }
-    .field textarea:focus,
-    .field input[type="text"]:focus {
-      border-color: #2670b8;
-      background: #fff;
-    }
-    .field select,
-    .ga-select {
-      width: 100%;
-      border: 1.5px solid #cbd5e1;
-      border-radius: 10px;
-      padding: 8px 10px;
-      font-size: var(--fs-base);
-      background: #fff;
-      color: #1e293b;
-      outline: none;
-    }
-    .actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      padding: 0 20px 20px;
-      flex-wrap: wrap;
-    }
-    .btn {
-      border: none;
-      border-radius: 9px;
-      padding: 10px 18px;
-      cursor: pointer;
-      font-size: var(--fs-base);
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-      transition: opacity 0.15s;
-    }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .btn-main { background: linear-gradient(160deg, #2670b8 0%, #1a5499 100%); color: #fff; }
-    .btn-main:hover:not(:disabled) { opacity: 0.9; }
-    .btn-secondary {
-      border: 1.5px solid #cbd5e1;
-      color: #475569;
-      background: #fff;
-    }
-    .status {
-      display: none;
-      padding: 11px 14px;
-      border-radius: 10px;
-      font-size: var(--fs-base);
-      font-weight: 700;
-      margin: 0 20px 16px;
-    }
-    .status.ok {
-      display: block;
-      border: 1px solid #86efac;
-      background: #dcfce7;
-      color: #166534;
-    }
-    .status.err {
-      display: block;
-      border: 1px solid #fca5a5;
-      background: #fef2f2;
-      color: #991b1b;
-    }
-    @media (max-width: 780px) {
-      .card-body { grid-template-columns: 1fr; }
-      .topbar-user { display: none; }
-    }
-    @media (max-width: 600px) {
-      .topbar a { font-size: var(--fs-sm); }
-      .ga-tabs { gap: 2px; padding: 8px 8px 0; overflow-x: auto; flex-wrap: nowrap; }
-      .ga-tab { padding: 6px 10px; font-size: var(--fs-sm); white-space: nowrap; }
-      .page { padding: 0 10px; }
-      .card-head, .ga-card-head { padding: 12px 14px; }
-      .ga-card-body { padding: 10px 12px; }
-    }
-    .ga-tbl { min-width: 560px; }
-    .ga-card-body > div[style*="overflow-x"],
-    .ga-card-body > form > div[style*="overflow-x"] { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #c7d8f0; margin: 0 0 0; padding: 10px 16px 0; background: #e8f0fb; }
-    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: var(--fs-base); color: #3a5a8a; border: 1px solid transparent; border-bottom: none; }
-    .ga-tab:hover { background: rgba(255,255,255,.6); color: #1a5499; }
-    .ga-tab.active { background: #fff; color: #1a5499; border-color: #c7d8f0; margin-bottom: -2px; }
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; }
-    .kpi { background: rgba(255,255,255,.9); border-radius: 11px; padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-    .kpi-label { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-    .kpi-val { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; margin-top: 4px; }
-    .kpi-sub { margin-top: 6px; font-size: var(--fs-sm); color: #64748b; line-height: 1.35; }
-    .ga-card { background: rgba(255,255,255,.9); border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.1); overflow: hidden; }
-    .ga-card-head { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: var(--fs-md); font-weight: 800; color: #1e3a5f; display: flex; justify-content: space-between; align-items: center; }
-    .ga-card-body { padding: 14px 16px; }
-    .ga-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
-    .ga-tbl th { padding: 7px 10px; background: #f0f5ff; color: #6080a0; font-size: var(--fs-xs); text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #dde4f0; text-align: left; }
-    .ga-tbl td { padding: 7px 10px; border-bottom: 1px solid #eef2f8; vertical-align: middle; }
-    .ga-tbl tr:last-child td { border-bottom: none; }
-    .ga-tbl tr:hover td { background: #f5f9ff; }
-    .ga-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: var(--fs-xs); font-weight: 700; }
-    .ga-badge-aperta { background: #dcfce7; color: #166534; }
-    .ga-badge-chiusa { background: #f1f5f9; color: #64748b; }
-    .ga-search { display: flex; gap: 8px; margin-bottom: 10px; }
-    .ga-search input { flex: 1; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 11px; font-size: var(--fs-base); }
-    .ga-btn { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: var(--fs-sm); font-weight: 700; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
-    .ga-btn-primary { background: #1a5499; color: #fff; }
-    .ga-btn-primary:hover { opacity: .9; }
-    .log-row { display: grid; grid-template-columns: 130px 80px 110px 1fr; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #eef2f8; font-size: var(--fs-sm); }
-    .log-row:last-child { border-bottom: none; }
-    .log-head { font-size: var(--fs-xs); text-transform: uppercase; color: #8fa5c0; font-weight: 700; background: #f0f5ff; border-radius: 6px; }
-  </style>
-</head>
-<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
-  <div class="topbar">
-    <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
-    <div class="topbar-sep"></div>
-    <a href="/gestione-anomalie/nuova-segnalazione">Apertura Segnalazione</a>
-    <div class="topbar-sep"></div>
-    <a href="/gestione-anomalie/statistiche">Statistiche</a>
-    <div class="topbar-sep"></div>
-    <div class="topbar-title">Gestione Anomalie</div>
-    <div class="topbar-user">{{ username }}</div>
+
+{% block title %}Configurazione Anomalie | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* stato feedback (mostrato/nascosto via JS) */
+  .status { display:none; padding:11px 14px; border-radius:10px; font-size:var(--fs-base); font-weight:700; }
+  .status.ok  { display:block; border:1px solid #86efac; background:var(--success-bg); color:var(--success); }
+  .status.err { display:block; border:1px solid #fca5a5; background:var(--danger-bg); color:var(--danger); }
+  /* lista readonly capi reparto */
+  .field-readonly-list { margin:4px 0 0; padding:0 0 0 18px; font-size:var(--fs-base); color:var(--text); list-style:disc; }
+  .field-readonly-list li.empty { color:var(--text-light); font-style:italic; }
+  /* log activity */
+  .log-row { display:grid; grid-template-columns:130px 80px 110px 1fr; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
+  .log-row:last-child { border-bottom:none; }
+  .log-head { font-size:var(--fs-xs); text-transform:uppercase; color:var(--text-light); font-weight:700; background:var(--bg); border-radius:6px; padding:6px 0; }
+  /* select nelle card permessi */
+  .ga-select { width:100%; min-height:var(--control-h); padding:0 10px; border:1px solid var(--border); border-radius:8px; font-size:var(--fs-input); background:var(--surface); color:var(--text); }
+  /* sub-tab permessi */
+  .subtab-bar { display:flex; gap:6px; margin-bottom:16px; padding:6px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); }
+  /* validazione template upload */
+  #tpl-validation-result { display:none; margin-top:12px; padding:12px 14px; border-radius:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div class="page-header-main">
+    <a href="{% url 'anomalie_menu' %}" class="btn-back">&#8592; Menu Anomalie</a>
+    <div class="page-h" style="margin-top:8px;">Configurazione Anomalie</div>
+    <div class="page-sub">Impostazioni, permessi e log del modulo anomalie</div>
   </div>
-
-  <div class="ga-tabs">
-    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
-    <a href="?tab=config" class="ga-tab {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
-    <a href="?tab=permessi" class="ga-tab {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
-    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
-    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+  <div class="page-header-actions">
+    <a href="{% url 'apertura_segnalazione' %}" class="btn btn-secondary btn-sm">Apertura Segnalazione</a>
+    <a href="{% url 'anomalie_statistiche_page' %}" class="btn btn-secondary btn-sm">Statistiche</a>
   </div>
+</div>
 
-  <div class="page">
+<div class="subnav" style="margin-bottom:18px;">
+  <a href="?tab=riepilogo" class="sub-a {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+  <a href="?tab=config" class="sub-a {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
+  <a href="?tab=permessi" class="sub-a {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
+  <a href="?tab=record" class="sub-a {% if tab == 'record' %}active{% endif %}">Record</a>
+  <a href="?tab=log" class="sub-a {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+</div>
 
-  {% if messages %}
+{% if messages %}
+  <div class="messages-wrap">
     {% for message in messages %}
-      <div class="status {% if message.tags == 'error' %}err{% else %}ok{% endif %}" style="display:block;margin:0;">
-        {{ message }}
-      </div>
+      <div class="notice {% if message.tags == 'error' %}notice-danger{% elif message.tags == 'success' %}notice-success{% endif %}">{{ message }}</div>
     {% endfor %}
-  {% endif %}
+  </div>
+{% endif %}
 
-  {# ========== TAB RIEPILOGO ========== #}
-  {% if tab == 'riepilogo' %}
-    <div class="kpi-row">
-      <div class="kpi"><div class="kpi-label">Anomalie totali</div><div class="kpi-val">{{ stats.total }}</div></div>
-      <div class="kpi"><div class="kpi-label">Aperte</div><div class="kpi-val">{{ stats.aperte }}</div></div>
-      <div class="kpi"><div class="kpi-label">Chiuse</div><div class="kpi-val">{{ stats.chiuse }}</div></div>
+{# ========== TAB RIEPILOGO ========== #}
+{% if tab == 'riepilogo' %}
+  <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#128202;</div>
+      <div><div class="stat-num">{{ stats.total }}</div><div class="stat-lbl">Anomalie totali</div></div>
     </div>
-    <div class="ga-card">
-      <div class="ga-card-head">Distribuzione per avanzamento</div>
-      <div class="ga-card-body">
-        <table class="ga-tbl">
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">&#9888;</div>
+      <div><div class="stat-num">{{ stats.aperte }}</div><div class="stat-lbl">Aperte</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">&#10003;</div>
+      <div><div class="stat-num">{{ stats.chiuse }}</div><div class="stat-lbl">Chiuse</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Distribuzione per avanzamento</div></div>
+    <div class="card-body" style="padding:0;">
+      <div class="table-wrap" style="border:none;border-radius:0;">
+        <table class="admin-table">
           <thead><tr><th>Avanzamento</th><th>Quantit&agrave;</th></tr></thead>
           <tbody>
           {% for row in by_avanzamento %}
@@ -285,627 +84,601 @@
               <td><strong>{{ row.n }}</strong></td>
             </tr>
           {% empty %}
-            <tr><td colspan="2" style="color:#9aadcb;text-align:center;">Nessun dato</td></tr>
+            <tr><td colspan="2" class="cell-muted" style="text-align:center;">Nessun dato</td></tr>
           {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
-  {% endif %}
+  </div>
+{% endif %}
 
-  {# ========== TAB CONFIG (originale) ========== #}
-  {% if tab == 'config' or not tab %}
-    <div class="card" id="card-logo">
-      <div class="card-head">
+{# ========== TAB CONFIG ========== #}
+{% if tab == 'config' or not tab %}
+
+  <div class="card" id="card-logo">
+    <div class="card-head">
+      <div>
         <div class="card-title">Logo Menu Anomalie</div>
-        <div class="card-sub">Sostituisce il logo al centro della pagina menu. Il logo viene mostrato senza sfondo — usa un file PNG con sfondo trasparente.</div>
+        <div class="page-sub" style="margin-top:4px;">Sostituisce il logo al centro della pagina menu. Usa PNG con sfondo trasparente.</div>
       </div>
-      <div class="card-body" style="grid-template-columns:1fr;gap:16px">
-
-        <!-- Requisiti immagine -->
-        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:12px 16px;line-height:1.7;color:#2c4a6e;">
-          <strong style="display:block;margin-bottom:4px;">Requisiti immagine</strong>
-          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;">
-            <li><strong>Formato consigliato:</strong> PNG con sfondo trasparente (alpha channel)</li>
-            <li><strong>Risoluzione consigliata:</strong> 1000 × 260 px (ratio ~3.8:1)</li>
-            <li><strong>Dimensione massima file:</strong> 2 MB</li>
-            <li><strong>Formati accettati:</strong> PNG, JPG, JPEG, SVG, WebP, GIF</li>
-            <li><strong>Nota:</strong> JPG e WebP non supportano la trasparenza — potrebbe apparire un rettangolo bianco dietro al logo</li>
-          </ul>
+    </div>
+    <div class="card-body" style="display:grid;gap:16px;">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;line-height:1.7;color:var(--text-mid);">
+        <strong style="display:block;margin-bottom:4px;color:var(--text);">Requisiti immagine</strong>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;">
+          <li><strong>Formato consigliato:</strong> PNG con sfondo trasparente (alpha channel)</li>
+          <li><strong>Risoluzione consigliata:</strong> 1000 &times; 260 px (ratio ~3.8:1)</li>
+          <li><strong>Dimensione massima file:</strong> 2 MB</li>
+          <li><strong>Formati accettati:</strong> PNG, JPG, JPEG, SVG, WebP, GIF</li>
+          <li><strong>Nota:</strong> JPG e WebP non supportano la trasparenza &mdash; potrebbe apparire un rettangolo bianco dietro al logo</li>
+        </ul>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+        <div style="flex-shrink:0;background:radial-gradient(ellipse at 50% 40%,#c8d0d8 0%,#adb8c2 100%);border-radius:10px;padding:16px 24px;min-width:220px;display:flex;align-items:center;justify-content:center;">
+          <img id="logo-preview" src="" alt="Anteprima logo" style="max-width:280px;max-height:80px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.18));display:none;">
+          <span id="logo-placeholder" style="color:var(--text-light);font-weight:600;">Nessun logo personalizzato</span>
         </div>
-
-        <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
-          <!-- Anteprima su sfondo uguale al menu -->
-          <div style="flex-shrink:0;background:radial-gradient(ellipse at 50% 40%,#c8d0d8 0%,#adb8c2 100%);border-radius:10px;padding:16px 24px;min-width:220px;display:flex;align-items:center;justify-content:center">
-            <img id="logo-preview" src="" alt="Anteprima logo"
-                 style="max-width:280px;max-height:80px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.18));display:none">
-            <span id="logo-placeholder" style="color:rgba(30,60,90,.5);font-weight:600">Nessun logo personalizzato</span>
+        <div style="flex:1;min-width:200px;">
+          <div class="field" style="margin-bottom:12px;">
+            <label>Carica nuovo logo</label>
+            <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp" style="padding:6px 0;">
           </div>
-          <div style="flex:1;min-width:200px">
-            <label class="field" style="gap:6px;display:flex;flex-direction:column">
-              <span style="font-weight:800;color:#374151">Carica nuovo logo</span>
-              <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
-                     style="padding:6px 0;">
-            </label>
-            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-              <button class="btn btn-main" id="btn-logo-upload" type="button">Carica e salva</button>
-              <button class="btn btn-secondary" id="btn-logo-reset" type="button">Ripristina default</button>
-            </div>
-            <div id="logo-status" class="status" style="margin:10px 0 0;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-sm" id="btn-logo-upload" type="button">Carica e salva</button>
+            <button class="btn btn-secondary btn-sm" id="btn-logo-reset" type="button">Ripristina default</button>
           </div>
+          <div id="logo-status" class="status" style="margin-top:10px;"></div>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="card" id="card-report-template">
-      <div class="card-head">
+  <div class="card" id="card-report-template">
+    <div class="card-head">
+      <div>
         <div class="card-title">Template Report OP</div>
-        <div class="card-sub">
-          Carica un template HTML personalizzato usato per generare il report riepilogativo del documento OP
-          con tutte le anomalie collegate.
-          Se non è presente un template personalizzato, viene usato quello di default del sistema.
-        </div>
-      </div>
-      <div class="card-body" style="grid-template-columns:1fr;gap:18px">
-
-        <!-- Linee guida -->
-        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:14px 16px;line-height:1.65;color:#2c4a6e;">
-          <strong style="display:block;margin-bottom:6px;">Linee guida per il template</strong>
-          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
-            <li>Il file deve essere un <strong>.html</strong> valido in codifica <strong>UTF-8</strong>, max 512 KB.</li>
-            <li>Usa la sintassi <strong>Django Template</strong>: i dati dell'OP sono in <code>&#123;&#123; op.campo &#125;&#125;</code> e le anomalie sono disponibili con <code>&#123;% for anomalia in anomalie %&#125; ... &#123;% endfor %&#125;</code>.</li>
-            <li>Placeholder <strong>obbligatori</strong> (devono comparire nel file):
-              <code>&#123;&#123; op.id &#125;&#125;</code>,
-              <code>&#123;&#123; anomalia.seriale &#125;&#125;</code>,
-              <code>&#123;&#123; anomalia.descrizione &#125;&#125;</code>.
-            </li>
-            <li>Campi utili: <code>op.pn</code>, <code>op.capo</code>, <code>op.car</code>, <code>report.anomalie_totali</code>, <code>report.allegati_totali</code>, <code>anomalia.avanzamento</code>, <code>anomalia.note_capocommessa</code>, <code>anomalia.numero_rdc</code>.</li>
-            <li>Per ogni anomalia puoi anche iterare <code>anomalia.attachments</code> per mostrare nome, dimensione e metadati degli allegati nel report OP.</li>
-            <li>La lista allegati è in <code>&#123;&#123; allegati &#125;&#125;</code> (lista di nomi file).</li>
-            <li>Non sono permessi tag <code>&lt;script src="https://..."&gt;</code> verso domini esterni.</li>
-            <li>Scarica il template di default come punto di partenza: <a href="/api/anomalie/report?_tpl_default=1" target="_blank" style="color:#1a5499;">report_default_op.html</a> (apri un report valido con <code>/api/anomalie/report?op_item_id=ITEM_ID</code> oppure <code>/api/anomalie/report?op_id=OP/2026/123</code>).</li>
-          </ul>
-        </div>
-
-        <!-- Stato template corrente -->
-        <div id="tpl-status-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span id="tpl-status-badge" style="padding:5px 14px;border-radius:20px;font-weight:800;background:#e2e8f0;color:#475569;">Caricamento...</span>
-          <span id="tpl-status-detail" style="color:#64748b;"></span>
-          <button id="btn-tpl-reset" class="btn btn-secondary" type="button" style="margin-left:auto;display:none;">Ripristina template default</button>
-        </div>
-
-        <!-- Upload form -->
-        <div>
-          <label class="field" style="gap:6px;display:flex;flex-direction:column;">
-            <span style="font-weight:800;color:#374151;">Carica nuovo template (.html)</span>
-            <input type="file" id="tpl-file-input" accept=".html" style="padding:6px 0;">
-          </label>
-          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <button class="btn btn-main" id="btn-tpl-upload" type="button">Valida e carica</button>
-            <span id="tpl-upload-status" class="status" style="margin:0;"></span>
-          </div>
-          <!-- Risultato validazione -->
-          <div id="tpl-validation-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;"></div>
-        </div>
+        <div class="page-sub" style="margin-top:4px;">Template HTML personalizzato per il report riepilogativo OP con tutte le anomalie collegate.</div>
       </div>
     </div>
+    <div class="card-body" style="display:grid;gap:18px;">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;line-height:1.65;color:var(--text-mid);">
+        <strong style="display:block;margin-bottom:6px;color:var(--text);">Linee guida per il template</strong>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+          <li>Il file deve essere un <strong>.html</strong> valido in codifica <strong>UTF-8</strong>, max 512 KB.</li>
+          <li>Usa la sintassi <strong>Django Template</strong>: dati dell'OP in <code>&#123;&#123; op.campo &#125;&#125;</code> e anomalie con <code>&#123;% for anomalia in anomalie %&#125; ... &#123;% endfor %&#125;</code>.</li>
+          <li>Placeholder <strong>obbligatori</strong>: <code>&#123;&#123; op.id &#125;&#125;</code>, <code>&#123;&#123; anomalia.seriale &#125;&#125;</code>, <code>&#123;&#123; anomalia.descrizione &#125;&#125;</code>.</li>
+          <li>Campi utili: <code>op.pn</code>, <code>op.capo</code>, <code>op.car</code>, <code>report.anomalie_totali</code>, <code>anomalia.avanzamento</code>, <code>anomalia.note_capocommessa</code>, <code>anomalia.numero_rdc</code>.</li>
+          <li>Per ogni anomalia puoi iterare <code>anomalia.attachments</code> per allegati.</li>
+          <li>La lista allegati &egrave; in <code>&#123;&#123; allegati &#125;&#125;</code>.</li>
+          <li>Non sono permessi tag <code>&lt;script src="https://..."&gt;</code> verso domini esterni.</li>
+          <li>Scarica il template di default: <a href="/api/anomalie/report?_tpl_default=1" target="_blank" style="color:var(--primary-mid);">report_default_op.html</a></li>
+        </ul>
+      </div>
+      <div id="tpl-status-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span id="tpl-status-badge" style="padding:5px 14px;border-radius:20px;font-weight:800;background:var(--bg);color:var(--text-mid);border:1px solid var(--border);">Caricamento...</span>
+        <span id="tpl-status-detail" style="color:var(--text-mid);"></span>
+        <button id="btn-tpl-reset" class="btn btn-secondary btn-sm" type="button" style="margin-left:auto;display:none;">Ripristina template default</button>
+      </div>
+      <div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Carica nuovo template (.html)</label>
+          <input type="file" id="tpl-file-input" accept=".html" style="padding:6px 0;">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="btn-tpl-upload" type="button">Valida e carica</button>
+          <span id="tpl-upload-status" class="status" style="margin:0;"></span>
+        </div>
+        <div id="tpl-validation-result"></div>
+      </div>
+    </div>
+  </div>
 
-    <div class="card">
-      <div class="card-head">
+  <div class="card">
+    <div class="card-head">
+      <div>
         <div class="card-title">Gestione Liste</div>
-        <div class="card-sub">
-          Un elemento per riga. Le liste vengono usate in apertura segnalazione per compilare rapidamente campi e scelte.
-        </div>
-      </div>
-
-      <div class="card-body">
-        <div class="field">
-          <label for="capi_reparto">Capi reparto (CAR)</label>
-          <small>Lista suggerimenti per il campo CAR.</small>
-          <textarea id="capi_reparto" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="capi_commessa">Capi commessa</label>
-          <small>Lista suggerimenti per il campo Capocommessa.</small>
-          <textarea id="capi_commessa" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="causali_doc">Scelte Causale documento</label>
-          <small>Esempio: OP, OG.</small>
-          <textarea id="causali_doc" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field">
-          <label for="stati_superficie">Scelte Stato superficie</label>
-          <small>Usate nei checkbox della segnalazione anomalia.</small>
-          <textarea id="stati_superficie" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field full">
-          <label for="avanzamenti">Scelte Avanzamento</label>
-          <small>Usate nel menu a tendina AVANZAMENTO nella gestione anomalie.</small>
-          <textarea id="avanzamenti" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field full">
-          <label for="autorizzati_modifica">Utenti extra autorizzati modifica</label>
-          <small>
-            Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.
-          </small>
-          <textarea id="autorizzati_modifica" spellcheck="false"></textarea>
-        </div>
-
-        <div class="field full">
-          <label for="attachments_dir">Percorso cartella allegati</label>
-          <small>
-            Percorso relativo (es. <code>media\anomalie_allegati</code>) o assoluto/di rete (es. <code>\\SERVER\Condivisa\Anomalie</code>).
-            Deve essere una cartella già esistente e scrivibile dal servizio Django.
-          </small>
-          <input id="attachments_dir" type="text" spellcheck="false" />
-        </div>
-      </div>
-
-      <div id="status" class="status"></div>
-
-      <div class="actions">
-        <button id="btn-default" class="btn btn-secondary" type="button">Ripristina default</button>
-        <button id="btn-save" class="btn btn-main" type="button">Salva configurazione</button>
+        <div class="page-sub" style="margin-top:4px;">Un elemento per riga. Le liste vengono usate in apertura segnalazione per compilare rapidamente campi e scelte.</div>
       </div>
     </div>
-  {% endif %}
-
-  {# ========== TAB PERMESSI (Ruoli operativi + Accessi) ========== #}
-  {% if tab == 'permessi' %}
-    <div style="display:flex;gap:6px;margin:0 0 14px;padding:6px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
-      <a href="?tab=permessi&amp;sub=ruoli"
-         style="flex:0 0 auto;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;{% if permessi_sub == 'ruoli' %}background:#1a5499;color:#fff;{% else %}background:transparent;color:#334155;{% endif %}">
-        Ruoli operativi
-      </a>
-      <a href="?tab=permessi&amp;sub=accessi"
-         style="flex:0 0 auto;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;{% if permessi_sub == 'accessi' %}background:#1a5499;color:#fff;{% else %}background:transparent;color:#334155;{% endif %}">
-        Accessi
-      </a>
-      <span style="margin-left:auto;align-self:center;font-size:12px;color:#64748b;padding-right:8px;">
-        Definisci prima i ruoli (catalogo + assegnazioni), poi i permessi associati.
-      </span>
-    </div>
-  {% endif %}
-
-  {# ========== SUB-TAB RUOLI OPERATIVI ========== #}
-  {% if tab == 'permessi' and permessi_sub == 'ruoli' %}
-    <div class="ga-card">
-      <div class="ga-card-head">
-        <span>Ruoli operativi anomalie</span>
-        <span style="display:flex;gap:12px;font-size:12px;color:#64748b;font-weight:700;">
-          <span>{{ ruoli_stats.roles }} ruoli</span>
-          <span>{{ ruoli_stats.assignments }} assegnazioni</span>
-          <span>{{ ruoli_stats.total_users }} utenti attivi</span>
-        </span>
+    <div class="card-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
+      <div class="field">
+        <label>Capi reparto (CAR)</label>
+        <small>Derivato automaticamente da <strong>Anagrafica &rarr; Reparti</strong>. Per aggiornare questa lista, modifica il caporeparto assegnato a ciascun reparto.</small>
+        <ul id="capi_reparto_list" class="field-readonly-list"></ul>
       </div>
-      <div class="ga-card-body">
-        <p style="color:#64748b;line-height:1.45;margin-bottom:14px;">
-          I ruoli di sistema <strong>Capocommessa</strong> e <strong>CAR/Incaricato</strong> vengono riconosciuti dai campi dell'OP.
-          I ruoli custom valgono per gli utenti assegnati qui e possono ricevere regole globali nel sub-tab Accessi.
-        </p>
+      <div class="field">
+        <label for="capi_commessa">Capi commessa</label>
+        <small>Lista suggerimenti per il campo Capocommessa.</small>
+        <textarea id="capi_commessa" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="causali_doc">Scelte Causale documento</label>
+        <small>Esempio: OP, OG.</small>
+        <textarea id="causali_doc" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="stati_superficie">Scelte Stato superficie</label>
+        <small>Usate nei checkbox della segnalazione anomalia.</small>
+        <textarea id="stati_superficie" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label for="avanzamenti">Scelte Avanzamento</label>
+        <small>Usate nel menu a tendina AVANZAMENTO nella gestione anomalie.</small>
+        <textarea id="avanzamenti" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label for="autorizzati_modifica">Utenti extra autorizzati modifica</label>
+        <small>Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.</small>
+        <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label for="attachments_dir">Percorso cartella allegati</label>
+        <small>Percorso relativo (es. <code>media\anomalie_allegati</code>) o assoluto/di rete (es. <code>\\SERVER\Condivisa\Anomalie</code>). Deve essere una cartella gi&agrave; esistente e scrivibile dal servizio Django.</small>
+        <input id="attachments_dir" type="text" class="input" spellcheck="false" />
+      </div>
+    </div>
+    <div id="status" class="status" style="margin:0 16px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
+      <button id="btn-default" class="btn btn-secondary" type="button">Ripristina default</button>
+      <button id="btn-save" class="btn" type="button">Salva configurazione</button>
+    </div>
+  </div>
 
-        <form method="post" style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="create_role">
-          <div class="field" style="gap:5px;">
-            <label>Nuovo ruolo</label>
-            <input type="text" name="role_name" maxlength="80" placeholder="Es. Qualit&agrave;">
-          </div>
-          <div class="field" style="gap:5px;">
-            <label>Descrizione</label>
-            <input type="text" name="role_description" maxlength="255" placeholder="A cosa serve questo ruolo">
-          </div>
-          <button class="ga-btn ga-btn-primary" type="submit" style="height:38px;">+ Aggiungi</button>
-        </form>
+{% endif %}
 
-        <form method="get" class="ga-search">
-          <input type="hidden" name="tab" value="permessi">
-          <input type="hidden" name="sub" value="ruoli">
-          <input type="text" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca utente per nome, email o ruolo...">
-          <button type="submit" class="ga-btn ga-btn-primary">Filtra</button>
-          {% if ruoli_filter_q %}<a href="?tab=permessi&amp;sub=ruoli" class="ga-btn" style="border:1px solid #ccc;">Mostra tutti</a>{% endif %}
-        </form>
+{# ========== TAB PERMESSI ========== #}
+{% if tab == 'permessi' %}
+  <div class="subtab-bar">
+    <a href="?tab=permessi&amp;sub=ruoli"
+       class="btn btn-sm {% if permessi_sub != 'ruoli' %}btn-secondary{% endif %}">
+      Ruoli operativi
+    </a>
+    <a href="?tab=permessi&amp;sub=accessi"
+       class="btn btn-sm {% if permessi_sub != 'accessi' %}btn-secondary{% endif %}">
+      Accessi
+    </a>
+    <span style="margin-left:auto;align-self:center;font-size:var(--fs-sm);color:var(--text-light);padding-right:4px;">
+      Definisci prima i ruoli (catalogo + assegnazioni), poi i permessi associati.
+    </span>
+  </div>
+{% endif %}
 
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="save_roles">
-          <input type="hidden" name="q_user" value="{{ ruoli_filter_q }}">
-          <input type="hidden" name="role_code" value="">
-          <div style="overflow-x:auto;">
-            <table class="ga-tbl" style="min-width:760px;">
-              <thead>
+{# ── SUB-TAB RUOLI OPERATIVI ── #}
+{% if tab == 'permessi' and permessi_sub == 'ruoli' %}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Ruoli operativi anomalie</div>
+      <div style="display:flex;gap:12px;font-size:var(--fs-sm);color:var(--text-light);font-weight:700;">
+        <span>{{ ruoli_stats.roles }} ruoli</span>
+        <span>{{ ruoli_stats.assignments }} assegnazioni</span>
+        <span>{{ ruoli_stats.total_users }} utenti attivi</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <p style="color:var(--text-mid);line-height:1.45;margin-bottom:14px;">
+        I ruoli di sistema <strong>Capocommessa</strong> e <strong>CAR/Incaricato</strong> vengono riconosciuti dai campi dell'OP.
+        I ruoli custom valgono per gli utenti assegnati qui e possono ricevere regole globali nel sub-tab Accessi.
+      </p>
+
+      <form method="post" style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;margin-bottom:14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_role">
+        <div class="field" style="gap:5px;">
+          <label>Nuovo ruolo</label>
+          <input type="text" class="input" name="role_name" maxlength="80" placeholder="Es. Qualit&agrave;">
+        </div>
+        <div class="field" style="gap:5px;">
+          <label>Descrizione</label>
+          <input type="text" class="input" name="role_description" maxlength="255" placeholder="A cosa serve questo ruolo">
+        </div>
+        <button class="btn btn-sm" type="submit" style="align-self:end;">+ Aggiungi</button>
+      </form>
+
+      <form method="get" style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="hidden" name="tab" value="permessi">
+        <input type="hidden" name="sub" value="ruoli">
+        <input type="text" class="input input-sm" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca utente per nome, email o ruolo..." style="flex:1;">
+        <button type="submit" class="btn btn-sm">Filtra</button>
+        {% if ruoli_filter_q %}<a href="?tab=permessi&amp;sub=ruoli" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
+      </form>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_roles">
+        <input type="hidden" name="q_user" value="{{ ruoli_filter_q }}">
+        <input type="hidden" name="role_code" value="">
+        <div class="table-wrap">
+          <table class="admin-table" style="min-width:760px;">
+            <thead>
+              <tr>
+                <th>Utente</th>
+                <th>Email</th>
+                {% for role in ruoli_role_definitions %}
+                  <th style="text-align:center;">
+                    {{ role.name }}
+                    {% if not role.is_system %}
+                      <button type="submit" name="action" value="delete_role"
+                        onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni e regole accesso.');"
+                        style="display:block;margin:4px auto 0;border:0;background:transparent;color:var(--danger);font-size:var(--fs-xs);font-weight:800;cursor:pointer;">elimina</button>
+                    {% endif %}
+                  </th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ruoli_roster %}
                 <tr>
-                  <th>Utente</th>
-                  <th>Email</th>
-                  {% for role in ruoli_role_definitions %}
-                    <th style="text-align:center;">
-                      {{ role.name }}
-                      {% if not role.is_system %}
-                        <button type="submit" name="action" value="delete_role" onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni e regole accesso.');" style="display:block;margin:4px auto 0;border:0;background:transparent;color:#b91c1c;font-size:10px;font-weight:800;cursor:pointer;">elimina</button>
-                      {% endif %}
-                    </th>
+                  <td style="font-weight:800;">
+                    {{ row.label }}
+                    <input type="hidden" name="visible_user_id" value="{{ row.id }}">
+                  </td>
+                  <td>{{ row.email|default:"-" }}</td>
+                  {% for cell in row.role_cells %}
+                    <td style="text-align:center;"><input type="checkbox" name="role__{{ cell.code }}__{{ row.id }}" {% if cell.checked %}checked{% endif %}></td>
                   {% endfor %}
                 </tr>
-              </thead>
-              <tbody>
-                {% for row in ruoli_roster %}
-                  <tr>
-                    <td style="font-weight:800;color:#0f172a;">
-                      {{ row.label }}
-                      <input type="hidden" name="visible_user_id" value="{{ row.id }}">
-                    </td>
-                    <td>{{ row.email|default:"-" }}</td>
-                    {% for cell in row.role_cells %}
-                      <td style="text-align:center;"><input type="checkbox" name="role__{{ cell.code }}__{{ row.id }}" {% if cell.checked %}checked{% endif %}></td>
-                    {% endfor %}
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="{{ ruoli_colspan }}" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <div class="actions" style="padding:14px 0 0;">
-            <button class="btn btn-main" type="submit">Salva ruoli operativi</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  {% endif %}
-
-  {# ========== SUB-TAB ACCESSI ========== #}
-  {% if tab == 'permessi' and permessi_sub == 'accessi' %}
-    <div class="ga-card">
-      <div class="ga-card-head">
-        <span>Regole accesso anomalie</span>
-        <span style="display:flex;gap:12px;font-size:12px;color:#64748b;font-weight:700;">
-          <span>{{ access_stats.role_rules }} regole ruolo</span>
-          <span>{{ access_stats.legacy_role_rules }} regole ruolo aziendale</span>
-          <span>{{ access_stats.user_overrides }} override utente</span>
-          <span>{{ access_stats.edit_all_users }} utenti full</span>
-        </span>
-      </div>
-      <div class="ga-card-body">
-        <div style="margin-bottom:14px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#475569;line-height:1.5;">
-          <strong style="display:block;margin-bottom:6px;color:#1e3a5f;">Due controlli indipendenti per ogni regola:</strong>
-          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
-            <li><strong>Regola accesso</strong> &mdash; cosa pu&ograve; <em>modificare</em> l'utente. Capocommessa/CAR valgono sull'OP specifico in cui compare; gli altri valgono globalmente.</li>
-            <li><strong>Visibilit&agrave; lista OP</strong> &mdash; quali OP <em>vede nella lista</em>. Tre opzioni:
-              <ul style="margin-top:4px;padding-left:16px;display:flex;flex-direction:column;gap:2px;">
-                <li><strong>Tutti gli OP</strong> &mdash; nessun filtro (comportamento attuale).</li>
-                <li><strong>Solo OP in carico</strong> &mdash; vede solo gli OP dove compare come capocommessa o CAR/incaricato.</li>
-                <li><strong>Solo OP con proprie anomalie</strong> &mdash; vede solo gli OP con almeno un'anomalia creata da lui (utile per i controllori).</li>
-              </ul>
-            </li>
-          </ul>
-          <p style="margin:8px 0 0;font-size:12px;">Vince sempre il livello pi&ugrave; permissivo tra tutte le regole applicabili. Superuser e admin vedono sempre tutto.</p>
-        </div>
-
-        <form method="get" class="ga-search">
-          <input type="hidden" name="tab" value="permessi">
-          <input type="hidden" name="sub" value="accessi">
-          <input type="text" name="q_access_user" value="{{ access_filter_q }}" placeholder="Cerca override utente per nome, email o ruolo...">
-          <button type="submit" class="ga-btn ga-btn-primary">Filtra</button>
-          {% if access_filter_q %}<a href="?tab=permessi&amp;sub=accessi" class="ga-btn" style="border:1px solid #ccc;">Mostra tutti</a>{% endif %}
-        </form>
-
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="save_access">
-          <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
-
-          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo operativo</h3>
-          <div style="overflow-x:auto;margin-bottom:20px;">
-            <table class="ga-tbl">
-              <thead>
-                <tr>
-                  <th>Ruolo</th>
-                  <th>Ambito</th>
-                  <th>Regola accesso</th>
-                  <th>
-                    Visibilit&agrave; lista OP
-                    <span title="Filtra quali OP vengono mostrati nella lista principale. Indipendente dal livello di modifica." style="cursor:help;color:#7e94b2;font-weight:400;font-size:11px;display:block;">Quali OP vede nella lista?</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in access_role_rows %}
-                  <tr>
-                    <td style="font-weight:800;color:#0f172a;">{{ row.label }}</td>
-                    <td>{{ row.help }}</td>
-                    <td>
-                      <select name="access_role__{{ row.code }}" class="ga-select">
-                        {% for value, label in access_role_choices %}
-                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                    <td>
-                      <select name="list_scope_role__{{ row.code }}" class="ga-select">
-                        {% for value, label in list_scope_choices %}
-                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo aziendale</h3>
-          <div style="overflow-x:auto;margin-bottom:20px;">
-            <table class="ga-tbl">
-              <thead>
-                <tr>
-                  <th>Ruolo aziendale</th>
-                  <th>Origine</th>
-                  <th>Regola accesso</th>
-                  <th>Visibilit&agrave; lista OP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in access_legacy_role_rows %}
-                  <tr>
-                    <td style="font-weight:800;color:#0f172a;">
-                      {{ row.label }}
-                      <input type="hidden" name="visible_legacy_role_id" value="{{ row.id }}">
-                    </td>
-                    <td>ruoli.id = {{ row.id }}</td>
-                    <td>
-                      <select name="access_legacy_role__{{ row.id }}" class="ga-select">
-                        {% for value, label in access_legacy_role_choices %}
-                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                    <td>
-                      <select name="list_scope_legacy_role__{{ row.id }}" class="ga-select">
-                        {% for value, label in list_scope_choices %}
-                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="4" style="color:#9aadcb;text-align:center;padding:24px;">Nessun ruolo aziendale trovato.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Override per singolo utente</h3>
-          <div style="overflow-x:auto;">
-            <table class="ga-tbl">
-              <thead>
-                <tr>
-                  <th>Utente</th>
-                  <th>Email</th>
-                  <th>Override accesso</th>
-                  <th>Visibilit&agrave; lista OP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in access_user_rows %}
-                  <tr>
-                    <td style="font-weight:800;color:#0f172a;">
-                      {{ row.label }}
-                      <input type="hidden" name="visible_access_user_id" value="{{ row.id }}">
-                    </td>
-                    <td>{{ row.email|default:"-" }}</td>
-                    <td>
-                      <select name="access_user__{{ row.id }}" class="ga-select">
-                        {% for value, label in access_user_choices %}
-                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                    <td>
-                      <select name="list_scope_user__{{ row.id }}" class="ga-select">
-                        {% for value, label in list_scope_choices %}
-                          <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                      </select>
-                    </td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="4" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          <div class="actions" style="padding:14px 0 0;">
-            <button class="btn btn-main" type="submit">Salva regole accesso</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  {% endif %}
-
-  {# ========== TAB RECORD ========== #}
-  {% if tab == 'record' %}
-    <div class="ga-card">
-      <div class="ga-card-head">Anomalie (ultime 100)</div>
-      <div class="ga-card-body">
-        <form method="get" class="ga-search">
-          <input type="hidden" name="tab" value="record">
-          <input type="text" name="q_anomalie" value="{{ q_anomalie }}" placeholder="Cerca per nominativo o seriale...">
-          <button type="submit" class="ga-btn ga-btn-primary">Cerca</button>
-          {% if q_anomalie %}<a href="?tab=record" class="ga-btn" style="border:1px solid #ccc;">&#10005;</a>{% endif %}
-        </form>
-        <div style="overflow-x:auto;">
-          <table class="ga-tbl">
-            <thead><tr><th>#</th><th>Nominativo OP</th><th>Seriale</th><th>Avanzamento</th><th>Stato</th><th>Modificata</th><th></th></tr></thead>
-            <tbody>
-            {% for a in anomalie_record %}
-              <tr>
-                <td>{{ a.id }}</td>
-                <td>{{ a.ex_op_nominativo|default:"—" }}</td>
-                <td>{{ a.seriale|default:"—" }}</td>
-                <td>{{ a.avanzamento|default:"—" }}</td>
-                <td>{% if a.chiudere %}<span class="ga-badge ga-badge-chiusa">Chiusa</span>{% else %}<span class="ga-badge ga-badge-aperta">Aperta</span>{% endif %}</td>
-                <td>{{ a.modified_datetime|default:"—" }}</td>
-                <td><a href="/api/anomalie/report?op_id={{ a.ex_op_nominativo|urlencode }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;">Report OP</a></td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="6" style="color:#9aadcb;text-align:center;">Nessuna anomalia trovata</td></tr>
-            {% endfor %}
+              {% empty %}
+                <tr><td colspan="{{ ruoli_colspan }}" class="cell-muted" style="text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
+              {% endfor %}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
-  {% endif %}
-
-  {# ========== TAB LOG ========== #}
-  {% if tab == 'log' %}
-    <div class="ga-card">
-      <div class="ga-card-head">Log attivit&agrave; Anomalie (ultime 100)</div>
-      <div class="ga-card-body">
-        {% if audit_entries %}
-        <div class="log-row log-head">
-          <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+        <div style="display:flex;justify-content:flex-end;padding:14px 0 0;">
+          <button class="btn" type="submit">Salva ruoli operativi</button>
         </div>
-        {% for entry in audit_entries %}
-        <div class="log-row">
-          <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
-          <span>{{ entry.utente_display|default:"—" }}</span>
-          <span>{{ entry.azione }}</span>
-          <span style="color:#64748b;">{{ entry.dettaglio }}</span>
-        </div>
-        {% endfor %}
-        {% else %}
-        <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
-        {% endif %}
-      </div>
+      </form>
     </div>
-  {% endif %}
-
   </div>
+{% endif %}
 
-  <script>
-    window._CFG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
-    window._CFG_ATTACHMENTS_DIR = "{{ attachments_dir|escapejs }}";
-  </script>
-  <script>
-    (function () {
-      const defaults = {
-        capi_reparto: [],
-        capi_commessa: [],
-        causali_doc: ["OP", "OG"],
-        stati_superficie: ["Finito macchinato", "Con sovrametallo", "Finito trattato"],
-        avanzamenti: ["Accetto lo stato", "In attesa", "Finito trattato"],
-        autorizzati_modifica: [
-          "Benedetta Bellucci",
-          "Serena Giani",
-          "Luca Bova",
-          "Simone Smarrella",
-          "Sara Gentile",
-        ],
-        attachments_dir: "media\\anomalie_allegati",
-      };
+{# ── SUB-TAB ACCESSI ── #}
+{% if tab == 'permessi' and permessi_sub == 'accessi' %}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Regole accesso anomalie</div>
+      <div style="display:flex;gap:12px;font-size:var(--fs-sm);color:var(--text-light);font-weight:700;">
+        <span>{{ access_stats.role_rules }} regole ruolo</span>
+        <span>{{ access_stats.legacy_role_rules }} regole ruolo aziendale</span>
+        <span>{{ access_stats.user_overrides }} override utente</span>
+        <span>{{ access_stats.edit_all_users }} utenti full</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div style="margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text-mid);line-height:1.5;">
+        <strong style="display:block;margin-bottom:6px;color:var(--text);">Due controlli indipendenti per ogni regola:</strong>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+          <li><strong>Regola accesso</strong> &mdash; cosa pu&ograve; <em>modificare</em> l'utente. Capocommessa/CAR valgono sull'OP specifico; gli altri globalmente.</li>
+          <li><strong>Visibilit&agrave; lista OP</strong> &mdash; quali OP <em>vede nella lista</em>: Tutti / Solo in carico / Solo con proprie anomalie.</li>
+        </ul>
+        <p style="margin:8px 0 0;font-size:var(--fs-sm);">Vince sempre il livello pi&ugrave; permissivo. Superuser e admin vedono sempre tutto.</p>
+      </div>
 
-      const ids = [
-        "capi_reparto",
-        "capi_commessa",
-        "causali_doc",
-        "stati_superficie",
-        "avanzamenti",
-        "autorizzati_modifica",
-      ];
-      const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
-      const attachmentsDirEl = document.getElementById("attachments_dir");
-      const statusEl = document.getElementById("status");
-      const btnSave = document.getElementById("btn-save");
-      const btnDefault = document.getElementById("btn-default");
+      <form method="get" style="display:flex;gap:8px;margin-bottom:16px;">
+        <input type="hidden" name="tab" value="permessi">
+        <input type="hidden" name="sub" value="accessi">
+        <input type="text" class="input input-sm" name="q_access_user" value="{{ access_filter_q }}" placeholder="Cerca override utente per nome, email o ruolo..." style="flex:1;">
+        <button type="submit" class="btn btn-sm">Filtra</button>
+        {% if access_filter_q %}<a href="?tab=permessi&amp;sub=accessi" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
+      </form>
 
-      const getCsrf = () =>
-        (document.cookie.split(";").find((c) => c.trim().startsWith("csrftoken=")) || "").split("=")[1] || "";
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_access">
+        <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
 
-      const toText = (arr) => (Array.isArray(arr) ? arr.join("\n") : "");
+        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo operativo</h3>
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Ruolo</th>
+                <th>Ambito</th>
+                <th>Regola accesso</th>
+                <th>Visibilit&agrave; lista OP<br><small style="font-weight:400;color:var(--text-light);">Quali OP vede nella lista?</small></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in access_role_rows %}
+                <tr>
+                  <td style="font-weight:800;">{{ row.label }}</td>
+                  <td>{{ row.help }}</td>
+                  <td>
+                    <select name="access_role__{{ row.code }}" class="ga-select">
+                      {% for value, label in access_role_choices %}
+                        <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="list_scope_role__{{ row.code }}" class="ga-select">
+                      {% for value, label in list_scope_choices %}
+                        <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-      const fromText = (value) => {
-        const seen = new Set();
-        const out = [];
-        (value || "").split(/\r?\n/).forEach((raw) => {
-          const text = String(raw || "").trim();
-          if (!text) return;
-          const key = text.toLowerCase();
-          if (seen.has(key)) return;
-          seen.add(key);
-          out.push(text);
-        });
-        return out;
-      };
+        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo aziendale</h3>
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Ruolo aziendale</th>
+                <th>Origine</th>
+                <th>Regola accesso</th>
+                <th>Visibilit&agrave; lista OP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in access_legacy_role_rows %}
+                <tr>
+                  <td style="font-weight:800;">
+                    {{ row.label }}
+                    <input type="hidden" name="visible_legacy_role_id" value="{{ row.id }}">
+                  </td>
+                  <td>ruoli.id = {{ row.id }}</td>
+                  <td>
+                    <select name="access_legacy_role__{{ row.id }}" class="ga-select">
+                      {% for value, label in access_legacy_role_choices %}
+                        <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="list_scope_legacy_role__{{ row.id }}" class="ga-select">
+                      {% for value, label in list_scope_choices %}
+                        <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="cell-muted" style="text-align:center;padding:24px;">Nessun ruolo aziendale trovato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-      const setStatus = (type, message) => {
-        statusEl.className = "status " + type;
-        statusEl.textContent = message;
-      };
+        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Override per singolo utente</h3>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Utente</th>
+                <th>Email</th>
+                <th>Override accesso</th>
+                <th>Visibilit&agrave; lista OP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in access_user_rows %}
+                <tr>
+                  <td style="font-weight:800;">
+                    {{ row.label }}
+                    <input type="hidden" name="visible_access_user_id" value="{{ row.id }}">
+                  </td>
+                  <td>{{ row.email|default:"-" }}</td>
+                  <td>
+                    <select name="access_user__{{ row.id }}" class="ga-select">
+                      {% for value, label in access_user_choices %}
+                        <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="list_scope_user__{{ row.id }}" class="ga-select">
+                      {% for value, label in list_scope_choices %}
+                        <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="cell-muted" style="text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-      const fill = (payload, attachmentsDir) => {
-        const src = payload && typeof payload === "object" ? payload : {};
-        ids.forEach((id) => {
-          fields[id].value = toText(src[id] ?? defaults[id]);
-        });
-        attachmentsDirEl.value = String(attachmentsDir || defaults.attachments_dir || "").trim();
-      };
+        <div style="display:flex;justify-content:flex-end;padding:14px 0 0;">
+          <button class="btn" type="submit">Salva regole accesso</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
 
-      const loadFromApi = async () => {
-        try {
-          const r = await fetch("/api/anomalie/config/liste");
-          const j = await r.json();
-          if (!r.ok || !j.success) throw new Error(j.error || "Errore caricamento configurazione");
-          fill(j.lists || {}, j.attachments_dir || defaults.attachments_dir);
-        } catch (e) {
-          fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
-          setStatus("err", e.message || "Errore caricamento configurazione");
-        }
-      };
+{# ========== TAB RECORD ========== #}
+{% if tab == 'record' %}
+  <div class="card">
+    <div class="card-head"><div class="card-title">Anomalie (ultime 100)</div></div>
+    <div class="card-body">
+      <form method="get" style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="hidden" name="tab" value="record">
+        <input type="text" class="input input-sm" name="q_anomalie" value="{{ q_anomalie }}" placeholder="Cerca per nominativo o seriale..." style="flex:1;">
+        <button type="submit" class="btn btn-sm">Cerca</button>
+        {% if q_anomalie %}<a href="?tab=record" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
+      </form>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>#</th><th>Nominativo OP</th><th>Seriale</th><th>Avanzamento</th><th>Stato</th><th>Modificata</th><th></th></tr></thead>
+          <tbody>
+          {% for a in anomalie_record %}
+            <tr>
+              <td>{{ a.id }}</td>
+              <td>{{ a.ex_op_nominativo|default:"&mdash;" }}</td>
+              <td>{{ a.seriale|default:"&mdash;" }}</td>
+              <td>{{ a.avanzamento|default:"&mdash;" }}</td>
+              <td>{% if a.chiudere %}<span class="badge">Chiusa</span>{% else %}<span class="badge badge-success">Aperta</span>{% endif %}</td>
+              <td>{{ a.modified_datetime|default:"&mdash;" }}</td>
+              <td><a href="/api/anomalie/report?op_id={{ a.ex_op_nominativo|urlencode }}" target="_blank" class="btn btn-sm btn-secondary">Report OP</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="cell-muted" style="text-align:center;">Nessuna anomalia trovata</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endif %}
 
-      btnDefault.addEventListener("click", () => {
-        fill(defaults, defaults.attachments_dir);
-        setStatus("ok", "Default caricati in pagina. Premi 'Salva configurazione' per confermare.");
+{# ========== TAB LOG ========== #}
+{% if tab == 'log' %}
+  <div class="card">
+    <div class="card-head"><div class="card-title">Log attivit&agrave; Anomalie (ultime 100)</div></div>
+    <div class="card-body">
+      {% if audit_entries %}
+      <div class="log-row log-head">
+        <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+      </div>
+      {% for entry in audit_entries %}
+      <div class="log-row">
+        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.utente_display|default:"&mdash;" }}</span>
+        <span>{{ entry.azione }}</span>
+        <span style="color:var(--text-mid);">{{ entry.dettaglio }}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="cell-muted" style="text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<script>
+  window._CFG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
+  window._CFG_ATTACHMENTS_DIR = "{{ attachments_dir|escapejs }}";
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    const defaults = {
+      capi_reparto: [],
+      capi_commessa: [],
+      causali_doc: ["OP", "OG"],
+      stati_superficie: ["Finito macchinato", "Con sovrametallo", "Finito trattato"],
+      avanzamenti: ["Accetto lo stato", "In attesa", "Finito trattato"],
+      autorizzati_modifica: [
+        "Benedetta Bellucci",
+        "Serena Giani",
+        "Luca Bova",
+        "Simone Smarrella",
+        "Sara Gentile",
+      ],
+      attachments_dir: "media\\anomalie_allegati",
+    };
+
+    const ids = [
+      "capi_commessa",
+      "causali_doc",
+      "stati_superficie",
+      "avanzamenti",
+      "autorizzati_modifica",
+    ];
+    const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+    const capiRepartoListEl = document.getElementById("capi_reparto_list");
+    const attachmentsDirEl = document.getElementById("attachments_dir");
+    const statusEl = document.getElementById("status");
+    const btnSave = document.getElementById("btn-save");
+    const btnDefault = document.getElementById("btn-default");
+
+    if (!btnSave) return; // non siamo nella tab config
+
+    const getCsrf = () =>
+      (document.cookie.split(";").find((c) => c.trim().startsWith("csrftoken=")) || "").split("=")[1] || "";
+
+    const toText = (arr) => (Array.isArray(arr) ? arr.join("\n") : "");
+
+    const fromText = (value) => {
+      const seen = new Set();
+      const out = [];
+      (value || "").split(/\r?\n/).forEach((raw) => {
+        const text = String(raw || "").trim();
+        if (!text) return;
+        const key = text.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(text);
       });
+      return out;
+    };
 
-      btnSave.addEventListener("click", async () => {
-        const payload = Object.fromEntries(ids.map((id) => [id, fromText(fields[id].value)]));
-        payload.attachments_dir = String(attachmentsDirEl.value || "").trim();
-        btnSave.disabled = true;
-        btnDefault.disabled = true;
-        try {
-          const r = await fetch("/api/anomalie/config/liste", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": getCsrf(),
-            },
-            body: JSON.stringify(payload),
-          });
-          const j = await r.json();
-          if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
-          fill(j.lists || payload, j.attachments_dir || payload.attachments_dir);
-          setStatus("ok", "Configurazione salvata correttamente.");
-        } catch (e) {
-          setStatus("err", e.message || "Errore durante il salvataggio");
-        } finally {
-          btnSave.disabled = false;
-          btnDefault.disabled = false;
-        }
+    const setStatus = (type, message) => {
+      statusEl.className = "status " + type;
+      statusEl.textContent = message;
+    };
+
+    const fill = (payload, attachmentsDir) => {
+      const src = payload && typeof payload === "object" ? payload : {};
+      ids.forEach((id) => {
+        if (fields[id]) fields[id].value = toText(src[id] ?? defaults[id]);
       });
+      if (capiRepartoListEl) {
+        const lista = Array.isArray(src.capi_reparto) ? src.capi_reparto : [];
+        capiRepartoListEl.innerHTML = lista.length
+          ? lista.map(n => `<li>${n.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</li>`).join("")
+          : "<li class='empty'>Nessun caporeparto assegnato in Anagrafica &rarr; Reparti</li>";
+      }
+      if (attachmentsDirEl) attachmentsDirEl.value = String(attachmentsDir || defaults.attachments_dir || "").trim();
+    };
 
-      fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
-      loadFromApi();
-    })();
-  </script>
-  <script>
+    const loadFromApi = async () => {
+      try {
+        const r = await fetch("/api/anomalie/config/liste");
+        const j = await r.json();
+        if (!r.ok || !j.success) throw new Error(j.error || "Errore caricamento configurazione");
+        fill(j.lists || {}, j.attachments_dir || defaults.attachments_dir);
+      } catch (e) {
+        fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+        setStatus("err", e.message || "Errore caricamento configurazione");
+      }
+    };
+
+    btnDefault.addEventListener("click", () => {
+      fill(defaults, defaults.attachments_dir);
+      setStatus("ok", "Default caricati in pagina. Premi 'Salva configurazione' per confermare.");
+    });
+
+    btnSave.addEventListener("click", async () => {
+      const payload = Object.fromEntries(ids.map((id) => [id, fromText(fields[id].value)]));
+      payload.attachments_dir = String(attachmentsDirEl.value || "").trim();
+      btnSave.disabled = true;
+      btnDefault.disabled = true;
+      try {
+        const r = await fetch("/api/anomalie/config/liste", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrf(),
+          },
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
+        fill(j.lists || payload, j.attachments_dir || payload.attachments_dir);
+        setStatus("ok", "Configurazione salvata correttamente.");
+      } catch (e) {
+        setStatus("err", e.message || "Errore durante il salvataggio");
+      } finally {
+        btnSave.disabled = false;
+        btnDefault.disabled = false;
+      }
+    });
+
+    fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+    loadFromApi();
+  })();
+</script>
+<script>
   // ── Logo Menu ──────────────────────────────────────────────────────────────
   (function () {
     const previewImg = document.getElementById('logo-preview');
@@ -914,6 +687,7 @@
     const btnUpload  = document.getElementById('btn-logo-upload');
     const btnReset   = document.getElementById('btn-logo-reset');
     const statusEl   = document.getElementById('logo-status');
+    if (!btnUpload) return; // non siamo nella tab config
     const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
 
     function showLogo(url) {
@@ -932,13 +706,11 @@
       statusEl.textContent = msg;
     }
 
-    // Carica anteprima logo corrente dal server
     fetch('/api/anomalie/config/liste')
       .then(r => r.json())
       .then(d => showLogo(d.menu_logo || ''))
       .catch(() => {});
 
-    // Preview locale prima dell'upload
     fileInput.addEventListener('change', function () {
       const file = this.files[0];
       if (!file) return;
@@ -974,8 +746,8 @@
       btnReset.disabled = false;
     });
   })();
-  </script>
-  <script>
+</script>
+<script>
   // ── Template Report Segnalazione ────────────────────────────────────────────
   (function () {
     const badge      = document.getElementById('tpl-status-badge');
@@ -999,9 +771,9 @@
         return;
       }
       valResult.style.display = 'block';
-      valResult.style.background = '#fef2f2';
+      valResult.style.background = 'var(--danger-bg)';
       valResult.style.border = '1px solid #fca5a5';
-      valResult.style.color = '#991b1b';
+      valResult.style.color = 'var(--danger)';
       valResult.innerHTML = '<strong>Errori di validazione:</strong><ul style="margin:6px 0 0;padding-left:18px;">'
         + errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
     }
@@ -1010,23 +782,25 @@
       fetch('/api/anomalie/config/report-template')
         .then(r => r.json())
         .then(d => {
-          if (d.has_custom) {
-            badge.textContent = 'Template personalizzato';
-            badge.style.background = '#dcfce7';
-            badge.style.color = '#166534';
-            detail.textContent = `Caricato il ${d.modified} — ${Math.round(d.size / 1024)} KB`;
+          if (d.custom) {
+            badge.textContent = 'Template personalizzato attivo';
+            badge.style.background = 'var(--success-bg)';
+            badge.style.color = 'var(--success)';
+            badge.style.border = '1px solid #86efac';
+            detail.textContent = d.filename ? `File: ${d.filename}` : '';
             btnReset.style.display = '';
           } else {
             badge.textContent = 'Template di default';
-            badge.style.background = '#e2e8f0';
-            badge.style.color = '#475569';
+            badge.style.background = 'var(--bg)';
+            badge.style.color = 'var(--text-mid)';
+            badge.style.border = '1px solid var(--border)';
             detail.textContent = 'Nessun template personalizzato attivo.';
             btnReset.style.display = 'none';
           }
         })
         .catch(() => {
           badge.textContent = 'Errore caricamento stato';
-          badge.style.color = '#dc2626';
+          badge.style.color = 'var(--danger)';
         });
     }
 
@@ -1069,6 +843,5 @@
 
     refreshStatus();
   })();
-  </script>
-</body>
-</html>
+</script>
+{% endblock %}

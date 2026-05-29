@@ -866,6 +866,33 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
                 }
             ],
         },
+        AutomationActionType.SPLIT_ASSENZA_GIORNALIERA: {
+            "group_title": "Preset split giornaliero Assenze",
+            "group_subtitle": "Crea record giornalieri derivati da richieste Assenze multi-giorno.",
+            "values": {
+                "description": "Crea righe giornaliere Assenze derivate",
+                "split_start_field": "data_inizio",
+                "split_end_field": "data_fine",
+                "split_days_count_fields": "giorni_permesso,giornipermesso,Giornipermesso,giorni",
+                "split_max_days": "60",
+                "split_tipo_assenza_template": "Permesso",
+                "split_moderation_status": "0",
+                "split_consenso_template": "Approvato",
+                "split_salta_approvazione": True,
+                "split_dedupe": True,
+            },
+            "placeholders": {},
+            "presets": [
+                {
+                    "key": "assenze_split_daily",
+                    "title": "Split giornaliero",
+                    "description": "Replica il loop addDays del flow storico sulle assenze multi-giorno.",
+                    "theme": "blue",
+                    "values": {},
+                    "placeholders": {},
+                }
+            ],
+        },
         AutomationActionType.DELAY_SCHEDULE: {
             "group_title": f"Preset delay per {source_label}",
             "group_subtitle": "Rimanda l'elaborazione in stile Power Automate Delay/Delay Until.",
@@ -3473,6 +3500,17 @@ def _build_action_preview_from_form(form) -> list[str]:
             "Target: record triggerante",
             f"Update fields: {update_fields_count}",
         ]
+    elif action_type == AutomationActionType.SPLIT_ASSENZA_GIORNALIERA:
+        start_field = _truncate_text(_bound_or_instance_value(form, "split_start_field"), 60) or "data_inizio"
+        end_field = _truncate_text(_bound_or_instance_value(form, "split_end_field"), 60) or "data_fine"
+        max_days = _truncate_text(_bound_or_instance_value(form, "split_max_days"), 20) or "60"
+        tipo_template = _truncate_text(_bound_or_instance_value(form, "split_tipo_assenza_template"), 80) or "Permesso"
+        preview_lines = [
+            f"Periodo: {start_field} -> {end_field}",
+            f"Max giorni creati: {max_days}",
+            f"Tipo righe create: {tipo_template}",
+            f"Deduplica: {'si' if _bool_value(_bound_or_instance_value(form, 'split_dedupe')) else 'no'}",
+        ]
     elif action_type == AutomationActionType.DELAY_SCHEDULE:
         delay_mode = _string_value(_bound_or_instance_value(form, "delay_mode")) or "relative"
         if delay_mode == "until":
@@ -4020,6 +4058,14 @@ _ACTION_NODE_STYLES: dict[str, dict[str, str]] = {
     "branch":                {"icon": "🔀",  "color": "#ea580c", "bg": "#fff7ed", "app": "Condizione"},
 }
 _DEFAULT_NODE_STYLE = {"icon": "⚡", "color": "#64748b", "bg": "#f8fafc", "app": "Azione"}
+
+
+_ACTION_NODE_STYLES["split_assenza_giornaliera"] = {
+    "icon": "DAY",
+    "color": "#0284c7",
+    "bg": "#e0f2fe",
+    "app": "Assenze",
+}
 
 
 def _build_diagram_action_choices() -> list[dict[str, str]]:

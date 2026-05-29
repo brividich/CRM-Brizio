@@ -120,8 +120,13 @@ urlpatterns = [
     path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
 
-    # Aree aziendali catalogo
+    # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views.aree_list, name="aree_list"),
+    # Aree aziendali (livello padre)
+    path("aree/area-aziendale/nuova", views.area_aziendale_create, name="area_aziendale_create"),
+    path("aree/area-aziendale/<int:area_id>/modifica", views.area_aziendale_edit, name="area_aziendale_edit"),
+    path("aree/area-aziendale/<int:area_id>/elimina", views.area_aziendale_delete, name="area_aziendale_delete"),
+    # Reparti (livello figlio, URL legacy mantenute)
     path("aree/nuovo", views.area_create, name="area_create"),
     path("aree/<int:area_id>/modifica", views.area_edit, name="area_edit"),
     path("aree/<int:area_id>/elimina", views.area_delete, name="area_delete"),
@@ -237,6 +242,9 @@ urlpatterns = [
     path("formazione/rischi/esposizioni/crea", views.esposizione_rischio_create, name="esposizione_rischio_create"),
     path("formazione/rischi/esposizioni/<int:pk>/modifica", views.esposizione_rischio_edit, name="esposizione_rischio_edit"),
     path("formazione/rischi/esposizioni/<int:pk>/elimina", views.esposizione_rischio_delete, name="esposizione_rischio_delete"),
+
+    # Cedolini — importazione XLSX via interfaccia web
+    path("cedolini/", views.cedolini_import, name="cedolini_import"),
 
     # Ratei ferie/ROL/ex-festività — lista aggregata + export
     path("ratei/", views.ratei_list, name="ratei_list"),

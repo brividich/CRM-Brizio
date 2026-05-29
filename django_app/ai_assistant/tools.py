@@ -10,7 +10,7 @@ from typing import Any
 from django.db.models import Q
 from django.utils import timezone
 
-from core.legacy_utils import get_legacy_user
+from core.legacy_utils import extract_identity_alias, get_legacy_user
 
 
 @dataclass(frozen=True)
@@ -1950,11 +1950,11 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
             legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(user)
             request.legacy_user = legacy_user
             legacy_user_id = int(getattr(legacy_user, "id", 0) or 0)
-            username = _norm_text(getattr(user, "username", "") or "")
+            username_alias = _norm_text(extract_identity_alias(getattr(user, "username", "") or ""))
             for row in all_rows:
                 row_user_id = int(row.get("utente_id") or 0)
                 row_alias = _norm_text(str(row.get("aliasusername") or ""))
-                if (legacy_user_id and row_user_id == legacy_user_id) or (username and row_alias == username):
+                if (legacy_user_id and row_user_id == legacy_user_id) or (username_alias and row_alias == username_alias):
                     target_rows.append(row)
             target_label = "utente corrente"
 

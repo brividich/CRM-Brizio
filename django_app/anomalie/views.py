@@ -11,7 +11,6 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
-import requests
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
@@ -24,10 +23,9 @@ from django.utils.text import slugify
 from django.conf import settings
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
-from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
+from config.env_config import get_first_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.audit import log_action
-from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.upload_mime import (
     UploadMimeValidationError,
     safe_filename,
@@ -94,12 +92,6 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
 }
 ALLEGATI_MAX_FILE_SIZE = 20 * 1024 * 1024
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
-ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
-ALLEGATI_SYNC_PENDING = "pending"
-ALLEGATI_SYNC_SYNCED = "synced"
-ALLEGATI_SYNC_ERROR = "error"
-ALLEGATI_SYNC_MAX_RETRY = 5
-ALLEGATI_SYNC_MAX_PER_LOCAL = 20
 ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "permessi", "record", "log")
 # Alias retrocompatibili: le vecchie URL ?tab=ruoli|accessi restano valide e
 # vengono normalizzate nella view al nuovo tab "permessi" con sub corrispondente.
@@ -565,201 +557,24 @@ def _attachment_file_path(local_id: int, file_id: str) -> Path | None:
     return resolved_path
 
 
-def _attachment_sync_meta_path(local_id: int) -> Path:
-    folder = _attachment_dir_for_local(local_id, create=False)
-    return folder / ALLEGATI_SYNC_META_FILENAME
-
-
-def _default_attachment_sync_state() -> dict:
-    return {
-        "status": ALLEGATI_SYNC_PENDING,
-        "retry_count": 0,
-        "last_error": "",
-        "queued_at": _utcnow_iso(),
-        "last_attempt_at": None,
-        "last_synced_at": None,
-    }
-
-
-def _normalize_attachment_sync_state(raw_state) -> dict:
-    base = _default_attachment_sync_state()
-    if isinstance(raw_state, dict):
-        status = str(raw_state.get("status") or "").strip().lower()
-        if status in {ALLEGATI_SYNC_PENDING, ALLEGATI_SYNC_SYNCED, ALLEGATI_SYNC_ERROR}:
-            base["status"] = status
-        try:
-            retry = int(raw_state.get("retry_count") or 0)
-        except Exception:
-            retry = 0
-        base["retry_count"] = max(0, retry)
-        base["last_error"] = str(raw_state.get("last_error") or "").strip()[:500]
-        queued = str(raw_state.get("queued_at") or "").strip()
-        if queued:
-            base["queued_at"] = queued
-        attempted = str(raw_state.get("last_attempt_at") or "").strip()
-        if attempted:
-            base["last_attempt_at"] = attempted
-        synced = str(raw_state.get("last_synced_at") or "").strip()
-        if synced:
-            base["last_synced_at"] = synced
-    return base
-
-
-def _load_attachment_sync_meta(local_id: int) -> dict:
-    path = _attachment_sync_meta_path(local_id)
-    if not path.exists():
-        return {"files": {}}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.exception("[anomalie] impossibile leggere meta allegati local_id=%s", local_id)
-        return {"files": {}}
-    if not isinstance(payload, dict):
-        return {"files": {}}
-    files_raw = payload.get("files")
-    if not isinstance(files_raw, dict):
-        return {"files": {}}
-    files_clean: dict[str, dict] = {}
-    for file_id, state in files_raw.items():
-        token = str(file_id or "").strip()
-        if token == ALLEGATI_SYNC_META_FILENAME:
-            continue
-        if not token or not _ALLEGATI_FILE_ID_RE.match(token):
-            continue
-        files_clean[token] = _normalize_attachment_sync_state(state)
-    return {"files": files_clean}
-
-
-def _save_attachment_sync_meta(local_id: int, meta_payload: dict) -> None:
-    folder = _attachment_dir_for_local(local_id, create=True)
-    path = folder / ALLEGATI_SYNC_META_FILENAME
-    files_raw = meta_payload.get("files") if isinstance(meta_payload, dict) else {}
-    files_clean: dict[str, dict] = {}
-    if isinstance(files_raw, dict):
-        for file_id, state in files_raw.items():
-            token = str(file_id or "").strip()
-            if token == ALLEGATI_SYNC_META_FILENAME:
-                continue
-            if not token or not _ALLEGATI_FILE_ID_RE.match(token):
-                continue
-            files_clean[token] = _normalize_attachment_sync_state(state)
-    payload = {"files": files_clean}
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
-
-
-def _mark_attachment_pending(local_id: int, file_ids: list[str]) -> None:
-    tokens = []
-    for file_id in file_ids:
-        token = str(file_id or "").strip()
-        if token and _ALLEGATI_FILE_ID_RE.match(token) and token != ALLEGATI_SYNC_META_FILENAME:
-            tokens.append(token)
-    if not tokens:
-        return
-    meta = _load_attachment_sync_meta(local_id)
-    files_meta = meta.setdefault("files", {})
-    now_iso = _utcnow_iso()
-    for token in tokens:
-        rec = _normalize_attachment_sync_state(files_meta.get(token))
-        rec["status"] = ALLEGATI_SYNC_PENDING
-        rec["retry_count"] = 0
-        rec["last_error"] = ""
-        rec["queued_at"] = now_iso
-        rec["last_attempt_at"] = None
-        rec["last_synced_at"] = None
-        files_meta[token] = rec
-    _save_attachment_sync_meta(local_id, meta)
-
-
-def _remove_attachment_sync_meta_entry(local_id: int, file_id: str) -> None:
-    token = str(file_id or "").strip()
-    if not token or not _ALLEGATI_FILE_ID_RE.match(token):
-        return
-    meta = _load_attachment_sync_meta(local_id)
-    files_meta = meta.get("files", {})
-    if token in files_meta:
-        files_meta.pop(token, None)
-        if files_meta:
-            _save_attachment_sync_meta(local_id, meta)
-        else:
-            meta_path = _attachment_sync_meta_path(local_id)
-            try:
-                if meta_path.exists():
-                    meta_path.unlink()
-            except OSError:
-                pass
-
-
-def _pending_attachment_local_ids(limit_rows: int = 100) -> list[int]:
-    root = _anomalie_attachments_root()
-    if not root.exists():
-        return []
-    out: list[int] = []
-    for child in sorted(root.iterdir(), key=lambda p: p.name):
-        if len(out) >= max(1, int(limit_rows)):
-            break
-        if not child.is_dir():
-            continue
-        if not child.name.isdigit():
-            continue
-        local_id = int(child.name)
-        meta = _load_attachment_sync_meta(local_id)
-        files_meta = meta.get("files", {})
-        needs_sync = False
-        if files_meta:
-            for state in files_meta.values():
-                rec = _normalize_attachment_sync_state(state)
-                if rec["status"] == ALLEGATI_SYNC_SYNCED:
-                    continue
-                if rec["status"] == ALLEGATI_SYNC_ERROR and rec["retry_count"] >= ALLEGATI_SYNC_MAX_RETRY:
-                    continue
-                needs_sync = True
-                break
-        if not needs_sync:
-            for path in child.iterdir():
-                if not path.is_file():
-                    continue
-                if path.name == ALLEGATI_SYNC_META_FILENAME:
-                    continue
-                if not _ALLEGATI_FILE_ID_RE.match(path.name):
-                    continue
-                needs_sync = True
-                break
-        if needs_sync:
-            out.append(local_id)
-    return out
-
-
 def _list_attachments_for_local(local_id: int) -> list[dict]:
     folder = _attachment_dir_for_local(local_id, create=False)
     if not folder.exists():
         return []
-    meta = _load_attachment_sync_meta(local_id)
-    files_meta = meta.setdefault("files", {})
-    dirty_meta = False
 
     paths: list[Path] = []
     for path in folder.iterdir():
         if not path.is_file():
             continue
         file_id = path.name
-        if file_id == ALLEGATI_SYNC_META_FILENAME:
-            continue
         if not _ALLEGATI_FILE_ID_RE.match(file_id):
             continue
         paths.append(path)
     paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
-    existing_ids: set[str] = set()
     items: list[dict] = []
     for path in paths:
         file_id = path.name
-        existing_ids.add(file_id)
-        rec = _normalize_attachment_sync_state(files_meta.get(file_id))
-        if file_id not in files_meta:
-            files_meta[file_id] = rec
-            dirty_meta = True
         stat = path.stat()
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
@@ -771,21 +586,8 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
                 "mime_type": mime,
                 "is_image": _is_image_attachment(path.name, mime),
                 "modified": mtime,
-                "sync_status": rec.get("status") or ALLEGATI_SYNC_PENDING,
-                "sync_retry_count": int(rec.get("retry_count") or 0),
-                "sync_last_error": rec.get("last_error") or "",
-                "sync_last_attempt_at": rec.get("last_attempt_at"),
-                "sync_last_synced_at": rec.get("last_synced_at"),
             }
         )
-
-    for file_id in list(files_meta.keys()):
-        if file_id not in existing_ids:
-            files_meta.pop(file_id, None)
-            dirty_meta = True
-
-    if dirty_meta:
-        _save_attachment_sync_meta(local_id, meta)
     return items
 
 
@@ -818,25 +620,53 @@ def _default_anomalie_lists() -> dict[str, list[str]]:
     return {k: list(v) for k, v in ANOMALIE_LIST_DEFAULTS.items()}
 
 
+def _capireparto_from_anagrafica() -> list[str]:
+    """Nomi distinti dei capireparto dai reparti attivi in anagrafica."""
+    try:
+        from anagrafica.models import Reparto
+        ids = set(
+            Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+            .exclude(caporeparto_legacy_id=0)
+            .values_list("caporeparto_legacy_id", flat=True)
+        )
+        if not ids:
+            return []
+        names = []
+        for u in UtenteLegacy.objects.filter(id__in=ids).values("id", "nome"):
+            label = str(u.get("nome") or "").strip()
+            if label:
+                names.append(label)
+        return sorted(set(names))
+    except Exception:
+        logger.debug("[anomalie] impossibile caricare capireparto da anagrafica", exc_info=True)
+        return []
+
+
 def _load_anomalie_lists() -> dict[str, list[str]]:
     data = _default_anomalie_lists()
     path = _anomalie_lists_path()
     if not path.exists():
+        data["capi_reparto"] = _capireparto_from_anagrafica()
         return data
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         logger.exception("[anomalie] impossibile leggere file liste: %s", path)
+        data["capi_reparto"] = _capireparto_from_anagrafica()
         return data
     if not isinstance(payload, dict):
+        data["capi_reparto"] = _capireparto_from_anagrafica()
         return data
     for key in ANOMALIE_LIST_KEYS:
+        if key == "capi_reparto":
+            continue  # sempre da anagrafica
         if key in payload:
             values = _normalize_choice_list(payload.get(key))
             if values or key not in ANOMALIE_NON_EMPTY_DEFAULT_KEYS:
                 data[key] = values
             else:
                 data[key] = list(ANOMALIE_LIST_DEFAULTS[key])
+    data["capi_reparto"] = _capireparto_from_anagrafica()
     return data
 
 
@@ -876,303 +706,6 @@ def _save_anomalie_menu_logo(url: str) -> None:
     path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _graph_settings() -> dict[str, str]:
-    return {
-        "tenant_id": get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
-        "client_id": get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
-        "client_secret": get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
-        "site_id": get_first_env_value("GRAPH_SITE_ID"),
-        "list_id_anomalie_db": get_first_env_value("GRAPH_LIST_ID_ANOMALIE_DB"),
-    }
-
-
-def _env_source_label(source: str) -> str:
-    if source == "process_env":
-        return "ambiente processo"
-    if source == "dotenv":
-        return ".env"
-    return "non configurato"
-
-
-def _graph_runtime_value(*env_keys: str) -> tuple[str, str]:
-    value, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
-    return value, _env_source_label(source)
-
-
-def _graph_config_issue() -> str:
-    labels = {
-        "tenant_id": "tenant_id",
-        "client_id": "client_id",
-        "client_secret": "client_secret",
-        "site_id": "site_id",
-        "list_id_anomalie_db": "list_id_anomalie_db",
-    }
-    gs = _graph_settings()
-    missing = [labels[key] for key in labels if is_placeholder_value(gs.get(key, ""))]
-    if not missing:
-        return ""
-    return "Configurazione Graph anomalie incompleta: " + ", ".join(missing)
-
-
-def _graph_configured() -> bool:
-    return not _graph_config_issue()
-
-
-def _sharepoint_admin_config() -> dict[str, object]:
-    dotenv_values = load_env_file_values()
-    runtime_tenant_id, tenant_source = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
-    runtime_client_id, client_source = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
-    runtime_client_secret, secret_source = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-    runtime_site_id, site_source = _graph_runtime_value("GRAPH_SITE_ID")
-    runtime_list_id, list_source = _graph_runtime_value("GRAPH_LIST_ID_ANOMALIE_DB")
-    runtime_values = [
-        runtime_tenant_id,
-        runtime_client_id,
-        runtime_client_secret,
-        runtime_site_id,
-        runtime_list_id,
-    ]
-    return {
-        "tenant_id": str(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID") or "").strip(),
-        "client_id": str(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID") or "").strip(),
-        "site_id": str(dotenv_values.get("GRAPH_SITE_ID") or "").strip(),
-        "list_id_anomalie_db": str(dotenv_values.get("GRAPH_LIST_ID_ANOMALIE_DB") or "").strip(),
-        "client_secret_configured": bool(
-            str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
-        ),
-        "runtime_ready": all(not is_placeholder_value(value) for value in runtime_values),
-        "runtime_sources": {
-            "tenant_id": tenant_source,
-            "client_id": client_source,
-            "client_secret": secret_source,
-            "site_id": site_source,
-            "list_id_anomalie_db": list_source,
-        },
-        "env_override_active": any(
-            source == "ambiente processo"
-            for source in [tenant_source, client_source, secret_source, site_source, list_source]
-        ),
-        "sync_issue": _graph_config_issue(),
-    }
-
-
-def _graph_token() -> str:
-    if not _graph_configured():
-        raise RuntimeError(_graph_config_issue())
-    gs = _graph_settings()
-    return acquire_graph_token(gs["tenant_id"], gs["client_id"], gs["client_secret"])
-
-
-def _graph_base_anomalie_url() -> str:
-    if not _graph_configured():
-        raise RuntimeError(_graph_config_issue())
-    gs = _graph_settings()
-    return f"https://graph.microsoft.com/v1.0/sites/{gs['site_id']}/lists/{gs['list_id_anomalie_db']}/items"
-
-
-def _graph_healthcheck() -> tuple[bool, str]:
-    issue = _graph_config_issue()
-    if issue:
-        return False, issue
-    try:
-        response = requests.get(
-            f"{_graph_base_anomalie_url()}?expand=fields&$top=1",
-            headers={"Authorization": f"Bearer {_graph_token()}", "Content-Type": "application/json"},
-            timeout=20,
-        )
-        if response.status_code == 200:
-            return True, "Connessione Graph anomalie OK."
-        return False, f"Graph anomalie {response.status_code}: {response.text[:300]}"
-    except Exception as exc:
-        return False, f"Test Graph anomalie fallito: {exc}"
-
-
-def _handle_sharepoint_config_request(request) -> tuple[bool, str]:
-    tenant_id = str(request.POST.get("sharepoint_tenant_id") or "").strip()[:200]
-    client_id = str(request.POST.get("sharepoint_client_id") or "").strip()[:200]
-    site_id = str(request.POST.get("sharepoint_site_id") or "").strip()[:500]
-    client_secret = str(request.POST.get("sharepoint_client_secret") or "").strip()
-    list_id_anomalie_db = str(request.POST.get("sharepoint_list_id_anomalie_db") or "").strip()[:500]
-
-    try:
-        dotenv_values = load_env_file_values()
-        current_secret = str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
-        updates = {
-            "GRAPH_TENANT_ID": tenant_id,
-            "GRAPH_CLIENT_ID": client_id,
-            "GRAPH_SITE_ID": site_id,
-            "GRAPH_LIST_ID_ANOMALIE_DB": list_id_anomalie_db,
-        }
-        if client_secret:
-            updates["GRAPH_CLIENT_SECRET"] = client_secret
-        elif not current_secret and not get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"):
-            updates["GRAPH_CLIENT_SECRET"] = ""
-        update_env_file_values(
-            updates,
-            delete_keys=["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
-        )
-    except Exception as exc:
-        return False, f"Errore scrittura .env: {exc}"
-
-    return True, "Configurazione SharePoint anomalie aggiornata."
-
-
-def _sp_create_anomalia(fields_dict: dict) -> tuple[bool, dict | str]:
-    token = _graph_token()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    r = requests.post(_graph_base_anomalie_url(), headers=headers, json={"fields": fields_dict}, timeout=20)
-    if r.status_code in (200, 201):
-        return True, r.json()
-    return False, r.text
-
-
-def _sp_update_anomalia(item_id: str, fields_dict: dict) -> tuple[bool, dict | str]:
-    token = _graph_token()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    r = requests.patch(f"{_graph_base_anomalie_url()}/{item_id}/fields", headers=headers, json=fields_dict, timeout=20)
-    if r.status_code in (200, 204):
-        try:
-            return True, r.json() if r.text else {}
-        except Exception:
-            return True, {}
-    return False, r.text
-
-
-def _sp_upload_anomalia_attachment(item_id: str, file_path: Path, display_name: str) -> tuple[bool, dict | str]:
-    token = _graph_token()
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/octet-stream",
-    }
-    safe_name = quote(str(display_name or file_path.name), safe="")
-    url = f"{_graph_base_anomalie_url()}/{item_id}/driveItem:/{safe_name}:/content"
-    with file_path.open("rb") as fh:
-        r = requests.put(url, headers=headers, data=fh, timeout=60)
-    if r.status_code in (200, 201):
-        try:
-            return True, r.json() if r.text else {}
-        except Exception:
-            return True, {}
-    return False, r.text
-
-
-def _sharepoint_ids_by_local_ids(local_ids: list[int]) -> dict[int, str]:
-    ids: list[int] = []
-    for value in local_ids:
-        try:
-            local_id = int(value)
-        except (TypeError, ValueError):
-            continue
-        if local_id > 0:
-            ids.append(local_id)
-    if not ids or not _has_table("anomalie"):
-        return {}
-    placeholders = ", ".join(["%s"] * len(ids))
-    rows = _fetch_all_dict(
-        f"SELECT id, sharepoint_item_id FROM anomalie WHERE id IN ({placeholders})",
-        ids,
-    )
-    out: dict[int, str] = {}
-    for row in rows:
-        local_id = row.get("id")
-        sp_id = str(row.get("sharepoint_item_id") or "").strip()
-        if local_id is None or not sp_id:
-            continue
-        out[int(local_id)] = sp_id
-    return out
-
-
-def _sync_attachments_for_local(local_id: int, sharepoint_item_id: str) -> dict:
-    result = {
-        "synced": 0,
-        "failed": 0,
-        "skipped": 0,
-        "maxed_out": 0,
-        "pending": 0,
-        "details": [],
-    }
-    if not sharepoint_item_id:
-        return result
-
-    folder = _attachment_dir_for_local(local_id, create=False)
-    if not folder.exists():
-        return result
-
-    meta = _load_attachment_sync_meta(local_id)
-    files_meta = meta.setdefault("files", {})
-    dirty_meta = False
-
-    file_paths: list[Path] = []
-    for path in folder.iterdir():
-        if not path.is_file():
-            continue
-        file_id = path.name
-        if file_id == ALLEGATI_SYNC_META_FILENAME:
-            continue
-        if not _ALLEGATI_FILE_ID_RE.match(file_id):
-            continue
-        file_paths.append(path)
-        if file_id not in files_meta:
-            files_meta[file_id] = _default_attachment_sync_state()
-            dirty_meta = True
-
-    file_paths.sort(key=lambda p: p.stat().st_mtime)
-    existing_ids = {p.name for p in file_paths}
-    for stale_id in list(files_meta.keys()):
-        if stale_id not in existing_ids:
-            files_meta.pop(stale_id, None)
-            dirty_meta = True
-
-    queue: list[Path] = []
-    for path in file_paths:
-        rec = _normalize_attachment_sync_state(files_meta.get(path.name))
-        files_meta[path.name] = rec
-        if rec["status"] == ALLEGATI_SYNC_SYNCED:
-            continue
-        if rec["status"] == ALLEGATI_SYNC_ERROR and int(rec.get("retry_count") or 0) >= ALLEGATI_SYNC_MAX_RETRY:
-            result["maxed_out"] += 1
-            continue
-        queue.append(path)
-
-    for path in queue[:ALLEGATI_SYNC_MAX_PER_LOCAL]:
-        file_id = path.name
-        display_name = _attachment_display_name(file_id)
-        now_iso = _utcnow_iso()
-        rec = _normalize_attachment_sync_state(files_meta.get(file_id))
-        rec["last_attempt_at"] = now_iso
-        try:
-            ok, payload = _sp_upload_anomalia_attachment(str(sharepoint_item_id), path, display_name)
-            if not ok:
-                raise RuntimeError(str(payload))
-            rec["status"] = ALLEGATI_SYNC_SYNCED
-            rec["last_error"] = ""
-            rec["last_synced_at"] = now_iso
-            result["synced"] += 1
-            result["details"].append({"file_id": file_id, "action": "attachment_synced"})
-        except Exception as exc:
-            rec["retry_count"] = int(rec.get("retry_count") or 0) + 1
-            rec["last_error"] = str(exc)[:500]
-            rec["status"] = (
-                ALLEGATI_SYNC_ERROR
-                if int(rec["retry_count"]) >= ALLEGATI_SYNC_MAX_RETRY
-                else ALLEGATI_SYNC_PENDING
-            )
-            result["failed"] += 1
-            result["details"].append({"file_id": file_id, "action": "attachment_failed", "error": rec["last_error"]})
-        files_meta[file_id] = rec
-        dirty_meta = True
-
-    for rec in files_meta.values():
-        state = _normalize_attachment_sync_state(rec)
-        if state["status"] == ALLEGATI_SYNC_SYNCED:
-            continue
-        if state["status"] == ALLEGATI_SYNC_ERROR and int(state.get("retry_count") or 0) >= ALLEGATI_SYNC_MAX_RETRY:
-            continue
-        result["pending"] += 1
-
-    if dirty_meta:
-        _save_attachment_sync_meta(local_id, meta)
-    return result
 
 
 def _serialize_anomalie_rows(rows: list[dict]) -> list[dict]:
@@ -1519,15 +1052,6 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     return False
 
 
-def _can_sync_anomalie(request) -> bool:
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    if not legacy_user:
-        return False
-    if is_legacy_admin(legacy_user):
-        return True
-    return _legacy_role_name(request) in {"gestore"}
-
-
 def _can_manage_anomalie_config(request) -> bool:
     if bool(getattr(request.user, "is_superuser", False)):
         return True
@@ -1678,33 +1202,6 @@ def _handle_anomalie_access_post(request):
     return _anomalie_settings_redirect(
         "permessi", sub="accessi", q_access_user=request.POST.get("q_access_user", "").strip()
     )
-
-
-def _sp_fields_from_anomalia_row(row: dict) -> dict:
-    # Mappa DB locale -> nomi interni colonna SharePoint (coerente con mapping storico del progetto)
-    fields = {}
-    op_lookup_id = row.get("op_lookup_id")
-    if op_lookup_id is not None:
-        try:
-            fields["OP_x002d_IDLookupId"] = int(op_lookup_id)
-        except (TypeError, ValueError):
-            pass
-    if row.get("ex_op_nominativo"):
-        fields["exOPNominativo"] = str(row.get("ex_op_nominativo"))
-    if row.get("seriale") is not None:
-        fields["field_4"] = str(row.get("seriale") or "")
-    if row.get("descrizione") is not None:
-        fields["field_1"] = str(row.get("descrizione") or "")
-    if row.get("note_capocommessa") is not None:
-        fields["Notecapocommessa"] = str(row.get("note_capocommessa") or "")
-    if row.get("numero_rdc") is not None:
-        fields["NumeroRDC"] = str(row.get("numero_rdc") or "")
-    fields["Pezzorecuperatoallafase"] = bool(row.get("pezzo_recuperato"))
-    fields["aprireRDC"] = bool(row.get("aprire_rdc"))
-    fields["Dasegnalareacliente"] = bool(row.get("segnalare_cliente"))
-    fields["Chiudere_x003f_"] = bool(row.get("chiudere"))
-    fields["field_3"] = str(row.get("avanzamento") or "Accetto lo stato")
-    return fields
 
 
 def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str, sn: str) -> None:
@@ -2504,7 +2001,6 @@ def api_salva(request):
                 "success": True,
                 "item_id": returned_item_id,
                 "local_id": local_id,
-                "sync_status": "pending_local",
             }
         )
     except DatabaseError as exc:
@@ -2513,172 +2009,7 @@ def api_salva(request):
 
 @login_required
 def api_sync(request):
-    if request.method != "POST":
-        return _json_error("Metodo non consentito", status=405)
-    if not _can_sync_anomalie(request):
-        return _json_error("Permesso negato", status=403)
-    if not _graph_configured():
-        return _json_error(_graph_config_issue(), status=503)
-    if not _has_table("anomalie"):
-        return _json_error("Tabella anomalie non disponibile", status=500)
-
-    try:
-        body = json.loads(request.body.decode("utf-8") or "{}")
-        if not isinstance(body, dict):
-            body = {}
-    except Exception:
-        body = {}
-    include_updates = bool(body.get("include_updates"))
-    limit_rows = max(1, min(int(body.get("limit_rows", 20) or 20), 200))
-
-    cols = legacy_table_columns("anomalie")
-    rdc_col = ", numero_rdc" if "numero_rdc" in cols else ""
-
-    try:
-        where_sql = "NULLIF(LTRIM(RTRIM(COALESCE(sharepoint_item_id,''))), '') IS NULL"
-        if include_updates:
-            where_sql = "1=1"
-        rows = _fetch_all_dict(
-            f"""
-            SELECT TOP {limit_rows}
-                id,
-                sharepoint_item_id,
-                ex_op_nominativo,
-                op_lookup_id,
-                seriale,
-                descrizione,
-                note_capocommessa,
-                pezzo_recuperato,
-                aprire_rdc{rdc_col},
-                segnalare_cliente,
-                chiudere,
-                avanzamento,
-                created_datetime,
-                modified_datetime
-            FROM anomalie
-            WHERE {where_sql}
-            ORDER BY COALESCE(modified_datetime, created_datetime) ASC, id ASC
-            """
-        )
-    except DatabaseError as exc:
-        return _json_error(str(exc), status=500)
-
-    inseriti = aggiornati = failed = 0
-    att_synced = att_failed = att_skipped = att_maxed_out = att_pending = 0
-    details: list[dict] = []
-    processed_attachment_local_ids: set[int] = set()
-
-    def _collect_attachment_result(local_id_val: int, sync_res: dict) -> None:
-        nonlocal att_synced, att_failed, att_skipped, att_maxed_out, att_pending
-        att_synced += int(sync_res.get("synced") or 0)
-        att_failed += int(sync_res.get("failed") or 0)
-        att_skipped += int(sync_res.get("skipped") or 0)
-        att_maxed_out += int(sync_res.get("maxed_out") or 0)
-        att_pending += int(sync_res.get("pending") or 0)
-        for det in list(sync_res.get("details") or [])[:10]:
-            row_det = {"local_id": local_id_val}
-            row_det.update(det if isinstance(det, dict) else {"info": str(det)})
-            details.append(row_det)
-
-    for row in rows:
-        local_id = int(row["id"])
-        sp_id = str(row.get("sharepoint_item_id") or "").strip()
-        try:
-            fields = _sp_fields_from_anomalia_row(row)
-            if not fields.get("OP_x002d_IDLookupId") and row.get("ex_op_nominativo"):
-                raise RuntimeError("op_lookup_id mancante: impossibile creare lookup SharePoint")
-            if sp_id:
-                ok, payload = _sp_update_anomalia(sp_id, fields)
-                if not ok:
-                    raise RuntimeError(str(payload))
-                aggiornati += 1
-                details.append({"local_id": local_id, "sharepoint_item_id": sp_id, "action": "update"})
-                target_sp_id = sp_id
-            else:
-                ok, payload = _sp_create_anomalia(fields)
-                if not ok:
-                    raise RuntimeError(str(payload))
-                new_sp_id = str((payload or {}).get("id") or "").strip()
-                if not new_sp_id:
-                    raise RuntimeError("Risposta SharePoint senza item_id")
-                with connections["default"].cursor() as cursor:
-                    if "modified_datetime" in cols:
-                        cursor.execute(
-                            "UPDATE anomalie SET sharepoint_item_id = %s, modified_datetime = SYSUTCDATETIME() WHERE id = %s",
-                            [new_sp_id, local_id],
-                        )
-                    else:
-                        cursor.execute(
-                            "UPDATE anomalie SET sharepoint_item_id = %s WHERE id = %s",
-                            [new_sp_id, local_id],
-                        )
-                inseriti += 1
-                details.append({"local_id": local_id, "sharepoint_item_id": new_sp_id, "action": "create"})
-                target_sp_id = new_sp_id
-
-            att_res = _sync_attachments_for_local(local_id, target_sp_id)
-            processed_attachment_local_ids.add(local_id)
-            _collect_attachment_result(local_id, att_res)
-        except Exception as exc:
-            failed += 1
-            err_txt = str(exc)
-            logger.exception("[anomalie:sync] errore sync local_id=%s", local_id)
-            details.append({"local_id": local_id, "error": err_txt})
-
-    extra_local_ids = [
-        local_id
-        for local_id in _pending_attachment_local_ids(limit_rows=max(20, limit_rows * 3))
-        if local_id not in processed_attachment_local_ids
-    ]
-    if extra_local_ids:
-        sp_map = _sharepoint_ids_by_local_ids(extra_local_ids)
-        for local_id in extra_local_ids:
-            sp_item_id = str(sp_map.get(local_id) or "").strip()
-            if not sp_item_id:
-                continue
-            try:
-                att_res = _sync_attachments_for_local(local_id, sp_item_id)
-                _collect_attachment_result(local_id, att_res)
-            except Exception as exc:
-                att_failed += 1
-                details.append(
-                    {"local_id": local_id, "action": "attachment_failed", "error": str(exc)[:500]}
-                )
-                logger.exception("[anomalie:sync] errore sync allegati local_id=%s", local_id)
-
-    try:
-        log_action(request, "anomalie_sync", "anomalie", {
-            "inseriti": inseriti,
-            "aggiornati": aggiornati,
-            "failed_anomalie": failed,
-            "allegati_synced": att_synced,
-            "allegati_failed": att_failed,
-            "allegati_pending": att_pending,
-        })
-    except Exception:
-        pass
-
-    total_failed = failed + att_failed
-
-    return JsonResponse(
-        {
-            "success": total_failed == 0,
-            "ordini": {"inseriti": 0, "aggiornati": 0},
-            "anomalie": {"inseriti": inseriti, "aggiornati": aggiornati},
-            "attachments": {
-                "synced": att_synced,
-                "failed": att_failed,
-                "pending": att_pending,
-                "skipped": att_skipped,
-                "maxed_out": att_maxed_out,
-            },
-            "failed": total_failed,
-            "failed_anomalie": failed,
-            "failed_allegati": att_failed,
-            "details": details[:40],
-            "mode": "db_to_sharepoint_push",
-        }
-    )
+    return _json_error("Sincronizzazione SharePoint non disponibile", status=410)
 
 
 @login_required
@@ -2932,6 +2263,8 @@ def api_anomalie_config_liste(request):
     current = _load_anomalie_lists()
     updated: dict[str, list[str]] = {}
     for key in ANOMALIE_LIST_KEYS:
+        if key == "capi_reparto":
+            continue  # derivato da anagrafica, non salvato nel JSON
         raw_val = payload.get(key, current.get(key, []))
         normalized = _normalize_choice_list(raw_val)
         if key in ANOMALIE_NON_EMPTY_DEFAULT_KEYS and not normalized:
@@ -2961,6 +2294,7 @@ def api_anomalie_config_liste(request):
     except Exception:
         pass
 
+    updated["capi_reparto"] = _capireparto_from_anagrafica()
     return JsonResponse({"success": True, "lists": updated, "attachments_dir": saved_attachments_dir})
 
 

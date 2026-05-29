@@ -450,21 +450,21 @@ class AnagraficaDipendentiViewTests(TestCase):
         detail_response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
         self.assertEqual(detail_response.status_code, 200)
         self.assertContains(detail_response, "Avvia uscita dipendente")
-        self.assertContains(detail_response, "Restituzioni da pianificare")
+        self.assertContains(detail_response, "Data uscita")
+        self.assertContains(detail_response, "Restituzioni")
+        self.assertNotContains(detail_response, 'name="ultimo_giorno_operativo"')
         self.assertNotContains(detail_response, "Onboarding / Offboarding")
         index_response = self.client.get(reverse("anagrafica:index"))
         self.assertContains(index_response, "Nuovo dipendente")
         self.assertNotContains(index_response, "Onboarding / Offboarding")
 
         data_cessazione = date.today()
-        ultimo_giorno = data_cessazione
         with patch("core.audit.log_action") as log_action:
             response = self.client.post(
                 reverse("anagrafica:dipendente_offboarding_licenziamento", args=[legacy_id]),
                 {
                     "motivo": OffboardingPratica.MOTIVO_LICENZIAMENTO,
                     "data_cessazione": data_cessazione.isoformat(),
-                    "ultimo_giorno_operativo": ultimo_giorno.isoformat(),
                     "restituzioni": ["badge_chiavi", "device_it"],
                     "restituzioni_note": "Recuperare anche il telecomando cancello.",
                 },
@@ -473,7 +473,7 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         audit_detail = log_action.call_args.args[3]
         self.assertEqual(audit_detail["data_cessazione_prevista"], data_cessazione.isoformat())
-        self.assertEqual(audit_detail["ultimo_giorno_operativo"], ultimo_giorno.isoformat())
+        self.assertEqual(audit_detail["ultimo_giorno_operativo"], data_cessazione.isoformat())
         self.assertFalse(audit_detail["account_scollegato"])
         self.assertEqual(audit_detail["restituzioni_richieste"], ["badge_chiavi", "device_it"])
         self.assertEqual(
@@ -485,7 +485,7 @@ class AnagraficaDipendentiViewTests(TestCase):
         pratica = OffboardingPratica.objects.get(legacy_anagrafica_id=legacy_id)
         self.assertEqual(pratica.stato, OffboardingPratica.STATO_IN_CORSO)
         self.assertEqual(pratica.data_cessazione_prevista, data_cessazione)
-        self.assertEqual(pratica.ultimo_giorno_operativo, ultimo_giorno)
+        self.assertEqual(pratica.ultimo_giorno_operativo, data_cessazione)
         self.assertEqual(pratica.utente_id_pre_offboarding, 123)
         self.assertEqual(pratica.tasks.count(), 5)
         self.assertTrue(pratica.tasks.filter(codice="hr_documenti_finali").exists())

@@ -407,32 +407,7 @@
     "updated_at": "2026-04-17T22:04:12.135Z"
   }
 },
-{
-  "model": "core.navigationitem",
-  "pk": 40,
-  "fields": {
-    "code": "admin-anagrafica",
-    "label": "Anagrafica",
-    "section": "admin_subnav",
-    "parent_code": "",
-    "route_name": "admin_portale:anagrafica_config",
-    "url_path": "",
-    "required_permission_code": "legacy.admin.anagrafica",
-    "order": 140,
-    "is_visible": true,
-    "is_enabled": true,
-    "open_in_new_tab": false,
-    "icon": "id-card",
-    "group": "configurazione",
-    "active_patterns": "admin_portale:anagrafica_config",
-    "description": "Anagrafica: configura le liste dropdown (Reparti, Capireparto, Macchine) e i campi extra del profilo dipendente.",
-    "category": null,
-    "created_by": null,
-    "updated_by": null,
-    "created_at": "2026-03-27T10:53:26.849Z",
-    "updated_at": "2026-03-27T10:53:26.849Z"
-  }
-},
+
 {
   "model": "core.navigationitem",
   "pk": 41,

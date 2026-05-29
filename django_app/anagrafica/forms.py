@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from .models import (
     AreaAziendale,
+    Reparto,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
     Mansione,
@@ -89,6 +90,7 @@ class AnagraficaAziendaleForm(forms.ModelForm):
         exclude = [
             "legacy_anagrafica_id", "updated_by", "updated_at",
             "tipologia_contratto", "livello_inquadramento",
+            "area_aziendale_nome", "caporeparto_legacy_id",
         ]
         widgets = {
             "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
@@ -108,12 +110,14 @@ class AnagraficaAziendaleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Area: dropdown da catalogo AreaAziendale; include il valore corrente anche se non nel catalogo
-        active_aree = list(AreaAziendale.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
+        # Reparto: dropdown dal catalogo Reparto.
+        # Include il valore corrente anche se non più presente nel catalogo.
+        active_aree = list(Reparto.objects.filter(is_active=True).values_list("nome", flat=True).order_by("nome"))
         current_area = self.instance.area if self.instance.pk else ""
         if current_area and current_area not in active_aree:
             active_aree = [current_area] + active_aree
-        area_choices = [("", "— Nessuna —")] + [(n, n) for n in active_aree]
+        area_choices = [("", "— Nessuno —")] + [(n, n) for n in active_aree]
+        self.fields["area"].label = "Reparto"
         self.fields["area"].widget = forms.Select(attrs={"class": "dp-input"})
         self.fields["area"].widget.choices = area_choices
 

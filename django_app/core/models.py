@@ -238,7 +238,23 @@ class ModuleCategory(models.Model):
 
 
 class NavigationItem(models.Model):
-    """Voce di navigazione gestita da Django (topbar o altre sezioni UI)."""
+    """Voce di navigazione gestita da Django (topbar o altre sezioni UI).
+
+    REGOLA PER LE MIGRATION DI SEED:
+    - Usare SEMPRE get_or_create(code=..., defaults={...}) — imposta i campi solo alla
+      creazione del record; non sovrascrive mai le personalizzazioni fatte dal NavBuilder.
+    - NON usare update_or_create: riscrive tutti i defaults su record esistenti, cancellando
+      label, icona, ordine e visibilità che l'utente ha configurato via NavBuilder UI.
+    - Per aggiornare un singolo campo strutturale su record esistenti (es. route_name
+      rinominata, required_permission_code aggiunto) usare:
+          NavigationItem.objects.filter(code="...").update(campo=valore)
+      in modo da toccare solo il campo necessario.
+
+    Campi "di codice" (aggiornabili in migration): route_name, url_path, section,
+      required_permission_code, active_patterns.
+    Campi "dell'utente" (solo get_or_create, mai update_or_create): label, icon,
+      description, order, group, is_visible, is_enabled, open_in_new_tab.
+    """
 
     code = models.SlugField(max_length=80, unique=True)
     label = models.CharField(max_length=120)

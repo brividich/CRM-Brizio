@@ -23,7 +23,9 @@ markupsafe==3.0.3         # via werkzeug
 msal==1.29.0              # via -r requirements.in
 mssql-django==1.6         # via -r requirements.in
 openpyxl==3.1.5           # via -r requirements.in
-pillow==12.0.0            # via -r requirements.in, reportlab
+pillow==12.0.0            # via -r requirements.in, reportlab, qrcode
+pyotp==2.9.0              # via -r requirements.in
+qrcode==8.0               # via -r requirements.in
 pyasn1==0.6.3             # via ldap3
 pycparser==3.0            # via cffi
 pyjwt==2.12.1             # via msal, pyjwt

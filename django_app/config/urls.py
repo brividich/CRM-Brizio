@@ -34,6 +34,7 @@ urlpatterns = [
     path("tasks/projects/", task_views.project_list, name="project_list"),
     path("tasks/projects/<int:project_id>/gantt/", task_views.project_gantt, name="project_gantt"),
     path("", include("dashboard.urls")),
+    path("hub/home/", include(("dashboard.urls_home_portale", "home_portale"), namespace="home_portale")),
     path("assistente-ai/", include(("ai_assistant.urls", "ai_assistant"), namespace="ai_assistant")),
     path("", include("assenze.urls")),
     path("", include("anomalie.urls")),
@@ -62,6 +63,7 @@ urlpatterns = [
     path("", include(("planimetria.urls", "planimetria"), namespace="planimetria")),
     path("dpi/", include(("dpi.urls", "dpi"), namespace="dpi")),
     path("procedure-refresh/", include(("procedure_refresh.urls", "procedure_refresh"), namespace="procedure_refresh")),
+    path("2fa/", include(("twofa.urls", "twofa"), namespace="twofa")),
     path("", include("core.urls")),
     path("admin/", admin.site.urls),
 ]

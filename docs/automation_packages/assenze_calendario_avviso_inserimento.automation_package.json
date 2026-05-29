@@ -1,0 +1,513 @@
+{
+  "flow_name": "Calendario assenze - avviso di inserimento",
+  "package_version": "1.1",
+  "input": {
+    "filename": "BCK - Calendario assenze - avviso di inserimento.json",
+    "source_format": "Power Automate ARM export",
+    "conversion_note": "I connettori SharePoint item sono stati interpretati come operazioni sulla tabella SQL Server `assenze` del portale."
+  },
+  "source_candidate": {
+    "source_code": "assenze",
+    "label": "Assenze",
+    "confidence": "high",
+    "reason": "Trigger su nuovo elemento calendario assenze e campi Power Automate coerenti con la sorgente assenze."
+  },
+  "approved_field_mapping": {
+    "ID": "id",
+    "Id": "id",
+    "CopiaNome": "dipendente_nome",
+    "Title": "dipendente_nome",
+    "Data_x0020_inizio": "data_inizio",
+    "Datafine": "data_fine",
+    "Tipoassenza": "tipo_assenza",
+    "Motivazionerichiesta": "motivazione_richiesta",
+    "Motivazione": "motivazione_richiesta",
+    "Salta_x0020_approvazione": "salta_approvazione",
+    "CAR": "capo_email",
+    "C_x002e_Reparto": "capo_email",
+    "Email": "dipendente_email",
+    "emailesterna": "dipendente_email",
+    "{ModerationStatus}": "moderation_status"
+  },
+  "compatibility": {
+    "status": "partial",
+    "highest_severity": "low",
+    "issue_count": 2
+  },
+  "issues": [
+    {
+      "code": "sharepoint-items-as-sqlserver-db",
+      "severity": "low",
+      "category": "mapping",
+      "title": "SharePoint items mappati sul DB assenze",
+      "detail": "Le azioni Power Automate su elementi SharePoint sono state tradotte come update del record triggerante o come comportamento da portare sulla tabella SQL Server `assenze`.",
+      "remediation": "Verificare nel designer i campi mappati prima di attivare le regole."
+    },
+    {
+      "code": "distribution-lists-review",
+      "severity": "low",
+      "category": "notification",
+      "title": "Destinatari da verificare",
+      "detail": "Gli indirizzi personali del flow sono stati sostituiti con mailbox di ruolo o placeholder runtime.",
+      "remediation": "Rifinire destinatari, CC e template email nel designer prima dell'attivazione."
+    }
+  ],
+  "proposed_rules": [
+    {
+      "code": "assenze-pa-richiesta-approvazione-caporeparto",
+      "name": "PA import - Nuova assenza: approvazione caporeparto",
+      "description": "Richiede approvazione al caporeparto quando viene inserita una nuova assenza non bypassata.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "watched_field": "",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "salta_approvazione",
+          "operator": "is_false",
+          "expected_value": "",
+          "value_type": "bool",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "moderation_status",
+          "operator": "equals",
+          "expected_value": "2",
+          "value_type": "int",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 3,
+          "field_name": "capo_email",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_approval",
+          "description": "Richiede approvazione via email al caporeparto",
+          "is_enabled": true,
+          "config_json": {
+            "delivery_mode": "email",
+            "to_template": "{capo_email}",
+            "subject_template": "Richiesta di {tipo_assenza} da approvare - {dipendente_nome}",
+            "message_template": "Richiesta di {tipo_assenza} per {dipendente_nome}.\nPeriodo: {data_inizio} - {data_fine}\nMotivazione: {motivazione_richiesta}\nRecord: #{id}",
+            "expiry_days": 7,
+            "approve_label": "Approva",
+            "reject_label": "Rifiuta",
+            "approved_actions": [
+              {
+                "order": 1,
+                "action_type": "update_trigger_record",
+                "description": "Marca la richiesta come approvata nel DB assenze",
+                "config_json": {
+                  "update_fields": {
+                    "moderation_status": 0
+                  }
+                }
+              },
+              {
+                "order": 2,
+                "action_type": "split_assenza_giornaliera",
+                "description": "Crea righe giornaliere derivate per richieste multi-giorno",
+                "config_json": {
+                  "source_code": "assenze",
+                  "start_field": "data_inizio",
+                  "end_field": "data_fine",
+                  "days_count_fields": [
+                    "giorni_permesso",
+                    "giornipermesso",
+                    "Giornipermesso",
+                    "giorni"
+                  ],
+                  "max_days": 60,
+                  "tipo_assenza_template": "Permesso",
+                  "salta_approvazione": true,
+                  "moderation_status": 0,
+                  "consenso_template": "Approvato",
+                  "include_first_day": false,
+                  "dedupe": true,
+                  "set_approval_datetime": true
+                }
+              },
+              {
+                "order": 3,
+                "action_type": "send_email",
+                "description": "Notifica approvazione al dipendente",
+                "config_json": {
+                  "from_email": "avviso@costruzioninovicrom.it",
+                  "to": "{dipendente_email}",
+                  "cc": "",
+                  "bcc": "",
+                  "reply_to": "",
+                  "subject_template": "Richiesta {tipo_assenza} approvata",
+                  "body_text_template": "Ciao {dipendente_nome},\n\nla tua richiesta di {tipo_assenza} dal {data_inizio} al {data_fine} e' stata approvata.",
+                  "fail_silently": false
+                }
+              },
+              {
+                "order": 4,
+                "action_type": "write_log",
+                "description": "Log approvazione",
+                "config_json": {
+                  "message_template": "Assenza #{id} approvata per {dipendente_nome}."
+                }
+              }
+            ],
+            "rejected_actions": [
+              {
+                "order": 1,
+                "action_type": "update_trigger_record",
+                "description": "Marca la richiesta come rifiutata nel DB assenze",
+                "config_json": {
+                  "update_fields": {
+                    "moderation_status": 1
+                  }
+                }
+              },
+              {
+                "order": 2,
+                "action_type": "send_email",
+                "description": "Notifica rifiuto al dipendente",
+                "config_json": {
+                  "from_email": "avviso@costruzioninovicrom.it",
+                  "to": "{dipendente_email}",
+                  "cc": "",
+                  "bcc": "",
+                  "reply_to": "",
+                  "subject_template": "Richiesta {tipo_assenza} rifiutata",
+                  "body_text_template": "Ciao {dipendente_nome},\n\nla tua richiesta di {tipo_assenza} dal {data_inizio} al {data_fine} non e' stata approvata.",
+                  "fail_silently": false
+                }
+              },
+              {
+                "order": 3,
+                "action_type": "write_log",
+                "description": "Log rifiuto",
+                "config_json": {
+                  "message_template": "Assenza #{id} rifiutata per {dipendente_nome}."
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "code": "assenze-pa-skip-approvazione-avviso-inserimento",
+      "name": "PA import - Inserimento con salta approvazione",
+      "description": "Replica il ramo Power Automate che approva automaticamente e avvisa la mailbox assenze quando la richiesta bypassa l'approvazione.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "watched_field": "",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "salta_approvazione",
+          "operator": "is_true",
+          "expected_value": "",
+          "value_type": "bool",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "moderation_status",
+          "operator": "not_equals",
+          "expected_value": "0",
+          "value_type": "int",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "update_trigger_record",
+          "description": "Marca la richiesta come approvata nel DB assenze",
+          "is_enabled": true,
+          "config_json": {
+            "update_fields": {
+              "moderation_status": 0
+            }
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "split_assenza_giornaliera",
+          "description": "Crea righe giornaliere derivate per richieste multi-giorno",
+          "is_enabled": true,
+          "config_json": {
+            "source_code": "assenze",
+            "start_field": "data_inizio",
+            "end_field": "data_fine",
+            "days_count_fields": [
+              "giorni_permesso",
+              "giornipermesso",
+              "Giornipermesso",
+              "giorni"
+            ],
+            "max_days": 60,
+            "tipo_assenza_template": "Permesso",
+            "salta_approvazione": true,
+            "moderation_status": 0,
+            "consenso_template": "Approvato",
+            "include_first_day": false,
+            "dedupe": true,
+            "set_approval_datetime": true
+          }
+        },
+        {
+          "order": 3,
+          "action_type": "send_email",
+          "description": "Avvisa la mailbox assenze dell'inserimento",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "avviso@costruzioninovicrom.it",
+            "to": "assenza@costruzioninovicrom.it",
+            "cc": "{capo_email}",
+            "bcc": "",
+            "reply_to": "",
+            "subject_template": "Inserimento {tipo_assenza} di {dipendente_nome}",
+            "body_text_template": "E' stata inserita la seguente richiesta:\nDipendente: {dipendente_nome}\nTipo richiesta: {tipo_assenza}\nPeriodo: {data_inizio} - {data_fine}\nMotivazione: {motivazione_richiesta}",
+            "fail_silently": false
+          }
+        },
+        {
+          "order": 4,
+          "action_type": "write_log",
+          "description": "Log inserimento con salta approvazione",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Assenza #{id} inserita con salta_approvazione={salta_approvazione}."
+          }
+        }
+      ]
+    },
+    {
+      "code": "assenze-pa-approvata-avviso-inserimento",
+      "name": "PA import - Avviso inserimento dopo approvazione",
+      "description": "Invia alla mailbox assenze il riepilogo della richiesta quando lo stato passa ad approvato.",
+      "source_code": "assenze",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "moderation_status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "moderation_status",
+          "operator": "changed_to",
+          "expected_value": "0",
+          "value_type": "int",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Riepilogo richiesta approvata alla mailbox assenze",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "avviso@costruzioninovicrom.it",
+            "to": "assenza@costruzioninovicrom.it",
+            "cc": "{capo_email}",
+            "bcc": "",
+            "reply_to": "",
+            "subject_template": "Approvazione {tipo_assenza} di {dipendente_nome}",
+            "body_text_template": "E' stata approvata la seguente richiesta:\nDipendente: {dipendente_nome}\nTipo richiesta: {tipo_assenza}\nPeriodo: {data_inizio} - {data_fine}\nMotivazione: {motivazione_richiesta}",
+            "fail_silently": false
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log avviso approvazione",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Avviso inserimento inviato per assenza approvata #{id}."
+          }
+        }
+      ]
+    },
+    {
+      "code": "assenze-pa-assemblea-sindacale-avviso",
+      "name": "PA import - Assemblea sindacale approvata",
+      "description": "Avvisa le mailbox di ruolo quando una richiesta per assemblea sindacale viene approvata.",
+      "source_code": "assenze",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "moderation_status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "moderation_status",
+          "operator": "changed_to",
+          "expected_value": "0",
+          "value_type": "int",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "motivazione_richiesta",
+          "operator": "equals",
+          "expected_value": "Assemblea sindacale",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Notifica assemblea sindacale approvata",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "avviso@costruzioninovicrom.it",
+            "to": "hr@costruzioninovicrom.it, car@costruzioninovicrom.it, assenza@costruzioninovicrom.it",
+            "cc": "",
+            "bcc": "",
+            "reply_to": "",
+            "subject_template": "Approvazione assemblea sindacale - {data_inizio}",
+            "body_text_template": "Informiamo che e' stata autorizzata l'assenza per assemblea sindacale.\nDipendente: {dipendente_nome}\nPeriodo: {data_inizio} - {data_fine}",
+            "fail_silently": false
+          }
+        }
+      ]
+    },
+    {
+      "code": "assenze-pa-flessibilita-avviso",
+      "name": "PA import - Flessibilita approvata",
+      "description": "Avvisa la mailbox assenze e il dipendente quando viene approvata una richiesta di flessibilita.",
+      "source_code": "assenze",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "moderation_status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "moderation_status",
+          "operator": "changed_to",
+          "expected_value": "0",
+          "value_type": "int",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "tipo_assenza",
+          "operator": "equals",
+          "expected_value": "Flessibilit\u00e0",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Notifica flessibilita approvata",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "avviso@costruzioninovicrom.it",
+            "to": "assenza@costruzioninovicrom.it",
+            "cc": "{dipendente_email}",
+            "bcc": "",
+            "reply_to": "",
+            "subject_template": "Autorizzazione orario flessibile di {dipendente_nome}",
+            "body_text_template": "Il responsabile autorizza l'orario flessibile per {dipendente_nome}.\nPeriodo: {data_inizio} - {data_fine}",
+            "fail_silently": false
+          }
+        }
+      ]
+    },
+    {
+      "code": "assenze-pa-malattia-avviso-capo",
+      "name": "PA import - Avviso malattia al responsabile",
+      "description": "Avvisa il caporeparto quando viene inserita una richiesta di malattia.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "watched_field": "",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "tipo_assenza",
+          "operator": "equals",
+          "expected_value": "Malattia",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "capo_email",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Avvisa il responsabile della malattia",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "avviso@costruzioninovicrom.it",
+            "to": "{capo_email}",
+            "cc": "",
+            "bcc": "",
+            "reply_to": "",
+            "subject_template": "Inserimento malattia di {dipendente_nome}",
+            "body_text_template": "Il dipendente {dipendente_nome} sara' assente per malattia dal {data_inizio} al {data_fine}. Seguiranno eventuali aggiornamenti.",
+            "fail_silently": false
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log avviso malattia",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Avviso malattia inviato al responsabile per assenza #{id}."
+          }
+        }
+      ]
+    }
+  ]
+}

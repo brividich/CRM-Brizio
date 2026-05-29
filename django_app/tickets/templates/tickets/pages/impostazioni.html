@@ -559,9 +559,9 @@ body.theme-dark .tkt-top-cause-empty { color:var(--text-light); }
       </button>
 
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-        <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none" onchange="onCsvFileChosen(this)">
+        <input type="file" id="csv-file-input" accept=".csv,.xlsx,.xlsm,text/csv" style="display:none" onchange="onCsvFileChosen(this)">
         <span class="tkt-save-btn" style="background:#0e7490;" onclick="document.getElementById('csv-file-input').click()">
-          Scegli file CSV…
+          Scegli file CSV/Excel…
         </span>
         <span id="csv-file-name" style="font-size:13px;color:#64748b;">Nessun file scelto</span>
       </label>
@@ -852,6 +852,7 @@ async function importCsv() {
       if (d.created) parts.push(`${d.created} creati`);
       if (d.updated) parts.push(`${d.updated} aggiornati`);
       if (d.skipped) parts.push(`${d.skipped} saltati (duplicati)`);
+      if (d.linked)  parts.push(`${d.linked} collegati ad asset`);
       let html = `<span class="ok">✓ Importazione completata — ${parts.join(", ") || "nessuna modifica"}.</span>`;
       if (d.errors && d.errors.length) {
         html += `<ul>${d.errors.map(e => `<li class="err">${e}</li>`).join("")}</ul>`;

@@ -150,9 +150,10 @@
   padding:14px 18px; color:#991b1b; font-size: var(--fs-base);
 }
 .sic-count-badge {
-  display:inline-block; background:#f1f5f9; color:#64748b;
+  display:inline-block; background:#f1f5f8; color:#64748b;
   padding:2px 8px; border-radius:20px; font-size: var(--fs-sm); font-weight:600;
 }
+.sic-table-scroll { overflow-x:auto; }
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .sic-kpi-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sic-kpi-label { color:var(--text-light); }
@@ -336,6 +337,7 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
       </span>
     </div>
     {% if items %}
+    <div class="sic-table-scroll">
     <table class="sic-table">
       <thead>
         <tr>
@@ -394,6 +396,7 @@ body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(-
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="sic-empty">
       <div class="sic-empty-icon">&#128737;</div>

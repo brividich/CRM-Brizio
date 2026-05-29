@@ -1,0 +1,12 @@
+{% for a in items %}
+<li>
+  <span class="hp-act-ic"></span>
+  <span class="hp-news-body">
+    <span class="hp-news-t">{{ a.title }}</span>
+    <span class="hp-news-m">{{ a.meta }}</span>
+  </span>
+  <span class="hp-news-time">{{ a.ago }}</span>
+</li>
+{% empty %}
+<li class="hp-empty-sm">Nessuna attività recente.</li>
+{% endfor %}

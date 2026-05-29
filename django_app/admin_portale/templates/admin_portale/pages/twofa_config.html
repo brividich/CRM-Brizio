@@ -1,0 +1,298 @@
+{% extends "core/base.html" %}
+
+{% block title %}Autenticazione a due fattori | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.tfa-grid { display: grid; grid-template-columns: minmax(0,1fr) 380px; gap: 20px; max-width: 1280px; }
+@media(max-width:960px) { .tfa-grid { grid-template-columns: 1fr; } }
+.method-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.78rem; font-weight:600; }
+.method-badge.totp { background:#dbeafe; color:#1e40af; }
+.method-badge.email { background:#dcfce7; color:#166534; }
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
+.status-dot.on { background:#22c55e; }
+.status-dot.off { background:#e5e7eb; }
+.user-row td { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Autenticazione a due fattori (2FA)" page_subtitle="Configura la policy globale e gestisci le impostazioni per singolo utente." %}
+
+  {% if messages %}
+    <div style="margin-bottom:16px;">
+      {% for message in messages %}
+        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% elif message.tags == 'warning' %} notice-warning{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="tfa-grid">
+    <!-- Colonna sinistra: policy globale + tabella utenti -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Policy globale -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Policy globale</div>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{% url 'admin_portale:api_twofa_policy_save' %}">
+            {% csrf_token %}
+
+            <div class="field">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" name="enabled" value="1" {% if policy.enabled %}checked{% endif %}> Abilita 2FA
+              </label>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">Se disabilitato, nessun utente viene sottoposto a verifica.</div>
+            </div>
+
+            <div class="field">
+              <label>Quando richiesto</label>
+              <select class="input" name="when_required">
+                <option value="external_only" {% if policy.when_required == "external_only" %}selected{% endif %}>Solo da rete esterna</option>
+                <option value="always" {% if policy.when_required == "always" %}selected{% endif %}>Sempre (interno e esterno)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Reti interne (una per riga, notazione CIDR)</label>
+              <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{{ policy.internal_networks|join:"\n" }}</textarea>
+              <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">
+                Usato solo se "Solo da rete esterna" è selezionato. Accessi da questi range non richiedono 2FA.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Ruoli soggetti a 2FA</label>
+              <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:4px;">
+                {% for ruolo in all_roles %}
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;">
+                  <input type="checkbox" name="required_role_ids" value="{{ ruolo.id }}"
+                    {% if ruolo.id in policy.required_role_ids %}checked{% endif %}>
+                  {{ ruolo.nome }}
+                </label>
+                {% empty %}
+                  <div style="color:var(--text-muted);font-size:.85rem;">Nessun ruolo configurato.</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Metodi ammessi</label>
+              <div style="display:flex;gap:16px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                  <input type="checkbox" name="allowed_methods" value="totp" {% if "totp" in allowed_methods %}checked{% endif %}> App Authenticator (TOTP)
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                  <input type="checkbox" name="allowed_methods" value="email" {% if "email" in allowed_methods %}checked{% endif %}> Email OTP
+                </label>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Durata sessione verificata (secondi)</label>
+              <input class="input" type="number" name="session_validity_seconds" value="{{ policy.session_validity_seconds }}" min="300" step="300" style="max-width:200px;">
+              <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">Quanto a lungo la verifica 2FA rimane valida senza richiedere un nuovo codice. Default: 28800 (8 ore).</div>
+            </div>
+
+            <div style="margin-top:8px;">
+              <button type="submit" class="btn btn-primary">Salva configurazione</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Tabella utenti 2FA -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Stato 2FA per utente</div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <table class="fm-table" style="width:100%;">
+            <thead>
+              <tr>
+                <th>Utente</th>
+                <th>Metodo</th>
+                <th>Configurato</th>
+                <th>Attivo</th>
+                <th>Ultimo uso</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u2f in user_2fa_list %}
+              <tr class="user-row" id="u2f-row-{{ u2f.user.pk }}">
+                <td>{{ u2f.user.username }}</td>
+                <td>
+                  <span class="method-badge {{ u2f.method }}">{{ u2f.get_method_display }}</span>
+                </td>
+                <td>
+                  {% if u2f.method == "totp" %}
+                    {% if u2f.totp_confirmed %}<span style="color:#22c55e;">✓ Sì</span>{% else %}<span style="color:#f59e0b;">In attesa setup</span>{% endif %}
+                  {% else %}
+                    <span style="color:#22c55e;">✓ Pronto</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="status-dot {% if u2f.is_active %}on{% else %}off{% endif %}"></span>
+                  {% if u2f.is_active %}Attivo{% else %}Disabilitato{% endif %}
+                </td>
+                <td>{% if u2f.last_used_at %}{{ u2f.last_used_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                <td>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="toggle2fa({{ u2f.user.pk }}, '{{ u2f.user.username }}')">
+                      {% if u2f.is_active %}Disabilita{% else %}Abilita{% endif %}
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="reset2fa({{ u2f.user.pk }}, '{{ u2f.user.username }}')">Reset OTP</button>
+                    <button class="btn btn-sm" onclick="showMethodModal({{ u2f.user.pk }}, '{{ u2f.user.username }}', '{{ u2f.method }}', '{{ u2f.email_override }}')">Metodo</button>
+                  </div>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nessun utente ha ancora configurato il 2FA.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Colonna destra: info -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Come funziona</div></div>
+        <div class="card-body">
+          <div class="activity-item">
+            <div class="act-dot blue"></div>
+            <div><div class="act-text">Login con credenziali</div><div class="act-time">L'utente accede normalmente con username e password.</div></div>
+          </div>
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div><div class="act-text">Rilevazione rete e ruolo</div><div class="act-time">Il sistema verifica se il ruolo dell'utente è soggetto a 2FA e se accede da una rete esterna (se configurato "Solo rete esterna").</div></div>
+          </div>
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div><div class="act-text">Invio codice o richiesta app</div><div class="act-time">OTP via email (codice 6 cifre, valido 10 min) oppure codice dall'app TOTP.</div></div>
+          </div>
+          <div class="activity-item">
+            <div class="act-dot green"></div>
+            <div><div class="act-text">Accesso concesso</div><div class="act-time">La sessione viene marcata come verificata per la durata configurata.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Azioni rapide</div></div>
+        <div class="card-body">
+          <div style="font-size:.88rem;color:var(--text-muted);margin-bottom:12px;">
+            <strong>Toggle</strong>: abilita/disabilita il 2FA per un utente specifico senza cambiare la policy globale.<br><br>
+            <strong>Reset OTP</strong>: invalida il secret TOTP e forza il re-setup al prossimo accesso. Utile se l'utente ha perso il dispositivo.<br><br>
+            <strong>Metodo</strong>: cambia il metodo (TOTP o Email) e imposta eventuale email alternativa per la ricezione OTP.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal metodo -->
+  <div id="method-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:10px;padding:28px;width:380px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+      <div style="font-weight:700;font-size:1.05rem;margin-bottom:16px;">Impostazioni metodo 2FA</div>
+      <div style="margin-bottom:12px;font-size:.9rem;color:var(--text-muted);">Utente: <strong id="mm-username"></strong></div>
+      <form id="mm-form" method="post">
+        {% csrf_token %}
+        <div class="field">
+          <label>Metodo</label>
+          <select class="input" name="method" id="mm-method">
+            <option value="totp">App Authenticator (TOTP)</option>
+            <option value="email">Email OTP</option>
+          </select>
+        </div>
+        <div class="field" id="mm-email-field">
+          <label>Email alternativa OTP <span style="font-weight:400;color:var(--text-muted)">(lascia vuoto per usare email account)</span></label>
+          <input class="input" type="email" name="email_override" id="mm-email" placeholder="esempio@dominio.it">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button type="button" class="btn btn-primary" onclick="submitMethodModal()">Salva</button>
+          <button type="button" class="btn" onclick="closeMethodModal()">Annulla</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+async function toggle2fa(userId, username) {
+  if (!confirm('Confermi toggle 2FA per ' + username + '?')) return;
+  const r = await fetch(`{% url 'admin_portale:api_twofa_user_toggle' 0 %}`.replace('/0/', '/' + userId + '/'), {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+  });
+  const d = await r.json();
+  if (d.ok) { location.reload(); } else { alert(d.error || 'Errore'); }
+}
+
+async function reset2fa(userId, username) {
+  if (!confirm('Reimposta il 2FA per ' + username + '? L\'utente dovrà riconfigurare l\'app al prossimo accesso.')) return;
+  const r = await fetch(`{% url 'admin_portale:api_twofa_user_reset' 0 %}`.replace('/0/', '/' + userId + '/'), {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+  });
+  const d = await r.json();
+  alert(d.msg || (d.ok ? 'Reset completato.' : 'Errore.'));
+  if (d.ok) location.reload();
+}
+
+let _mmUserId = null;
+function showMethodModal(userId, username, method, emailOverride) {
+  _mmUserId = userId;
+  document.getElementById('mm-username').textContent = username;
+  document.getElementById('mm-method').value = method;
+  document.getElementById('mm-email').value = emailOverride;
+  document.getElementById('method-modal').style.display = 'flex';
+}
+function closeMethodModal() {
+  document.getElementById('method-modal').style.display = 'none';
+  _mmUserId = null;
+}
+
+async function submitMethodModal() {
+  if (!_mmUserId) return;
+  const form = document.getElementById('mm-form');
+  const method = document.getElementById('mm-method').value;
+  const email = document.getElementById('mm-email').value;
+
+  const methodUrl = `{% url 'admin_portale:api_twofa_user_method_set' 0 %}`.replace('/0/', '/' + _mmUserId + '/');
+  const emailUrl = `{% url 'admin_portale:api_twofa_user_email_set' 0 %}`.replace('/0/', '/' + _mmUserId + '/');
+
+  const r1 = await fetch(methodUrl, {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'method=' + encodeURIComponent(method),
+  });
+  const d1 = await r1.json();
+  if (!d1.ok) { alert(d1.error || 'Errore salvataggio metodo.'); return; }
+
+  const r2 = await fetch(emailUrl, {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'email_override=' + encodeURIComponent(email),
+  });
+  const d2 = await r2.json();
+  if (!d2.ok) { alert(d2.error || 'Errore salvataggio email.'); return; }
+
+  closeMethodModal();
+  location.reload();
+}
+</script>
+{% endblock %}

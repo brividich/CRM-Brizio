@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone as dt_timezone
+from django.conf import settings
 from django.db import IntegrityError, models, transaction
 
 from .storage import PrivateTicketStorage
@@ -193,10 +194,16 @@ class Ticket(models.Model):
     )
     asset_descrizione_libera = models.CharField(max_length=300, blank=True)
 
-    # Richiedente (denormalizzato)
+    # Richiedente (denormalizzato + FK utente portale)
     richiedente_nome            = models.CharField(max_length=200)
     richiedente_email           = models.CharField(max_length=200, blank=True)
     richiedente_legacy_user_id  = models.IntegerField(null=True, blank=True)
+    richiedente_user            = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tickets_richiesti",
+    )
 
     # Assegnazione
     assegnato_a     = models.CharField(max_length=200, blank=True)

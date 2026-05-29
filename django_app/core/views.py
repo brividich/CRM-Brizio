@@ -273,6 +273,27 @@ def _notification_panel_context(request) -> dict:
     }
 
 
+def _notification_payload(notifica) -> dict:
+    created_at = getattr(notifica, "created_at", None)
+    if created_at:
+        created_local = timezone.localtime(created_at)
+        created_iso = created_local.isoformat()
+        created_label = created_local.strftime("%d/%m/%Y %H:%M")
+    else:
+        created_iso = ""
+        created_label = ""
+    return {
+        "id": notifica.id,
+        "tipo": notifica.tipo,
+        "tipo_label": notifica.get_tipo_display(),
+        "messaggio": notifica.messaggio,
+        "url_azione": notifica.url_azione or "",
+        "created_at": created_iso,
+        "created_label": created_label,
+        "letta": bool(notifica.letta),
+    }
+
+
 def csrf_failure(request, reason=""):
     """Custom CSRF failure view.
 
@@ -912,6 +933,29 @@ def api_notifiche_popup_ack(request):
 @login_required
 def api_notifiche_panel(request):
     return render(request, "core/components/notification_center_panel.html", _notification_panel_context(request))
+
+
+@login_required
+def api_notifiche_live(request):
+    """Endpoint leggero per badge e popup live delle notifiche in-app."""
+    from core.models import Notifica
+
+    legacy_user_id = _current_legacy_user_id(request)
+    if not legacy_user_id:
+        return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
+    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id)
+    popup_notifications = list(
+        qs.filter(letta=False, popup_shown=False).order_by("-created_at")[:5]
+    )
+    return JsonResponse({
+        "ok": True,
+        "unread_count": qs.filter(letta=False).count(),
+        "popup_notifications": [
+            _notification_payload(notifica)
+            for notifica in popup_notifications
+        ],
+        "poll_after_ms": 15000,
+    })
 
 
 @login_required

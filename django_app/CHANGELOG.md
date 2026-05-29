@@ -2,6 +2,121 @@
 
 ## [Unreleased]
 
+### Autenticazione a due fattori (2FA)
+
+- **[feat] `twofa/` (nuova app)** — modulo 2FA completo con supporto TOTP (app authenticator) ed Email OTP.
+- **[feat] `twofa/models.py`** — `TwoFactorPolicy` (configurazione singleton globale: abilitazione, ruoli soggetti, rete interna/esterna, metodi, durata sessione); `UserTwoFactor` (configurazione per utente: metodo, TOTP secret crittografato Fernet, flag attivo/force_setup); `TwoFactorChallenge` (challenge OTP email con hash SHA-256, TTL, contatore tentativi).
+- **[feat] `twofa/utils.py`** — generazione/verifica TOTP (`pyotp`), generazione QR SVG inline (`qrcode`), generazione/invio/verifica OTP email, detection rete interna via CIDR (`ipaddress`), gestione session flag `twofa_verified_until`, crittografia secret TOTP via Fernet derivato da `SECRET_KEY`.
+- **[feat] `twofa/middleware.py`** — `TwoFactorMiddleware`: intercetta ogni richiesta autenticata con `twofa_pending=True` e reindirizza a `/2fa/verifica/` se la verifica non è stata completata nella sessione corrente.
+- **[feat] `twofa/views.py`** — `verify` (verifica codice TOTP/email; resend OTP; redirect post-verifica); `setup_totp` (setup self-service con QR code + conferma primo codice); `resend_otp` (JSON endpoint reinvio OTP).
+- **[feat] `twofa/templates/twofa/pages/verify.html`** — pagina verifica 2FA (layout login, form codice, pulsante reinvia per email).
+- **[feat] `twofa/templates/twofa/pages/setup_totp.html`** — pagina setup TOTP con QR SVG inline, codice manuale e form conferma.
+- **[feat] `twofa/migrations/0001_initial.py`** — migrazione iniziale per i tre modelli 2FA.
+- **[feat] `admin_portale/views.py`** — view `twofa_config` (pannello admin), `api_twofa_policy_save` (salva policy globale con validazione CIDR), `api_twofa_user_toggle` (attiva/disattiva per utente), `api_twofa_user_reset` (reset OTP/TOTP, forza re-setup), `api_twofa_user_method_set` (cambio metodo), `api_twofa_user_email_set` (email override OTP).
+- **[feat] `admin_portale/templates/admin_portale/pages/twofa_config.html`** — pannello admin: policy globale (abilita, quando, reti CIDR, ruoli, metodi, durata sessione) + tabella utenti con stato, toggle, reset, cambio metodo.
+- **[feat] `admin_portale/urls.py`** — route `/admin-portale/2fa/` e API `api_twofa_*`.
+- **[feat] `core/accounts/views.py`** — `LegacyLoginView.form_valid()` riscritta per intercettare il 2FA dopo autenticazione: se richiesto, salva `twofa_next` e redirige a `/2fa/verifica/` prima del redirect normale.
+- **[config] `config/settings/base.py`** — aggiunto `twofa.apps.TwoFaConfig` a `INSTALLED_APPS`; aggiunto `twofa.middleware.TwoFactorMiddleware` dopo `SetupRequiredMiddleware`; aggiunto `/2fa/` a `MIDDLEWARE_EXEMPT_PREFIXES`.
+- **[config] `config/urls.py`** — aggiunto `path("2fa/", include(("twofa.urls", "twofa"), namespace="twofa"))`.
+- **[dep] `requirements.in` / `requirements.txt`** — aggiunto `pyotp>=2.9` e `qrcode[pil]>=7.4`.
+- **[ux] `admin_portale/templates/admin_portale/pages/index.html`** — aggiunto pulsante "Autenticazione 2FA" nella sezione "Utenti & Accessi" (contatore aggiornato a 6 strumenti).
+- **[ux] `admin_portale/templates/admin_portale/pages/utenti_list.html`** — aggiunta colonna "2FA" con badge stato (TOTP/Email/Setup/Off/—) e pulsante "2FA" in azioni per navigare direttamente alla riga utente nella pagina config.
+- **[feat] `admin_portale/views.py`** — aggiunta funzione `_attach_twofa_to_users()` che arricchisce ogni `UtenteLegacy` con `twofa_info` (metodo, stato attivo, TOTP confirmed) via join `Profile → UserTwoFactor`.
+
+### Tickets - richiedente collegato al dipendente/utente portale
+
+- **[feat] `tickets/models.py`** — aggiunto campo `richiedente_user = ForeignKey(AUTH_USER_MODEL, null=True, blank=True, SET_NULL, related_name="tickets_richiesti")` per collegare il richiedente all'effettivo utente Django.
+- **[feat] `tickets/migrations/0010_richiedente_user_fk.py`** — migrazione per il nuovo campo FK.
+- **[data] `tickets/migrations/0011_backfill_richiedente_user.py`** — data migration di backfill: collega i ticket esistenti all'utente Django tramite la catena `richiedente_legacy_user_id → anagrafica_dipendenti.utente_id → aliasusername → auth_user.username`. Elabora in batch da 500 ticket, salta i ticket senza corrispondenza univoca.
+- **[feat] `tickets/views.py`** — `ticket_nuovo`: popola `richiedente_user=request.user` alla creazione. `_ticket_access_flags`, `ticket_aggiungi_commento`, `ticket_aggiungi_allegato`: il check `is_richiedente` include `richiedente_user_id == request.user.id` come condizione primaria. `gestione_list`: annotato queryset con `richiedente_anagrafica_id` via Subquery su `AnagraficaDipendente.aliasusername`. `ticket_detail`, `ticket_gestione_detail`: lookup `richiedente_anagrafica_id` e passaggio a context.
+- **[ux] `tickets/templates/tickets/pages/gestione_list.html`** — cella Richiedente mostra link alla scheda dipendente se `richiedente_anagrafica_id` disponibile.
+- **[ux] `tickets/templates/tickets/pages/gestione_detail.html`** — card hero e sidebar richiedente mostrano link alla scheda dipendente.
+- **[ux] `tickets/templates/tickets/pages/detail.html`** — richiedente mostra link alla scheda dipendente.
+
+### Anomalie - rimozione integrazione SharePoint/Microsoft Graph
+
+- **[refactor] `anomalie/views.py`** — rimossi tutti i blocchi relativi a SharePoint/Microsoft Graph: funzioni `_graph_*`, `_sp_*`, `_sharepoint_*`, `_can_sync_anomalie`, `api_sync` (sostituita con stub 410). Rimossi import `requests` e `acquire_graph_token`. Rimosso tracking metadata sync allegati (`_attachment_sync_meta_path`, `_mark_attachment_pending`, `_remove_attachment_sync_meta_entry`, `_pending_attachment_local_ids`, `_sync_attachments_for_local` e relative costanti). Semplificata `_list_attachments_for_local` (nessun campo `sync_status`). Rimosso `sync_status` dalla response di `api_salva`.
+- **[refactor] `anomalie/templates/anomalie/pages/gestione_anomalie_react.html`** — rimossa variabile stato `syncing` non più utilizzata.
+- **[refactor] `anomalie/templates/anomalie/pages/gestione_anomalie.html`** — endpoint API descritto con placeholder esplicito anziché `...`.
+- **[test] `anomalie/tests.py`** — rimossa classe `AnomalieSharePointSyncTests` e i test `test_config_page_shows_sharepoint_config_card` / `test_config_page_can_save_sharepoint_config`. Rimosso il patch `_graph_config_issue` da `test_page_keeps_filter_querystring_for_frontend`. Rimossi import inutilizzati (`shutil`, `Path`, `uuid4`, `_make_workspace_tempdir`).
+
+### Anagrafica - fix filtro Reparto vuoto in Ratei e Retribuzioni globale
+
+- **[fix] `anagrafica/views.py`** — `ratei_list` e `ratei_export`: aggiunto fallback CF→legacy_id via `DipendenteAnagraficaCivile` (per cedolini senza `legacy_anagrafica_id` valorizzato) e fallback reparto via `DipendenteAnagraficaAziendale.area` quando `AnagraficaDipendente.reparto` è vuoto. Il filtro Reparto ora si popola correttamente anche per i dipendenti migrati al nuovo modello.
+- **[fix] `anagrafica/views.py`** — `_retribuzioni_globale_context`: aggiunto fallback reparto via `DipendenteAnagraficaAziendale.area`, coerente con la logica di `ratei_list`.
+
+### Assenze - richiesta con caporeparto HR e regole orario
+
+- **[fix/ux] `assenze/views.py`**: `_load_capi_options()` privilegia i caporeparto definiti nei Reparti di Anagrafica HR; il default del form usa il caporeparto effettivo salvato su `DipendenteAnagraficaAziendale`/Reparto per il dipendente corrente, con fallback legacy esistenti.
+- **[fix] `assenze/views.py`**: default data inizio/fine sul giorno corrente; le ferie vengono salvate come giornate intere `00:00-23:59` e i permessi multi-giorno sono respinti lato server.
+- **[ux] `assenze/templates/assenze/pages/richiesta_assenze.html`**: il cambio tipo applica i default coerenti lato browser: ferie a giornata intera, permesso nello stesso giorno.
+- **[test] `assenze/tests.py`**: regressioni su fonte caporeparto Anagrafica HR, default giorno corrente, normalizzazione ferie e blocco permesso multi-giorno.
+
+### Admin Portale - utenti fullpage
+
+- **[ux] `admin_portale/templates/admin_portale/pages/utenti_list.html`**: `/admin-portale/utenti/` passa a una workspace fullpage con form nuovo utente richiudibile, filtri compatti, toolbar azioni massive e tabella utenti con scroll interno.
+- **[test] `admin_portale/tests.py`**: aggiunta regressione sul render della shell fullpage della lista utenti.
+
+### Core - notifiche live con popup in-app
+
+- **[feat] `core/views.py`, `core/urls.py`**: aggiunto endpoint `api_notifiche_live` (`/api/notifiche/live/`) che restituisce contatore non lette e notifiche non ancora mostrate come popup, filtrate sull'utente legacy corrente.
+- **[ux] `core/templates/core/base.html`, `core/templates/core/components/topnav.html`, `core/templates/core/components/sidebar.html`, `core/static/core/css/theme.css`**: il layout globale aggiorna badge topbar/sidebar via polling, mostra popup live in-app senza refresh e rinfresca il pannello notifiche quando arrivano nuovi eventi.
+- **[test] `core/tests.py`**: regressioni su endpoint live, ack popup limitato all'utente corrente, rendering del client globale e flusso pannello/mark-read.
+
+### Anagrafica HR - offboarding compatto a data unica
+
+- **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: nella hero della scheda dipendente il form offboarding mostra una sola "Data uscita"; il menu restituzioni e ora compatto e si apre solo quando serve.
+- **[fix] `anagrafica/views.py`**: se il form non passa `ultimo_giorno_operativo`, la pratica lo valorizza con la stessa data uscita per mantenere compatibilita con il dato storico senza chiedere una seconda data all'utente.
+- **[test] `anagrafica/tests.py`**: aggiornata la regressione del flusso offboarding a data unica e verifica che il secondo input data non sia piu renderizzato.
+
+### Anagrafica - auto-fill visivo area aziendale e caporeparto nel form
+
+- **[feat] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: nel form "Modifica dati aziendali", aggiunti due campi read-only (`Area aziendale`, `Caporeparto`) che si popolano automaticamente via JavaScript al cambio del dropdown Reparto — senza attendere il salvataggio.
+- **[refactor] `anagrafica/forms.py`**: `area_aziendale_nome` e `caporeparto_legacy_id` esclusi da `AnagraficaAziendaleForm.exclude` — sono campi auto-gestiti server-side da `_sync_aziendale_from_reparto` e non devono essere modificabili manualmente nel form.
+- **[feat] `anagrafica/views.py`**: in `dipendente_detail`, la chiamata a `_dipendenti_picker_rows()` è ora incondizionale; costruita mappa `reparto_autofill_json` (reparto → area aziendale + label caporeparto) passata al template per il JS.
+
+### Anagrafica - fix auto-fill area aziendale e caporeparto al salvataggio
+
+- **[fix] `anagrafica/views.py`**: `dipendente_anagrafica_aziendale_save` ora chiama `_sync_aziendale_from_reparto` dopo il save del form — area aziendale e caporeparto vengono popolati automaticamente dal catalogo Reparto quando si modifica l'anagrafica aziendale del dipendente.
+
+### Anagrafica - fix dropdown reparto in modifica anagrafica aziendale
+
+- **[fix] `anagrafica/forms.py`**: `AnagraficaAziendaleForm.__init__` ora popola il dropdown `area` (Reparto) da `Reparto.objects.filter(is_active=True)` invece di `AreaAziendale` (che è il modello genitore di livello superiore, sempre vuoto). Aggiunto `Reparto` agli import del modulo.
+
+### Anagrafica - fix sincronizzazione lista reparti in Impostazioni
+
+- **[fix] `anagrafica/views.py`**: nella view `impostazioni`, la variabile `aree` ora carica `Reparto.objects.all()` invece di `AreaAziendale.objects.all()`. Il form di creazione reparto creava correttamente oggetti `Reparto`, ma la lista della pagina mostrava `AreaAziendale` (tabella separata, sempre vuota), causando "Nessun reparto registrato" dopo ogni inserimento nonostante il toast di successo. Aggiunto `aree_aziendali` al contesto.
+- **[feat] `anagrafica/templates/anagrafica/pages/impostazioni.html`**: aggiunto select "Area aziendale" nel form di creazione reparto e nel modale di modifica; le righe lista ora mostrano il badge area (o avviso "Nessuna area").
+- **[feat] `anagrafica/templates/anagrafica/pages/impostazioni.html`, `anagrafica/views.py`**: aggiunta tab "Aree aziendali" nel pannello Impostazioni con form creazione (nome, descrizione, colore) e modale modifica/elimina — usa i CRUD `area_aziendale_create/edit/delete` già esistenti via `next_tab`.
+
+### Anagrafica HR come fonte di verità per i caporeparto
+
+- **[feat] `anagrafica/views.py`**: aggiunto helper `_sync_reparto_capo_mapping(rep)` che allinea `RepartoCapoMapping` (usata da assenze e automazioni) ogni volta che viene salvato un `Reparto` con `caporeparto_legacy_id`; usa `canonical_caporeparto_value` per ricavare la stringa email/nome dal legacy_id.
+- **[feat] `anagrafica/views.py`**: `area_create` e `area_edit` chiamano `_sync_reparto_capo_mapping` dopo ogni salvataggio — Anagrafica HR diventa fonte di verità unica per i caporeparto.
+- **[feat] `anagrafica/management/commands/sync_reparto_capo_mapping.py`**: nuovo command per sync bulk immediata di tutti i `Reparto` → `RepartoCapoMapping`; supporta `--dry-run`.
+- **[remove] `admin_portale/templates/admin_portale/pages/anagrafica_config.html`**: rimossa la card "Associazioni Reparto → Capo Reparto", il relativo modal e il blocco JS — la gestione avviene ora esclusivamente in Anagrafica HR → Impostazioni → Reparti.
+
+### admin_portale - rimozione pagina Anagrafica Config
+
+- **[remove] `admin_portale/views.py`**: rimosse le view `anagrafica_config` e `anagrafica_import_csv` (import CSV dipendenti ora eseguibile solo via management command `import_dipendenti_csv`).
+- **[remove] `admin_portale/urls.py`**: rimossi i path `anagrafica-config/` e `anagrafica-config/import-csv`.
+- **[remove] `admin_portale/templates/admin_portale/pages/anagrafica_config.html`**, **`anagrafica_config_fallback.html`**: template eliminati.
+- **[remove] `admin_portale/templates/admin_portale/pages/index.html`**: rimosso il modulo "Anagrafica Config" dalla griglia Configurazione (contatore 3→2).
+- **[remove] `admin_portale/templates/admin_portale/pages/utente_edit.html`**: rimosso il link "Configura liste →" dalla sezione Organizzazione.
+- **[migration] `core/migrations/0055_remove_anagrafica_config_nav.py`**: disattiva il `NavigationItem` con `route_name="admin_portale:anagrafica_config"` per evitare errori di reverse URL.
+- **[fixture] `fixtures/nav_acl_snapshot.json`**, **`core/management/commands/seed_pulsanti_descrizioni.py`**: rimossi i riferimenti ad `anagrafica_config`.
+
+### Automazioni - split giornaliero Assenze
+
+- **[feat] `automazioni`**: aggiunta l'action `split_assenza_giornaliera` per creare record giornalieri derivati sulla tabella SQL Server `assenze`, con deduplica runtime, dry-run queue/import package e configurazione nel designer.
+- **[package/docs] `docs/automation_packages/assenze_calendario_avviso_inserimento.automation_package.json`**: il package Power Automate calendario assenze usa lo split nei rami approvato e salta-approvazione.
+- **[test] `automazioni/tests.py`**: aggiunte regressioni su creazione righe derivate e idempotenza.
+
+### Automazioni - designer diagramma workspace leggibile
+
+- **[ux] `automazioni/templates/automazioni/pages/rule_designer.html`**: ripuliti i simboli corrotti nel pulsante e nella toolbar del diagramma (`PNG`, `Chiudi`, `+ Aggiungi azione`) e stabilizzato il workspace full-viewport con inspector sinistro senza overflow orizzontale, campi inline a colonna singola, body/html lock e maniglia drag CSS.
+- **[test] `automazioni/tests.py`**: aggiunta regressione sul rendering dei testi puliti del diagramma e sull'assenza dei vecchi label corrotti.
+
 ### Assets - rinomina massiva solo nome asset
 
 - **[ops] `assets/management/commands/rename_asset_names.py`**: nuovo command per esportare un template CSV `asset_tag;current_name;new_name` e aggiornare solo `Asset.name` da CSV, con dry-run di default e commit esplicito.
@@ -82,6 +197,7 @@
 - **[fix] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: chiave `sessionStorage` per le tab interne portata da globale (`dp_detail_tab_v1`) a per-dipendente (`dp_detail_tab_<legacy_id>_v1`); impedisce che l'ultima tab visitata su un dipendente si apra anche su un altro dipendente.
 - **[feat] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: aggiunta modifica `aliasusername` inline (tab Riepilogo, campo "Username", solo admin) - stessa UX di mansione/reparto: edit -> form inline -> Salva; validazione unicita, storico cambiamento.
 - **[feat] `anagrafica/views.py`, `anagrafica/urls.py`, `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: aggiunto toggle Disattiva/Riattiva dipendente nell'hero (solo admin) - imposta `attivo=0/1` nel campo legacy; la disattivazione scollega anche l'account portale (`detach_account=True`); operazione reversibile con conferma JS.
+
 ### Archivio documenti dipendente
 
 - **[fix] `anagrafica/views.py`**: corretto il 500 su upload manuale documento dipendente (`Path` usato senza import); l'audit `DOCUMENTO_DIPENDENTE_UPLOAD` ora passa un payload dict invece di una stringa.

@@ -1,0 +1,67 @@
+{
+  "flow_name": "Visite mediche - notifica esiti critici",
+  "package_version": "1.0",
+  "source_candidate": {
+    "source_code": "anagrafica_visite_mediche"
+  },
+  "approved_field_mapping": {
+    "id": "id",
+    "legacy_anagrafica_id": "legacy_anagrafica_id",
+    "tipo_id": "tipo_id",
+    "data_svolgimento": "data_svolgimento",
+    "data_scadenza": "data_scadenza",
+    "esito": "esito",
+    "prescrizioni": "prescrizioni",
+    "medico_competente": "medico_competente",
+    "note": "note"
+  },
+  "compatibility": true,
+  "issues": [],
+  "proposed_rules": [
+    {
+      "code": "visite-mediche-non-idoneo-notifica-hr-rspp",
+      "name": "Visita medica non idonea - notifica HR/RSPP",
+      "description": "Avvisa HR e RSPP quando viene registrata una visita medica con esito di non idoneita.",
+      "source_code": "anagrafica_visite_mediche",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "esito",
+          "operator": "in_csv",
+          "expected_value": "NON_IDONEO_TEMP,NON_IDONEO_DEF",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email HR/RSPP",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "hr@costruzioninovicrom.it,rspp@costruzioninovicrom.it",
+            "subject_template": "Esito visita medica da verificare - dipendente {legacy_anagrafica_id}",
+            "body_text_template": "E stata registrata una visita medica con esito da verificare.\n\nDipendente legacy ID: {legacy_anagrafica_id}\nTipo visita ID: {tipo_id}\nData svolgimento: {data_svolgimento}\nData scadenza: {data_scadenza}\nEsito: {esito}\nMedico competente: {medico_competente}\nPrescrizioni: {prescrizioni}\nNote: {note}\n\nVerificare le azioni necessarie nel modulo Anagrafica HR."
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log esito visita",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Visita medica {id} con esito {esito} notificata a HR/RSPP."
+          }
+        }
+      ]
+    }
+  ]
+}

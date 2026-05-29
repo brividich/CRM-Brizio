@@ -93,10 +93,10 @@
         <span aria-hidden="true">AI</span>
       </a>
 
-      <button type="button" class="nav-icon nav-notify-btn" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}" data-notification-toggle>
+      <button type="button" class="nav-icon nav-notify-btn" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}" data-notification-toggle data-notification-badge-host>
         <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}
-          <span class="nav-icon-badge" aria-hidden="true">{{ notifiche_count }}</span>
+          <span class="nav-icon-badge" aria-hidden="true" data-notification-badge>{{ notifiche_count }}</span>
         {% endif %}
       </button>
 

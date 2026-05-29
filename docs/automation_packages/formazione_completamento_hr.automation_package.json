@@ -1,0 +1,77 @@
+{
+  "flow_name": "Formazione - notifica completamento corso",
+  "package_version": "1.0",
+  "source_candidate": {
+    "source_code": "anagrafica_formazione_record"
+  },
+  "approved_field_mapping": {
+    "legacy_anagrafica_id": "legacy_anagrafica_id",
+    "data_completamento": "data_completamento",
+    "ore_frequentate": "ore_frequentate",
+    "idoneo": "idoneo",
+    "data_scadenza": "data_scadenza",
+    "course_code_snapshot": "course_code_snapshot",
+    "course_title_snapshot": "course_title_snapshot",
+    "plan_code_snapshot": "plan_code_snapshot",
+    "plan_name_snapshot": "plan_name_snapshot",
+    "teacher_name_snapshot": "teacher_name_snapshot"
+  },
+  "compatibility": true,
+  "issues": [],
+  "proposed_rules": [
+    {
+      "code": "formazione-record-completato-notifica-hr",
+      "name": "Completamento formazione - notifica HR",
+      "description": "Avvisa HR Formazione quando viene creato un record di completamento idoneo.",
+      "source_code": "anagrafica_formazione_record",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "stop_on_first_failure": false,
+      "is_active": false,
+      "is_draft": true,
+      "conditions": [
+        {
+          "order": 1,
+          "field_name": "idoneo",
+          "operator": "is_true",
+          "expected_value": "",
+          "value_type": "bool",
+          "compare_with_old": false,
+          "is_enabled": true
+        },
+        {
+          "order": 2,
+          "field_name": "course_title_snapshot",
+          "operator": "is_not_empty",
+          "expected_value": "",
+          "value_type": "string",
+          "compare_with_old": false,
+          "is_enabled": true
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Email HR Formazione",
+          "is_enabled": true,
+          "config_json": {
+            "from_email": "noreply@costruzioninovicrom.it",
+            "to": "formazione@costruzioninovicrom.it",
+            "subject_template": "Formazione completata - dipendente {legacy_anagrafica_id}",
+            "body_text_template": "Nuovo completamento formazione registrato.\n\nDipendente legacy ID: {legacy_anagrafica_id}\nCorso: {course_code_snapshot} - {course_title_snapshot}\nPiano: {plan_code_snapshot} - {plan_name_snapshot}\nDocente: {teacher_name_snapshot}\nData completamento: {data_completamento}\nOre frequentate: {ore_frequentate}\nScadenza: {data_scadenza}"
+          }
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log completamento formazione",
+          "is_enabled": true,
+          "config_json": {
+            "message_template": "Completamento formazione {course_code_snapshot} per dipendente {legacy_anagrafica_id}."
+          }
+        }
+      ]
+    }
+  ]
+}

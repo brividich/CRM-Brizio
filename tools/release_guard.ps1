@@ -7,7 +7,10 @@ param(
     # -WithLive abilita i contract test livello B (toccano Graph/LDAP/SMTP reali).
     # Usare prima di un release significativa o quando si sospetta una rotazione
     # di credenziali. Richiede config\.env.test con integrazioni configurate.
-    [switch]$WithLive
+    [switch]$WithLive,
+    # -WithTests abilita la test suite Django e i contract test.
+    # Di default i test sono saltati per velocizzare la build locale.
+    [switch]$WithTests
 )
 
 Set-StrictMode -Version Latest
@@ -128,7 +131,7 @@ function Invoke-GuardCommand {
     }
 }
 
-function Require-File {
+function Assert-FileExists {
     param(
         [string]$Path,
         [string]$Label
@@ -193,7 +196,7 @@ function Resolve-Python {
 }
 
 $versionPath = Join-Path $SourcePath "VERSION"
-if (-not (Require-File -Path $versionPath -Label "VERSION")) {
+if (-not (Assert-FileExists -Path $versionPath -Label "VERSION")) {
     exit 1
 }
 $version = Read-FirstLine $versionPath
@@ -221,7 +224,7 @@ $paths = @{
 }
 
 foreach ($entry in $paths.GetEnumerator()) {
-    [void](Require-File -Path $entry.Value -Label $entry.Key)
+    [void](Assert-FileExists -Path $entry.Value -Label $entry.Key)
 }
 
 $readmeText = Read-Text $paths.Readme
@@ -417,35 +420,102 @@ if (-not $pythonExe) {
     $aclArtifact = Join-Path $ArtifactDir "acl_report_latest.json"
     $deploymentArtifact = Join-Path $ArtifactDir "deployment_validation_latest.json"
 
-    [void](Invoke-GuardCommand `
-        -PythonExe $pythonExe `
-        -ManagePy $djangoManage `
-        -Arguments @("check", "--settings=config.settings.test") `
-        -Label "Django check")
+    # Raccoglie il risultato di un job parallelo e aggiunge eventuali fallimenti.
+    function Receive-GuardJobResult {
+        param(
+            [System.Management.Automation.Job]$Job,
+            [string]$Label,
+            [string[]]$FailOnPattern = @(),
+            [string]$FailOnMessage = ""
+        )
+        $r = Receive-Job -Job $Job -Wait -AutoRemoveJob
+        $exitCode = if ($null -eq $r) { -1 } else { [int]$r.ExitCode }
+        $output   = if ($null -eq $r) { @() } else { @($r.Output) }
+        if ($exitCode -ne 0) {
+            $script:failures.Add("$Label fallito con exit code $exitCode")
+            Write-Host "[release_guard][FAIL] $Label fallito con exit code $exitCode" -ForegroundColor Red
+            if (-not $Quiet) { $output | ForEach-Object { Write-Host "  $_" } }
+            return
+        }
+        if ($FailOnPattern.Count -gt 0) {
+            $outputText = $output -join "`n"
+            foreach ($pattern in $FailOnPattern) {
+                if ([regex]::IsMatch($outputText, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+                    $msg = if ($FailOnMessage) { $FailOnMessage } else { "$Label ha prodotto output non valido: $pattern" }
+                    $script:failures.Add($msg)
+                    Write-Host "[release_guard][FAIL] $msg" -ForegroundColor Red
+                    if (-not $Quiet) { $output | ForEach-Object { Write-Host "  $_" } }
+                    return
+                }
+            }
+        }
+        Write-GuardInfo "$Label OK"
+    }
 
-    [void](Invoke-GuardCommand `
-        -PythonExe $pythonExe `
-        -ManagePy $djangoManage `
-        -Arguments @("makemigrations", "--check", "--dry-run") `
-        -Label "makemigrations --check")
+    # ── WAVE 1: check stateless in parallelo ──────────────────────────────────
+    # check, makemigrations --check e secret_hygiene_check non toccano il test DB
+    # condiviso e possono girare in background mentre la test suite avanza.
+    # I contract test usano un loro DB isolato (test_<name>): stessa logica.
+    Write-GuardInfo "WAVE 1: avvio in background check, migrations, hygiene e contract tests..."
 
-    # La discovery globale da repo root non entra in django_app/ (non e un package);
-    # il gate usa quindi le app project-critical gia validate e blocca comunque
-    # qualsiasi output Django che indichi zero test scoperti.
-    [void](Invoke-GuardCommand `
-        -PythonExe $pythonExe `
-        -ManagePy $djangoManage `
-        -Arguments @("test", "core", "tasks", "attrezzature", "monitoring.tests", "monitoring.test_health", "--settings=config.settings.test") `
-        -Label "Django test suite" `
-        -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
-        -FailOnOutputMessage "Test gate invalid because Django discovered zero tests.")
+    $jobCheck = Start-Job -ScriptBlock {
+        Set-Location $using:SourcePath
+        $out = & $using:pythonExe $using:djangoManage check --settings=config.settings.test 2>&1 | ForEach-Object { "$_" }
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+    }
 
-    [void](Invoke-GuardCommand `
-        -PythonExe $pythonExe `
-        -ManagePy $djangoManage `
-        -Arguments @("secret_hygiene_check") `
-        -Label "secret_hygiene_check")
+    $jobMigrations = Start-Job -ScriptBlock {
+        Set-Location $using:SourcePath
+        $out = & $using:pythonExe $using:djangoManage makemigrations --check --dry-run 2>&1 | ForEach-Object { "$_" }
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+    }
 
+    $jobHygiene = Start-Job -ScriptBlock {
+        Set-Location $using:SourcePath
+        $out = & $using:pythonExe $using:djangoManage secret_hygiene_check 2>&1 | ForEach-Object { "$_" }
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+    }
+
+    if (-not $WithTests) {
+        Write-GuardInfo "WARN: -WithTests non specificato - test suite e contract tests SALTATI."
+        Write-Host "[release_guard][WARN] Test suite saltata. Usa -WithTests per eseguirla." -ForegroundColor Yellow
+        $jobContracts = $null
+    } else {
+        # Contract test: usano DB isolato (test_<name>), compatibili col background.
+        # --parallel sfrutta i core disponibili per ridurre il tempo di esecuzione.
+        $jobContracts = Start-Job -ScriptBlock {
+            Set-Location $using:SourcePath
+            $out = & $using:pythonExe $using:djangoManage test core.contract_tests --settings=config.settings.test --parallel 2>&1 | ForEach-Object { "$_" }
+            [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+        }
+
+        # Test suite principale (foreground): --parallel usa i core disponibili.
+        # manage.py test crea un DB isolato (test_<name>) distinto dal test DB
+        # di bootstrap_acl_v2, quindi non interferisce con i job paralleli.
+        # La discovery globale da repo root non entra in django_app/ (non e un package);
+        # il gate usa le app project-critical gia validate.
+        [void](Invoke-GuardCommand `
+            -PythonExe $pythonExe `
+            -ManagePy $djangoManage `
+            -Arguments @("test", "core", "tasks", "attrezzature", "monitoring.tests", "monitoring.test_health", "--settings=config.settings.test", "--parallel") `
+            -Label "Django test suite" `
+            -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
+            -FailOnOutputMessage "Test gate invalid because Django discovered zero tests.")
+    }
+
+    # Raccolta Wave 1
+    Receive-GuardJobResult -Job $jobCheck       -Label "Django check"
+    Receive-GuardJobResult -Job $jobMigrations  -Label "makemigrations --check"
+    Receive-GuardJobResult -Job $jobHygiene     -Label "secret_hygiene_check"
+    if ($null -ne $jobContracts) {
+        Receive-GuardJobResult -Job $jobContracts -Label "Contract tests (livello A)" `
+            -FailOnPattern @("Found 0 test", "NO TESTS RAN") `
+            -FailOnMessage "Contract tests gate invalid: zero tests scoperti."
+    }
+
+    # ── WAVE 2: bootstrap + ACL coverage + validation (sequenziali) ──────────
+    # Queste operazioni scrivono/leggono il test DB condiviso e devono restare
+    # sequenziali tra loro. Girano dopo Wave 1 per garantire che il DB sia pronto.
     [void](Invoke-GuardCommand `
         -PythonExe $pythonExe `
         -ManagePy $djangoManage `
@@ -475,18 +545,6 @@ if (-not $pythonExe) {
         -Arguments $deploymentValidationArgs `
         -Label "validate_deployment JSON artifact" `
         -ArtifactPath $deploymentArtifact)
-
-    # Contract test livello A — sempre eseguiti (offline, deterministici).
-    # Sono gia' parte di "Django test suite" via discovery di core/, ma li
-    # rilanciamo isolati per renderli visibili nei log e per fail-fast su
-    # regressioni di contratto.
-    [void](Invoke-GuardCommand `
-        -PythonExe $pythonExe `
-        -ManagePy $djangoManage `
-        -Arguments @("test", "core.contract_tests", "--settings=config.settings.test") `
-        -Label "Contract tests (livello A)" `
-        -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
-        -FailOnOutputMessage "Contract tests gate invalid: zero tests scoperti.")
 
     if ($WithLive) {
         Write-GuardInfo "Eseguo contract test livello B (live integration). Richiedono credenziali reali."

@@ -2,8 +2,176 @@
 
 {% block title %}Gestione Utenti | Admin Portale{% endblock %}
 
+{% block body_class %}{{ block.super }} admin-users-fullpage{% endblock %}
+
 {% block extra_head %}
 <style>
+  .admin-users-fullpage .content {
+    width: 100%;
+    max-width: none;
+    padding: 14px 16px 16px;
+  }
+  .users-fullpage-shell {
+    min-height: calc(100vh - var(--nav-h, 60px) - var(--subnav-h, 44px) - 30px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .users-page-top {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .users-fullpage-shell .page-header {
+    margin-bottom: 0;
+  }
+  .users-create-panel,
+  .users-filter-bar,
+  .users-table-shell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+  .users-create-panel {
+    overflow: hidden;
+  }
+  .users-create-summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 14px;
+    cursor: pointer;
+    font-weight: 800;
+    color: var(--text);
+    list-style: none;
+  }
+  .users-create-summary::-webkit-details-marker {
+    display: none;
+  }
+  .users-create-summary::after {
+    content: "+";
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--text-mid);
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .users-create-panel[open] .users-create-summary::after {
+    content: "-";
+  }
+  .users-create-body {
+    padding: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .users-create-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .users-create-grid .field {
+    min-width: 0;
+  }
+  .users-create-grid .field-checks {
+    grid-column: span 2;
+  }
+  .users-create-grid .field-actions {
+    justify-content: flex-end;
+  }
+  .users-filter-bar {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+  .users-filter-bar .field {
+    flex: 1 1 180px;
+    min-width: 160px;
+  }
+  .users-filter-bar .users-filter-search {
+    flex-basis: 280px;
+  }
+  .users-filter-bar .field-actions {
+    flex: 0 0 auto;
+  }
+  .users-table-shell {
+    flex: 1 1 auto;
+    min-height: 420px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .users-table-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .users-toolbar-title {
+    min-width: 0;
+  }
+  .users-table-title {
+    font-size: var(--fs-md);
+    font-weight: 800;
+    color: var(--text);
+  }
+  .users-table-count {
+    margin-top: 2px;
+    color: var(--text-light);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+  }
+  .users-bulk-actions {
+    justify-content: flex-end;
+  }
+  .users-table-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .users-table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: auto;
+  }
+  .users-table {
+    min-width: 1260px;
+  }
+  .users-table thead th {
+    z-index: 2;
+  }
+  .users-table td {
+    white-space: nowrap;
+  }
+  .users-table td[data-col="nome"],
+  .users-table td[data-col="email"],
+  .users-table td[data-col="reparto"],
+  .users-table td[data-col="mansione"] {
+    white-space: normal;
+    min-width: 130px;
+  }
+  .users-row-actions {
+    min-width: 520px;
+  }
+  .users-pagination {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
   .col-picker-wrap { position: relative; }
   .col-picker-panel {
     position: absolute;
@@ -32,6 +200,52 @@
     font-size: 12px;
     padding: 3px 0;
   }
+  body.theme-dark .col-picker-panel {
+    background: var(--surface);
+  }
+  @media (max-width: 1200px) {
+    .users-create-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .users-create-grid .field-checks {
+      grid-column: span 2;
+    }
+    .users-table-toolbar {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .users-bulk-actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+  }
+  @media (max-width: 760px) {
+    .admin-users-fullpage .content {
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+    .users-create-grid,
+    .users-filter-bar {
+      grid-template-columns: 1fr;
+    }
+    .users-filter-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .users-create-grid .field-checks {
+      grid-column: auto;
+    }
+    .users-filter-bar .field,
+    .users-filter-bar .field-actions {
+      flex: 1 1 100%;
+    }
+    .users-filter-bar .field-actions .btn {
+      flex: 1 1 auto;
+    }
+    .users-table-shell {
+      min-height: 520px;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -40,59 +254,52 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Gestione Utenti" page_subtitle="Creazione utenti, assegnazione ruoli e azioni rapide operative." %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% url 'admin_portale:ldap_import_utenti' as ldap_import_url %}
+  <div class="users-fullpage-shell">
+    <div class="users-page-top">
+      {% include "admin_portale/components/page_header.html" with page_title="Gestione Utenti" page_subtitle="Creazione utenti, assegnazione ruoli e azioni rapide operative." page_action_label="Importa da LDAP / AD" page_action_url=ldap_import_url %}
+      {% include "admin_portale/components/flash_messages.html" %}
 
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">Nuovo Utente</div>
-      <div class="admin-inline-actions">
-        <a href="{% url 'admin_portale:ldap_import_utenti' %}" class="btn btn-secondary btn-sm">Importa da LDAP / AD</a>
-      </div>
-    </div>
-    <div class="card-body">
-      <form method="post" action="{% url 'admin_portale:utente_create' %}" class="admin-form-grid">
-        {% csrf_token %}
-        <div class="field">
-          <label for="nuovo_nome">Nome</label>
-          <input class="input" type="text" id="nuovo_nome" name="nome" required>
+      <details class="users-create-panel">
+        <summary class="users-create-summary">Nuovo Utente</summary>
+        <div class="users-create-body">
+          <form method="post" action="{% url 'admin_portale:utente_create' %}" class="admin-form-grid users-create-grid">
+            {% csrf_token %}
+            <div class="field">
+              <label for="nuovo_nome">Nome</label>
+              <input class="input" type="text" id="nuovo_nome" name="nome" required>
+            </div>
+            <div class="field">
+              <label for="nuovo_email">Email</label>
+              <input class="input" type="email" id="nuovo_email" name="email">
+            </div>
+            <div class="field">
+              <label for="nuovo_ruolo_id">Ruolo</label>
+              <select class="input" id="nuovo_ruolo_id" name="ruolo_id">
+                <option value="">-- Nessuno --</option>
+                {% for ruolo in roles %}
+                  <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="nuova_password">Password iniziale</label>
+              <input class="input" type="password" id="nuova_password" name="password_iniziale" autocomplete="new-password">
+            </div>
+            <div class="field field-checks">
+              <label class="checkline"><input type="checkbox" name="attivo" checked> Attivo</label>
+              <label class="checkline"><input type="checkbox" name="deve_cambiare_password" checked> Force change password</label>
+              <label class="checkline"><input type="checkbox" name="ad_managed"> Account AD managed</label>
+            </div>
+            <div class="field field-actions">
+              <button class="btn" type="submit">Crea utente</button>
+            </div>
+          </form>
         </div>
-        <div class="field">
-          <label for="nuovo_email">Email</label>
-          <input class="input" type="email" id="nuovo_email" name="email">
-        </div>
-        <div class="field">
-          <label for="nuovo_ruolo_id">Ruolo</label>
-          <select class="input" id="nuovo_ruolo_id" name="ruolo_id">
-            <option value="">-- Nessuno --</option>
-            {% for ruolo in roles %}
-              <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="nuova_password">Password iniziale</label>
-          <input class="input" type="password" id="nuova_password" name="password_iniziale" autocomplete="new-password">
-        </div>
-        <div class="field field-checks">
-          <label class="checkline"><input type="checkbox" name="attivo" checked> Attivo</label>
-          <label class="checkline"><input type="checkbox" name="deve_cambiare_password" checked> Force change password</label>
-          <label class="checkline"><input type="checkbox" name="ad_managed"> Account AD managed</label>
-        </div>
-        <div class="field field-actions">
-          <button class="btn" type="submit">Crea utente</button>
-        </div>
-      </form>
-    </div>
-  </div>
+      </details>
 
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">Filtri</div>
-    </div>
-    <div class="card-body">
-      <form method="get" class="admin-form-grid">
-        <div class="field">
+      <form method="get" class="users-filter-bar">
+        <div class="field users-filter-search">
           <label for="q">Cerca (nome/email)</label>
           <input class="input" type="text" id="q" name="q" value="{{ filters.q }}">
         </div>
@@ -127,14 +334,17 @@
         </div>
       </form>
     </div>
-  </div>
 
-  <form method="post" action="{% url 'admin_portale:utenti_bulk_role' %}">
-    {% csrf_token %}
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Utenti</div>
-        <div class="admin-inline-actions">
+    <form method="post" action="{% url 'admin_portale:utenti_bulk_role' %}" class="users-table-shell">
+      {% csrf_token %}
+      <div class="users-table-toolbar">
+        <div class="users-toolbar-title">
+          <div class="users-table-title">Utenti</div>
+          <div class="users-table-count">
+            Totale pagina: {{ page_obj.object_list|length }} | Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+          </div>
+        </div>
+        <div class="admin-inline-actions users-bulk-actions">
           <select class="input input-sm" name="ruolo_id">
             <option value="">Ruolo massivo...</option>
             {% for ruolo in roles %}
@@ -162,9 +372,10 @@
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="force_pwd" formnovalidate>Force pwd selezionati</button>
         </div>
       </div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table class="admin-table">
+
+      <div class="users-table-body">
+        <div class="users-table-scroll">
+          <table class="admin-table users-table">
             <thead>
               <tr>
                 <th><input type="checkbox" id="select-all-users"></th>
@@ -177,6 +388,7 @@
                 <th data-col="ruolo_quick">Ruolo (quick)</th>
                 <th data-col="attivo">Attivo</th>
                 <th data-col="force_pwd">Force pwd</th>
+                <th data-col="twofa">2FA</th>
                 <th>Azioni</th>
               </tr>
             </thead>
@@ -209,7 +421,20 @@
                     {% endif %}
                   </td>
                   <td data-col="force_pwd">{% if u.deve_cambiare_password %}<span class="badge">Si</span>{% else %}-{% endif %}</td>
-                  <td class="admin-inline-actions">
+                  <td data-col="twofa">
+                    {% if not u.twofa_info or not u.twofa_info.configured %}
+                      <span class="badge">—</span>
+                    {% elif not u.twofa_info.is_active %}
+                      <span class="badge badge-danger">Off</span>
+                    {% elif u.twofa_info.method == "totp" and not u.twofa_info.totp_confirmed %}
+                      <span class="badge badge-warning">Setup</span>
+                    {% elif u.twofa_info.method == "totp" %}
+                      <span class="badge badge-info">TOTP</span>
+                    {% else %}
+                      <span class="badge badge-success">Email</span>
+                    {% endif %}
+                  </td>
+                  <td class="admin-inline-actions users-row-actions">
                     <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' u.id %}">Modifica</a>
                     <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_permessi_effettivi' u.id %}">Permessi effettivi</a>
                     {% if u.attivo and u.id != current_legacy_user_id %}
@@ -217,6 +442,9 @@
                     {% endif %}
                     <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utente_toggle_active' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>{% if u.attivo %}Disattiva{% else %}Attiva{% endif %}</button>
                     <button type="submit" class="btn btn-sm" formaction="{% url 'admin_portale:utente_force_change_password' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>Force change pwd</button>
+                    {% if u.twofa_info and u.twofa_info.django_user_id %}
+                      <a class="btn btn-sm" href="{% url 'admin_portale:twofa_config' %}#u2f-row-{{ u.twofa_info.django_user_id }}">2FA</a>
+                    {% endif %}
                     {% if u.id != current_legacy_user_id %}
                       <button
                         type="submit"
@@ -238,7 +466,7 @@
           </table>
         </div>
 
-        <div class="pagination-bar">
+        <div class="pagination-bar users-pagination">
           <div class="cell-muted">
             Totale pagina: {{ page_obj.object_list|length }} | Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
           </div>
@@ -252,8 +480,8 @@
           </div>
         </div>
       </div>
-    </div>
-  </form>
+    </form>
+  </div>
 
   <script>
     (function () {

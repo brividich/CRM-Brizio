@@ -1,0 +1,455 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{# ===================================================================
+   home_portale.html — Home portale interattiva di NOVICROM HUB.
+   Context atteso (vedi dashboard/views_home_portale.py):
+     greeting_name        str
+     date_label           str
+     time_label           str
+     active_role          dict  {code, label}
+     active_unit          str|None
+     header_actions       list[dict]
+     priority_kpis        list[dict]
+     module_groups        list[dict]
+     my_tasks             list[dict]
+     pending_approvals    list[dict]
+     anomalie_aperte      list[dict]
+     calendar_week        list[dict]
+     news_items           list[dict]
+     activity_items       list[dict]
+     safety_kpis          list[dict]
+     system_status        list[dict]
+     show_locked_modules  bool
+   =================================================================== #}
+
+{% block title %}Home portale · NOVICROM HUB{% endblock %}
+
+{% block body_class %}{{ block.super }} home-portale-page{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap" data-screen-label="Home portale">
+
+  <section class="hp-hero" aria-label="Saluto e azioni rapide">
+    <div class="hp-hero-bg" aria-hidden="true"></div>
+    <div class="hp-hero-inner">
+      <div class="hp-hero-left">
+        <div class="hp-eyebrow">
+          <span class="hp-eyebrow-dot"></span>
+          {{ date_label }} · <span data-live-clock>{{ time_label }}</span>
+        </div>
+        <h1 class="hp-title">
+          {{ greeting }}, {{ greeting_name }}.<br>
+          <span class="hp-title-sub">{{ greeting_summary }}</span>
+        </h1>
+        <div class="hp-meta">
+          <span class="hp-pill">
+            <span class="hp-pill-code">{{ active_role.code }}</span>
+            <span>{{ active_role.label }}</span>
+          </span>
+          <span class="hp-pill ghost">
+            <span class="hp-pill-dot"></span>Sessione attiva
+          </span>
+          {% if active_unit %}
+          <span class="hp-pill ghost">{{ active_unit }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="hp-hero-right">
+        {% for cta in header_actions %}
+          <a class="hp-cta {% if cta.variant == 'ghost' %}ghost{% endif %}"
+             href="{{ cta.href }}">{{ cta.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="hp-prio" aria-label="Priorità cross-modulo">
+    {% for k in priority_kpis %}
+      <a class="hp-prio-card hp-tone-{{ k.tone }}" href="{{ k.url }}">
+        <span class="hp-prio-ic">
+          <span class="hp-prio-ic-char">{{ k.icon_char }}</span>
+        </span>
+        <span class="hp-prio-num">{{ k.value }}</span>
+        <span class="hp-prio-lbl">{{ k.label }}</span>
+        <span class="hp-prio-sub">{{ k.sub }}</span>
+        <span class="hp-prio-arr" aria-hidden="true">›</span>
+      </a>
+    {% endfor %}
+  </section>
+
+  <section class="hp-modules" aria-label="Moduli del portale">
+    <div class="hp-modules-head">
+      <div>
+        <h2 class="hp-h2">Moduli del portale</h2>
+        <p class="hp-h2-sub">Tutti i moduli del NOVICROM HUB con stato live.</p>
+      </div>
+      <form class="hp-modules-toggle"
+            hx-post="{% url 'home_portale:toggle_locked' %}"
+            hx-trigger="change"
+            hx-swap="none">
+        {% csrf_token %}
+        <label class="hp-toggle">
+          <input type="checkbox" name="show_locked" value="1"
+                 {% if show_locked_modules %}checked{% endif %}>
+          <span>Mostra moduli non accessibili</span>
+        </label>
+      </form>
+    </div>
+
+    {% for grp in module_groups %}
+      <div class="hp-grp" data-hp-section="grp-{{ grp.key }}">
+        <div class="hp-grp-h hp-collapsible-hdr">
+          <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi {{ grp.label }}">▾</button>
+          <span class="hp-grp-l">{{ grp.label }}</span>
+          <span class="hp-grp-c">{{ grp.accessible_count }}/{{ grp.total }} accessibili</span>
+          <span class="hp-grp-rule"></span>
+          <span class="hp-grp-hint">{{ grp.hint }}</span>
+        </div>
+        <div class="hp-collapse-body">
+          <div class="hp-grid">
+            {% for mod in grp.modules %}
+              {% if mod.accessible or show_locked_modules %}
+                {% include "core/components/_home_module_tile.html" with mod=mod %}
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="hp-board">
+
+    <div class="hp-col-l">
+
+      <div class="hp-card" data-hp-section="card-tasks">
+        <header class="hp-card-h hp-collapsible-hdr">
+          <div>
+            <h3 class="hp-card-t">Le mie attività</h3>
+            <p class="hp-card-s">Ticket, task e firme assegnate a te</p>
+          </div>
+          <span class="hp-card-h-r">
+            <a href="{% url 'tickets:dashboard' %}?mine=1" class="hp-card-link">Tutte →</a>
+            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+          </span>
+        </header>
+        <div class="hp-collapse-body">
+          <ul class="hp-list">
+            {% for t in my_tasks %}
+              <li>
+                <a href="{{ t.url }}">
+                  <span class="hp-list-code">{{ t.code }}</span>
+                  <span class="hp-list-body">
+                    <span class="hp-list-t">{{ t.title }}</span>
+                    <span class="hp-list-m">scadenza {{ t.due }}</span>
+                  </span>
+                  <span class="hp-badge hp-tone-{{ t.tone }}">{{ t.priority }}</span>
+                </a>
+              </li>
+            {% empty %}
+              <li class="hp-empty">Nessuna attività assegnata.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="hp-card" data-hp-section="card-anomalie">
+        <header class="hp-card-h hp-collapsible-hdr">
+          <div>
+            <h3 class="hp-card-t">Anomalie aperte</h3>
+            <p class="hp-card-s">Eventi rilevati su linee e impianti</p>
+          </div>
+          <span class="hp-card-h-r">
+            <a href="{% url 'gestione_anomalie_page' %}" class="hp-card-link">Apri modulo →</a>
+            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+          </span>
+        </header>
+        <div class="hp-collapse-body">
+          <ul class="hp-list hp-list-anom">
+            {% for a in anomalie_aperte %}
+              <li>
+                <a href="{{ a.url }}">
+                  <span class="hp-anom-dot hp-tone-{{ a.tone }}"></span>
+                  <span class="hp-list-body">
+                    <span class="hp-list-h">
+                      <span class="hp-list-code">{{ a.code }}</span>
+                      <span class="hp-list-t">{{ a.title }}</span>
+                    </span>
+                    <span class="hp-list-m">{{ a.area }} · {{ a.elapsed }} fa</span>
+                  </span>
+                  <span class="hp-badge hp-tone-{{ a.tone }}">{{ a.status }}</span>
+                </a>
+              </li>
+            {% empty %}
+              <li class="hp-empty">Nessuna anomalia aperta.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="hp-card" data-hp-section="card-presenze">
+        <header class="hp-card-h hp-collapsible-hdr">
+          <div>
+            <h3 class="hp-card-t">Presenze settimana</h3>
+            <p class="hp-card-s">Assenze pianificate · clic per dettaglio</p>
+          </div>
+          <span class="hp-card-h-r">
+            <a href="{% url 'assenze_calendario' %}" class="hp-card-link">Calendario completo →</a>
+            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+          </span>
+        </header>
+        <div class="hp-collapse-body">
+          <div class="hp-cal">
+            {% for d in calendar_week %}
+              <a class="hp-cal-c{% if d.is_today %} now{% endif %}{% if d.is_weekend %} we{% endif %}"
+                 href="{% url 'assenze_calendario' %}?day={{ d.iso }}">
+                <span class="hp-cal-d">{{ d.day }}</span>
+                <span class="hp-cal-n">{{ d.num }}</span>
+                {% if d.is_today %}<span class="hp-cal-tag">oggi</span>{% endif %}
+                {% if d.absent_count %}<span class="hp-cal-abs">{{ d.absent_count }}</span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="hp-col-r">
+
+      <div class="hp-card" id="hp-approvals" data-hp-section="card-approvals">
+        <header class="hp-card-h hp-collapsible-hdr">
+          <div>
+            <h3 class="hp-card-t">Da approvare</h3>
+            <p class="hp-card-s">Richieste, automazioni, FIR rifiuti</p>
+          </div>
+          <span class="hp-card-h-r">
+            <span class="hp-counter">{{ pending_approvals|length }}</span>
+            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+          </span>
+        </header>
+        <div class="hp-collapse-body">
+          <ul class="hp-list hp-list-appr">
+            {% for a in pending_approvals %}
+              <li id="hp-appr-{{ a.id }}">
+                <a class="hp-appr-row" href="{{ a.url }}">
+                  <span class="hp-list-code">{{ a.code }}</span>
+                  <span class="hp-list-body">
+                    <span class="hp-list-t">{{ a.title }}</span>
+                    <span class="hp-list-m">{{ a.requester }} · {{ a.category }}</span>
+                  </span>
+                </a>
+                {% if a.approve_url %}
+                <span class="hp-ok">
+                  <button class="hp-ok-y"
+                          title="Approva"
+                          hx-post="{{ a.approve_url }}"
+                          hx-target="#hp-appr-{{ a.id }}"
+                          hx-swap="outerHTML swap:300ms"
+                          hx-confirm="Confermi l'approvazione?">✓</button>
+                  <button class="hp-ok-n"
+                          title="Rifiuta"
+                          hx-post="{{ a.reject_url }}"
+                          hx-target="#hp-appr-{{ a.id }}"
+                          hx-swap="outerHTML swap:300ms"
+                          hx-confirm="Confermi il rifiuto?">×</button>
+                </span>
+                {% endif %}
+              </li>
+            {% empty %}
+              <li class="hp-empty">Nessuna richiesta in approvazione.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="hp-card" data-hp-section="card-news">
+        <header class="hp-card-h hp-collapsible-hdr">
+          <div>
+            <h3 class="hp-card-t">Comunicazioni e attività</h3>
+            <p class="hp-card-s">News aziendali e ultime azioni nel portale</p>
+          </div>
+          <span class="hp-card-h-r">
+            <a href="{% url 'notizie_lista' %}" class="hp-card-link">News →</a>
+            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+          </span>
+        </header>
+        <div class="hp-collapse-body">
+          <div class="hp-news-sec">
+            <div class="hp-mini-lbl">News</div>
+            <ul class="hp-news">
+              {% for n in news_items %}
+                <li>
+                  <a href="{{ n.url }}">
+                    <span class="hp-news-mark"></span>
+                    <span class="hp-news-body">
+                      <span class="hp-news-t">{{ n.title }}</span>
+                      <span class="hp-news-m">{{ n.source }}</span>
+                    </span>
+                    <span class="hp-news-time">{{ n.ago }}</span>
+                  </a>
+                </li>
+              {% empty %}
+                <li class="hp-empty">Nessuna notizia recente.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="hp-act-sec">
+            <div class="hp-mini-lbl">Attività recenti</div>
+            <ul class="hp-act"
+                hx-get="{% url 'home_portale:activity_recent' %}"
+                hx-trigger="every 60s"
+                hx-swap="innerHTML">
+              {% include "core/partials/_home_activity.html" with items=activity_items %}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  {% if safety_kpis or system_status %}
+  <section class="hp-bottom">
+
+    {% if safety_kpis %}
+    <div class="hp-card" data-hp-section="card-safety">
+      <header class="hp-card-h hp-collapsible-hdr">
+        <div>
+          <h3 class="hp-card-t">KPI sicurezza</h3>
+          <p class="hp-card-s">Anno in corso</p>
+        </div>
+        <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+      </header>
+      <div class="hp-collapse-body">
+        <div class="hp-safety">
+          {% for s in safety_kpis %}
+            <div class="hp-safety-c hp-tone-{{ s.tone }}">
+              <span class="hp-safety-v">{{ s.value }}</span>
+              <span class="hp-safety-l">{{ s.label }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if system_status %}
+    <div class="hp-card" data-hp-section="card-system">
+      <header class="hp-card-h hp-collapsible-hdr">
+        <div>
+          <h3 class="hp-card-t">Stato sistema</h3>
+          <p class="hp-card-s">Servizi integrati e job</p>
+        </div>
+        <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+      </header>
+      <div class="hp-collapse-body">
+        <ul class="hp-sys">
+          {% for s in system_status %}
+            <li>
+              <span class="hp-sys-d hp-tone-{{ s.tone }}"></span>
+              <span class="hp-sys-l">{{ s.label }}</span>
+              <span class="hp-sys-v hp-tone-{{ s.tone }}">{{ s.value }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+
+  </section>
+  {% endif %}
+
+  <footer class="hp-foot">
+    <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli registrati</span>
+    <span class="hp-foot-r">ACL v2 attivo</span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var el = document.querySelector('[data-live-clock]');
+  if (!el) return;
+  function tick(){
+    var d = new Date();
+    el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  setInterval(tick, 30000);
+})();
+
+(function(){
+  var STORE = 'hp-sections';
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch(e) { return {}; }
+  }
+  function save(state) {
+    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch(e) {}
+  }
+  function apply(el, collapsed) {
+    el.classList.toggle('hp-collapsed', collapsed);
+    var chev = el.querySelector(':scope > .hp-collapsible-hdr .hp-chev');
+    if (chev) chev.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+
+  var state = load();
+  document.querySelectorAll('[data-hp-section]').forEach(function(el){
+    var id = el.getAttribute('data-hp-section');
+    if (state[id]) apply(el, true);
+  });
+
+  document.addEventListener('click', function(e){
+    var hdr = e.target.closest('.hp-collapsible-hdr');
+    if (!hdr) return;
+    if (e.target.closest('a, button:not(.hp-chev), input, label')) return;
+    var section = hdr.closest('[data-hp-section]');
+    if (!section) return;
+    var id = section.getAttribute('data-hp-section');
+    var next = !section.classList.contains('hp-collapsed');
+    apply(section, next);
+    state[id] = next;
+    save(state);
+  });
+})();
+
+(function(){
+  document.addEventListener('click', function(e){
+    // Clicks inside the panel (link "Vai al modulo", etc.) propagate normally
+    if (e.target.closest('.hp-tile-panel')) return;
+
+    var btn = e.target.closest('.hp-tile[aria-expanded]');
+    if (!btn) return;
+    var wrap = btn.closest('.hp-tile-wrap');
+    if (!wrap) return;
+
+    var panelId = btn.getAttribute('aria-controls');
+    var panel = panelId ? document.getElementById(panelId) : null;
+    var isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+    // Close every other open panel
+    document.querySelectorAll('.hp-tile[aria-expanded="true"]').forEach(function(b){
+      if (b === btn) return;
+      b.setAttribute('aria-expanded', 'false');
+      var pid = b.getAttribute('aria-controls');
+      var p = pid ? document.getElementById(pid) : null;
+      if (p) p.hidden = true;
+      var w = b.closest('.hp-tile-wrap');
+      if (w) w.classList.remove('hp-tile-active');
+    });
+
+    // Toggle this panel
+    var next = !isOpen;
+    btn.setAttribute('aria-expanded', String(next));
+    if (panel) panel.hidden = !next;
+    wrap.classList.toggle('hp-tile-active', next);
+  });
+})();
+</script>
+{% endblock %}

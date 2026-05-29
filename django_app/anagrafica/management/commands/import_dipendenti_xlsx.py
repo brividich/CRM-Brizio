@@ -25,17 +25,20 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Q
 
 from anagrafica.models import (
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
+    Reparto,
 )
 from core.legacy_anagrafica import (
     fetch_anagrafica_rows,
     generate_username,
     upsert_anagrafica_dipendente,
 )
-from core.legacy_models import AnagraficaDipendente
+from werkzeug.security import generate_password_hash
+from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +255,9 @@ HEADER_ALIAS = {
     "categoriaprotetta": "categoria_protetta",
     "categoriadisabili": "categoria_disabili",
     "percentualedisabilita": "percentuale_disabilita",
+    "reparto": "reparto",
+    "repartodiappartenenza": "reparto",
+    "unitaorganizzativa": "reparto",
 }
 
 
@@ -340,6 +346,8 @@ class Command(BaseCommand):
             "cessati": 0,
             "saltati": 0,
             "errori": 0,
+            "creati_utenti_portale": 0,
+            "aggiornati_reparto": 0,
         }
         errors: list[str] = []
 
@@ -557,6 +565,57 @@ class Command(BaseCommand):
             if changed:
                 aziendale.save()
                 stats["aggiornati_aziendale"] += 1
+
+        # 3b) Sync reparto → area aziendale + caporeparto
+        reparto_nome = _txt(cell(raw_row, "reparto"))
+        if reparto_nome and (created_az or update_existing):
+            rep = (
+                Reparto.objects
+                .filter(nome__iexact=reparto_nome, is_active=True)
+                .select_related("area_aziendale")
+                .first()
+            )
+            area_nome = rep.area_aziendale.nome if rep and rep.area_aziendale else ""
+            capo_id = rep.caporeparto_legacy_id if rep else None
+            update_fields = []
+            if aziendale.area != reparto_nome:
+                aziendale.area = reparto_nome
+                update_fields.append("area")
+            if aziendale.area_aziendale_nome != area_nome:
+                aziendale.area_aziendale_nome = area_nome
+                update_fields.append("area_aziendale_nome")
+            if aziendale.caporeparto_legacy_id != capo_id:
+                aziendale.caporeparto_legacy_id = capo_id
+                update_fields.append("caporeparto_legacy_id")
+            if update_fields:
+                aziendale.save(update_fields=update_fields)
+                stats["aggiornati_reparto"] += 1
+
+        # 4) Account portale: collega esistente o crea locale (solo dipendenti attivi non già collegati)
+        if alias_to_use and not is_cessato and not legacy_row.get("utente_id"):
+            existing_utente = UtenteLegacy.objects.filter(
+                Q(email__iexact=alias_to_use) | Q(email__istartswith=f"{alias_to_use}@")
+            ).order_by("id").first()
+            if existing_utente is not None:
+                # Utente LDAP o locale già esistente: collega senza creare
+                AnagraficaDipendente.objects.filter(id=new_legacy_id).update(utente_id=existing_utente.id)
+            else:
+                ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
+                data_nascita = _parse_date(cell(raw_row, "data_nascita"))
+                anno_nascita = data_nascita.year if data_nascita else None
+                pwd_iniziale = str(anno_nascita) if anno_nascita else f"Portale{date.today().year}"
+                nome_completo = f"{cognome} {nome}".strip()
+                nuovo_utente = UtenteLegacy.objects.create(
+                    nome=nome_completo,
+                    email=alias_to_use,
+                    password=generate_password_hash(pwd_iniziale),
+                    ruolo="utente",
+                    ruolo_id=ruolo_utente.id if ruolo_utente else None,
+                    attivo=True,
+                    deve_cambiare_password=True,
+                )
+                AnagraficaDipendente.objects.filter(id=new_legacy_id).update(utente_id=nuovo_utente.id)
+                stats["creati_utenti_portale"] += 1
 
     # ------------------------------------------------------------------
     # Report

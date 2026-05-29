@@ -28,7 +28,10 @@
 param(
     [string]$SourcePath = "",
     [string]$OutputDir  = "",
-    [string]$VersionOverride = ""
+    [string]$VersionOverride = "",
+    # -WithTests passa -WithTests al release_guard per eseguire la test suite.
+    # Di default i test sono saltati. Specificare per release con validazione completa.
+    [switch]$WithTests
 )
 
 Set-StrictMode -Version Latest
@@ -302,7 +305,9 @@ if (-not (Test-Path -LiteralPath $releaseGuard)) {
 }
 
 Write-Log "Esecuzione release guard..." "STEP"
-& $releaseGuard -SourcePath $SourcePath
+$guardArgs = @{ SourcePath = $SourcePath }
+if ($WithTests) { $guardArgs['WithTests'] = $true }
+& $releaseGuard @guardArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Log "release_guard fallito: correggi i mismatch prima di creare il pacchetto." "ERROR"
     exit 1
@@ -419,7 +424,16 @@ Write-Log "File copiati nella temp dir." "SUCCESS"
 # ---------------------------------------------------------------------------
 Write-Log "Compressione in $zipPath..." "STEP"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path "$tempDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
+# .NET ZipFile::CreateFromDirectory è ~10x più veloce di Compress-Archive
+# su progetti con molti file piccoli (nessun overhead PowerShell per file).
+# Fastest evita compressione pesante su file già piccoli/binari senza beneficio reale.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory(
+    $tempDir,
+    $zipPath,
+    [System.IO.Compression.CompressionLevel]::Fastest,
+    $false
+)
 Write-Log "Zip creato." "SUCCESS"
 
 # ---------------------------------------------------------------------------

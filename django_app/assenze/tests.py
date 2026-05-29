@@ -25,6 +25,8 @@ from .views import (
     _norm_tipo,
     _owned_capo_ids_for_legacy_user,
     _resolve_capo_local_id,
+    _resolve_capo_local_id_from_anagrafica_hr,
+    _resolve_default_capo_for_user,
     _reconcile_pending_item_ids_with_sharepoint,
     _resolve_request_display_name,
     _sp_fields_from_row,
@@ -425,6 +427,7 @@ class AssenzeIdentityDisplayNameTests(SimpleTestCase):
 class AssenzeSubmitTokenTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="assenze-token-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
 
     @patch("assenze.views._template_perm_context", return_value={})
     @patch("assenze.views._load_motivazioni_local", return_value=["Motivo"])
@@ -450,6 +453,9 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["submit_token"])
         self.assertContains(response, 'name="submit_token"')
+        today = timezone.localdate().strftime("%Y-%m-%d")
+        self.assertEqual(response.context["form_data"]["date_start"], today)
+        self.assertEqual(response.context["form_data"]["date_end"], today)
 
     @patch("assenze.views._resolve_request_display_name", return_value="Luca Bova")
     @patch("assenze.views._template_perm_context", return_value={})
@@ -593,6 +599,87 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(payload["tipo_assenza"], "Malattia")
         self.assertEqual(payload["certificato_medico"], "CERT-12345")
 
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_ferie_forces_full_day_times(
+        self,
+        _mock_perms,
+        _mock_display_name,
+        _mock_identity,
+        _mock_table_exists,
+        _mock_resolve_nome,
+        _mock_resolve_capo_lookup,
+        _mock_resolve_capo_local,
+        mock_insert,
+        _mock_graph_configured,
+        _mock_render,
+    ):
+        self.client.force_login(self.user)
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        submit_token = _build_submit_token(request, "assenze_invio")
+
+        response = self.client.post(
+            reverse("assenze_invio"),
+            {
+                "submit_token": submit_token,
+                "tipoassenza": "Ferie",
+                "motivazione": "Ferie",
+                "date_start": "2026-03-12",
+                "date_end": "2026-03-12",
+                "time_start": "08:00",
+                "time_end": "12:00",
+                "caporeparto": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = mock_insert.call_args.args[0]
+        self.assertEqual(payload["data_inizio"].strftime("%H:%M"), "00:00")
+        self.assertEqual(payload["data_fine"].strftime("%H:%M"), "23:59")
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("error"))
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_rejects_permesso_across_multiple_days(
+        self,
+        _mock_perms,
+        _mock_table_exists,
+        mock_insert,
+        mock_render,
+    ):
+        self.client.force_login(self.user)
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        submit_token = _build_submit_token(request, "assenze_invio")
+
+        response = self.client.post(
+            reverse("assenze_invio"),
+            {
+                "submit_token": submit_token,
+                "tipoassenza": "Permesso",
+                "motivazione": "Motivo",
+                "date_start": "2026-03-12",
+                "date_end": "2026-03-13",
+                "time_start": "08:00",
+                "time_end": "12:00",
+                "caporeparto": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_insert.assert_not_called()
+        self.assertEqual(mock_render.call_args.kwargs["error"], "Il permesso deve iniziare e finire nello stesso giorno.")
+
     @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
     def test_invio_rejects_missing_submit_token(self, _mock_perms):
         self.client.force_login(self.user)
@@ -715,6 +802,13 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AssenzeCaporepartoLocalSourceTests(TestCase):
+    @patch("assenze.views._load_local_capi_options", return_value=[{"Value": "Legacy", "Email": "legacy@example.com", "LookupId": "legacy@example.com"}])
+    @patch("assenze.views._load_anagrafica_hr_capi_options", return_value=[{"Value": "HR Capo", "Email": "hr@example.com", "LookupId": "legacy_user:77", "LegacyUserId": "77"}])
+    def test_load_capi_options_prefers_anagrafica_hr(self, _mock_hr_options, _mock_local_options):
+        options = _load_capi_options()
+
+        self.assertEqual(options[0]["Email"], "hr@example.com")
+
     def test_load_capi_options_prefers_local_config(self):
         from core.models import OptioneConfig
 
@@ -739,6 +833,45 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
         options = _load_capi_options()
 
         self.assertEqual(options[0]["LegacyUserId"], "77")
+
+    @patch("assenze.views._resolve_anagrafica_hr_effective_capo_ids", return_value=(77, 501))
+    def test_resolve_default_capo_uses_anagrafica_hr_effective_manager(self, _mock_effective_capo):
+        capi = [
+            {
+                "Value": "Capo HR",
+                "Email": "capo.hr@example.com",
+                "LookupId": "legacy_user:77",
+                "LegacyLookupId": "",
+                "LegacyUserId": "77",
+                "AnagraficaLegacyId": "501",
+            }
+        ]
+
+        resolved = _resolve_default_capo_for_user(
+            name="Mario Rossi",
+            email="mario@example.com",
+            username="m.rossi",
+            capi=capi,
+            legacy_user_id=12,
+        )
+
+        self.assertEqual(resolved, "capo.hr@example.com")
+
+    @patch("assenze.views._load_anagrafica_hr_capi_options")
+    def test_resolve_capo_local_id_from_anagrafica_hr_options(self, mock_hr_options):
+        mock_hr_options.return_value = [
+            {
+                "Value": "Capo HR",
+                "Email": "capo.hr@example.com",
+                "LookupId": "legacy_user:77",
+                "LegacyLookupId": "",
+                "LegacyUserId": "77",
+                "AnagraficaLegacyId": "501",
+            }
+        ]
+
+        self.assertEqual(_resolve_capo_local_id_from_anagrafica_hr("capo.hr@example.com"), 77)
+        self.assertEqual(_resolve_capo_local_id_from_anagrafica_hr("501"), 77)
 
     @patch("assenze.views._legacy_capi_table_exists", return_value=False)
     def test_owned_capo_ids_include_current_legacy_user_even_without_legacy_table(self, _mock_legacy_exists):

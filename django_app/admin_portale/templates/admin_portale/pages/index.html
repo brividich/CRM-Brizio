@@ -374,7 +374,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">👤</div>
       <div class="ap-section-title">Utenti &amp; Accessi</div>
-      <span class="ap-section-count">5 strumenti</span>
+      <span class="ap-section-count">6 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
@@ -410,6 +410,13 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         <div>
           <div class="mod-name">Wizard Configura Ruolo</div>
           <div class="mod-sub">Flusso guidato 3-step per impostare tutti i permessi di un ruolo</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:twofa_config' %}">
+        <div class="mod-icon">🔑</div>
+        <div>
+          <div class="mod-name">Autenticazione 2FA</div>
+          <div class="mod-sub">Policy, ruoli soggetti, reti interne, OTP/TOTP per utente</div>
         </div>
       </a>
     </div>
@@ -556,16 +563,10 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">⚙️</div>
       <div class="ap-section-title">Configurazione</div>
-      <span class="ap-section-count">3 strumenti</span>
+      <span class="ap-section-count">2 strumenti</span>
     </div>
     <div class="modules-grid">
-      <a class="mod" href="{% url 'admin_portale:anagrafica_config' %}">
-        <div class="mod-icon">👥</div>
-        <div>
-          <div class="mod-name">Anagrafica Config</div>
-          <div class="mod-sub">Reparti, capireparto, macchine e campi extra profilo dipendente</div>
-        </div>
-      </a>
+
       <a class="mod" href="{% url 'admin_portale:login_config' %}">
         <div class="mod-icon">🎨</div>
         <div>

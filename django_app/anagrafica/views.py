@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import csv
 import json
 import logging
@@ -28,8 +29,8 @@ from core.legacy_anagrafica import (
     normalize_legacy_alias,
     upsert_anagrafica_dipendente,
 )
-from core.legacy_models import AnagraficaDipendente, UtenteLegacy
-from core.legacy_utils import is_legacy_admin, legacy_table_columns
+from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
+from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 
 from .forms import (
     AnagraficaAziendaleForm,
@@ -53,6 +54,7 @@ from .models import (
     AnagraficaStatPermission,
     AnagraficaVisiteMedichePermission,
     AreaAziendale,
+    Reparto,
     CartellaDocumentoDipendente,
     SubnavCategoriaAnagrafica,
     SubnavLinkAnagrafica,
@@ -291,7 +293,7 @@ def _offboarding_task_definitions(restituzioni_codes: list[str]) -> list[dict]:
 
 
 def _offboarding_is_admin(request) -> bool:
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     return bool(request.user.is_superuser or is_legacy_admin(legacy_user))
 
 
@@ -428,6 +430,7 @@ def index(request):
     # Conteggi catalogo per dashboard HR
     n_mansioni = Mansione.objects.filter(is_active=True).count()
     n_aree = AreaAziendale.objects.filter(is_active=True).count()
+    n_reparti_catalog = Reparto.objects.filter(is_active=True).count()
     n_qualifiche = TipoQualifica.objects.filter(is_active=True).count()
 
     # Qualifiche scadute e in scadenza (prossimi 60 giorni)
@@ -487,6 +490,22 @@ def dipendenti_list(request):
     # mai in questa lista: hanno una vista dedicata `ex_dipendenti_list`.
     cessati_ids = _cessati_legacy_ids()
     rows = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
+
+    # Fallback: se il campo reparto legacy è vuoto, usa DipendenteAnagraficaAziendale.area
+    _ids_no_reparto = [int(r.get("id") or 0) for r in rows if not str(r.get("reparto") or "").strip()]
+    if _ids_no_reparto:
+        _az_area_map = dict(
+            DipendenteAnagraficaAziendale.objects
+            .filter(legacy_anagrafica_id__in=_ids_no_reparto)
+            .exclude(area="")
+            .values_list("legacy_anagrafica_id", "area")
+        )
+        for row in rows:
+            if not str(row.get("reparto") or "").strip():
+                lid = int(row.get("id") or 0)
+                if lid in _az_area_map:
+                    row["reparto"] = _az_area_map[lid]
+
     reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows if str(row.get("reparto") or "").strip()})
     n_totale = len(rows)
     if q:
@@ -700,7 +719,7 @@ def ex_dipendenti_list(request):
 @login_required
 def dipendente_create(request):
     ensure_anagrafica_schema()
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not is_admin:
         messages.error(request, "Non hai i permessi per creare un dipendente.")
@@ -766,6 +785,43 @@ def dipendente_create(request):
                     civ.legacy_anagrafica_id = new_id
                     civ.updated_by = request.user
                     civ.save()
+
+                # Crea automaticamente account portale (solo se non già collegato)
+                if new_id and _alias:
+                    if not row.get("utente_id"):
+                        try:
+                            from django.db.models import Q as _Q
+                            from werkzeug.security import generate_password_hash as _gph
+                            _existing_utente = UtenteLegacy.objects.filter(
+                                _Q(email__iexact=_alias) | _Q(email__istartswith=f"{_alias}@")
+                            ).order_by("id").first()
+                            if _existing_utente is not None:
+                                # Utente LDAP o locale già presente: collega senza creare
+                                AnagraficaDipendente.objects.filter(id=new_id).update(utente_id=_existing_utente.id)
+                            else:
+                                _ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
+                                _anno_nascita = None
+                                if form_civile.is_valid():
+                                    _dn = form_civile.cleaned_data.get("data_nascita")
+                                    if _dn:
+                                        _anno_nascita = _dn.year
+                                _pwd_iniziale = str(_anno_nascita) if _anno_nascita else f"Portale{date.today().year}"
+                                _nome_completo = f"{data.get('cognome', '')} {data.get('nome', '')}".strip()
+                                _nuovo_utente = UtenteLegacy.objects.create(
+                                    nome=_nome_completo,
+                                    email=_alias,
+                                    password=_gph(_pwd_iniziale),
+                                    ruolo="utente",
+                                    ruolo_id=_ruolo_utente.id if _ruolo_utente else None,
+                                    attivo=True,
+                                    deve_cambiare_password=True,
+                                )
+                                AnagraficaDipendente.objects.filter(id=new_id).update(utente_id=_nuovo_utente.id)
+                        except Exception:
+                            logger.warning(
+                                "Creazione automatica account portale fallita per dipendente %s", new_id,
+                                exc_info=True,
+                            )
 
                 # Assegna ruoli operativi scelti nel form (multiselect "ruoli_operativi_ids")
                 if new_id:
@@ -1011,7 +1067,7 @@ def _can_view_stats(request) -> bool:
     perm = AnagraficaStatPermission.get_instance()
     if perm.accesso == AnagraficaStatPermission.ACCESSO_TUTTI:
         return True
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
         return True
     if perm.accesso == AnagraficaStatPermission.ACCESSO_ADMIN:
@@ -1029,9 +1085,11 @@ def _check_hr_permission(request) -> bool:
     perm = AnagraficaHRPermission.get_instance()
     if perm.accesso == AnagraficaHRPermission.ACCESSO_TUTTI:
         return True
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
-        return perm.accesso in (AnagraficaHRPermission.ACCESSO_ADMIN, AnagraficaHRPermission.ACCESSO_TUTTI)
+        if perm.accesso in (AnagraficaHRPermission.ACCESSO_ADMIN, AnagraficaHRPermission.ACCESSO_TUTTI):
+            return True
+        # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
     if perm.accesso == AnagraficaHRPermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1050,12 +1108,14 @@ def _can_view_visite_mediche(request) -> bool:
     perm = AnagraficaVisiteMedichePermission.get_instance()
     if perm.accesso == AnagraficaVisiteMedichePermission.ACCESSO_TUTTI:
         return True
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
-        return perm.accesso in (
+        if perm.accesso in (
             AnagraficaVisiteMedichePermission.ACCESSO_ADMIN,
             AnagraficaVisiteMedichePermission.ACCESSO_TUTTI,
-        )
+        ):
+            return True
+        # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
     if perm.accesso == AnagraficaVisiteMedichePermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1072,12 +1132,14 @@ def _can_view_formazione(request) -> bool:
     perm = AnagraficaFormazionePermission.get_instance()
     if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_TUTTI:
         return True
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
-        return perm.accesso_visualizzazione in (
+        if perm.accesso_visualizzazione in (
             AnagraficaFormazionePermission.ACCESSO_ADMIN,
             AnagraficaFormazionePermission.ACCESSO_TUTTI,
-        )
+        ):
+            return True
+        # ACCESSO_RUOLI: legacy admin controlla comunque la lista ruoli
     if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_ADMIN:
         return False
     if legacy_user and legacy_user.ruolo_id is not None:
@@ -1214,7 +1276,7 @@ def dipendente_detail(request, legacy_id: int):
     dip = rows[0]
 
     can_stats = _can_view_stats(request)
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     can_hr = _check_hr_permission(request)
 
@@ -1530,6 +1592,7 @@ def dipendente_detail(request, legacy_id: int):
 
     # Storico contrattuale
     storico_contratti: list = []
+    tipologie_contratto: list = []
     livelli_catalogo: list = []
     livelli_json: str = "{}"
     tipi_qualifica_prof: list = []
@@ -1615,6 +1678,22 @@ def dipendente_detail(request, legacy_id: int):
         except Exception:
             logger.exception("Errore caricamento pratiche offboarding per dipendente %s", legacy_id)
 
+    # Catalogo reparti per dropdown + label caporeparto dall'aziendale
+    reparti_catalog = list(Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome"))
+    reparto_corrente = (dip.get("reparto") or "").strip()
+    reparto_in_catalog = reparto_corrente and any(
+        r.nome.strip().casefold() == reparto_corrente.casefold() for r in reparti_catalog
+    )
+    _dip_picker_map_detail = {item["id"]: item["label"] for item in _dipendenti_picker_rows()}
+    caporeparto_label = _dip_picker_map_detail.get(aziendale.caporeparto_legacy_id, "") if aziendale and aziendale.caporeparto_legacy_id else ""
+    reparto_autofill_json = json.dumps({
+        r.nome: {
+            "area": r.area_aziendale.nome if r.area_aziendale else "",
+            "capo_label": _dip_picker_map_detail.get(r.caporeparto_legacy_id or 0, ""),
+        }
+        for r in reparti_catalog
+    })
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -1626,6 +1705,10 @@ def dipendente_detail(request, legacy_id: int):
         "aziendale": aziendale,
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
+        "reparti_catalog": reparti_catalog,
+        "reparto_in_catalog": reparto_in_catalog,
+        "caporeparto_label": caporeparto_label,
+        "reparto_autofill_json": reparto_autofill_json,
         "widgets_visible": widgets_visible,
         "widgets_hidden": widgets_hidden,
         "all_widgets": STAT_WIDGETS,
@@ -1760,7 +1843,7 @@ def api_dipendente_widget_layout(request):
 @login_required
 @require_POST
 def dipendente_ruolo_assegna(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per assegnare ruoli operativi.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -1782,7 +1865,7 @@ def dipendente_ruolo_assegna(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per rimuovere ruoli operativi.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -1800,7 +1883,7 @@ def dipendente_ruolo_rimuovi(request, legacy_id: int, assegnazione_id: int):
 
 @login_required
 def ruoli_operativi_list(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     ruoli = RuoloOperativo.objects.annotate(n_assegnati=Count("assegnazioni")).order_by("nome")
@@ -1819,7 +1902,7 @@ def ruoli_operativi_list(request):
 @login_required
 @require_POST
 def ruolo_operativo_create(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
@@ -1848,7 +1931,7 @@ def ruolo_operativo_create(request):
 @login_required
 @require_POST
 def ruolo_operativo_edit(request, ruolo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
@@ -1872,7 +1955,7 @@ def ruolo_operativo_edit(request, ruolo_id: int):
 @login_required
 @require_POST
 def ruolo_operativo_delete(request, ruolo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare ruoli operativi.")
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
@@ -1890,7 +1973,7 @@ def ruolo_operativo_delete(request, ruolo_id: int):
 
 @login_required
 def widget_permissions(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:index")
@@ -1930,8 +2013,6 @@ def widget_permissions(request):
 # Mansione dipendente — set dal catalogo (scrive su legacy DB)
 # ---------------------------------------------------------------------------
 
-@login_required
-@require_POST
 def _registra_cambiamento(
     legacy_id: int,
     tipo: str,
@@ -1963,7 +2044,7 @@ def _registra_cambiamento(
 
 
 def dipendente_mansione_set(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare la mansione.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2008,8 +2089,8 @@ def dipendente_mansione_set(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_reparto_set(request, legacy_id: int):
-    """Modifica il reparto di un dipendente con storicizzazione automatica."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    """Modifica il reparto di un dipendente con storicizzazione e auto-fill area/caporeparto."""
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare il reparto.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2043,6 +2124,8 @@ def dipendente_reparto_set(request, legacy_id: int):
             reparto_vecchio, reparto_nome,
             request.user,
         )
+        # Auto-fill area aziendale e caporeparto da catalogo
+        _sync_aziendale_from_reparto(legacy_id, reparto_nome, saved_by=request.user)
         messages.success(request, f'Reparto aggiornato a "{reparto_nome}".' if reparto_nome else "Reparto rimosso.")
     except Exception:
         logger.exception("Errore aggiornamento reparto dipendente %s", legacy_id)
@@ -2053,7 +2136,7 @@ def dipendente_reparto_set(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_username_set(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare lo username.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2152,7 +2235,7 @@ def dipendente_username_set(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_toggle_active(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare lo stato del dipendente.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2220,7 +2303,7 @@ def dipendente_offboarding_licenziamento(request, legacy_id: int):
             messages.error(request, "Data cessazione non valida.")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
     raw_ultimo_giorno = (request.POST.get("ultimo_giorno_operativo") or "").strip()
-    ultimo_giorno_operativo = None
+    ultimo_giorno_operativo = data_cessazione
     if raw_ultimo_giorno:
         try:
             ultimo_giorno_operativo = date.fromisoformat(raw_ultimo_giorno)
@@ -2468,7 +2551,7 @@ def dipendente_offboarding_chiudi(request, legacy_id: int, pratica_id: int):
 @login_required
 @require_POST
 def dipendente_rimetti_in_forza(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per rimettere in forza il dipendente.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2550,7 +2633,7 @@ def dipendente_rimetti_in_forza(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_qualifica_add(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per aggiungere qualifiche.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2601,7 +2684,7 @@ def dipendente_qualifica_add(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per rimuovere qualifiche.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2620,7 +2703,7 @@ def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
 @login_required
 @require_POST
 def dipendente_anagrafica_civile_save(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare l'anagrafica civile.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2645,7 +2728,7 @@ def dipendente_anagrafica_civile_save(request, legacy_id: int):
 @login_required
 @require_POST
 def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare l'anagrafica aziendale.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
@@ -2662,6 +2745,7 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
+        _sync_aziendale_from_reparto(legacy_id, obj.area or "", saved_by=request.user)
         _registra_cambiamento(
             legacy_id,
             DipendenteCambiamentoOrganizzativo.TIPO_AREA,
@@ -2800,7 +2884,7 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
 @login_required
 def retribuzioni_import(request):
     """Pagina importazione CSV retributivo (solo admin)."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
@@ -2959,7 +3043,7 @@ def dipendente_retribuzioni(request, legacy_id: int):
             "open": anno in _anni_default_aperti,
         })
 
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     return render(request, "anagrafica/pages/dipendente_retribuzioni.html", {
@@ -3197,7 +3281,7 @@ def _parse_importo(raw: str):
 def dipendente_retribuzione_voce_add(request, legacy_id: int):
     """Aggiunge una voce retributiva manuale (HR + admin)."""
     can_hr = _check_hr_permission(request)
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
@@ -3247,7 +3331,7 @@ def dipendente_retribuzione_voce_add(request, legacy_id: int):
 def dipendente_retribuzione_voce_edit(request, legacy_id: int, voce_id: int):
     """Modifica una voce retributiva (solo voci con flag manuale=True)."""
     can_hr = _check_hr_permission(request)
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
@@ -3291,7 +3375,7 @@ def dipendente_retribuzione_voce_edit(request, legacy_id: int, voce_id: int):
 def dipendente_retribuzione_voce_delete(request, legacy_id: int, voce_id: int):
     """Elimina una voce retributiva (solo voci con flag manuale=True)."""
     can_hr = _check_hr_permission(request)
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not (can_hr or is_admin):
         messages.error(request, "Accesso riservato agli utenti HR.")
@@ -3457,7 +3541,7 @@ def _import_csv_contratti(file_obj, user) -> tuple[int, int, int]:
 @login_required
 def contratti_import(request):
     """Pagina importazione CSV contratti (solo admin)."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
@@ -3619,7 +3703,7 @@ def dipendente_contratto_edit(request, legacy_id: int, contratto_id: int):
 
 @login_required
 def dipendenti_report(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not is_admin:
         messages.error(request, "Accesso riservato agli amministratori.")
@@ -3766,7 +3850,7 @@ def dipendenti_report(request):
 
 @login_required
 def mansioni_list(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     mansioni = list(Mansione.objects.all().order_by("nome"))
@@ -3824,7 +3908,7 @@ def mansioni_list(request):
 @login_required
 @require_POST
 def mansione_create(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
@@ -3853,7 +3937,7 @@ def mansione_create(request):
 @login_required
 @require_POST
 def mansione_edit(request, mansione_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
@@ -3877,7 +3961,7 @@ def mansione_edit(request, mansione_id: int):
 @login_required
 @require_POST
 def mansione_delete(request, mansione_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare mansioni.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
@@ -3890,73 +3974,255 @@ def mansione_delete(request, mansione_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Aree aziendali — catalogo dropdown
+# Aree aziendali + Reparti — gerarchia a due livelli
 # ---------------------------------------------------------------------------
+
+def _dipendenti_picker_rows() -> list[dict]:
+    """Elenco compatto dipendenti in forza per la selezione del caporeparto."""
+    rows = fetch_anagrafica_rows(deduplicate=True)
+    cessati = _cessati_legacy_ids()
+    items: list[dict] = []
+    for row in rows:
+        legacy_id = int(row.get("id") or 0)
+        if legacy_id <= 0 or legacy_id in cessati:
+            continue
+        nome = str(row.get("nome") or "").strip()
+        cognome = str(row.get("cognome") or "").strip()
+        label = " ".join(part for part in [cognome, nome] if part) or str(row.get("aliasusername") or "").strip() or f"#{legacy_id}"
+        items.append({"id": legacy_id, "label": label})
+    items.sort(key=lambda r: r["label"].casefold())
+    return items
+
+
+def _resolve_caporeparto_id(raw: str | None) -> int | None:
+    """Normalizza il valore POST del caporeparto in un legacy_id valido o None."""
+    if not raw:
+        return None
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
+
+
+def _sync_aziendale_from_reparto(legacy_id: int, reparto_nome: str, *, saved_by) -> None:
+    """Aggiorna area_aziendale_nome e caporeparto_legacy_id su DipendenteAnagraficaAziendale
+    in base al Reparto assegnato. Chiamato ogni volta che il reparto cambia."""
+    area_nome = ""
+    capo_id = None
+    if reparto_nome:
+        rep = Reparto.objects.filter(nome__iexact=reparto_nome, is_active=True).select_related("area_aziendale").first()
+        if rep:
+            area_nome = rep.area_aziendale.nome if rep.area_aziendale else ""
+            capo_id = rep.caporeparto_legacy_id
+    az, _ = DipendenteAnagraficaAziendale.objects.get_or_create(
+        legacy_anagrafica_id=legacy_id,
+        defaults={"updated_by": saved_by},
+    )
+    az.area = reparto_nome
+    az.area_aziendale_nome = area_nome
+    az.caporeparto_legacy_id = capo_id
+    az.updated_by = saved_by
+    az.save(update_fields=["area", "area_aziendale_nome", "caporeparto_legacy_id", "updated_by", "updated_at"])
+
 
 @login_required
 def aree_list(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
-    aree = list(AreaAziendale.objects.all().order_by("nome"))
+    aree_aziendali = list(AreaAziendale.objects.prefetch_related("reparti").order_by("nome"))
+    reparti_senza_area = list(Reparto.objects.filter(area_aziendale__isnull=True).order_by("nome"))
+    dipendenti = _dipendenti_picker_rows()
+    dip_map = {item["id"]: item["label"] for item in dipendenti}
+    # Arricchisci ogni reparto con la label del caporeparto
+    for area in aree_aziendali:
+        for rep in area.reparti.all():
+            rep.caporeparto_label = dip_map.get(rep.caporeparto_legacy_id or 0, "")
+    for rep in reparti_senza_area:
+        rep.caporeparto_label = dip_map.get(rep.caporeparto_legacy_id or 0, "")
     return render(request, "anagrafica/pages/aree_list.html", {
-        "aree": aree,
+        "aree_aziendali": aree_aziendali,
+        "reparti_senza_area": reparti_senza_area,
         "is_admin": is_admin,
+        "dipendenti_picker": dipendenti,
     })
+
+
+# ── Area Aziendale CRUD ──────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def area_aziendale_create(request):
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per creare aree aziendali.")
+        return _back_to_caller(request, "anagrafica:aree_list")
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'area aziendale è obbligatorio.")
+        return _back_to_caller(request, "anagrafica:aree_list")
+    obj, created = AreaAziendale.objects.get_or_create(
+        nome__iexact=nome,
+        defaults={
+            "nome": nome,
+            "descrizione": (request.POST.get("descrizione") or "").strip(),
+            "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
+        },
+    )
+    if created:
+        messages.success(request, f'Area aziendale "{nome}" creata.')
+    else:
+        messages.warning(request, f'Esiste già un\'area aziendale con il nome "{nome}".')
+    return _back_to_caller(request, "anagrafica:aree_list")
+
+
+@login_required
+@require_POST
+def area_aziendale_edit(request, area_id: int):
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare aree aziendali.")
+        return _back_to_caller(request, "anagrafica:aree_list")
+    area = get_object_or_404(AreaAziendale, pk=area_id)
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome dell'area aziendale è obbligatorio.")
+        return _back_to_caller(request, "anagrafica:aree_list")
+    area.nome = nome
+    area.descrizione = (request.POST.get("descrizione") or "").strip()
+    area.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    area.is_active = request.POST.get("is_active") == "1"
+    area.save()
+    messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
+    return _back_to_caller(request, "anagrafica:aree_list")
+
+
+@login_required
+@require_POST
+def area_aziendale_delete(request, area_id: int):
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per eliminare aree aziendali.")
+        return _back_to_caller(request, "anagrafica:aree_list")
+    area = get_object_or_404(AreaAziendale, pk=area_id)
+    if area.reparti.exists():
+        messages.error(request, f'Impossibile eliminare: l\'area "{area.nome}" ha reparti associati. Riassegna prima i reparti.')
+        return _back_to_caller(request, "anagrafica:aree_list")
+    nome = area.nome
+    area.delete()
+    messages.success(request, f'Area aziendale "{nome}" eliminata.')
+    return _back_to_caller(request, "anagrafica:aree_list")
+
+
+# ── Reparto CRUD ─────────────────────────────────────────────────────────────
+
+def _sync_reparto_capo_mapping(rep) -> None:
+    """Allinea RepartoCapoMapping al valore di Reparto.caporeparto_legacy_id.
+
+    Chiamata dopo ogni create/edit di un Reparto per mantenere la tabella
+    RepartoCapoMapping (usata da assenze e automazioni) in sincronia con la
+    fonte di verità in Anagrafica HR.
+    """
+    from core.caporeparto_utils import canonical_caporeparto_value
+    from core.models import RepartoCapoMapping
+
+    reparto_nome = (rep.nome or "").strip()
+    if not reparto_nome:
+        return
+
+    RepartoCapoMapping.objects.filter(reparto__iexact=reparto_nome).delete()
+
+    if not rep.caporeparto_legacy_id:
+        return
+
+    capo_str = canonical_caporeparto_value(legacy_user_id=rep.caporeparto_legacy_id)
+    if not capo_str:
+        return
+
+    RepartoCapoMapping.objects.create(
+        reparto=reparto_nome,
+        caporeparto=capo_str,
+        is_active=True,
+    )
 
 
 @login_required
 @require_POST
 def area_create(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
-        messages.error(request, "Non hai i permessi per creare aree.")
+        messages.error(request, "Non hai i permessi per creare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
-        messages.error(request, "Il nome dell'area è obbligatorio.")
+        messages.error(request, "Il nome del reparto è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
-    _, created = AreaAziendale.objects.get_or_create(
+    capo_id = _resolve_caporeparto_id(request.POST.get("caporeparto_legacy_id"))
+    area_az_id = request.POST.get("area_aziendale_id") or None
+    area_az = None
+    if area_az_id:
+        try:
+            area_az = AreaAziendale.objects.get(pk=int(area_az_id))
+        except (AreaAziendale.DoesNotExist, ValueError):
+            pass
+    obj, created = Reparto.objects.get_or_create(
         nome__iexact=nome,
-        defaults={"nome": nome, "descrizione": (request.POST.get("descrizione") or "").strip()},
+        defaults={
+            "nome": nome,
+            "descrizione": (request.POST.get("descrizione") or "").strip(),
+            "caporeparto_legacy_id": capo_id,
+            "area_aziendale": area_az,
+        },
     )
     if created:
-        messages.success(request, f'Area "{nome}" creata.')
+        messages.success(request, f'Reparto "{nome}" creato.')
+        _sync_reparto_capo_mapping(obj)
     else:
-        messages.warning(request, f'Esiste già un\'area con il nome "{nome}".')
+        messages.warning(request, f'Esiste già un reparto con il nome "{nome}".')
     return _back_to_caller(request, "anagrafica:aree_list")
 
 
 @login_required
 @require_POST
 def area_edit(request, area_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
-        messages.error(request, "Non hai i permessi per modificare aree.")
+        messages.error(request, "Non hai i permessi per modificare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
-    area = get_object_or_404(AreaAziendale, pk=area_id)
+    rep = get_object_or_404(Reparto, pk=area_id)
     nome = (request.POST.get("nome") or "").strip()[:100]
     if not nome:
-        messages.error(request, "Il nome dell'area è obbligatorio.")
+        messages.error(request, "Il nome del reparto è obbligatorio.")
         return _back_to_caller(request, "anagrafica:aree_list")
-    area.nome = nome
-    area.descrizione = (request.POST.get("descrizione") or "").strip()
-    area.is_active = request.POST.get("is_active") == "1"
-    area.save()
-    messages.success(request, f'Area "{area.nome}" aggiornata.')
+    area_az_id = request.POST.get("area_aziendale_id") or None
+    area_az = None
+    if area_az_id:
+        try:
+            area_az = AreaAziendale.objects.get(pk=int(area_az_id))
+        except (AreaAziendale.DoesNotExist, ValueError):
+            pass
+    rep.nome = nome
+    rep.descrizione = (request.POST.get("descrizione") or "").strip()
+    rep.is_active = request.POST.get("is_active") == "1"
+    rep.caporeparto_legacy_id = _resolve_caporeparto_id(request.POST.get("caporeparto_legacy_id"))
+    rep.area_aziendale = area_az
+    rep.save()
+    _sync_reparto_capo_mapping(rep)
+    messages.success(request, f'Reparto "{rep.nome}" aggiornato.')
     return _back_to_caller(request, "anagrafica:aree_list")
 
 
 @login_required
 @require_POST
 def area_delete(request, area_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
-        messages.error(request, "Non hai i permessi per eliminare aree.")
+        messages.error(request, "Non hai i permessi per eliminare reparti.")
         return _back_to_caller(request, "anagrafica:aree_list")
-    area = get_object_or_404(AreaAziendale, pk=area_id)
-    nome = area.nome
-    area.delete()
-    messages.success(request, f'Area "{nome}" eliminata.')
+    rep = get_object_or_404(Reparto, pk=area_id)
+    nome = rep.nome
+    rep.delete()
+    messages.success(request, f'Reparto "{nome}" eliminato.')
     return _back_to_caller(request, "anagrafica:aree_list")
 
 
@@ -3966,7 +4232,7 @@ def area_delete(request, area_id: int):
 
 @login_required
 def ruoli_aziendali_list(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     ruoli = list(RuoloAziendale.objects.all().order_by("nome"))
     return render(request, "anagrafica/pages/ruoli_aziendali_list.html", {
@@ -3978,7 +4244,7 @@ def ruoli_aziendali_list(request):
 @login_required
 @require_POST
 def ruolo_aziendale_create(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
@@ -4000,7 +4266,7 @@ def ruolo_aziendale_create(request):
 @login_required
 @require_POST
 def ruolo_aziendale_edit(request, ruolo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
@@ -4020,7 +4286,7 @@ def ruolo_aziendale_edit(request, ruolo_id: int):
 @login_required
 @require_POST
 def ruolo_aziendale_delete(request, ruolo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare ruoli aziendali.")
         return _back_to_caller(request, "anagrafica:ruoli_aziendali_list")
@@ -4040,7 +4306,7 @@ def qualifiche_list(request):
     from datetime import timedelta
     from django.utils import timezone as tz
 
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     tipi = list(
@@ -4121,7 +4387,7 @@ def qualifiche_list(request):
 @login_required
 @require_POST
 def tipo_qualifica_create(request):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per creare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
@@ -4156,7 +4422,7 @@ def tipo_qualifica_create(request):
 @login_required
 @require_POST
 def tipo_qualifica_edit(request, tipo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per modificare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
@@ -4186,7 +4452,7 @@ def tipo_qualifica_edit(request, tipo_id: int):
 @login_required
 @require_POST
 def tipo_qualifica_delete(request, tipo_id: int):
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
         messages.error(request, "Non hai i permessi per eliminare tipi di qualifica.")
         return _back_to_caller(request, "anagrafica:qualifiche_list")
@@ -4227,7 +4493,7 @@ def _back_to_caller(request, fallback_view_name: str):
 
 def _impostazioni_admin_check(request, tab: str | None = None):
     """Restituisce (is_admin, redirect_response_or_None)."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     if not is_admin:
         messages.error(request, "Permessi insufficienti.")
@@ -4676,6 +4942,207 @@ def scadenzario(request):
     })
 
 
+# Cedolini — import XLSX via pagina web (replica logica del management command)
+# ---------------------------------------------------------------------------
+
+_MESI_IT = {
+    "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4,
+    "maggio": 5, "giugno": 6, "luglio": 7, "agosto": 8,
+    "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
+}
+
+_COL_CF       = 0
+_COL_MESE     = 3
+_COL_ANNO     = 4
+_COL_DATA_PER = 5
+_COL_ANZ_ANNI = 8
+_COL_ANZ_MESI = 9
+_COL_FERIE_AP  = 16
+_COL_FERIE_MAT = 17
+_COL_FERIE_GOD = 18
+_COL_FERIE_RES = 19
+_COL_PERM_AP   = 20
+_COL_PERM_MAT  = 21
+_COL_PERM_GOD  = 22
+_COL_PERM_RES  = 23
+_COL_ROL_AP    = 24
+_COL_ROL_MAT   = 25
+_COL_ROL_GOD   = 26
+_COL_ROL_RES   = 27
+_COL_EXFEST_AP  = 28
+_COL_EXFEST_MAT = 29
+_COL_EXFEST_GOD = 30
+_COL_EXFEST_RES = 31
+
+
+def _ced_dec(val) -> Decimal:
+    if val is None:
+        return Decimal("0")
+    try:
+        return Decimal(str(val)).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _ced_int(val):
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _ced_data_competenza(row) -> "date | None":
+    dt = row[_COL_DATA_PER]
+    if isinstance(dt, datetime):
+        return dt.date()
+    if isinstance(dt, date):
+        return dt
+    mese_str = str(row[_COL_MESE] or "").strip().lower()
+    anno = _ced_int(row[_COL_ANNO])
+    mese_num = _MESI_IT.get(mese_str)
+    if mese_num and anno:
+        ultimo = calendar.monthrange(anno, mese_num)[1]
+        return date(anno, mese_num, ultimo)
+    return None
+
+
+def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolini:
+    """Importa saldi cedolini da file XLSX e crea record su DB."""
+    try:
+        import openpyxl
+    except ImportError as exc:
+        raise ValueError("openpyxl non installato sul server.") from exc
+
+    wb = openpyxl.load_workbook(file_obj, data_only=True, read_only=True)
+    foglio = "Dati"
+    if foglio not in wb.sheetnames:
+        raise ValueError(
+            f"Foglio '{foglio}' non trovato nel file. Fogli disponibili: {', '.join(wb.sheetnames)}"
+        )
+    ws = wb[foglio]
+
+    cf_to_lid = dict(
+        DipendenteAnagraficaCivile.objects
+        .exclude(codice_fiscale="")
+        .values_list("codice_fiscale", "legacy_anagrafica_id")
+    )
+
+    periodi: dict = {}
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        cf = str(row[_COL_CF] or "").strip().upper()
+        if not cf:
+            continue
+        dt = _ced_data_competenza(row)
+        if dt is None:
+            continue
+        periodi.setdefault(dt, []).append((cf, row))
+
+    if not periodi:
+        raise ValueError("Il file non contiene righe valide (nessun codice fiscale o data competenza leggibili).")
+
+    totale_ok = totale_err = totale_nf = 0
+    ultima_imp = None
+
+    with transaction.atomic():
+        for dt in sorted(periodi):
+            righe = periodi[dt]
+            imp = ImportazioneCedolini.objects.create(
+                data_competenza=dt,
+                origine=ImportazioneCedolini.ORIGINE_XLSX,
+                importato_da=user,
+                file_nome=file_nome,
+                righe_totali=len(righe),
+            )
+            ok = err = nf = 0
+            for cf, row in righe:
+                try:
+                    lid = cf_to_lid.get(cf)
+                    if lid is None:
+                        nf += 1
+                    SaldoCedolino.objects.update_or_create(
+                        tax_code=cf,
+                        data_competenza=dt,
+                        defaults=dict(
+                            importazione=imp,
+                            legacy_anagrafica_id=lid,
+                            anzianita_anni=_ced_int(row[_COL_ANZ_ANNI]),
+                            anzianita_mesi=_ced_int(row[_COL_ANZ_MESI]),
+                            ferie_anni_prec=_ced_dec(row[_COL_FERIE_AP]),
+                            ferie_maturati=_ced_dec(row[_COL_FERIE_MAT]),
+                            ferie_goduti=_ced_dec(row[_COL_FERIE_GOD]),
+                            ferie_residui=_ced_dec(row[_COL_FERIE_RES]),
+                            permessi_anni_prec=_ced_dec(row[_COL_PERM_AP]),
+                            permessi_maturati=_ced_dec(row[_COL_PERM_MAT]),
+                            permessi_goduti=_ced_dec(row[_COL_PERM_GOD]),
+                            permessi_residui=_ced_dec(row[_COL_PERM_RES]),
+                            rol_anni_prec=_ced_dec(row[_COL_ROL_AP]),
+                            rol_maturati=_ced_dec(row[_COL_ROL_MAT]),
+                            rol_goduti=_ced_dec(row[_COL_ROL_GOD]),
+                            rol_residui=_ced_dec(row[_COL_ROL_RES]),
+                            ex_fest_anni_prec=_ced_dec(row[_COL_EXFEST_AP]),
+                            ex_fest_maturati=_ced_dec(row[_COL_EXFEST_MAT]),
+                            ex_fest_goduti=_ced_dec(row[_COL_EXFEST_GOD]),
+                            ex_fest_residui=_ced_dec(row[_COL_EXFEST_RES]),
+                        ),
+                    )
+                    ok += 1
+                except Exception:
+                    err += 1
+                    logger.exception("Errore import cedolino CF=%s mese=%s", cf, dt)
+
+            imp.righe_ok = ok
+            imp.righe_errore = err
+            imp.righe_non_trovate = nf
+            imp.save(update_fields=["righe_ok", "righe_errore", "righe_non_trovate"])
+            totale_ok += ok
+            totale_err += err
+            totale_nf += nf
+            ultima_imp = imp
+
+    return ultima_imp
+
+
+@login_required
+def cedolini_import(request):
+    """Pagina importazione XLSX cedolini (solo admin)."""
+    legacy_user = get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not is_admin:
+        messages.error(request, "Accesso riservato agli amministratori.")
+        return redirect("anagrafica:dipendenti_list")
+
+    if request.method == "POST":
+        file_obj = request.FILES.get("file_xlsx")
+        if not file_obj:
+            messages.error(request, "Nessun file selezionato.")
+        else:
+            try:
+                imp = _import_xlsx_cedolini(file_obj, request.user, file_obj.name)
+                periodi_n = ImportazioneCedolini.objects.filter(file_nome=file_obj.name).count()
+                messages.success(
+                    request,
+                    f"Importazione completata: {imp.righe_ok} saldi salvati"
+                    f"{f', {imp.righe_errore} errori' if imp.righe_errore else ''}"
+                    f"{f', {imp.righe_non_trovate} CF non in anagrafica' if imp.righe_non_trovate else ''}.",
+                )
+                return redirect("anagrafica:cedolini_import")
+            except Exception as exc:
+                logger.exception("Errore importazione XLSX cedolini")
+                messages.error(request, f"Errore durante l'importazione: {exc}")
+
+    importazioni = list(
+        ImportazioneCedolini.objects
+        .select_related("importato_da")
+        .order_by("-data_competenza", "-data_importazione")[:50]
+    )
+    return render(request, "anagrafica/pages/cedolini_import.html", {
+        "importazioni": importazioni,
+        "is_admin": is_admin,
+    })
+
+
 # Ratei ferie/ROL/ex-festività — vista aggregata con filtro mese + dipendente
 # ---------------------------------------------------------------------------
 
@@ -4683,7 +5150,7 @@ def scadenzario(request):
 def ratei_list(request):
     """Lista aggregata saldi cedolini con filtro per periodo e dipendente (solo HR)."""
     from core.legacy_models import UtenteLegacy
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     can_hr = _check_hr_permission(request)
 
@@ -4705,22 +5172,44 @@ def ratei_list(request):
         .distinct()
         .order_by("tax_code")
     )
-    legacy_ids = [s["legacy_anagrafica_id"] for s in all_cf_legacy if s["legacy_anagrafica_id"]]
+    # Fallback CF → legacy_id via DipendenteAnagraficaCivile (per cedolini senza legacy_id)
+    cf_civile_legacy: dict = {}
+    for c in DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="").values("codice_fiscale", "legacy_anagrafica_id"):
+        cf_u = (c["codice_fiscale"] or "").strip().upper()
+        if cf_u:
+            cf_civile_legacy[cf_u] = c["legacy_anagrafica_id"]
+
+    cf_to_legacy_rl: dict = {}
+    for row in all_cf_legacy:
+        cf = (row["tax_code"] or "").strip()
+        if not cf or cf in cf_to_legacy_rl:
+            continue
+        cf_to_legacy_rl[cf] = row["legacy_anagrafica_id"] or cf_civile_legacy.get(cf.upper())
+
+    legacy_ids = sorted({lid for lid in cf_to_legacy_rl.values() if lid})
     dip_qs = list(AnagraficaDipendente.objects.filter(id__in=legacy_ids).values("id", "cognome", "nome", "reparto"))
     id_to_nome: dict = {
         d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
         for d in dip_qs
     }
-    id_to_reparto: dict = {d["id"]: (d["reparto"] or "").strip() for d in dip_qs}
+    # Fallback reparto: AnagraficaDipendente.reparto → DipendenteAnagraficaAziendale.area
+    id_to_az_reparto_rl: dict = dict(
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .exclude(area="")
+        .values_list("legacy_anagrafica_id", "area")
+    )
+    id_to_reparto: dict = {
+        d["id"]: (d["reparto"] or id_to_az_reparto_rl.get(d["id"], "")).strip()
+        for d in dip_qs
+    }
 
     seen_cf: set = set()
     dipendenti_options: list = []
-    for row in all_cf_legacy:
-        cf = row["tax_code"]
+    for cf, lid in cf_to_legacy_rl.items():
         if cf in seen_cf:
             continue
         seen_cf.add(cf)
-        lid = row["legacy_anagrafica_id"]
         nome = id_to_nome.get(lid) if lid else None
         reparto = id_to_reparto.get(lid, "") if lid else ""
         dipendenti_options.append({"cf": cf, "nome": nome or cf, "reparto": reparto})
@@ -4797,18 +5286,38 @@ def ratei_export(request):
         .distinct()
         .order_by("tax_code")
     )
-    legacy_ids = [s["legacy_anagrafica_id"] for s in all_cf_legacy if s["legacy_anagrafica_id"]]
+    cf_civile_legacy_exp: dict = {}
+    for c in DipendenteAnagraficaCivile.objects.exclude(codice_fiscale="").values("codice_fiscale", "legacy_anagrafica_id"):
+        cf_u = (c["codice_fiscale"] or "").strip().upper()
+        if cf_u:
+            cf_civile_legacy_exp[cf_u] = c["legacy_anagrafica_id"]
+
+    cf_to_legacy_exp: dict = {}
+    for row in all_cf_legacy:
+        cf = (row["tax_code"] or "").strip()
+        if not cf or cf in cf_to_legacy_exp:
+            continue
+        cf_to_legacy_exp[cf] = row["legacy_anagrafica_id"] or cf_civile_legacy_exp.get(cf.upper())
+
+    legacy_ids = sorted({lid for lid in cf_to_legacy_exp.values() if lid})
     dip_qs = list(AnagraficaDipendente.objects.filter(id__in=legacy_ids).values("id", "cognome", "nome", "reparto"))
     id_to_nome: dict = {
         d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
         for d in dip_qs
     }
-    id_to_reparto: dict = {d["id"]: (d["reparto"] or "").strip() for d in dip_qs}
+    id_to_az_reparto_exp: dict = dict(
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .exclude(area="")
+        .values_list("legacy_anagrafica_id", "area")
+    )
+    id_to_reparto: dict = {
+        d["id"]: (d["reparto"] or id_to_az_reparto_exp.get(d["id"], "")).strip()
+        for d in dip_qs
+    }
     cf_to_nome: dict = {}
     cf_to_reparto: dict = {}
-    for row in all_cf_legacy:
-        cf = row["tax_code"]
-        lid = row["legacy_anagrafica_id"]
+    for cf, lid in cf_to_legacy_exp.items():
         cf_to_nome[cf] = id_to_nome.get(lid, cf) if lid else cf
         cf_to_reparto[cf] = id_to_reparto.get(lid, "") if lid else ""
 
@@ -4974,7 +5483,17 @@ def _retribuzioni_globale_context(request) -> dict:
         d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
         for d in dip_qs
     }
-    id_to_reparto = {d["id"]: (d["reparto"] or "").strip() for d in dip_qs}
+    # Fallback reparto: AnagraficaDipendente.reparto → DipendenteAnagraficaAziendale.area
+    _id_to_az_reparto: dict = dict(
+        DipendenteAnagraficaAziendale.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .exclude(area="")
+        .values_list("legacy_anagrafica_id", "area")
+    )
+    id_to_reparto = {
+        d["id"]: (d["reparto"] or _id_to_az_reparto.get(d["id"], "")).strip()
+        for d in dip_qs
+    }
 
     # Livello contrattuale corrente: contratto piu' recente per dipendente
     id_to_livello: dict = {}
@@ -5188,7 +5707,7 @@ def retribuzioni_globale(request):
         messages.error(request, "Accesso non autorizzato ai dati HR.")
         return redirect("anagrafica:index")
 
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     ctx = _retribuzioni_globale_context(request)
@@ -5314,7 +5833,7 @@ def impostazioni(request):
     from datetime import timedelta
     from django.utils import timezone as tz
 
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     active_tab = (request.GET.get("tab") or "mansioni").strip().lower()
@@ -5345,8 +5864,13 @@ def impostazioni(request):
         if items:
             mansioni_grouped.append((cat_code, cat_labels[cat_code], items))
 
-    # --- Aree aziendali ---
-    aree = list(AreaAziendale.objects.all().order_by("nome"))
+    # --- Reparti ---
+    aree = list(Reparto.objects.select_related("area_aziendale").order_by("nome"))
+    aree_aziendali = list(AreaAziendale.objects.prefetch_related("reparti").order_by("nome"))
+    dipendenti_picker = _dipendenti_picker_rows()
+    _dip_picker_map = {item["id"]: item["label"] for item in dipendenti_picker}
+    for a in aree:
+        a.caporeparto_label = _dip_picker_map.get(a.caporeparto_legacy_id or 0, "")
 
     # --- Ruoli aziendali ---
     ruoli_aziendali = list(RuoloAziendale.objects.all().order_by("nome"))
@@ -5438,7 +5962,7 @@ def impostazioni(request):
         ("anagrafica:documenti_list", "Documenti dipendenti"),
         ("anagrafica:ruoli_operativi_list", "Ruoli operativi — catalogo"),
         ("anagrafica:mansioni_list", "Mansioni — catalogo"),
-        ("anagrafica:aree_list", "Aree aziendali — catalogo"),
+        ("anagrafica:aree_list", "Reparti — catalogo"),
         ("anagrafica:ruoli_aziendali_list", "Ruoli aziendali — catalogo"),
         ("anagrafica:qualifiche_list", "Qualifiche — catalogo"),
         ("anagrafica:widget_permissions", "Impostazioni widget dipendente"),
@@ -5468,8 +5992,10 @@ def impostazioni(request):
         "mansioni": mansioni,
         "mansioni_grouped": mansioni_grouped,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
-        # Aree
+        # Reparti
         "aree": aree,
+        "aree_aziendali": aree_aziendali,
+        "dipendenti_picker": dipendenti_picker,
         # Ruoli aziendali
         "ruoli_aziendali": ruoli_aziendali,
         # Ruoli operativi
@@ -5971,7 +6497,7 @@ def dpi_taglia_delete(request, pk: int):
 
 def _ensure_admin(request):
     """Ritorna (legacy_user, is_admin). Riusa la convenzione del modulo."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     return legacy_user, (request.user.is_superuser or is_legacy_admin(legacy_user))
 
 
@@ -6117,7 +6643,7 @@ def documento_dipendente_download(request, doc_id: int):
         if not _can_view_visite_mediche(request):
             return HttpResponse(status=403)
     else:
-        legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+        legacy_user = get_legacy_user(request.user)
         if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
             return HttpResponse(status=403)
 
@@ -6265,7 +6791,7 @@ def documento_dipendente_upload(request, legacy_id: int):
 @login_required
 def documenti_list(request):
     """Lista di tutti i documenti caricati manualmente, filtrabile per dipendente/cartella."""
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     hr_ok = _check_hr_permission(request)
 
@@ -7277,7 +7803,7 @@ def _can_edit_formazione(request) -> bool:
     perm = AnagraficaFormazionePermission.get_instance()
     if perm.accesso_modifica == AnagraficaFormazionePermission.ACCESSO_TUTTI:
         return True
-    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
         return perm.accesso_modifica in (
             AnagraficaFormazionePermission.ACCESSO_ADMIN,

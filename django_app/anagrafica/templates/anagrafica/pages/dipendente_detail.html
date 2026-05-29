@@ -33,7 +33,7 @@
 .dp-card-body { padding:16px 18px; }
 
 /* Hero dipendente */
-.dp-hero { display:flex; align-items:center; gap:20px; background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:20px 24px; flex-wrap:wrap; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.dp-hero { display:flex; align-items:center; gap:16px; background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:16px 20px; flex-wrap:wrap; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .dp-avatar { width:64px; height:64px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1; display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
 .dp-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
 .dp-avatar-fallback::before { content:""; position:absolute; top:14px; left:22px; width:18px; height:18px; border-radius:50%; background:#94a3b8; }
@@ -41,15 +41,19 @@
 .dp-hero-info { flex:1; min-width:0; }
 .dp-hero-name { font-size:22px; font-weight:800; color:#12395f; }
 .dp-hero-meta { font-size:13px; color:#64748b; margin-top:3px; }
-.dp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
-.dp-offboarding-form { display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center; }
-.dp-offboarding-date { height:28px; border:1px solid #fecaca; border-radius:.55rem; padding:3px 7px; font-size:12px; color:#7f1d1d; background:#fff; }
-.dp-offboarding-return { flex-basis:100%; min-width:260px; max-width:520px; border:1px solid #fecaca; border-radius:.65rem; background:#fff7f7; padding:6px 9px; }
-.dp-offboarding-return summary { cursor:pointer; font-size:11px; font-weight:800; color:#991b1b; }
+.dp-hero-actions { display:flex; gap:7px; flex-wrap:wrap; align-items:flex-start; justify-content:flex-end; }
+.dp-offboarding-form { display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center; max-width:100%; }
+.dp-offboarding-date-field { display:inline-flex; align-items:center; height:30px; border:1px solid #fecaca; border-radius:.6rem; background:#fff; overflow:hidden; }
+.dp-offboarding-date-field span { height:100%; display:inline-flex; align-items:center; padding:0 7px; background:#fff7f7; border-right:1px solid #fecaca; color:#991b1b; font-size:10px; font-weight:800; text-transform:uppercase; white-space:nowrap; }
+.dp-offboarding-date { width:120px; height:28px; border:0; padding:0 6px; font-size:12px; color:#7f1d1d; background:#fff; outline:none; }
+.dp-offboarding-return { position:relative; flex:0 0 auto; min-width:0; max-width:none; border:0; border-radius:0; background:transparent; padding:0; }
+.dp-offboarding-return summary { display:inline-flex; align-items:center; height:30px; box-sizing:border-box; cursor:pointer; font-size:11px; font-weight:800; color:#991b1b; border:1px solid #fecaca; border-radius:.6rem; background:#fff7f7; padding:0 10px; list-style:none; }
+.dp-offboarding-return summary::-webkit-details-marker { display:none; }
+.dp-offboarding-popover { position:absolute; right:0; top:calc(100% + 6px); z-index:30; width:420px; max-width:calc(100vw - 32px); border:1px solid #fecaca; border-radius:.75rem; background:#fff; padding:10px; box-shadow:0 18px 40px -24px rgba(127,29,29,.45); }
 .dp-offboarding-return-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:6px 10px; margin-top:8px; }
 .dp-offboarding-return label { display:flex; align-items:center; gap:6px; font-size:12px; color:#7f1d1d; }
 .dp-offboarding-note { margin-top:8px; width:100%; min-height:46px; resize:vertical; border:1px solid #fecaca; border-radius:.55rem; padding:6px 8px; font-size:12px; color:#7f1d1d; background:#fff; box-sizing:border-box; }
-.dp-offboarding-select { height:28px; border:1px solid #fecaca; border-radius:.55rem; padding:3px 7px; font-size:12px; color:#7f1d1d; background:#fff; }
+.dp-offboarding-select { height:30px; max-width:150px; border:1px solid #fecaca; border-radius:.6rem; padding:3px 7px; font-size:12px; color:#7f1d1d; background:#fff; }
 .dp-offboarding-panel { border-color:#fecaca; }
 .dp-offboarding-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:12px; }
 .dp-offboarding-task { display:grid; grid-template-columns:minmax(180px, 1fr) minmax(220px, 1.4fr); gap:10px; align-items:start; padding:10px 0; border-top:1px solid #f1f5f9; }
@@ -199,14 +203,20 @@
   .dp-qual-form-grid { grid-template-columns:1fr; }
   .dp-widget-grid { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); }
   .dp-hero { flex-direction:column; align-items:flex-start; }
+  .dp-hero-actions { justify-content:flex-start; }
+  .dp-offboarding-return { flex-basis:100%; }
+  .dp-offboarding-popover { position:static; width:100%; max-width:100%; box-sizing:border-box; }
 }
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .dp-title { color:var(--text); }
 body.theme-dark .dp-sub { color:var(--text-light); }
 body.theme-dark .dp-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .dp-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .dp-offboarding-date-field { background:var(--surface); border-color:rgba(252,165,165,.35); }
+body.theme-dark .dp-offboarding-date-field span { background:rgba(185,28,28,.12); color:#fecaca; border-color:rgba(252,165,165,.3); }
 body.theme-dark .dp-offboarding-date { background:var(--surface); color:#fecaca; border-color:rgba(252,165,165,.35); }
-body.theme-dark .dp-offboarding-return { background:rgba(185,28,28,.12); border-color:rgba(252,165,165,.3); }
+body.theme-dark .dp-offboarding-return summary { background:rgba(185,28,28,.12); border-color:rgba(252,165,165,.3); }
+body.theme-dark .dp-offboarding-popover { background:var(--surface); border-color:rgba(252,165,165,.3); }
 body.theme-dark .dp-offboarding-return summary,
 body.theme-dark .dp-offboarding-return label { color:#fecaca; }
 body.theme-dark .dp-offboarding-note { background:var(--surface); color:#fecaca; border-color:rgba(252,165,165,.35); }
@@ -394,20 +404,24 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
                 <option value="{{ value }}"{% if value == 'licenziamento' %} selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            <input type="date" name="data_cessazione" class="dp-offboarding-date" value="{{ oggi|date:'Y-m-d' }}" aria-label="Data cessazione prevista">
-            <input type="date" name="ultimo_giorno_operativo" class="dp-offboarding-date" aria-label="Ultimo giorno operativo">
+            <label class="dp-offboarding-date-field">
+              <span>Data uscita</span>
+              <input type="date" name="data_cessazione" class="dp-offboarding-date" value="{{ oggi|date:'Y-m-d' }}" aria-label="Data uscita">
+            </label>
             <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Avvia uscita dipendente</button>
             <details class="dp-offboarding-return">
-              <summary>Restituzioni da pianificare</summary>
-              <div class="dp-offboarding-return-grid">
-                <label><input type="checkbox" name="restituzioni" value="badge_chiavi"> Badge, chiavi, tessere</label>
-                <label><input type="checkbox" name="restituzioni" value="device_it"> PC, telefono, SIM, token</label>
-                <label><input type="checkbox" name="restituzioni" value="dpi_divise"> DPI, divise, attrezzature</label>
-                <label><input type="checkbox" name="restituzioni" value="mezzi_carte"> Mezzi, carte, carburante</label>
-                <label><input type="checkbox" name="restituzioni" value="documenti_archivi"> Documenti e archivi</label>
-                <label><input type="checkbox" name="restituzioni" value="accessi_account"> Accessi e account da revocare</label>
+              <summary>Restituzioni</summary>
+              <div class="dp-offboarding-popover">
+                <div class="dp-offboarding-return-grid">
+                  <label><input type="checkbox" name="restituzioni" value="badge_chiavi"> Badge, chiavi, tessere</label>
+                  <label><input type="checkbox" name="restituzioni" value="device_it"> PC, telefono, SIM, token</label>
+                  <label><input type="checkbox" name="restituzioni" value="dpi_divise"> DPI, divise, attrezzature</label>
+                  <label><input type="checkbox" name="restituzioni" value="mezzi_carte"> Mezzi, carte, carburante</label>
+                  <label><input type="checkbox" name="restituzioni" value="documenti_archivi"> Documenti e archivi</label>
+                  <label><input type="checkbox" name="restituzioni" value="accessi_account"> Accessi e account da revocare</label>
+                </div>
+                <textarea name="restituzioni_note" class="dp-offboarding-note" maxlength="1000" placeholder="Note su altro materiale da recuperare o passaggi da fare"></textarea>
               </div>
-              <textarea name="restituzioni_note" class="dp-offboarding-note" maxlength="1000" placeholder="Note su altro materiale da recuperare o passaggi da fare"></textarea>
             </details>
           </form>
           {% endif %}
@@ -445,13 +459,15 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
           <span class="dp-info-value">{{ offboarding_pratica_attiva.get_motivo_display }}</span>
         </div>
         <div class="dp-info-item">
-          <span class="dp-info-label">Data cessazione prevista</span>
+          <span class="dp-info-label">Data uscita</span>
           <span class="dp-info-value">{{ offboarding_pratica_attiva.data_cessazione_prevista|date:"d/m/Y" }}</span>
         </div>
+        {% if offboarding_pratica_attiva.ultimo_giorno_operativo and offboarding_pratica_attiva.ultimo_giorno_operativo != offboarding_pratica_attiva.data_cessazione_prevista %}
         <div class="dp-info-item">
           <span class="dp-info-label">Ultimo giorno operativo</span>
           <span class="dp-info-value">{% if offboarding_pratica_attiva.ultimo_giorno_operativo %}{{ offboarding_pratica_attiva.ultimo_giorno_operativo|date:"d/m/Y" }}{% else %}-{% endif %}</span>
         </div>
+        {% endif %}
         <div class="dp-info-item">
           <span class="dp-info-label">Stato</span>
           <span class="dp-info-value">{{ offboarding_pratica_attiva.get_stato_display }}</span>
@@ -555,17 +571,32 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Reparto
-            <button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>
+            {% if is_admin %}<button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>{% endif %}
           </div>
-          <div class="dp-info-value">{{ dip.reparto|default:"—" }}</div>
+          <div class="dp-info-value">{{ dip.reparto|default:aziendale.area|default:"—" }}</div>
+          {% if is_admin %}
           <div class="dp-mansione-form" id="reparto-form">
             <form method="post" action="{% url 'anagrafica:dipendente_reparto_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               {% csrf_token %}
-              <input type="text" name="reparto" class="dp-select" value="{{ dip.reparto|default:'' }}" maxlength="200" placeholder="Nome reparto" style="min-width:180px;">
+              <select name="reparto" class="dp-select" style="min-width:200px;">
+                <option value="">— Nessun reparto —</option>
+                {% for rep in reparti_catalog %}
+                  <option value="{{ rep.nome }}" {% if rep.nome == dip.reparto %}selected{% endif %}>
+                    {{ rep.nome }}{% if rep.area_aziendale %} · {{ rep.area_aziendale.nome }}{% endif %}
+                  </option>
+                {% endfor %}
+                {% if dip.reparto and not reparto_in_catalog %}
+                  <option value="{{ dip.reparto }}" selected>{{ dip.reparto }} (attuale – non in catalogo)</option>
+                {% endif %}
+              </select>
               <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleRepartoForm()">Annulla</button>
             </form>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f5c91;">Gestisci il catalogo</a>.
+            </div>
           </div>
+          {% endif %}
         </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Mansione
@@ -592,7 +623,26 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             </div>
           </div>
         </div>
-        <div class="dp-info-item"><div class="dp-info-label">Area</div><div class="dp-info-value">{{ aziendale.area|default:"—" }}</div></div>
+        <div class="dp-info-item">
+          <div class="dp-info-label">Area aziendale</div>
+          <div class="dp-info-value">
+            {% if aziendale.area_aziendale_nome %}
+              {{ aziendale.area_aziendale_nome }}
+            {% else %}
+              <span style="color:#94a3b8;font-size:12px;">Auto dal reparto</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="dp-info-item">
+          <div class="dp-info-label">Caporeparto</div>
+          <div class="dp-info-value">
+            {% if caporeparto_label %}
+              {{ caporeparto_label }}
+            {% else %}
+              <span style="color:#94a3b8;font-size:12px;">Auto dal reparto</span>
+            {% endif %}
+          </div>
+        </div>
         <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Username
@@ -637,6 +687,16 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
               {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
             </div>
             {% endfor %}
+            <div class="dp-form-field">
+              <label class="dp-form-label">Area aziendale</label>
+              <input type="text" id="az-area-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ aziendale.area_aziendale_nome|default:'' }}">
+              <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
+            </div>
+            <div class="dp-form-field">
+              <label class="dp-form-label">Caporeparto</label>
+              <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
+              <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
+            </div>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px;">
             <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
@@ -1054,7 +1114,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
   <div class="dp-card" data-tab="contratto">
     <div class="dp-card-head">
       <div class="dp-card-title">📋 Storico cambiamenti organizzativi</div>
-      <span style="font-size:11px;color:#94a3b8;">Mansione · Reparto · Area · Ruolo aziendale</span>
+      <span style="font-size:11px;color:#94a3b8;">Mansione · Reparto · Ruolo aziendale</span>
     </div>
     <div class="dp-card-body">
       {% if storico_cambiamenti %}
@@ -1062,8 +1122,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         <span style="color:#64748b;font-weight:600;">Filtra:</span>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn sc-filter-active" data-tipo="ALL">Tutti</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="MANSIONE">Mansione</button>
-        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="REPARTO">Reparto</button>
-        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA">Area</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="REPARTO">Reparto (legacy)</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="AREA">Reparto</button>
         <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs sc-filter-btn" data-tipo="RUOLO_AZIENDALE">Ruolo</button>
       </div>
       <div style="overflow-x:auto;">
@@ -1168,13 +1228,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
     <div class="dp-card-body" style="color:#64748b;font-size:13px;">
       Nessun dato cedolino disponibile per questo dipendente.
       {% if is_admin %}
-      <details style="display:inline-block;margin-top:6px;">
-        <summary style="color:#1f5c91;font-weight:600;cursor:pointer;font-size:13px;list-style:none;">Import cedolini →</summary>
-        <div style="margin-top:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:12px;color:#475569;max-width:380px;">
-          Da CLI (solo admin):<br>
-          <code style="display:block;margin-top:4px;background:#f1f5f9;padding:4px 8px;border-radius:6px;font-size:11px;color:#0f172a;word-break:break-all;">python manage.py import_cedolini &lt;file.xlsx&gt;</code>
-        </div>
-      </details>
+      <a href="{% url 'anagrafica:cedolini_import' %}" style="display:inline-block;margin-top:6px;color:#1f5c91;font-weight:600;font-size:13px;">Import cedolini →</a>
       {% endif %}
     </div>
     {% endif %}
@@ -2120,7 +2174,6 @@ function toggleContrattoEdit(id) {
   if (!bar || !page) return;
   var panels  = Array.prototype.slice.call(page.querySelectorAll('[data-tab]'));
   var buttons = Array.prototype.slice.call(bar.querySelectorAll('.dp-tab'));
-  var KEY = 'dp_detail_tab_{{ legacy_id }}_v1';
   var present = {};
   panels.forEach(function (p) { present[p.getAttribute('data-tab')] = true; });
 
@@ -2132,7 +2185,6 @@ function toggleContrattoEdit(id) {
     buttons.forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-tab-target') === tab);
     });
-    try { sessionStorage.setItem(KEY, tab); } catch (e) {}
   }
 
   var firstAvailable = null;
@@ -2144,10 +2196,23 @@ function toggleContrattoEdit(id) {
   });
   if (!firstAvailable) return;
 
-  var start = null;
-  try { start = sessionStorage.getItem(KEY); } catch (e) {}
-  if (!start || !present[start]) start = firstAvailable;
-  show(start);
+  show(firstAvailable);
+})();
+
+// Auto-fill area aziendale e caporeparto quando si seleziona il reparto
+(function() {
+  var repartiData = {{ reparto_autofill_json|safe }};
+  var sel = document.getElementById('id_area');
+  if (!sel) return;
+  function fill() {
+    var d = repartiData[sel.value] || {};
+    var areaEl = document.getElementById('az-area-autofill');
+    var capoEl = document.getElementById('az-capo-autofill');
+    if (areaEl) areaEl.value = d.area || '';
+    if (capoEl) capoEl.value = d.capo_label || '';
+  }
+  sel.addEventListener('change', fill);
+  fill();
 })();
 </script>
 {% endblock %}

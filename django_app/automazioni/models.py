@@ -58,6 +58,7 @@ class AutomationActionType(models.TextChoices):
     INSERT_RECORD = "insert_record", "Insert record"
     UPDATE_RECORD = "update_record", "Update record"
     UPDATE_TRIGGER_RECORD = "update_trigger_record", "Update triggering record"
+    SPLIT_ASSENZA_GIORNALIERA = "split_assenza_giornaliera", "Split assenza giornaliera"
     UPDATE_DASHBOARD_METRIC = "update_dashboard_metric", "Update dashboard metric"
     WRITE_LOG = "write_log", "Write log"
     DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule"

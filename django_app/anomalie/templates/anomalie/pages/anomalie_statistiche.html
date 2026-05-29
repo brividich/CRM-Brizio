@@ -1,227 +1,117 @@
+{% extends "core/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Statistiche Anomalie | Portale Applicativo</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      min-height: 100vh;
-      font-family: "Outfit", sans-serif;
-      font-size: var(--fs-base);
-      line-height: var(--lh-base);
-      background: var(--bg);
-      background:
-        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%),
-        radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%),
-        linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
-      color: #1f2937;
-    }
-    .topbar {
-      position: sticky; top: 0; z-index: 20;
-      height: 54px; display: flex; align-items: center; gap: 14px;
-      padding: 0 16px;
-      background: rgba(26, 84, 153, 0.93);
-      box-shadow: 0 2px 8px rgba(0,0,0,.2);
-    }
-    .topbar a { color: rgba(255,255,255,.92); text-decoration: none; font-size: var(--fs-base); font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
-    .topbar a:hover { color: #fff; }
-    .topbar-sep { width: 1px; height: 22px; background: rgba(255,255,255,.28); }
-    .topbar-title { flex: 1; color: #fff; font-size: var(--fs-md); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-    .topbar-user { color: rgba(255,255,255,.74); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
 
-    .page { max-width: 1040px; margin: 22px auto 40px; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+{% block title %}Statistiche Anomalie | Portale Applicativo{% endblock %}
 
-    /* Filtri */
-    .filter-card {
-      background: rgba(255,255,255,.9);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.08);
-      padding: 18px 20px;
-    }
-    .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    .filter-field { display: flex; flex-direction: column; gap: 5px; min-width: 160px; }
-    .filter-field label { font-size: var(--fs-sm); font-weight: 800; color: #374151; letter-spacing: .03em; }
-    .filter-field input, .filter-field select {
-      padding: 7px 10px; border: 1.5px solid #d1d5db; border-radius: 8px;
-      font-size: var(--fs-base); color: #1f2937; background: #fff;
-    }
-    .filter-field input:focus, .filter-field select:focus { outline: none; border-color: #1a5499; }
+{% block extra_head %}
+<style>
+  /* barre progress inserite da JS nelle tabelle */
+  .bar-wrap { height:8px; background:var(--border); border-radius:99px; overflow:hidden; min-width:60px; }
+  .bar-fill { height:100%; background:var(--primary-mid); border-radius:99px; transition:width .4s ease; }
+  /* stati inline JS */
+  .loading { color:var(--text-mid); font-size:var(--fs-base); padding:20px; text-align:center; }
+  .empty-msg { color:var(--text-light); text-align:center; padding:24px; font-size:var(--fs-base); }
+  .err-msg { color:var(--danger); font-size:var(--fs-base); padding:12px 16px; background:var(--danger-bg); border-radius:10px; border:1px solid #fca5a5; }
+</style>
+{% endblock %}
 
-    /* KPI */
-    .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    @media (max-width: 768px) { .kpi-row { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 500px)  { .kpi-row { grid-template-columns: 1fr; } }
-    .kpi {
-      background: rgba(255,255,255,.9);
-      border-radius: 14px;
-      padding: 18px 20px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.1);
-      text-align: center;
-    }
-    .kpi-label { font-size: var(--fs-sm); font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-    .kpi-val { font-size: var(--fs-display-3xl); font-weight: 900; color: #1e3a5f; line-height: 1; }
-    .kpi-val.green { color: #166534; }
-    .kpi-val.orange { color: #c2410c; }
-    .kpi-sub { font-size: var(--fs-sm); color: #94a3b8; margin-top: 6px; }
+{% block content %}
 
-    /* Card tabella */
-    .card {
-      background: rgba(255,255,255,.9);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.08);
-      overflow: hidden;
-    }
-    .card-head { padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,.08); display: flex; align-items: center; gap: 12px; }
-    .card-title { font-size: var(--fs-title-sm); font-weight: 800; color: #1e3a5f; letter-spacing: .02em; flex: 1; }
-    .card-body { padding: 16px 20px; }
-
-    /* Tabelle */
-    table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
-    thead th { text-align: left; padding: 8px 10px; font-size: var(--fs-xs); font-weight: 800; text-transform: uppercase; color: #8fa5c0; background: #f0f5ff; border-radius: 0; }
-    tbody tr { border-bottom: 1px solid #eef2f8; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody td { padding: 8px 10px; color: #374151; }
-    tbody tr:hover td { background: #f8fafc; }
-
-    /* Barre CSS */
-    .bar-wrap { height: 10px; background: #e2e8f0; border-radius: 99px; overflow: hidden; min-width: 80px; }
-    .bar-fill { height: 100%; background: linear-gradient(90deg, #1a5499, #3b82f6); border-radius: 99px; transition: width .4s ease; }
-
-    /* Tabelle: overflow su mobile */
-    .card-body { overflow-x: auto; }
-
-    /* Per mese — grid a 2 col */
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
-
-    /* Topbar responsive */
-    @media (max-width: 600px) {
-      .topbar { gap: 8px; padding: 0 10px; }
-      .topbar-user { display: none; }
-      .topbar a { font-size: var(--fs-sm); }
-    }
-    /* Filtri responsive */
-    @media (max-width: 480px) {
-      .filter-row { flex-direction: column; align-items: stretch; }
-      .filter-field { min-width: 0; width: 100%; }
-      .bar-wrap { min-width: 40px; }
-    }
-
-    /* Bottoni */
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: var(--fs-base); font-weight: 800; cursor: pointer; border: none; text-decoration: none; }
-    .btn-main { background: #1a5499; color: #fff; }
-    .btn-main:hover { opacity: .9; }
-    .btn-secondary { background: #e2e8f0; color: #334155; }
-    .btn-secondary:hover { background: #cbd5e1; }
-    .btn-sm { padding: 6px 13px; font-size: var(--fs-sm); border-radius: 8px; }
-
-    .empty-msg { color: #9aadcb; text-align: center; padding: 24px; font-size: var(--fs-base); }
-    .loading { color: #64748b; font-size: var(--fs-base); padding: 20px; text-align: center; }
-    .err-msg { color: #dc2626; font-size: var(--fs-base); padding: 12px 16px; background: #fef2f2; border-radius: 10px; }
-  </style>
-</head>
-<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}">
-
-<div class="topbar">
-  <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
-  <div class="topbar-sep"></div>
-  <a href="/gestione-anomalie/nuova-segnalazione">Apertura Segnalazione</a>
-  <div class="topbar-sep"></div>
-  <a href="/gestione-anomalie/configurazione">Configurazione</a>
-  <div class="topbar-sep"></div>
-  <div class="topbar-title">Statistiche &amp; Estrazioni</div>
-  <div class="topbar-user">{{ request.user.get_full_name|default:request.user.username }}</div>
+<div class="page-header">
+  <div class="page-header-main">
+    <a href="{% url 'anomalie_menu' %}" class="btn-back">&#8592; Menu Anomalie</a>
+    <div class="page-h" style="margin-top:8px;">Statistiche &amp; Estrazioni</div>
+    <div class="page-sub">Analisi dati anomalie con filtri per periodo, avanzamento e nominativo OP</div>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'apertura_segnalazione' %}" class="btn btn-secondary btn-sm">Apertura Segnalazione</a>
+    {% if is_admin %}<a href="{% url 'anomalie_configurazione_page' %}?tab=riepilogo" class="btn btn-secondary btn-sm">Configurazione</a>{% endif %}
+  </div>
 </div>
 
-<div class="page">
+{% if not db_has_anomalie %}
+  <div class="err-msg">Tabella anomalie non disponibile nel database.</div>
+{% else %}
 
-  {% if not db_has_anomalie %}
-    <div class="err-msg">Tabella anomalie non disponibile nel database.</div>
-  {% else %}
-
-  <!-- Filtri -->
-  <div class="filter-card">
-    <div class="filter-row">
-      <div class="filter-field">
-        <label for="f-da">Da (data creazione)</label>
-        <input type="date" id="f-da">
-      </div>
-      <div class="filter-field">
-        <label for="f-a">A (data creazione)</label>
-        <input type="date" id="f-a">
-      </div>
-      <div class="filter-field">
-        <label for="f-avanzamento">Avanzamento</label>
-        <select id="f-avanzamento">
-          <option value="">— Tutti —</option>
-        </select>
-      </div>
-      <div class="filter-field">
-        <label for="f-capocommessa">Nominativo OP</label>
-        <select id="f-capocommessa">
-          <option value="">— Tutti —</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-        <button class="btn btn-main btn-sm" id="btn-cerca" type="button">Aggiorna statistiche</button>
-        <button class="btn btn-secondary btn-sm" id="btn-reset-filtri" type="button">Azzera filtri</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- KPI -->
-  <div class="kpi-row" id="kpi-row">
-    <div class="kpi"><div class="kpi-label">Totale anomalie</div><div class="kpi-val" id="kpi-totale">—</div></div>
-    <div class="kpi"><div class="kpi-label">Aperte</div><div class="kpi-val orange" id="kpi-aperte">—</div></div>
-    <div class="kpi"><div class="kpi-label">Chiuse</div><div class="kpi-val green" id="kpi-chiuse">—</div><div class="kpi-sub" id="kpi-perc"></div></div>
-  </div>
-
-  <!-- Tabelle -->
-  <div class="two-col">
-    <!-- Per avanzamento -->
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Per avanzamento</div>
-      </div>
-      <div class="card-body">
-        <div id="tbl-avanzamento-wrap">
-          <div class="loading">Caricamento...</div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+        <div class="field" style="min-width:160px;">
+          <label for="f-da">Da (data creazione)</label>
+          <input type="date" id="f-da" class="input">
         </div>
-      </div>
-    </div>
-
-    <!-- Per mese -->
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Per mese (creazione)</div>
-      </div>
-      <div class="card-body">
-        <div id="tbl-mese-wrap">
-          <div class="loading">Caricamento...</div>
+        <div class="field" style="min-width:160px;">
+          <label for="f-a">A (data creazione)</label>
+          <input type="date" id="f-a" class="input">
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label for="f-avanzamento">Avanzamento</label>
+          <select id="f-avanzamento" class="input">
+            <option value="">&mdash; Tutti &mdash;</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:160px;">
+          <label for="f-capocommessa">Nominativo OP</label>
+          <select id="f-capocommessa" class="input">
+            <option value="">&mdash; Tutti &mdash;</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="btn-cerca" type="button">Aggiorna statistiche</button>
+          <button class="btn btn-secondary btn-sm" id="btn-reset-filtri" type="button">Azzera filtri</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Export -->
+  <div class="stats" id="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#128202;</div>
+      <div><div class="stat-num" id="kpi-totale">&mdash;</div><div class="stat-lbl">Totale anomalie</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">&#9888;</div>
+      <div><div class="stat-num" id="kpi-aperte">&mdash;</div><div class="stat-lbl">Aperte</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">&#10003;</div>
+      <div>
+        <div class="stat-num" id="kpi-chiuse">&mdash;</div>
+        <div class="stat-lbl">Chiuse <span id="kpi-perc" style="font-weight:500;color:var(--text-light);"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per avanzamento</div></div>
+      <div class="card-body" style="overflow-x:auto;">
+        <div id="tbl-avanzamento-wrap"><div class="loading">Caricamento...</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per mese (creazione)</div></div>
+      <div class="card-body" style="overflow-x:auto;">
+        <div id="tbl-mese-wrap"><div class="loading">Caricamento...</div></div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head">
       <div class="card-title">Esportazione dati</div>
-      <a id="btn-export-csv" href="/api/anomalie/export-csv-filtrato" class="btn btn-main btn-sm">&#8595; Esporta CSV (con filtri attivi)</a>
+      <a id="btn-export-csv" href="/api/anomalie/export-csv-filtrato" class="btn btn-sm">&#8595; Esporta CSV</a>
     </div>
-    <div class="card-body" style="color:#64748b;padding:12px 20px;">
-      L'export CSV include i filtri attivi (al massimo 5.000 righe). Contiene: ID, nominativo OP, seriale, descrizione, note capocommessa, numero RDC, avanzamento, stato chiuso, date.
+    <div class="card-body" style="color:var(--text-mid);">
+      L&rsquo;export CSV include i filtri attivi (al massimo 5.000 righe). Contiene: ID, nominativo OP, seriale, descrizione, note capocommessa, numero RDC, avanzamento, stato chiuso, date.
     </div>
   </div>
 
-  {% endif %}
-</div>
+{% endif %}
 
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
 (function () {
   const fDa          = document.getElementById('f-da');
@@ -237,6 +127,8 @@
   const tblAvanz     = document.getElementById('tbl-avanzamento-wrap');
   const tblMese      = document.getElementById('tbl-mese-wrap');
   const btnExport    = document.getElementById('btn-export-csv');
+
+  if (!btnCerca) return;
 
   function buildParams() {
     const p = new URLSearchParams();
@@ -254,7 +146,7 @@
 
   function renderAvanzamento(rows, max) {
     if (!rows || !rows.length) return '<div class="empty-msg">Nessun dato disponibile.</div>';
-    return '<table><thead><tr><th>Avanzamento</th><th style="text-align:right">N.</th><th style="min-width:100px"></th></tr></thead><tbody>'
+    return '<table class="admin-table"><thead><tr><th>Avanzamento</th><th style="text-align:right">N.</th><th style="min-width:100px"></th></tr></thead><tbody>'
       + rows.map(r => {
           const pct = max ? Math.round((r.n / max) * 100) : 0;
           return `<tr><td>${r.avanzamento || '(non specificato)'}</td><td style="text-align:right;font-weight:700">${r.n}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td></tr>`;
@@ -264,13 +156,12 @@
 
   function renderMese(rows) {
     if (!rows || !rows.length) return '<div class="empty-msg">Nessun dato disponibile.</div>';
-    return '<table><thead><tr><th>Mese</th><th style="text-align:right">N.</th></tr></thead><tbody>'
+    return '<table class="admin-table"><thead><tr><th>Mese</th><th style="text-align:right">N.</th></tr></thead><tbody>'
       + rows.map(r => `<tr><td>${r.mese || '—'}</td><td style="text-align:right;font-weight:700">${r.n}</td></tr>`).join('')
       + '</tbody></table>';
   }
 
   function fillSelects(data) {
-    // Avanzamenti
     const curAvanz = fAvanz.value;
     while (fAvanz.options.length > 1) fAvanz.remove(1);
     (data.avanzamenti_disponibili || []).forEach(v => {
@@ -279,7 +170,6 @@
       if (v === curAvanz) o.selected = true;
       fAvanz.appendChild(o);
     });
-    // Capo commessa
     const curCapo = fCapo.value;
     while (fCapo.options.length > 1) fCapo.remove(1);
     (data.capocommessa_disponibili || []).forEach(v => {
@@ -305,7 +195,7 @@
       kpiChiuse.textContent = d.chiuse ?? '—';
       if (d.totale > 0) {
         const pct = Math.round((d.chiuse / d.totale) * 100);
-        kpiPerc.textContent = pct + '% chiuse';
+        kpiPerc.textContent = '(' + pct + '%)';
       } else {
         kpiPerc.textContent = '';
       }
@@ -336,5 +226,4 @@
   load();
 })();
 </script>
-</body>
-</html>
+{% endblock %}

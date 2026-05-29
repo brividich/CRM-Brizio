@@ -111,11 +111,11 @@
             </a>
           {% endif %}
         {% elif footer_key == "notifications" %}
-          <a href="{% url 'notifiche' %}" class="sb-item sb-footer-item" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
+          <a href="{% url 'notifiche' %}" class="sb-item sb-footer-item" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}" data-notification-badge-host>
             <span class="sb-icon" aria-hidden="true">&#128276;</span>
             <span class="sb-label">Notifiche</span>
             {% if notifiche_count %}
-              <span class="sb-item-badge">{{ notifiche_count }}</span>
+              <span class="sb-item-badge" data-notification-badge>{{ notifiche_count }}</span>
             {% endif %}
           </a>
         {% endif %}

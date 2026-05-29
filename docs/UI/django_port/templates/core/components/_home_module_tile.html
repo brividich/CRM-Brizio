@@ -1,0 +1,46 @@
+{# ──────────────────────────────────────────────────────────────────
+   _home_module_tile.html — tile ottagonale del Module Hub.
+   Atteso: mod = {
+     id, label, sub, icon, kpi_value, kpi_unit, tone, url, accessible
+   }
+   ────────────────────────────────────────────────────────────────── #}
+{% if mod.accessible %}
+  <a class="hp-tile" href="{{ mod.url }}" data-mod="{{ mod.id }}"
+     title="Apri {{ mod.label }}">
+    <span class="hp-tile-ico hp-tone-{{ mod.tone }}">
+      {% if mod.icon_image %}
+        <img src="{{ mod.icon_image }}" alt="" loading="lazy">
+      {% elif mod.icon %}
+        {% include mod.icon %}
+      {% else %}
+        <span class="hp-tile-letter">{{ mod.label|slice:":1"|upper }}</span>
+      {% endif %}
+    </span>
+    <span class="hp-tile-body">
+      <span class="hp-tile-lbl">{{ mod.label }}</span>
+      <span class="hp-tile-sub">{{ mod.sub }}</span>
+    </span>
+    {% if mod.kpi_value is not None %}
+      <span class="hp-tile-kpi hp-tone-{{ mod.tone }}">
+        <span class="hp-tile-kpi-n">{{ mod.kpi_value }}</span>
+        {% if mod.kpi_unit %}<span class="hp-tile-kpi-u">{{ mod.kpi_unit }}</span>{% endif %}
+      </span>
+    {% endif %}
+    <span class="hp-tile-corner" aria-hidden="true"></span>
+  </a>
+{% else %}
+  <div class="hp-tile hp-tile-lock" aria-disabled="true"
+       title="Modulo non accessibile con il tuo ruolo">
+    <span class="hp-tile-ico">
+      {% if mod.icon %}{% include mod.icon %}{% endif %}
+    </span>
+    <span class="hp-tile-body">
+      <span class="hp-tile-lbl">{{ mod.label }}</span>
+      <span class="hp-tile-sub">Accesso non consentito</span>
+    </span>
+    <span class="hp-tile-lock-ic" aria-hidden="true">
+      {% include "core/icons/_lock.svg" %}
+    </span>
+    <span class="hp-tile-corner" aria-hidden="true"></span>
+  </div>
+{% endif %}

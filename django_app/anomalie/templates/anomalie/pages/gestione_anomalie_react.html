@@ -13,7 +13,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
     body {
-      font-family: "DM Sans", sans-serif;
+      font-family: "Outfit", sans-serif;
       font-size: var(--fs-base);
       line-height: var(--lh-base);
       background: var(--bg);
@@ -23,7 +23,6 @@
         linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%);
       color: #0f172a;
     }
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
     *::-webkit-scrollbar { width: 6px; }
     *::-webkit-scrollbar-track { background: transparent; }
     *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -230,18 +229,18 @@
 
     const IconBtn = ({ children, onClick, title, accent, disabled }) => (
       <button className="text-sm font-medium" onClick={onClick} title={title} disabled={disabled} style={{
-        background: accent ? "#2563eb" : "transparent",
-        border: accent ? "none" : "1px solid #e2e8f0",
+        background: accent ? "var(--accent)" : "transparent",
+        border: accent ? "none" : "1px solid var(--border)",
         borderRadius: 8, padding: accent ? "6px 14px" : "6px 8px", cursor: disabled ? "not-allowed" : "pointer",
         display: "inline-flex", alignItems: "center", gap: 6,
-        color: accent ? "#fff" : "#64748b", fontWeight: 500,
+        color: accent ? "#fff" : "var(--text-mid)", fontWeight: 500,
         transition: "all 0.15s ease", opacity: disabled ? 0.6 : 1,
       }}>{children}</button>
     );
 
     const FieldLabel = ({ children, required }) => (
       <label className="text-xs font-semibold" style={{
-        display: "block", fontWeight: 600, color: "#94a3b8",
+        display: "block", fontWeight: 600, color: "var(--text-light)",
         textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
       }}>
         {children}
@@ -253,7 +252,7 @@
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div onClick={disabled ? undefined : onChange} style={{
           width: 40, height: 22, borderRadius: 11, cursor: disabled ? "not-allowed" : "pointer",
-          background: checked ? "#2563eb" : "#cbd5e1", transition: "background 0.2s",
+          background: checked ? "var(--accent)" : "var(--border)", transition: "background 0.2s",
           position: "relative", flexShrink: 0,
           opacity: disabled ? 0.7 : 1,
         }}>
@@ -263,7 +262,7 @@
             transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
           }} />
         </div>
-        <span className="text-base font-medium" style={{ color: "#475569", fontWeight: 500 }}>{label}</span>
+        <span className="text-base font-medium" style={{ color: "var(--text-mid)", fontWeight: 500 }}>{label}</span>
       </div>
     );
 
@@ -277,7 +276,6 @@
       const [loadingOrdini, setLoadingOrdini]  = useState(true);
       const [loadingAnom,   setLoadingAnom]    = useState(false);
       const [saving,        setSaving]         = useState(false);
-      const [syncing,       setSyncing]        = useState(false);
       const [saveMsg,       setSaveMsg]        = useState(null);  // { ok, text }
       const [currentItemId, setCurrentItemId]  = useState(null);
       const [currentLocalId, setCurrentLocalId] = useState(null);
@@ -696,12 +694,12 @@
       // â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
       return (
         <div style={{
-          fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
-          background: "#f1f5f9", minHeight: "100vh", display: "flex", flexDirection: "column",
+          fontFamily: "inherit",
+          background: "var(--bg)", minHeight: "100vh", display: "flex", flexDirection: "column",
         }}>
           {/* â"€â"€ Top Bar â"€â"€ */}
           <header style={{
-            background: "linear-gradient(135deg,#1e293b 0%,#0f172a 100%)",
+            background: "var(--primary)",
             padding: isMobile ? "0 12px" : "0 28px", height: 56, display: "flex", alignItems: "center",
             justifyContent: "space-between", boxShadow: "0 2px 12px rgba(0,0,0,.15)",
             position: "sticky", top: 0, zIndex: 100,
@@ -743,9 +741,9 @@
               {!isMobile && IS_ADMIN && ADMIN_URL && (
                 <a className="text-base font-bold" href={ADMIN_URL} style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "#1f64d8", color: "#fff", borderRadius: 8,
+                  background: "var(--accent)", color: "#fff", borderRadius: 8,
                   padding: "6px 12px", fontWeight: 700,
-                  textDecoration: "none", boxShadow: "0 2px 8px rgba(15,23,42,.25)",
+                  textDecoration: "none", boxShadow: "0 2px 8px rgba(249,115,22,.25)",
                   whiteSpace: "nowrap",
                 }}>
                   &#9881; Gestione Admin
@@ -755,7 +753,7 @@
                 <a href={ADMIN_URL} title="Gestione Admin" style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
                   width: 32, height: 32, borderRadius: 8,
-                  background: "#1f64d8", color: "#fff", textDecoration: "none",
+                  background: "var(--accent)", color: "#fff", textDecoration: "none",
                   fontSize: 16,
                 }}>&#9881;</a>
               )}
@@ -807,12 +805,12 @@
                 </button>
               )}
               <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={handleSave} disabled={saving || !canEditCurrentOp} style={{
-                background: saving ? "#3b82f6" : "#2563eb", border: "none", borderRadius: 8,
+                background: saving ? "var(--primary-mid)" : "var(--accent)", border: "none", borderRadius: 8,
                 padding: isMobile ? "8px 16px" : "7px 18px", color: "#fff",
                 fontWeight: 600,
                 cursor: saving || !canEditCurrentOp ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", gap: 6,
-                boxShadow: "0 2px 8px rgba(37,99,235,.3)",
+                boxShadow: "0 2px 8px rgba(249,115,22,.3)",
                 opacity: saving || !canEditCurrentOp ? 0.8 : 1,
               }}>
                 {saving ? (
@@ -851,17 +849,17 @@
 
             {/* â"€â"€ SINISTRA: Ordini di Produzione â"€â"€ */}
             <div style={{
-              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fff",
+              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "var(--surface)",
               display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
               minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
             }}>
-              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <h2 className="text-base font-bold" style={{ margin: 0, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <h2 className="text-base font-bold" style={{ margin: 0, fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Ordini di Produzione
                   </h2>
-                  <span className="text-xs font-semibold" style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 99, fontWeight: 600, color: "#64748b" }}>
+                  <span className="text-xs font-semibold" style={{ background: "var(--bg)", padding: "2px 8px", borderRadius: 99, fontWeight: 600, color: "var(--text-mid)" }}>
                     {loadingOrdini ? "…" : filteredOrdini.length}
                   </span>
                 </div>
@@ -877,9 +875,9 @@
                           setSelectedSn(0);
                         }}
                         style={{
-                          border: active ? "1px solid #2563eb" : "1px solid #cbd5e1",
-                          background: active ? "#eff6ff" : "#fff",
-                          color: active ? "#1d4ed8" : "#475569",
+                          border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+                          background: active ? "var(--accent-light)" : "var(--surface)",
+                          color: active ? "var(--accent)" : "var(--text-mid)",
                           borderRadius: 999,
                           padding: "6px 10px",
                           fontWeight: 700,
@@ -905,8 +903,8 @@
                       border: "1px solid #e2e8f0", borderRadius: 8,
                       outline: "none", background: "#f8fafc", color: "#334155",
                     }}
-                    onFocus={e => e.target.style.borderColor="#93c5fd"}
-                    onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                    onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
+                    onBlur={e  => e.target.style.borderColor="var(--border)"}
                   />
                 </div>
               </div>
@@ -928,15 +926,15 @@
                   filteredOrdini.map((o, i) => (
                     <div key={o.item_id || i} onClick={() => { setSelectedOp(i); if (isMobile) setMobilePanel("serie"); }} style={{
                       padding: "12px 14px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
-                      background: selectedOp === i ? "#eff6ff" : "transparent",
-                      border: selectedOp === i ? "1px solid #bfdbfe" : "1px solid transparent",
+                      background: selectedOp === i ? "var(--accent-light)" : "transparent",
+                      border: selectedOp === i ? "1px solid rgba(249,115,22,.25)" : "1px solid transparent",
                       transition: "all 0.15s ease",
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                         <span className="text-md font-bold" style={{ fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
                         {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
                       </div>
-                      <div className="text-sm" style={{ color: "#64748b", marginBottom: 4, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "-0.02em" }}>
+                      <div className="text-sm" style={{ color: "var(--text-mid)", marginBottom: 4, fontFamily: "ui-monospace,monospace", letterSpacing: "-0.02em" }}>
                         P/N: {o.pn}
                       </div>
                       <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 12, color: "#94a3b8" }}>
@@ -975,19 +973,19 @@
 
               <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
                 <button className="text-base font-semibold" onClick={() => history.back()} style={{
-                  flex: 1, padding: "9px", border: "1px solid #fecaca", borderRadius: 8,
-                  background: "#fff", color: "#dc2626", fontWeight: 600, cursor: "pointer",
+                  flex: 1, padding: "9px", border: "1px solid rgba(229,62,62,.3)", borderRadius: 8,
+                  background: "var(--danger-bg)", color: "var(--danger)", fontWeight: 600, cursor: "pointer",
                 }}>Indietro</button>
                 <button className="text-base font-medium" onClick={loadOrdini} style={{
                   flex: 1, padding: "9px", border: "1px solid #e2e8f0", borderRadius: 8,
-                  background: "#fff", color: "#475569", fontWeight: 500, cursor: "pointer",
+                  background: "#fff", color: "var(--text-mid)", fontWeight: 500, cursor: "pointer",
                 }}>Aggiorna</button>
               </div>
             </div>
 
             {/* â"€â"€ CENTRO: Numeri di Serie â"€â"€ */}
             <div style={{
-              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fafbfc",
+              borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--bg)",
               display: isMobile && mobilePanel !== "serie" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
               minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
@@ -996,14 +994,14 @@
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("ordini")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
                   background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
-                  color: "#2563eb", fontWeight: 600, cursor: "pointer", width: "100%",
+                  color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                   Ordini di Produzione
                 </button>
               )}
-              <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                <h2 className="text-base font-bold" style={{ margin: "0 0 12px", fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid var(--border)" }}>
+                <h2 className="text-base font-bold" style={{ margin: "0 0 12px", fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {isMobile && op.id ? `S/N — ${op.id}` : "Numeri di Serie"}
                 </h2>
                 <div style={{ position: "relative" }}>
@@ -1018,8 +1016,8 @@
                       border: "1px solid #e2e8f0", borderRadius: 8,
                       outline: "none", background: "#fff", color: "#334155",
                     }}
-                    onFocus={e => e.target.style.borderColor="#93c5fd"}
-                    onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                    onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
+                    onBlur={e  => e.target.style.borderColor="var(--border)"}
                   />
                 </div>
               </div>
@@ -1043,31 +1041,31 @@
                     return (
                       <div key={a.item_id || i} onClick={() => { setSelectedSn(i); if (isMobile) setMobilePanel("dettaglio"); }} style={{
                         padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
-                        background: selectedSn === i ? "#fff" : "transparent",
-                        border: selectedSn === i ? "1px solid #e2e8f0" : "1px solid transparent",
+                        background: selectedSn === i ? "var(--surface)" : "transparent",
+                        border: selectedSn === i ? "1px solid var(--border)" : "1px solid transparent",
                         boxShadow: selectedSn === i ? "0 1px 4px rgba(0,0,0,.06)" : "none",
                         transition: "all 0.15s",
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                           <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
-                          <span className="text-base font-semibold" style={{ fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono',monospace" }}>
+                          <span className="text-base font-semibold" style={{ fontWeight: 600, color: "var(--text)", fontFamily: "ui-monospace,monospace" }}>
                             S/N: {a.sn || '\u2014'}
                           </span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
-                          <span className="text-sm" style={{ color: "#64748b" }}>{a.avanzamento || "Aperto"}</span>
+                          <span className="text-sm" style={{ color: "var(--text-mid)" }}>{a.avanzamento || "Aperto"}</span>
                           {a.modified && (
                             <span className="text-2xs" style={{ color: "#94a3b8" }}>
                               {new Date(a.modified).toLocaleDateString("it-IT", { day:"2-digit", month:"2-digit", year:"2-digit" })}
                             </span>
                           )}
                           {a.pezzi_prec && (
-                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", fontWeight: 500 }}>
+                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--bg)", color: "var(--primary-mid)", border: "1px solid var(--border)", fontWeight: 500 }}>
                               prec. benestare
                             </span>
                           )}
                           {a.chiudere && (
-                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontWeight: 500 }}>
+                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--success-bg)", color: "var(--success)", border: "1px solid #c6f6d5", fontWeight: 500 }}>
                               da chiudere
                             </span>
                           )}
@@ -1093,7 +1091,7 @@
 
             {/* â"€â"€ DESTRA: Pannello dettaglio â"€â"€ */}
             <div style={{
-              background: "#fff", overflowY: "auto",
+              background: "var(--surface)", overflowY: "auto",
               display: isMobile && mobilePanel !== "dettaglio" ? "none" : "flex",
               flexDirection: "column",
             }}>
@@ -1101,7 +1099,7 @@
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("serie")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
                   background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
-                  color: "#2563eb", fontWeight: 600, cursor: "pointer", width: "100%",
+                  color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                   S/N — {sn.sn || "lista"}
@@ -1110,7 +1108,7 @@
               {/* Header dettaglio */}
               <div style={{
                 padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
-                background: "linear-gradient(180deg,#f8fafc 0%,#fff 100%)",
+                background: "var(--surface)",
               }}>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto", gap: isMobile ? 12 : 16, alignItems: "start" }}>
                   <div>
@@ -1123,7 +1121,7 @@
                   </div>
                   <div>
                     <FieldLabel>S/N selezionato</FieldLabel>
-                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "#334155", fontFamily: "'JetBrains Mono',monospace" }}>
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text-mid)", fontFamily: "ui-monospace,monospace" }}>
                       {sn.sn || '\u2014'}
                     </div>
                   </div>
@@ -1132,14 +1130,14 @@
                     <span className="text-base font-bold" style={{
                       display: "inline-block", padding: "4px 12px", borderRadius: 6,
                       background: "#f1f5f9", fontWeight: 700,
-                      color: "#1e293b", fontFamily: "'JetBrains Mono',monospace",
+                      color: "var(--text)", fontFamily: "ui-monospace,monospace",
                     }}>{op.id || '\u2014'}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
                   <div>
                     <FieldLabel>P/N</FieldLabel>
-                    <span className="text-base" style={{ fontFamily: "'JetBrains Mono',monospace", color: "#475569" }}>
+                    <span className="text-base" style={{ fontFamily: "'JetBrains Mono',monospace", color: "var(--text-mid)" }}>
                       {op.pn || '\u2014'}
                     </span>
                   </div>
@@ -1153,9 +1151,9 @@
                     marginTop: 12,
                     padding: "10px 12px",
                     borderRadius: 8,
-                    border: "1px solid #fcd34d",
-                    background: "#fffbeb",
-                    color: "#92400e",
+                    border: "1px solid var(--warning)",
+                    background: "var(--warning-bg)",
+                    color: "var(--warning)",
                     fontWeight: 600,
                   }}>
                     Modalità sola lettura: puoi visualizzare i dati ma non modificare questo OP.
@@ -1173,22 +1171,22 @@
                       <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} disabled={!canEditCurrentOp}
                         style={{
                           width: "100%", padding: "10px 14px",
-                          border: "1px solid #e2e8f0", borderRadius: 10,
+                          border: "1px solid var(--border)", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
-                          lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
+                          lineHeight: 1.5, color: "var(--text)", background: canEditCurrentOp ? "var(--bg)" : "var(--border)",
                         }}
-                        onFocus={e => e.target.style.borderColor="#93c5fd"}
-                        onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                        onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
+                        onBlur={e  => e.target.style.borderColor="var(--border)"}
                       />
                     </div>
 
-                    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, border: "1px solid #f1f5f9" }}>
+                    <div style={{ background: "var(--bg)", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, border: "1px solid var(--border)" }}>
                       <Toggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditCurrentOp} onChange={() => setPezziPrec(!pezziPrec)} />
-                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <div style={{ height: 1, background: "var(--border)" }} />
                       <Toggle label="Aprire RDC?" checked={aprireRdc} disabled={!canEditCurrentOp} onChange={() => setAprireRdc(!aprireRdc)} />
-                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <div style={{ height: 1, background: "var(--border)" }} />
                       <Toggle label="Segnalare a cliente?" checked={segnalare} disabled={!canEditCurrentOp} onChange={() => setSegnalare(!segnalare)} />
-                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <div style={{ height: 1, background: "var(--border)" }} />
                       <Toggle label="Chiudere? (automatico)" checked={chiudereAuto} disabled={true} />
                     </div>
 
@@ -1196,9 +1194,9 @@
                       <FieldLabel>Avanzamento</FieldLabel>
                       <select value={avanzamento} onChange={e => setAvanzamento(e.target.value)} disabled={segnalare || !canEditCurrentOp}
                         style={{
-                          width: "100%", padding: "9px 14px", border: "1px solid #e2e8f0",
-                          borderRadius: 8, color: "#334155",
-                          background: segnalare || !canEditCurrentOp ? "#f8fafc" : "#fff", outline: "none",
+                          width: "100%", padding: "9px 14px", border: "1px solid var(--border)",
+                          borderRadius: 8, color: "var(--text)",
+                          background: segnalare || !canEditCurrentOp ? "var(--bg)" : "var(--surface)", outline: "none",
                           cursor: segnalare || !canEditCurrentOp ? "not-allowed" : "pointer",
                           opacity: segnalare || !canEditCurrentOp ? 0.75 : 1,
                         }}>
@@ -1216,12 +1214,12 @@
                       <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} disabled={!canEditCurrentOp}
                         style={{
                           width: "100%", padding: "10px 14px",
-                          border: "1px solid #e2e8f0", borderRadius: 10,
+                          border: "1px solid var(--border)", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
-                          lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
+                          lineHeight: 1.5, color: "var(--text)", background: canEditCurrentOp ? "var(--bg)" : "var(--border)",
                         }}
-                        onFocus={e => e.target.style.borderColor="#93c5fd"}
-                        onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                        onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
+                        onBlur={e  => e.target.style.borderColor="var(--border)"}
                       />
                     </div>
 
@@ -1236,9 +1234,9 @@
                         onChange={handleAttachmentInput}
                         style={{ display: "none" }}
                       />
-                      <div style={{ borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", padding: 12 }}>
+                      <div style={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", padding: 12 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                          <div className="text-sm" style={{ color: "#64748b" }}>
+                          <div className="text-sm" style={{ color: "var(--text-mid)" }}>
                             {currentLocalId
                               ? `Record locale #${currentLocalId}`
                               : "Salva prima la segnalazione per abilitare gli allegati"}
@@ -1254,7 +1252,7 @@
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           {loadingAttachments ? (
-                            <div className="text-sm" style={{ color: "#64748b" }}>Caricamento allegati...</div>
+                            <div className="text-sm" style={{ color: "var(--text-mid)" }}>Caricamento allegati...</div>
                           ) : attachments.length === 0 ? (
                             <div className="text-sm" style={{ color: "#94a3b8" }}>
                               Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.
@@ -1265,7 +1263,7 @@
                               <div style={{
                                 border: "1px solid #e2e8f0",
                                 borderRadius: 10,
-                                background: "#0f172a",
+                                background: "var(--primary)",
                                 overflow: "hidden",
                                 position: "relative",
                                 aspectRatio: "16/9",
@@ -1274,7 +1272,7 @@
                                   <img
                                     src={getAttachmentUrl(selectedAttachment.file_id)}
                                     alt={selectedAttachment.name}
-                                    style={{ width: "100%", height: "100%", objectFit: "contain", background: "#0f172a", cursor: "pointer" }}
+                                    style={{ width: "100%", height: "100%", objectFit: "contain", background: "var(--primary)", cursor: "pointer" }}
                                     onClick={() => openAttachment(selectedAttachment.file_id, false)}
                                   />
                                 ) : selectedAttachment ? (
@@ -1286,7 +1284,7 @@
                                     alignItems: "center",
                                     justifyContent: "center",
                                     gap: 10,
-                                    color: "#cbd5e1",
+                                    color: "rgba(255,255,255,.85)",
                                     padding: 16,
                                     textAlign: "center",
                                   }}>
@@ -1294,13 +1292,13 @@
                                       width: 64,
                                       height: 64,
                                       borderRadius: 12,
-                                      border: "1px solid #334155",
-                                      background: "#1e293b",
+                                      border: "1px solid rgba(255,255,255,.2)",
+                                      background: "rgba(255,255,255,.1)",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                       fontWeight: 700,
-                                      color: "#e2e8f0",
+                                      color: "#fff",
                                     }}>
                                       {(fileExt(selectedAttachment.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
                                     </div>
@@ -1328,14 +1326,14 @@
                                       key={file.file_id}
                                       onClick={() => setSelectedAttachmentId(file.file_id)}
                                       style={{
-                                        border: selected ? "1px solid #60a5fa" : "1px solid #e2e8f0",
+                                        border: selected ? "1px solid var(--accent)" : "1px solid var(--border)",
                                         borderRadius: 10,
                                         padding: 8,
                                         display: "grid",
                                         gridTemplateColumns: "54px 1fr auto",
                                         gap: 10,
                                         alignItems: "center",
-                                        background: selected ? "#eff6ff" : "#fff",
+                                        background: selected ? "var(--accent-light)" : "var(--surface)",
                                         cursor: "pointer",
                                       }}>
                                       {file.is_image ? (
@@ -1361,7 +1359,7 @@
                                           alignItems: "center",
                                           justifyContent: "center",
                                           fontWeight: 700,
-                                          color: "#475569",
+                                          color: "var(--text-mid)",
                                         }}>
                                           {ext}
                                         </div>

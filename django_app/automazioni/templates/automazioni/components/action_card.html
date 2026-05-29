@@ -223,6 +223,25 @@
         </div>
       </div>
 
+      <div class="designer-editor-panel" data-action-config="split_assenza_giornaliera" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Split assenza giornaliera</div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Crea record Assenze giornalieri derivati per richieste multi-giorno, equivalente al loop Power Automate con addDays.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.split_start_field.label_tag }}{{ entry.form.split_start_field }}{% if entry.form.split_start_field.errors %}<ul class="designer-errors">{% for error in entry.form.split_start_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.split_end_field.label_tag }}{{ entry.form.split_end_field }}{% if entry.form.split_end_field.errors %}<ul class="designer-errors">{% for error in entry.form.split_end_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.split_max_days.label_tag }}{{ entry.form.split_max_days }}{% if entry.form.split_max_days.errors %}<ul class="designer-errors">{% for error in entry.form.split_max_days.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.split_days_count_fields.label_tag }}{{ entry.form.split_days_count_fields }}{% if entry.form.split_days_count_fields.help_text %}<div class="designer-help">{{ entry.form.split_days_count_fields.help_text }}</div>{% endif %}{% if entry.form.split_days_count_fields.errors %}<ul class="designer-errors">{% for error in entry.form.split_days_count_fields.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.split_tipo_assenza_template.label_tag }}{{ entry.form.split_tipo_assenza_template }}{% if entry.form.split_tipo_assenza_template.help_text %}<div class="designer-help">{{ entry.form.split_tipo_assenza_template.help_text }}</div>{% endif %}{% if entry.form.split_tipo_assenza_template.errors %}<ul class="designer-errors">{% for error in entry.form.split_tipo_assenza_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.split_moderation_status.label_tag }}{{ entry.form.split_moderation_status }}{% if entry.form.split_moderation_status.errors %}<ul class="designer-errors">{% for error in entry.form.split_moderation_status.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.split_consenso_template.label_tag }}{{ entry.form.split_consenso_template }}{% if entry.form.split_consenso_template.errors %}<ul class="designer-errors">{% for error in entry.form.split_consenso_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.split_salta_approvazione.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.split_salta_approvazione }}</div>{% if entry.form.split_salta_approvazione.errors %}<ul class="designer-errors">{% for error in entry.form.split_salta_approvazione.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.split_include_first_day.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.split_include_first_day }}</div>{% if entry.form.split_include_first_day.errors %}<ul class="designer-errors">{% for error in entry.form.split_include_first_day.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.split_dedupe.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.split_dedupe }}</div>{% if entry.form.split_dedupe.errors %}<ul class="designer-errors">{% for error in entry.form.split_dedupe.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
       <div class="designer-editor-panel" data-action-config="delay_schedule" style="margin-top:12px;">
         <div class="designer-editor-panel-title">Delay / Schedule</div>
         <div class="designer-trigger-copy">

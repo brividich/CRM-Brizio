@@ -76,10 +76,10 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
       </select>
     </div>
     {% if aree %}
-    <div class="hr-field" style="max-width:200px;">
-      <label>Area</label>
-      <select class="hr-input" name="area" aria-label="Filtra per area">
-        <option value="">Tutte le aree</option>
+    <div class="hr-field" style="max-width:220px;">
+      <label>Reparto (catalogo)</label>
+      <select class="hr-input" name="area" aria-label="Filtra per reparto del catalogo">
+        <option value="">Tutti i reparti</option>
         {% for a in aree %}
           <option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>
         {% endfor %}
@@ -110,7 +110,7 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
       <div class="hr-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
     </div>
     <div style="overflow-x:auto;">
-      <table class="hr-table" data-table-id="anagrafica.dipendenti.list">
+      <table class="hr-table" data-table-id="anagrafica.dipendenti.list" data-fm-table-skip="1">
         <thead>
           <tr>
             <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>

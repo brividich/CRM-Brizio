@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=1320"/>
+<title>Novicrom HUB — UI kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  *{ box-sizing:border-box }
+  html,body{ margin:0; padding:0; background:#f4f6fb;
+             font-family:"Outfit","Inter",system-ui,sans-serif; color:#1a202c }
+  .app{ display:flex; min-height:100vh }
+  .main{ flex:1; min-width:0; display:flex; flex-direction:column }
+  .topnav{
+    height:56px; background:#fff; border-bottom:1px solid #d7e0ea;
+    display:flex; align-items:center; padding:0 18px; gap:14px;
+  }
+  .topnav-trail{ display:flex; align-items:center; gap:8px;
+                 font-size:13px; color:#94a3b8; font-weight:600 }
+  .topnav-trail b{ color:#1a202c }
+  .topnav-spacer{ flex:1 }
+  .topnav-icon{
+    width:36px; height:36px; border-radius:10px; background:#f4f6fb;
+    display:inline-flex; align-items:center; justify-content:center;
+    color:#4a5568; cursor:pointer; border:none; position:relative;
+  }
+  .topnav-icon:hover{ background:#edf2f7; color:#1a202c }
+  .topnav-icon .dot{ position:absolute; top:8px; right:9px; width:8px; height:8px;
+                     border-radius:999px; background:#ff6b00; border:2px solid #fff }
+  .topnav-user{ display:flex; align-items:center; gap:10px; padding:0 6px 0 10px;
+                border-left:1px solid #d7e0ea; height:36px; margin-left:6px }
+  .topnav-av{ width:32px; height:32px; border-radius:8px; background:#1f5fb3; color:#fff;
+              display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px }
+  .topnav-name{ font-size:13px; font-weight:600; color:#1a202c; line-height:1.1 }
+  .topnav-role{ font-size:10px; color:#94a3b8; font-weight:600 }
+  .content{ flex:1; padding:22px 28px 32px; max-width:1220px; width:100%; margin:0 auto }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="Brand.jsx"></script>
+<script type="text/babel" src="Components.jsx"></script>
+<script type="text/babel" src="Chrome.jsx"></script>
+<script type="text/babel" src="Screens.jsx"></script>
+<script type="text/babel" src="AnagraficaHR_Pages.jsx"></script>
+<script type="text/babel" src="AnagraficaHR.jsx"></script>
+<script type="text/babel" src="HomeHub.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+function App() {
+  const [authed, setAuthed] = useState(true);
+  const [route, setRoute] = useState("dashboard");
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)}/>;
+
+  const trail = {
+    dashboard:  ["Home", "Portale"],
+    anomalie:   ["Operations", "Anomalie"],
+    ticket:     ["Operations", "Ticket", "T-2041"],
+    task:       ["Operations", "Task"],
+    asset:      ["Configurazione", "Asset"],
+    persone:    ["Persone", "Anagrafica HR"],
+    anagrafica: ["Persone", "Anagrafica HR"],
+    formazione: ["Persone", "Formazione"],
+    sicurezza:  ["Persone", "Sicurezza"],
+    timbri:     ["Persone", "Timbri"],
+    assenze:    ["Persone", "Assenze"],
+    docs:       ["Configurazione", "Documenti"],
+    automazioni:["Configurazione", "Automazioni"],
+    permessi:   ["Configurazione", "Permessi"],
+  }[route] || ["Operations","—"];
+
+  let screen;
+  if (route === "dashboard") screen = <HomeHubScreen onNav={setRoute}/>;
+  else if (route === "anomalie") screen = <AnomalieScreen/>;
+  else if (route === "ticket") screen = <TicketScreen/>;
+  else if (route === "anagrafica" || route === "persone") screen = <AnagraficaHRScreen onNav={setRoute}/>;
+  else screen = (
+    <>
+      <Topbar
+        title={trail[trail.length-1]}
+        sub="Modulo in costruzione — questa è una vista placeholder del UI kit."
+        actions={<Button variant="ghost" onClick={() => setRoute("dashboard")}>← Dashboard</Button>}/>
+      <Card>
+        <p style={{margin:0,color:"#4a5568"}}>
+          Le viste interattive coperte dal UI kit sono <b>Dashboard</b>, <b>Anomalie</b> e <b>Dettaglio ticket</b>.
+          I moduli rimanenti riutilizzano le stesse primitive (<code>Card</code>, <code>Stat</code>, <code>Badge</code>,
+          <code>Button</code>, <code>Field</code>, tabelle).
+        </p>
+      </Card>
+    </>
+  );
+
+  return (
+    <div className="app" data-screen-label={`02 ${trail[trail.length-1]}`}>
+      <Sidebar active={route} onNav={setRoute}/>
+      <div className="main">
+        <header className="topnav">
+          <div className="topnav-trail">
+            {trail.map((p,i) => (
+              <React.Fragment key={i}>
+                {i>0 && <span style={{opacity:.4}}>›</span>}
+                {i === trail.length-1 ? <b>{p}</b> : <span>{p}</span>}
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="topnav-spacer"/>
+          <button className="topnav-icon" title="Cerca">{Icons.search}</button>
+          <button className="topnav-icon" title="Notifiche">
+            {Icons.bell}<span className="dot"/>
+          </button>
+          <button className="topnav-icon" title="Impostazioni">{Icons.gear}</button>
+          <div className="topnav-user">
+            <div className="topnav-av">MR</div>
+            <div>
+              <div className="topnav-name">Marco Rossi</div>
+              <div className="topnav-role">Capo reparto</div>
+            </div>
+          </div>
+          <button className="topnav-icon" title="Esci" onClick={() => setAuthed(false)}>
+            {Icons.logout}
+          </button>
+        </header>
+        <main className="content">{screen}</main>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
