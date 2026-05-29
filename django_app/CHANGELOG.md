@@ -4,7 +4,7 @@
 
 ### Fix
 
-- **[fix] `assenze/views.py`** — URL notifica accettazione/rifiuto assenza corretta da `/assenze/gestione/` (inesistente) a `/assenze/impostazioni/`.
+- **[fix] `assenze/views.py`** — URL notifica accettazione/rifiuto assenza corretta da `/assenze/gestione/` (inesistente) a `/assenze/richiesta_assenze` (riepilogo richieste del dipendente).
 
 ### Autenticazione a due fattori (2FA)
 
