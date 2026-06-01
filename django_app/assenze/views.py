@@ -451,6 +451,36 @@ def _certificazione_presenza_dipendenti_attivi() -> list[str]:
     return names
 
 
+def _load_dipendenti_attivi_list() -> list[dict]:
+    if not _table_exists("anagrafica_dipendenti"):
+        return []
+    cols = legacy_table_columns("anagrafica_dipendenti")
+    if not {"id", "nome", "cognome"}.issubset(cols):
+        return []
+    where_parts = ["COALESCE(nome, '') <> ''", "COALESCE(cognome, '') <> ''"]
+    if "attivo" in cols:
+        where_parts.append("attivo = 1")
+    rows = _fetch_all_dict(
+        f"SELECT {_quoted_columns(['id', 'nome', 'cognome'])} FROM anagrafica_dipendenti "
+        f"WHERE {' AND '.join(where_parts)} ORDER BY cognome, nome"
+    )
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        ana_id = _as_int(row.get("id"))
+        if ana_id is None:
+            continue
+        cognome = str(row.get("cognome") or "").strip()
+        nome = str(row.get("nome") or "").strip()
+        full_name = f"{cognome} {nome}".strip()
+        key = re.sub(r"\s+", " ", full_name).casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append({"id": ana_id, "full_name": full_name})
+    return out
+
+
 def _blank_expr(expr: str) -> str:
     if _db_vendor() == "sqlite":
         return f"NULLIF(TRIM(COALESCE({expr}, '')), '')"
@@ -762,6 +792,7 @@ def _assenze_permissions(request) -> dict:
         group = "UTENTI"
 
     can_insert = group in {"UTENTI", "CAR", "AMMINISTRAZIONE"}
+    can_insert_for_others = group in {"CAR", "AMMINISTRAZIONE"}
     can_view_calendar = group in {"CAR", "AMMINISTRAZIONE"}
     can_update_any = group == "AMMINISTRAZIONE"
     can_update_owned = group == "CAR"
@@ -787,6 +818,7 @@ def _assenze_permissions(request) -> dict:
         "group": group,
         "legacy_user_id": legacy_user_id,
         "can_insert": can_insert,
+        "can_insert_for_others": can_insert_for_others,
         "can_view_calendar": can_view_calendar,
         "can_update_any": can_update_any,
         "can_update_owned": can_update_owned,
@@ -806,6 +838,7 @@ def _template_perm_context(request) -> dict:
     return {
         "assenze_group": perms["group"],
         "assenze_can_insert": perms["can_insert"],
+        "assenze_can_insert_for_others": perms["can_insert_for_others"],
         "assenze_can_view_calendar": perms["can_view_calendar"],
         "assenze_can_skip_approval": perms["can_skip_approval"],
         "assenze_can_edit_events": perms["can_edit_events"],
@@ -2559,7 +2592,7 @@ def _resolve_legacy_capo_lookup_by_raw_value(raw_value: str | None) -> int | Non
 
 def _anagrafica_hr_capo_ids() -> set[int]:
     try:
-        from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+        from anagrafica.models import Reparto
     except Exception:
         return set()
 
@@ -2567,15 +2600,6 @@ def _anagrafica_hr_capo_ids() -> set[int]:
     try:
         for value in Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False).values_list(
             "caporeparto_legacy_id", flat=True
-        ):
-            capo_id = _as_int(value)
-            if capo_id is not None and capo_id > 0:
-                ids.add(capo_id)
-        for value in (
-            DipendenteAnagraficaAziendale.objects.filter(caporeparto_legacy_id__isnull=False)
-            .exclude(caporeparto_legacy_id=0)
-            .values_list("caporeparto_legacy_id", flat=True)
-            .distinct()
         ):
             capo_id = _as_int(value)
             if capo_id is not None and capo_id > 0:
@@ -3214,6 +3238,54 @@ def _has_valid_submit_token(request, token: str, action: str) -> bool:
     )
 
 
+def _resolve_employee_identity_from_anagrafica(anagrafica_id: int) -> tuple[str, str, int | None] | None:
+    if not _table_exists("anagrafica_dipendenti"):
+        return None
+    cols = legacy_table_columns("anagrafica_dipendenti")
+    if not {"id", "nome", "cognome"}.issubset(cols):
+        return None
+    select_cols = [c for c in ["id", "nome", "cognome", "email", "email_notifica", "utente_id"] if c in cols]
+    rows = _fetch_all_dict(
+        f"SELECT {_quoted_columns(select_cols)} FROM anagrafica_dipendenti WHERE id = %s",
+        [int(anagrafica_id)],
+    )
+    if not rows:
+        return None
+    row = rows[0]
+    cognome = str(row.get("cognome") or "").strip()
+    nome = str(row.get("nome") or "").strip()
+    full_name = f"{cognome} {nome}".strip()
+    if not full_name:
+        return None
+    email = str(row.get("email_notifica") or row.get("email") or "").strip().lower()
+    legacy_user_id = _as_int(row.get("utente_id"))
+    return full_name, email, legacy_user_id
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_dipendente_default_capo(request):
+    perms = _assenze_permissions(request)
+    if not perms.get("can_insert_for_others"):
+        return _json_error("Permessi insufficienti.", status=403)
+    dipendente_id = _as_int(request.GET.get("dipendente_id"))
+    if not dipendente_id:
+        return JsonResponse({"ok": True, "capo_value": ""})
+    identity = _resolve_employee_identity_from_anagrafica(dipendente_id)
+    if not identity:
+        return JsonResponse({"ok": False, "capo_value": "", "error": "Dipendente non trovato"})
+    emp_name, emp_email, emp_legacy_user_id = identity
+    capi = _load_capi_options()
+    capo_value = _resolve_default_capo_for_user(
+        name=emp_name,
+        email=emp_email,
+        username="",
+        capi=capi,
+        legacy_user_id=emp_legacy_user_id,
+    )
+    return JsonResponse({"ok": True, "capo_value": capo_value})
+
+
 def _render_richiesta(request, success: str = "", error: str = "", form_data: dict | None = None):
     perms = _assenze_permissions(request)
     name, email, _legacy_id = _legacy_identity(request)
@@ -3229,10 +3301,14 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
     copy_from = str(request.GET.get("copy_from") or "").strip()
     prefill = _prefill_from_copy(copy_from, capi)
 
+    can_insert_for_others = perms.get("can_insert_for_others", False)
+    dipendenti = _load_dipendenti_attivi_list() if can_insert_for_others else []
+
     merged_form = {
         "tipoassenza": "",
         "motivazione": "",
         "certificato_medico": "",
+        "dipendente_id": "",
         "caporeparto": _resolve_default_capo_for_user(
             name=display_name,
             email=email,
@@ -3267,6 +3343,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             "tipi": list(TIPI_ASSENZA_UI),
             "nome": display_name,
             "capi": capi,
+            "dipendenti": dipendenti,
             "motivazioni": motivazioni,
             "copy_from": copy_from,
             "prefill": prefill,
@@ -3930,13 +4007,29 @@ def invio_placeholder(request):
             form_data=request.POST.dict(),
         )
 
-    name, email, legacy_id = _legacy_identity(request)
-    display_name = _resolve_request_display_name(
-        legacy_user_id=legacy_id,
-        email=email,
-        username=request.user.get_username(),
-        fallback_name=name,
-    )
+    inserter_name, inserter_email, inserter_legacy_id = _legacy_identity(request)
+    inserting_for_other = False
+    dipendente_id_raw = str(request.POST.get("dipendente_id") or "").strip()
+
+    if perms.get("can_insert_for_others") and dipendente_id_raw:
+        ana_id = _as_int(dipendente_id_raw)
+        if not ana_id:
+            return _render_richiesta(request, error="ID dipendente non valido.", form_data=request.POST.dict())
+        identity = _resolve_employee_identity_from_anagrafica(ana_id)
+        if not identity:
+            return _render_richiesta(request, error="Dipendente selezionato non trovato in anagrafica.", form_data=request.POST.dict())
+        display_name, email, legacy_id = identity
+        inserting_for_other = True
+    else:
+        display_name = _resolve_request_display_name(
+            legacy_user_id=inserter_legacy_id,
+            email=inserter_email,
+            username=request.user.get_username(),
+            fallback_name=inserter_name,
+        )
+        email = inserter_email
+        legacy_id = inserter_legacy_id
+
     err_msg, warn_msg = _validate_business_rules(
         tipo=tipo,
         dt_start=dt_start,
@@ -3975,6 +4068,14 @@ def invio_placeholder(request):
     if local_id is None:
         return _render_richiesta(request, error="Richiesta non salvata: impossibile ottenere ID locale.", form_data=request.POST.dict())
 
+    if inserting_for_other:
+        log_action(
+            request,
+            "assenza_inserita_per_conto",
+            "assenze",
+            {"local_id": local_id, "for_dipendente": display_name, "by": inserter_name},
+        )
+
     sync_msg = "Sincronizzazione SharePoint non configurata."
     if _graph_configured():
         sync_res = _sync_one_to_sharepoint(local_id, force_update=False)
@@ -3984,7 +4085,8 @@ def invio_placeholder(request):
             sync_msg = f"Salvato su DB locale, sync SharePoint fallita: {sync_res.get('error')}"
 
     warn_suffix = f" {warn_msg}" if warn_msg else ""
-    return _render_richiesta(request, success=f"Richiesta registrata su DB locale. {sync_msg}{warn_suffix}")
+    proxy_note = f" (inserito per conto di {display_name})" if inserting_for_other else ""
+    return _render_richiesta(request, success=f"Richiesta registrata su DB locale{proxy_note}. {sync_msg}{warn_suffix}")
 
 
 @login_required

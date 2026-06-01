@@ -1,0 +1,111 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU49 - Approvazione assenza non evasa: sollecito + reinoltro HR"
+  },
+  "source_candidate": {
+    "source_code": "assenze",
+    "label": "Assenze"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "assenze"
+  },
+  "proposed_rules": [
+    {
+      "code": "au49-assenza-non-evasa-sollecito-reinoltro",
+      "name": "AU49 - Approvazione assenza non evasa: sollecito + reinoltro HR",
+      "description": "Alla creazione di una richiesta assenza (non già auto-approvata), invia una richiesta di approvazione al caporeparto; dopo ~24h, se la richiesta non risulta ancora approvata (run_if moderation_status non valorizzato come approvata), sollecita il caporeparto; dopo altre ~24h reinoltra ad HR. Usa send_approval + delay_schedule + run_if. NOTE/LIMITI: (1) il gate 'non evasa' usa moderation_status: VERIFICARE il valore numerico di 'approvata' nel sistema (qui si assume 0=pending; modificare l'operatore/valore in designer secondo la codifica reale). (2) i tempi 24h e i destinatari sono modificabili in designer (l'utente sceglierà l'inoltro). (3) Sostituire HR_DA_CONFIGURARE; per il caporeparto si usa {capo_email} dal payload.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "salta_approvazione",
+          "operator": "is_false",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_approval",
+          "description": "Approvazione assenza al caporeparto",
+          "delivery_mode": "email",
+          "to_template": "{capo_email}",
+          "subject_template": "Approvazione assenza - {dipendente_nome}",
+          "message_template": "Richiesta assenza da {dipendente_nome}: {tipo_assenza} dal {data_inizio} al {data_fine}.\nMotivazione: {motivazione_richiesta}",
+          "expiry_days": 3,
+          "approve_label": "Approva",
+          "reject_label": "Rifiuta",
+          "approved_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Conferma al dipendente",
+              "to": "{dipendente_email}",
+              "subject_template": "Assenza approvata",
+              "body_text_template": "La tua richiesta di assenza ({tipo_assenza} dal {data_inizio} al {data_fine}) è stata approvata."
+            }
+          ],
+          "rejected_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Rifiuto al dipendente",
+              "to": "{dipendente_email}",
+              "subject_template": "Assenza non approvata",
+              "body_text_template": "La tua richiesta di assenza ({tipo_assenza} dal {data_inizio} al {data_fine}) non è stata approvata."
+            }
+          ]
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 24h prima del sollecito",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "24"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Sollecito caporeparto se non evasa",
+          "to": "{capo_email}",
+          "subject_template": "[SOLLECITO] Approvazione assenza {dipendente_nome} in attesa",
+          "body_text_template": "La richiesta di assenza di {dipendente_nome} ({tipo_assenza} dal {data_inizio} al {data_fine}) è ancora in attesa di approvazione. Si prega di evaderla.",
+          "run_if": {
+            "field_name": "moderation_status",
+            "operator": "equals",
+            "value": "0",
+            "value_type": "int"
+          }
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa altre 24h prima del reinoltro HR",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "24"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Reinoltro ad HR se ancora non evasa",
+          "to": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[REINOLTRO] Assenza {dipendente_nome} non evasa dal caporeparto",
+          "body_text_template": "La richiesta di assenza di {dipendente_nome} ({tipo_assenza} dal {data_inizio} al {data_fine}) non è stata evasa dal caporeparto entro i tempi. Si richiede gestione da parte di HR.",
+          "run_if": {
+            "field_name": "moderation_status",
+            "operator": "equals",
+            "value": "0",
+            "value_type": "int"
+          }
+        }
+      ]
+    }
+  ]
+}

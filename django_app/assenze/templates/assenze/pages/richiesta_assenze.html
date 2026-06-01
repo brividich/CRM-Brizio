@@ -168,7 +168,7 @@
         <h1>Richiesta assenza</h1>
         <p>Un solo form per ferie, permessi, malattia, flessibilita e certificazione presenza, con la stessa esperienza visuale usata in tutto il modulo.</p>
         <div class="abs-hero-meta">
-          <span class="abs-hero-pill">Dipendente {{ nome }}</span>
+          <span class="abs-hero-pill" id="hero-pill-dipendente">Dipendente {{ nome }}</span>
           {% if assenze_can_skip_approval %}
             <span class="abs-hero-pill">Puoi saltare approvazione</span>
           {% endif %}
@@ -215,8 +215,20 @@
             <div class="abs-panel-body">
               <div class="abs-fields-2">
                 <div class="abs-field">
-                  <label for="dipendente_readonly">Dipendente</label>
-                  <input id="dipendente_readonly" type="text" class="abs-input abs-input-readonly" value="{{ nome }}" readonly>
+                  {% if assenze_can_insert_for_others %}
+                    <label for="dipendente_id">Dipendente</label>
+                    <select id="dipendente_id" name="dipendente_id" class="abs-select">
+                      <option value="">{{ nome }} (tu)</option>
+                      {% for d in dipendenti %}
+                        <option value="{{ d.id }}"{% if form_data.dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.full_name }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="abs-field-hint">Seleziona un altro dipendente per inserire la richiesta a suo nome.</div>
+                  {% else %}
+                    <label for="dipendente_readonly">Dipendente</label>
+                    <input id="dipendente_readonly" type="text" class="abs-input abs-input-readonly" value="{{ nome }}" readonly>
+                    <input type="hidden" name="dipendente_id" value="">
+                  {% endif %}
                 </div>
                 <div class="abs-field">
                   <label for="caporeparto">Capo reparto</label>
@@ -637,6 +649,43 @@
       }
     });
   })();
+
+  {% if assenze_can_insert_for_others %}
+  // ── Cambio dipendente → aggiorna auto caporeparto ──────────────────────
+  (function() {
+    "use strict";
+    var dipSel    = document.getElementById("dipendente_id");
+    var capoSel   = document.getElementById("caporeparto");
+    var heroPill  = document.getElementById("hero-pill-dipendente");
+    var selfLabel = "{{ nome|escapejs }}";
+    if (!dipSel || !capoSel) return;
+
+    dipSel.addEventListener("change", function() {
+      var anaId = dipSel.value;
+      var selectedText = anaId
+        ? dipSel.options[dipSel.selectedIndex].text
+        : selfLabel + " (tu)";
+      if (heroPill) heroPill.textContent = "Dipendente " + selectedText.replace(/ \(tu\)$/, "");
+
+      if (!anaId) return;
+      fetch("/assenze/api/dipendente-capo?dipendente_id=" + encodeURIComponent(anaId), {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.ok || !data.capo_value) return;
+          for (var i = 0; i < capoSel.options.length; i++) {
+            if (capoSel.options[i].value === data.capo_value) {
+              capoSel.selectedIndex = i;
+              return;
+            }
+          }
+        })
+        .catch(function() {});
+    });
+  })();
+  {% endif %}
 
   // ── Check corsi formativi (avviso non bloccante) ─────────────────────────
   (function() {

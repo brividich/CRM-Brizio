@@ -1,0 +1,55 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU31 - Scarico rifiuti senza FIR: notifica responsabile ambientale"
+  },
+  "source_candidate": {
+    "source_code": "rentri",
+    "label": "RENTRI / Rifiuti"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rentri"
+  },
+  "proposed_rules": [
+    {
+      "code": "au31-scarico-senza-fir-notifica",
+      "name": "AU31 - Scarico rifiuti senza FIR: notifica responsabile ambientale",
+      "description": "Quando viene inserito un movimento di scarico (tipo=O) senza riferimento al FIR di arrivo (arrivo_fir vuoto), notifica il responsabile ambientale per la compliance. NOTE/LIMITI: (1) il backlog prevedeva anche update_trigger_record salva=false per 'bloccare' il record finche' non sistemato; scelta conservativa: si usa SOLO la notifica per non alterare un record legacy RENTRI via SQL raw (rischio integrita'/normativo). Il blocco resta da valutare lato applicativo. (2) Sostituire RESP_AMBIENTALE_DA_CONFIGURARE.",
+      "source_code": "rentri",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "tipo",
+          "operator": "equals",
+          "value": "O",
+          "value_type": "string"
+        },
+        {
+          "field": "arrivo_fir",
+          "operator": "is_empty",
+          "value": "",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica responsabile ambientale",
+          "to": "RESP_AMBIENTALE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Scarico rifiuti senza FIR - registrazione {id_registrazione}",
+          "body_text_template": "E' stato registrato uno scarico (tipo O) senza riferimento FIR di arrivo.\nRegistrazione: {id_registrazione}\nData: {data}\nCodice CER: {codice}\nQuantita': {quantita}\nVerificare e completare il riferimento FIR per la compliance RENTRI."
+        }
+      ]
+    }
+  ]
+}

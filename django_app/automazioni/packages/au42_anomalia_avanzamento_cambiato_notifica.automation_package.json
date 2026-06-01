@@ -1,0 +1,51 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU42 - Avanzamento anomalia cambiato: notifica"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au42-anomalia-avanzamento-cambiato-notifica",
+      "name": "AU42 - Avanzamento anomalia cambiato: notifica",
+      "description": "Quando lo stato (campo 'avanzamento') di un'anomalia cambia, invia una email di notifica. ATTENZIONE: notifica al cambio DEL CAMPO, non in base al ruolo di chi modifica. Per la versione 'solo quando CAPOCOMMESSA/CAR modificano' serve prima il prerequisito AU-GAP1 (esporre modified_by/ruolo nel payload anomalie). Configurare il destinatario in 'to' prima di attivare.",
+      "source_code": "anomalie",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "avanzamento",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "avanzamento",
+          "operator": "changed",
+          "value": "",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica cambio avanzamento anomalia",
+          "to": "DESTINATARIO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "",
+          "subject_template": "Anomalia #{id} aggiornata - stato {avanzamento}",
+          "body_text_template": "Lo stato dell'anomalia #{id} (OP {ex_op_nominativo}, PN/Seriale {seriale}) e' cambiato.\nNuovo stato: {avanzamento}."
+        }
+      ]
+    }
+  ]
+}

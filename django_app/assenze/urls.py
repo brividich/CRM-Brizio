@@ -18,6 +18,7 @@ urlpatterns = [
     path("assenze/api/eventi/<int:item_id>/update", views.api_evento_update, name="assenze_api_evento_update"),
     path("assenze/api/eventi/<int:item_id>/delete", views.api_evento_delete, name="assenze_api_evento_delete"),
     path("assenze/api/check-corsi", views.api_check_corsi, name="assenze_api_check_corsi"),
+    path("assenze/api/dipendente-capo", views.api_dipendente_default_capo, name="assenze_api_dipendente_capo"),
     path("assenze/api/sync/push", views.api_sync_push, name="assenze_api_sync_push"),
     path("assenze/api/sync/pull", views.api_sync_pull, name="assenze_api_sync_pull"),
     path("assenze/invio", views.invio_placeholder, name="assenze_invio"),

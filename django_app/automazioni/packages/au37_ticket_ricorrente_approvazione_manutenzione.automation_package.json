@@ -1,0 +1,86 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU37 - Ticket ricorrenti su asset (≥3 in 90gg): approvazione manutenzione (count_branch)"
+  },
+  "source_candidate": {
+    "source_code": "tickets",
+    "label": "Tickets"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tickets"
+  },
+  "proposed_rules": [
+    {
+      "code": "au37-ticket-ricorrente-approvazione-manutenzione",
+      "name": "AU37 - Ticket ricorrenti su asset (≥3 in 90gg): approvazione manutenzione (count_branch)",
+      "description": "Alla creazione di un ticket collegato a un asset, conta i ticket sullo stesso asset negli ultimi 90 giorni (count_branch su tickets, filter asset_id, window created_at 90gg); se sono >= 3 invia al responsabile manutenzione una richiesta di approvazione per manutenzione straordinaria. Usa count_branch + send_approval annidata (motore esteso). NOTE/LIMITI: (1) richiede asset_id valorizzato sul ticket (ticket con solo descrizione libera non vengono conteggiati per asset). (2) la soglia conta tutti i ticket sull'asset nella finestra, incluso quello corrente. (3) Sostituire RESP_MANUTENZIONE_DA_CONFIGURARE e PIANIFICAZIONE_DA_CONFIGURARE.",
+      "source_code": "tickets",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "asset_id",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "int"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "count_branch",
+          "description": "Conta i ticket sull'asset negli ultimi 90 giorni",
+          "config_json": {
+            "source_code": "tickets",
+            "filter_field": "asset_id",
+            "filter_value_template": "{asset_id}",
+            "window_field": "created_at",
+            "window_days": 90,
+            "threshold": 3,
+            "operator": "gte",
+            "then_actions": [
+              {
+                "action_type": "send_approval",
+                "description": "Approvazione manutenzione straordinaria al responsabile",
+                "delivery_mode": "email",
+                "to_template": "RESP_MANUTENZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+                "subject_template": "Approvazione manutenzione straordinaria - asset {asset_nome} (ticket {numero_ticket})",
+                "message_template": "L'asset {asset_nome} ({asset_tag}) ha generato 3 o più ticket negli ultimi 90 giorni. Ultimo: {numero_ticket} - {titolo}. Si richiede approvazione per una manutenzione straordinaria.",
+                "expiry_days": 7,
+                "approve_label": "Approva intervento",
+                "reject_label": "Rifiuta",
+                "approved_actions": [
+                  {
+                    "action_type": "send_email",
+                    "description": "Notifica pianificatore manutenzione",
+                    "to": "PIANIFICAZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+                    "subject_template": "Pianificare manutenzione straordinaria - {asset_nome}",
+                    "body_text_template": "Approvata la manutenzione straordinaria per l'asset {asset_nome} ({asset_tag}) dopo 3+ ticket in 90 giorni. Procedere con la pianificazione."
+                  }
+                ],
+                "rejected_actions": [
+                  {
+                    "action_type": "send_email",
+                    "description": "Nota di archiviazione al richiedente",
+                    "to": "{richiedente_email}",
+                    "subject_template": "Manutenzione straordinaria non approvata - {numero_ticket}",
+                    "body_text_template": "La richiesta di manutenzione straordinaria per l'asset {asset_nome} non e' stata approvata. Il ticket {numero_ticket} prosegue secondo il flusso ordinario."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU41 - Anomalia creata: notifica responsabile"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au41-anomalia-creata-notifica",
+      "name": "AU41 - Anomalia creata: notifica responsabile",
+      "description": "Alla creazione di una nuova anomalia invia una email di notifica ai destinatari scelti, con OP, PN/seriale e stato. Sostituire il destinatario in 'to' prima di attivare la regola dal designer.",
+      "source_code": "anomalie",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica creazione anomalia",
+          "to": "DESTINATARIO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "",
+          "subject_template": "Nuova anomalia #{id} - OP {ex_op_nominativo}",
+          "body_text_template": "E' stata creata una nuova anomalia.\n\nID: {id}\nOP: {ex_op_nominativo}\nPN / Seriale: {seriale}\nStato: {avanzamento}\n\nVerificare nel portale per i dettagli."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU36 - 3ª richiesta DPI in 30 giorni: anomalia consumo (count_branch)"
+  },
+  "source_candidate": {
+    "source_code": "dpi",
+    "label": "DPI"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "dpi"
+  },
+  "proposed_rules": [
+    {
+      "code": "au36-dpi-consumo-anomalo-count",
+      "name": "AU36 - 3ª richiesta DPI in 30 giorni: anomalia consumo (count_branch)",
+      "description": "Alla creazione di una richiesta DPI, conta le richieste dello stesso richiedente negli ultimi 30 giorni (count_branch su dpi, filter richiedente_legacy_id, window created_at 30gg); se sono >= 3 notifica il gestore DPI per consumo anomalo. Usa l'azione count_branch (primitiva conteggio del motore). NOTE/LIMITI: (1) il backlog diceva 'stessa categoria'; count_branch supporta un solo filter_field, quindi il conteggio e' per richiedente (non per categoria). Per il filtro categoria servirebbe un secondo predicato non ancora supportato. (2) la soglia conta TUTTE le richieste del richiedente nella finestra, inclusa quella corrente. (3) Sostituire GESTORE_DPI_DA_CONFIGURARE.",
+      "source_code": "dpi",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "count_branch",
+          "description": "Conta richieste DPI del richiedente negli ultimi 30 giorni",
+          "config_json": {
+            "source_code": "dpi",
+            "filter_field": "richiedente_legacy_id",
+            "filter_value_template": "{richiedente_legacy_id}",
+            "window_field": "created_at",
+            "window_days": 30,
+            "threshold": 3,
+            "operator": "gte",
+            "then_actions": [
+              {
+                "action_type": "send_email",
+                "description": "Notifica gestore DPI consumo anomalo",
+                "to": "GESTORE_DPI_DA_CONFIGURARE@costruzioninovicrom.it",
+                "subject_template": "Consumo DPI anomalo - richiedente {richiedente_nome}",
+                "body_text_template": "Il richiedente {richiedente_nome} (legacy id {richiedente_legacy_id}, reparto {richiedente_reparto}) ha effettuato 3 o più richieste DPI negli ultimi 30 giorni. Ultima richiesta: {numero}. Verificare un eventuale consumo anomalo."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

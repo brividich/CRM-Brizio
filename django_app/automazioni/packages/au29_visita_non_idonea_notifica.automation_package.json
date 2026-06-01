@@ -1,0 +1,50 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU29 - Visita NON IDONEA: notifica responsabile formazione"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_visite_mediche",
+    "label": "Anagrafica - Visite mediche"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_visite_mediche"
+  },
+  "proposed_rules": [
+    {
+      "code": "au29-visita-non-idonea-notifica",
+      "name": "AU29 - Visita NON IDONEA: notifica responsabile formazione",
+      "description": "Quando l'esito di una visita medica passa a NON_IDONEO_TEMP, notifica il responsabile formazione perche' verifichi le iscrizioni a corsi attive del dipendente. Rivisto da feedback utente: SOLO notifica (niente sospensione automatica via for_each delle iscrizioni). NOTE/LIMITI: (1) il campo dipendente e' legacy_anagrafica_id (ID), non email; il destinatario e' il responsabile formazione configurabile. (2) Sostituire RESP_FORMAZIONE_DA_CONFIGURARE.",
+      "source_code": "anagrafica_visite_mediche",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "esito",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "esito",
+          "operator": "changed_to",
+          "value": "NON_IDONEO_TEMP",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica responsabile formazione",
+          "to": "RESP_FORMAZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Visita NON IDONEA (temporanea) - dipendente {legacy_anagrafica_id}",
+          "body_text_template": "La visita medica del dipendente (legacy id {legacy_anagrafica_id}) ha esito NON_IDONEO_TEMP (data svolgimento {data_svolgimento}).\nVerificare le iscrizioni a corsi attive ed eventuali prescrizioni: {prescrizioni}"
+        }
+      ]
+    }
+  ]
+}

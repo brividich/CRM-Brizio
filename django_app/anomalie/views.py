@@ -1900,6 +1900,12 @@ def api_salva(request):
         insert_writable.setdefault("created_datetime", ("__sql__", "SYSUTCDATETIME()"))
     if "created_by_user_id" in cols and legacy_user:
         insert_writable.setdefault("created_by_user_id", legacy_user.id)
+    # AU-GAP1: traccia CHI modifica l'anomalia, cosi' il trigger SQL puo' proiettare
+    # modified_by_user_id nel payload automazioni e le regole possono filtrare per ruolo
+    # (il ruolo CC/CAR viene poi risolto a runtime da _enrich_anomalie_payload).
+    if "modified_by_user_id" in cols and legacy_user:
+        insert_writable["modified_by_user_id"] = legacy_user.id
+        update_writable["modified_by_user_id"] = legacy_user.id
 
     where_clause = None
     where_params: list = []

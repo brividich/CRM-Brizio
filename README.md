@@ -599,8 +599,13 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Designer visuale** con builder classico + diagramma Power Automate-style
 - **Trigger SQL Server** auto-generati (CREATE OR ALTER TRIGGER) con applicazione one-click dal portale
 - **Queue** `automation_event_queue` persistente con processor command
-- **Azioni disponibili**: `send_email`, `write_log`, `insert_record`, `update_record`, `update_trigger_record`, `split_assenza_giornaliera`, `send_approval`, `do_until`, `for_each`, `branch`, `run_if`
+- **Azioni disponibili**: `send_email`, `write_log`, `insert_record`, `update_record`, `update_trigger_record`, `split_assenza_giornaliera`, `send_approval`, `do_until`, `for_each`, `branch`, `count_branch`, `run_if`
 - **Controllo flusso visuale**: pannelli guidati Se Vero/Se Falso, Corpo loop/Timeout, Azioni per ogni record
+- **Approvazioni a catena**: `send_approval` annidabili nei rami approvato/rifiutato (doppia/tripla firma, max 3 livelli), validate ricorsivamente all'import
+- **Operatori condizione temporali**: `days_from_now_lte/gte` (scadenze rispetto a oggi) e `days_span_gt/gte` (durata fra due campi data, es. "ferie > 10 giorni")
+- **`count_branch`**: conta i record di una sorgente (filtro + finestra temporale) e dirama su soglia — esprime regole "N eventi in M giorni" (es. 3 ticket stesso asset in 90 giorni)
+- **Pacchetti regola pronti** (`automazioni/packages/*.automation_package.json`): 27 flussi importabili via designer (anomalie, approvazioni a catena, escalation, KPI, presidio scadenze), tutti draft+disattivi all'import
+- **Arricchimento payload per sorgente**: tickets (nome/tag asset), assenze (email caporeparto/dipendente), anomalie (`modified_by_role` CC/CAR per notifiche filtrate per ruolo)
 - **Approvazioni multi-canale**: email classica, webhook Teams legacy, **Teams chat Flow** (Power Automate), Entra Application Proxy one-click
 - **Template email approvazioni** riutilizzabili con `portal_links` / `mail_reply` / `hybrid`
 - **Mailbox poller Graph** (Microsoft 365 compatible, no Basic Auth): policy "first valid decision wins", dedup persistente, fail-closed sui mittenti
@@ -697,7 +702,11 @@ graph LR
 ### Capabilities
 
 - 🎨 **Designer SSR visuale**: trigger, condizioni, azioni con editor inline
-- 🔀 **Controllo flusso**: `branch`, `do_until`, `for_each`, `run_if` con pannelli guidati
+- 🔀 **Controllo flusso**: `branch`, `do_until`, `for_each`, `count_branch`, `run_if` con pannelli guidati
+- 🔢 **Soglie "N eventi in M giorni"**: `count_branch` conta i record di una sorgente (filtro + finestra temporale) e dirama oltre soglia
+- ⏱️ **Operatori temporali**: `days_from_now_lte/gte` (scadenze) e `days_span_gt/gte` (durate fra due date)
+- 🔁 **Approvazioni a catena**: `send_approval` annidabili (doppia/tripla firma, max 3 livelli)
+- 📦 **27 pacchetti regola pronti** (`automazioni/packages/`): import via designer, draft+disattivi, da configurare e attivare
 - ✉️ **Approvazioni umane**: recapito via email · webhook Teams legacy · Teams chat Flow (Power Automate) · Entra Application Proxy
 - 🔄 **Import Power Automate**: converter integrato `.zip`/`.json` con remediation e handoff a draft
 - 🧪 **Test inline**: esegui regola con record reale o dati campione, visualizzando output per azione

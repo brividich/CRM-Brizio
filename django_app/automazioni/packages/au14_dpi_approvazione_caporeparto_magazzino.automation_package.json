@@ -1,0 +1,70 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU14 - DPI: approvazione caporeparto poi notifica magazzino"
+  },
+  "source_candidate": {
+    "source_code": "dpi",
+    "label": "DPI"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "dpi"
+  },
+  "proposed_rules": [
+    {
+      "code": "au14-dpi-approvazione-caporeparto-magazzino",
+      "name": "AU14 - DPI: approvazione caporeparto poi notifica magazzino",
+      "description": "Quando una richiesta DPI passa a stato INVIATA, richiede l'approvazione del caporeparto; se approvata, notifica il magazzino per la consegna. LIMITE: la condizione 'solo se il richiedente NON e' caporeparto/preposto' non e' esprimibile nativamente (il payload dpi non espone il ruolo del richiedente; gap analogo ad AU-GAP1). Qui la regola si attiva per tutte le richieste INVIATA. Inoltre il payload dpi non espone l'email del caporeparto del richiedente: il to_template usa un destinatario fisso da configurare (CAPOREPARTO_DA_CONFIGURARE) finche' non sara' disponibile la risoluzione del capo dal reparto del richiedente. Sostituire CAPOREPARTO e MAGAZZINO prima di attivare.",
+      "source_code": "dpi",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "stato",
+          "operator": "changed_to",
+          "value": "INVIATA",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_approval",
+          "description": "Approvazione caporeparto richiesta DPI",
+          "delivery_mode": "email",
+          "to_template": "CAPOREPARTO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Approvazione DPI {numero} - {richiedente_nome}",
+          "message_template": "Richiesta DPI {numero} da {richiedente_nome} (reparto {richiedente_reparto}).\nQuantita': {quantita}\nMotivazione: {motivazione}",
+          "expiry_days": 7,
+          "approved_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Notifica magazzino per consegna DPI",
+              "to": "MAGAZZINO_DA_CONFIGURARE@costruzioninovicrom.it",
+              "subject_template": "DPI approvati da consegnare - {numero}",
+              "body_text_template": "La richiesta DPI {numero} di {richiedente_nome} (reparto {richiedente_reparto}, quantita' {quantita}) e' stata approvata dal caporeparto. Procedere con la consegna."
+            }
+          ],
+          "rejected_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Avviso rifiuto al richiedente",
+              "to": "{richiedente_email}",
+              "subject_template": "Richiesta DPI {numero} non approvata",
+              "body_text_template": "La tua richiesta DPI {numero} non e' stata approvata dal caporeparto."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

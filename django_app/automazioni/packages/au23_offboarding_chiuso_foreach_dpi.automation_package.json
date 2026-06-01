@@ -1,0 +1,69 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU23 - Offboarding chiuso: revoca DPI in blocco (for_each)"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_offboarding",
+    "label": "Anagrafica - Pratiche offboarding"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_offboarding"
+  },
+  "proposed_rules": [
+    {
+      "code": "au23-offboarding-chiuso-foreach-dpi",
+      "name": "AU23 - Offboarding chiuso: revoca DPI in blocco (for_each)",
+      "description": "Quando una pratica offboarding passa a stato CHIUSA, itera su tutte le richieste DPI del dipendente (sorgente dpi, filtrate per richiedente_legacy_id = legacy_anagrafica_id della pratica) e, per ciascuna, invia al magazzino una notifica di ritiro DPI. Usa l'azione for_each (motore esteso). NOTE/LIMITI: (1) il legame DPI<->dipendente avviene via richiedente_legacy_id; verificare che il payload offboarding esponga legacy_anagrafica_id valorizzato. (2) Nel corpo del loop sono disponibili i campi della sorgente iterata (dpi): numero, categoria_id, stato. Sostituire MAGAZZINO_DA_CONFIGURARE prima di attivare.",
+      "source_code": "anagrafica_offboarding",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "stato",
+          "operator": "changed_to",
+          "value": "CHIUSA",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Avviso apertura ritiro DPI al magazzino",
+          "to": "MAGAZZINO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Offboarding chiuso {dipendente_nome} - avvio ritiro DPI",
+          "body_text_template": "La pratica di offboarding per {dipendente_nome} (reparto {reparto}) e' stata chiusa.\nSeguono le notifiche di ritiro per ciascuna richiesta DPI collegata."
+        },
+        {
+          "action_type": "for_each",
+          "description": "Itera sulle richieste DPI del dipendente e notifica il ritiro",
+          "config_json": {
+            "source_code": "dpi",
+            "filter_field": "richiedente_legacy_id",
+            "filter_value_template": "{legacy_anagrafica_id}",
+            "max_iterations": 100,
+            "loop_actions": [
+              {
+                "action_type": "send_email",
+                "description": "Notifica ritiro singola richiesta DPI",
+                "to": "MAGAZZINO_DA_CONFIGURARE@costruzioninovicrom.it",
+                "subject_template": "Ritiro DPI richiesta {numero} (stato {stato})",
+                "body_text_template": "Procedere al ritiro della richiesta DPI {numero} (categoria {categoria_id}, stato corrente {stato}) per il dipendente in uscita."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

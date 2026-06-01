@@ -1,0 +1,56 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU6 - Offboarding aperto: notifiche multi-ufficio"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_offboarding",
+    "label": "Anagrafica - Pratiche offboarding"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_offboarding"
+  },
+  "proposed_rules": [
+    {
+      "code": "au6-offboarding-checklist-notifiche",
+      "name": "AU6 - Offboarding aperto: notifiche multi-ufficio",
+      "description": "All'apertura di una pratica di offboarding invia le notifiche di checklist ai vari uffici: IT (revoca account/asset), magazzino (ritiro DPI), HR. VERSIONE FATTIBILE: usa send_email verso destinatari configurabili. NOTE/LIMITI: (1) la creazione automatica di un TICKET IT (come da backlog) richiede di aggiungere 'tickets_ticket' alla whitelist insert_record (AutomationTableConfig) - attualmente insert_record e' permesso SOLO su core_notifica. (2) Il for_each sui DPI del dipendente per il ritiro in massa richiede dati non presenti nel payload offboarding e validazione for_each non garantita dall'import package; rimandato. Sostituire i destinatari IT/MAGAZZINO/HR prima di attivare.",
+      "source_code": "anagrafica_offboarding",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica IT revoca account e asset",
+          "to": "IT_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Offboarding {dipendente_nome} - revoca account/asset",
+          "body_text_template": "Aperta pratica offboarding per {dipendente_nome} (reparto {reparto}, mansione {mansione}).\nMotivo: {motivo}\nUltimo giorno operativo: {ultimo_giorno_operativo}\n\nProcedere con la revoca di account e asset IT."
+        },
+        {
+          "action_type": "send_email",
+          "description": "Notifica magazzino ritiro DPI",
+          "to": "MAGAZZINO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Offboarding {dipendente_nome} - ritiro DPI",
+          "body_text_template": "Aperta pratica offboarding per {dipendente_nome} (reparto {reparto}).\nUltimo giorno operativo: {ultimo_giorno_operativo}\n\nProcedere con il ritiro dei DPI assegnati."
+        },
+        {
+          "action_type": "send_email",
+          "description": "Promemoria HR",
+          "to": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Offboarding {dipendente_nome} - checklist HR",
+          "body_text_template": "Aperta pratica offboarding per {dipendente_nome} (reparto {reparto}, mansione {mansione}).\nMotivo: {motivo}\nData cessazione prevista: {data_cessazione_prevista}\nUltimo giorno operativo: {ultimo_giorno_operativo}"
+        }
+      ]
+    }
+  ]
+}

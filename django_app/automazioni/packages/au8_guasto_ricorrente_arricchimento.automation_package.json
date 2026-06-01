@@ -1,0 +1,57 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU8 - Guasto ricorrente: arricchimento automatico"
+  },
+  "source_candidate": {
+    "source_code": "tickets",
+    "label": "Tickets"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tickets"
+  },
+  "proposed_rules": [
+    {
+      "code": "au8-guasto-ricorrente-arricchimento",
+      "name": "AU8 - Guasto ricorrente: arricchimento automatico",
+      "description": "Quando un ticket e' marcato ricorrente e ha un ticket di origine, aggiorna il ticket stesso (update_trigger_record): alza la priorita' a CRITICA e annota nelle note interne il riferimento al ticket precedente.",
+      "source_code": "tickets",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "ricorrente",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "ricorrente",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        },
+        {
+          "field": "ticket_origine_id",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "int"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "update_trigger_record",
+          "description": "Alza priorita' e annota ricorrenza",
+          "update_fields": {
+            "priorita": "CRITICA",
+            "note_interne": "Guasto ricorrente: gia' verificato nel ticket #{ticket_origine_id}."
+          }
+        }
+      ]
+    }
+  ]
+}

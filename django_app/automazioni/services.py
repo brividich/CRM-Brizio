@@ -495,10 +495,92 @@ def _enrich_assenze_payload(payload: Any) -> Any:
     return enriched
 
 
+def _enrich_tickets_payload(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    asset_id = payload.get("asset_id")
+    if not asset_id:
+        return payload
+    enriched = dict(payload)
+    try:
+        from assets.models import Asset
+        asset = Asset.objects.only("name", "asset_tag").get(pk=asset_id)
+        enriched.setdefault("asset_nome", asset.name)
+        enriched.setdefault("asset_tag", asset.asset_tag)
+    except Exception:
+        pass
+    return enriched
+
+
+def _resolve_anomalie_role_for_legacy_id(legacy_user_id: Any) -> str:
+    """
+    AU-GAP1: risolve il ruolo operativo anomalie (CAPOCOMMESSA/CAR) di chi ha modificato,
+    partendo dal legacy_user_id presente nel payload (proiettato dal trigger SQL via la
+    colonna applicativa modified_by_user_id). Il ruolo NON e' un dato del DB legacy: vive
+    nelle assegnazioni applicative `AnomalieRoleAssignment` (CC/CAR), quindi va derivato qui.
+    Ritorna il code del ruolo ("CC"/"CAR") oppure stringa vuota se non determinabile.
+    """
+    if legacy_user_id in (None, ""):
+        return ""
+    try:
+        legacy_id = int(legacy_user_id)
+    except (TypeError, ValueError):
+        return ""
+    try:
+        from core.models import Profile
+        from anomalie.models import AnomalieRoleAssignment, AnomalieRoleType
+
+        profile = Profile.objects.filter(legacy_user_id=legacy_id).only("user_id").first()
+        if not profile:
+            return ""
+        # Se l'utente ha entrambi i ruoli, CC ha priorita' (capocommessa > CAR).
+        role_codes = set(
+            AnomalieRoleAssignment.objects.filter(user_id=profile.user_id)
+            .values_list("role_type", flat=True)
+        )
+        if AnomalieRoleType.CAPO_COMMESSA in role_codes:
+            return str(AnomalieRoleType.CAPO_COMMESSA)
+        if AnomalieRoleType.CAR in role_codes:
+            return str(AnomalieRoleType.CAR)
+    except Exception:
+        return ""
+    return ""
+
+
+def _enrich_anomalie_payload(payload: Any) -> Any:
+    """
+    AU-GAP1: arricchisce il payload anomalie con `modified_by_role` derivandolo da
+    `modified_by_id`/`modified_by_user_id`. Abilita le condizioni "notifica solo se a
+    modificare e' CAPOCOMMESSA/CAR" (AU42 versione 'per ruolo').
+    """
+    if not isinstance(payload, dict):
+        return payload
+    enriched = dict(payload)
+    # Il trigger SQL puo' proiettare la colonna come modified_by_user_id; normalizziamo
+    # verso il nome di registry modified_by_id (alias gia' previsti nel source_registry).
+    modified_by_id = (
+        enriched.get("modified_by_id")
+        if enriched.get("modified_by_id") not in (None, "")
+        else enriched.get("modified_by_user_id")
+    )
+    if modified_by_id not in (None, "") and enriched.get("modified_by_id") in (None, ""):
+        enriched["modified_by_id"] = modified_by_id
+
+    if enriched.get("modified_by_role") in (None, ""):
+        role = _resolve_anomalie_role_for_legacy_id(modified_by_id)
+        if role:
+            enriched["modified_by_role"] = role
+    return enriched
+
+
 def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
     normalized_source = str(source_code or "").strip().lower()
     if normalized_source == "assenze":
         return _enrich_assenze_payload(payload)
+    if normalized_source == "tickets":
+        return _enrich_tickets_payload(payload)
+    if normalized_source == "anomalie":
+        return _enrich_anomalie_payload(payload)
     return payload
 
 
@@ -1194,6 +1276,44 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
                 and old_value != current_value
             )
 
+        if operator in {
+            AutomationConditionOperator.DAYS_FROM_NOW_LTE,
+            AutomationConditionOperator.DAYS_FROM_NOW_GTE,
+        }:
+            field_date = _parse_date(current_raw)
+            if field_date in {_UNCASTABLE, None}:
+                return False
+            try:
+                threshold = int(str(condition.expected_value).strip())
+            except (TypeError, ValueError):
+                return False
+            delta_days = (field_date - date.today()).days
+            if operator == AutomationConditionOperator.DAYS_FROM_NOW_LTE:
+                return delta_days <= threshold
+            return delta_days >= threshold
+
+        if operator in {
+            AutomationConditionOperator.DAYS_SPAN_GT,
+            AutomationConditionOperator.DAYS_SPAN_GTE,
+        }:
+            # expected_value nel formato "altro_campo:N"
+            raw_expected = str(condition.expected_value or "")
+            if ":" not in raw_expected:
+                return False
+            other_field, raw_threshold = raw_expected.rsplit(":", 1)
+            try:
+                threshold = int(raw_threshold.strip())
+            except (TypeError, ValueError):
+                return False
+            end_date = _parse_date(current_raw)
+            start_date = _parse_date(safe_get_payload_value(payload, other_field.strip()))
+            if end_date in {_UNCASTABLE, None} or start_date in {_UNCASTABLE, None}:
+                return False
+            span_days = (end_date - start_date).days
+            if operator == AutomationConditionOperator.DAYS_SPAN_GT:
+                return span_days > threshold
+            return span_days >= threshold
+
         return False
     except Exception:
         logger.warning(
@@ -1299,10 +1419,16 @@ def _resolve_action_run_if(config: dict[str, Any], payload: Any, old_payload: An
     if not isinstance(run_if, dict) or not run_if:
         return True, ""
 
+    # Il valore atteso e' accettato sia come `expected_value` (schema storico run_if di azione)
+    # sia come `value` (schema usato dalle condition dei pacchetti e dal run_if di branch),
+    # per uniformare i due schemi ed evitare confronti silenziosamente vuoti.
+    raw_expected = run_if.get("expected_value")
+    if raw_expected in (None, ""):
+        raw_expected = run_if.get("value")
     condition = SimpleNamespace(
         field_name=str(run_if.get("field_name") or "").strip(),
         operator=str(run_if.get("operator") or "").strip(),
-        expected_value=str(run_if.get("expected_value") or ""),
+        expected_value=str(raw_expected or ""),
         value_type=str(run_if.get("value_type") or ""),
         compare_with_old=bool(run_if.get("compare_with_old")),
     )
@@ -2964,15 +3090,28 @@ def _execute_inline_action(
     """
     if not isinstance(child_config, dict):
         return {"status": AutomationActionLogStatus.SKIPPED, "result_message": "child_config non valido."}
-    action_type = str(child_config.get("action_type") or "").strip()
+    action_type = str(child_config.get("action_type") or child_config.get("type") or "").strip()
     if not action_type:
         return {"status": AutomationActionLogStatus.SKIPPED, "result_message": "action_type mancante nell'azione inline."}
+
+    # Le azioni embedded nei pacchetti/rami inline possono dichiarare i parametri in due modi:
+    # (a) annidati sotto `config_json` (schema runtime), oppure (b) come chiavi top-level
+    # sul dict dell'azione (schema usato dai pacchetti import, es. {"action_type":"send_email",
+    # "to":..., "subject_template":...}). execute_action legge tutto da config_json, quindi
+    # se config_json e' assente/vuoto promuovo le chiavi top-level (escludendo i meta) a config,
+    # altrimenti l'azione inline girerebbe con configurazione vuota.
+    explicit_config = child_config.get("config_json")
+    if isinstance(explicit_config, dict) and explicit_config:
+        inline_config = dict(explicit_config)
+    else:
+        _meta_keys = {"action_type", "type", "description", "name", "is_enabled", "enabled", "order", "config_json", "config"}
+        inline_config = {key: value for key, value in child_config.items() if key not in _meta_keys}
 
     inline_action = SimpleNamespace(
         id=None,
         pk=None,
         action_type=action_type,
-        config_json=dict(child_config.get("config_json") or {}),
+        config_json=inline_config,
         description=str(child_config.get("description") or ""),
         is_enabled=True,
         order=0,
@@ -3030,6 +3169,58 @@ def _query_source_for_each(
             return _cursor_fetch_dicts(cursor)
     except Exception as exc:
         raise ValueError(f"Errore durante la query for_each su '{table_name}': {exc}") from exc
+
+
+def _count_source(
+    source_code: str,
+    filter_field: str | None,
+    filter_value: Any,
+    *,
+    window_field: str | None = None,
+    window_days: int | None = None,
+) -> int:
+    """
+    Conta i record di una sorgente registrata filtrando per un campo e, opzionalmente,
+    su una finestra temporale (window_field >= oggi - window_days).
+    Valida table_name, filter_field e window_field contro il source registry.
+    Usato dall'azione count_branch per esprimere soglie tipo "N eventi in M giorni".
+    """
+    from .source_registry import get_source_definition, get_source_fields
+
+    source = get_source_definition(source_code)
+    if not source:
+        raise ValueError(f"Sorgente '{source_code}' non trovata nel source registry.")
+    table_name = str(source.get("table_name") or "").strip()
+    if not table_name:
+        raise ValueError(f"Sorgente '{source_code}' non ha una tabella DB definita (count non supportato).")
+
+    valid_fields = {f["name"] for f in get_source_fields(source_code)}
+    if filter_field and filter_field not in valid_fields:
+        raise ValueError(f"Il campo filtro '{filter_field}' non e' esposto dalla sorgente '{source_code}'.")
+    if window_field and window_field not in valid_fields:
+        raise ValueError(f"Il campo finestra '{window_field}' non e' esposto dalla sorgente '{source_code}'.")
+
+    where_parts: list[str] = []
+    params: list[Any] = []
+    if filter_field and filter_value is not None:
+        where_parts.append(f"{filter_field} = ?")
+        params.append(filter_value)
+    if window_field and window_days:
+        threshold = (date.today() - timedelta(days=int(window_days))).isoformat()
+        where_parts.append(f"{window_field} >= ?")
+        params.append(threshold)
+
+    where_sql = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    sql = f"SELECT COUNT(*) FROM {table_name}{where_sql}"
+
+    from django.db import connections
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            return int(row[0]) if row and row[0] is not None else 0
+    except Exception as exc:
+        raise ValueError(f"Errore durante il conteggio su '{table_name}': {exc}") from exc
 
 
 def _insert_loop_reschedule_event(
@@ -3732,8 +3923,17 @@ def execute_action(
             filter_field = str(config.get("filter_field") or "").strip() or None
             filter_value_raw = config.get("filter_value_template")
             filter_value = render_template_string(str(filter_value_raw or ""), payload_context) if filter_value_raw else None
-            max_items = max(1, int(config.get("max_items") or 50))
-            each_actions = list(config.get("each_actions") or [])
+            # `max_iterations` e' l'alias usato dai pacchetti/validazione; `max_items` resta supportato.
+            max_items = max(1, int(config.get("max_items") or config.get("max_iterations") or 50))
+            # Le azioni del corpo loop sono accettate sia come `each_actions` (schema runtime
+            # storico) sia come `loop_actions`/`actions` (schema usato dalla validazione import e
+            # dai pacchetti). Allineo i due schemi per evitare loop vuoti silenziosi.
+            each_actions = list(
+                config.get("each_actions")
+                or config.get("loop_actions")
+                or config.get("actions")
+                or []
+            )
 
             if not foreach_source:
                 raise ValueError("for_each: source_code non specificato.")
@@ -3765,13 +3965,29 @@ def execute_action(
 
         # â”€â”€ BRANCH (If/Else) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if action.action_type == AutomationActionType.BRANCH:
-            condition_field = str(config.get("condition_field") or "").strip()
-            condition_operator = str(config.get("condition_operator") or "equals").strip()
-            condition_value = str(config.get("condition_value") or "").strip()
-            condition_value_type = str(config.get("condition_value_type") or "string").strip()
-            compare_with_old = bool(config.get("compare_with_old"))
-            if_true_actions = list(config.get("if_true_actions") or [])
-            if_false_actions = list(config.get("if_false_actions") or [])
+            # Schema alternativo (usato dai pacchetti/validazione): la condizione e' un dict
+            # `run_if` con field_name/operator/value/value_type, e i rami sono
+            # then_actions/else_actions. Lo schema runtime storico usa invece
+            # condition_field/condition_operator/... e if_true_actions/if_false_actions.
+            # Supporto entrambi, dando priorita' ai valori espliciti dello schema storico.
+            run_if = config.get("run_if") if isinstance(config.get("run_if"), dict) else {}
+            condition_field = str(
+                config.get("condition_field") or run_if.get("field_name") or ""
+            ).strip()
+            condition_operator = str(
+                config.get("condition_operator") or run_if.get("operator") or "equals"
+            ).strip()
+            condition_value = str(
+                config.get("condition_value")
+                if config.get("condition_value") is not None
+                else (run_if.get("value") if run_if.get("value") is not None else "")
+            ).strip()
+            condition_value_type = str(
+                config.get("condition_value_type") or run_if.get("value_type") or "string"
+            ).strip()
+            compare_with_old = bool(config.get("compare_with_old") or run_if.get("compare_with_old"))
+            if_true_actions = list(config.get("if_true_actions") or config.get("then_actions") or [])
+            if_false_actions = list(config.get("if_false_actions") or config.get("else_actions") or [])
 
             condition_met = (
                 _check_simple_condition(
@@ -3795,6 +4011,65 @@ def execute_action(
             result_message = (
                 f"Branch: eseguito ramo '{branch_label}' "
                 f"({len(branch_actions)} azioni, {errors} errori)."
+            )
+            final_status = AutomationActionLogStatus.ERROR if errors else AutomationActionLogStatus.SUCCESS
+            action_log = _create_action_log(
+                run_log=run_log, action=action,
+                status=final_status,
+                result_message=result_message,
+            )
+            return {"status": final_status, "result_message": result_message, "action_log": action_log}
+
+        # â”€â”€ COUNT_BRANCH (conta record + soglia) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if action.action_type == AutomationActionType.COUNT_BRANCH:
+            count_source = str(config.get("source_code") or source_code or "").strip()
+            filter_field = str(config.get("filter_field") or "").strip() or None
+            filter_value_raw = config.get("filter_value_template")
+            filter_value = (
+                render_template_string(str(filter_value_raw or ""), payload_context)
+                if filter_value_raw else None
+            )
+            window_field = str(config.get("window_field") or "").strip() or None
+            window_days = config.get("window_days")
+            try:
+                window_days = int(window_days) if window_days not in (None, "") else None
+            except (TypeError, ValueError):
+                raise ValueError("count_branch: window_days deve essere un intero.")
+            try:
+                threshold = int(config.get("threshold"))
+            except (TypeError, ValueError):
+                raise ValueError("count_branch: threshold (soglia) intera obbligatoria.")
+            operator = str(config.get("operator") or "gte").strip().lower()
+
+            if not count_source:
+                raise ValueError("count_branch: source_code non specificato.")
+
+            total = _count_source(
+                count_source, filter_field, filter_value,
+                window_field=window_field, window_days=window_days,
+            )
+            _ops = {
+                "gte": total >= threshold, "gt": total > threshold,
+                "lte": total <= threshold, "lt": total < threshold,
+                "eq": total == threshold,
+            }
+            condition_met = _ops.get(operator, total >= threshold)
+
+            then_actions = list(config.get("then_actions") or [])
+            else_actions = list(config.get("else_actions") or [])
+            branch_actions = then_actions if condition_met else else_actions
+            branch_label = "then" if condition_met else "else"
+            errors = 0
+            for child_cfg in branch_actions:
+                res = _execute_inline_action(
+                    child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action
+                )
+                if res.get("status") == AutomationActionLogStatus.ERROR:
+                    errors += 1
+
+            result_message = (
+                f"Count Branch: '{count_source}' count={total} {operator} {threshold} "
+                f"=> {condition_met}; ramo '{branch_label}' ({len(branch_actions)} azioni, {errors} errori)."
             )
             final_status = AutomationActionLogStatus.ERROR if errors else AutomationActionLogStatus.SUCCESS
             action_log = _create_action_log(

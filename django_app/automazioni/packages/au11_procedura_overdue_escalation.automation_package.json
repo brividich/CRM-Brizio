@@ -1,0 +1,69 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU11 - Procedura scaduta non letta: escalation"
+  },
+  "source_candidate": {
+    "source_code": "procedure_assegnazioni",
+    "label": "Procedure - Assegnazioni"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "procedure_assegnazioni"
+  },
+  "proposed_rules": [
+    {
+      "code": "au11-procedura-overdue-escalation",
+      "name": "AU11 - Procedura scaduta non letta: escalation",
+      "description": "Quando un'assegnazione procedura passa a stato 'overdue', invia un sollecito; dopo 3 giorni, se la lettura non e' ancora confermata, esegue l'escalation al responsabile. Sostituire RESPONSABILE_DA_CONFIGURARE. NOTA: il primo invio usa l'email dell'utente assegnatario se disponibile nel payload; in mancanza, configurare un destinatario.",
+      "source_code": "procedure_assegnazioni",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "status",
+          "operator": "changed_to",
+          "value": "overdue",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Sollecito immediato",
+          "to": "UTENTE_O_RESPONSABILE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Procedura non letta - scadenza superata (assegnazione #{id})",
+          "body_text_template": "L'assegnazione procedura #{id} risulta scaduta (overdue) senza conferma di lettura. Si prega di completare la presa visione."
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 3 giorni prima dell'escalation",
+          "mode": "relative",
+          "delay_value": 3,
+          "delay_unit": "days"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Escalation al responsabile se ancora non confermata",
+          "to": "RESPONSABILE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Escalation procedura non letta (assegnazione #{id})",
+          "body_text_template": "L'assegnazione procedura #{id} risulta ancora non confermata dopo il sollecito. Si richiede intervento del responsabile.",
+          "run_if": {
+            "field_name": "read_confirmed_flag",
+            "operator": "is_false",
+            "value_type": "bool"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -264,6 +264,8 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
             ),
             _field(name="incide_sicurezza", label="Incide sicurezza", data_type="bool", description="Flag: il guasto/problema ha impatti sulla sicurezza.", aliases=["safety_impact"]),
             _field(name="asset_id", label="Asset (ID)", data_type="int", description="Asset Django collegato al ticket.", aliases=["asset", "equipment_id"]),
+            _field(name="asset_nome", label="Asset nome", data_type="string", description="Nome dell'asset collegato (risolto via FK, disponibile nel payload arricchito).", is_virtual=True, aliases=["asset_name", "nome_asset"]),
+            _field(name="asset_tag", label="Asset tag", data_type="string", description="Codice univoco dell'asset collegato (risolto via FK, disponibile nel payload arricchito).", is_virtual=True, aliases=["asset_code"]),
             _field(name="asset_descrizione_libera", label="Asset descrizione libera", data_type="string", description="Descrizione libera dell'asset quando non collegato al registro.", aliases=["asset_descrizione", "equipment_name"]),
             _field(name="richiedente_nome", label="Richiedente nome", data_type="string", description="Nome completo di chi ha aperto il ticket.", aliases=["requester_name", "nome_richiedente"]),
             _field(name="richiedente_email", label="Richiedente email", data_type="string", description="Email del richiedente per notifiche.", aliases=["requester_email"]),
@@ -357,6 +359,48 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 data_type="int",
                 description="Collegamento interno aggiuntivo presente nel database attivo.",
                 aliases=["ordine_interno", "order_id"],
+            ),
+            _field(
+                name="old_avanzamento",
+                label="Stato precedente",
+                data_type="string",
+                description="Valore precedente di `avanzamento`, proiettato dal trigger update anomalie (AU-GAP1).",
+                is_virtual=True,
+                aliases=["previous_avanzamento", "old_stato"],
+            ),
+            _field(
+                name="old_chiudere",
+                label="Da chiudere (precedente)",
+                data_type="bool",
+                description="Valore precedente di `chiudere`, proiettato dal trigger update anomalie (AU-GAP1).",
+                is_virtual=True,
+                aliases=["previous_chiudere"],
+            ),
+            _field(
+                name="modified_by_id",
+                label="Modificato da (ID)",
+                data_type="int",
+                description=(
+                    "Legacy user ID di chi ha effettuato l'ultima modifica. "
+                    "Campo virtuale: va popolato dal trigger SQL / dal codice applicativo "
+                    "che alimenta automation_event_queue (AU-GAP1). Abilita le notifiche "
+                    "filtrate per chi modifica l'anomalia."
+                ),
+                is_virtual=True,
+                aliases=["modificato_da_id", "editor_id", "updated_by_id", "modified_by_user_id"],
+            ),
+            _field(
+                name="modified_by_role",
+                label="Ruolo di chi modifica",
+                data_type="string",
+                description=(
+                    "Ruolo di chi ha effettuato l'ultima modifica (es. CAPOCOMMESSA, CAR, AMMINISTRAZIONE). "
+                    "Campo virtuale: va popolato dal trigger SQL / codice applicativo che alimenta "
+                    "automation_event_queue (AU-GAP1). Consente la condizione 'notifica solo se modifica "
+                    "CAPOCOMMESSA/CAR'."
+                ),
+                is_virtual=True,
+                aliases=["modificato_da_ruolo", "editor_role", "updated_by_role"],
             ),
         ],
     },
