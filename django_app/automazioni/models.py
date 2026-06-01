@@ -42,6 +42,15 @@ class AutomationConditionOperator(models.TextChoices):
     CHANGED = "changed", "Changed"
     CHANGED_TO = "changed_to", "Changed to"
     CHANGED_FROM_TO = "changed_from_to", "Changed from to"
+    # Operatori temporali. Il valore del campo deve essere una data/datetime.
+    # DAYS_FROM_NOW_*: confronta (campo - oggi) in giorni con expected_value (intero).
+    #   Positivo = data nel futuro. Es. data_scadenza entro 30gg => days_from_now_lte 30.
+    # DAYS_SPAN_*: confronta (campo - altro_campo) in giorni con expected_value nel
+    #   formato "altro_campo:N" (es. "data_inizio:10" => (data_fine - data_inizio) > 10).
+    DAYS_FROM_NOW_LTE = "days_from_now_lte", "Days from now ≤"
+    DAYS_FROM_NOW_GTE = "days_from_now_gte", "Days from now ≥"
+    DAYS_SPAN_GT = "days_span_gt", "Days span >"
+    DAYS_SPAN_GTE = "days_span_gte", "Days span ≥"
 
 
 class AutomationConditionValueType(models.TextChoices):
@@ -69,6 +78,7 @@ class AutomationActionType(models.TextChoices):
     DO_UNTIL = "do_until", "Do Until (Ripeti fino a condizione)"
     FOR_EACH = "for_each", "Per Ogni Elemento (For Each)"
     BRANCH = "branch", "Branch / Condizione If-Else"
+    COUNT_BRANCH = "count_branch", "Conta record e confronta soglia (Count Branch)"
 
 
 class ApprovalDeliveryMode(models.TextChoices):

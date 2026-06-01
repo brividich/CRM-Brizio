@@ -1,0 +1,100 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU50 - Incidente (Accident) non chiuso: escalation normativa crescente"
+  },
+  "source_candidate": {
+    "source_code": "rilevazione_incidenti",
+    "label": "Incidenti / Sicurezza"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rilevazione_incidenti"
+  },
+  "proposed_rules": [
+    {
+      "code": "au50-incidente-non-chiuso-escalation-normativa",
+      "name": "AU50 - Incidente (Accident) non chiuso: escalation normativa crescente",
+      "description": "Alla registrazione di un incidente di tipo Accident, avvia un'escalation normativa crescente sulla chiusura RSPP: a ~24h preposto, ~72h RSPP, ~7gg RLS+direzione, ognuno con run_if chiusura_rspp is_false (salta se nel frattempo l'RSPP ha chiuso). Usa delay_schedule + run_if a cascata. NOTE/LIMITI: (1) i tempi sono modificabili in designer. (2) il run_if rivaluta chiusura_rspp sul payload al momento dell'esecuzione differita. (3) Sostituire PREPOSTO/RSPP/RLS/DIREZIONE _DA_CONFIGURARE.",
+      "source_code": "rilevazione_incidenti",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "tipologia_scheda",
+          "operator": "equals",
+          "value": "Accident",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 24h",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "24"
+        },
+        {
+          "action_type": "send_email",
+          "description": "L1 - Preposto se non chiuso",
+          "to": "PREPOSTO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[24h] Incidente non chiuso - {nominativo} ({reparto})",
+          "body_text_template": "L'incidente (Accident) di {nominativo} nel reparto {reparto}, segnalato il {data_segnalazione}, non risulta ancora chiuso dall'RSPP. Sollecito al preposto.",
+          "run_if": {
+            "field_name": "chiusura_rspp",
+            "operator": "is_false",
+            "value_type": "bool"
+          }
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa fino a 72h",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "48"
+        },
+        {
+          "action_type": "send_email",
+          "description": "L2 - RSPP se non chiuso",
+          "to": "RSPP_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[72h] Incidente non chiuso - {nominativo} ({reparto})",
+          "body_text_template": "L'incidente (Accident) di {nominativo} nel reparto {reparto} non risulta ancora chiuso dopo 72 ore. Intervento RSPP richiesto.",
+          "run_if": {
+            "field_name": "chiusura_rspp",
+            "operator": "is_false",
+            "value_type": "bool"
+          }
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa fino a 7 giorni",
+          "mode": "relative",
+          "unit": "days",
+          "value_template": "4"
+        },
+        {
+          "action_type": "send_email",
+          "description": "L3 - RLS + direzione se non chiuso",
+          "to": "RLS_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "DIREZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[7gg] Incidente non chiuso - escalation RLS/direzione - {nominativo}",
+          "body_text_template": "L'incidente (Accident) di {nominativo} nel reparto {reparto}, segnalato il {data_segnalazione}, non risulta ancora chiuso dopo 7 giorni. Escalation a RLS e direzione.",
+          "run_if": {
+            "field_name": "chiusura_rspp",
+            "operator": "is_false",
+            "value_type": "bool"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU10 - Notizia obbligatoria pubblicata: broadcast"
+  },
+  "source_candidate": {
+    "source_code": "notizie",
+    "label": "Notizie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "notizie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au10-notizia-obbligatoria-broadcast",
+      "name": "AU10 - Notizia obbligatoria pubblicata: broadcast",
+      "description": "Quando una notizia obbligatoria passa allo stato 'pubblicata', invia una email di broadcast ai destinatari configurati (es. mailing list aziendale) per sollecitare la presa visione. Sostituire il destinatario broadcast prima di attivare.",
+      "source_code": "notizie",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "obbligatoria",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        },
+        {
+          "field": "stato",
+          "operator": "changed_to",
+          "value": "pubblicata",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Broadcast presa visione notizia obbligatoria",
+          "to": "BROADCAST_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Comunicazione obbligatoria: {titolo}",
+          "body_text_template": "E' stata pubblicata una comunicazione obbligatoria: {titolo}.\nE' richiesta la presa visione. Accedere al portale per consultarla e confermarne la lettura."
+        }
+      ]
+    }
+  ]
+}

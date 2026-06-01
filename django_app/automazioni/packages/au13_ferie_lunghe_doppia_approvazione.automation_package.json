@@ -1,0 +1,95 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU13 - Ferie lunghe: doppia approvazione caporeparto poi HR"
+  },
+  "source_candidate": {
+    "source_code": "assenze",
+    "label": "Assenze"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "assenze"
+  },
+  "proposed_rules": [
+    {
+      "code": "au13-ferie-lunghe-doppia-approvazione",
+      "name": "AU13 - Ferie lunghe: doppia approvazione caporeparto poi HR",
+      "description": "Alla richiesta di ferie superiore a 10 giorni, avvia approvazione a cascata: prima il caporeparto ({capo_email}); se approva, l'approvazione passa a HR; solo se HR approva, il dipendente riceve la conferma. La durata >10gg e' verificata con l'operatore days_span_gt (data_inizio:10). La cascata usa send_approval annidate (ora supportate, max 3 livelli). Sostituire HR_DA_CONFIGURARE prima di attivare.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "tipo_assenza",
+          "operator": "equals",
+          "value": "ferie",
+          "value_type": "string"
+        },
+        {
+          "field": "data_fine",
+          "operator": "days_span_gt",
+          "value": "data_inizio:10",
+          "value_type": "date"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_approval",
+          "description": "Approvazione livello 1: caporeparto",
+          "delivery_mode": "email",
+          "to_template": "{capo_email}",
+          "subject_template": "Approvazione ferie - {dipendente_nome} (#{id})",
+          "message_template": "Richiesta ferie da {dipendente_nome}.\nDal {data_inizio} al {data_fine}.\nMotivazione: {motivazione_richiesta}\n\nApprovare per inoltrare a HR.",
+          "expiry_days": 7,
+          "approved_actions": [
+            {
+              "action_type": "send_approval",
+              "description": "Approvazione livello 2: HR",
+              "delivery_mode": "email",
+              "to_template": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+              "subject_template": "Approvazione HR ferie - {dipendente_nome} (#{id})",
+              "message_template": "Il caporeparto ha approvato la richiesta ferie di {dipendente_nome} (dal {data_inizio} al {data_fine}).\nApprovazione finale HR richiesta.",
+              "expiry_days": 7,
+              "approved_actions": [
+                {
+                  "action_type": "send_email",
+                  "description": "Conferma ferie al dipendente",
+                  "to": "{dipendente_email}",
+                  "subject_template": "Ferie approvate (#{id})",
+                  "body_text_template": "La tua richiesta ferie dal {data_inizio} al {data_fine} e' stata approvata da caporeparto e HR."
+                }
+              ],
+              "rejected_actions": [
+                {
+                  "action_type": "send_email",
+                  "description": "Rifiuto HR al dipendente",
+                  "to": "{dipendente_email}",
+                  "subject_template": "Ferie non approvate (#{id})",
+                  "body_text_template": "La tua richiesta ferie dal {data_inizio} al {data_fine} non e' stata approvata da HR."
+                }
+              ]
+            }
+          ],
+          "rejected_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Rifiuto caporeparto al dipendente",
+              "to": "{dipendente_email}",
+              "subject_template": "Ferie non approvate (#{id})",
+              "body_text_template": "La tua richiesta ferie dal {data_inizio} al {data_fine} non e' stata approvata dal caporeparto."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

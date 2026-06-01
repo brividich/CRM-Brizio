@@ -1,0 +1,51 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU43 - Anomalia chiusa: conferma autore"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au43-anomalia-chiusa-conferma-autore",
+      "name": "AU43 - Anomalia chiusa: conferma autore",
+      "description": "Quando il flag 'chiudere' di un'anomalia passa a true (chiusura), invia una email di conferma. Configurare il destinatario in 'to' prima di attivare. Nota: il payload anomalie non espone l'email dell'autore; usare un destinatario fisso (es. responsabile qualita') finche' non e' disponibile (vedi AU-GAP1).",
+      "source_code": "anomalie",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "chiudere",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "chiudere",
+          "operator": "changed_to",
+          "value": "true",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Conferma chiusura anomalia",
+          "to": "DESTINATARIO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "",
+          "subject_template": "Anomalia #{id} chiusa - OP {ex_op_nominativo}",
+          "body_text_template": "L'anomalia #{id} (OP {ex_op_nominativo}, PN/Seriale {seriale}) e' stata chiusa.\nStato attuale: {avanzamento}."
+        }
+      ]
+    }
+  ]
+}

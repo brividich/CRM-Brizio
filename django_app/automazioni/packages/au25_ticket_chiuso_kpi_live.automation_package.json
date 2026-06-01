@@ -1,0 +1,57 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU25 - Ticket chiuso: KPI live (contatori + downtime)"
+  },
+  "source_candidate": {
+    "source_code": "tickets",
+    "label": "Tickets"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tickets"
+  },
+  "proposed_rules": [
+    {
+      "code": "au25-ticket-chiuso-kpi-live",
+      "name": "AU25 - Ticket chiuso: KPI live (contatori + downtime)",
+      "description": "Quando un ticket passa a stato CHIUSA, aggiorna due metriche dashboard live: incrementa il contatore 'ticket_chiusi_mese' e somma le ore di fermo macchina alla metrica 'downtime_totale_ore'. Usa update_dashboard_metric (operation increment). NOTE: i codici metrica devono esistere/essere creati nella configurazione dashboard; il valore downtime usa il placeholder {ore_fermo_macchina} che e' 0 se non valorizzato sul ticket.",
+      "source_code": "tickets",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "stato",
+          "operator": "changed_to",
+          "value": "CHIUSA",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "update_dashboard_metric",
+          "description": "Incrementa contatore ticket chiusi nel mese",
+          "metric_code": "ticket_chiusi_mese",
+          "operation": "increment",
+          "value_template": "1"
+        },
+        {
+          "action_type": "update_dashboard_metric",
+          "description": "Somma ore di fermo macchina al downtime totale",
+          "metric_code": "downtime_totale_ore",
+          "operation": "increment",
+          "value_template": "{ore_fermo_macchina}"
+        }
+      ]
+    }
+  ]
+}

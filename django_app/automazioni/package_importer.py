@@ -907,11 +907,18 @@ def _resolve_local_approval_template_preview(config_json: dict[str, Any]) -> dic
         }
 
 
+# Profondita' massima di annidamento delle send_approval a catena (multi-livello).
+# La radice (send_approval di primo livello) e' depth=0; ogni send_approval in un suo
+# ramo e' depth=1, e cosi' via. Limite conservativo per evitare catene incontrollate.
+MAX_APPROVAL_CHAIN_DEPTH = 3
+
+
 def _validate_embedded_action_list(
     raw_actions: Any,
     *,
     source_code: str,
     branch_label: str,
+    depth: int = 1,
 ) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     normalized_actions: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -927,7 +934,33 @@ def _validate_embedded_action_list(
             continue
         action_plan = _build_embedded_action_plan(raw_action, fallback_order=index)
         if action_plan["action_type"] == AutomationActionType.SEND_APPROVAL:
-            errors.append(f"Il ramo `{branch_label}` non puo' contenere un'altra `send_approval`.")
+            # Approvazioni a catena: consentite fino a MAX_APPROVAL_CHAIN_DEPTH send_approval
+            # totali (radice + annidate). La radice e' validata a livello regola; la prima
+            # annidata arriva qui con depth=1. Bloccare quando depth >= MAX significa: con
+            # MAX=3 si ammettono radice + 2 annidate (depth 1 e 2), si blocca la 3a annidata (depth 3).
+            if depth >= MAX_APPROVAL_CHAIN_DEPTH:
+                errors.append(
+                    f"Il ramo `{branch_label}` supera la profondita' massima di approvazioni a catena "
+                    f"({MAX_APPROVAL_CHAIN_DEPTH} livelli)."
+                )
+                continue
+            nested_config = action_plan["config_json"]
+            nested_errors, nested_warnings = _validate_action_structure(action_plan, source_code=source_code)
+            for nested_branch_key, nested_branch_label in (
+                ("approved_actions", f"{branch_label}>approvato"),
+                ("rejected_actions", f"{branch_label}>rifiutato"),
+            ):
+                _, branch_errors, branch_warnings = _validate_embedded_action_list(
+                    nested_config.get(nested_branch_key),
+                    source_code=source_code,
+                    branch_label=nested_branch_label,
+                    depth=depth + 1,
+                )
+                nested_errors.extend(branch_errors)
+                nested_warnings.extend(branch_warnings)
+            normalized_actions.append(action_plan)
+            errors.extend([f"{branch_label}: {error}" for error in nested_errors])
+            warnings.extend([f"{branch_label}: {warning}" for warning in nested_warnings])
             continue
         action_errors, action_warnings = _validate_action_structure(action_plan, source_code=source_code)
         normalized_actions.append(action_plan)
@@ -945,9 +978,28 @@ def _validate_action_structure(
     warnings: list[str] = []
     config_json = action_plan["config_json"]
     action_type = action_plan["action_type"]
+    # I placeholder annidati nelle liste di azioni dei container (for_each, branch,
+    # do_until, send_approval) NON vanno validati qui contro la sorgente di questo
+    # livello: vengono gia' validati ricorsivamente con la sorgente corretta
+    # (per for_each e' la sorgente iterata, che puo' differire da quella della regola).
+    # Li escludo dal check top-level, altrimenti un for_each cross-source verrebbe
+    # erroneamente bocciato perche' usa i campi della sorgente iterata.
+    _NESTED_ACTION_KEYS = (
+        "loop_actions",
+        "actions",
+        "approved_actions",
+        "rejected_actions",
+        "then_actions",
+        "else_actions",
+    )
+    placeholder_scope = config_json
+    if isinstance(config_json, dict) and any(key in config_json for key in _NESTED_ACTION_KEYS):
+        placeholder_scope = {
+            key: value for key, value in config_json.items() if key not in _NESTED_ACTION_KEYS
+        }
     missing_placeholders = [
         placeholder
-        for placeholder in sorted(_collect_placeholders(config_json))
+        for placeholder in sorted(_collect_placeholders(placeholder_scope))
         if not _resolve_source_field_name(placeholder, _build_base_alias_map(source_code))
     ]
     if missing_placeholders:
@@ -1086,6 +1138,97 @@ def _validate_action_structure(
             errors.extend(branch_errors)
             warnings.extend(branch_warnings)
 
+    elif action_type == AutomationActionType.FOR_EACH:
+        # for_each itera su una sorgente registrata filtrando per un campo.
+        foreach_source = _string(config_json.get("source_code"))
+        if not foreach_source:
+            warnings.append("for_each senza `source_code`: usera' la sorgente della regola a runtime.")
+        else:
+            src = get_source_definition(foreach_source)
+            if src is None:
+                errors.append(f"for_each: sorgente `{foreach_source}` non trovata nel registry.")
+            else:
+                filter_field = _string(config_json.get("filter_field"))
+                if filter_field:
+                    valid = {field["name"] for field in get_source_fields(foreach_source)}
+                    if filter_field not in valid:
+                        errors.append(f"for_each: filter_field `{filter_field}` non esposto da `{foreach_source}`.")
+        loop_actions = config_json.get("loop_actions") or config_json.get("actions")
+        _, loop_errors, loop_warnings = _validate_embedded_action_list(
+            loop_actions,
+            source_code=_string(config_json.get("source_code")) or source_code,
+            branch_label="for_each",
+        )
+        errors.extend(loop_errors)
+        warnings.extend(loop_warnings)
+
+    elif action_type == AutomationActionType.BRANCH:
+        # branch: if/else basato su run_if; valida i due rami.
+        if not isinstance(config_json.get("run_if"), dict) or not config_json.get("run_if"):
+            warnings.append("branch senza `run_if`: il ramo else sara' sempre eseguito.")
+        for branch_key, branch_label in (("then_actions", "then"), ("else_actions", "else")):
+            _, branch_errors, branch_warnings = _validate_embedded_action_list(
+                config_json.get(branch_key),
+                source_code=source_code,
+                branch_label=branch_label,
+            )
+            errors.extend(branch_errors)
+            warnings.extend(branch_warnings)
+
+    elif action_type == AutomationActionType.COUNT_BRANCH:
+        # count_branch: conta i record di una sorgente (filtro + finestra temporale) e
+        # confronta il totale con una soglia; esegue then_actions/else_actions.
+        count_source = _string(config_json.get("source_code"))
+        if not count_source:
+            warnings.append("count_branch senza `source_code`: userà la sorgente della regola a runtime.")
+            count_source = source_code
+        src = get_source_definition(count_source)
+        if src is None:
+            errors.append(f"count_branch: sorgente `{count_source}` non trovata nel registry.")
+        else:
+            valid = {field["name"] for field in get_source_fields(count_source)}
+            filter_field = _string(config_json.get("filter_field"))
+            if filter_field and filter_field not in valid:
+                errors.append(f"count_branch: filter_field `{filter_field}` non esposto da `{count_source}`.")
+            window_field = _string(config_json.get("window_field"))
+            if window_field and window_field not in valid:
+                errors.append(f"count_branch: window_field `{window_field}` non esposto da `{count_source}`.")
+        if config_json.get("window_days") not in (None, ""):
+            try:
+                int(config_json.get("window_days"))
+            except (TypeError, ValueError):
+                errors.append("count_branch: window_days deve essere un intero.")
+        try:
+            int(config_json.get("threshold"))
+        except (TypeError, ValueError):
+            errors.append("count_branch richiede `threshold` intero.")
+        operator = _string(config_json.get("operator")).lower() or "gte"
+        if operator not in {"gte", "gt", "lte", "lt", "eq"}:
+            errors.append("count_branch: operator deve essere uno tra gte, gt, lte, lt, eq.")
+        # then/else_actions girano sul payload del record TRIGGER (non sui record contati),
+        # quindi i loro placeholder vanno validati contro la sorgente della regola.
+        for branch_key, branch_label in (("then_actions", "then"), ("else_actions", "else")):
+            _, branch_errors, branch_warnings = _validate_embedded_action_list(
+                config_json.get(branch_key),
+                source_code=source_code,
+                branch_label=branch_label,
+            )
+            errors.extend(branch_errors)
+            warnings.extend(branch_warnings)
+
+    elif action_type == AutomationActionType.DO_UNTIL:
+        # do_until: ripete finche' una condizione non e' soddisfatta.
+        if not _string(config_json.get("check_field")):
+            errors.append("do_until richiede `check_field`.")
+        loop_actions = config_json.get("loop_actions") or config_json.get("actions")
+        _, loop_errors, loop_warnings = _validate_embedded_action_list(
+            loop_actions,
+            source_code=source_code,
+            branch_label="do_until",
+        )
+        errors.extend(loop_errors)
+        warnings.extend(loop_warnings)
+
     return errors, warnings
 
 
@@ -1106,7 +1249,16 @@ def _simulate_embedded_action_list(
             continue
         action_plan = _build_embedded_action_plan(raw_action, fallback_order=index)
         if action_plan["action_type"] == AutomationActionType.SEND_APPROVAL:
-            errors.append("Le azioni inline non possono contenere un'altra `send_approval`.")
+            # Approvazione a catena: nel dry-run non si simula l'attesa della decisione,
+            # mostriamo un preview informativo dei recapiti del livello successivo.
+            nested_to = render_template_string(
+                _serialize_text(action_plan["config_json"].get("to_template")), payload
+            ).strip()
+            previews.append(
+                f"Approvazione a catena (livello successivo) -> to={nested_to or '-'} "
+                "(la decisione verra' richiesta dopo l'approvazione di questo livello)"
+            )
+            missing.extend(_missing_placeholders_in_payload(action_plan["config_json"], payload))
             continue
         simulation = _simulate_action(action_plan, payload=payload)
         if simulation["preview"]:

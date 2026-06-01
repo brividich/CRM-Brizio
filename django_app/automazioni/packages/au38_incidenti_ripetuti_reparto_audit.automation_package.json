@@ -1,0 +1,64 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU38 - Incidenti ripetuti stesso reparto (≥3 in 60gg): alert audit RSPP (count_branch)"
+  },
+  "source_candidate": {
+    "source_code": "rilevazione_incidenti",
+    "label": "Incidenti / Sicurezza"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rilevazione_incidenti"
+  },
+  "proposed_rules": [
+    {
+      "code": "au38-incidenti-ripetuti-reparto-audit",
+      "name": "AU38 - Incidenti ripetuti stesso reparto (≥3 in 60gg): alert audit RSPP (count_branch)",
+      "description": "Alla registrazione di un incidente, conta gli incidenti nello stesso reparto negli ultimi 60 giorni (count_branch su rilevazione_incidenti, filter reparto, window data_segnalazione 60gg); se sono >= 3 invia un alert all'RSPP per attivare un audit di sicurezza sul reparto. Usa count_branch. NOTE/LIMITI: (1) il backlog prevedeva anche insert_record di un ticket audit; non creabile via insert_record (whitelist solo core_notifica + integrità numero_ticket) - resta SOLO l'alert RSPP. (2) la soglia conta tutti gli eventi del reparto nella finestra, incluso quello corrente. (3) Sostituire RSPP_DA_CONFIGURARE.",
+      "source_code": "rilevazione_incidenti",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "reparto",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "count_branch",
+          "description": "Conta incidenti nel reparto negli ultimi 60 giorni",
+          "config_json": {
+            "source_code": "rilevazione_incidenti",
+            "filter_field": "reparto",
+            "filter_value_template": "{reparto}",
+            "window_field": "data_segnalazione",
+            "window_days": 60,
+            "threshold": 3,
+            "operator": "gte",
+            "then_actions": [
+              {
+                "action_type": "send_email",
+                "description": "Alert RSPP audit reparto",
+                "to": "RSPP_DA_CONFIGURARE@costruzioninovicrom.it",
+                "subject_template": "Audit sicurezza richiesto - reparto {reparto} (3+ incidenti in 60gg)",
+                "body_text_template": "Il reparto {reparto} ha registrato 3 o più eventi negli ultimi 60 giorni. Ultimo evento: {tipologia_scheda} segnalato il {data_segnalazione} ({nominativo}). Si raccomanda di attivare un audit di sicurezza sul reparto."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

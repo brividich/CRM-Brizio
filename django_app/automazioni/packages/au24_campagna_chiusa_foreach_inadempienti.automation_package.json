@@ -1,0 +1,75 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU24 - Campagna procedure chiusa: report inadempienti (for_each + branch)"
+  },
+  "source_candidate": {
+    "source_code": "procedure_campagne",
+    "label": "Procedure - Campagne"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "procedure_campagne"
+  },
+  "proposed_rules": [
+    {
+      "code": "au24-campagna-chiusa-foreach-inadempienti",
+      "name": "AU24 - Campagna procedure chiusa: report inadempienti (for_each + branch)",
+      "description": "Quando una campagna procedure passa a stato 'closed', itera su tutte le assegnazioni della campagna (sorgente procedure_assegnazioni, filtrate per campaign_id = id della campagna) e, per ciascuna, se la lettura NON e' confermata (branch run_if read_confirmed_flag is_false) invia una notifica di sollecito al responsabile inadempienze. Usa for_each + branch annidati (motore esteso). NOTE/LIMITI: (1) nel branch sono disponibili i campi dell'assegnazione iterata (id, status, user_id, read_confirmed_flag); l'email diretta all'utente richiede un campo email sull'assegnazione che il payload deve esporre - in mancanza si usa un destinatario di riepilogo. (2) Sostituire RESP_INADEMPIENZE_DA_CONFIGURARE prima di attivare.",
+      "source_code": "procedure_campagne",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "status",
+          "operator": "changed_to",
+          "value": "closed",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "for_each",
+          "description": "Itera sulle assegnazioni della campagna e segnala gli inadempienti",
+          "config_json": {
+            "source_code": "procedure_assegnazioni",
+            "filter_field": "campaign_id",
+            "filter_value_template": "{id}",
+            "max_iterations": 500,
+            "loop_actions": [
+              {
+                "action_type": "branch",
+                "description": "Solo se la lettura non e' confermata",
+                "config_json": {
+                  "run_if": {
+                    "field_name": "read_confirmed_flag",
+                    "operator": "is_false",
+                    "value_type": "bool"
+                  },
+                  "then_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Sollecito inadempienza presa visione",
+                      "to": "RESP_INADEMPIENZE_DA_CONFIGURARE@costruzioninovicrom.it",
+                      "subject_template": "Inadempienza presa visione - assegnazione {id} (utente {user_id})",
+                      "body_text_template": "Alla chiusura della campagna, l'assegnazione {id} (utente {user_id}, stato {status}) risulta SENZA conferma di lettura. Verificare e sollecitare la presa visione."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

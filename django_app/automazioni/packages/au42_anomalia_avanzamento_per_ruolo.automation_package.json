@@ -1,0 +1,57 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU42b - Avanzamento anomalia cambiato da CAPOCOMMESSA/CAR: notifica (per ruolo)"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au42b-anomalia-avanzamento-per-ruolo",
+      "name": "AU42b - Avanzamento anomalia cambiato da CAPOCOMMESSA/CAR: notifica (per ruolo)",
+      "description": "Versione 'per ruolo' di AU42, sbloccata da AU-GAP1. Quando l'avanzamento di un'anomalia cambia E chi modifica ha ruolo CAPOCOMMESSA (CC) o CAR, invia notifica. Usa il campo virtuale modified_by_role, derivato a runtime da _enrich_anomalie_payload a partire da modified_by_id (proiettato dal trigger trg_anomalie_automation come modified_by_user_id). PREREQUISITI per scattare davvero: (1) trigger SQL trg_anomalie_automation applicato (apply_sql_triggers); (2) la colonna applicativa modified_by_user_id presente sulla tabella anomalie e popolata dalla view di salvataggio; (3) le assegnazioni AnomalieRoleAssignment (CC/CAR) configurate per gli utenti. Sostituire DESTINATARIO_DA_CONFIGURARE e l'eventuale cc.",
+      "source_code": "anomalie",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "avanzamento",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "avanzamento",
+          "operator": "changed",
+          "value": "",
+          "value_type": "string"
+        },
+        {
+          "field": "modified_by_role",
+          "operator": "in_csv",
+          "value": "CC,CAR",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica cambio avanzamento da CC/CAR",
+          "to": "DESTINATARIO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "",
+          "subject_template": "Anomalia {id} aggiornata da {modified_by_role} -> stato {avanzamento}",
+          "body_text_template": "L'anomalia {id} (OP {ex_op_nominativo}, PN {seriale}) è passata da '{old_avanzamento}' a '{avanzamento}'.\nModificata da utente legacy_id {modified_by_id} con ruolo {modified_by_role}."
+        }
+      ]
+    }
+  ]
+}

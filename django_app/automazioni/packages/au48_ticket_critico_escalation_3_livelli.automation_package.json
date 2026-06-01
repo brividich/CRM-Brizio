@@ -1,0 +1,87 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU48 - Ticket critico non preso in carico: escalation 3 livelli"
+  },
+  "source_candidate": {
+    "source_code": "tickets",
+    "label": "Tickets"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "tickets"
+  },
+  "proposed_rules": [
+    {
+      "code": "au48-ticket-critico-escalation-3-livelli",
+      "name": "AU48 - Ticket critico non preso in carico: escalation 3 livelli",
+      "description": "Quando viene aperto un ticket con priorita' CRITICA, avvia un'escalation a 3 livelli basata su delay_schedule + run_if sul campo data_presa_in_carico. L1: notifica immediata all'assegnatario. Dopo ~2h, se il ticket NON e' ancora stato preso in carico (data_presa_in_carico vuoto) -> L2 responsabile manutenzione. Dopo altre ~2h, se ancora non preso in carico -> L3 direzione. NOTE/LIMITI: (1) i tempi (2h) e i destinatari sono placeholder: modificabili in designer. (2) il run_if di ogni livello rivaluta il campo data_presa_in_carico sul payload al momento dell'esecuzione differita; il delay_schedule re-incoda l'evento. (3) Sostituire ASSEGNATARIO/RESP_MANUTENZIONE/DIREZIONE _DA_CONFIGURARE; in alternativa usare {assegnato_email} per L1.",
+      "source_code": "tickets",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "priorita",
+          "operator": "equals",
+          "value": "CRITICA",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "L1 - Notifica immediata assegnatario",
+          "to": "ASSEGNATARIO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[CRITICO] Prendi in carico il ticket {numero_ticket}",
+          "body_text_template": "E' stato aperto un ticket CRITICO: {numero_ticket} - {titolo} (asset {asset_nome}). Prenderlo in carico al piu' presto."
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa L1->L2 (~2 ore)",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "2"
+        },
+        {
+          "action_type": "send_email",
+          "description": "L2 - Escalation responsabile manutenzione se non preso in carico",
+          "to": "RESP_MANUTENZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[ESCALATION L2] Ticket critico {numero_ticket} non preso in carico",
+          "body_text_template": "Il ticket critico {numero_ticket} ({titolo}) non risulta ancora preso in carico. Intervento del responsabile manutenzione richiesto.",
+          "run_if": {
+            "field_name": "data_presa_in_carico",
+            "operator": "is_empty",
+            "value_type": "datetime"
+          }
+        },
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa L2->L3 (~2 ore)",
+          "mode": "relative",
+          "unit": "hours",
+          "value_template": "2"
+        },
+        {
+          "action_type": "send_email",
+          "description": "L3 - Escalation direzione se ancora non preso in carico",
+          "to": "DIREZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[ESCALATION L3] Ticket critico {numero_ticket} ancora fermo",
+          "body_text_template": "Il ticket critico {numero_ticket} ({titolo}, asset {asset_nome}) non e' stato preso in carico dopo due livelli di sollecito. Si richiede intervento della direzione.",
+          "run_if": {
+            "field_name": "data_presa_in_carico",
+            "operator": "is_empty",
+            "value_type": "datetime"
+          }
+        }
+      ]
+    }
+  ]
+}

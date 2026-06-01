@@ -1,0 +1,49 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU34 - Segnalazione preposto senza follow-up: promemoria RSPP"
+  },
+  "source_candidate": {
+    "source_code": "diario_preposto",
+    "label": "Diario Preposto"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "diario_preposto"
+  },
+  "proposed_rules": [
+    {
+      "code": "au34-segnalazione-preposto-followup-rspp",
+      "name": "AU34 - Segnalazione preposto senza follow-up: promemoria RSPP",
+      "description": "Alla creazione di una segnalazione del preposto, dopo ~14 giorni invia un promemoria all'RSPP perche' verifichi che ci sia stato un follow-up. Usa delay_schedule. NOTE/LIMITI: (1) il backlog prevedeva 'se nessuna azione collegata'; il payload diario_preposto NON espone un campo di stato follow-up/azione collegata, quindi il run_if condizionale non e' esprimibile - il promemoria parte sempre a 14gg e demanda all'RSPP la verifica. (2) i 14 giorni sono modificabili in designer. Sostituire RSPP_DA_CONFIGURARE.",
+      "source_code": "diario_preposto",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 14 giorni",
+          "mode": "relative",
+          "unit": "days",
+          "value_template": "14"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Promemoria follow-up RSPP",
+          "to": "RSPP_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Follow-up segnalazione preposto {codice_identificativo}",
+          "body_text_template": "Sono trascorsi 14 giorni dalla segnalazione {codice_identificativo} ({titolo}) del preposto {preposto}.\nSegnalata da: {chi_segnala} il {data_segnalazione}.\nVerificare che sia stato attivato un follow-up adeguato."
+        }
+      ]
+    }
+  ]
+}

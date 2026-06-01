@@ -1,0 +1,55 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU12 - Qualifica in scadenza: notifica HR preventiva"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_qualifiche",
+    "label": "Anagrafica - Qualifiche dipendenti"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_qualifiche"
+  },
+  "proposed_rules": [
+    {
+      "code": "au12-qualifica-scadenza-notifica",
+      "name": "AU12 - Qualifica in scadenza: notifica HR preventiva",
+      "description": "Quando una qualifica viene inserita o aggiornata con data_scadenza entro 60 giorni, notifica HR per pianificare il rinnovo. Usa il nuovo operatore days_from_now_lte. NOTA: per intercettare le scadenze che 'maturano' nel tempo (senza modifica del record) serve un job schedulato che rivaluti le qualifiche; questa regola scatta sugli insert/update del record qualifica. Sostituire HR_DA_CONFIGURARE.",
+      "source_code": "anagrafica_qualifiche",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "data_scadenza",
+          "operator": "days_from_now_lte",
+          "value": "60",
+          "value_type": "date"
+        },
+        {
+          "field": "data_scadenza",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "date"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica HR rinnovo qualifica",
+          "to": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Qualifica in scadenza - dipendente {legacy_anagrafica_id}",
+          "body_text_template": "La qualifica #{id} del dipendente (legacy id {legacy_anagrafica_id}) scade il {data_scadenza}. Pianificare il rinnovo."
+        }
+      ]
+    }
+  ]
+}

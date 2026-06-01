@@ -1,0 +1,76 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU30 - Asset dismesso: segnala ticket aperti collegati (for_each + branch)"
+  },
+  "source_candidate": {
+    "source_code": "assets",
+    "label": "Assets"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "assets"
+  },
+  "proposed_rules": [
+    {
+      "code": "au30-asset-dismesso-foreach-ticket",
+      "name": "AU30 - Asset dismesso: segnala ticket aperti collegati (for_each + branch)",
+      "description": "Quando un asset passa a stato 'dismissed', itera su tutti i ticket collegati (sorgente tickets, filtrati per asset_id = id dell'asset) e, per ciascun ticket ancora aperto (branch run_if: stato non in CHIUSA/ANNULLATA), invia una notifica all'assegnatario perche' decida cosa fare del ticket orfano. Usa for_each + branch annidati (motore esteso). NOTE/LIMITI: (1) la nota interna automatica sul ticket (update_trigger_record) non e' applicabile dentro il for_each perche' il record iterato non e' il record trigger; qui si usa una notifica. (2) il branch usa l'operatore in_csv negato tramite due condizioni separate sarebbe ideale, ma run_if supporta una singola condizione: si filtra su stato APERTA come caso principale (modificare in designer per coprire IN_CARICO/IN_ATTESA). (3) Sostituire NOTIFICHE_ASSET_DA_CONFIGURARE.",
+      "source_code": "assets",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "status",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "status",
+          "operator": "changed_to",
+          "value": "dismissed",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "for_each",
+          "description": "Itera sui ticket dell'asset e segnala quelli ancora aperti",
+          "config_json": {
+            "source_code": "tickets",
+            "filter_field": "asset_id",
+            "filter_value_template": "{id}",
+            "max_iterations": 200,
+            "loop_actions": [
+              {
+                "action_type": "branch",
+                "description": "Solo se il ticket e' ancora aperto",
+                "config_json": {
+                  "run_if": {
+                    "field_name": "stato",
+                    "operator": "equals",
+                    "value": "APERTA",
+                    "value_type": "string"
+                  },
+                  "then_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Avviso ticket aperto su asset dismesso",
+                      "to": "NOTIFICHE_ASSET_DA_CONFIGURARE@costruzioninovicrom.it",
+                      "subject_template": "Asset dismesso: ticket aperto {numero_ticket} da gestire",
+                      "body_text_template": "L'asset collegato e' stato dismesso ma il ticket {numero_ticket} (titolo: {titolo}, stato {stato}, assegnato a {assegnato_a}) risulta ancora aperto. Decidere se chiudere, riassegnare o trasferire l'intervento."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

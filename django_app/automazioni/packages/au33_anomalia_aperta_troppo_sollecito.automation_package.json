@@ -1,0 +1,61 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU33 - Anomalia aperta da troppo tempo: sollecito autore"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au33-anomalia-aperta-troppo-sollecito",
+      "name": "AU33 - Anomalia aperta da troppo tempo: sollecito autore",
+      "description": "Quando viene creata un'anomalia non ancora da chiudere (chiudere=false), dopo ~7 giorni invia un sollecito se l'anomalia risulta ancora aperta (run_if chiudere is_false). Usa delay_schedule + run_if. NOTE/LIMITI: (1) i 7 giorni sono modificabili in designer (l'utente cambiera' i giorni nel caso). (2) il campo autore anomalie e' created_by (ID legacy), non un'email: il sollecito va a un destinatario configurabile; per indirizzare l'autore reale serve risolvere l'email dall'ID legacy (non disponibile nel payload). Sostituire SOLLECITO_DA_CONFIGURARE.",
+      "source_code": "anomalie",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "chiudere",
+          "operator": "is_false",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 7 giorni",
+          "mode": "relative",
+          "unit": "days",
+          "value_template": "7"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Sollecito se anomalia ancora aperta",
+          "to": "SOLLECITO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "Anomalia {id} ancora aperta dopo 7 giorni",
+          "body_text_template": "L'anomalia {id} (OP {ex_op_nominativo}, PN {seriale}, stato {avanzamento}) risulta ancora aperta dopo 7 giorni. Verificare l'avanzamento e procedere alla chiusura se completata.",
+          "run_if": {
+            "field_name": "chiudere",
+            "operator": "is_false",
+            "value_type": "bool"
+          }
+        }
+      ]
+    }
+  ]
+}
