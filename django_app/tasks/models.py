@@ -437,6 +437,11 @@ class TaskAttachment(models.Model):
             raise ValidationError("Allegato non valido: scegli task o progetto, non entrambi.")
 
 
+class TaskRolesSource(models.TextChoices):
+    ANAGRAFICA = "anagrafica", "Da anagrafica (Reparti)"
+    MANUAL     = "manual",     "Manuale"
+
+
 class TaskImpostazioni(models.Model):
     """Singleton: impostazioni globali del modulo Task."""
 
@@ -474,6 +479,17 @@ class TaskImpostazioni(models.Model):
         default=False,
         verbose_name="Blocca il salvataggio su conflitto asset",
         help_text="Se attivo, impedisce di salvare l'attivita quando l'asset selezionato ha conflitti rilevanti (OdL aperto, asset in riparazione, sovrapposizione con altra attivita).",
+    )
+    roles_source = models.CharField(
+        max_length=16,
+        choices=TaskRolesSource.choices,
+        default=TaskRolesSource.ANAGRAFICA,
+        verbose_name="Fonte ruoli Caporeparto / Capocommessa",
+        help_text=(
+            "Anagrafica: i Caporeparto sono derivati automaticamente dai Reparti "
+            "e usati come candidati nel campo Capocommessa dei kickoff. "
+            "Manuale: le assegnazioni CR e CC vengono gestite dalla tabella sotto."
+        ),
     )
 
     class Meta:
@@ -542,6 +558,7 @@ class TaskRoleType(models.TextChoices):
     PROJECT_MANAGER = "PM",   "Project manager"
     CAPO_COMMESSA   = "CC",   "Capocommessa"
     PROGRAMMER      = "PRG",  "Programmatore"
+    CAPOREPARTO     = "CR",   "Caporeparto"
 
 
 class TaskRoleDefinition(models.Model):

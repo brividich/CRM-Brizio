@@ -169,12 +169,11 @@ class Command(BaseCommand):
             return
 
         try:
-            from django.conf import settings
-            send_mail(
-                subject=subject,
-                message=body,
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
-                recipient_list=recipients,
+            from core.email_utils import send_hub_mail
+            send_hub_mail(
+                subject, body, recipients,
+                email_type="Assets",
+                section_label="Reminder manutenzione",
                 fail_silently=False,
             )
             for email in recipients:

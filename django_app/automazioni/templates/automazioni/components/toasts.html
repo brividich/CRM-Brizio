@@ -1,0 +1,97 @@
+{% comment %}
+Toast non bloccanti per il modulo automazioni.
+
+Rende i messaggi Django (`messages` framework) come toast in alto a destra,
+con auto-dismiss e fade-out. Usabile come sostituto/affiancamento di
+admin_portale/components/flash_messages.html nelle pagine automazioni.
+
+Include automaticamente CSS e JS (vanilla), no dipendenze.
+
+Uso nelle pagine:
+  {% include "automazioni/components/toasts.html" %}
+{% endcomment %}
+{% if messages %}
+<div class="auto-toasts" id="auto-toasts" role="status" aria-live="polite" aria-atomic="false">
+  {% for message in messages %}
+    <div class="auto-toast auto-toast--{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}"
+         data-toast data-toast-ttl="{% if message.tags == 'error' %}9000{% else %}4500{% endif %}">
+      <span class="auto-toast-icon" aria-hidden="true">
+        {% if message.tags == 'error' %}✕{% elif message.tags == 'success' %}✓{% elif message.tags == 'warning' %}!{% else %}i{% endif %}
+      </span>
+      <div class="auto-toast-body">{{ message }}</div>
+      <button type="button" class="auto-toast-close" aria-label="Chiudi notifica">×</button>
+      <span class="auto-toast-progress" aria-hidden="true"><i></i></span>
+    </div>
+  {% endfor %}
+</div>
+<style>
+  .auto-toasts { position:fixed; top:18px; right:18px; z-index:9999; display:grid; gap:10px; max-width:380px; width:calc(100% - 36px); pointer-events:none; }
+  .auto-toast { position:relative; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:start; padding:12px 36px 12px 14px; border-radius:14px; background:#fff; border:1px solid #e2e8f0; box-shadow:0 14px 36px rgba(15,23,42,.18); font-size:14px; color:#0f172a; pointer-events:auto; overflow:hidden; animation:auto-toast-in .26s cubic-bezier(.16,.84,.44,1) both; }
+  .auto-toast.is-dismissing { animation:auto-toast-out .22s ease forwards; }
+  @keyframes auto-toast-in { from { opacity:0; transform:translateX(20px) scale(.96); } to { opacity:1; transform:none; } }
+  @keyframes auto-toast-out { to { opacity:0; transform:translateX(20px) scale(.96); } }
+  .auto-toast-icon { width:24px; height:24px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; }
+  .auto-toast--success { border-color:#86efac; }
+  .auto-toast--success .auto-toast-icon { background:#dcfce7; color:#166534; }
+  .auto-toast--error { border-color:#fca5a5; }
+  .auto-toast--error .auto-toast-icon { background:#fee2e2; color:#991b1b; }
+  .auto-toast--warning { border-color:#fde68a; }
+  .auto-toast--warning .auto-toast-icon { background:#fef3c7; color:#92400e; }
+  .auto-toast--info { border-color:#bfdbfe; }
+  .auto-toast--info .auto-toast-icon { background:#dbeafe; color:#1d4ed8; }
+  .auto-toast-body { line-height:1.45; word-break:break-word; }
+  .auto-toast-close { position:absolute; top:6px; right:6px; border:0; background:transparent; color:#94a3b8; font-size:18px; line-height:1; cursor:pointer; padding:4px 8px; border-radius:8px; transition:background .14s ease, color .14s ease; }
+  .auto-toast-close:hover { background:#f1f5f9; color:#475569; }
+  .auto-toast-progress { position:absolute; left:0; right:0; bottom:0; height:3px; background:#f1f5f9; }
+  .auto-toast-progress > i { display:block; height:100%; width:100%; background:linear-gradient(90deg, #3b82f6, #6366f1); transform-origin:left center; animation:auto-toast-bar var(--toast-ttl, 4500ms) linear forwards; }
+  .auto-toast--success .auto-toast-progress > i { background:linear-gradient(90deg, #22c55e, #16a34a); }
+  .auto-toast--error .auto-toast-progress > i { background:linear-gradient(90deg, #ef4444, #b91c1c); }
+  .auto-toast--warning .auto-toast-progress > i { background:linear-gradient(90deg, #f59e0b, #b45309); }
+  @keyframes auto-toast-bar { from { transform:scaleX(1); } to { transform:scaleX(0); } }
+
+  body.theme-dark .auto-toast { background:var(--surface); border-color:var(--border); color:var(--text); box-shadow:0 14px 36px rgba(0,0,0,.45); }
+  body.theme-dark .auto-toast-progress { background:rgba(255,255,255,.08); }
+  body.theme-dark .auto-toast-close:hover { background:rgba(255,255,255,.08); color:var(--text); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auto-toast, .auto-toast.is-dismissing, .auto-toast-progress > i { animation:none !important; }
+    .auto-toast-progress { display:none; }
+  }
+</style>
+<script>
+(function () {
+  'use strict';
+  var container = document.getElementById('auto-toasts');
+  if (!container) return;
+  var toasts = container.querySelectorAll('[data-toast]');
+  toasts.forEach(function (toast) {
+    var ttl = parseInt(toast.getAttribute('data-toast-ttl') || '4500', 10);
+    toast.style.setProperty('--toast-ttl', ttl + 'ms');
+    var timer = window.setTimeout(function () { dismiss(toast); }, ttl);
+    var closeBtn = toast.querySelector('.auto-toast-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        window.clearTimeout(timer);
+        dismiss(toast);
+      });
+    }
+    // Pausa ttl al passaggio del mouse (auto-dismiss "intelligente")
+    toast.addEventListener('mouseenter', function () {
+      window.clearTimeout(timer);
+      var bar = toast.querySelector('.auto-toast-progress > i');
+      if (bar) bar.style.animationPlayState = 'paused';
+    });
+    toast.addEventListener('mouseleave', function () {
+      var bar = toast.querySelector('.auto-toast-progress > i');
+      if (bar) bar.style.animationPlayState = 'running';
+      timer = window.setTimeout(function () { dismiss(toast); }, Math.min(ttl, 2500));
+    });
+  });
+  function dismiss(toast) {
+    if (!toast || toast.classList.contains('is-dismissing')) return;
+    toast.classList.add('is-dismissing');
+    window.setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 220);
+  }
+})();
+</script>
+{% endif %}

@@ -102,23 +102,26 @@ def _users_for_role(role_type: str):
 
 
 def _users_for_capo_commessa():
-    """Utenti caporeparto da anagrafica, con fallback ai role assignments kickoff."""
-    try:
-        from anagrafica.models import Reparto
-        ids = set(
-            Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
-            .exclude(caporeparto_legacy_id=0)
-            .values_list("caporeparto_legacy_id", flat=True)
-        )
-        if ids:
-            qs = User.objects.filter(
-                profile__legacy_user_id__in=ids,
-                is_active=True,
-            ).distinct().order_by("first_name", "last_name", "username")
-            if qs.exists():
-                return qs
-    except Exception:
-        pass
+    """Utenti capocommessa/caporeparto: da anagrafica o da assignment in base al setting."""
+    from .models import TaskImpostazioni
+    cfg = TaskImpostazioni.get_singleton()
+    if cfg.roles_source == "anagrafica":
+        try:
+            from anagrafica.models import Reparto
+            ids = set(
+                Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+                .exclude(caporeparto_legacy_id=0)
+                .values_list("caporeparto_legacy_id", flat=True)
+            )
+            if ids:
+                qs = User.objects.filter(
+                    profile__legacy_user_id__in=ids,
+                    is_active=True,
+                ).distinct().order_by("first_name", "last_name", "username")
+                if qs.exists():
+                    return qs
+        except Exception:
+            pass
     return _users_for_role(TaskRoleType.CAPO_COMMESSA)
 
 User = get_user_model()

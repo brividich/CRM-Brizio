@@ -1,0 +1,52 @@
+{% comment %}
+Skeleton loader riutilizzabili per il modulo automazioni.
+
+Forniscono:
+  - .auto-skeleton-pill : pill compatto con shimmer (per indicatori inline HTMX)
+  - .auto-skeleton-card : placeholder card stile action-card durante hx-request
+  - .auto-skeleton-text : barra testo singola
+
+I componenti hx-indicator funzionano automaticamente: htmx aggiunge la classe
+`htmx-request` all'elemento `hx-indicator` durante la chiamata, e l'indicator
+è nascosto di default e mostrato durante la richiesta.
+
+Uso minimale:
+  {% include "automazioni/components/skeletons.html" %}
+  <span class="htmx-indicator auto-skeleton-pill"><span class="auto-skeleton-shimmer"></span>Caricamento…</span>
+{% endcomment %}
+<style>
+  @keyframes auto-skel-shimmer { 0% { transform:translateX(-100%); } 100% { transform:translateX(100%); } }
+
+  /* Pill compatto inline (per indicator HTMX accanto a un bottone) */
+  .auto-skeleton-pill { position:relative; display:none; align-items:center; gap:8px; padding:5px 12px 5px 28px; border-radius:999px; background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; font-size:12px; font-weight:700; overflow:hidden; }
+  .auto-skeleton-pill::before { content:''; position:absolute; left:10px; top:50%; width:10px; height:10px; border-radius:50%; background:#3b82f6; transform:translateY(-50%); animation:auto-skel-pulse 1.1s ease infinite; }
+  @keyframes auto-skel-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(59,130,246,.5); } 50% { box-shadow:0 0 0 5px rgba(59,130,246,0); } }
+  .htmx-indicator.auto-skeleton-pill { display:none; }
+  .htmx-request.auto-skeleton-pill, .htmx-request .auto-skeleton-pill { display:inline-flex !important; }
+
+  /* Card placeholder a larghezza piena (per griglie di card) */
+  .auto-skeleton-card { display:none; padding:14px 16px; border:1px dashed #cbd5e1; border-radius:12px; background:linear-gradient(90deg,#f8fafc 0%,#eff6ff 50%,#f8fafc 100%); background-size:200% 100%; animation:auto-skel-bg 1.3s linear infinite; }
+  @keyframes auto-skel-bg { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+  .htmx-indicator.auto-skeleton-card { display:none; }
+  .htmx-request.auto-skeleton-card, .htmx-request .auto-skeleton-card { display:block !important; }
+  .auto-skeleton-card-row { height:12px; border-radius:6px; background:rgba(15,23,42,.08); margin:6px 0; }
+  .auto-skeleton-card-row.is-short { width:40%; }
+  .auto-skeleton-card-row.is-mid { width:65%; }
+  .auto-skeleton-card-row.is-long { width:85%; }
+
+  /* Barra testo singola */
+  .auto-skeleton-text { display:inline-block; height:10px; border-radius:5px; background:linear-gradient(90deg,#e2e8f0 0%,#f1f5f9 50%,#e2e8f0 100%); background-size:200% 100%; animation:auto-skel-bg 1.3s linear infinite; vertical-align:middle; }
+
+  /* Shimmer interno (per uso libero) */
+  .auto-skeleton-shimmer { position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.55) 50%, transparent 100%); transform:translateX(-100%); animation:auto-skel-shimmer 1.4s linear infinite; }
+
+  body.theme-dark .auto-skeleton-pill { background:rgba(59,130,246,.12); border-color:var(--border); color:#93c5fd; }
+  body.theme-dark .auto-skeleton-card { background:linear-gradient(90deg,var(--surface) 0%,rgba(59,130,246,.08) 50%,var(--surface) 100%); border-color:var(--border); }
+  body.theme-dark .auto-skeleton-card-row { background:rgba(255,255,255,.08); }
+  body.theme-dark .auto-skeleton-text { background:linear-gradient(90deg,var(--surface-alt) 0%,var(--border) 50%,var(--surface-alt) 100%); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auto-skeleton-pill::before, .auto-skeleton-card, .auto-skeleton-text, .auto-skeleton-shimmer { animation:none !important; }
+    .auto-skeleton-card { background:#f8fafc; }
+  }
+</style>

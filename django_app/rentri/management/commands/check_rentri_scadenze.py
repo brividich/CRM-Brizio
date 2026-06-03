@@ -131,13 +131,20 @@ class Command(BaseCommand):
         body_html = _build_body_html(non_salvate, non_inviate, giorni)
 
         try:
+            from core.email_utils import render_hub_email_html, send_hub_mail
+            wrapped_html = render_hub_email_html(
+                body_html,
+                email_type="RENTRI",
+                section_label="Scadenze registrazioni",
+            )
+            from django.core.mail import EmailMultiAlternatives
             msg = EmailMultiAlternatives(
                 subject=subject,
                 body=body_text,
                 from_email=getattr(settings, "DEFAULT_FROM_EMAIL", email_to),
                 to=[email_to],
             )
-            msg.attach_alternative(body_html, "text/html")
+            msg.attach_alternative(wrapped_html, "text/html")
             sent = msg.send(fail_silently=False)
             if sent:
                 self.stdout.write(

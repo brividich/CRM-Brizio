@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html as _html
 import ipaddress
 import logging
 import os
@@ -11,7 +12,6 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from django.core.mail import send_mail
 from django.utils import timezone
 
 if TYPE_CHECKING:
@@ -119,8 +119,23 @@ def send_otp_email(user, code: str) -> bool:
         f"Il codice scade tra {_OTP_TTL_MINUTES} minuti.\n\n"
         f"Se non hai richiesto questo codice, ignora questa email."
     )
+    otp_html = (
+        f'<p style="color:#475569;font-size:15px;line-height:1.7;">Il tuo codice di verifica per <strong>{_html.escape(portal_name)}</strong> è:</p>'
+        f'<div style="margin:20px 0;padding:18px 24px;background:#f6f9fc;border-radius:12px;border:1px solid #d8e1ec;text-align:center;">'
+        f'<span style="font-size:32px;font-weight:800;letter-spacing:.18em;color:#002b5c;">{_html.escape(code)}</span>'
+        f'</div>'
+        f'<p style="color:#64748b;font-size:13px;">Il codice scade tra {_OTP_TTL_MINUTES} minuti. Se non hai richiesto questo codice, ignora questa email.</p>'
+    )
     try:
-        send_mail(subject, body, None, [recipient], fail_silently=False)
+        from core.email_utils import send_hub_mail
+        send_hub_mail(
+            subject, body, [recipient],
+            title="Codice di verifica",
+            email_type="Accesso",
+            body_html_fragment=otp_html,
+            footer_note="Messaggio automatico di sicurezza. Non condividere questo codice.",
+            fail_silently=False,
+        )
         return True
     except Exception as exc:
         logger.error("2FA OTP: errore invio email a %s: %s", recipient, exc)

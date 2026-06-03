@@ -207,6 +207,58 @@
   .email-preview-toggle-btn.is-on { background:#dbeafe; border-color:#93c5fd; color:#1d4ed8; }
   .email-preview-ph-hint { font-size:11px; color:#94a3b8; }
 
+  /* â”€â”€â”€ Rifiniture dinamiche (stile Power Automate) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* Apertura overlay: fade del backdrop + slide/scale dello shell */
+  @keyframes flow-overlay-fade { from { opacity:0; } to { opacity:1; } }
+  @keyframes flow-shell-rise { from { opacity:0; transform:translateY(18px) scale(.985); } to { opacity:1; transform:none; } }
+  @keyframes flow-node-enter { from { opacity:0; transform:translateY(12px) scale(.97); } to { opacity:1; transform:none; } }
+  @keyframes flow-conn-flow { to { background-position:0 12px; } }
+  @keyframes flow-plus-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow:0 0 0 4px rgba(59,130,246,.12); } }
+  .flow-workspace-overlay:not([hidden]) { animation: flow-overlay-fade .2s ease; }
+  .flow-workspace-overlay:not([hidden]) .flow-workspace-shell { animation: flow-shell-rise .26s cubic-bezier(.16,.84,.44,1); }
+  /* Cascata di ingresso dei nodi/connettori del canvas */
+  .flow-diagram-canvas .flow-node,
+  .flow-diagram-canvas .flow-branch-wrap,
+  .flow-diagram-canvas .flow-loop-wrap,
+  .flow-diagram-canvas .flow-each-wrap,
+  .flow-diagram-canvas .flow-conn,
+  .flow-diagram-canvas .flow-diagram-add-row { animation: flow-node-enter .32s cubic-bezier(.16,.84,.44,1) both; animation-delay: calc(var(--flow-i, 0) * 45ms); }
+  /* Connettore con flusso animato e plus che pulsa */
+  .flow-conn-line { background-image: linear-gradient(#94a3b8 55%, transparent 0); background-size: 2px 12px; background-color: transparent; animation: flow-conn-flow 1.1s linear infinite; }
+  .flow-conn-plus { transition: border-color .15s ease, color .15s ease, transform .12s ease; }
+  .flow-conn:hover .flow-conn-plus { border-color:#3b82f6; color:#1d4ed8; transform:scale(1.12); animation: flow-plus-pulse 1.4s ease infinite; }
+  /* Hover nodo piu' ricco: accent che si allarga + glow soft */
+  .flow-node { transition: box-shadow .18s ease, transform .14s ease, border-color .18s ease; }
+  .flow-node:hover { box-shadow: 0 10px 30px rgba(15,23,42,.14); transform: translateY(-2px); }
+  .flow-node-accent { transition: width .16s ease; }
+  .flow-node:hover .flow-node-accent { width: 7px; }
+  .flow-node--editing { animation: flow-plus-pulse 1.8s ease infinite; }
+  /* Flow-strip (vista compatta) piu' viva */
+  .designer-flow-card { transition: transform .14s ease, box-shadow .18s ease, border-color .18s ease; }
+  .designer-flow-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(15,23,42,.1); }
+  .designer-flow-card::after { transition: background .18s ease; }
+  .designer-flow:hover .designer-flow-card::after { background:#3b82f6; }
+  .designer-pill { transition: transform .12s ease; }
+  .designer-flow-card:hover .designer-pill { transform: translateY(-1px); }
+  /* Segmented control Vista compatta / Vista flow */
+  .designer-view-switch { display:inline-flex; align-items:center; gap:3px; padding:3px; border-radius:999px; background:#eef2f7; border:1px solid #dbe4f0; }
+  .designer-view-button { border:0; border-radius:999px; background:transparent; color:#475569; font-size:12px; font-weight:800; padding:6px 14px; cursor:pointer; transition:background .14s ease, color .14s ease, box-shadow .14s ease; }
+  .designer-view-button:hover { color:#1d4ed8; }
+  .designer-view-button.is-active { background:#0f172a; color:#fff; box-shadow:0 2px 8px rgba(15,23,42,.18); }
+  /* Rispetta le preferenze di riduzione del movimento */
+  @media (prefers-reduced-motion: reduce) {
+    .flow-workspace-overlay:not([hidden]),
+    .flow-workspace-overlay:not([hidden]) .flow-workspace-shell,
+    .flow-diagram-canvas .flow-node,
+    .flow-diagram-canvas .flow-branch-wrap,
+    .flow-diagram-canvas .flow-loop-wrap,
+    .flow-diagram-canvas .flow-each-wrap,
+    .flow-diagram-canvas .flow-conn,
+    .flow-diagram-canvas .flow-diagram-add-row,
+    .flow-conn-line,
+    .flow-node--editing { animation: none !important; }
+  }
+
   /* â”€â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   .flow-workspace-overlay { position: fixed; inset: 0; z-index: 950; box-sizing:border-box; background: rgba(15,23,42,.38); padding: 18px; }
   .flow-workspace-overlay[hidden] { display: none !important; }
@@ -497,7 +549,11 @@ body.theme-dark .flow-diagram-topbar { background:rgba(17,26,42,.7); border-colo
 body.theme-dark .flow-diagram-label { color:#93c5fd; }
 body.theme-dark .flow-diagram-hint { color:var(--text-light); }
 body.theme-dark .flow-node { background:var(--surface); border-color:var(--border); }
-body.theme-dark .flow-node:hover { box-shadow:0 4px 20px rgba(0,0,0,.3); }
+body.theme-dark .flow-node:hover { box-shadow:0 10px 30px rgba(0,0,0,.4); }
+body.theme-dark .flow-conn-line { background-image:linear-gradient(var(--text-light) 55%, transparent 0); }
+body.theme-dark .designer-view-switch { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .designer-view-button { color:var(--text-mid); }
+body.theme-dark .designer-view-button.is-active { background:#1d4ed8; color:#fff; }
 body.theme-dark .flow-node-app { color:var(--text-light); }
 body.theme-dark .flow-node-title { color:var(--text); }
 body.theme-dark .flow-node-subtitle { color:var(--text-mid); }
@@ -548,7 +604,8 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/toasts.html" %}
+  {% include "automazioni/components/skeletons.html" %}
   {% include "automazioni/components/subnav.html" %}
 
   <div class="designer-shell">
@@ -564,6 +621,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
               <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
             </div>
             <div class="designer-actions">
+              <div class="designer-view-switch" role="group" aria-label="Modalità vista designer">
+                <button type="button" class="designer-view-button is-active" data-view-mode="compact">Vista compatta</button>
+                <button type="button" class="designer-view-button" data-view-mode="flow">Vista flow</button>
+              </div>
               <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">Diagramma di flusso</button>
               {% if not is_new_rule %}
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
@@ -818,8 +879,10 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
                     hx-indicator="#htmx-action-indicator">
                   &#43; Nuova azione (HTMX)
                 </button>
-                <span class="htmx-indicator" id="htmx-action-indicator" aria-hidden="true"
-                    style="display:inline-block;width:14px;height:14px;border:2px solid #94a3b8;border-top-color:#0f766e;border-radius:50%;animation:btn-spin .65s linear infinite;vertical-align:middle;"></span>
+                <span class="htmx-indicator auto-skeleton-pill" id="htmx-action-indicator" aria-hidden="true">
+                  <span class="auto-skeleton-shimmer"></span>
+                  Generazione card&hellip;
+                </span>
               {% endif %}
             </div>
           </div>
@@ -3549,10 +3612,17 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 
   function _setFlowDiagramToggleState(isOpen) {
     var btn = document.getElementById('flowDiagramToggleBtn');
-    if (!btn) return;
-    btn.style.background = isOpen ? '#dbeafe' : '';
-    btn.style.color = isOpen ? '#1d4ed8' : '';
-    btn.style.border = isOpen ? '1px solid #93c5fd' : '';
+    if (btn) {
+      btn.style.background = isOpen ? '#dbeafe' : '';
+      btn.style.color = isOpen ? '#1d4ed8' : '';
+      btn.style.border = isOpen ? '1px solid #93c5fd' : '';
+    }
+    // Mantieni allineato il segmented control Vista compatta / Vista flow
+    var buttons = document.querySelectorAll('.designer-view-button');
+    for (var i = 0; i < buttons.length; i += 1) {
+      var mode = buttons[i].getAttribute('data-view-mode');
+      buttons[i].classList.toggle('is-active', isOpen ? (mode === 'flow') : (mode === 'compact'));
+    }
   }
 
   function _syncFlowWorkspaceEmptyState() {
@@ -4176,7 +4246,19 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
     canvas.querySelectorAll('.flow-node-end-btn').forEach(function(button) {
       button.textContent = 'Apri editor';
     });
+    _applyDiagramEnterStagger(canvas);
     _highlightActiveEditorNode();
+  }
+
+  // Assegna un indice di cascata agli elementi di primo livello del canvas,
+  // cosi' l'animazione di ingresso (var --flow-i) parte in sequenza dall'alto.
+  function _applyDiagramEnterStagger(canvas) {
+    if (!canvas) return;
+    var step = 0;
+    for (var i = 0; i < canvas.children.length; i += 1) {
+      canvas.children[i].style.setProperty('--flow-i', step);
+      step += 1;
+    }
   }
 
   // Alias retrocompatibile
@@ -4517,6 +4599,39 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       setTimeout(function(){ target.style.outline=''; }, 2000);
     }
   };
+
+  // Segmented control Vista compatta / Vista flow + preferenza memorizzata
+  (function() {
+    var VIEW_KEY = 'automazioni:designerView';
+    var buttons = document.querySelectorAll('.designer-view-button');
+    if (!buttons.length) return;
+    function readPref() {
+      try { return localStorage.getItem(VIEW_KEY) || 'compact'; } catch (e) { return 'compact'; }
+    }
+    function writePref(mode) {
+      try { localStorage.setItem(VIEW_KEY, mode); } catch (e) {}
+    }
+    for (var i = 0; i < buttons.length; i += 1) {
+      buttons[i].addEventListener('click', function() {
+        var mode = this.getAttribute('data-view-mode');
+        writePref(mode);
+        if (mode === 'flow') {
+          if (!_diagramOpen && typeof _openFlowDiagramWorkspace === 'function') _openFlowDiagramWorkspace();
+        } else {
+          if (_diagramOpen && typeof _closeFlowDiagramWorkspace === 'function') _closeFlowDiagramWorkspace();
+          else _setFlowDiagramToggleState(false);
+        }
+      });
+    }
+    // All'apertura della pagina, se la preferenza è "flow", apri il workspace.
+    // Non auto-aprire se c'è un errore di validazione da mostrare nel form.
+    if (readPref() === 'flow' && !document.querySelector('.designer-errors')
+        && typeof _openFlowDiagramWorkspace === 'function') {
+      _openFlowDiagramWorkspace();
+    } else {
+      _setFlowDiagramToggleState(_diagramOpen);
+    }
+  }());
 
   // Apre automaticamente i <details> che contengono errori di validazione (dopo POST fallita)
   (function() {

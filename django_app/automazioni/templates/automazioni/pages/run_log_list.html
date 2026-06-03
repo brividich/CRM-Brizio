@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load automazioni_extras %}
 
 {% block title %}Automazioni - Run Log | Admin Portale{% endblock %}
 
@@ -14,6 +15,63 @@
   .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
   .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
   .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-table tbody tr { transition:background .14s ease, box-shadow .14s ease; }
+  .auto-table tbody tr td:first-child { box-shadow:inset 3px 0 0 transparent; transition:box-shadow .14s ease; }
+  .auto-table tbody tr:hover { background:#f0f7ff; }
+  .auto-table tbody tr:hover td:first-child { box-shadow:inset 3px 0 0 #3b82f6; }
+
+  /* ─── Chip rapidi ───────────────────────────────────────────────────────── */
+  .auto-chips { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .auto-chip { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-size:13px; font-weight:700; text-decoration:none; transition:transform .1s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease; }
+  .auto-chip:hover { transform:translateY(-1px); border-color:#93c5fd; box-shadow:0 4px 12px rgba(15,23,42,.08); }
+  .auto-chip.is-active { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .auto-chip.is-active.chip-errors { background:#991b1b; border-color:#991b1b; }
+  .auto-chip.is-active.chip-tests { background:#92400e; border-color:#92400e; }
+  .auto-chip.is-active.chip-recent { background:#1d4ed8; border-color:#1d4ed8; }
+  .auto-chip-count { display:inline-flex; align-items:center; padding:1px 7px; border-radius:999px; background:#e2e8f0; color:#475569; font-size:11px; font-weight:800; }
+  .auto-chip.is-active .auto-chip-count { background:rgba(255,255,255,.18); color:#fff; }
+
+  /* ─── Status pill ───────────────────────────────────────────────────────── */
+  .auto-status-pill { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-status-pill.is-ok { background:#dcfce7; color:#166534; }
+  .auto-status-pill.is-fail { background:#fee2e2; color:#991b1b; }
+  .auto-status-pill.is-skip { background:#fef3c7; color:#92400e; }
+  .auto-status-pill.is-pending { background:#dbeafe; color:#1d4ed8; }
+
+  /* ─── Sparkbar durata ───────────────────────────────────────────────────── */
+  .auto-dur { display:inline-flex; align-items:center; gap:8px; min-width:120px; }
+  .auto-dur-bar { display:inline-block; width:80px; height:6px; background:#f1f5f9; border-radius:999px; overflow:hidden; }
+  .auto-dur-bar > i { display:block; height:100%; background:linear-gradient(90deg, #3b82f6, #6366f1); border-radius:999px; }
+  .auto-dur-val { font-variant-numeric:tabular-nums; font-weight:700; color:#0f172a; }
+
+  /* ─── Switch raggruppamento ────────────────────────────────────────────── */
+  .auto-view-switch { display:inline-flex; align-items:center; gap:3px; padding:3px; border-radius:999px; background:#eef2f7; border:1px solid #dbe4f0; }
+  .auto-view-button { border:0; border-radius:999px; background:transparent; color:#475569; font-size:12px; font-weight:800; padding:6px 14px; cursor:pointer; transition:background .14s ease, color .14s ease, box-shadow .14s ease; }
+  .auto-view-button:hover { color:#1d4ed8; }
+  .auto-view-button.is-active { background:#0f172a; color:#fff; box-shadow:0 2px 8px rgba(15,23,42,.18); }
+
+  .auto-group-section { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+  .auto-group-header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f8fafc; cursor:pointer; -webkit-user-select:none; user-select:none; list-style:none; }
+  .auto-group-header::-webkit-details-marker { display:none; }
+  .auto-group-header::before { content:'▶'; font-size:10px; color:#94a3b8; transition:transform .15s; flex-shrink:0; }
+  details[open] > .auto-group-header::before { transform:rotate(90deg); }
+  .auto-group-title { font-weight:700; font-size:14px; color:#1e293b; }
+
+  /* ─── Empty state ───────────────────────────────────────────────────────── */
+  .auto-empty-mini { padding:32px; text-align:center; color:#94a3b8; font-size:14px; }
+  .auto-empty-mini-icon { font-size:30px; margin-bottom:8px; display:block; }
+
+  body.theme-dark .auto-chip { background:var(--surface); border-color:var(--border); color:var(--text); }
+  body.theme-dark .auto-chip-count { background:var(--surface-alt); color:var(--text-light); }
+  body.theme-dark .auto-table tbody tr:hover { background:rgba(59,130,246,.1); }
+  body.theme-dark .auto-dur-bar { background:rgba(255,255,255,.08); }
+  body.theme-dark .auto-view-switch { background:var(--surface-alt); border-color:var(--border); }
+  body.theme-dark .auto-view-button { color:var(--text-mid); }
+  body.theme-dark .auto-view-button.is-active { background:#1d4ed8; color:#fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auto-chip, .auto-table tbody tr, .auto-table tbody tr td:first-child { transition:none !important; }
+  }
 </style>
 {% endblock %}
 
@@ -23,13 +81,41 @@
 
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Run Log" page_subtitle="Audit applicativo delle regole eseguite, con payload e action log figli." %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
   <div class="auto-grid">
+    {# Chip rapidi #}
+    {% url 'admin_portale:automazioni_run_log_list' as base_url %}
+    <div class="auto-chips">
+      <a class="auto-chip {% if not filters.status and not filters.is_test and not filters.recent %}is-active{% endif %}" href="{{ base_url }}">
+        Tutti
+      </a>
+      <a class="auto-chip chip-errors {% if filters.status == 'failed' or filters.status == 'error' %}is-active{% endif %}"
+         href="{{ base_url }}?status=failed" title="Mostra solo run falliti">
+        Solo errori
+        {% if chip_counts.errors %}<span class="auto-chip-count">{{ chip_counts.errors }}</span>{% endif %}
+      </a>
+      <a class="auto-chip chip-tests {% if filters.is_test == 'true' %}is-active{% endif %}"
+         href="{{ base_url }}?is_test=true" title="Mostra solo run di test manuale">
+        Solo test
+        {% if chip_counts.tests %}<span class="auto-chip-count">{{ chip_counts.tests }}</span>{% endif %}
+      </a>
+      <a class="auto-chip chip-recent {% if filters.recent == '24h' %}is-active{% endif %}"
+         href="{{ base_url }}?recent=24h" title="Solo run delle ultime 24 ore">
+        Ultime 24h
+        {% if chip_counts.recent_24h %}<span class="auto-chip-count">{{ chip_counts.recent_24h }}</span>{% endif %}
+      </a>
+      <span style="flex:1;"></span>
+      <div class="auto-view-switch" role="group" aria-label="Modalit&agrave; vista">
+        <button type="button" class="auto-view-button is-active" data-runlog-view="flat">Lista</button>
+        <button type="button" class="auto-view-button" data-runlog-view="grouped">Per regola</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Filtri run log</div>
+        <div class="card-title">Filtri avanzati</div>
       </div>
       <div class="card-body">
         <form method="get" class="auto-filters">
@@ -72,62 +158,152 @@
             <label for="id_queue_event_id">Queue event ID</label>
             <input id="id_queue_event_id" name="queue_event_id" value="{{ filters.queue_event_id }}">
           </div>
+          {% if filters.recent %}
+            <input type="hidden" name="recent" value="{{ filters.recent }}">
+          {% endif %}
           <div class="auto-actions">
             <button class="btn" type="submit">Filtra</button>
-            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_run_log_list' %}">Reset filtri</a>
+            <a class="btn btn-light" href="{{ base_url }}">Reset filtri</a>
           </div>
         </form>
       </div>
     </div>
 
-    <div class="card">
+    {# Vista piatta #}
+    <div class="card" id="runlog-view-flat">
       <div class="card-head">
-        <div class="card-title">Run log</div>
+        <div class="card-title">Run log ({{ run_logs|length }})</div>
       </div>
       <div class="card-body auto-table-wrap">
-        <table class="auto-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Regola</th>
-              <th>Queue event</th>
-              <th>Sorgente</th>
-              <th>Operazione</th>
-              <th>Stato</th>
-              <th>Started</th>
-              <th>Finished</th>
-              <th>Execution ms</th>
-              <th>Test</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for run_log in run_logs %}
+        {% if run_logs %}
+          <table class="auto-table">
+            <thead>
               <tr>
-                <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
-                <td>{{ run_log.rule|default:"-" }}</td>
-                <td>
-                  {% if run_log.queue_event_id %}
-                    <a href="{% url 'admin_portale:automazioni_queue_detail' run_log.queue_event_id %}">#{{ run_log.queue_event_id }}</a>
-                  {% else %}
-                    -
-                  {% endif %}
-                </td>
-                <td>{{ run_log.source_code }}</td>
-                <td>{{ run_log.operation_type|upper }}</td>
-                <td>{{ run_log.status }}</td>
-                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                <td>{{ run_log.execution_ms|default:"-" }}</td>
-                <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
+                <th>ID</th>
+                <th>Regola</th>
+                <th>Queue event</th>
+                <th>Sorgente</th>
+                <th>Operazione</th>
+                <th>Stato</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th>Durata</th>
+                <th>Test</th>
               </tr>
-            {% empty %}
-              <tr>
-                <td colspan="10">Nessun run log disponibile per i filtri correnti.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {% for run_log in run_logs %}
+                <tr>
+                  <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
+                  <td>{{ run_log.rule|default:"-" }}</td>
+                  <td>
+                    {% if run_log.queue_event_id %}
+                      <a href="{% url 'admin_portale:automazioni_queue_detail' run_log.queue_event_id %}">#{{ run_log.queue_event_id }}</a>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>{{ run_log.source_code }}</td>
+                  <td>{{ run_log.operation_type|upper }}</td>
+                  <td><span class="auto-status-pill {{ run_log.status|automazioni_run_status_class }}">{{ run_log.status }}</span></td>
+                  <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
+                  <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                  <td>
+                    {% if run_log.execution_ms %}
+                      <span class="auto-dur">
+                        <span class="auto-dur-bar" title="{{ run_log.execution_ms }} ms"><i style="width: {{ run_log.execution_ms|automazioni_dur_pct:max_execution_ms }}%;"></i></span>
+                        <span class="auto-dur-val">{{ run_log.execution_ms }}ms</span>
+                      </span>
+                    {% else %}
+                      <span style="color:#94a3b8;">-</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="auto-empty-mini">
+            <span class="auto-empty-mini-icon" aria-hidden="true">⏱</span>
+            Nessun run log disponibile per i filtri correnti.<br>
+            <span style="font-size:12px;">Prova a rimuovere uno o più filtri, oppure lancia un <a href="{% url 'admin_portale:automazioni_rule_list' %}">test manuale</a>.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Vista raggruppata per regola — costruita client-side dai dati della tabella per evitare duplicazione di markup #}
+    <div class="card" id="runlog-view-grouped" hidden>
+      <div class="card-head">
+        <div class="card-title">Run log raggruppati per regola</div>
+      </div>
+      <div class="card-body" id="runlog-grouped-body">
+        <!-- popolato da JS al primo switch -->
       </div>
     </div>
   </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var STORAGE_KEY = 'automazioni:runlogView';
+    var buttons = document.querySelectorAll('[data-runlog-view]');
+    var viewFlat = document.getElementById('runlog-view-flat');
+    var viewGrouped = document.getElementById('runlog-view-grouped');
+    var groupedBody = document.getElementById('runlog-grouped-body');
+    if (!buttons.length || !viewFlat || !viewGrouped) return;
+
+    function buildGrouped() {
+      if (!groupedBody) return;
+      var rows = viewFlat.querySelectorAll('tbody tr');
+      if (!rows.length) {
+        groupedBody.innerHTML = '<div class="auto-empty-mini">Nessun run log da raggruppare.</div>';
+        return;
+      }
+      var groups = {};
+      var order = [];
+      rows.forEach(function (tr) {
+        var ruleCell = tr.cells[1];
+        var key = ruleCell ? ruleCell.textContent.trim() || '(senza regola)' : '(senza regola)';
+        if (!groups[key]) { groups[key] = []; order.push(key); }
+        groups[key].push(tr.cloneNode(true));
+      });
+      var html = '';
+      order.forEach(function (key) {
+        html += '<details class="auto-group-section" open>';
+        html += '<summary class="auto-group-header"><span class="auto-group-title">' + key + '</span>';
+        html += '<span class="auto-chip-count">' + groups[key].length + '</span></summary>';
+        html += '<div class="auto-table-wrap"><table class="auto-table"><thead><tr>';
+        html += '<th>ID</th><th>Stato</th><th>Started</th><th>Durata</th><th>Test</th></tr></thead><tbody>';
+        groups[key].forEach(function (tr) {
+          var c = tr.cells;
+          html += '<tr>' + c[0].outerHTML + c[5].outerHTML + c[6].outerHTML + c[8].outerHTML + c[9].outerHTML + '</tr>';
+        });
+        html += '</tbody></table></div></details>';
+      });
+      groupedBody.innerHTML = html;
+    }
+
+    function apply(mode) {
+      buttons.forEach(function (b) {
+        b.classList.toggle('is-active', b.getAttribute('data-runlog-view') === mode);
+      });
+      if (mode === 'grouped') {
+        if (groupedBody && !groupedBody.innerHTML.trim()) buildGrouped();
+        viewFlat.hidden = true; viewGrouped.hidden = false;
+      } else {
+        viewFlat.hidden = false; viewGrouped.hidden = true;
+      }
+      try { localStorage.setItem(STORAGE_KEY, mode); } catch (e) {}
+    }
+
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { apply(b.getAttribute('data-runlog-view')); });
+    });
+    var saved = null;
+    try { saved = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+    if (saved === 'grouped') apply('grouped');
+  })();
+  </script>
 {% endblock %}

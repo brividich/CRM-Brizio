@@ -66,6 +66,11 @@
             Regola: <span class="rule-name">{{ approval.run_log.rule.name }}</span>
           {% endif %}
         </div>
+      {% elif just_done %}
+        <div class="card-title">
+          {% if decision == "approved" %}Richiesta Approvata ✅{% else %}Richiesta Rifiutata{% endif %}
+        </div>
+        <div class="card-subtitle">La tua decisione è stata registrata correttamente.</div>
       {% elif result %}
         {% if result.ok %}
           <div class="card-title">
@@ -127,6 +132,27 @@
         {% if approval.message %}
           <div class="message-box">{{ approval.message }}</div>
         {% endif %}
+
+      {% elif just_done %}
+        <div class="alert alert-success">
+          La decisione è stata registrata il {{ approval.decided_at|date:"d/m/Y \a\l\l\e H:i" }}.
+        </div>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Stato</div>
+            <div class="meta-value">
+              <span class="status-badge status-{{ approval.status }}">
+                {% if approval.status == "approved" %}✅ Approvato{% elif approval.status == "rejected" %}❌ Rifiutato{% else %}{{ approval.get_status_display }}{% endif %}
+              </span>
+            </div>
+          </div>
+          {% if approval.decided_by_email %}
+          <div class="meta-item">
+            <div class="meta-label">Registrato come</div>
+            <div class="meta-value">{{ approval.decided_by_email }}</div>
+          </div>
+          {% endif %}
+        </div>
 
       {% elif result %}
         {% if result.ok %}
@@ -203,7 +229,7 @@
     </div>
 
     <div class="card-footer">
-      {% if not error and not status_only and not result and not already_decided and not is_expired %}
+      {% if not error and not status_only and not result and not already_decided and not is_expired and not just_done %}
         <form method="post" action="" style="display:contents;">
           {% csrf_token %}
           <button type="submit" class="btn {% if decision == 'approved' %}btn-approve{% else %}btn-reject{% endif %}">

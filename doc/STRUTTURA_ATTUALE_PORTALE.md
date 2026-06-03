@@ -1,6 +1,6 @@
 # Struttura Attuale - NOVICROM HUB
 
-Data snapshot: 2026-05-27 | Versione: 1.1.0
+Data snapshot: 2026-06-03 | Versione: 1.2.0
 
 ---
 

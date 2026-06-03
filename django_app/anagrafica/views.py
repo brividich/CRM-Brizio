@@ -4208,6 +4208,9 @@ def area_edit(request, area_id: int):
     rep.area_aziendale = area_az
     rep.save()
     _sync_reparto_capo_mapping(rep)
+    DipendenteAnagraficaAziendale.objects.filter(area__iexact=rep.nome).update(
+        caporeparto_legacy_id=rep.caporeparto_legacy_id
+    )
     messages.success(request, f'Reparto "{rep.nome}" aggiornato.')
     return _back_to_caller(request, "anagrafica:aree_list")
 

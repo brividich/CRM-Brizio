@@ -387,6 +387,8 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
 
     if tab == "ruoli":
+        cfg = TaskImpostazioni.get_singleton()
+        roles_source = cfg.roles_source
         role_definitions = _task_role_definitions(include_inactive=True)
         ruoli_filter_q = request.GET.get("q_user", "").strip()
         all_users = list(_task_settings_users_queryset())
@@ -398,24 +400,55 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         for uid, rtype in assignments_raw:
             by_user.setdefault(uid, set()).add(rtype)
 
+        # In modalità anagrafica, CR (Caporeparto) è derivato dai Reparti
+        cr_anagrafica_ids: set[int] = set()
+        if roles_source == "anagrafica":
+            try:
+                from anagrafica.models import Reparto
+                legacy_ids = set(
+                    Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+                    .exclude(caporeparto_legacy_id=0)
+                    .values_list("caporeparto_legacy_id", flat=True)
+                )
+                if legacy_ids:
+                    cr_anagrafica_ids = set(
+                        User.objects.filter(
+                            profile__legacy_user_id__in=legacy_ids, is_active=True
+                        ).values_list("id", flat=True)
+                    )
+            except Exception:
+                pass
+
         roster = []
         for u in filtered_users:
             user_label = (u.get_full_name() or u.username)
             assigned_roles = by_user.get(u.id, set())
+            role_cells = []
+            for role in role_definitions:
+                if role.code == "CR" and roles_source == "anagrafica":
+                    role_cells.append({
+                        "code": role.code,
+                        "checked": u.id in cr_anagrafica_ids,
+                        "readonly": True,
+                    })
+                else:
+                    role_cells.append({
+                        "code": role.code,
+                        "checked": role.code in assigned_roles,
+                        "readonly": False,
+                    })
             roster.append({
                 "id": u.id,
                 "label": user_label,
                 "email": u.email or "",
-                "role_cells": [
-                    {"code": role.code, "checked": role.code in assigned_roles}
-                    for role in role_definitions
-                ],
+                "role_cells": role_cells,
             })
         context.update({
             "ruoli_filter_q": ruoli_filter_q,
             "ruoli_roster": roster,
             "ruoli_role_definitions": role_definitions,
             "ruoli_colspan": 2 + len(role_definitions),
+            "ruoli_source": roles_source,
             "ruoli_stats": {
                 "roles": len(role_definitions),
                 "assignments": sum(len(v) for v in by_user.values()),
@@ -3830,6 +3863,44 @@ def _handle_tasks_roles_post(request):
         target_url = f"{target_url}&q_user={q_user}"
 
     role_admin_action = (request.POST.get("role_admin_action") or "").strip()
+
+    if role_admin_action == "save_source":
+        new_source = (request.POST.get("roles_source") or "anagrafica").strip()
+        if new_source not in ("anagrafica", "manual"):
+            new_source = "anagrafica"
+        cfg = TaskImpostazioni.get_singleton()
+        old_source = cfg.roles_source
+        cfg.roles_source = new_source
+        cfg.save(update_fields=["roles_source"])
+        if new_source == "anagrafica" and old_source != "anagrafica":
+            # Sincronizza le assegnazioni CR dai Reparti
+            try:
+                from anagrafica.models import Reparto
+                legacy_ids = set(
+                    Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+                    .exclude(caporeparto_legacy_id=0)
+                    .values_list("caporeparto_legacy_id", flat=True)
+                )
+                cr_user_ids = set(
+                    User.objects.filter(
+                        profile__legacy_user_id__in=legacy_ids, is_active=True
+                    ).values_list("id", flat=True)
+                ) if legacy_ids else set()
+                with transaction.atomic():
+                    TaskRoleAssignment.objects.filter(role_type="CR").delete()
+                    TaskRoleAssignment.objects.bulk_create([
+                        TaskRoleAssignment(user_id=uid, role_type="CR")
+                        for uid in cr_user_ids
+                    ])
+            except Exception:
+                pass
+        log_action(request, "ruoli_source_modificata", "tasks", {
+            "message": f"Fonte ruoli cambiata: {old_source} → {new_source}",
+        })
+        label = "Da anagrafica" if new_source == "anagrafica" else "Manuale"
+        messages.success(request, f"Fonte ruoli impostata su «{label}».")
+        return redirect(target_url)
+
     if role_admin_action == "create_role":
         name = (request.POST.get("role_name") or "").strip()
         description = (request.POST.get("role_description") or "").strip()[:255]
@@ -3873,6 +3944,7 @@ def _handle_tasks_roles_post(request):
         messages.success(request, f"Ruolo '{role_name}' eliminato.")
         return redirect(target_url)
 
+    cfg_source = TaskImpostazioni.get_singleton().roles_source
     valid_role_codes = {role.code for role in _task_role_definitions(include_inactive=False)}
 
     # raccoglie tutti i checkbox inviati: name="role__<ROLE_CODE>__<user_id>"
@@ -3885,6 +3957,9 @@ def _handle_tasks_roles_post(request):
             continue
         _, role_code, uid_raw = parts
         if role_code not in valid_role_codes:
+            continue
+        # In modalità anagrafica i checkbox CR sono read-only: ignorati dal form
+        if role_code == "CR" and cfg_source == "anagrafica":
             continue
         try:
             uid = int(uid_raw)
@@ -3899,10 +3974,11 @@ def _handle_tasks_roles_post(request):
         return redirect(target_url)
 
     # delete + recreate (diff sul subset visible)
-    existing = set(
-        TaskRoleAssignment.objects.filter(user_id__in=visible_uids)
-        .values_list("user_id", "role_type")
-    )
+    existing_qs = TaskRoleAssignment.objects.filter(user_id__in=visible_uids)
+    # In modalità anagrafica, le assegnazioni CR non vengono toccate dal form manuale
+    if cfg_source == "anagrafica":
+        existing_qs = existing_qs.exclude(role_type="CR")
+    existing = set(existing_qs.values_list("user_id", "role_type"))
     to_add = {pair for pair in desired if pair[0] in visible_uids} - existing
     to_remove = existing - {pair for pair in desired if pair[0] in visible_uids}
 

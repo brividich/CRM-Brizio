@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load automazioni_extras %}
 
 {% block title %}Automazioni - Regole | Admin Portale{% endblock %}
 
@@ -18,9 +19,110 @@
   .auto-badge-active { background:#dcfce7; color:#166534; }
   .auto-badge-inactive { background:#e2e8f0; color:#334155; }
   .auto-badge-draft { background:#fef3c7; color:#92400e; }
-  .auto-badge-insert { background:#dbeafe; color:#1d4ed8; }
-  .auto-badge-update { background:#ede9fe; color:#6d28d9; }
+  .auto-badge-INSERT { background:#dbeafe; color:#1d4ed8; }
+  .auto-badge-UPDATE { background:#ede9fe; color:#6d28d9; }
+
+  /* ─── Mini-mappa flusso accanto al nome regola ──────────────────────────── */
+  .auto-flow-mini { display:inline-flex; align-items:center; gap:4px; margin-top:4px; flex-wrap:wrap; }
+  .auto-flow-step { display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; border-radius:6px; font-size:11px; font-weight:800; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+  .auto-flow-step.is-trigger { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+  .auto-flow-step.is-cond { background:#ecfeff; color:#155e75; border-color:#a5f3fc; }
+  .auto-flow-step.is-action { background:#dbeafe; color:#1d4ed8; border-color:#bfdbfe; }
+  .auto-flow-step.is-control { background:#ede9fe; color:#6d28d9; border-color:#ddd6fe; }
+  .auto-flow-step.is-side { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+  .auto-flow-step.is-more { background:#fff; color:#94a3b8; border-color:#e2e8f0; font-size:10px; }
+  .auto-flow-arrow { color:#cbd5e1; font-size:10px; }
+  body.theme-dark .auto-flow-step { background:rgba(255,255,255,.06); border-color:var(--border); color:var(--text-mid); }
+  body.theme-dark .auto-flow-step.is-trigger { background:rgba(245,158,11,.15); color:#fbbf24; }
+  body.theme-dark .auto-flow-step.is-cond { background:rgba(6,182,212,.15); color:#67e8f9; }
+  body.theme-dark .auto-flow-step.is-action { background:rgba(59,130,246,.15); color:#93c5fd; }
+  body.theme-dark .auto-flow-step.is-control { background:rgba(139,92,246,.15); color:#c4b5fd; }
+  body.theme-dark .auto-flow-step.is-side { background:rgba(245,158,11,.15); color:#fbbf24; }
   .auto-badge-scope { background:#f1f5f9; color:#334155; }
+  .auto-badge-count { background:#f1f5f9; color:#475569; font-size:11px; padding:2px 7px; }
+
+  .module-section { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+  .module-header { display:flex; align-items:center; gap:12px; padding:14px 18px; background:#f8fafc; cursor:pointer; -webkit-user-select:none; user-select:none; list-style:none; }
+  .module-header::-webkit-details-marker { display:none; }
+  .module-header::before { content:'▶'; font-size:10px; color:#94a3b8; transition:transform .15s; flex-shrink:0; }
+  details[open] > .module-header::before { transform:rotate(90deg); }
+  .module-title { font-weight:700; font-size:14px; color:#1e293b; }
+  .module-app { font-size:12px; color:#94a3b8; }
+  .module-body { padding:0; }
+  .module-empty { padding:18px; color:#94a3b8; font-size:14px; }
+  .search-bar { padding:10px 12px; }
+  .search-bar input { width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; background:#fff; }
+  .rule-count-summary { font-size:13px; color:#64748b; }
+
+  /* â”€â”€â”€ Rifiniture dinamiche (coerenti con il designer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  @keyframes auto-active-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(22,163,74,0); } 50% { box-shadow:0 0 0 3px rgba(22,163,74,.15); } }
+  /* Righe tabella: highlight su hover + accent sinistro */
+  .auto-table tbody tr { transition:background .14s ease, box-shadow .14s ease; }
+  .auto-table tbody tr td:first-child { box-shadow:inset 3px 0 0 transparent; transition:box-shadow .14s ease; }
+  .auto-table tbody tr:hover { background:#f0f7ff; }
+  .auto-table tbody tr:hover td:first-child { box-shadow:inset 3px 0 0 #3b82f6; }
+  /* Header modulo: lift leggero e marker piÃ¹ vivo su hover */
+  .module-section { transition:box-shadow .16s ease, border-color .16s ease; }
+  .module-section:hover { box-shadow:0 6px 20px rgba(15,23,42,.07); }
+  .module-header { transition:background .14s ease; }
+  .module-header:hover { background:#eef4ff; }
+  .module-header:hover::before { color:#3b82f6; }
+  .module-header .auto-badge-count { transition:transform .12s ease, background .14s ease; }
+  .module-header:hover .auto-badge-count { transform:scale(1.08); background:#dbeafe; color:#1d4ed8; }
+  /* Badge attiva: leggero pulse per attirare l'occhio sulle regole in esecuzione */
+  .auto-badge-active { animation:auto-active-pulse 2.4s ease infinite; }
+  /* Bottoni azione: micro-lift uniforme */
+  .auto-actions .btn { transition:transform .1s ease, box-shadow .14s ease; }
+  .auto-actions .btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(15,23,42,.1); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auto-table tbody tr, .auto-table tbody tr td:first-child,
+    .module-section, .module-header, .module-header .auto-badge-count,
+    .auto-badge-active, .auto-actions .btn { animation:none !important; transition:none !important; }
+  }
+
+  body.theme-dark .auto-table tbody tr:hover { background:rgba(59,130,246,.1); }
+  body.theme-dark .module-header:hover { background:rgba(59,130,246,.1); }
+
+  /* â”€â”€â”€ Ricerca rapida regole â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .auto-quicksearch { position:relative; display:flex; align-items:center; }
+  .auto-quicksearch input { width:100%; padding:11px 38px 11px 38px; border:1px solid #cbd5e1; border-radius:12px; font-size:14px; background:#fff; transition:border-color .14s ease, box-shadow .14s ease; }
+  .auto-quicksearch input:focus { outline:none; border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.14); }
+  .auto-quicksearch-icon { position:absolute; left:13px; color:#94a3b8; font-size:14px; pointer-events:none; }
+  .auto-quicksearch-clear { position:absolute; right:8px; border:none; background:none; color:#94a3b8; font-size:18px; line-height:1; cursor:pointer; padding:4px 8px; border-radius:8px; }
+  .auto-quicksearch-clear:hover { background:#f1f5f9; color:#475569; }
+  .auto-quicksearch-clear[hidden] { display:none; }
+  tr.auto-row-hidden, details.auto-module-hidden { display:none; }
+  .auto-noresults { padding:18px; color:#94a3b8; font-size:14px; text-align:center; }
+  .auto-noresults[hidden] { display:none; }
+  mark.auto-hl { background:#fde68a; color:#92400e; border-radius:3px; padding:0 1px; }
+
+  /* â”€â”€â”€ Indicatore salute regola â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .auto-health { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .auto-health-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .auto-health--ok { color:#166534; }
+  .auto-health--ok .auto-health-dot { background:#22c55e; box-shadow:0 0 0 0 rgba(34,197,94,.5); animation:auto-health-ping 2.2s ease infinite; }
+  @keyframes auto-health-ping { 0% { box-shadow:0 0 0 0 rgba(34,197,94,.5); } 70%,100% { box-shadow:0 0 0 6px rgba(34,197,94,0); } }
+  .auto-health--ready { color:#1d4ed8; }
+  .auto-health--ready .auto-health-dot { background:#3b82f6; }
+  .auto-health--warn { color:#92400e; }
+  .auto-health--warn .auto-health-dot { background:#f59e0b; }
+  .auto-health--off { color:#64748b; }
+  .auto-health--off .auto-health-dot { background:#cbd5e1; }
+
+  /* â”€â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .auto-empty { display:grid; justify-items:center; gap:14px; padding:48px 24px; text-align:center; }
+  .auto-empty-icon { width:64px; height:64px; border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:30px; background:linear-gradient(135deg,#eff6ff 0%,#dcfce7 100%); border:1px solid #bfdbfe; }
+  .auto-empty-title { font-size:18px; font-weight:800; color:#0f172a; }
+  .auto-empty-copy { font-size:14px; color:#64748b; max-width:460px; line-height:1.5; }
+  .auto-empty-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .auto-health--ok .auto-health-dot { animation:none !important; }
+  }
+  body.theme-dark .auto-quicksearch input { background:var(--surface); border-color:var(--border); color:var(--text); }
+  body.theme-dark .auto-empty-icon { background:linear-gradient(135deg,rgba(59,130,246,.15) 0%,rgba(34,197,94,.12) 100%); border-color:var(--border); }
+  body.theme-dark .auto-empty-title { color:var(--text); }
 </style>
 {% endblock %}
 
@@ -33,14 +135,16 @@
   {% url 'admin_portale:automazioni_rule_designer_create' as rule_designer_create_url %}
   {% url 'admin_portale:automazioni_rule_power_automate_convert' as rule_power_automate_convert_url %}
   {% url 'admin_portale:automazioni_rule_import_package' as rule_import_package_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Regole" page_subtitle="Builder finale SSR per creare, pubblicare, disattivare e testare le regole." page_action_label="Nuova regola guidata" page_action_url=rule_designer_create_url page_secondary_action_label="Builder classico" page_secondary_action_url=rule_create_url %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Regole" page_subtitle="Regole organizzate per modulo." page_action_label="Nuova regola guidata" page_action_url=rule_designer_create_url page_secondary_action_label="Builder classico" page_secondary_action_url=rule_create_url %}
+  {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
   <div class="auto-grid">
+
+    {# Filtri #}
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Filtri regole</div>
+        <div class="card-title">Filtri</div>
       </div>
       <div class="card-body">
         <form method="get" class="auto-filters">
@@ -92,72 +196,212 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Regole configurate</div>
-      </div>
-      <div class="card-body auto-table-wrap">
-        <table class="auto-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nome</th>
-              <th>Sorgente</th>
-              <th>Operazione</th>
-              <th>Trigger scope</th>
-              <th>Watched field</th>
-              <th>Stato</th>
-              <th>Ultimo run</th>
-              <th>Ultimo test</th>
-              <th>Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for rule in rules %}
-              <tr>
-                <td>#{{ rule.id }}</td>
-                <td>
-                  <div><a href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}"><strong>{{ rule.name }}</strong></a></div>
-                  <div><code>{{ rule.code }}</code></div>
-                </td>
-                <td>{{ rule.source_code }}</td>
-                <td><span class="auto-badge auto-badge-{{ rule.operation_type }}">{{ rule.operation_type }}</span></td>
-                <td><span class="auto-badge auto-badge-scope">{{ rule.trigger_scope }}</span></td>
-                <td><code>{{ rule.watched_field|default:"-" }}</code></td>
-                <td>
-                  <div class="auto-actions">
-                    <span class="auto-badge {% if rule.is_active and not rule.is_draft %}auto-badge-active{% else %}auto-badge-inactive{% endif %}">
-                      {% if rule.is_active and not rule.is_draft %}attiva{% else %}non eseguibile{% endif %}
-                    </span>
-                    {% if rule.is_draft %}
-                      <span class="auto-badge auto-badge-draft">bozza</span>
-                    {% endif %}
-                  </div>
-                </td>
-                <td>{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                <td>{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                <td>
-                  <div class="auto-actions">
-                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
-                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_designer' rule.id %}">Apri designer visuale</a>
-                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Modifica</a>
-                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test</a>
-                    <form method="post" action="{% url 'admin_portale:automazioni_rule_toggle' rule.id %}">
-                      {% csrf_token %}
-                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="btn" type="submit">{% if rule.is_active and not rule.is_draft %}Disattiva{% else %}Attiva{% endif %}</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="10">Nessuna regola configurata.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    {# Ricerca rapida client-side #}
+    {% if rules_by_source %}
+    <div class="auto-quicksearch">
+      <span class="auto-quicksearch-icon" aria-hidden="true">&#128269;</span>
+      <input type="search" id="auto-quicksearch-input" placeholder="Cerca regola per nome, codice o campo&hellip;" autocomplete="off" aria-label="Cerca regola">
+      <button type="button" class="auto-quicksearch-clear" id="auto-quicksearch-clear" hidden aria-label="Pulisci ricerca">&times;</button>
     </div>
+    {% endif %}
+
+    {# Sommario #}
+    <div class="rule-count-summary" id="auto-count-summary"
+         data-summary-all="{{ total_rules }} regol{% if total_rules == 1 %}a{% else %}e{% endif %} in {{ rules_by_source|length }} modul{% if rules_by_source|length == 1 %}o{% else %}i{% endif %}">
+      {{ total_rules }} regol{% if total_rules == 1 %}a{% else %}e{% endif %} in {{ rules_by_source|length }} modul{% if rules_by_source|length == 1 %}o{% else %}i{% endif %}
+    </div>
+
+    {# Messaggio nessun risultato ricerca (toggle via JS) #}
+    <div class="card auto-noresults" id="auto-noresults" hidden>
+      <div class="card-body auto-noresults">Nessuna regola corrisponde alla ricerca.</div>
+    </div>
+
+    {# Sezioni per modulo #}
+    {% if rules_by_source %}
+      {% for group in rules_by_source %}
+        <details class="module-section" {% if rules_by_source|length == 1 %}open{% endif %} id="module-{{ group.source_code }}" data-module="{{ group.source_code }}">
+          <summary class="module-header">
+            <span class="module-title">{{ group.source_label }}</span>
+            {% if group.source_app %}
+              <span class="module-app">{{ group.source_app }}</span>
+            {% endif %}
+            <span class="auto-badge auto-badge-count">{{ group.rules|length }}</span>
+          </summary>
+          <div class="module-body">
+            <div class="auto-table-wrap">
+              <table class="auto-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Operazione</th>
+                    <th>Trigger scope</th>
+                    <th>Watched field</th>
+                    <th>Stato</th>
+                    <th>Ultimo run</th>
+                    <th>Ultimo test</th>
+                    <th>Azioni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for rule in group.rules %}
+                    <tr data-rule-row data-search="{{ rule.name|lower }} {{ rule.code|lower }} {{ rule.watched_field|default:''|lower }}">
+                      <td>#{{ rule.id }}</td>
+                      <td>
+                        <div><a href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}"><strong>{{ rule.name }}</strong></a></div>
+                        <div><code>{{ rule.code }}</code></div>
+                        {% if rule.flow_preview %}
+                          <div class="auto-flow-mini" title="Mini-mappa flusso: trigger → condizioni → primi 3 step">
+                            <span class="auto-flow-step is-trigger" title="Trigger {{ rule.flow_preview.trigger_op }}">⚡</span>
+                            {% if rule.flow_preview.cond_count %}
+                              <span class="auto-flow-arrow">›</span>
+                              <span class="auto-flow-step is-cond" title="{{ rule.flow_preview.cond_count }} condizion{{ rule.flow_preview.cond_count|pluralize:'e,i' }}">?</span>
+                            {% endif %}
+                            {% for action_type in rule.flow_preview.actions %}
+                              <span class="auto-flow-arrow">›</span>
+                              <span class="auto-flow-step {{ action_type|automazioni_action_chip_class }}" title="{{ action_type }}">{{ action_type|automazioni_action_symbol }}</span>
+                            {% endfor %}
+                            {% if rule.flow_preview.more_actions %}
+                              <span class="auto-flow-arrow">›</span>
+                              <span class="auto-flow-step is-more" title="Altre {{ rule.flow_preview.more_actions }} azion{{ rule.flow_preview.more_actions|pluralize:'e,i' }}">+{{ rule.flow_preview.more_actions }}</span>
+                            {% endif %}
+                          </div>
+                        {% endif %}
+                      </td>
+                      <td><span class="auto-badge auto-badge-{{ rule.operation_type }}">{{ rule.operation_type }}</span></td>
+                      <td><span class="auto-badge auto-badge-scope">{{ rule.trigger_scope }}</span></td>
+                      <td><code>{{ rule.watched_field|default:"-" }}</code></td>
+                      <td>
+                        <div class="auto-actions">
+                          {% if not rule.is_active %}
+                            <span class="auto-health auto-health--off" title="Regola disattivata"><span class="auto-health-dot"></span>Inattiva</span>
+                          {% elif rule.is_draft %}
+                            <span class="auto-health auto-health--warn" title="È una bozza: non viene eseguita finché non la pubblichi"><span class="auto-health-dot"></span>Bozza</span>
+                          {% elif rule.last_run_at %}
+                            <span class="auto-health auto-health--ok" title="Attiva e già eseguita almeno una volta"><span class="auto-health-dot"></span>Operativa</span>
+                          {% elif rule.last_test_at %}
+                            <span class="auto-health auto-health--ready" title="Attiva e testata, ma non ancora eseguita in produzione"><span class="auto-health-dot"></span>Pronta</span>
+                          {% else %}
+                            <span class="auto-health auto-health--warn" title="Attiva ma mai testata né eseguita"><span class="auto-health-dot"></span>Da verificare</span>
+                          {% endif %}
+                          {% if rule.is_draft %}
+                            <span class="auto-badge auto-badge-draft">bozza</span>
+                          {% endif %}
+                        </div>
+                      </td>
+                      <td>{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                      <td>{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                      <td>
+                        <div class="auto-actions">
+                          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
+                          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_designer' rule.id %}">Designer</a>
+                          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Modifica</a>
+                          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test</a>
+                          <form method="post" action="{% url 'admin_portale:automazioni_rule_toggle' rule.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button class="btn" type="submit">{% if rule.is_active and not rule.is_draft %}Disattiva{% else %}Attiva{% endif %}</button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      {% endfor %}
+    {% else %}
+      <div class="card">
+        <div class="card-body auto-empty">
+          <div class="auto-empty-icon" aria-hidden="true">&#9889;</div>
+          <div class="auto-empty-title">Nessuna regola configurata</div>
+          <div class="auto-empty-copy">Le automazioni reagiscono agli eventi dei moduli (inserimenti, modifiche, scadenze) ed eseguono azioni come notifiche, approvazioni e aggiornamenti. Crea la prima regola con il designer guidato o importa un pacchetto pronto.</div>
+          <div class="auto-empty-actions">
+            <a class="btn" href="{% url 'admin_portale:automazioni_rule_designer_create' %}">Crea la prima regola guidata</a>
+            <a class="btn btn-light" href="{{ rule_import_package_url }}">Importa Package</a>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_create' %}">Builder classico</a>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
   </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var STORAGE_KEY = 'automazioni:openModules';
+
+    // â”€â”€ Persistenza apertura moduli (localStorage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    function loadOpen() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') || []; }
+      catch (e) { return []; }
+    }
+    function saveOpen(list) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+    }
+    var modules = Array.prototype.slice.call(document.querySelectorAll('details[data-module]'));
+    var stored = loadOpen();
+    if (stored.length) {
+      modules.forEach(function (d) { d.open = stored.indexOf(d.getAttribute('data-module')) !== -1; });
+    }
+    modules.forEach(function (d) {
+      d.addEventListener('toggle', function () {
+        var open = modules.filter(function (m) { return m.open; })
+                          .map(function (m) { return m.getAttribute('data-module'); });
+        saveOpen(open);
+      });
+    });
+
+    // â”€â”€ Ricerca rapida client-side â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    var input = document.getElementById('auto-quicksearch-input');
+    var clearBtn = document.getElementById('auto-quicksearch-clear');
+    var noResults = document.getElementById('auto-noresults');
+    var summary = document.getElementById('auto-count-summary');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-rule-row]'));
+    var summaryAll = summary ? summary.getAttribute('data-summary-all') : '';
+    var preOpen = null;
+
+    function applyFilter(term) {
+      term = (term || '').trim().toLowerCase();
+      if (!term) {
+        rows.forEach(function (r) { r.classList.remove('auto-row-hidden'); });
+        modules.forEach(function (m) { m.classList.remove('auto-module-hidden'); });
+        if (preOpen) { modules.forEach(function (m) { m.open = preOpen.indexOf(m.getAttribute('data-module')) !== -1; }); preOpen = null; }
+        if (noResults) noResults.hidden = true;
+        if (clearBtn) clearBtn.hidden = true;
+        if (summary && summaryAll) summary.textContent = summaryAll;
+        return;
+      }
+      if (clearBtn) clearBtn.hidden = false;
+      // memorizza lo stato di apertura prima di forzare l'espansione per la ricerca
+      if (!preOpen) preOpen = modules.filter(function (m) { return m.open; }).map(function (m) { return m.getAttribute('data-module'); });
+
+      var visible = 0;
+      rows.forEach(function (r) {
+        var match = (r.getAttribute('data-search') || '').indexOf(term) !== -1;
+        r.classList.toggle('auto-row-hidden', !match);
+        if (match) visible += 1;
+      });
+      // mostra solo i moduli con almeno un match, e aprili
+      modules.forEach(function (m) {
+        var hasMatch = m.querySelectorAll('tr[data-rule-row]:not(.auto-row-hidden)').length > 0;
+        m.classList.toggle('auto-module-hidden', !hasMatch);
+        if (hasMatch) m.open = true;
+      });
+      if (noResults) noResults.hidden = visible > 0;
+      if (summary) summary.textContent = visible + (visible === 1 ? ' regola trovata' : ' regole trovate');
+    }
+
+    if (input) {
+      input.addEventListener('input', function () { applyFilter(input.value); });
+      input.addEventListener('keydown', function (e) { if (e.key === 'Escape') { input.value = ''; applyFilter(''); } });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () { if (input) { input.value = ''; input.focus(); } applyFilter(''); });
+    }
+  })();
+  </script>
 {% endblock %}

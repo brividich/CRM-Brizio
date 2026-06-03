@@ -1843,14 +1843,41 @@ def _send_approval_email(
         html_body = html_body_override
         text_body = text_body_override
     else:
-        html_body = (
-            f"<p>{message_body}</p>"
-            f"<p>"
-            f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
-            f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
-            f"</p>"
-            f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {expires_label}.</p>'
+        from django.template.loader import render_to_string
+        from django.utils.safestring import mark_safe
+        import html as _html
+
+        expires_warning = (
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">'
+            f'<tr><td style="padding:14px 16px;border-left:4px solid #d69e2e;background:#fffaf0;border-radius:10px;'
+            f'color:#6b4f0f;font-size:13px;line-height:1.55;">'
+            f'La richiesta scade il <strong>{expires_label}</strong>.'
+            f'</td></tr></table>'
+        ) if expires_at else ""
+
+        cta_buttons = (
+            f'<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+            f'<tr>'
+            f'<td style="padding:0 12px 0 0;">'
+            f'<a href="{approve_url}" class="ecta" style="display:inline-block;padding:12px 22px;background:#38a169;'
+            f'color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;">{_html.escape(approve_label)}</a>'
+            f'</td>'
+            f'<td style="padding:0;">'
+            f'<a href="{reject_url}" class="ecta" style="display:inline-block;padding:12px 22px;background:#e53e3e;'
+            f'color:#ffffff;text-decoration:none;border-radius:9px;font-size:14px;font-weight:800;">{_html.escape(reject_label)}</a>'
+            f'</td>'
+            f'</tr>'
+            f'</table>'
         )
+
+        html_body = render_to_string("core/email/base_email.html", {
+            "email_type": "Approvazione",
+            "badge": "Richiede azione",
+            "section_label": "Richiesta approvazione",
+            "body_content": mark_safe(f'<p style="color:#475569;font-size:15px;line-height:1.7;">{_html.escape(message_body)}</p>'),
+            "expires_html": mark_safe(expires_warning),
+            "cta_buttons": mark_safe(cta_buttons),
+        })
         text_body = (
             f"{message_body}\n\n"
             f"{approve_label}: {approve_url}\n"
@@ -3323,17 +3350,30 @@ def execute_action(
             body_html = render_template_string(config.get("body_html_template"), payload_context)
             fail_silently = bool(config.get("fail_silently"))
 
-            # Wrappa frammenti HTML nel layout grafico standard.
-            # Se body_html è già un documento completo (<!DOCTYPE / <html), viene usato direttamente.
+            # Wrappa nel layout grafico standard.
+            # - Se body_html è già un documento completo (<!DOCTYPE / <html): usato direttamente.
+            # - Se body_html è un frammento: wrappato nel base template.
+            # - Se body_html è vuoto ma body_text esiste: il testo viene convertito in HTML e wrappato.
+            from django.template.loader import render_to_string
+            from django.utils.safestring import mark_safe
+            _base_ctx = {
+                "email_type": (config.get("email_type") or "Automazioni"),
+                "badge": (config.get("badge") or ""),
+                "section_label": (config.get("section_label") or ""),
+                "title": render_template_string(config.get("title_template"), payload_context),
+            }
             if body_html and not body_html.lstrip().lower().startswith(("<!doctype", "<html")):
-                from django.template.loader import render_to_string
-                from django.utils.safestring import mark_safe
                 body_html = render_to_string("core/email/base_email.html", {
-                    "email_type": (config.get("email_type") or "Automazioni"),
-                    "badge": (config.get("badge") or ""),
-                    "section_label": (config.get("section_label") or ""),
-                    "title": render_template_string(config.get("title_template"), payload_context),
+                    **_base_ctx,
                     "body_content": mark_safe(body_html),
+                })
+            elif not body_html and body_text:
+                # Nessun HTML configurato: genera da testo plain (escape + newline → <br>)
+                import html as _html
+                text_as_html = _html.escape(body_text).replace("\n", "<br>")
+                body_html = render_to_string("core/email/base_email.html", {
+                    **_base_ctx,
+                    "body_content": mark_safe(f'<p style="color:#475569;font-size:15px;line-height:1.7;">{text_as_html}</p>'),
                 })
 
             message = EmailMultiAlternatives(

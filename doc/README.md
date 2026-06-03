@@ -1,7 +1,7 @@
 # Documentazione Tecnica - NOVICROM HUB
 
-> Versione documentazione: **1.1.0**
-> Aggiornata: **2026-05-27**
+> Versione documentazione: **1.2.0**
+> Aggiornata: **2026-06-03**
 
 La cartella `doc/` raccoglie la documentazione Markdown canonica del repository. I nomi storici come `Portale Novicrom` restano presenti solo come esempio di istanza, cartella o percorso di deploy.
 

@@ -169,11 +169,11 @@ class Command(BaseCommand):
             ))
             return
 
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
-            recipient_list=recipients,
+        from core.email_utils import send_hub_mail
+        send_hub_mail(
+            subject, body, recipients,
+            email_type="Anagrafica HR",
+            section_label="Reminder visite mediche",
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

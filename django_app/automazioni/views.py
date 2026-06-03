@@ -4299,14 +4299,59 @@ def contenuti_page(request):
 def rule_list_page(request):
     filters = _build_rule_filters_context(request)
     queryset = _apply_rule_filters(
-        AutomationRule.objects.select_related("created_by", "updated_by").order_by("name", "id"),
+        AutomationRule.objects.select_related("created_by", "updated_by").order_by("source_code", "name", "id"),
         filters,
     )
+    all_sources = get_registered_sources()
+    source_map = {s["code"]: s for s in all_sources}
+
+    # Group rules by source_code preserving registry order
+    from collections import defaultdict
+    groups: dict[str, list] = defaultdict(list)
+    # Mini-mappa flusso (blocco 9): prefetch azioni e condizioni per evitare N+1
+    # quando costruiamo l'anteprima visiva inline accanto al nome.
+    rules_qs = queryset[:500].prefetch_related("actions", "conditions")
+    for rule in rules_qs:
+        # Usa i dati prefetchati: sort in Python, no nuove query.
+        actions_seq = sorted(rule.actions.all(), key=lambda a: (a.order, a.id))
+        cond_count = sum(1 for _ in rule.conditions.all())
+        rule.flow_preview = {
+            "trigger_op": rule.operation_type,
+            "cond_count": cond_count,
+            "actions": [a.action_type for a in actions_seq[:3]],
+            "more_actions": max(0, len(actions_seq) - 3),
+        }
+        groups[rule.source_code].append(rule)
+
+    # Build ordered group list following registry order, then unknown sources
+    registry_order = [s["code"] for s in all_sources]
+    seen = set()
+    rules_by_source = []
+    for code in registry_order:
+        if code in groups:
+            src = source_map[code]
+            rules_by_source.append({
+                "source_code": code,
+                "source_label": src.get("label", code),
+                "source_app": src.get("source_app", ""),
+                "rules": groups[code],
+            })
+            seen.add(code)
+    for code, rules in groups.items():
+        if code not in seen:
+            rules_by_source.append({
+                "source_code": code,
+                "source_label": code,
+                "source_app": "",
+                "rules": rules,
+            })
+
     context = {
         **_base_context(),
-        "rules": list(queryset[:200]),
+        "rules_by_source": rules_by_source,
+        "total_rules": sum(len(g["rules"]) for g in rules_by_source),
         "filters": filters,
-        "source_choices": [(source["code"], source["label"]) for source in get_registered_sources()],
+        "source_choices": [(source["code"], source["label"]) for source in all_sources],
         "operation_choices": AutomationRuleOperationType.choices,
         "trigger_scope_choices": AutomationRuleTriggerScope.choices,
         "boolean_filter_choices": RULE_BOOLEAN_FILTER_CHOICES,
@@ -4722,13 +4767,28 @@ def rule_detail_page(request, rule_id: int):
         .order_by("-started_at", "-id")
         .first()
     )
+    conditions = list(rule.conditions.order_by("order", "id"))
+    actions = list(rule.actions.order_by("order", "id"))
+    # Per sparkbar durata: max sui run mostrati (0 = nessuna barra).
+    max_execution_ms = max((rl.execution_ms or 0 for rl in recent_run_logs), default=0)
+    has_compare_with_old = any(getattr(c, "compare_with_old", False) for c in conditions)
+    from django.urls import reverse
+    _rule_list_url = reverse("admin_portale:automazioni_rule_list")
+    breadcrumb_items = [
+        {"label": "Regole", "url": _rule_list_url},
+        {"label": rule.source_code or "?", "url": f"{_rule_list_url}?source_code={rule.source_code}"},
+        {"label": rule.name, "url": None},
+    ]
     context = {
         **_base_context(),
         "rule": rule,
-        "conditions": list(rule.conditions.order_by("order", "id")),
-        "actions": list(rule.actions.order_by("order", "id")),
+        "conditions": conditions,
+        "actions": actions,
         "recent_run_logs": recent_run_logs,
         "latest_test_log": latest_test_log,
+        "max_execution_ms": max_execution_ms,
+        "has_compare_with_old": has_compare_with_old,
+        "breadcrumb_items": breadcrumb_items,
     }
     return render(request, "automazioni/pages/rule_detail.html", context)
 
@@ -5472,11 +5532,15 @@ def queue_delete_view(request, queue_id: int):
 @legacy_admin_required
 @require_GET
 def run_log_list_page(request):
+    from datetime import timedelta
+    from django.utils import timezone as _tz
+
     status = _get_filter_value(request, "status")
     source_code = _get_filter_value(request, "source_code")
     is_test = _get_filter_value(request, "is_test")
     rule_id = _get_filter_value(request, "rule")
     queue_event_id = _get_filter_value(request, "queue_event_id")
+    recent = _get_filter_value(request, "recent")  # "24h" o vuoto
 
     queryset = AutomationRunLog.objects.select_related("rule", "initiated_by").order_by("-started_at", "-id")
     if status:
@@ -5489,16 +5553,40 @@ def run_log_list_page(request):
         queryset = queryset.filter(rule_id=rule_id)
     if queue_event_id:
         queryset = queryset.filter(queue_event_id=queue_event_id)
+    if recent == "24h":
+        queryset = queryset.filter(started_at__gte=_tz.now() - timedelta(hours=24))
+
+    run_logs = list(queryset[:200])
+    # Max ms per la sparkbar (sui run mostrati). Evita divisioni per 0 sui chart.
+    max_execution_ms = max((rl.execution_ms or 0 for rl in run_logs), default=0)
+
+    # Conteggi rapidi per i chip (globali sulla queryset NON filtrata da status/is_test/recent,
+    # così i chip mostrano "quanti ce ne sarebbero" anche quando un filtro è attivo).
+    _global = AutomationRunLog.objects.all()
+    if source_code:
+        _global = _global.filter(source_code=source_code)
+    if rule_id:
+        _global = _global.filter(rule_id=rule_id)
+    if queue_event_id:
+        _global = _global.filter(queue_event_id=queue_event_id)
+    chip_counts = {
+        "errors": _global.filter(status__in=("failed", "error")).count(),
+        "tests": _global.filter(is_test=True).count(),
+        "recent_24h": _global.filter(started_at__gte=_tz.now() - timedelta(hours=24)).count(),
+    }
 
     context = {
         **_base_context(),
-        "run_logs": list(queryset[:200]),
+        "run_logs": run_logs,
+        "max_execution_ms": max_execution_ms,
+        "chip_counts": chip_counts,
         "filters": {
             "status": status,
             "source_code": source_code,
             "is_test": is_test,
             "rule": rule_id,
             "queue_event_id": queue_event_id,
+            "recent": recent,
         },
         "status_choices": AutomationRunLogStatus.values,
         "source_choices": [(source["code"], source["label"]) for source in get_registered_sources()],
@@ -5763,6 +5851,8 @@ def approval_decision_page(request, token: str, decision: str):
 
     # Mostra form di conferma su GET; processa su POST
     if request.method == "GET":
+        already = approval.status != AutomationApproval.Status.PENDING
+        just_done = already and request.GET.get("done") == "1"
         return render(request, "automazioni/pages/approval_decision.html", {
             "approval": approval,
             "decision": normalized,
@@ -5770,7 +5860,8 @@ def approval_decision_page(request, token: str, decision: str):
             "decision_verb": "approva" if normalized == "approved" else "rifiuta",
             "token": token,
             "is_expired": approval.is_expired(),
-            "already_decided": approval.status != AutomationApproval.Status.PENDING,
+            "already_decided": already and not just_done,
+            "just_done": just_done,
         })
 
     # POST: esegui la decisione
@@ -5792,6 +5883,9 @@ def approval_decision_page(request, token: str, decision: str):
         resp = HttpResponse("1", content_type="text/plain", status=200)
         resp["CARD-ACTION-STATUS"] = status_msg
         return resp
+
+    if result.get("ok"):
+        return redirect(request.path + "?done=1")
 
     return render(request, "automazioni/pages/approval_decision.html", {
         "approval": approval,

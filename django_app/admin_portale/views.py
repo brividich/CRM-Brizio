@@ -2865,18 +2865,22 @@ def _smtp_send_test_email(
             timeout=int(timeout or 10),
             fail_silently=False,
         )
-        message = EmailMultiAlternatives(
-            subject="Test SMTP Portale Applicativo",
-            body=(
-                "Questa e' una mail di test inviata dal pannello Config SRV del Portale Applicativo.\n\n"
-                f"Server: {host}:{port}\n"
-                f"Utente SMTP: {username or '(vuoto)'}"
-            ),
-            from_email=sender,
-            to=recipients,
-            connection=connection,
+        body_text = (
+            "Questa e' una mail di test inviata dal pannello Config SRV del Portale Applicativo.\n\n"
+            f"Server: {host}:{port}\n"
+            f"Utente SMTP: {username or '(vuoto)'}"
         )
-        sent_count = message.send(fail_silently=False)
+        from core.email_utils import send_hub_mail
+        sent_count = send_hub_mail(
+            "Test SMTP Portale Applicativo",
+            body_text,
+            recipients,
+            email_type="Config SRV",
+            title="Test SMTP",
+            from_email=sender,
+            connection=connection,
+            fail_silently=False,
+        )
         if sent_count < 1:
             return False, "Invio mail di test non riuscito: nessun messaggio inviato."
         return True, f"Mail di test inviata con successo a {', '.join(recipients)}."

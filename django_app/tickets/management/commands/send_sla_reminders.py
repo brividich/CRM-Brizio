@@ -70,11 +70,13 @@ class Command(BaseCommand):
                 continue
 
             try:
-                send_mail(
-                    subject=subject,
-                    message=body,
+                from core.email_utils import send_hub_mail
+                send_hub_mail(
+                    subject, body, [dest],
+                    email_type="Tickets",
+                    badge="SLA scaduto",
+                    section_label="Reminder SLA",
                     from_email=from_email,
-                    recipient_list=[dest],
                     fail_silently=False,
                 )
                 invia_notifica_email(dest, "ticket_sla", notification_message, notification_url)

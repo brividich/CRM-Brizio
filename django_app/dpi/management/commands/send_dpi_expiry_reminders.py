@@ -153,11 +153,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Nessun destinatario configurato per i reminder DPI."))
             return
 
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or None,
-            recipient_list=recipients,
+        from core.email_utils import send_hub_mail
+        send_hub_mail(
+            subject, body, recipients,
+            email_type="DPI",
+            section_label="Reminder scadenze",
             fail_silently=False,
         )
         self.stdout.write(self.style.SUCCESS(

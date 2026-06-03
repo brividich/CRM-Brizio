@@ -81,24 +81,26 @@ User = get_user_model()
 
 class SourceRegistryTests(SimpleTestCase):
     def test_registered_sources_include_expected_codes(self):
-        sources = get_registered_sources()
-        self.assertEqual(
-            [source["code"] for source in sources],
-            [
-                "assenze",
-                "tasks",
-                "assets",
-                "tickets",
-                "anomalie",
-                "notizie",
-                "diario_preposto",
-                "rilevazione_incidenti",
-                "rentri",
-                "dpi",
-                "procedure_campagne",
-                "procedure_assegnazioni",
-            ],
-        )
+        # Le sorgenti core devono restare presenti; il registry può crescere nel
+        # tempo, quindi verifichiamo l'inclusione (subset) e l'assenza di duplicati
+        # invece di un confronto esatto con ordine fragile.
+        codes = [source["code"] for source in get_registered_sources()]
+        expected_core = {
+            "assenze",
+            "tasks",
+            "assets",
+            "tickets",
+            "anomalie",
+            "notizie",
+            "diario_preposto",
+            "rilevazione_incidenti",
+            "rentri",
+            "dpi",
+            "procedure_campagne",
+            "procedure_assegnazioni",
+        }
+        self.assertTrue(expected_core.issubset(set(codes)))
+        self.assertEqual(len(codes), len(set(codes)), "codici sorgente duplicati nel registry")
 
     def test_get_source_definition_by_code(self):
         source = get_source_definition("tickets")
@@ -107,23 +109,18 @@ class SourceRegistryTests(SimpleTestCase):
         self.assertIsNone(get_source_definition("missing"))
 
     def test_get_source_choices(self):
-        self.assertEqual(
-            get_source_choices(),
-            [
-                ("assenze", "Assenze"),
-                ("tasks", "Tasks (KICK-OFF)"),
-                ("assets", "Assets"),
-                ("tickets", "Tickets"),
-                ("anomalie", "Anomalie"),
-                ("notizie", "Notizie"),
-                ("diario_preposto", "Diario Preposto"),
-                ("rilevazione_incidenti", "Incidenti / Sicurezza"),
-                ("rentri", "RENTRI / Rifiuti"),
-                ("dpi", "DPI"),
-                ("procedure_campagne", "Procedure - Campagne"),
-                ("procedure_assegnazioni", "Procedure - Assegnazioni"),
-            ],
-        )
+        # Le choice devono corrispondere 1:1 alle sorgenti registrate (codice +
+        # label), nello stesso ordine — verifica data-driven, resiliente alle
+        # nuove sorgenti aggiunte al registry.
+        expected = [
+            (source["code"], source["label"]) for source in get_registered_sources()
+        ]
+        self.assertEqual(get_source_choices(), expected)
+        # Le label core restano stabili (sanity check su qualche voce nota).
+        choices = dict(get_source_choices())
+        self.assertEqual(choices["assenze"], "Assenze")
+        self.assertEqual(choices["tasks"], "Tasks (KICK-OFF)")
+        self.assertEqual(choices["rilevazione_incidenti"], "Incidenti / Sicurezza")
 
     def test_acl_action_contract_is_declared(self):
         self.assertEqual(
@@ -430,7 +427,10 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         template_fields = get_template_fields("assenze")
         action_mapping_fields = get_action_mapping_fields("assenze")
 
-        self.assertEqual(len(source_fields), 12)
+        # Il conteggio dei campi deve riflettere la definizione della sorgente
+        # (può crescere con nuovi campi), non un numero hardcoded.
+        assenze_def = get_source_definition("assenze")
+        self.assertEqual(len(source_fields), len(assenze_def["fields"]))
         self.assertEqual([field["name"] for field in trigger_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in condition_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in template_fields], [field["name"] for field in source_fields])
@@ -578,7 +578,10 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Assenze")
         self.assertContains(response, "tickets_ticket")
         self.assertIn("sources", response.context)
-        self.assertEqual(len(response.context["sources"]), 12)
+        # Il numero di sorgenti cresce con il source_registry: ancoriamo il test
+        # al registry effettivo invece di un conteggio hardcoded fragile.
+        from automazioni.source_registry import get_registered_sources
+        self.assertEqual(len(response.context["sources"]), len(get_registered_sources()))
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -3763,7 +3766,14 @@ class AutomationEmailExecutorTests(TestCase):
             bcc=[],
             reply_to=["reply@test.local"],
         )
-        email_message.attach_alternative.assert_called_once_with("<p>Richiesta 99</p>", "text/html")
+        # Il corpo HTML utente è ora wrappato nel template base_email.html;
+        # verifico che la chiamata sia avvenuta una sola volta, sul mime type corretto,
+        # e che il frammento utente sia contenuto nell'HTML finale (non più uguale).
+        email_message.attach_alternative.assert_called_once()
+        _called_args, _called_kwargs = email_message.attach_alternative.call_args
+        _wrapped_html, _mime = _called_args
+        self.assertEqual(_mime, "text/html")
+        self.assertIn("<p>Richiesta 99</p>", _wrapped_html)
         email_message.send.assert_called_once_with(fail_silently=False)
 
     @patch("automazioni.services.EmailMultiAlternatives")

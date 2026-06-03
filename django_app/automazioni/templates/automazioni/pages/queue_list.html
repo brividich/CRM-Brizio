@@ -14,9 +14,24 @@
   .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
   .auto-field input, .auto-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
   .auto-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); }
-  .auto-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
-  .auto-stat-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; text-decoration:none; color:inherit; display:block; transition:transform .12s ease, box-shadow .16s ease, border-color .14s ease, background .14s ease; position:relative; overflow:hidden; }
+  .auto-stat::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#e2e8f0; transition:background .14s ease; }
+  .auto-stat:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(15,23,42,.08); border-color:#cbd5e1; }
+  .auto-stat.is-active { border-color:#0f172a; background:#0f172a; color:#fff; }
+  .auto-stat.is-active .auto-stat-label, .auto-stat.is-active .auto-stat-value { color:#fff; }
+  .auto-stat.is-pending::before { background:#f59e0b; }
+  .auto-stat.is-processing::before { background:#3b82f6; }
+  .auto-stat.is-done::before { background:#22c55e; }
+  .auto-stat.is-error::before { background:#ef4444; }
+  .auto-stat-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; display:flex; align-items:center; gap:6px; }
+  .auto-stat-label-icon { width:18px; height:18px; border-radius:5px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; }
+  .auto-stat.is-pending .auto-stat-label-icon { background:#fef3c7; color:#92400e; }
+  .auto-stat.is-processing .auto-stat-label-icon { background:#dbeafe; color:#1d4ed8; }
+  .auto-stat.is-done .auto-stat-label-icon { background:#dcfce7; color:#166534; }
+  .auto-stat.is-error .auto-stat-label-icon { background:#fee2e2; color:#991b1b; }
   .auto-stat-value { margin-top:6px; font-size:26px; font-weight:800; color:#0f172a; }
+  .auto-stat-clearfilter { margin-left:auto; font-size:11px; color:rgba(255,255,255,.7); display:none; }
+  .auto-stat.is-active .auto-stat-clearfilter { display:inline; }
   .auto-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .auto-badge-pending { background:#fef3c7; color:#92400e; }
   .auto-badge-processing { background:#dbeafe; color:#1d4ed8; }
@@ -46,7 +61,7 @@
 
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Queue Operativa" page_subtitle="Monitoraggio eventi SQL in coda, reset controllato e retry singolo verso il worker Django." %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
   {% if queue_table_missing %}
@@ -127,27 +142,36 @@ python manage.py apply_sql_triggers</pre>
       </div>
     </div>
 
+    {% url 'admin_portale:automazioni_queue_list' as queue_base_url %}
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Riepilogo stati queue</div>
+        <div class="card-title">Riepilogo stati queue <span style="font-size:12px;font-weight:400;color:#64748b;">— click su una card per filtrare</span></div>
       </div>
       <div class="card-body auto-stats">
-        <div class="auto-stat">
-          <div class="auto-stat-label">Pending</div>
+        <a class="auto-stat is-pending {% if filters.status == 'PENDING' or filters.status == 'pending' %}is-active{% endif %}"
+           href="{% if filters.status == 'PENDING' or filters.status == 'pending' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=PENDING{% endif %}"
+           title="Filtra eventi in attesa di elaborazione">
+          <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">⏳</span> Pending <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.pending }}</div>
-        </div>
-        <div class="auto-stat">
-          <div class="auto-stat-label">Processing</div>
+        </a>
+        <a class="auto-stat is-processing {% if filters.status == 'PROCESSING' or filters.status == 'processing' %}is-active{% endif %}"
+           href="{% if filters.status == 'PROCESSING' or filters.status == 'processing' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=PROCESSING{% endif %}"
+           title="Filtra eventi in lavorazione">
+          <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">⚙</span> Processing <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.processing }}</div>
-        </div>
-        <div class="auto-stat">
-          <div class="auto-stat-label">Done</div>
+        </a>
+        <a class="auto-stat is-done {% if filters.status == 'DONE' or filters.status == 'done' %}is-active{% endif %}"
+           href="{% if filters.status == 'DONE' or filters.status == 'done' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=DONE{% endif %}"
+           title="Filtra eventi processati correttamente">
+          <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">✓</span> Done <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.done }}</div>
-        </div>
-        <div class="auto-stat">
-          <div class="auto-stat-label">Error</div>
+        </a>
+        <a class="auto-stat is-error {% if filters.status == 'ERROR' or filters.status == 'error' %}is-active{% endif %}"
+           href="{% if filters.status == 'ERROR' or filters.status == 'error' %}{{ queue_base_url }}{% else %}{{ queue_base_url }}?status=ERROR{% endif %}"
+           title="Filtra eventi finiti in errore">
+          <div class="auto-stat-label"><span class="auto-stat-label-icon" aria-hidden="true">!</span> Error <span class="auto-stat-clearfilter">× pulisci</span></div>
           <div class="auto-stat-value">{{ queue_counts.error }}</div>
-        </div>
+        </a>
       </div>
     </div>
 

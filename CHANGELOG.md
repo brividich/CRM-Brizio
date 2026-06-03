@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+## 1.2.0 - 2026-06-03
+
+Release NOVICROM HUB: estensione motore automazioni (approvazioni a catena, operatori temporali, `count_branch`, controllo-flusso for_each/branch/do_until), 27 pacchetti regole AU, polish UI trasversale del modulo automazioni, fonte ruoli Caporeparto/Capocommessa configurabile in KICK-OFF, prerequisito AU-GAP1 (trigger SQL anomalie + `modified_by`), e correzioni HR/anagrafica/core.
+
 ### Added
 
 - **AUTOMAZIONI - Script DDL colonna `modified_by_user_id` per AU-GAP1** (`sql/ddl_anomalie_modified_by.sql`): script SQL idempotente e non distruttivo che aggiunge `dbo.anomalie.modified_by_user_id` (INT NULL), necessaria per attivare il flusso AU42b (notifica anomalie filtrata per ruolo CAPOCOMMESSA/CAR). L'`ALTER TABLE` è guardato da `IF NOT EXISTS` su `sys.columns`. Da eseguire su SQL Server TEST poi PROD, seguito da `apply_sql_triggers`. Finché la colonna non esiste il codice resta difensivo (AU42b inattivo, nulla si rompe). Versiona il prerequisito DDL già documentato nel merge del motore automazioni.

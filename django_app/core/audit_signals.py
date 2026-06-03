@@ -33,6 +33,9 @@ _EXCLUDED_APPS: frozenset[str] = frozenset({
     "django_q",
     "django_htmx",
     "django_extensions",
+    "migrations",    # MigrationRecorder.Migration: salvato a ogni migrazione applicata;
+                     # durante setup DB core_auditlog può non esistere ancora e l'INSERT
+                     # fallita romperebbe la transazione atomica della migrazione.
 })
 
 # Modelli specifici esclusi (formato: "app_label.modelname" tutto minuscolo)
@@ -66,6 +69,13 @@ def _ip_origin_label(ip: str | None) -> str:
 def _should_skip(sender) -> bool:
     meta = getattr(sender, "_meta", None)
     if meta is None:
+        return True
+    # Modelli storici delle migrazioni: __module__ == "__fake__".
+    # Gli oggetti creati/modificati dalle data-migration non sono eventi business
+    # e, durante l'applicazione delle migrazioni, la tabella core_auditlog può non
+    # esistere ancora: una INSERT fallita romperebbe la transazione atomica della
+    # migrazione (TransactionManagementError). Mai loggare in questo contesto.
+    if getattr(sender, "__module__", "") == "__fake__":
         return True
     if meta.app_label.lower() in _EXCLUDED_APPS:
         return True

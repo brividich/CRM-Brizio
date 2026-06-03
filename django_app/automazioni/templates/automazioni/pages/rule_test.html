@@ -1,9 +1,26 @@
 {% extends "core/base.html" %}
+{% load automazioni_extras %}
 
 {% block title %}Automazioni - Test Regola | Admin Portale{% endblock %}
 
 {% block extra_head %}
 <style>
+  /* ─── Copy-to-clipboard bottoncino sui JSON raw ────────────────────────── */
+  .auto-json-wrap { position:relative; }
+  .auto-json-copy { position:absolute; top:6px; right:6px; padding:4px 10px; border:1px solid #cbd5e1; background:#fff; color:#475569; font-size:11px; font-weight:700; border-radius:8px; cursor:pointer; transition:transform .1s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease; }
+  .auto-json-copy:hover { border-color:#3b82f6; color:#1d4ed8; transform:translateY(-1px); }
+  .auto-json-copy.is-copied { background:#dcfce7; color:#166534; border-color:#86efac; }
+  /* ─── Status pill nell'esito + sezione collassabile ────────────────────── */
+  .auto-result-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .auto-status-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-status-pill.is-ok { background:#dcfce7; color:#166534; }
+  .auto-status-pill.is-fail { background:#fee2e2; color:#991b1b; }
+  .auto-status-pill.is-skip { background:#fef3c7; color:#92400e; }
+  .auto-status-pill.is-pending { background:#dbeafe; color:#1d4ed8; }
+  .auto-result-msg { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; font-size:13px; color:#334155; white-space:pre-wrap; word-break:break-word; }
+  body.theme-dark .auto-json-copy { background:var(--surface); border-color:var(--border); color:var(--text-light); }
+  body.theme-dark .auto-result-msg { background:var(--surface); border-color:var(--border); color:var(--text); }
+  @media (prefers-reduced-motion: reduce) { .auto-json-copy { transition:none !important; } }
   .auto-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.5fr) minmax(340px, .9fr); align-items:start; }
   .auto-main { display:grid; gap:16px; }
   .auto-field { display:grid; gap:6px; }
@@ -82,7 +99,7 @@
 
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Test Manuale Regola" page_subtitle="Composer guidato + JSON raw per provare la regola senza passare dalla queue SQL." %}
-  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
   <div class="auto-layout">
@@ -173,13 +190,19 @@
             <div class="auto-json-grid">
               <div class="auto-field">
                 {{ form.payload_json.label_tag }}
-                {{ form.payload_json }}
+                <div class="auto-json-wrap">
+                  {{ form.payload_json }}
+                  <button type="button" class="auto-json-copy" data-copy-target="id_payload_json" title="Copia il JSON corrente">Copia</button>
+                </div>
                 {% if form.payload_json.help_text %}<div class="auto-help">{{ form.payload_json.help_text }}</div>{% endif %}
                 {% if form.payload_json.errors %}<ul class="auto-errors">{% for error in form.payload_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
               </div>
               <div class="auto-field">
                 {{ form.old_payload_json.label_tag }}
-                {{ form.old_payload_json }}
+                <div class="auto-json-wrap">
+                  {{ form.old_payload_json }}
+                  <button type="button" class="auto-json-copy" data-copy-target="id_old_payload_json" title="Copia il JSON old corrente">Copia</button>
+                </div>
                 {% if form.old_payload_json.help_text %}<div class="auto-help">{{ form.old_payload_json.help_text }}</div>{% endif %}
                 {% if form.old_payload_json.errors %}<ul class="auto-errors">{% for error in form.old_payload_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
               </div>
@@ -211,11 +234,19 @@
         <div class="card">
           <div class="card-head"><div class="card-title">Esito ultimo test</div></div>
           <div class="card-body">
-            <div class="notice{% if run_log.status == 'error' %} notice-danger{% endif %}">
-              <strong>Stato:</strong> {{ run_log.status }}<br>
-              <strong>Messaggio:</strong> {{ run_log.result_message|default:"-" }}<br>
-              <strong>Run log:</strong> <a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a>
+            <div class="auto-result-head">
+              <span class="auto-status-pill {{ run_log.status|automazioni_run_status_class }}">{{ run_log.status }}</span>
+              {% if run_log.execution_ms %}
+                <span style="font-size:12px;color:#64748b;">Durata: <strong style="color:#0f172a;">{{ run_log.execution_ms }}ms</strong></span>
+              {% endif %}
+              <span style="font-size:12px;color:#64748b;">Run log: <a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></span>
             </div>
+            {% if run_log.result_message %}
+              <details {% if run_log.status == 'error' or run_log.status == 'failed' %}open{% endif %}>
+                <summary style="cursor:pointer;font-weight:700;color:#475569;margin-bottom:8px;">Messaggio dettagliato</summary>
+                <div class="auto-result-msg">{{ run_log.result_message }}</div>
+              </details>
+            {% endif %}
           </div>
         </div>
       {% endif %}
@@ -730,6 +761,34 @@
   syncBuilderFromTextarea('payload_json');
   syncBuilderFromTextarea('old_payload_json');
   focusDefaultSmartTarget();
+
+  // Copy-to-clipboard sui textarea JSON raw
+  document.addEventListener('click', function(event) {
+    var copyBtn = closestElement(event.target, '[data-copy-target]');
+    if (!copyBtn) return;
+    event.preventDefault();
+    var targetId = copyBtn.getAttribute('data-copy-target');
+    var ta = document.getElementById(targetId);
+    if (!ta) return;
+    var text = String(ta.value || '');
+    function flashCopied() {
+      var originalText = copyBtn.textContent;
+      copyBtn.textContent = 'Copiato ✓';
+      copyBtn.classList.add('is-copied');
+      window.setTimeout(function() {
+        copyBtn.textContent = originalText;
+        copyBtn.classList.remove('is-copied');
+      }, 1400);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(flashCopied, function() {
+        ta.focus(); ta.select(); try { document.execCommand('copy'); flashCopied(); } catch (e) {}
+      });
+    } else {
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); flashCopied(); } catch (e) {}
+    }
+  });
 })();
 </script>
 {% endblock %}

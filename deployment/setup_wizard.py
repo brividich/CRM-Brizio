@@ -97,7 +97,7 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "1.1.0"
+_DEFAULT_APP_VERSION = "1.2.0"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
