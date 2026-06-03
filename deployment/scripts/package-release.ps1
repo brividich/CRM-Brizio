@@ -341,6 +341,13 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 # ---------------------------------------------------------------------------
 # Pattern di esclusione — separati per tipo (directory vs file)
 # ---------------------------------------------------------------------------
+# IMPORTANTE: il pacchetto è costruito con una ALLOWLIST (vedi $includeTopLevel
+# più sotto): si copiano SOLO i path noti necessari al deploy, non "tutto tranne".
+# Questo evita che cartelle spurie/sensibili del working dir (ssl/, database/,
+# backup*/, hotfix/, temp/, media_private/, dump DB, ecc.) finiscano nello zip.
+# Gli $excludeDirs/$excludeFiles qui sotto servono a PULIRE all'interno dei path
+# inclusi (es. media/media_private/logs/__pycache__ dentro django_app/).
+#
 # DIRECTORY da escludere (passate a robocopy con /XD)
 $excludeDirs = @(
     ".git",           # repository git
@@ -352,7 +359,8 @@ $excludeDirs = @(
     "node_modules",   # dipendenze JS
     "__pycache__",    # cache Python
     "logs",           # log applicazione
-    "media",          # media locale
+    "media",          # media locale (upload runtime, dati personali)
+    "media_private",  # documenti personali fuori webroot (referti, ecc.) — GDPR
     "doc",            # documentazione interna: contiene xlsx/csv con dati personali
     "docs",           # idem: import/export con dati personali, non serve in prod
     "dist",           # build output
@@ -386,37 +394,62 @@ $excludeFiles = @(
 # (medical-examinations-people.xlsx) è escluso per nome qui sopra.
 
 # ---------------------------------------------------------------------------
-# Copia selettiva con robocopy
+# ALLOWLIST: solo i path top-level necessari al deploy finiscono nel pacchetto.
+# deploy-release.ps1 richiede django_app/ (obbligatorio), e usa deployment/scripts,
+# sql/ (trigger), tools/. VERSION e i .md di root sono documentazione/versione.
+# Tutto il resto del working dir (ssl, database, backup*, hotfix, temp, config,
+# media_private, ecc.) NON viene mai copiato.
 # ---------------------------------------------------------------------------
-Write-Log "Copia file sorgenti in temp dir..." "STEP"
-
-# Robocopy copia tutto tranne le directory/file esclusi
-# /R:0 /W:0 = nessun retry (evita hang su file bloccati)
-$robocopyArgs = @(
-    $SourcePath,
-    $tempDir,
-    "/E",           # subdirectory incluse
-    "/NFL",         # no file list
-    "/NDL",         # no dir list
-    "/NJH",         # no job header
-    "/NJS",         # no job summary
-    "/R:0",         # nessun retry
-    "/W:0"          # nessun attesa tra retry
+$includeDirs = @(
+    "django_app",     # applicazione (obbligatoria per il deploy)
+    "deployment",     # script di deploy/attivazione + dist/SetupWizard.exe
+    "tools",          # release_guard e helper
+    "sql"             # trigger/DDL SQL Server applicati in deploy
 )
-foreach ($ex in $excludeDirs) {
-    $robocopyArgs += "/XD"
-    $robocopyArgs += $ex
-}
-foreach ($ef in $excludeFiles) {
-    $robocopyArgs += "/XF"
-    $robocopyArgs += $ef
+$includeRootFiles = @(
+    "VERSION",
+    "README.md",
+    "CHANGELOG.md",
+    "CLAUDE.md"
+)
+
+Write-Log "Copia file sorgenti in temp dir (allowlist)..." "STEP"
+
+# Copia ciascuna directory inclusa con robocopy, applicando le esclusioni di
+# pulizia interna (media/media_private/logs/__pycache__/.env/sqlite, ecc.).
+foreach ($dir in $includeDirs) {
+    $src = Join-Path $SourcePath $dir
+    if (-not (Test-Path -LiteralPath $src)) {
+        Write-Log "Path incluso assente, salto: $dir" "WARN"
+        continue
+    }
+    $dst = Join-Path $tempDir $dir
+    $robocopyArgs = @(
+        $src,
+        $dst,
+        "/E",           # subdirectory incluse
+        "/NFL", "/NDL", "/NJH", "/NJS",
+        "/R:0", "/W:0"
+    )
+    foreach ($ex in $excludeDirs)  { $robocopyArgs += "/XD"; $robocopyArgs += $ex }
+    foreach ($ef in $excludeFiles) { $robocopyArgs += "/XF"; $robocopyArgs += $ef }
+
+    & robocopy @robocopyArgs | Out-Null
+    # Robocopy exit code ≤ 7 = success (bit mask)
+    if ($LASTEXITCODE -gt 7) {
+        Write-Log "Robocopy fallito (dir=$dir) con exit code $LASTEXITCODE" "ERROR"
+        exit 1
+    }
 }
 
-& robocopy @robocopyArgs | Out-Null
-# Robocopy exit code ≤ 7 = success (bit mask)
-if ($LASTEXITCODE -gt 7) {
-    Write-Log "Robocopy fallito con exit code $LASTEXITCODE" "ERROR"
-    exit 1
+# File di root inclusi singolarmente.
+foreach ($file in $includeRootFiles) {
+    $src = Join-Path $SourcePath $file
+    if (Test-Path -LiteralPath $src) {
+        Copy-Item -LiteralPath $src -Destination (Join-Path $tempDir $file) -Force
+    } else {
+        Write-Log "File di root incluso assente, salto: $file" "WARN"
+    }
 }
 
 # Rimozione manuale di __pycache__ rimasti
