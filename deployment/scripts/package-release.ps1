@@ -373,15 +373,17 @@ $excludeFiles = @(
     "*.pyc",
     "*.pyo",
     "DIPENDENTI.csv", # file sensibile
-    "*.csv",          # import/export dati: potenziali dati personali (no asset runtime in csv)
-    "*.xls",          # vecchi export Excel: dati personali
     "medical-examinations-people.xlsx",  # dato sanitario fuori posto (difesa in profondità)
     "*.exe",
     "*.db"
 )
-# NB: *.xlsx NON è escluso globalmente: django_app/tasks/vrf_template/MOD_073_VRF_Rev10.xlsx
-# è un template applicativo necessario a runtime (vrf_generator.py). Gli xlsx con dati
-# personali vivono in doc/ e docs/, già esclusi via $excludeDirs.
+# NB sui pattern Excel/CSV:
+# - NON usare "*.xls": in robocopy il wildcard cattura anche "*.xlsx" e rimuoverebbe
+#   django_app/tasks/vrf_template/MOD_073_VRF_Rev10.xlsx, template runtime di vrf_generator.py.
+# - NON escludere "*.xlsx"/"*.csv" globalmente per lo stesso motivo (template runtime).
+# I file Excel/CSV con dati personali vivono in doc/, docs/, media/ e .claude/,
+# tutti già esclusi via $excludeDirs. L'unico dato personale fuori da quelle dir
+# (medical-examinations-people.xlsx) è escluso per nome qui sopra.
 
 # ---------------------------------------------------------------------------
 # Copia selettiva con robocopy
