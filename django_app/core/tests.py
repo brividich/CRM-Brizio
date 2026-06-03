@@ -673,9 +673,9 @@ class DashboardRoutingTests(TestCase):
         dashboard_response = self.client.get(dashboard_url)
         dashboard_home_response = self.client.get(dashboard_home_url)
         self.assertEqual(dashboard_response.status_code, 302)
-        self.assertEqual(dashboard_response.headers.get("Location"), reverse("dashboard_hub_preview"))
+        self.assertEqual(dashboard_response.headers.get("Location"), reverse("home_portale:index"))
         self.assertEqual(dashboard_home_response.status_code, 302)
-        self.assertEqual(dashboard_home_response.headers.get("Location"), reverse("dashboard_hub_preview"))
+        self.assertEqual(dashboard_home_response.headers.get("Location"), reverse("home_portale:index"))
         self.assertEqual(self.client.get(dashboard_url, follow=True).status_code, 200)
         self.assertEqual(self.client.get(dashboard_home_url, follow=True).status_code, 200)
 
@@ -685,7 +685,6 @@ class DashboardRoutingTests(TestCase):
     @override_settings(
         LEGACY_AUTH_ENABLED=False,
         APP_VERSION="9.9.9-test",
-        MODULE_VERSIONS={"dashboard": "9.9.9-test", "assets": "1.2.3-assets"},
     )
     def test_dashboard_home_shows_version_footer(self):
         user = get_user_model().objects.create_user(username="route-user-version", password="pass12345")
@@ -695,10 +694,10 @@ class DashboardRoutingTests(TestCase):
         response = self.client.get(reverse("dashboard_home"), follow=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.redirect_chain, [(reverse("dashboard_hub_preview"), 302)])
-        self.assertContains(response, "Versione portale")
+        self.assertEqual(response.redirect_chain, [(reverse("home_portale:index"), 302)])
+        self.assertContains(response, "NOVICROM HUB")
         self.assertContains(response, "9.9.9-test")
-        self.assertContains(response, "Moduli versionati")
+        self.assertContains(response, "moduli registrati")
 
     @override_settings(
         APP_VERSION="9.9.9-test",

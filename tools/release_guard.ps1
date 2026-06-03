@@ -482,22 +482,24 @@ if (-not $pythonExe) {
         $jobContracts = $null
     } else {
         # Contract test: usano DB isolato (test_<name>), compatibili col background.
-        # --parallel sfrutta i core disponibili per ridurre il tempo di esecuzione.
+        # NIENTE --parallel: config.settings.test forza SQLite (single-writer per
+        # file). Con --parallel su Windows i worker clonano il DB e si contendono
+        # il lock dei file .sqlite3, andando in lock-starvation (run bloccati per
+        # decine di minuti, 0% CPU). In seriale i test girano in pochi minuti.
         $jobContracts = Start-Job -ScriptBlock {
             Set-Location $using:SourcePath
-            $out = & $using:pythonExe $using:djangoManage test core.contract_tests --settings=config.settings.test --parallel 2>&1 | ForEach-Object { "$_" }
+            $out = & $using:pythonExe $using:djangoManage test core.contract_tests --settings=config.settings.test 2>&1 | ForEach-Object { "$_" }
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
         }
 
-        # Test suite principale (foreground): --parallel usa i core disponibili.
-        # manage.py test crea un DB isolato (test_<name>) distinto dal test DB
-        # di bootstrap_acl_v2, quindi non interferisce con i job paralleli.
+        # Test suite principale (foreground). NIENTE --parallel: vedi nota sopra
+        # (SQLite single-writer -> lock-starvation con i worker paralleli su Windows).
         # La discovery globale da repo root non entra in django_app/ (non e un package);
         # il gate usa le app project-critical gia validate.
         [void](Invoke-GuardCommand `
             -PythonExe $pythonExe `
             -ManagePy $djangoManage `
-            -Arguments @("test", "core", "tasks", "attrezzature", "monitoring.tests", "monitoring.test_health", "--settings=config.settings.test", "--parallel") `
+            -Arguments @("test", "core", "tasks", "attrezzature", "monitoring.tests", "monitoring.test_health", "--settings=config.settings.test") `
             -Label "Django test suite" `
             -FailOnOutputPattern @("Found 0 test", "NO TESTS RAN") `
             -FailOnOutputMessage "Test gate invalid because Django discovered zero tests.")

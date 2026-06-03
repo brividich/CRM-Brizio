@@ -12,6 +12,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 Release NOVICROM HUB: estensione motore automazioni (approvazioni a catena, operatori temporali, `count_branch`, controllo-flusso for_each/branch/do_until), 27 pacchetti regole AU, polish UI trasversale del modulo automazioni, fonte ruoli Caporeparto/Capocommessa configurabile in KICK-OFF, prerequisito AU-GAP1 (trigger SQL anomalie + `modified_by`), e correzioni HR/anagrafica/core.
 
+### Fixed (release gate)
+
+- **RELEASE GUARD - Stallo della test suite con `--parallel` su SQLite/Windows** (`tools/release_guard.ps1`): il gate lanciava la suite Django e i contract test con `--parallel`, ma `config.settings.test` forza SQLite (single-writer per file). Su Windows i worker paralleli clonano il DB (`suite_<pid>_<n>.sqlite3`) e si contendono il lock dei file `.sqlite3`, entrando in lock-starvation: run bloccati per decine di minuti a 0% CPU. Rimosso `--parallel` da entrambi i comandi di test del guard (suite principale in foreground + contract test in background). In seriale la suite completa gira in ~3 minuti.
+
+- **CORE - Due test di routing dashboard obsoleti dopo lo spostamento su `home_portale`** (`django_app/core/tests.py`): `test_dashboard_and_dashboard_home_routes_work` e `test_dashboard_home_shows_version_footer` asserivano ancora il redirect di `/dashboard` verso `dashboard_hub_preview`, mentre dal commit `c271007` la view `dashboard_home` redirige a `home_portale:index`. Allineate le assertion di routing alla destinazione corrente e aggiornate quelle di contenuto al footer reale della home portale (`NOVICROM HUB · v <versione> · N moduli registrati`), rimuovendo i check su `MODULE_VERSIONS`/"Moduli versionati" non più presenti in quella pagina. Suite `core/tasks/attrezzature/monitoring` 419/419 OK.
+
 ### Added
 
 - **AUTOMAZIONI - Script DDL colonna `modified_by_user_id` per AU-GAP1** (`sql/ddl_anomalie_modified_by.sql`): script SQL idempotente e non distruttivo che aggiunge `dbo.anomalie.modified_by_user_id` (INT NULL), necessaria per attivare il flusso AU42b (notifica anomalie filtrata per ruolo CAPOCOMMESSA/CAR). L'`ALTER TABLE` è guardato da `IF NOT EXISTS` su `sys.columns`. Da eseguire su SQL Server TEST poi PROD, seguito da `apply_sql_triggers`. Finché la colonna non esiste il codice resta difensivo (AU42b inattivo, nulla si rompe). Versiona il prerequisito DDL già documentato nel merge del motore automazioni.
