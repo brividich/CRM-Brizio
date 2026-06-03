@@ -382,6 +382,7 @@ $excludeFiles = @(
     "*.pyo",
     "DIPENDENTI.csv", # file sensibile
     "medical-examinations-people.xlsx",  # dato sanitario fuori posto (difesa in profondità)
+    "*.bak",          # backup locali di sorgenti (es. *.html.bak): cruft, non vanno in prod
     "*.exe",
     "*.db"
 )
