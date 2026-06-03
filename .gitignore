@@ -222,3 +222,8 @@ deployment/avvia_wizard_DEV.bat
 deployment/avvia_wizard_TEST.bat
 db_schema.html
 tools/db_documentazione.html
+
+# Dati personali / GDPR: file con dati di dipendenti o import una-tantum.
+# Non devono stare nel repository. Tenuti su disco ma fuori dal tracking.
+django_app/medical-examinations-people.xlsx
+docs/assets/Cartel1.ticket_import.csv

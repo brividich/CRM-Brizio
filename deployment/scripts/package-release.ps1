@@ -344,6 +344,7 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 # DIRECTORY da escludere (passate a robocopy con /XD)
 $excludeDirs = @(
     ".git",           # repository git
+    ".claude",        # worktree degli agent + cache (pesante, contiene copie di file)
     ".tmp_py",        # workspace temporaneo locale
     ".tmp_tests",     # test temporanei con permessi variabili
     ".venv",          # virtual environment Python
@@ -352,6 +353,8 @@ $excludeDirs = @(
     "__pycache__",    # cache Python
     "logs",           # log applicazione
     "media",          # media locale
+    "doc",            # documentazione interna: contiene xlsx/csv con dati personali
+    "docs",           # idem: import/export con dati personali, non serve in prod
     "dist",           # build output
     "build",          # build output
     "htmlcov",        # coverage HTML
@@ -370,9 +373,15 @@ $excludeFiles = @(
     "*.pyc",
     "*.pyo",
     "DIPENDENTI.csv", # file sensibile
+    "*.csv",          # import/export dati: potenziali dati personali (no asset runtime in csv)
+    "*.xls",          # vecchi export Excel: dati personali
+    "medical-examinations-people.xlsx",  # dato sanitario fuori posto (difesa in profondità)
     "*.exe",
     "*.db"
 )
+# NB: *.xlsx NON è escluso globalmente: django_app/tasks/vrf_template/MOD_073_VRF_Rev10.xlsx
+# è un template applicativo necessario a runtime (vrf_generator.py). Gli xlsx con dati
+# personali vivono in doc/ e docs/, già esclusi via $excludeDirs.
 
 # ---------------------------------------------------------------------------
 # Copia selettiva con robocopy
