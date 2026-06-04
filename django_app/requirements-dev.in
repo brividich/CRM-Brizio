@@ -13,7 +13,7 @@ factory-boy>=3.3
 model-bakery>=1.17
 
 # --- Linting / formatting ---
-ruff>=0.4
+ruff>=0.15.15
 
 # --- Git hooks ---
 pre-commit>=3.7
