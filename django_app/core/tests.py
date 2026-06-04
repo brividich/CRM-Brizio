@@ -2248,3 +2248,71 @@ class ValidateDeploymentSecurityChecksTests(SimpleTestCase):
         results = self._run_security_checks()
         self.assertIn("SQL_LOG_ENABLED", results)
         self.assertEqual(results["SQL_LOG_ENABLED"].severity, "WARN")
+
+
+class AclFallbackReportAdminExclusionTests(SimpleTestCase):
+    """L'esclusione delle route del Django admin dal report di copertura ACL.
+
+    Le route del contrib admin (montato su 'admin/') sono fuori dal perimetro
+    ACL applicativo e non vanno migrate a RoutePermissionBinding: gonfiavano il
+    conteggio 'unbound' rendendo impossibile sapere quando la migrazione e'
+    completa.
+    """
+
+    def test_django_admin_routes_recognized_by_pattern(self):
+        from core.management.commands.acl_fallback_report import (
+            is_django_admin_route,
+        )
+
+        self.assertTrue(is_django_admin_route("admin/"))
+        self.assertTrue(is_django_admin_route("admin/auth/user/"))
+        self.assertTrue(is_django_admin_route("^admin/login/"))
+
+    def test_application_routes_are_not_flagged_as_admin(self):
+        from core.management.commands.acl_fallback_report import (
+            is_django_admin_route,
+        )
+
+        # 'admin-portale/' NON e' il Django admin.
+        self.assertFalse(is_django_admin_route("admin-portale/"))
+        self.assertFalse(is_django_admin_route("admin-portale/permessi/"))
+        # Route applicative con 'admin' nel path o suffisso '_add' nel nome:
+        # qui conta solo il pattern, e questi pattern non iniziano con 'admin/'.
+        self.assertFalse(is_django_admin_route("procedure-refresh/admin/documenti/"))
+        self.assertFalse(is_django_admin_route("setup/api/create-admin/"))
+        self.assertFalse(is_django_admin_route("anagrafica/dipendenti/<int:legacy_id>/qualifiche/add"))
+
+
+class AclFallbackReportCommandTests(TestCase):
+    def test_report_excludes_django_admin_by_default(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command("acl_fallback_report", "--format", "json", stdout=out)
+        data = json.loads(out.getvalue())
+
+        self.assertGreater(data["summary"]["excluded_django_admin"], 0)
+        # Nessuna route con pattern del Django admin deve comparire nei risultati.
+        for route in data["routes"]:
+            self.assertFalse(
+                route["pattern"].lstrip("^/").startswith("admin/"),
+                msg=f"Route admin non esclusa: {route}",
+            )
+
+    def test_include_admin_flag_restores_admin_routes(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        default_out = StringIO()
+        call_command("acl_fallback_report", "--format", "json", stdout=default_out)
+        default_total = json.loads(default_out.getvalue())["summary"]["total_routes"]
+
+        admin_out = StringIO()
+        call_command(
+            "acl_fallback_report", "--format", "json", "--include-admin",
+            stdout=admin_out,
+        )
+        admin_total = json.loads(admin_out.getvalue())["summary"]["total_routes"]
+
+        self.assertGreater(admin_total, default_total)
