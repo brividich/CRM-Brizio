@@ -2314,6 +2314,27 @@ class AclFallbackReportPrefixBindingTests(TestCase):
         )
 
 
+class AclFallbackReportNamespaceTests(TestCase):
+    """Le route con namespace (es. 'fornitori:fornitore_create') devono essere
+    confrontate con i binding usando il nome namespaced, come fa il middleware
+    via `view_name`. Senza questo, route già bindate risultano falsi 'unbound'.
+    """
+
+    def test_namespaced_routes_use_namespaced_name(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command("acl_fallback_report", "--format", "json", stdout=out)
+        names = [r["name"] for r in json.loads(out.getvalue())["routes"]]
+        # Almeno una route deve essere namespaced (contiene ':'): prova che il
+        # report ricostruisce il namespace invece di usare il solo url_name.
+        self.assertTrue(
+            any(":" in n for n in names),
+            msg="Nessuna route namespaced: il namespace non viene propagato",
+        )
+
+
 class AclFallbackReportAdminExclusionTests(SimpleTestCase):
     """L'esclusione delle route del Django admin dal report di copertura ACL.
 

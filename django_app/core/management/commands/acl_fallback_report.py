@@ -182,19 +182,20 @@ class Command(BaseCommand):
                 for e in entries:
                     self.stdout.write(f"  [{app}] {e['name']}  {e['pattern']}")
 
-    def _walk(self, patterns, prefix, out):
+    def _walk(self, patterns, prefix, out, ns_prefix=""):
         for p in patterns:
             pattern_str = str(getattr(p, "pattern", "") or "")
             full = prefix + pattern_str
             if hasattr(p, "url_patterns"):
-                nested_prefix = full
                 inner_ns = getattr(p, "namespace", "") or ""
-                self._walk(p.url_patterns, nested_prefix, out)
-                if inner_ns:
-                    # Le route nested con namespace verranno riprodotte dai figli.
-                    continue
+                # Propaga il namespace come fa Django per `view_name`
+                # (es. 'fornitori:fornitore_create'): i binding sono salvati con
+                # il route_name namespaced, quindi il report deve ricostruirlo o
+                # produce falsi "unbound".
+                child_ns = f"{ns_prefix}{inner_ns}:" if inner_ns else ns_prefix
+                self._walk(p.url_patterns, full, out, child_ns)
             else:
                 name = getattr(p, "name", "") or ""
                 if not name:
                     continue
-                out.append({"name": name, "pattern": full})
+                out.append({"name": f"{ns_prefix}{name}", "pattern": full})

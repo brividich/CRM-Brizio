@@ -76,44 +76,49 @@ la Fase 3 (futura) rimuove il codice legacy.
 
 ## Stato di partenza (misurato su dev, 2026-06-04)
 
-> ⚠️ **Revisione importante (stessa data):** la prima stima parlava di "705 route unbound".
-> Era **gonfiata da un bug del report**: `acl_fallback_report` cercava i binding solo per
-> `route_name`, ignorando i **184 binding path-based** (`match_strategy=prefix`, senza
-> route_name). Il report ora riusa `core.acl_v2._find_canonical_binding` (la stessa logica
-> del middleware) e conta anche i binding prefix/regex. **Numero reale: 288 unbound.**
+> ⚠️ **Il "debito" era quasi tutto un artefatto del report.** Tre revisioni successive
+> (stessa data) hanno smontato la stima iniziale di "705/1298 unbound":
+> 1. Escluse le ~596 route del **Django admin** (`admin/...`, fuori perimetro).
+> 2. Il report ignorava i **184 binding path-based** (`prefix`, senza route_name) →
+>    falsi positivi. Fix: riuso di `core.acl_v2._find_canonical_binding`. 705 → 288.
+> 3. Il report **non ricostruiva il namespace** del route name (es. `fornitori:create`),
+>    mentre i binding e il middleware (`view_name`) lo usano → altri falsi positivi.
+>    Fix in `_walk`. 288 → **96**.
 
-- **837 route applicative** (596 route Django admin escluse: fuori perimetro, protette da `is_staff`).
-- **288 route realmente unbound** = il debito reale della Fase 2 (non 705).
-- **457 binding canonici attivi** (273 per route_name + 184 path-based prefix).
-- **I moduli di dominio sono già coperti** via binding prefix: `tickets`, `dpi`, `tasks`,
-  `assets`, `anagrafica`, `timbri`, `diario-preposto`, `rilevazione-incidenti` **non**
-  hanno più route unbound. Il caso a.astarita non era "binding mancante" ma **grant di
-  ruolo mancante** → si risolve con `acl_sync_legacy_grants`, non con nuovi binding.
+**Conclusione: la migrazione ACL canonica è di fatto già completa.**
 
-Comando di misura (dopo la patch Fase 1, commit successivi al doc iniziale):
+- **837 route applicative** (596 route Django admin escluse).
+- **96 route "unbound"** residue, di cui **77 sono `admin-portale`** (decisione: restano
+  gated sul permesso admin, NON si migrano — è corretto che l'area admin sia solo-admin).
+- Le restanti ~19 sono **endpoint per-utente-autenticato** o con **gating proprio**, che
+  **non devono** avere un binding di permesso di modulo (vedi sotto).
+- **Tutti i moduli di dominio sono già canonici (0 unbound):** `tickets`, `dpi`, `tasks`,
+  `assets`, `anagrafica`, `timbri`, `diario-preposto`, `rilevazione-incidenti`,
+  `fornitori`, `attrezzature`, `automazioni`.
+
+Il caso a.astarita (403 su tickets) non era "binding mancante" ma **grant di ruolo
+mancante** → si risolve con `acl_sync_legacy_grants`, non con nuovi binding.
+
+Comando di misura (dopo i fix al report di questa sessione):
 ```powershell
 python django_app\manage.py acl_fallback_report --only-unbound --settings=config.settings.<env>
 ```
 
 ---
 
-## Moduli interessati (288 unbound reali)
+## Le 96 route residue — analisi (nessuna richiede migrazione)
 
-Route realmente unbound per prefisso path (binding prefix già conteggiati come coperti):
-
-| Modulo | Unbound reali | Note / rischio |
+| Gruppo | Route | Decisione |
 |---|---:|---|
-| `admin-portale` | 205 | **Quasi tutto il debito.** UI di amministrazione: molti endpoint API/HTMX interni. Da affrontare a blocchi, con cautela. |
-| `automazioni` | 25 | Endpoint designer/HTMX residui. |
-| `attrezzature` | 18 | Azioni/API residue. |
-| `fornitori` | 14 | Azioni/API residue. |
-| `api` | 7 | Endpoint sparsi: valutare singolarmente. |
-| `assistente-ai` | 4 | Gating proprio: valutare se va sotto ACL. |
-| `hub` | 3 | Hub Tools / setup wizard. |
-| `2fa`, `login`, `logout`, `health`, `monitoring`, `approval-actions`, `coming`, `anomalie` | 1–3 ciascuno | **Superfici speciali / tecniche.** Vedi sotto. |
+| `admin-portale` | 77 | **Lasciare gated su admin.** Area di amministrazione, solo-admin per design. |
+| `api/notifiche/*`, `api/table-prefs` | 4 | **Per ogni utente autenticato** (notifiche personali, preferenze tabella). Bindarle a un permesso le romperebbe. Escludere. |
+| `assistente-ai/*` | 4 | **Gating proprio** (governance AI, consensi, tool ACL — vedi `13_AI_GOVERNANCE.md`). Fuori dall'ACL route-binding standard. |
+| `hub/home/*` | 3 | **Home personale per ogni autenticato.** Escludere. |
+| `2fa`, `login`, `logout`, `health`, `coming`, `monitoring`, `approval-actions` | ~8 | **Superfici tecniche / a token / auth.** Non si migrano (vedi sotto). |
 
-Moduli di dominio HR/operativi (`tickets`, `dpi`, `tasks`, `assets`, `anagrafica`,
-`timbri`, `diario-preposto`, `rilevazione-incidenti`): **0 route unbound** — già canonici.
+Nessuna di queste va trasformata in `RoutePermissionBinding` con permesso di modulo:
+sono o "accessibili a ogni utente loggato" o con gating dedicato. Forzare un binding
+introdurrebbe **regressioni** (utenti che perdono notifiche, home, AI).
 
 ### Superfici da NON migrare automaticamente
 - **`approval-actions/` e `automazioni/approvazione/`**: superfici a token, gating dedicato (vedi `CLAUDE.md` → Security Boundaries). Non trattare come route ACL normali.
