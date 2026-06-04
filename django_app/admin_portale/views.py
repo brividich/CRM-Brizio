@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from io import BytesIO, StringIO
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 
 from django.apps import apps as django_apps
 from django.conf import settings
@@ -7108,6 +7108,26 @@ def api_anagrafica_risposte_save(request, user_id: int):
 @legacy_admin_required
 @require_GET
 def permessi(request):
+    # Fase 3 dismissione legacy: la gestione permessi e' consolidata su una
+    # sola schermata canonica (/admin-portale/acl-canonico/). La vecchia UI
+    # legacy mostrava permessi che — sui moduli con binding canonico — non
+    # hanno effetto a runtime, generando confusione (caso a.astarita). Qui
+    # reindirizziamo, preservando ruolo/utente selezionato. Il corpo legacy
+    # resta sotto come rete di sicurezza, riattivabile con
+    # ACL_LEGACY_PERMESSI_UI_ENABLED=True finche' la migrazione non e' chiusa.
+    if not getattr(settings, "ACL_LEGACY_PERMESSI_UI_ENABLED", False):
+        params = {}
+        ruolo_id = _int_or_none(request.GET.get("ruolo_id"))
+        user_id = _int_or_none(request.GET.get("user_id"))
+        if ruolo_id is not None:
+            params["role_id"] = str(ruolo_id)
+        if user_id is not None:
+            params["selected_user_id"] = str(user_id)
+        url = reverse("admin_portale:acl_canonico")
+        if params:
+            url = f"{url}?{urlencode(params)}"
+        return redirect(url)
+
     roles = _role_choices()
     users = list(UtenteLegacy.objects.order_by("nome", "id"))
     target_type = request.GET.get("target_type", "role")  # "role" | "user"

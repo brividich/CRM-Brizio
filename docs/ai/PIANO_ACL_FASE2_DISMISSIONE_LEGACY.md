@@ -194,11 +194,47 @@ python django_app\manage.py acl_fallback_report --only-unbound --settings=config
 
 ---
 
-## Fase 3 (futura, NON in questo piano)
+## Fase 3 — Spegnere il fallback e consolidare la UI (in corso, 2026-06-04)
 
-Solo quando `acl_fallback_report --only-unbound` è a zero (route applicative):
-- Spegnere il ramo di fallback legacy in `core/acl_v2.py` (`resolve_acl_access`).
-- Rendere read-only / dismettere la UI permessi legacy (`/admin-portale/permessi/`).
+**Buona notizia: il meccanismo di spegnimento esiste già e non richiede di
+riscrivere `acl_v2.py`.** Due flag governano la transizione (già nel codice):
+
+- `ACL_STRICT_CANONICAL` (default False) — quando True, ogni route senza
+  binding canonico viene **negata** invece di consultare i permessi legacy
+  (kill switch del fallback, applicato in `core/middleware.py`).
+- `ACL_LOG_LEGACY_FALLBACK` (default True) — logga ogni uso reale del fallback.
+
+### 1. Misura di prontezza (fatto su dev)
+
+Nuovo comando **`acl_strict_readiness`**: per ogni ruolo simula tutte le route
+e conta gli accessi **consentiti solo via fallback legacy** (quelli che strict
+romperebbe).
+
+```powershell
+python django_app\manage.py acl_strict_readiness --settings=config.settings.<env>
+```
+
+Risultato su **dev** (2026-06-04): **0 route via fallback su tutti i 6 ruoli**.
+→ strict-mode non introduce regressioni. **Ripetere la misura su prod** (più
+dati/grant) prima dell'attivazione definitiva.
+
+### 2. Attivazione strict (decisione operativa, via .env)
+
+Quando la misura su prod conferma 0:
+1. `ACL_STRICT_CANONICAL=True` prima in UAT, poi in prod (reversibile: è .env).
+2. Tenere `ACL_LOG_LEGACY_FALLBACK=True` per cogliere eventuali deny imprevisti.
+3. Riciclare App Pool/IIS.
+
+### 3. Consolidamento UI permessi (fatto)
+
+La vecchia pagina `/admin-portale/permessi/` ora **reindirizza** a
+`/admin-portale/acl-canonico/` (schermata unica), preservando ruolo/utente
+selezionato. Il corpo legacy resta nel codice come rete di sicurezza,
+riattivabile con `ACL_LEGACY_PERMESSI_UI_ENABLED=True`.
+
+### 4. Pulizia codice (futura, dopo un periodo di strict stabile in prod)
+
+- Rimuovere il ramo di fallback in `resolve_acl_access` + il corpo legacy di `permessi`.
 - Pianificare la dismissione della tabella legacy `permessi`.
 
 A quel punto il doppio sistema **non esiste più**: un solo posto di gestione.

@@ -3967,6 +3967,36 @@ class GuestPortalSsoHardeningTests(TestCase):
 
 
 @override_settings(SECURE_SSL_REDIRECT=False)
+class AdminPortalePermessiRedirectTests(TestCase):
+    """Fase 3: la vecchia UI permessi legacy reindirizza alla schermata canonica."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="perm-redirect-admin", email="rdr@test.local", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+    def test_permessi_redirects_to_acl_canonico_by_default(self):
+        resp = self.client.get(reverse("admin_portale:permessi"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("admin_portale:acl_canonico"), resp.url)
+
+    def test_permessi_preserves_role_and_user_params(self):
+        resp = self.client.get(
+            reverse("admin_portale:permessi"), {"ruolo_id": "6", "user_id": "143"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("role_id=6", resp.url)
+        self.assertIn("selected_user_id=143", resp.url)
+
+    @override_settings(ACL_LEGACY_PERMESSI_UI_ENABLED=True)
+    def test_legacy_ui_still_reachable_when_flag_enabled(self):
+        _ensure_pulsanti_table()
+        _ensure_permessi_table()
+        resp = self.client.get(reverse("admin_portale:permessi"))
+        self.assertEqual(resp.status_code, 200)
+
+
 class AdminPortaleLegacyWriteGuardTests(TestCase):
     """Gli endpoint di scrittura permessi LEGACY devono rifiutare i moduli canonici."""
 

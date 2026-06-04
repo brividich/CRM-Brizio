@@ -2314,6 +2314,23 @@ class AclFallbackReportPrefixBindingTests(TestCase):
         )
 
 
+class AclStrictReadinessCommandTests(TestCase):
+    def test_readiness_runs_and_reports_json(self):
+        from django.core.management import call_command
+        from io import StringIO
+        from core.legacy_models import Ruolo
+
+        # Il comando itera i ruoli legacy: serve almeno un ruolo per produrre JSON.
+        Ruolo.objects.create(id=6, nome="utente")
+
+        out = StringIO()
+        call_command("acl_strict_readiness", "--role", "utente", "--format", "json", stdout=out)
+        data = json.loads(out.getvalue())
+        self.assertIn("routes_checked", data)
+        self.assertIn("fallback_allowed_total", data)
+        self.assertIn("by_role", data)
+
+
 class AclFallbackReportNamespaceTests(TestCase):
     """Le route con namespace (es. 'fornitori:fornitore_create') devono essere
     confrontate con i binding usando il nome namespaced, come fa il middleware
