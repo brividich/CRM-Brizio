@@ -32,7 +32,7 @@ Pillow>=12.0                    # elaborazione immagini (upload, fotocard)
 
 # --- MIME validation (upload hardening) ---
 python-magic-bin>=0.4.14; platform_system=="Windows"
-python-magic>=0.4.14; platform_system!="Windows"
+python-magic>=0.4.27; platform_system!="Windows"
 
 # --- 2FA ---
 pyotp>=2.9                      # TOTP/HOTP per app authenticator
