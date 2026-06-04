@@ -22,6 +22,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [12_AI_RUNTIME_TOOLS_TODOLIST.md](12_AI_RUNTIME_TOOLS_TODOLIST.md) | Piano dettagliato per estendere l'Assistente AI ai dati live del portale con tool runtime, ACL e audit metadata-only. |
 | [13_AI_GOVERNANCE.md](13_AI_GOVERNANCE.md) | Governance AI Fase 5: matrice campi consentiti/vietati per modulo, policy retention audit e FAQ, prompt di sistema, runbook operativo. |
 | [PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md](PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md) | Piano operativo per chiudere il doppio sistema ACL (legacy+canonico): moduli interessati, procedura per modulo, trappola dei filtri `--app`/`--apps`, ordine e rischi. Autosufficiente per una nuova sessione. |
+| [CHECKLIST_ATTIVAZIONE_ACL_STRICT_PROD.md](CHECKLIST_ATTIVAZIONE_ACL_STRICT_PROD.md) | Checklist operativa per attivare `ACL_STRICT_CANONICAL` in prod (misura readiness, UAT, prod, rollback) e per la pulizia del codice legacy (≥ 2026-06-19). |
 
 ## Rule Of Thumb
 
