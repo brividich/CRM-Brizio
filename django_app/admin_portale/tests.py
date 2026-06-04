@@ -3965,3 +3965,111 @@ class GuestPortalSsoHardeningTests(TestCase):
         self.assertNotIn("gp_autosubmit", response.context)
         self.assertNotContains(response, "gp-auto-form")
 
+
+@override_settings(SECURE_SSL_REDIRECT=False)
+class AdminPortaleLegacyWriteGuardTests(TestCase):
+    """Gli endpoint di scrittura permessi LEGACY devono rifiutare i moduli canonici."""
+
+    def setUp(self):
+        _ensure_pulsanti_table()
+        _ensure_permessi_table()
+        _clear_acl_navigation_seed_tables()
+
+        self.admin = User.objects.create_superuser(
+            username="acl-guard-admin", email="guard@test.local", password="pass12345",
+        )
+        self.client.force_login(self.admin)
+
+        # Modulo canonico: ha un RoutePermissionBinding attivo con source_app="tickets".
+        self.perm = PermissionDefinition.objects.create(
+            code="legacy.tickets.tickets_dashboard", label="Tickets dashboard",
+            module="tickets", is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="", path_pattern="/tickets",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id=self.perm.code, source_app="tickets",
+            priority=100, is_active=True,
+        )
+        # Pulsante legacy del modulo canonico (per il modulo-set).
+        Pulsante.objects.create(
+            codice="tickets_dashboard", nome_visibile="Dashboard ticket",
+            modulo="tickets", url="/tickets",
+        )
+        # Modulo NON canonico (nessun binding): scrittura legacy ancora consentita.
+        Pulsante.objects.create(
+            codice="legacy_only_action", nome_visibile="Azione legacy",
+            modulo="moduolegacy", url="/moduolegacy",
+        )
+
+    def test_modulo_set_blocked_on_canonical_module(self):
+        resp = self.client.post(
+            reverse("admin_portale:api_permessi_modulo_set"),
+            data=json.dumps({"ruolo_id": 6, "modulo": "tickets", "can_view": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 409)
+        self.assertFalse(resp.json().get("ok"))
+        # Nessun permesso legacy scritto per il modulo canonico.
+        self.assertFalse(Permesso.objects.filter(modulo__iexact="tickets").exists())
+
+    def test_toggle_blocked_on_canonical_module(self):
+        resp = self.client.post(
+            reverse("admin_portale:api_permessi_toggle"),
+            data=json.dumps({
+                "ruolo_id": 6, "modulo": "tickets",
+                "azione": "tickets_dashboard", "field": "can_view", "value": 1,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 409)
+
+    def test_modulo_set_allowed_on_non_canonical_module(self):
+        resp = self.client.post(
+            reverse("admin_portale:api_permessi_modulo_set"),
+            data=json.dumps({"ruolo_id": 6, "modulo": "moduolegacy", "can_view": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json().get("ok"))
+        self.assertTrue(Permesso.objects.filter(modulo__iexact="moduolegacy").exists())
+
+    def test_bulk_set_all_skips_canonical_modules(self):
+        resp = self.client.post(
+            reverse("admin_portale:api_permessi_bulk"),
+            data=json.dumps({
+                "ruolo_id": 6, "mode": "set_all", "field": "can_view", "value": 1,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body.get("ok"))
+        self.assertGreaterEqual(body.get("skipped_canonical", 0), 1)
+        # Il modulo canonico non riceve permessi legacy; quello legacy sì.
+        self.assertFalse(Permesso.objects.filter(modulo__iexact="tickets").exists())
+        self.assertTrue(Permesso.objects.filter(modulo__iexact="moduolegacy").exists())
+
+    def test_sync_legacy_grants_creates_grant_from_legacy_permission(self):
+        """Il comando travasa un permesso legacy in un grant canonico anche per route già bindate."""
+        from django.core.management import call_command
+        from io import StringIO
+
+        # Ruolo 6 ha il permesso legacy su tickets_dashboard, ma NESSUN grant canonico.
+        Permesso.objects.create(
+            modulo="tickets", azione="tickets_dashboard", ruolo_id=6,
+            can_view=1, consentito=1,
+        )
+        self.assertFalse(
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=6, permission_id=self.perm.code
+            ).exists()
+        )
+        out = StringIO()
+        call_command("acl_sync_legacy_grants", "--apply", stdout=out)
+        grant = RolePermissionGrant.objects.filter(
+            legacy_role_id=6, permission_id=self.perm.code
+        ).first()
+        self.assertIsNotNone(grant)
+        self.assertTrue(grant.enabled)
+

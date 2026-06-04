@@ -63,6 +63,19 @@
     font-size: 10px; background: #fef3c7; color: #92400e;
     border-radius: 4px; padding: 1px 5px; margin-right: 6px;
   }
+  .canonical-badge {
+    font-size: 10px; background: #e0e7ff; color: #3730a3;
+    border-radius: 4px; padding: 1px 5px; margin-right: 6px;
+    white-space: nowrap;
+  }
+  .canonical-warn {
+    font-size: 11px; line-height: 1.4; color: #3730a3;
+    background: #eef2ff; border-top: 1px solid #c7d2fe;
+    padding: 8px 14px;
+  }
+  .canonical-warn a { color: #3730a3; font-weight: 600; }
+  .perm-mod-card.is-canonical { opacity: .85; }
+  .toggle-switch.toggle-disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 
   /* Riga pulsante dentro card */
   .pulsante-perm-row {
@@ -188,7 +201,7 @@
       <div class="perm-cards-grid" id="module-perm-grid">
         {% for row in module_rows %}
           {% with details=perm_detail|get_item:row.modulo %}
-          <div class="perm-mod-card" data-modulo="{{ row.modulo }}">
+          <div class="perm-mod-card{% if row.canonical_managed %} is-canonical{% endif %}" data-modulo="{{ row.modulo }}">
             {# Head: icona + nome + badge parziale + toggle modulo #}
             <div class="perm-mod-head">
               <div class="perm-mod-head-left">
@@ -199,20 +212,34 @@
                 </div>
               </div>
               <div class="perm-mod-head-right">
+                {% if row.canonical_managed %}
+                  <span class="canonical-badge" title="Questo modulo è governato dall'ACL canonico (v2): i permessi legacy qui sotto sono ignorati a runtime.">ACL canonico</span>
+                {% endif %}
                 {% if row.partial %}
                   <span class="partial-badge">parziale</span>
                 {% endif %}
-                <label class="toggle-switch"
-                       title="{% if row.can_view %}Accesso concesso{% elif row.partial %}Parziale{% else %}Accesso negato{% endif %}"
+                <label class="toggle-switch{% if row.canonical_managed %} toggle-disabled{% endif %}"
+                       title="{% if row.canonical_managed %}Gestito dall'ACL canonico: modifica in /admin-portale/acl-canonico/{% elif row.can_view %}Accesso concesso{% elif row.partial %}Parziale{% else %}Accesso negato{% endif %}"
                        onclick="event.stopPropagation()">
                   <input type="checkbox"
                          class="module-toggle"
                          data-modulo="{{ row.modulo }}"
-                         {% if row.can_view %}checked{% endif %}>
+                         {% if row.can_view %}checked{% endif %}
+                         {% if row.canonical_managed %}disabled{% endif %}>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
             </div>
+            {% if row.canonical_managed %}
+              <div class="canonical-warn">
+                ⚠ Modulo governato dall'<strong>ACL canonico (v2)</strong>: i permessi legacy
+                qui sotto <strong>non hanno effetto</strong> a runtime.
+                Gestisci gli accessi da
+                <a href="{% url 'admin_portale:acl_canonico' %}?role_id={{ selected_role_id }}">ACL canonico</a>.
+                Per diagnosticare un caso specifico:
+                <a href="{% url 'admin_portale:acl_diagnostica' %}">ACL diagnostica</a>.
+              </div>
+            {% endif %}
             {# Body: lista pulsanti #}
             <div class="perm-mod-body">
               {% for prow in details %}
@@ -223,12 +250,13 @@
                     {{ prow.label }}
                     <span class="pulsante-azione">{{ prow.azione }}</span>
                   </div>
-                  <label class="toggle-switch" onclick="event.stopPropagation()">
+                  <label class="toggle-switch{% if row.canonical_managed %} toggle-disabled{% endif %}" onclick="event.stopPropagation()">
                     <input type="checkbox"
                            class="pulsante-toggle"
                            data-modulo="{{ row.modulo }}"
                            data-azione="{{ prow.azione }}"
-                           {% if prow.can_view %}checked{% endif %}>
+                           {% if prow.can_view %}checked{% endif %}
+                           {% if row.canonical_managed %}disabled{% endif %}>
                     <span class="toggle-slider"></span>
                   </label>
                 </div>

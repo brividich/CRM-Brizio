@@ -3030,6 +3030,43 @@ class ModuloPermRow:
     pulsanti_count: int
     can_view: bool   # True se TUTTI i pulsanti del modulo hanno can_view=1
     partial: bool    # True se SOLO ALCUNI hanno can_view=1 (stato misto)
+    # True se il modulo ha almeno un RoutePermissionBinding canonico attivo: in tal
+    # caso i permessi legacy mostrati qui sono IGNORATI a runtime (decide l'ACL v2).
+    canonical_managed: bool = False
+
+
+def _canonical_managed_modules() -> set[str]:
+    """Moduli (lowercase) con almeno un RoutePermissionBinding canonico attivo.
+
+    Per questi moduli la decisione ACL passa per i grant canonici (ACL v2) e i
+    permessi della tabella legacy sono ignorati a runtime — vedi core.acl_v2.
+    """
+    try:
+        return {
+            (b.source_app or "").strip().lower()
+            for b in RoutePermissionBinding.objects.filter(is_active=True)
+            if (b.source_app or "").strip()
+        }
+    except DatabaseError:
+        return set()
+
+
+def _canonical_module_write_block(modulo: str):
+    """Restituisce una JsonResponse 409 se il modulo è governato dall'ACL canonico.
+
+    Difesa server-side per gli endpoint di scrittura permessi LEGACY: su un modulo
+    con binding canonico attivo la scrittura legacy è inefficace a runtime (vedi
+    core.acl_v2) e va impedita per non illudere l'admin. Ritorna None se consentito.
+    """
+    mod = (modulo or "").strip().lower()
+    if mod and mod in _canonical_managed_modules():
+        return _json_error(
+            f"Il modulo '{modulo}' è governato dall'ACL canonico (v2): i permessi "
+            "legacy qui non hanno effetto. Gestisci gli accessi in "
+            "/admin-portale/acl-canonico/.",
+            status=409,
+        )
+    return None
 
 
 def _aggregate_to_module_rows(rows: list[PermRow]) -> list[ModuloPermRow]:
@@ -3038,6 +3075,7 @@ def _aggregate_to_module_rows(rows: list[PermRow]) -> list[ModuloPermRow]:
     for row in rows:
         key = (row.modulo or "").strip() or "N/D"
         module_map.setdefault(key, []).append(row)
+    canonical_modules = _canonical_managed_modules()
     result = []
     for modulo, module_rows in sorted(module_map.items(), key=lambda x: x[0].lower()):
         can_views = [bool(row.values.get("can_view", 0)) for row in module_rows]
@@ -3048,6 +3086,7 @@ def _aggregate_to_module_rows(rows: list[PermRow]) -> list[ModuloPermRow]:
             pulsanti_count=len(module_rows),
             can_view=all_on,
             partial=any_on and not all_on,
+            canonical_managed=modulo.strip().lower() in canonical_modules,
         ))
     return result
 
@@ -8184,6 +8223,9 @@ def api_permessi_toggle(request):
     allowed_fields = set(_perm_flag_names())
     if field not in allowed_fields:
         return _json_error("Campo non consentito.")
+    blocked = _canonical_module_write_block(parsed[1])
+    if blocked is not None:
+        return blocked
     value = _bool_from_any(payload.get("value"))
 
     try:
@@ -8350,8 +8392,15 @@ def api_permessi_bulk(request):
                 target_value = _bool_from_any(payload.get("value"))
                 if target_field and target_field not in allowed_fields:
                     return _json_error("Campo bulk non consentito.")
+                # I moduli governati dall'ACL canonico non sono scrivibili lato legacy:
+                # il bulk salta quei moduli per non illudere l'admin (vedi core.acl_v2).
+                canonical_modules = _canonical_managed_modules()
                 affected = 0
+                skipped_canonical = 0
                 for modulo, azione in _pulsanti_acl_keys():
+                    if (modulo or "").strip().lower() in canonical_modules:
+                        skipped_canonical += 1
+                        continue
                     perm = _get_or_create_permesso(ruolo_id, modulo, azione)
                     changed_fields: list[str] = []
                     fields_to_apply = [target_field] if target_field else allowed_fields
@@ -8372,8 +8421,13 @@ def api_permessi_bulk(request):
                     "field": target_field or "(all)",
                     "value": target_value,
                     "affected": affected,
+                    "skipped_canonical": skipped_canonical,
                 })
-                return JsonResponse({"ok": True, "affected": affected})
+                return JsonResponse({
+                    "ok": True,
+                    "affected": affected,
+                    "skipped_canonical": skipped_canonical,
+                })
 
             if mode == "reset_role":
                 deleted, _ = Permesso.objects.filter(ruolo_id=ruolo_id).delete()
@@ -8933,6 +8987,9 @@ def api_permessi_modulo_set(request):
     can_view = _bool_from_any(payload.get("can_view"))
     if ruolo_id is None or not modulo:
         return _json_error("Parametri non validi.")
+    blocked = _canonical_module_write_block(modulo)
+    if blocked is not None:
+        return blocked
     acl_keys = [(m, a) for m, a in _pulsanti_acl_keys() if m.lower() == modulo.lower()]
     if not acl_keys:
         return _json_error("Nessun pulsante trovato per il modulo indicato.", status=404)
@@ -8967,6 +9024,9 @@ def api_user_modulo_perm_set(request, user_id: int):
     can_view_raw = payload.get("can_view")  # true / false / null
     if not modulo:
         return _json_error("Parametri non validi.")
+    blocked = _canonical_module_write_block(modulo)
+    if blocked is not None:
+        return blocked
     can_view = None if can_view_raw is None else _bool_from_any(can_view_raw)
     acl_keys = [(m, a) for m, a in _pulsanti_acl_keys() if m.lower() == modulo.lower()]
     try:
