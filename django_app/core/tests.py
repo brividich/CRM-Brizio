@@ -2250,6 +2250,70 @@ class ValidateDeploymentSecurityChecksTests(SimpleTestCase):
         self.assertEqual(results["SQL_LOG_ENABLED"].severity, "WARN")
 
 
+class RoutePatternToPathTests(SimpleTestCase):
+    """Conversione pattern URL -> path concreto per il match dei binding."""
+
+    def test_django_converters_are_replaced(self):
+        from core.management.commands.acl_fallback_report import route_pattern_to_path
+
+        self.assertEqual(route_pattern_to_path("tickets/<int:pk>/"), "/tickets/_/")
+        self.assertEqual(
+            route_pattern_to_path("rilevazione-incidenti/<str:sp_id>/pdf/"),
+            "/rilevazione-incidenti/_/pdf/",
+        )
+
+    def test_leading_caret_and_slash_normalized(self):
+        from core.management.commands.acl_fallback_report import route_pattern_to_path
+
+        self.assertEqual(route_pattern_to_path("^assets/lista/$"), "/assets/lista/")
+        self.assertTrue(route_pattern_to_path("tickets/").startswith("/"))
+
+
+class AclFallbackReportPrefixBindingTests(TestCase):
+    """Una route coperta solo da binding PREFIX (senza route_name) non deve
+    risultare 'unbound': il report deve usare la stessa logica di matching del
+    middleware (route_name + path prefix/regex), non il solo route_name.
+    """
+
+    def test_prefix_binding_without_route_name_counts_as_bound(self):
+        from django.core.management import call_command
+        from io import StringIO
+        from core.models import PermissionDefinition, RoutePermissionBinding
+
+        # Prendo una route applicativa reale e la copro con un binding PREFIX
+        # sul suo path, lasciando route_name vuoto.
+        probe_out = StringIO()
+        call_command("acl_fallback_report", "--only-unbound", "--format", "json", stdout=probe_out)
+        unbound = json.loads(probe_out.getvalue())["routes"]
+        target = next(
+            (r for r in unbound if r["pattern"].lstrip("^/").startswith("tickets/")),
+            None,
+        )
+        if target is None:
+            self.skipTest("nessuna route tickets unbound disponibile come probe")
+
+        from core.management.commands.acl_fallback_report import route_pattern_to_path
+        path_norm = route_pattern_to_path(target["pattern"]).rstrip("/") or "/"
+
+        perm = PermissionDefinition.objects.create(
+            code="test.prefix.probe", module="tickets",
+            label="Test prefix probe", is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="", path_pattern=path_norm,
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission=perm, is_active=True,
+        )
+
+        after_out = StringIO()
+        call_command("acl_fallback_report", "--only-unbound", "--format", "json", stdout=after_out)
+        still_unbound = json.loads(after_out.getvalue())["routes"]
+        self.assertFalse(
+            any(r["pattern"] == target["pattern"] for r in still_unbound),
+            msg="La route coperta da binding prefix risulta ancora unbound",
+        )
+
+
 class AclFallbackReportAdminExclusionTests(SimpleTestCase):
     """L'esclusione delle route del Django admin dal report di copertura ACL.
 

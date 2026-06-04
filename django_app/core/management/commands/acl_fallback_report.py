@@ -26,6 +26,28 @@ from django.urls import get_resolver
 from core.models import PermissionDefinition, RoutePermissionBinding
 
 
+def route_pattern_to_path(pattern: str) -> str:
+    """Path concreto e normalizzato da un pattern URL, per il match dei binding.
+
+    I pattern delle route contengono converter Django (`<str:sp_id>`, `<int:id>`)
+    o gruppi regex; i binding path-based sono path concreti. Sostituiamo i
+    segnaposto con un token cosi' il match `prefix` (la maggioranza dei binding
+    path-based) funziona: il prefisso del modulo non contiene il segnaposto.
+    """
+    import re as _re
+
+    p = (pattern or "").lstrip("^").strip()
+    # Converter Django: <int:id>, <str:sp_id>, <slug:x>, <uuid:x>, <path:x>
+    p = _re.sub(r"<[^>]+>", "_", p)
+    # Gruppi regex nominati/anonimi residui
+    p = _re.sub(r"\(\?P<[^>]+>[^)]*\)", "_", p)
+    p = _re.sub(r"\([^)]*\)", "_", p)
+    p = p.rstrip("$")
+    if not p.startswith("/"):
+        p = "/" + p
+    return p
+
+
 def is_django_admin_route(pattern: str) -> bool:
     """True se la route appartiene al Django admin contrib (montato su 'admin/').
 
@@ -69,14 +91,16 @@ class Command(BaseCommand):
         include_admin = bool(opts.get("include_admin"))
         fmt = opts.get("format") or "text"
 
-        bindings = {
-            (b.route_name or "").strip(): b
-            for b in RoutePermissionBinding.objects.select_related("permission").all()
-            if (b.route_name or "").strip()
-        }
+        # Riusiamo la logica di matching reale del middleware: considera sia i
+        # binding per route_name (exact) sia quelli path-based (prefix/regex,
+        # spesso senza route_name). Il lookup precedente per solo route_name
+        # ignorava i binding prefix e produceva centinaia di falsi "unbound".
+        from core.acl_v2 import _find_canonical_binding
+
         permissions = {
             p.code: p for p in PermissionDefinition.objects.all()
         }
+        total_bindings_active = RoutePermissionBinding.objects.filter(is_active=True).count()
 
         resolver = get_resolver()
         routes: list[dict] = []
@@ -92,7 +116,10 @@ class Command(BaseCommand):
             app = name.split(":")[0] if ":" in name else "_"
             if app_filter and app_filter not in app:
                 continue
-            binding = bindings.get(name)
+            path_norm = route_pattern_to_path(r["pattern"])
+            binding, matched_by = _find_canonical_binding(
+                route_name=name, path_norm=path_norm,
+            )
             status = "UNBOUND"
             perm_code = ""
             perm_active = None
@@ -105,12 +132,13 @@ class Command(BaseCommand):
             by_app[app].append({
                 "name": name, "pattern": r["pattern"], "status": status,
                 "permission_code": perm_code, "permission_active": perm_active,
+                "matched_by": matched_by,
             })
 
         summary = {
             "total_routes": sum(len(v) for v in by_app.values()),
             "total_permissions": len(permissions),
-            "total_bindings": len(bindings),
+            "total_bindings": total_bindings_active,
             "excluded_django_admin": excluded_admin,
             "by_app": {},
         }

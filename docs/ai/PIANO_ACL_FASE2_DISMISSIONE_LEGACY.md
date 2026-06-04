@@ -76,40 +76,44 @@ la Fase 3 (futura) rimuove il codice legacy.
 
 ## Stato di partenza (misurato su dev, 2026-06-04)
 
-- **837 route applicative** (596 route Django admin escluse: fuori perimetro, protette da `is_staff`).
-- **705 route ancora unbound** = il debito reale della Fase 2.
-- **616 binding canonici attivi** già presenti (47 moduli con copertura ≥ parziale).
+> ⚠️ **Revisione importante (stessa data):** la prima stima parlava di "705 route unbound".
+> Era **gonfiata da un bug del report**: `acl_fallback_report` cercava i binding solo per
+> `route_name`, ignorando i **184 binding path-based** (`match_strategy=prefix`, senza
+> route_name). Il report ora riusa `core.acl_v2._find_canonical_binding` (la stessa logica
+> del middleware) e conta anche i binding prefix/regex. **Numero reale: 288 unbound.**
 
-Comando di misura (dopo la patch Fase 1):
+- **837 route applicative** (596 route Django admin escluse: fuori perimetro, protette da `is_staff`).
+- **288 route realmente unbound** = il debito reale della Fase 2 (non 705).
+- **457 binding canonici attivi** (273 per route_name + 184 path-based prefix).
+- **I moduli di dominio sono già coperti** via binding prefix: `tickets`, `dpi`, `tasks`,
+  `assets`, `anagrafica`, `timbri`, `diario-preposto`, `rilevazione-incidenti` **non**
+  hanno più route unbound. Il caso a.astarita non era "binding mancante" ma **grant di
+  ruolo mancante** → si risolve con `acl_sync_legacy_grants`, non con nuovi binding.
+
+Comando di misura (dopo la patch Fase 1, commit successivi al doc iniziale):
 ```powershell
 python django_app\manage.py acl_fallback_report --only-unbound --settings=config.settings.<env>
 ```
 
 ---
 
-## Moduli interessati
+## Moduli interessati (288 unbound reali)
 
-Route unbound per prefisso path, con binding già attivi (= quanto è già coperto):
+Route realmente unbound per prefisso path (binding prefix già conteggiati come coperti):
 
-| Modulo | Unbound | Binding attivi | Note / rischio |
-|---|---:|---:|---|
-| `admin-portale` | 211 | 2 | **Grosso e sensibile** (configurazione, ACL). Da ultimo. |
-| `anagrafica` | 161 | 9 | **Grosso e sensibile** (dati HR/GDPR). Da ultimo, con cautela. |
-| `assets` | 69 | 43 | Parziale (~metà). Route residue spesso API/azioni. |
-| `automazioni` | 51 | 34 | Parziale. |
-| `tasks` | 40 | 44 | Parziale (oltre metà fatto). |
-| `tickets` | 22 | 14 | Parziale. **Modulo del caso a.astarita.** |
-| `dpi` | 22 | 6 | Parziale. |
-| `attrezzature` | 18 | 18 | Parziale. |
-| `fornitori` | 14 | 14 | Parziale. |
-| `timbri` | 13 | 7 | Parziale. |
-| `diario-preposto` | 13 | 7 | Parziale, perimetro sicurezza chiaro. |
-| `rilevazione-incidenti` | 10 | 7 | Piccolo, perimetro chiaro. **Buon pilota.** |
-| `setup` | 8 | 0 | Wizard: valutare se va sotto ACL o resta gate dedicato. |
-| `api` | 7 | — | Endpoint sparsi: valutare singolarmente. |
-| `procedure-refresh` | 4 | 9 | Quasi completo. |
-| `assistente-ai` | 4 | — | Valutare (gating proprio). |
-| `hub`, `assenze`, `2fa`, `planimetria`, `monitoring`, `approval-actions` | 2–3 ciascuno | vari | **Code residue / superfici speciali.** Vedi sotto. |
+| Modulo | Unbound reali | Note / rischio |
+|---|---:|---|
+| `admin-portale` | 205 | **Quasi tutto il debito.** UI di amministrazione: molti endpoint API/HTMX interni. Da affrontare a blocchi, con cautela. |
+| `automazioni` | 25 | Endpoint designer/HTMX residui. |
+| `attrezzature` | 18 | Azioni/API residue. |
+| `fornitori` | 14 | Azioni/API residue. |
+| `api` | 7 | Endpoint sparsi: valutare singolarmente. |
+| `assistente-ai` | 4 | Gating proprio: valutare se va sotto ACL. |
+| `hub` | 3 | Hub Tools / setup wizard. |
+| `2fa`, `login`, `logout`, `health`, `monitoring`, `approval-actions`, `coming`, `anomalie` | 1–3 ciascuno | **Superfici speciali / tecniche.** Vedi sotto. |
+
+Moduli di dominio HR/operativi (`tickets`, `dpi`, `tasks`, `assets`, `anagrafica`,
+`timbri`, `diario-preposto`, `rilevazione-incidenti`): **0 route unbound** — già canonici.
 
 ### Superfici da NON migrare automaticamente
 - **`approval-actions/` e `automazioni/approvazione/`**: superfici a token, gating dedicato (vedi `CLAUDE.md` → Security Boundaries). Non trattare come route ACL normali.
@@ -120,14 +124,25 @@ Route unbound per prefisso path, con binding già attivi (= quanto è già coper
 
 ## Ordine consigliato
 
-1. **Pilota** (basso rischio, piccolo, perimetro chiaro): `rilevazione-incidenti` **oppure** `diario-preposto`.
-2. **Completamento parziali** (hanno già binding, restano azioni/API): `tickets` → `dpi` → `timbri` → `attrezzature` → `fornitori` → `procedure-refresh`.
-3. **Parziali medi**: `tasks` → `automazioni` → `assets`.
-4. **Superfici speciali**: decidere esclusioni esplicite (`approval-actions`, `2fa`, `setup`, `monitoring`, `api` sparse).
-5. **Grossi e sensibili, per ultimi, con review dedicata**: `anagrafica` (GDPR) e `admin-portale`.
+Dato che i moduli di dominio sono già coperti, il debito reale (288) è concentrato e
+diverso da quanto si pensava. Ordine aggiornato:
 
-Razionale: validare il flusso su moduli piccoli, accumulare fiducia, lasciare i moduli a
-rischio GDPR/configurazione quando il processo è collaudato.
+1. **Pilota** (basso rischio, piccolo): `attrezzature` (18) **oppure** `fornitori` (14) —
+   azioni/API residue, modulo già quasi completo, perimetro chiaro.
+2. **Code medie**: `automazioni` (25, endpoint designer/HTMX), `api` (7), `assistente-ai` (4), `hub` (3).
+3. **Superfici speciali**: decidere **esclusioni esplicite** (non binding) per
+   `approval-actions`, `2fa`, `login`, `logout`, `health`, `monitoring`, `coming`.
+4. **Blocco grosso, per ultimo, con review dedicata**: `admin-portale` (205). È la UI di
+   amministrazione: molti endpoint API/HTMX interni. Valutare se richiedono binding granulari
+   o se basta un binding prefix `/admin-portale/` gated sul permesso admin. **Decisione di
+   design da prendere prima di toccarlo**, non meccanica.
+
+Nota: `anagrafica` non è più nella lista (0 unbound). Il rischio GDPR resta sui **grant**,
+non sui binding.
+
+Razionale: validare il flusso su moduli piccoli, accumulare fiducia, lasciare il blocco
+`admin-portale` (che vale da solo il 70% del debito) quando il processo è collaudato e dopo
+una decisione esplicita sul livello di granularità.
 
 ---
 
