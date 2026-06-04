@@ -21,6 +21,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [11_FEATURE_BACKLOG.md](11_FEATURE_BACKLOG.md) | Backlog funzionalità pianificate (competitive analysis). Checklist di avanzamento per modulo con priorità e note tecniche. |
 | [12_AI_RUNTIME_TOOLS_TODOLIST.md](12_AI_RUNTIME_TOOLS_TODOLIST.md) | Piano dettagliato per estendere l'Assistente AI ai dati live del portale con tool runtime, ACL e audit metadata-only. |
 | [13_AI_GOVERNANCE.md](13_AI_GOVERNANCE.md) | Governance AI Fase 5: matrice campi consentiti/vietati per modulo, policy retention audit e FAQ, prompt di sistema, runbook operativo. |
+| [PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md](PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md) | Piano operativo per chiudere il doppio sistema ACL (legacy+canonico): moduli interessati, procedura per modulo, trappola dei filtri `--app`/`--apps`, ordine e rischi. Autosufficiente per una nuova sessione. |
 
 ## Rule Of Thumb
 
