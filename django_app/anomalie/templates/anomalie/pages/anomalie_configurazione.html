@@ -188,9 +188,9 @@
         <ul id="capi_reparto_list" class="field-readonly-list"></ul>
       </div>
       <div class="field">
-        <label for="capi_commessa">Capi commessa</label>
-        <small>Lista suggerimenti per il campo Capocommessa.</small>
-        <textarea id="capi_commessa" class="input" spellcheck="false"></textarea>
+        <label>Capi commessa</label>
+        <small>Derivato automaticamente dai dipendenti con <strong>ruolo aziendale &laquo;Capocommessa&raquo;</strong> in Anagrafica. Per aggiornare questa lista, modifica il ruolo aziendale del dipendente.</small>
+        <ul id="capi_commessa_list" class="field-readonly-list"></ul>
       </div>
       <div class="field">
         <label for="causali_doc">Scelte Causale documento</label>
@@ -244,7 +244,7 @@
   </div>
 {% endif %}
 
-{# ── SUB-TAB RUOLI OPERATIVI ── #}
+{# ── SUB-TAB RUOLI OPERATIVI (sola lettura: fonte unica = Anagrafica) ── #}
 {% if tab == 'permessi' and permessi_sub == 'ruoli' %}
   <div class="card">
     <div class="card-head">
@@ -252,82 +252,61 @@
       <div style="display:flex;gap:12px;font-size:var(--fs-sm);color:var(--text-light);font-weight:700;">
         <span>{{ ruoli_stats.roles }} ruoli</span>
         <span>{{ ruoli_stats.assignments }} assegnazioni</span>
-        <span>{{ ruoli_stats.total_users }} utenti attivi</span>
+        <span>{{ ruoli_stats.total_users }} utenti</span>
       </div>
     </div>
     <div class="card-body">
-      <p style="color:var(--text-mid);line-height:1.45;margin-bottom:14px;">
-        I ruoli di sistema <strong>Capocommessa</strong> e <strong>CAR/Incaricato</strong> vengono riconosciuti dai campi dell'OP.
-        I ruoli custom valgono per gli utenti assegnati qui e possono ricevere regole globali nel sub-tab Accessi.
-      </p>
+      <div style="margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text-mid);line-height:1.5;">
+        <p style="margin:0 0 6px;">
+          I ruoli di sistema <strong>Capocommessa</strong> e <strong>CAR/Incaricato</strong> vengono riconosciuti dai campi dell'OP.
+          Gli altri <strong>ruoli operativi</strong> e le loro assegnazioni provengono dall'<strong>Anagrafica</strong> (fonte unica).
+        </p>
+        {% if ruoli_anagrafica_url %}
+          <a href="{{ ruoli_anagrafica_url }}" class="btn btn-sm">Gestisci ruoli e assegnazioni in Anagrafica</a>
+        {% endif %}
+      </div>
 
-      <form method="post" style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;margin-bottom:14px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="create_role">
-        <div class="field" style="gap:5px;">
-          <label>Nuovo ruolo</label>
-          <input type="text" class="input" name="role_name" maxlength="80" placeholder="Es. Qualit&agrave;">
-        </div>
-        <div class="field" style="gap:5px;">
-          <label>Descrizione</label>
-          <input type="text" class="input" name="role_description" maxlength="255" placeholder="A cosa serve questo ruolo">
-        </div>
-        <button class="btn btn-sm" type="submit" style="align-self:end;">+ Aggiungi</button>
-      </form>
+      <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Ruoli di sistema</h3>
+      <div class="table-wrap" style="margin-bottom:20px;">
+        <table class="admin-table">
+          <thead><tr><th>Ruolo</th><th>Origine</th></tr></thead>
+          <tbody>
+            {% for role in ruoli_system_rows %}
+              <tr><td style="font-weight:800;">{{ role.name }}</td><td>{{ role.description }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-      <form method="get" style="display:flex;gap:8px;margin-bottom:12px;">
-        <input type="hidden" name="tab" value="permessi">
-        <input type="hidden" name="sub" value="ruoli">
-        <input type="text" class="input input-sm" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca utente per nome, email o ruolo..." style="flex:1;">
-        <button type="submit" class="btn btn-sm">Filtra</button>
-        {% if ruoli_filter_q %}<a href="?tab=permessi&amp;sub=ruoli" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
-      </form>
-
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_roles">
-        <input type="hidden" name="q_user" value="{{ ruoli_filter_q }}">
-        <input type="hidden" name="role_code" value="">
-        <div class="table-wrap">
-          <table class="admin-table" style="min-width:760px;">
-            <thead>
+      <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Ruoli operativi da Anagrafica</h3>
+      <div class="table-wrap">
+        <table class="admin-table" style="min-width:640px;">
+          <thead>
+            <tr><th>Ruolo</th><th>Descrizione</th><th>Utenti assegnati</th></tr>
+          </thead>
+          <tbody>
+            {% for role in ruoli_catalog_rows %}
               <tr>
-                <th>Utente</th>
-                <th>Email</th>
-                {% for role in ruoli_role_definitions %}
-                  <th style="text-align:center;">
-                    {{ role.name }}
-                    {% if not role.is_system %}
-                      <button type="submit" name="action" value="delete_role"
-                        onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni e regole accesso.');"
-                        style="display:block;margin:4px auto 0;border:0;background:transparent;color:var(--danger);font-size:var(--fs-xs);font-weight:800;cursor:pointer;">elimina</button>
-                    {% endif %}
-                  </th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in ruoli_roster %}
-                <tr>
-                  <td style="font-weight:800;">
-                    {{ row.label }}
-                    <input type="hidden" name="visible_user_id" value="{{ row.id }}">
-                  </td>
-                  <td>{{ row.email|default:"-" }}</td>
-                  {% for cell in row.role_cells %}
-                    <td style="text-align:center;"><input type="checkbox" name="role__{{ cell.code }}__{{ row.id }}" {% if cell.checked %}checked{% endif %}></td>
+                <td style="font-weight:800;">
+                  {% if role.icona %}{{ role.icona }} {% endif %}{{ role.name }}
+                </td>
+                <td>{{ role.description|default:"&mdash;" }}</td>
+                <td>
+                  {% for u in role.users %}
+                    <span class="badge">{{ u.label }}</span>
+                  {% empty %}
+                    <span class="cell-muted">Nessun utente assegnato</span>
                   {% endfor %}
-                </tr>
-              {% empty %}
-                <tr><td colspan="{{ ruoli_colspan }}" class="cell-muted" style="text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div style="display:flex;justify-content:flex-end;padding:14px 0 0;">
-          <button class="btn" type="submit">Salva ruoli operativi</button>
-        </div>
-      </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="cell-muted" style="text-align:center;padding:24px;">
+                Nessun ruolo operativo definito in Anagrafica.
+              </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 {% endif %}
@@ -367,7 +346,7 @@
         <input type="hidden" name="action" value="save_access">
         <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
 
-        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo operativo</h3>
+        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo di sistema</h3>
         <div class="table-wrap" style="margin-bottom:20px;">
           <table class="admin-table">
             <thead>
@@ -398,6 +377,49 @@
                     </select>
                   </td>
                 </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">
+          Regole per ruolo operativo (Anagrafica)
+        </h3>
+        <div class="table-wrap" style="margin-bottom:20px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Ruolo operativo</th>
+                <th>Origine</th>
+                <th>Regola accesso</th>
+                <th>Visibilit&agrave; lista OP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in access_custom_role_rows %}
+                <tr>
+                  <td style="font-weight:800;">{{ row.label }}</td>
+                  <td>{{ row.help }}</td>
+                  <td>
+                    <select name="access_custom_role__{{ row.id }}" class="ga-select">
+                      {% for value, label in access_custom_role_choices %}
+                        <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <select name="list_scope_custom_role__{{ row.id }}" class="ga-select">
+                      {% for value, label in list_scope_choices %}
+                        <option value="{{ value }}" {% if row.list_scope == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="cell-muted" style="text-align:center;padding:24px;">
+                  Nessun ruolo operativo in Anagrafica.
+                  {% if access_ruoli_anagrafica_url %}<a href="{{ access_ruoli_anagrafica_url }}">Aggiungine uno</a>.{% endif %}
+                </td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -578,14 +600,23 @@
     };
 
     const ids = [
-      "capi_commessa",
       "causali_doc",
       "stati_superficie",
       "avanzamenti",
       "autorizzati_modifica",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
-    const capiRepartoListEl = document.getElementById("capi_reparto_list");
+    // Liste derivate dall'anagrafica: sola lettura, renderizzate come elenco.
+    const derivedLists = {
+      capi_reparto: {
+        el: document.getElementById("capi_reparto_list"),
+        empty: "Nessun caporeparto assegnato in Anagrafica &rarr; Reparti",
+      },
+      capi_commessa: {
+        el: document.getElementById("capi_commessa_list"),
+        empty: "Nessun dipendente con ruolo aziendale «Capocommessa» in Anagrafica",
+      },
+    };
     const attachmentsDirEl = document.getElementById("attachments_dir");
     const statusEl = document.getElementById("status");
     const btnSave = document.getElementById("btn-save");
@@ -622,12 +653,13 @@
       ids.forEach((id) => {
         if (fields[id]) fields[id].value = toText(src[id] ?? defaults[id]);
       });
-      if (capiRepartoListEl) {
-        const lista = Array.isArray(src.capi_reparto) ? src.capi_reparto : [];
-        capiRepartoListEl.innerHTML = lista.length
+      Object.entries(derivedLists).forEach(([key, cfg]) => {
+        if (!cfg.el) return;
+        const lista = Array.isArray(src[key]) ? src[key] : [];
+        cfg.el.innerHTML = lista.length
           ? lista.map(n => `<li>${n.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</li>`).join("")
-          : "<li class='empty'>Nessun caporeparto assegnato in Anagrafica &rarr; Reparti</li>";
-      }
+          : `<li class='empty'>${cfg.empty}</li>`;
+      });
       if (attachmentsDirEl) attachmentsDirEl.value = String(attachmentsDir || defaults.attachments_dir || "").trim();
     };
 

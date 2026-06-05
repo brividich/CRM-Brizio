@@ -15,11 +15,9 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Max
 from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import redirect, render
-from django.urls import reverse
-from django.utils.text import slugify
+from django.urls import NoReverseMatch, reverse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
@@ -34,14 +32,18 @@ from core.upload_mime import (
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns, sync_django_user_from_legacy
 from core.models import AuditLog, Notifica, Profile
+from core.operational_roles import (
+    get_active_roles,
+    get_role_ids_for_user,
+    get_roster_by_role,
+    get_users_for_role,
+)
 
 from .models import (
     AnomalieAccessLevel,
     AnomalieLegacyRoleAccessRule,
     AnomalieListScope,
     AnomalieRoleAccessRule,
-    AnomalieRoleAssignment,
-    AnomalieRoleDefinition,
     AnomalieRoleType,
     AnomalieUserAccessRule,
 )
@@ -74,6 +76,8 @@ ANOMALIE_LIST_DEFAULTS = {
     ],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
+# Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
+ANOMALIE_DERIVED_LIST_KEYS = frozenset({"capi_reparto", "capi_commessa"})
 ANOMALIE_ATTACHMENTS_DIR_DEFAULT = r"media\anomalie_allegati"
 ALLEGATI_ALLOWED_EXTENSIONS = {
     ".jpg",
@@ -149,43 +153,42 @@ def _normalize_anomalie_permessi_sub(raw_tab: str | None, raw_sub: str | None, *
 
 
 def _ensure_system_anomalie_roles() -> None:
-    for code, name, description, order_index, default_access in SYSTEM_ANOMALIE_ROLE_DEFINITIONS:
-        role, created = AnomalieRoleDefinition.objects.get_or_create(
-            code=code,
-            defaults={
-                "name": name,
-                "description": description,
-                "is_system": True,
-                "is_active": True,
-                "order_index": order_index,
-            },
-        )
-        update_fields = []
-        if not role.is_system:
-            role.is_system = True
-            update_fields.append("is_system")
-        if not role.is_active:
-            role.is_active = True
-            update_fields.append("is_active")
-        if update_fields:
-            update_fields.append("updated_at")
-            role.save(update_fields=update_fields)
+    """Garantisce le regole di accesso per i ruoli di SISTEMA (CC/CAR).
+
+    Il catalogo dei ruoli custom non e' piu' locale: la fonte unica e'
+    ``anagrafica.RuoloOperativo`` (vedi ``core.operational_roles``).
+    """
+    for code, _name, _description, _order_index, default_access in SYSTEM_ANOMALIE_ROLE_DEFINITIONS:
         AnomalieRoleAccessRule.objects.get_or_create(
             role_type=code,
+            ruolo_operativo=None,
             defaults={"access_level": default_access},
         )
 
 
-def _anomalie_role_definitions(*, include_inactive: bool = False) -> list[AnomalieRoleDefinition]:
+def _anomalie_system_roles() -> list[dict]:
+    """Ruoli di sistema (CC/CAR) come righe pronte per template/logica."""
     _ensure_system_anomalie_roles()
-    qs = AnomalieRoleDefinition.objects.all()
-    if not include_inactive:
-        qs = qs.filter(is_active=True)
-    return list(qs.order_by("order_index", "name", "id"))
+    return [
+        {"code": code, "name": name, "description": description, "is_system": True}
+        for code, name, description, _order_index, _default_access in SYSTEM_ANOMALIE_ROLE_DEFINITIONS
+    ]
 
 
-def _anomalie_role_label_map() -> dict[str, str]:
-    return {role.code: role.name for role in _anomalie_role_definitions(include_inactive=True)}
+def _anomalie_custom_rules_for_user(user) -> list[AnomalieRoleAccessRule]:
+    """Regole accesso custom applicabili a un utente Django.
+
+    I ruoli custom provengono dal catalogo anagrafica: si recuperano gli id
+    ``RuoloOperativo`` ricoperti dall'utente e si filtrano le regole su quegli id.
+    """
+    if not getattr(user, "is_authenticated", False):
+        return []
+    role_ids = get_role_ids_for_user(user)
+    if not role_ids:
+        return []
+    return list(
+        AnomalieRoleAccessRule.objects.filter(ruolo_operativo_id__in=role_ids)
+    )
 
 
 def _anomalie_settings_users_queryset():
@@ -363,24 +366,10 @@ def _request_anomalie_list_scope(request) -> str:
         if s:
             scopes.append(s)
 
-    # 3. Ruoli custom assegnati
-    custom_role_codes = {
-        role.code
-        for role in _anomalie_role_definitions(include_inactive=False)
-        if not role.is_system
-    }
-    if custom_role_codes:
-        assigned_codes = list(
-            AnomalieRoleAssignment.objects.filter(
-                user=user, role_type__in=custom_role_codes
-            ).values_list("role_type", flat=True)
-        )
-        if assigned_codes:
-            scopes.extend(
-                AnomalieRoleAccessRule.objects.filter(
-                    role_type__in=assigned_codes
-                ).values_list("list_scope", flat=True)
-            )
+    # 3. Ruoli operativi custom (dall'anagrafica) ricoperti dall'utente
+    custom_rules = _anomalie_custom_rules_for_user(user)
+    if custom_rules:
+        scopes.extend(rule.list_scope for rule in custom_rules)
 
     # 4. Ruoli di sistema (CC, CAR): applica solo se l'utente compare su almeno un OP
     system_rule_map = {
@@ -620,45 +609,104 @@ def _default_anomalie_lists() -> dict[str, list[str]]:
     return {k: list(v) for k, v in ANOMALIE_LIST_DEFAULTS.items()}
 
 
+def _label_from_anagrafica_row(row: dict) -> str:
+    """Compone l'etichetta dipendente ("Nome Cognome") da una riga anagrafica.
+
+    Usa la stessa fonte (``anagrafica_dipendenti``) e gli stessi id legacy
+    impiegati da Anagrafica per popolare/risolvere ``caporeparto_legacy_id`` e
+    ``ruolo_aziendale``, così le label coincidono con quelle mostrate nei
+    moduli HR.
+    """
+    nome = str(row.get("nome") or "").strip()
+    cognome = str(row.get("cognome") or "").strip()
+    return " ".join(part for part in [nome, cognome] if part).strip()
+
+
 def _capireparto_from_anagrafica() -> list[str]:
-    """Nomi distinti dei capireparto dai reparti attivi in anagrafica."""
+    """Nomi distinti dei capireparto dai reparti attivi in anagrafica.
+
+    ``Reparto.caporeparto_legacy_id`` è l'id legacy del *dipendente*
+    (tabella ``anagrafica_dipendenti``), non di ``UtenteLegacy``: vanno quindi
+    risolti dalla stessa fonte usata da Anagrafica, altrimenti gli id collidono
+    con account diversi e si ottengono nomi errati.
+    """
     try:
         from anagrafica.models import Reparto
-        ids = set(
-            Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+        ids = sorted({
+            int(v)
+            for v in Reparto.objects.filter(
+                is_active=True, caporeparto_legacy_id__isnull=False
+            )
             .exclude(caporeparto_legacy_id=0)
             .values_list("caporeparto_legacy_id", flat=True)
-        )
+            if int(v or 0) > 0
+        })
         if not ids:
             return []
-        names = []
-        for u in UtenteLegacy.objects.filter(id__in=ids).values("id", "nome"):
-            label = str(u.get("nome") or "").strip()
-            if label:
-                names.append(label)
-        return sorted(set(names))
+        names = [
+            _label_from_anagrafica_row(row)
+            for row in fetch_anagrafica_rows(ids=ids, deduplicate=True)
+        ]
+        return sorted({n for n in names if n})
     except Exception:
         logger.debug("[anomalie] impossibile caricare capireparto da anagrafica", exc_info=True)
         return []
+
+
+def _capicommessa_from_anagrafica() -> list[str]:
+    """Nomi distinti dei dipendenti con ruolo aziendale "capocommessa".
+
+    Il ruolo è memorizzato come testo libero in
+    ``DipendenteAnagraficaAziendale.ruolo_aziendale``; il match è
+    case-insensitive su "capocommessa" per tollerare varianti
+    (es. "Capo commessa", "Capocommessa OP").
+    """
+    try:
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+        ids = sorted({
+            int(v)
+            for v in DipendenteAnagraficaAziendale.objects.filter(
+                ruolo_aziendale__icontains="capocommessa"
+            ).values_list("legacy_anagrafica_id", flat=True)
+            if int(v or 0) > 0
+        })
+        if not ids:
+            return []
+        names = [
+            _label_from_anagrafica_row(row)
+            for row in fetch_anagrafica_rows(ids=ids, deduplicate=True)
+        ]
+        return sorted({n for n in names if n})
+    except Exception:
+        logger.debug("[anomalie] impossibile caricare capicommessa da anagrafica", exc_info=True)
+        return []
+
+
+def _apply_derived_anomalie_lists(data: dict[str, list[str]]) -> None:
+    """Sovrascrive le liste derivate dall'anagrafica (sola lettura)."""
+    data["capi_reparto"] = _capireparto_from_anagrafica()
+    data["capi_commessa"] = _capicommessa_from_anagrafica()
 
 
 def _load_anomalie_lists() -> dict[str, list[str]]:
     data = _default_anomalie_lists()
     path = _anomalie_lists_path()
     if not path.exists():
-        data["capi_reparto"] = _capireparto_from_anagrafica()
+        _apply_derived_anomalie_lists(data)
         return data
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         logger.exception("[anomalie] impossibile leggere file liste: %s", path)
-        data["capi_reparto"] = _capireparto_from_anagrafica()
+        _apply_derived_anomalie_lists(data)
         return data
     if not isinstance(payload, dict):
-        data["capi_reparto"] = _capireparto_from_anagrafica()
+        _apply_derived_anomalie_lists(data)
         return data
     for key in ANOMALIE_LIST_KEYS:
-        if key == "capi_reparto":
+        if key in ANOMALIE_DERIVED_LIST_KEYS:
             continue  # sempre da anagrafica
         if key in payload:
             values = _normalize_choice_list(payload.get(key))
@@ -666,7 +714,7 @@ def _load_anomalie_lists() -> dict[str, list[str]]:
                 data[key] = values
             else:
                 data[key] = list(ANOMALIE_LIST_DEFAULTS[key])
-    data["capi_reparto"] = _capireparto_from_anagrafica()
+    _apply_derived_anomalie_lists(data)
     return data
 
 
@@ -679,6 +727,9 @@ def _save_anomalie_lists(lists_payload: dict[str, list[str]]) -> None:
     except Exception:
         existing = {}
     for key in ANOMALIE_LIST_KEYS:
+        if key in ANOMALIE_DERIVED_LIST_KEYS:
+            existing.pop(key, None)  # derivata da anagrafica: mai persistita
+            continue
         existing[key] = _normalize_choice_list(lists_payload.get(key, []))
     path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -887,26 +938,10 @@ def _split_people_tokens(raw_value: str) -> list[str]:
 
 def _request_anomalie_custom_role_access_level(request) -> str:
     user = getattr(request, "user", None)
-    if not getattr(user, "is_authenticated", False):
+    custom_rules = _anomalie_custom_rules_for_user(user)
+    if not custom_rules:
         return AnomalieAccessLevel.NONE
-    custom_role_codes = {
-        role.code
-        for role in _anomalie_role_definitions(include_inactive=False)
-        if not role.is_system
-    }
-    if not custom_role_codes:
-        return AnomalieAccessLevel.NONE
-    assigned_codes = list(
-        AnomalieRoleAssignment.objects.filter(
-            user=user,
-            role_type__in=custom_role_codes,
-        ).values_list("role_type", flat=True)
-    )
-    if not assigned_codes:
-        return AnomalieAccessLevel.NONE
-    levels = list(
-        AnomalieRoleAccessRule.objects.filter(role_type__in=assigned_codes).values_list("access_level", flat=True)
-    )
+    levels = [rule.access_level for rule in custom_rules]
     return _max_anomalie_access_level(levels)
 
 
@@ -951,7 +986,11 @@ def _anomalie_frontend_access_context(request) -> dict:
     _ensure_system_anomalie_roles()
     role_access = {
         role_type: access_level
-        for role_type, access_level in AnomalieRoleAccessRule.objects.values_list("role_type", "access_level")
+        for role_type, access_level in AnomalieRoleAccessRule.objects.filter(
+            ruolo_operativo__isnull=True
+        )
+        .exclude(role_type="")
+        .values_list("role_type", "access_level")
     }
     global_level = _request_anomalie_global_access_level(request)
     return {
@@ -1005,7 +1044,9 @@ def _anomalie_role_access_level_for_codes(role_codes: list[str]) -> str:
     if not matched_roles:
         return AnomalieAccessLevel.NONE
     levels = list(
-        AnomalieRoleAccessRule.objects.filter(role_type__in=matched_roles).values_list("access_level", flat=True)
+        AnomalieRoleAccessRule.objects.filter(
+            role_type__in=matched_roles, ruolo_operativo__isnull=True
+        ).values_list("access_level", flat=True)
     )
     return _max_anomalie_access_level(levels)
 
@@ -1061,6 +1102,14 @@ def _can_manage_anomalie_config(request) -> bool:
     return bool(is_legacy_admin(legacy_user))
 
 
+def _anomalie_ruoli_anagrafica_url() -> str:
+    """URL del catalogo Ruoli Operativi in anagrafica (gestione assegnazioni)."""
+    try:
+        return reverse("ruoli_operativi_list")
+    except NoReverseMatch:
+        return ""
+
+
 def _anomalie_settings_redirect(tab: str, **params):
     query = {"tab": tab}
     query.update({k: v for k, v in params.items() if v})
@@ -1068,83 +1117,30 @@ def _anomalie_settings_redirect(tab: str, **params):
     return redirect(f"{reverse('anomalie_configurazione_page')}?{qs}")
 
 
-def _make_unique_anomalie_role_code(name: str) -> str:
-    base = slugify(name).replace("-", "_").upper().strip("_") or "RUOLO"
-    base = f"CUSTOM_{base}"
-    base = base[:32].strip("_") or "CUSTOM_ROLE"
-    candidate = base
-    index = 2
-    while AnomalieRoleDefinition.objects.filter(code=candidate).exists():
-        suffix = f"_{index}"
-        candidate = f"{base[: max(1, 32 - len(suffix))]}{suffix}"
-        index += 1
-    return candidate
-
-
 def _handle_anomalie_roles_post(request):
-    role_definitions = _anomalie_role_definitions(include_inactive=True)
-    role_codes = {role.code for role in role_definitions}
+    """Il catalogo ruoli e le assegnazioni sono ora gestiti in Anagrafica.
+
+    Manteniamo l'endpoint solo per retro-compatibilita': qualsiasi POST sul
+    sub-tab ruoli rimanda al pannello (sola lettura) con un avviso.
+    """
     q_user = request.POST.get("q_user", "").strip()
-    action = str(request.POST.get("action") or "").strip()
-
-    if action == "create_role":
-        role_name = (request.POST.get("role_name") or "").strip()
-        if not role_name:
-            messages.error(request, "Indica un nome per il ruolo.")
-            return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-        if AnomalieRoleDefinition.objects.filter(name__iexact=role_name).exists():
-            messages.error(request, f"Il ruolo '{role_name}' esiste gia.")
-            return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-        max_order = AnomalieRoleDefinition.objects.aggregate(m=Max("order_index")).get("m") or 0
-        role = AnomalieRoleDefinition.objects.create(
-            code=_make_unique_anomalie_role_code(role_name),
-            name=role_name[:80],
-            description=(request.POST.get("role_description") or "").strip()[:255],
-            is_system=False,
-            is_active=True,
-            order_index=max_order + 10,
-        )
-        messages.success(request, f"Ruolo '{role.name}' creato.")
-        return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-
-    if action == "delete_role":
-        role_code = (request.POST.get("role_code") or "").strip()
-        role = AnomalieRoleDefinition.objects.filter(code=role_code).first()
-        if not role:
-            messages.error(request, "Ruolo non trovato.")
-            return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-        if role.is_system:
-            messages.error(request, "I ruoli di sistema non possono essere eliminati.")
-            return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-        label = role.name
-        role.delete()
-        AnomalieRoleAssignment.objects.filter(role_type=role_code).delete()
-        AnomalieRoleAccessRule.objects.filter(role_type=role_code).delete()
-        messages.success(request, f"Ruolo '{label}' eliminato.")
-        return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
-
-    visible_ids = [int(v) for v in request.POST.getlist("visible_user_id") if str(v).isdigit()]
-    if visible_ids:
-        AnomalieRoleAssignment.objects.filter(user_id__in=visible_ids, role_type__in=role_codes).delete()
-        to_create: list[AnomalieRoleAssignment] = []
-        for user_id in visible_ids:
-            for role_code in role_codes:
-                if request.POST.get(f"role__{role_code}__{user_id}"):
-                    to_create.append(AnomalieRoleAssignment(user_id=user_id, role_type=role_code))
-        if to_create:
-            AnomalieRoleAssignment.objects.bulk_create(to_create, ignore_conflicts=True)
-    messages.success(request, "Ruoli operativi anomalie aggiornati.")
+    messages.info(
+        request,
+        "Catalogo e assegnazioni dei ruoli operativi si gestiscono da Anagrafica > Ruoli operativi.",
+    )
     return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
 
 
 def _handle_anomalie_access_post(request):
-    role_codes = {role.code for role in _anomalie_role_definitions(include_inactive=True)}
+    system_codes = {row["code"] for row in _anomalie_system_roles()}
+    custom_role_ids = set(get_active_roles().values_list("id", flat=True))
     legacy_role_rows = _anomalie_legacy_role_rows()
     legacy_role_labels = {int(row["id"]): str(row["label"]) for row in legacy_role_rows}
     valid_levels = {choice for choice, _label in AnomalieAccessLevel.choices}
     valid_scopes = {choice for choice, _label in AnomalieListScope.choices}
 
-    for role_code in role_codes:
+    # Regole sui ruoli di sistema (CC/CAR) -> chiave role_type
+    for role_code in system_codes:
         level = (request.POST.get(f"access_role__{role_code}") or AnomalieAccessLevel.NONE).strip()
         if level not in valid_levels:
             level = AnomalieAccessLevel.NONE
@@ -1153,7 +1149,22 @@ def _handle_anomalie_access_post(request):
             scope = AnomalieListScope.ALL
         AnomalieRoleAccessRule.objects.update_or_create(
             role_type=role_code,
+            ruolo_operativo=None,
             defaults={"access_level": level, "list_scope": scope},
+        )
+
+    # Regole sui ruoli operativi custom (anagrafica) -> chiave ruolo_operativo_id
+    for ruolo_id in custom_role_ids:
+        level = (request.POST.get(f"access_custom_role__{ruolo_id}") or "").strip()
+        scope = (request.POST.get(f"list_scope_custom_role__{ruolo_id}") or AnomalieListScope.ALL).strip()
+        if scope not in valid_scopes:
+            scope = AnomalieListScope.ALL
+        if not level or level == AnomalieAccessLevel.NONE or level not in valid_levels:
+            AnomalieRoleAccessRule.objects.filter(ruolo_operativo_id=ruolo_id).delete()
+            continue
+        AnomalieRoleAccessRule.objects.update_or_create(
+            ruolo_operativo_id=ruolo_id,
+            defaults={"role_type": "", "access_level": level, "list_scope": scope},
         )
 
     visible_ids = [int(v) for v in request.POST.getlist("visible_access_user_id") if str(v).isdigit()]
@@ -2087,53 +2098,56 @@ def anomalie_configurazione_page(request):
 
     ruoli_context = {}
     if tab == "permessi" and permessi_sub == "ruoli":
-        role_definitions = _anomalie_role_definitions(include_inactive=True)
-        ruoli_filter_q = request.GET.get("q_user", "").strip()
-        all_users = list(_anomalie_settings_users_queryset())
-        filtered_users = _filter_anomalie_user_rows(all_users, ruoli_filter_q)
-        assignments_raw = list(AnomalieRoleAssignment.objects.values_list("user_id", "role_type"))
-        by_user: dict[int, set[str]] = {}
-        for user_id, role_type in assignments_raw:
-            by_user.setdefault(user_id, set()).add(role_type)
-        roster = []
-        for user in filtered_users:
-            assigned_roles = by_user.get(user.id, set())
-            roster.append(
-                {
-                    "id": user.id,
-                    "label": user.get_full_name() or user.username,
-                    "email": user.email or "",
-                    "role_cells": [
-                        {"code": role.code, "checked": role.code in assigned_roles}
-                        for role in role_definitions
-                    ],
-                }
-            )
+        # Catalogo e assegnazioni sono di sola lettura: fonte unica = anagrafica.
+        roster = get_roster_by_role()
+        ruoli_catalog_rows = [
+            {
+                "id": item["ruolo"].id,
+                "name": item["ruolo"].nome,
+                "description": item["ruolo"].descrizione or "",
+                "icona": item["ruolo"].icona or "",
+                "colore": item["ruolo"].colore or "",
+                "users": [
+                    {"id": u.id, "label": u.get_full_name() or u.username, "email": u.email or ""}
+                    for u in item["users"]
+                ],
+            }
+            for item in roster
+        ]
+        total_assignments = sum(len(r["users"]) for r in ruoli_catalog_rows)
         ruoli_context = {
-            "ruoli_filter_q": ruoli_filter_q,
-            "ruoli_roster": roster,
-            "ruoli_role_definitions": role_definitions,
-            "ruoli_colspan": 2 + len(role_definitions),
+            "ruoli_system_rows": _anomalie_system_roles(),
+            "ruoli_catalog_rows": ruoli_catalog_rows,
+            "ruoli_anagrafica_url": _anomalie_ruoli_anagrafica_url(),
             "ruoli_stats": {
-                "roles": len(role_definitions),
-                "assignments": sum(len(values) for values in by_user.values()),
-                "total_users": len(all_users),
-                "filtered_users": len(roster),
+                "roles": len(ruoli_catalog_rows),
+                "assignments": total_assignments,
+                "total_users": len({u["id"] for r in ruoli_catalog_rows for u in r["users"]}),
             },
         }
 
     access_context = {}
     if tab == "permessi" and permessi_sub == "accessi":
-        role_definitions = _anomalie_role_definitions(include_inactive=True)
+        system_rows = _anomalie_system_roles()
+        custom_roles = list(get_active_roles())
         access_filter_q = request.GET.get("q_access_user", "").strip()
         all_users = list(_anomalie_settings_users_queryset())
         filtered_users = _filter_anomalie_user_rows(all_users, access_filter_q)
         legacy_role_rows = _anomalie_legacy_role_rows()
-        role_rule_map = {
+        # Regole di sistema: chiave role_type; regole custom: chiave ruolo_operativo_id.
+        system_rule_map = {
             role_type: {"access_level": access_level, "list_scope": list_scope}
-            for role_type, access_level, list_scope in AnomalieRoleAccessRule.objects.values_list(
-                "role_type", "access_level", "list_scope"
+            for role_type, access_level, list_scope in AnomalieRoleAccessRule.objects.filter(
+                ruolo_operativo__isnull=True
             )
+            .exclude(role_type="")
+            .values_list("role_type", "access_level", "list_scope")
+        }
+        custom_rule_map = {
+            ruolo_id: {"access_level": access_level, "list_scope": list_scope}
+            for ruolo_id, access_level, list_scope in AnomalieRoleAccessRule.objects.filter(
+                ruolo_operativo__isnull=False
+            ).values_list("ruolo_operativo_id", "access_level", "list_scope")
         }
         legacy_role_rule_map = {
             role_id: {"access_level": access_level, "list_scope": list_scope}
@@ -2152,20 +2166,35 @@ def anomalie_configurazione_page(request):
             "access_filter_q": access_filter_q,
             "access_role_rows": [
                 {
-                    "code": role.code,
-                    "label": role.name,
-                    "help": role.description
-                    or (
-                        "Ruolo custom: la regola vale globalmente per gli utenti assegnati."
-                        if not role.is_system
-                        else "Ruolo di sistema collegato all'OP."
+                    "code": row["code"],
+                    "label": row["name"],
+                    "help": row["description"] or "Ruolo di sistema collegato all'OP.",
+                    "access_level": system_rule_map.get(row["code"], {}).get(
+                        "access_level", AnomalieAccessLevel.NONE
                     ),
-                    "is_system": role.is_system,
-                    "access_level": role_rule_map.get(role.code, {}).get("access_level", AnomalieAccessLevel.NONE),
-                    "list_scope": role_rule_map.get(role.code, {}).get("list_scope", AnomalieListScope.ALL),
+                    "list_scope": system_rule_map.get(row["code"], {}).get(
+                        "list_scope", AnomalieListScope.ALL
+                    ),
                 }
-                for role in role_definitions
+                for row in system_rows
             ],
+            "access_custom_role_rows": [
+                {
+                    "id": ruolo.id,
+                    "label": ruolo.nome,
+                    "help": ruolo.descrizione or "Ruolo operativo (anagrafica): vale per gli utenti assegnati.",
+                    "access_level": custom_rule_map.get(ruolo.id, {}).get("access_level", ""),
+                    "list_scope": custom_rule_map.get(ruolo.id, {}).get("list_scope", AnomalieListScope.ALL),
+                }
+                for ruolo in custom_roles
+            ],
+            "access_custom_role_choices": [
+                ("", "Nessuna regola extra"),
+                (AnomalieAccessLevel.READ_ALL, "Vede tutte le anomalie"),
+                (AnomalieAccessLevel.EDIT_ASSIGNED, "Modifica solo OP/anomalie in carico"),
+                (AnomalieAccessLevel.EDIT_ALL, "Vede e modifica tutto il modulo"),
+            ],
+            "access_ruoli_anagrafica_url": _anomalie_ruoli_anagrafica_url(),
             "access_legacy_role_rows": [
                 {
                     "id": row["id"],
@@ -2205,11 +2234,14 @@ def anomalie_configurazione_page(request):
             ],
             "list_scope_choices": list_scope_choices,
             "access_stats": {
-                "role_rules": len(role_rule_map),
+                "role_rules": len(system_rule_map) + len(custom_rule_map),
+                "custom_role_rules": len(custom_rule_map),
                 "legacy_role_rules": len(legacy_role_rule_map),
                 "user_overrides": len(user_rule_map),
                 "edit_all_roles": sum(
-                    1 for v in role_rule_map.values() if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
+                    1
+                    for v in list(system_rule_map.values()) + list(custom_rule_map.values())
+                    if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
                 ),
                 "edit_all_legacy_roles": sum(
                     1 for v in legacy_role_rule_map.values() if v.get("access_level") == AnomalieAccessLevel.EDIT_ALL
@@ -2269,7 +2301,7 @@ def api_anomalie_config_liste(request):
     current = _load_anomalie_lists()
     updated: dict[str, list[str]] = {}
     for key in ANOMALIE_LIST_KEYS:
-        if key == "capi_reparto":
+        if key in ANOMALIE_DERIVED_LIST_KEYS:
             continue  # derivato da anagrafica, non salvato nel JSON
         raw_val = payload.get(key, current.get(key, []))
         normalized = _normalize_choice_list(raw_val)
@@ -2300,7 +2332,7 @@ def api_anomalie_config_liste(request):
     except Exception:
         pass
 
-    updated["capi_reparto"] = _capireparto_from_anagrafica()
+    _apply_derived_anomalie_lists(updated)
     return JsonResponse({"success": True, "lists": updated, "attachments_dir": saved_attachments_dir})
 
 

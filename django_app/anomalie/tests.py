@@ -11,11 +11,10 @@ from anomalie.models import (
     AnomalieAccessLevel,
     AnomalieLegacyRoleAccessRule,
     AnomalieRoleAccessRule,
-    AnomalieRoleAssignment,
-    AnomalieRoleDefinition,
     AnomalieRoleType,
     AnomalieUserAccessRule,
 )
+from anagrafica.models import RuoloOperativo
 from core.legacy_models import Ruolo
 
 
@@ -159,24 +158,28 @@ class AnomalieAccessRuleTests(TestCase):
             self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/001"))
 
     def test_custom_role_and_user_override_can_grant_global_edit(self):
-        role = AnomalieRoleDefinition.objects.create(
-            code="CUSTOM_QUALITY",
-            name="Qualita",
-            description="Ruolo test",
-            is_system=False,
-            is_active=True,
-            order_index=100,
+        # Ruolo operativo dal catalogo unico anagrafica + regola ri-chiavata su ruolo_operativo.
+        ruolo = RuoloOperativo.objects.create(nome="Qualita", descrizione="Ruolo test")
+        AnomalieRoleAccessRule.objects.create(
+            ruolo_operativo=ruolo, access_level=AnomalieAccessLevel.EDIT_ALL
         )
-        AnomalieRoleAssignment.objects.create(user=self.user, role_type=role.code)
-        AnomalieRoleAccessRule.objects.create(role_type=role.code, access_level=AnomalieAccessLevel.EDIT_ALL)
 
         request = self._request("Utente Non In OP")
-        with patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}):
+        # L'utente ricopre il ruolo operativo (risolto via anagrafica): mock dell'helper condiviso.
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views.get_role_ids_for_user", return_value={ruolo.id}),
+        ):
             self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/999"))
 
-        AnomalieRoleAccessRule.objects.filter(role_type=role.code).update(access_level=AnomalieAccessLevel.NONE)
+        AnomalieRoleAccessRule.objects.filter(ruolo_operativo=ruolo).update(
+            access_level=AnomalieAccessLevel.NONE
+        )
         AnomalieUserAccessRule.objects.create(user=self.user, access_level=AnomalieAccessLevel.EDIT_ALL)
-        with patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}):
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views.get_role_ids_for_user", return_value={ruolo.id}),
+        ):
             self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/999"))
 
     def test_legacy_role_rule_can_grant_global_edit(self):

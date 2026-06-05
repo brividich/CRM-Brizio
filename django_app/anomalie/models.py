@@ -23,7 +23,12 @@ class AnomalieListScope(models.TextChoices):
 
 
 class AnomalieRoleDefinition(models.Model):
-    """Catalogo ruoli operativi usato dalla configurazione anomalie."""
+    """DEPRECATO: catalogo ruoli operativi locale del modulo anomalie.
+
+    Sostituito da ``anagrafica.RuoloOperativo`` come fonte unica del catalogo.
+    Conservato per la sola migrazione dati (lettura dei ruoli custom storici);
+    non va piu' usato come fonte a runtime. Vedi ``core.operational_roles``.
+    """
 
     code = models.SlugField(max_length=32, unique=True)
     name = models.CharField(max_length=80, unique=True)
@@ -44,7 +49,11 @@ class AnomalieRoleDefinition(models.Model):
 
 
 class AnomalieRoleAssignment(models.Model):
-    """Assegnazione utenti a ruoli operativi anomalie."""
+    """DEPRECATO: assegnazione utenti a ruoli operativi locali anomalie.
+
+    Le assegnazioni utente->ruolo custom sono ora gestite in anagrafica
+    (``DipendenteRuoloOperativo``). Conservato per la sola migrazione dati.
+    """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -63,9 +72,24 @@ class AnomalieRoleAssignment(models.Model):
 
 
 class AnomalieRoleAccessRule(models.Model):
-    """Regola di accesso per ruolo operativo anomalie."""
+    """Regola di accesso per ruolo operativo anomalie.
 
-    role_type = models.CharField(max_length=32, unique=True, db_index=True)
+    Due tipi di regola, mutuamente esclusivi per riga:
+    - ruolo di SISTEMA (CC/CAR): identificato da ``role_type`` (codice in
+      ``AnomalieRoleType``), risolto dai campi dell'OP a runtime;
+    - ruolo CUSTOM: identificato da ``ruolo_operativo`` (FK verso il catalogo
+      unico ``anagrafica.RuoloOperativo``), con assegnazioni utente gestite in
+      anagrafica (``DipendenteRuoloOperativo``).
+    """
+
+    role_type = models.CharField(max_length=32, blank=True, default="", db_index=True)
+    ruolo_operativo = models.ForeignKey(
+        "anagrafica.RuoloOperativo",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="anomalie_access_rules",
+    )
     access_level = models.CharField(
         max_length=20,
         choices=AnomalieAccessLevel.choices,
@@ -80,12 +104,16 @@ class AnomalieRoleAccessRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["role_type"]
+        ordering = ["role_type", "ruolo_operativo_id"]
         verbose_name = "Regola accesso ruolo anomalie"
         verbose_name_plural = "Regole accesso ruoli anomalie"
+        # Unicita' gestita a livello applicativo (update_or_create con chiavi
+        # role_type / ruolo_operativo): i partial unique index con condizione
+        # negata non sono portabili su SQL Server.
 
     def __str__(self) -> str:
-        return f"AnomalieRoleAccessRule<{self.role_type}={self.access_level}>"
+        key = self.role_type or f"ruolo_op:{self.ruolo_operativo_id}"
+        return f"AnomalieRoleAccessRule<{key}={self.access_level}>"
 
 
 class AnomalieUserAccessRule(models.Model):

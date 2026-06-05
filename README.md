@@ -226,7 +226,8 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **Gestione accessi** semplici canonico-first con toggle per modulo su `RolePermissionGrant`
 - **ACL canonico** con 5 tab (Permission, Binding, Role grant, User override, Nav override)
 - **ACL route coverage** report con stati e export CSV
-- **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo
+- **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo (CLI equivalente: `python manage.py acl_diagnose --user <email|alias|id> --path </route/>`)
+- **Avviso "ACL canonico"** nella pagina permessi legacy: i moduli con binding canonico attivo sono marcati e segnalano che i permessi legacy lì sono ignorati a runtime (linkano ad ACL canonico/diagnostica)
 - **Mappa permessi/navigazione** visuale con drill-down cliccabile e toggle live dei grant
 - **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
 - **Vista attività utente** (`/admin-portale/attivita-utenti/`) sugli ultimi 30 giorni da `AuditLog`, con filtri utente/modulo/testo e export CSV/XLSX
@@ -297,6 +298,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 
 - **Bridge pattern**: `DipendenteAnagraficaCivile` e `DipendenteAnagraficaAziendale` referenziano la tabella legacy `anagrafica_dipendenti` tramite `legacy_anagrafica_id` — nessuna modifica alle tabelle legacy
 - **Anagrafica civile** (admin): dati nascita/genere, **provincia di nascita** (sigla), **nazionalità**, residenza completa, domicilio, titolo di studio, contatti privati, patente — inline editabile dalla scheda dipendente
+- **Figli a carico** (`FiglioACarico`): flag "Figli a carico" + elenco figli con data di nascita (età calcolata automaticamente); la quantità (`numero_figli`) è derivata dai record registrati e il flag si riallinea al salvataggio. Sia nella scheda dipendente sia nel wizard di creazione la sezione figli ha un pulsante **"+ Aggiungi figlio"** per aggiungere righe dinamicamente ed è **abilitata solo quando il flag "Figli a carico" è spuntato**
 - **Anagrafica aziendale** (admin): area, ruolo aziendale, **badge** (indicizzato), **data assunzione corrente** e **data cessazione**, taglie DPI, contatti aziendali, consenso privacy — inline editabile. Il contratto/livello CCNL è ora gestito dallo storico contrattuale.
 - **Import massivo da Excel HR** via `python manage.py import_dipendenti_xlsx <file.xlsx>` con flag `--dry-run`, `--update-existing`, `--limit N`, `--sheet <nome>`, `--verbose-errors`. Matching idempotente prioritizzato su codice fiscale → email aziendale → nome+cognome; normalizzazione automatica di IBAN, telefoni, date, taglie, genere, rapporto di lavoro (Dipendente→`INDETERMINATO`, Somministrato→`SOMMINISTRAZIONE`), titolo di studio. Ogni riga in transazione atomica isolata → un singolo errore non blocca l'import. Report finale con conteggi e primi 50 errori per riga.
 - **Import storico retributivo da Excel** via `python manage.py import_retribuzioni <file.xlsx>` con flag `--dry-run`, `--foglio <nome>`, `--user-id N`, `--verbose`. File con colonne `tax_code | nome | pay_item | value | date`: crea una `ImportazioneRetributiva` per mese di competenza, popola le `VoceRetributiva` classificate, risolve `legacy_anagrafica_id` per codice fiscale con fallback nome, e rileva le variazioni di importo rispetto all'ultima importazione precedente.
@@ -308,7 +310,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Storico contrattuale CCNL** (`StoricoContratto`, gated HR): periodi `data_inizio`/`data_fine` con tipologia contratto, livello (cataloghi `TipologiaContratto` e `LivelloContrattuale`), qualifica professionale, CCNL. Import CSV massivo `/anagrafica/contratti/` (formato `Codice fiscale;Data Inizio;Data Fine;Tipo di contratto;Qualifica;Livello;CCNL;Descrizione livello`, encoding auto-detect) + CRUD manuale con auto-chiusura del record "in corso" quando ne inizia uno nuovo
 - **Voci retributive** (`VoceRetributiva`, gated HR): card "💰 Voci retributive" nella scheda dipendente con classificazione automatica fissi/variabili/totali/altri. **Import CSV mensile** dallo studio paghe (`/anagrafica/retribuzioni/`, admin-only) con rilevamento automatico variazioni rispetto al mese precedente. **Storico retributivo a pivot** su `/anagrafica/dipendenti/<id>/retribuzioni/`: tabella mesi × voci in stile Excel, righe raggruppate per anno (collassabili — anno corrente e precedente espansi di default), colonne ordinate per categoria (Fissi → Variabili → Altri → Totali), celle con variazione rispetto al mese precedente evidenziate in azzurro/verde, header e prima colonna sticky. **Export Excel** del pivot via pulsante "↓ Esporta Excel" (`/anagrafica/dipendenti/<id>/retribuzioni/export.xlsx`) — `.xlsx` con stesso layout, freeze su prima riga/colonna, formato valuta italiano e highlight delle variazioni. **Data-entry manuale** (HR/admin): pulsante "+ Voce manuale" per inserire singole voci; modifica/eliminazione via click sulla cella manuale (bordo viola, icona ✎) che apre una modale di edit. Le voci manuali (flag `manuale=True`) fanno override delle voci CSV con stesso `pay_item_key` nello stesso mese
 - **Pannello impostazioni unico** su `/anagrafica/impostazioni/` con tab verticali per gestire cataloghi, permessi e workflow del modulo: Mansioni, **Reparti** (catalogo con caporeparto assegnato dalla lista dipendenti — modello legacy `AreaAziendale` mantenuto per compatibilità schema/URL), Ruoli aziendali, Ruoli operativi sicurezza, Qualifiche professionali, **Livelli contrattuali CCNL** (A1, B3...DIR - `LivelloContrattuale`), **Tipologie contratto** (`TipologiaContratto`), documenti/navigazione, Permessi e **Onboarding / Offboarding**. Quest'ultimo tab associa i campi reali del form `+ Nuovo dipendente` alla lista operativa onboarding/offboarding; le voci Offboarding attive generano task automatici nelle pratiche di uscita. Le URL standalone (`/anagrafica/mansioni/`, `/anagrafica/aree/`, ...) restano funzionanti come scorciatoie dirette.
-- **Creazione dipendente / onboarding** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione. La sezione "Contratto e inquadramento" alla creazione crea contestualmente il primo `StoricoContratto` (tipologia, livello CCNL, ccnl, qualifica, date inizio/fine) se compilata; eventuali passaggi di altri reparti verranno agganciati a questo flusso, non a una sezione onboarding separata.
+- **Creazione dipendente / onboarding** su `/anagrafica/dipendenti/nuovo/` con form a 4 sezioni collassabili e macro-aree titolate; cascade create legacy → civile → aziendale in transazione. Il campo **Reparto** è un dropdown sul catalogo `Reparto` (non più testo libero): alla creazione **area aziendale e caporeparto vengono assegnati automaticamente** dal reparto scelto (`_sync_aziendale_from_reparto`), e la sezione "Anagrafica civile" include la gestione dei **figli a carico** (flag + righe con "+ Aggiungi figlio"). La sezione "Contratto e inquadramento" alla creazione crea contestualmente il primo `StoricoContratto` (tipologia, livello CCNL, ccnl, qualifica, date inizio/fine) se compilata; eventuali passaggi di altri reparti verranno agganciati a questo flusso, non a una sezione onboarding separata.
 - **Offboarding / Rimetti in forza** dalla scheda dipendente (`/anagrafica/dipendenti/<id>/`): gli admin avviano una pratica con motivo, un'unica data uscita e task di restituzione/chiusura (HR, IT, responsabile, DPI, amministrazione). Il dipendente resta in forza finche la pratica non viene chiusa; la chiusura e consentita solo quando tutti i task sono completati o marcati come eccezione e, solo allora, valorizza `data_cessazione`, disattiva il record legacy e scollega l'account portale. Il tasto "Rimetti in forza" rimuove la data cessazione, riattiva il record legacy e ricollega automaticamente l'account portale quando e disponibile l'ID pre-offboarding o viene trovato un account univoco tramite email, alias o nome/cognome.
 - **Report dipendenti** `/anagrafica/dipendenti/report/` con filtri avanzati (area, contratto, consenso privacy, categoria protetta) e export CSV (esclusi campi HR sensibili per sicurezza)
 - **Ordinamento e avatar lista dipendenti**: `/anagrafica/dipendenti/` viene ordinata all'accesso per dipendente A-Z (`cognome nome`) prima della paginazione; ogni riga mostra la foto caricata oppure un avatar grigio neutro se assente.
@@ -449,8 +451,9 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
 - **Segnalazione rapida** con launcher dedicato `/anomalie-menu` (compat ACL con permessi operativi)
 - **Gestione** su `/gestione-anomalie` con workflow di presa in carico e chiusura
-- **Impostazioni** su `/gestione-anomalie/configurazione` con tab `Ruoli operativi` e `Accessi`
-- **Accessi granulari**: ACL pagina come prima barriera, poi regole modulo per Capocommessa/CAR, ruoli operativi custom, ruoli aziendali legacy (`ruoli.id`/`utenti.ruolo_id`) e override singolo utente
+- **Impostazioni** su `/gestione-anomalie/configurazione` con tab `Ruoli operativi` (sola lettura: catalogo + assegnazioni dall'Anagrafica) e `Accessi`
+- **Ruoli operativi da Anagrafica**: il catalogo e le assegnazioni utente↔ruolo provengono dalla fonte unica `anagrafica.RuoloOperativo`/`DipendenteRuoloOperativo` (helper condiviso `core/operational_roles.py`); il modulo non gestisce più ruoli locali, solo le regole di accesso per-ruolo
+- **Accessi granulari**: ACL pagina come prima barriera, poi regole modulo per Capocommessa/CAR (ruoli di sistema risolti dai campi OP), ruoli operativi Anagrafica, ruoli aziendali legacy (`ruoli.id`/`utenti.ruolo_id`) e override singolo utente
 - **Modifica in carico**: `EDIT_ASSIGNED` permette di modificare solo gli OP dove l'utente compare come Capocommessa o CAR/Incaricato; `EDIT_ALL` abilita la modifica globale
 - **API gate** `/api/anomalie/` protetta da ACL canonico
 - **Export CSV** tracciato in AuditLog
@@ -601,10 +604,12 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Queue** `automation_event_queue` persistente con processor command
 - **Azioni disponibili**: `send_email`, `write_log`, `insert_record`, `update_record`, `update_trigger_record`, `split_assenza_giornaliera`, `send_approval`, `do_until`, `for_each`, `branch`, `count_branch`, `run_if`
 - **Controllo flusso visuale**: pannelli guidati Se Vero/Se Falso, Corpo loop/Timeout, Azioni per ogni record
+- **Routing per tipo con `branch` annidati**: una sola regola può instradare su rami diversi in base ai campi del record (es. package unico assenze: Ferie/Permesso/Flessibilità con sotto-ramo durata per le ferie lunghe). Una regola parte sempre e decide internamente — niente esclusione implicita fra regole. Nota: la condizione then/else del `branch` usa `condition_field/operator/value`, non `run_if` (che sull'azione branch è un gate di esecuzione)
+- **Gruppi di esclusione con priorità e fallback (opt-in, non attivo di default)**: capacità del motore disponibile ma non usata dai pacchetti — regole con lo stesso `exclusion_group` che matchano lo stesso record si escludono a vicenda (parte solo la `priority` più alta; in errore si prova a cascata la successiva, le altre run-log `SKIPPED`). Con `exclusion_group` vuoto (default) il comportamento è quello storico. Configurabile da package JSON e admin
 - **Approvazioni a catena**: `send_approval` annidabili nei rami approvato/rifiutato (doppia/tripla firma, max 3 livelli), validate ricorsivamente all'import
 - **Operatori condizione temporali**: `days_from_now_lte/gte` (scadenze rispetto a oggi) e `days_span_gt/gte` (durata fra due campi data, es. "ferie > 10 giorni")
 - **`count_branch`**: conta i record di una sorgente (filtro + finestra temporale) e dirama su soglia — esprime regole "N eventi in M giorni" (es. 3 ticket stesso asset in 90 giorni)
-- **Pacchetti regola pronti** (`automazioni/packages/*.automation_package.json`): 27 flussi importabili via designer (anomalie, approvazioni a catena, escalation, KPI, presidio scadenze), tutti draft+disattivi all'import
+- **Pacchetti regola pronti** (`automazioni/packages/*.automation_package.json`): 29 flussi importabili via designer (anomalie, approvazioni a catena, escalation, KPI, presidio scadenze, conversioni Power Automate), tutti draft+disattivi all'import
 - **Arricchimento payload per sorgente**: tickets (nome/tag asset), assenze (email caporeparto/dipendente), anomalie (`modified_by_role` CC/CAR per notifiche filtrate per ruolo)
 - **Approvazioni multi-canale**: email classica, webhook Teams legacy, **Teams chat Flow** (Power Automate), Entra Application Proxy one-click
 - **Template email approvazioni** riutilizzabili con `portal_links` / `mail_reply` / `hybrid`
@@ -651,12 +656,20 @@ Il report `/admin-portale/acl-route-coverage/` usa il binding canonico effettivo
 `missing_grant` del layer canonico.
 
 ```bash
+# Diagnosi "perché X non accede a /route/?" (canonico vs fallback, con hint operativo)
+python django_app/manage.py acl_diagnose --user a.astarita --path /tickets/
+python django_app/manage.py acl_diagnose --role Manutenzione --route tickets:dashboard
+
 # Audit delle route ancora in fallback
 python django_app/manage.py acl_fallback_report --only-unbound --app assenze
 
 # Bootstrap canonico di un'app (dry-run poi apply)
 python django_app/manage.py bootstrap_acl_v2 --apps assenze --dry-run
 python django_app/manage.py bootstrap_acl_v2 --apps assenze --import-legacy --apply
+
+# Travaso grant legacy→canonico ANCHE sulle route già bindate (colma il buco di --import-legacy)
+python django_app/manage.py acl_sync_legacy_grants --dry-run   # diff per ruolo, nessuna scrittura
+python django_app/manage.py acl_sync_legacy_grants --apply
 
 # Seed UAT completo (6 utenti, 3 ruoli, binding + grant + override)
 python django_app/manage.py seed_acl_uat --reset
@@ -706,7 +719,7 @@ graph LR
 - 🔢 **Soglie "N eventi in M giorni"**: `count_branch` conta i record di una sorgente (filtro + finestra temporale) e dirama oltre soglia
 - ⏱️ **Operatori temporali**: `days_from_now_lte/gte` (scadenze) e `days_span_gt/gte` (durate fra due date)
 - 🔁 **Approvazioni a catena**: `send_approval` annidabili (doppia/tripla firma, max 3 livelli)
-- 📦 **27 pacchetti regola pronti** (`automazioni/packages/`): import via designer, draft+disattivi, da configurare e attivare
+- 📦 **29 pacchetti regola pronti** (`automazioni/packages/`): import via designer, draft+disattivi, da configurare e attivare
 - ✉️ **Approvazioni umane**: recapito via email · webhook Teams legacy · Teams chat Flow (Power Automate) · Entra Application Proxy
 - 🔄 **Import Power Automate**: converter integrato `.zip`/`.json` con remediation e handoff a draft
 - 🧪 **Test inline**: esegui regola con record reale o dati campione, visualizzando output per azione
@@ -938,10 +951,18 @@ python django_app\manage.py process_automation_queue
 # Mailbox poller approvazioni (Graph)
 python django_app\manage.py process_approval_mailbox
 
+# Report scadenze visite mediche/contratti (schedulato lunedì 06:00 via django-q CRON)
+# Attivazione e parametri (giorni, destinatari, categorie) si gestiscono dalla pagina
+# Impostazioni automazioni → "Report scadenze" (SiteConfig); il command si auto-silenzia se disattivo.
+python django_app\manage.py report_scadenze_settimanale --dry-run --forza   # test manuale
+python django_app\manage.py setup_q_schedules            # registra/aggiorna gli schedule (queue, mailbox, scadenze)
+
 # ACL v2 governance
 python django_app\manage.py bootstrap_acl_v2 --dry-run
 python django_app\manage.py acl_fallback_report --only-unbound
 python django_app\manage.py acl_coverage_report --max-missing 216
+python django_app\manage.py acl_diagnose --user a.astarita --path /tickets/
+python django_app\manage.py acl_sync_legacy_grants --dry-run
 python django_app\manage.py seed_acl_uat --reset
 
 # Restore controllato del menu dalla fixture locale (dry-run, poi apply)
