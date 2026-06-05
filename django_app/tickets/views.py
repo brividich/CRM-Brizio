@@ -179,6 +179,62 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
     return feed
 
 
+def _user_acl_identities(request) -> set[str]:
+    """Raccoglie tutte le identità (lowercase) con cui l'utente può essere
+    stato registrato in una ACL list dei ticket.
+
+    Le liste ``acl_apertura``/``acl_gestione`` possono contenere — a seconda di
+    cosa salva il widget impostazioni — l'username Django (UPN), l'email di
+    login aziendale o l'``aliasusername`` legacy. Per evitare 403 da mismatch
+    (es. ``a.astarita`` vs ``a.astarita@dominio``) il match considera tutte
+    queste forme, incluso il prefisso dell'UPN. NON si considera
+    ``email_notifica`` (mail privata): l'identità valida è solo mail aziendale
+    o username.
+    """
+    identities: set[str] = set()
+
+    def _add(value) -> None:
+        text = str(value or "").strip().lower()
+        if text:
+            identities.add(text)
+            if "@" in text:
+                identities.add(text.split("@", 1)[0])  # prefisso UPN
+
+    _add(request.user.get_username())
+    _add(request.user.email)
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    legacy_id = getattr(legacy_user, "id", None) if legacy_user else None
+    if legacy_id:
+        try:
+            from core.legacy_models import AnagraficaDipendente
+            ana = (
+                AnagraficaDipendente.objects
+                .filter(utente_id=legacy_id)
+                .only("aliasusername", "email")
+                .first()
+            )
+            if ana:
+                _add(ana.aliasusername)   # username legacy
+                _add(ana.email)           # mail aziendale / UPN
+        except Exception:
+            pass  # in caso di errore DB usiamo solo le identità Django
+    return identities
+
+
+def _acl_list_matches(acl: list, identities: set[str]) -> bool:
+    """True se una qualsiasi voce della ACL list combacia con un'identità utente."""
+    for raw in acl or []:
+        value = str(raw or "").strip().lower()
+        if not value:
+            continue
+        if value in identities:
+            return True
+        if "@" in value and value.split("@", 1)[0] in identities:
+            return True
+    return False
+
+
 def _can_open_tickets(request, tipo: str) -> bool:
     """Controlla se l'utente può aprire ticket del tipo dato."""
     if not request.user.is_authenticated:
@@ -192,9 +248,7 @@ def _can_open_tickets(request, tipo: str) -> bool:
     acl = cfg.acl_apertura or []
     if not acl:
         return True  # empty acl = open to all
-    username = request.user.get_username().lower()
-    email    = (request.user.email or "").lower()
-    return any(v.lower() in (username, email) for v in acl)
+    return _acl_list_matches(acl, _user_acl_identities(request))
 
 
 def _can_manage_tickets(request, tipo: str | None = None) -> bool:
@@ -205,14 +259,12 @@ def _can_manage_tickets(request, tipo: str | None = None) -> bool:
     if legacy_user and is_legacy_admin(legacy_user):
         return True
     tipi = [tipo] if tipo else [TipoTicket.IT, TipoTicket.MAN]
-    username = request.user.get_username().lower()
-    email    = (request.user.email or "").lower()
+    identities = _user_acl_identities(request)
     for t in tipi:
         cfg = TicketImpostazioni.objects.filter(tipo=t).first()
         if not cfg:
             continue
-        acl = cfg.acl_gestione or []
-        if any(v.lower() in (username, email) for v in acl):
+        if _acl_list_matches(cfg.acl_gestione or [], identities):
             return True
     return False
 

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Tickets — match identità ACL gestione/apertura più robusto
+
+- **[fix] `tickets/views.py`** — nuovo helper `_user_acl_identities(request)` + `_acl_list_matches()`: il controllo di `acl_apertura`/`acl_gestione` ora riconosce tutte le forme con cui un utente può essere salvato nelle liste (username Django, email aziendale/UPN, prefisso UPN, `aliasusername` legacy, email aziendale legacy). Risolve i 403 sul dettaglio ticket quando in lista è salvato l'`aliasusername` (es. `a.astarita`) ma l'account Django ha come username/email l'UPN (`a.astarita@dominio`). **`email_notifica` (mail privata) esclusa di proposito**: l'identità valida è solo mail aziendale o username. Aggiornate `_can_open_tickets` e `_can_manage_tickets` per usare gli helper.
+
+### ACL strict-mode — readiness prod
+
+- **[docs] `docs/ai/CHECKLIST_ATTIVAZIONE_ACL_STRICT_PROD.md`** — registrata la misura di readiness eseguita in prod il 2026-06-05 dopo l'aggiornamento della release `feat/acl-chiusura-migrazione-fase1`: `acl_strict_readiness` riporta 0 accessi consentiti solo via fallback legacy su 833 route applicative e tutti i 9 ruoli. Spuntati il prerequisito branch rilasciato e il Passo 1 (strict attivabile senza regressioni); aggiornata la tabella Stato.
+
 ### Automazioni - package Power Automate RENTRI
 
 - **[package] `automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json`** — nuovo package importabile da `rentri_20260604152402.zip` per il flow Power Automate `RENTRI - MODIFICA ELEMENTO`: notifica nuovo carico, promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni. Riferisce i package gia' presenti `au31_scarico_senza_fir_notifica` e `docs/automation_packages/rentri_movimenti_da_trasmettere` per evitare sovrapposizioni operative.
