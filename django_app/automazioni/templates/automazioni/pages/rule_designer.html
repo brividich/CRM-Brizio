@@ -4135,6 +4135,13 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
       html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">x</button>';
       if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Apri editor</button>';
       html += '</div>';
+    } else if (type === 'conditions' && anchor) {
+      // Il nodo condizioni non si elimina dal canvas, ma deve poter aprire
+      // la sezione condizioni completa. Il click e' gestito dall'handler
+      // delegato sul canvas (flow-node-end-btn -> _openFlowNodeEditor -> anchor).
+      html += '<div class="flow-node-actions">';
+      html += '<button class="flow-node-end-btn" type="button">Apri condizioni</button>';
+      html += '</div>';
     }
 
     html += '</div>'; // .flow-node-inner

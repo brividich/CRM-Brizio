@@ -48,7 +48,11 @@
           "description": "Broadcast presa visione notizia obbligatoria",
           "to": "BROADCAST_DA_CONFIGURARE@costruzioninovicrom.it",
           "subject_template": "Comunicazione obbligatoria: {titolo}",
-          "body_text_template": "E' stata pubblicata una comunicazione obbligatoria: {titolo}.\nE' richiesta la presa visione. Accedere al portale per consultarla e confermarne la lettura."
+          "body_text_template": "E' stata pubblicata una comunicazione obbligatoria: {titolo}.\nE' richiesta la presa visione. Accedere al portale per consultarla e confermarne la lettura.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">E' stata pubblicata una comunicazione obbligatoria: {titolo}. E' richiesta la presa visione. Accedere al portale per consultarla e confermarne la lettura.</p>",
+          "email_type": "Automazioni",
+          "section_label": "Automazioni",
+          "title_template": "Comunicazione obbligatoria: {titolo}"
         }
       ]
     }

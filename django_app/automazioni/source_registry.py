@@ -645,6 +645,7 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 data_type="string",
                 description="Tipo movimento: C=carico, O=scarico, M=rettifica, R=rettifica scarico.",
                 aliases=["tipo_movimento", "movement_type"],
+                allowed_values=["C", "O", "M", "R"],
             ),
             _field(
                 name="data",

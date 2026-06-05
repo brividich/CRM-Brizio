@@ -48,6 +48,18 @@ IMPORT_STATUS_LABELS = {
     "partial": "import parziale",
     "blocked": "bloccato",
 }
+# Placeholder iniettati dal runtime (non sono campi della sorgente, quindi non vanno
+# cercati nel registry): il link al record nel portale e i recapiti/token di approvazione,
+# valorizzati in services.py al momento dell'esecuzione. Vanno esclusi dal check
+# "Placeholder non presenti nella sorgente portale", altrimenti un package che usa
+# {object_url}/{approve_url}/... verrebbe erroneamente bloccato in import.
+RUNTIME_INJECTED_PLACEHOLDERS = {
+    "object_url",
+    "approve_url",
+    "reject_url",
+    "approval_token",
+    "approval_id",
+}
 SUPPORTED_ACTION_TYPES = {choice[0] for choice in AutomationActionType.choices}
 SUPPORTED_OPERATIONS = {choice[0] for choice in AutomationRuleOperationType.choices}
 SUPPORTED_TRIGGER_SCOPES = {choice[0] for choice in AutomationRuleTriggerScope.choices}
@@ -67,6 +79,17 @@ def _bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return _string(value).lower() in {"1", "true", "yes", "on"}
+
+
+def _int(value: Any, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
 
 
 def _serialize_text(value: Any) -> str:
@@ -172,15 +195,92 @@ def build_example_payload(source_code: str | None) -> dict[str, Any]:
         data_type = _string(field.get("data_type"))
         if not field_name:
             continue
-        payload[field_name] = _sample_value_for_field(source_code, field_name, data_type)
+        allowed_values = [
+            _string(value)
+            for value in (field.get("allowed_values") or [])
+            if _string(value)
+        ]
+        # Se la registry non dichiara choices esplicite, prova a derivarle dal
+        # model dietro la sorgente: cosi' i campi-choices di TUTTE le sorgenti
+        # (stato, tipo, status, ...) ottengono un valore reale nel payload di
+        # test, senza duplicare a mano le choices nel registry.
+        if not allowed_values:
+            allowed_values = _model_choices_for_field(source_code, field)
+        payload[field_name] = _sample_value_for_field(
+            source_code, field_name, data_type, allowed_values
+        )
     return payload
+
+
+# Cache (source_code, db_column) -> list[str] dei valori di choice del model.
+# Popolata pigramente: il lookup tocca l'ORM, quindi lo facciamo solo quando
+# serve generare un payload di esempio, non all'import del registry.
+_MODEL_CHOICES_CACHE: dict[tuple[str, str], list[str]] = {}
+
+
+def _model_choices_for_field(source_code: str | None, field: dict[str, Any]) -> list[str]:
+    """Valori di choice del campo model dietro la sorgente (best-effort).
+
+    Risolve il model tramite la `table_name` del registry e legge
+    `model_field.choices`. Restituisce lista vuota se il model/campo non e'
+    determinabile o non ha choices. Non solleva mai: in caso di errore (es.
+    DB non pronto) torna lista vuota e si ricade sul fallback per tipo.
+    """
+    normalized_source = _string(source_code)
+    db_column = _string(field.get("db_column"))
+    if not db_column:
+        # Nessuna colonna esplicita: usa il nome del campo, gestendo i campi
+        # sintetici del payload-old (es. `old_status`, `old_stato`) che non hanno
+        # colonna propria ma rispecchiano la stessa choice del campo corrente
+        # (la choice va derivata dalla colonna senza prefisso `old_`).
+        field_name = _string(field.get("name"))
+        if field_name.startswith("old_"):
+            db_column = field_name[len("old_") :]
+        else:
+            db_column = field_name
+    if not normalized_source or not db_column:
+        return []
+
+    cache_key = (normalized_source, db_column)
+    cached = _MODEL_CHOICES_CACHE.get(cache_key)
+    if cached is not None:
+        return list(cached)
+
+    values: list[str] = []
+    try:
+        from django.apps import apps
+
+        definition = get_source_definition(source_code) or {}
+        table_name = _string(definition.get("table_name"))
+        model = None
+        if table_name:
+            for candidate in apps.get_models():
+                if candidate._meta.db_table == table_name:
+                    model = candidate
+                    break
+        if model is not None:
+            model_field = model._meta.get_field(db_column)
+            for choice_value, _label in (model_field.choices or []):
+                text = _string(choice_value)
+                if text:
+                    values.append(text)
+    except Exception:
+        values = []
+
+    _MODEL_CHOICES_CACHE[cache_key] = list(values)
+    return values
 
 
 def build_example_payload_json(source_code: str | None) -> str:
     return _pretty_json(build_example_payload(source_code))
 
 
-def _sample_value_for_field(source_code: str | None, field_name: str, data_type: str) -> Any:
+def _sample_value_for_field(
+    source_code: str | None,
+    field_name: str,
+    data_type: str,
+    allowed_values: list[str] | None = None,
+) -> Any:
     normalized_source = _string(source_code).lower()
     normalized_field = _string(field_name).lower()
 
@@ -285,7 +385,132 @@ def _sample_value_for_field(source_code: str | None, field_name: str, data_type:
         if normalized_field == "is_active":
             return True
 
+    # Per i campi con choices vincolate (es. tipo movimento RENTRI, stato, esito)
+    # il payload di test deve usare un valore realmente ammesso, altrimenti le
+    # condizioni `equals`/`in` falliscono e le azioni non vengono mai eseguite.
+    if data_type in ("string", "int") and allowed_values:
+        first_allowed = allowed_values[0]
+        if data_type == "int":
+            try:
+                return int(first_allowed)
+            except (TypeError, ValueError):
+                return first_allowed
+        return first_allowed
+
+    # Euristica sul nome del campo: deduce un esempio plausibile per i campi
+    # string liberi piu' comuni, cosi' il payload di test risulta verosimile
+    # anche per le sorgenti senza mappatura esplicita qui sopra.
+    if data_type == "string":
+        heuristic_value = _heuristic_string_sample(normalized_field)
+        if heuristic_value is not None:
+            return heuristic_value
+
     return SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio")
+
+
+def _heuristic_string_sample(normalized_field: str) -> str | None:
+    """Esempio realistico dedotto dal nome del campo (best-effort).
+
+    Vale per QUALSIASI sorgente: i match per nome campo coprono i pattern
+    ricorrenti del dominio (anagrafica, codici, recapiti, persone, testi
+    liberi), cosi' il payload di test risulta verosimile anche per le sorgenti
+    senza mappatura esplicita. Restituisce ``None`` quando nessuna euristica e'
+    applicabile, lasciando decidere al fallback per tipo.
+    """
+    # --- Match esatti (hanno priorita' sui match per sottostringa) ---
+    exact = {
+        # Codici / identificativi
+        "codice": "170405",  # codice CER rifiuti (6 cifre)
+        "codice_cer": "170405",
+        "cer": "170405",
+        "codice_identificativo": "INC-000101",
+        "id_registrazione": "REG-000101",
+        "numero": "0001",
+        "numero_ticket": "TKT-2026-0001",
+        "asset_tag": "AST-000101",
+        "asset_nome": "Tornio CNC 01",
+        # Persone / ruoli
+        "nome": "Mario Rossi",
+        "dipendente_nome": "Mario Rossi",
+        "nominativo": "Mario Rossi",
+        "operatore": "Mario Rossi",
+        "inserito_da": "Mario Rossi",
+        "richiedente_nome": "Mario Rossi",
+        "risolto_da_nome": "Luca Bianchi",
+        "preposto": "Luca Bianchi",
+        "chi_segnala": "Mario Rossi",
+        "ex_op_nominativo": "Mario Rossi",
+        "teacher_name_snapshot": "Ing. Anna Verdi",
+        "modified_by_role": "caporeparto",
+        # Aziende / organizzazione
+        "ragione_sociale": "Acme S.r.l.",
+        "azienda": "Acme S.r.l.",
+        "fornitore": "Acme S.r.l.",
+        # Asset
+        "manufacturer": "Dell",
+        "model": "Latitude 5540",
+        "asset_type": "NOTEBOOK",
+        # Testi / titoli
+        "titolo": "Riferimento di esempio",
+        "title": "Riferimento di esempio",
+        "name": "Voce di esempio",
+        "oggetto": "Riferimento di esempio",
+        "componente": "Mandrino",
+        "causa_radice": "Usura componente",
+        "causa_evento": "Disattenzione operativa",
+        "nome_macchina": "Tornio CNC 01",
+        "plan_code_snapshot": "PIANO-2026",
+        # Recapiti
+        "pec": "azienda@pec.example.it",
+        # Campi categorici a testo libero nel model (choices=None) ma con un
+        # insieme di valori convenzionali nel dominio.
+        "categoria": "GUASTO",
+        "tipologia_scheda": "Near miss",
+        "approvazione_rls": "Approvata",
+        "esito_esame": "SUPERATO",
+        "altre_cause": "Nessuna ulteriore causa rilevata",
+        # RENTRI: campi liberi ereditati da SharePoint.
+        "carico_scarico": "C - Carico",
+        "pericolosita": "Pericoloso",
+        "rif_op": "OdP-000101",
+    }
+    if normalized_field in exact:
+        return exact[normalized_field]
+
+    # --- Match per sottostringa (campi liberi e varianti di naming) ---
+    # Stato avanzamento anomalie (tabella legacy senza model ORM: choices non
+    # derivabili dall'ORM, valore convenzionale del dominio).
+    if "avanzamento" in normalized_field:
+        return "APERTO"
+    if "fir" in normalized_field:
+        return "AAAA000000001"
+    if "seriale" in normalized_field or "serial" in normalized_field:
+        return "SN-EXAMPLE-001"
+    if "telefono" in normalized_field or "cellulare" in normalized_field or "phone" in normalized_field:
+        return "+39 333 1234567"
+    if normalized_field in ("cf", "codice_fiscale") or "codice_fiscale" in normalized_field:
+        return "RSSMRA80A01H501U"
+    if "partita_iva" in normalized_field or normalized_field == "piva":
+        return "01234567890"
+    if "reparto" in normalized_field:
+        return "Produzione"
+    if "mansione" in normalized_field:
+        return "Operaio specializzato"
+    if "location" in normalized_field or "ubicazione" in normalized_field or "sede" in normalized_field:
+        return "Sede di Vicenza - Reparto Produzione"
+    if "assegnato" in normalized_field or "assignment_to" in normalized_field or "assignee" in normalized_field:
+        return "Mario Rossi"
+    if normalized_field.startswith("why_"):
+        return "Causa di esempio individuata nell'analisi"
+    if "partecipanti" in normalized_field or "persone" in normalized_field:
+        return "Mario Rossi, Luca Bianchi"
+    if "prescrizioni" in normalized_field:
+        return "Nessuna prescrizione particolare"
+    if "url" in normalized_field or "link" in normalized_field:
+        return "https://example.local/risorsa/101"
+    if any(token in normalized_field for token in ("descrizione", "description", "note", "notes", "motivazione", "motivo", "corpo", "testo", "body", "step", "misure", "attivita", "avvenimento", "tags")):
+        return "Testo descrittivo di esempio"
+    return None
 
 
 def _quote_name(name: str) -> str:
@@ -1000,7 +1225,8 @@ def _validate_action_structure(
     missing_placeholders = [
         placeholder
         for placeholder in sorted(_collect_placeholders(placeholder_scope))
-        if not _resolve_source_field_name(placeholder, _build_base_alias_map(source_code))
+        if placeholder not in RUNTIME_INJECTED_PLACEHOLDERS
+        and not _resolve_source_field_name(placeholder, _build_base_alias_map(source_code))
     ]
     if missing_placeholders:
         errors.append(
@@ -1681,6 +1907,8 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
                 is_active=False,
                 is_draft=True,
                 stop_on_first_failure=_bool(raw_rule.get("stop_on_first_failure")),
+                exclusion_group=_string(raw_rule.get("exclusion_group")),
+                priority=_int(raw_rule.get("priority")),
             )
             try:
                 preview_rule.full_clean(validate_unique=False)
@@ -1718,6 +1946,8 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
                 "final_is_active": False,
                 "final_is_draft": True,
                 "stop_on_first_failure": _bool(raw_rule.get("stop_on_first_failure")),
+                "exclusion_group": _string(raw_rule.get("exclusion_group")),
+                "priority": _int(raw_rule.get("priority")),
                 "conditions": normalized_conditions,
                 "actions": normalized_actions,
                 "errors": rule_errors,
@@ -1914,6 +2144,8 @@ def _create_imported_rule(
         is_active=bool(activate_rule),
         is_draft=not bool(activate_rule),
         stop_on_first_failure=bool(rule_plan.get("stop_on_first_failure")),
+        exclusion_group=_string(rule_plan.get("exclusion_group")),
+        priority=_int(rule_plan.get("priority")),
         created_by=created_by,
         updated_by=created_by,
     )

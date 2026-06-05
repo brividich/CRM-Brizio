@@ -1,0 +1,263 @@
+{
+  "package_version": "2026.06",
+  "input": {
+    "flow_name": "AU-ASSENZE - Approvazione unica per tipo (Ferie/Permesso/Flessibilita')"
+  },
+  "source_candidate": {
+    "source_code": "assenze",
+    "label": "Assenze"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "assenze"
+  },
+  "proposed_rules": [
+    {
+      "code": "au-assenze-unico-branch-per-tipo",
+      "name": "AU-ASSENZE - Approvazione unica per tipo (Ferie/Permesso/Flessibilita')",
+      "description": "Regola unica sulla creazione di una richiesta di assenza non auto-approvata (salta_approvazione = falso). Instrada via branch annidati sul tipo: FERIE -> se durata > 10 giorni doppia approvazione (caporeparto poi HR), altrimenti approvazione singola del caporeparto; PERMESSO -> approvazione caporeparto; FLESSIBILITA' -> approvazione caporeparto. Ogni ramo notifica l'esito (approvato/rifiutato) al dipendente. I tipi non gestiti (Malattia, Certifica presenza, Altro) non attivano alcun ramo. Sostituisce l'uso di piu' pacchetti sovrapposti su assenze/insert: una sola regola, nessuna esclusione implicita. Rami isolati (stop_on_first_failure = falso): un tipo in errore non blocca gli altri. Sostituire HR_DA_CONFIGURARE prima di attivare; il caporeparto usa {capo_email} dal payload.",
+      "source_code": "assenze",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "salta_approvazione",
+          "operator": "is_false",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "branch",
+          "description": "Se Ferie",
+          "condition_field": "tipo_assenza",
+          "condition_operator": "equals",
+          "condition_value": "Ferie",
+          "condition_value_type": "string",
+          "then_actions": [
+            {
+              "action_type": "branch",
+              "description": "Ferie: se durata > 10 giorni",
+              "condition_field": "data_fine",
+              "condition_operator": "days_span_gt",
+              "condition_value": "data_inizio:10",
+              "condition_value_type": "date",
+              "then_actions": [
+                {
+                  "action_type": "send_approval",
+                  "description": "Ferie: approvazione caporeparto",
+                  "delivery_mode": "email",
+                  "to_template": "{capo_email}",
+                  "subject_template": "[Ferie] Approvazione richiesta - {dipendente_nome} (ferie lunghe)",
+                  "message_template": "Buongiorno,\n\ne' pervenuta una richiesta di ferie che richiede la sua approvazione come caporeparto.\n\nDettaglio richiesta\nDipendente: {dipendente_nome}\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\nMotivazione: {motivazione_richiesta}\n\nAzione richiesta: approvare o respingere la richiesta.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                  "expiry_days": 7,
+                  "approve_label": "Approva",
+                  "reject_label": "Rifiuta",
+                  "approved_actions": [
+                    {
+                      "action_type": "send_approval",
+                      "description": "Ferie lunghe: approvazione finale HR",
+                      "delivery_mode": "email",
+                      "to_template": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+                      "subject_template": "[Ferie] Approvazione finale HR - {dipendente_nome}",
+                      "message_template": "Buongiorno,\n\nil caporeparto ha approvato una richiesta di ferie superiore a 10 giorni che ora richiede l'approvazione finale di HR.\n\nDettaglio richiesta\nDipendente: {dipendente_nome}\nDal: {data_inizio}\nAl: {data_fine}\nMotivazione: {motivazione_richiesta}\n\nAzione richiesta: confermare o respingere la richiesta.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "expiry_days": 7,
+                      "approve_label": "Approva",
+                      "reject_label": "Rifiuta",
+                      "approved_actions": [
+                        {
+                          "action_type": "send_email",
+                          "description": "Ferie: conferma al dipendente",
+                          "to": "{dipendente_email}",
+                          "subject_template": "[Ferie] Richiesta approvata",
+                          "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di ferie e' stata approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di ferie e' stata approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table>",
+                          "email_type": "Automazioni",
+                          "section_label": "Ferie",
+                          "title_template": "Richiesta approvata"
+                        }
+                      ],
+                      "rejected_actions": [
+                        {
+                          "action_type": "send_email",
+                          "description": "Ferie: rifiuto al dipendente",
+                          "to": "{dipendente_email}",
+                          "subject_template": "[Ferie] Richiesta non approvata",
+                          "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di ferie e' stata non approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\nPer chiarimenti rivolgiti al tuo caporeparto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di ferie e' stata non approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Per chiarimenti rivolgiti al tuo caporeparto.</p>",
+                          "email_type": "Automazioni",
+                          "section_label": "Ferie",
+                          "title_template": "Richiesta non approvata"
+                        }
+                      ]
+                    }
+                  ],
+                  "rejected_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Ferie: rifiuto al dipendente",
+                      "to": "{dipendente_email}",
+                      "subject_template": "[Ferie] Richiesta non approvata",
+                      "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di ferie e' stata non approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\nPer chiarimenti rivolgiti al tuo caporeparto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di ferie e' stata non approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Per chiarimenti rivolgiti al tuo caporeparto.</p>",
+                      "email_type": "Automazioni",
+                      "section_label": "Ferie",
+                      "title_template": "Richiesta non approvata"
+                    }
+                  ]
+                }
+              ],
+              "else_actions": [
+                {
+                  "action_type": "send_approval",
+                  "description": "Ferie: approvazione caporeparto",
+                  "delivery_mode": "email",
+                  "to_template": "{capo_email}",
+                  "subject_template": "[Ferie] Approvazione richiesta - {dipendente_nome}",
+                  "message_template": "Buongiorno,\n\ne' pervenuta una richiesta di ferie che richiede la sua approvazione come caporeparto.\n\nDettaglio richiesta\nDipendente: {dipendente_nome}\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\nMotivazione: {motivazione_richiesta}\n\nAzione richiesta: approvare o respingere la richiesta.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                  "expiry_days": 3,
+                  "approve_label": "Approva",
+                  "reject_label": "Rifiuta",
+                  "approved_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Ferie: conferma al dipendente",
+                      "to": "{dipendente_email}",
+                      "subject_template": "[Ferie] Richiesta approvata",
+                      "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di ferie e' stata approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di ferie e' stata approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table>",
+                      "email_type": "Automazioni",
+                      "section_label": "Ferie",
+                      "title_template": "Richiesta approvata"
+                    }
+                  ],
+                  "rejected_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Ferie: rifiuto al dipendente",
+                      "to": "{dipendente_email}",
+                      "subject_template": "[Ferie] Richiesta non approvata",
+                      "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di ferie e' stata non approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\nPer chiarimenti rivolgiti al tuo caporeparto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di ferie e' stata non approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Per chiarimenti rivolgiti al tuo caporeparto.</p>",
+                      "email_type": "Automazioni",
+                      "section_label": "Ferie",
+                      "title_template": "Richiesta non approvata"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "else_actions": [
+            {
+              "action_type": "branch",
+              "description": "Se Permesso",
+              "condition_field": "tipo_assenza",
+              "condition_operator": "equals",
+              "condition_value": "Permesso",
+              "condition_value_type": "string",
+              "then_actions": [
+                {
+                  "action_type": "send_approval",
+                  "description": "Permesso: approvazione caporeparto",
+                  "delivery_mode": "email",
+                  "to_template": "{capo_email}",
+                  "subject_template": "[Permesso] Approvazione richiesta - {dipendente_nome}",
+                  "message_template": "Buongiorno,\n\ne' pervenuta una richiesta di permesso che richiede la sua approvazione come caporeparto.\n\nDettaglio richiesta\nDipendente: {dipendente_nome}\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\nMotivazione: {motivazione_richiesta}\n\nAzione richiesta: approvare o respingere la richiesta.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                  "expiry_days": 3,
+                  "approve_label": "Approva",
+                  "reject_label": "Rifiuta",
+                  "approved_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Permesso: conferma al dipendente",
+                      "to": "{dipendente_email}",
+                      "subject_template": "[Permesso] Richiesta approvata",
+                      "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di permesso e' stata approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di permesso e' stata approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table>",
+                      "email_type": "Automazioni",
+                      "section_label": "Permesso",
+                      "title_template": "Richiesta approvata"
+                    }
+                  ],
+                  "rejected_actions": [
+                    {
+                      "action_type": "send_email",
+                      "description": "Permesso: rifiuto al dipendente",
+                      "to": "{dipendente_email}",
+                      "subject_template": "[Permesso] Richiesta non approvata",
+                      "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di permesso e' stata non approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\nPer chiarimenti rivolgiti al tuo caporeparto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di permesso e' stata non approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Per chiarimenti rivolgiti al tuo caporeparto.</p>",
+                      "email_type": "Automazioni",
+                      "section_label": "Permesso",
+                      "title_template": "Richiesta non approvata"
+                    }
+                  ]
+                }
+              ],
+              "else_actions": [
+                {
+                  "action_type": "branch",
+                  "description": "Se Flessibilita'",
+                  "condition_field": "tipo_assenza",
+                  "condition_operator": "equals",
+                  "condition_value": "Flessibilità",
+                  "condition_value_type": "string",
+                  "then_actions": [
+                    {
+                      "action_type": "send_approval",
+                      "description": "Flessibilità: approvazione caporeparto",
+                      "delivery_mode": "email",
+                      "to_template": "{capo_email}",
+                      "subject_template": "[Flessibilità] Approvazione richiesta - {dipendente_nome}",
+                      "message_template": "Buongiorno,\n\ne' pervenuta una richiesta di flessibilità che richiede la sua approvazione come caporeparto.\n\nDettaglio richiesta\nDipendente: {dipendente_nome}\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\nMotivazione: {motivazione_richiesta}\n\nAzione richiesta: approvare o respingere la richiesta.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                      "expiry_days": 3,
+                      "approve_label": "Approva",
+                      "reject_label": "Rifiuta",
+                      "approved_actions": [
+                        {
+                          "action_type": "send_email",
+                          "description": "Flessibilità: conferma al dipendente",
+                          "to": "{dipendente_email}",
+                          "subject_template": "[Flessibilità] Richiesta approvata",
+                          "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di flessibilità e' stata approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di flessibilità e' stata approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table>",
+                          "email_type": "Automazioni",
+                          "section_label": "Flessibilità",
+                          "title_template": "Richiesta approvata"
+                        }
+                      ],
+                      "rejected_actions": [
+                        {
+                          "action_type": "send_email",
+                          "description": "Flessibilità: rifiuto al dipendente",
+                          "to": "{dipendente_email}",
+                          "subject_template": "[Flessibilità] Richiesta non approvata",
+                          "body_text_template": "Gentile {dipendente_nome},\n\nla tua richiesta di flessibilità e' stata non approvata.\n\nDettaglio richiesta\nTipo: {tipo_assenza}\nDal: {data_inizio}\nAl: {data_fine}\n\nPer chiarimenti rivolgiti al tuo caporeparto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+                          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile {dipendente_nome},</p><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">la tua richiesta di flessibilità e' stata non approvata.</p><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo_assenza}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dal</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_inizio}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Al</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_fine}</td></tr></table></td></tr></table><p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Per chiarimenti rivolgiti al tuo caporeparto.</p>",
+                          "email_type": "Automazioni",
+                          "section_label": "Flessibilità",
+                          "title_template": "Richiesta non approvata"
+                        }
+                      ]
+                    }
+                  ],
+                  "else_actions": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -7568,3 +7568,430 @@ class ApprovalProxyEndpointTests(TestCase):
         self.assertIsNotNone(entry)
         self.assertTrue(entry.dettaglio["ok"])
         self.assertEqual(entry.dettaglio["actor"], "entra.ok@corp.local")
+
+
+class ExclusionGroupProcessingTests(TestCase):
+    """Verifica priorita' + fallback a cascata per regole con exclusion_group.
+
+    La logica vive in process_queue_event: le funzioni di coda (mark_queue_*) e
+    run_rule vengono mockate per isolare la sola selezione delle regole, senza
+    dipendere dalla tabella raw dbo.automation_event_queue (assente in SQLite).
+    """
+
+    def _make_rule(self, code, *, group="", priority=0):
+        return AutomationRule.objects.create(
+            code=code,
+            name=code,
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.INSERT,
+            trigger_scope=AutomationRuleTriggerScope.ALL_INSERTS,
+            is_active=True,
+            is_draft=False,
+            exclusion_group=group,
+            priority=priority,
+        )
+
+    def _queue_event(self, queue_id=9001):
+        return {
+            "id": queue_id,
+            "source_code": "assenze",
+            "operation_type": "insert",
+            "payload_json": json.dumps({"id": 555, "tipo_assenza": "Permesso"}),
+            "old_payload_json": None,
+        }
+
+    def _fake_run_rule_factory(self, status_by_code):
+        """Ritorna un side_effect per run_rule che mappa code -> status e tiene
+        traccia delle regole effettivamente eseguite (non saltate)."""
+        executed: list[str] = []
+
+        def _fake(rule, *args, **kwargs):
+            executed.append(rule.code)
+            status = status_by_code.get(rule.code, AutomationRunLogStatus.SUCCESS)
+            return SimpleNamespace(status=status)
+
+        return _fake, executed
+
+    def _patches(self):
+        return (
+            patch("automazioni.services.mark_queue_done"),
+            patch("automazioni.services.mark_queue_error"),
+            patch("automazioni.services._enrich_payload_for_source", side_effect=lambda _s, p: p),
+        )
+
+    def test_only_highest_priority_runs_in_group(self):
+        winner = self._make_rule("grp-win", group="assenze_insert", priority=100)
+        loser = self._make_rule("grp-lose", group="assenze_insert", priority=10)
+        fake, executed = self._fake_run_rule_factory(
+            {winner.code: AutomationRunLogStatus.SUCCESS}
+        )
+        p_done, p_err, p_enrich = self._patches()
+        with p_done as m_done, p_err as m_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[loser, winner]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            result = process_queue_event(self._queue_event())
+
+        # Solo la vincente eseguita; la perdente saltata con run-log SKIPPED.
+        self.assertEqual(executed, [winner.code])
+        m_done.assert_called_once()
+        m_err.assert_not_called()
+        skipped = AutomationRunLog.objects.filter(
+            rule=loser, status=AutomationRunLogStatus.SKIPPED
+        )
+        self.assertEqual(skipped.count(), 1)
+        self.assertIn("assenze_insert", skipped.first().result_message)
+        self.assertIn(winner.code, skipped.first().result_message)
+        self.assertEqual(result["status"], "done")
+
+    def test_fallback_when_winner_errors(self):
+        winner = self._make_rule("grp-err", group="assenze_insert", priority=100)
+        backup = self._make_rule("grp-ok", group="assenze_insert", priority=10)
+        fake, executed = self._fake_run_rule_factory(
+            {
+                winner.code: AutomationRunLogStatus.ERROR,
+                backup.code: AutomationRunLogStatus.SUCCESS,
+            }
+        )
+        p_done, p_err, p_enrich = self._patches()
+        with p_done as m_done, p_err as m_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[winner, backup]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            process_queue_event(self._queue_event())
+
+        # La vincente fallisce -> si esegue il backup; evento non in errore.
+        self.assertEqual(executed, [winner.code, backup.code])
+        m_done.assert_called_once()
+        m_err.assert_not_called()
+
+    def test_group_error_when_all_fail(self):
+        first = self._make_rule("grp-f1", group="assenze_insert", priority=100)
+        second = self._make_rule("grp-f2", group="assenze_insert", priority=10)
+        fake, executed = self._fake_run_rule_factory(
+            {
+                first.code: AutomationRunLogStatus.ERROR,
+                second.code: AutomationRunLogStatus.ERROR,
+            }
+        )
+        p_done, p_err, p_enrich = self._patches()
+        with p_done as m_done, p_err as m_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[first, second]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            result = process_queue_event(self._queue_event())
+
+        # Tutte falliscono -> evento in errore (ritentabile), flusso non perso.
+        self.assertEqual(executed, [first.code, second.code])
+        m_err.assert_called_once()
+        m_done.assert_not_called()
+        self.assertEqual(result["status"], "error")
+
+    def test_waiting_approval_blocks_group(self):
+        winner = self._make_rule("grp-wait", group="assenze_insert", priority=100)
+        other = self._make_rule("grp-skip", group="assenze_insert", priority=10)
+        fake, executed = self._fake_run_rule_factory(
+            {winner.code: AutomationRunLogStatus.WAITING_APPROVAL}
+        )
+        p_done, p_err, p_enrich = self._patches()
+        with p_done as m_done, p_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[winner, other]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            process_queue_event(self._queue_event())
+
+        # WAITING_APPROVAL e' una vincente: blocca il gruppo, nessun fallback.
+        self.assertEqual(executed, [winner.code])
+        m_done.assert_called_once()
+        self.assertTrue(
+            AutomationRunLog.objects.filter(
+                rule=other, status=AutomationRunLogStatus.SKIPPED
+            ).exists()
+        )
+
+    def test_ungrouped_rules_all_run(self):
+        r1 = self._make_rule("ungrp-1")
+        r2 = self._make_rule("ungrp-2")
+        fake, executed = self._fake_run_rule_factory({})
+        p_done, p_err, p_enrich = self._patches()
+        with p_done, p_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[r1, r2]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            process_queue_event(self._queue_event())
+
+        # Nessun gruppo -> comportamento storico: tutte eseguite.
+        self.assertEqual(set(executed), {r1.code, r2.code})
+
+    def test_different_groups_are_independent(self):
+        a = self._make_rule("ga", group="group_a", priority=50)
+        b = self._make_rule("gb", group="group_b", priority=50)
+        fake, executed = self._fake_run_rule_factory({})
+        p_done, p_err, p_enrich = self._patches()
+        with p_done, p_err, p_enrich, patch(
+            "automazioni.services.find_matching_rules", return_value=[a, b]
+        ), patch("automazioni.services.run_rule", side_effect=fake):
+            process_queue_event(self._queue_event())
+
+        # Gruppi diversi -> partono entrambe.
+        self.assertEqual(set(executed), {a.code, b.code})
+
+
+class ExclusionGroupImporterTests(TestCase):
+    """Verifica che l'importer mappi exclusion_group/priority dal package al DB."""
+
+    def _base_rule(self, **overrides):
+        rule = {
+            "code": "imp-grp-rule",
+            "name": "Import group rule",
+            "source_code": "assenze",
+            "operation_type": "insert",
+            "trigger_scope": "all_inserts",
+            "is_active": False,
+            "is_draft": True,
+            "conditions": [],
+            "actions": [
+                {
+                    "action_type": "write_log",
+                    "description": "log",
+                    "message_template": "ok {id}",
+                }
+            ],
+        }
+        rule.update(overrides)
+        return {
+            "package_version": "2026.06",
+            "input": {"flow_name": "Import group flow"},
+            "source_candidate": {"source_code": "assenze", "label": "Assenze"},
+            "proposed_rules": [rule],
+        }
+
+    def test_importer_reads_group_and_priority(self):
+        analysis = analyze_package_dict(
+            self._base_rule(exclusion_group="assenze_insert", priority=100),
+            filename="imp-group.automation_package.json",
+        )
+        analyzed_rule = analysis["rules"][0]
+        self.assertEqual(analyzed_rule["exclusion_group"], "assenze_insert")
+        self.assertEqual(analyzed_rule["priority"], 100)
+
+    def test_importer_defaults_when_absent(self):
+        analysis = analyze_package_dict(
+            self._base_rule(), filename="imp-default.automation_package.json"
+        )
+        analyzed_rule = analysis["rules"][0]
+        self.assertEqual(analyzed_rule["exclusion_group"], "")
+        self.assertEqual(analyzed_rule["priority"], 0)
+
+
+@override_settings(DEFAULT_FROM_EMAIL="noreply@test.local", SITE_URL="https://hub.test.local")
+class AssenzeUnicoBranchPackageTests(TestCase):
+    """Verifica il package unico assenze (branch per tipo): importabilità e routing.
+
+    Il package sostituisce i pacchetti sovrapposti su assenze/insert con una sola
+    regola che instrada via branch annidati sul `tipo_assenza`.
+    """
+
+    PACKAGE_PATH = (
+        Path(settings.BASE_DIR)
+        / "automazioni"
+        / "packages"
+        / "au_assenze_unico_branch_per_tipo.automation_package.json"
+    )
+
+    def _load_package(self):
+        return json.loads(self.PACKAGE_PATH.read_text(encoding="utf-8"))
+
+    def _payload(self, tipo, *, data_inizio="2026-04-01", data_fine="2026-04-05", salta=False):
+        return {
+            "id": 700,
+            "tipo_assenza": tipo,
+            "dipendente_nome": "Mario Rossi",
+            "dipendente_email": "employee@test.local",
+            "capo_email": "manager@test.local",
+            "data_inizio": data_inizio,
+            "data_fine": data_fine,
+            "motivazione_richiesta": "Motivo di prova",
+            "salta_approvazione": salta,
+        }
+
+    def test_package_is_importable(self):
+        analysis = analyze_package_dict(
+            self._load_package(), filename="au_assenze_unico_branch_per_tipo.automation_package.json"
+        )
+        rule = analysis["rules"][0]
+        self.assertTrue(rule["is_importable"], rule.get("errors"))
+        self.assertEqual(rule.get("errors"), [])
+
+    def _import_and_activate(self):
+        analysis = analyze_package_dict(
+            self._load_package(), filename="au_assenze_unico_branch_per_tipo.automation_package.json"
+        )
+        user = User.objects.create_user(username="imp-assenze", password="x")
+        import_analyzed_package(analysis, created_by=user)
+        rule = AutomationRule.objects.get(code__startswith="au-assenze-unico")
+        # L'import forza draft+inattivo: attivo manualmente per eseguire run_rule.
+        rule.is_active = True
+        rule.is_draft = False
+        rule.save(update_fields=["is_active", "is_draft"])
+        return rule
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_routing_ferie_lunghe_doppia_approvazione(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        # Ferie con durata > 10 giorni -> ramo doppia approvazione (caporeparto poi HR).
+        run_log = run_rule(rule, self._payload("Ferie", data_inizio="2026-04-01", data_fine="2026-04-20"))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        approval = AutomationApproval.objects.get()
+        self.assertEqual(approval.approver_emails, ["manager@test.local"])
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_routing_ferie_brevi_approvazione_singola(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        # Ferie <= 10 giorni -> approvazione singola caporeparto.
+        run_log = run_rule(rule, self._payload("Ferie", data_inizio="2026-04-01", data_fine="2026-04-05"))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(AutomationApproval.objects.count(), 1)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_routing_permesso(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        run_log = run_rule(rule, self._payload("Permesso"))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(AutomationApproval.objects.count(), 1)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_routing_flessibilita(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        run_log = run_rule(rule, self._payload("Flessibilità"))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(AutomationApproval.objects.count(), 1)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_tipo_non_gestito_non_crea_approvazione(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        # Malattia non ha ramo: la regola completa senza creare approvazioni.
+        run_log = run_rule(rule, self._payload("Malattia"))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.SUCCESS)
+        self.assertEqual(AutomationApproval.objects.count(), 0)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_salta_approvazione_skippa_la_regola(self, mock_email):
+        mock_email.return_value = MagicMock(send=MagicMock(return_value=1))
+        rule = self._import_and_activate()
+        run_log = run_rule(rule, self._payload("Ferie", salta=True))
+        self.assertEqual(run_log.status, AutomationRunLogStatus.SKIPPED)
+        self.assertEqual(AutomationApproval.objects.count(), 0)
+
+
+class ReportScadenzeSettimanaleTests(TestCase):
+    """Report scadenze visite/contratti gestito da Impostazioni (SiteConfig)."""
+
+    def setUp(self):
+        from anagrafica.models import (
+            DipendenteAnagraficaAziendale,
+            StoricoContratto,
+            TipoVisitaMedica,
+            VisitaMedica,
+        )
+        from core.legacy_models import AnagraficaDipendente
+
+        self.oggi = timezone.localdate()
+
+        # Dipendente legacy per la risoluzione del nominativo.
+        AnagraficaDipendente.objects.create(id=9001, cognome="Rossi", nome="Mario")
+
+        # Visita che scade fra 10 giorni: tipo con durata 0 => imposto data_scadenza a mano.
+        tipo = TipoVisitaMedica.objects.create(nome="Visita periodica", durata_mesi=0)
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=9001, tipo=tipo, data_svolgimento=self.oggi,
+        )
+        VisitaMedica.objects.filter(pk=v.pk).update(data_scadenza=self.oggi + timedelta(days=10))
+
+        # Contratto a termine che finisce fra 15 giorni.
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=9001, data_inizio=self.oggi - timedelta(days=300),
+            data_fine=self.oggi + timedelta(days=15), tipologia_contratto="DETERMINATO",
+        )
+        # Periodo di prova in scadenza fra 5 giorni.
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=9001, prova_data_fine=self.oggi + timedelta(days=5),
+        )
+
+    def _attiva(self, **over):
+        from automazioni.scadenze_config import save_scadenze_config
+        params = dict(
+            attivo=True, giorni=30,
+            email_visite="sorveglianza@test.local",
+            email_contratti="hr@test.local",
+            includi_visite=True, includi_contratti=True,
+        )
+        params.update(over)
+        save_scadenze_config(**params)
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_disattivo_non_invia(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        # Default: attivo non impostato -> off.
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertTrue(out["disattivato"])
+        mock_email.assert_not_called()
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_attivo_invia_due_email(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        self._attiva()
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertFalse(out["disattivato"])
+        self.assertTrue(out["visite"]["sent"])
+        self.assertEqual(out["visite"]["count"], 1)
+        self.assertTrue(out["contratti"]["sent"])
+        self.assertEqual(out["contratti"]["count"], 2)  # contratto + periodo di prova
+        self.assertEqual(mock_email.call_count, 2)
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_categoria_disattivata_non_invia_quella_email(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        self._attiva(includi_contratti=False)
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertTrue(out["visite"]["sent"])
+        self.assertEqual(out["contratti"]["reason"], "categoria_disattivata")
+        self.assertEqual(mock_email.call_count, 1)
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_finestra_giorni_stretta_esclude_scadenze_lontane(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        self._attiva(giorni=7)  # visita a 10gg e contratto a 15gg fuori finestra; prova a 5gg dentro
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertEqual(out["visite"]["reason"], "nessuna_scadenza")
+        self.assertEqual(out["contratti"]["count"], 1)  # solo il periodo di prova
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_dry_run_non_invia_ma_conta(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        self._attiva()
+        out = _esegui_report(giorni=None, dry_run=True, forza=False)
+        self.assertEqual(out["visite"]["reason"], "dry_run")
+        self.assertEqual(out["visite"]["count"], 1)
+        mock_email.assert_not_called()
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_forza_esegue_anche_se_disattivo(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        # attivo=False ma destinatari servono comunque per inviare.
+        self._attiva(attivo=False)
+        out = _esegui_report(giorni=None, dry_run=False, forza=True)
+        self.assertFalse(out["disattivato"])
+        self.assertTrue(out["visite"]["sent"])

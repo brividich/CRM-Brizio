@@ -573,15 +573,56 @@ def _enrich_anomalie_payload(payload: Any) -> Any:
     return enriched
 
 
+# Mappa sorgente -> template di path (relativo a SITE_URL) per il link al record nel
+# portale. SOLO sorgenti con una URL di dettaglio per-record affidabile basata sulla PK
+# (`id`) presente nel payload. Le altre sorgenti (es. rilevazione_incidenti usa sp_id non
+# la PK; anomalie non ha una detail per-record; assenze/anagrafica/rentri/notizie/procedure
+# non hanno una vista di dettaglio stabile) restano fuori: per loro {object_url} sara' vuoto
+# e nei template il link semplicemente non comparira'. Meglio nessun link che un link rotto.
+_OBJECT_URL_PATH_BY_SOURCE = {
+    "tickets": "/tickets/{id}/",
+    "dpi": "/dpi/gestione/{id}/",
+    "assets": "/assets/view/{id}/",
+}
+
+
+def _build_object_url(source_code: str | None, payload: Any) -> str:
+    """Costruisce l'URL assoluto al record sorgente, o stringa vuota se non disponibile."""
+    if not isinstance(payload, dict):
+        return ""
+    normalized_source = str(source_code or "").strip().lower()
+    path_template = _OBJECT_URL_PATH_BY_SOURCE.get(normalized_source)
+    if not path_template:
+        return ""
+    record_id = payload.get("id")
+    if record_id in (None, ""):
+        return ""
+    site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    if not site_url:
+        return ""
+    return f"{site_url}{path_template.format(id=record_id)}"
+
+
 def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
     normalized_source = str(source_code or "").strip().lower()
     if normalized_source == "assenze":
-        return _enrich_assenze_payload(payload)
-    if normalized_source == "tickets":
-        return _enrich_tickets_payload(payload)
-    if normalized_source == "anomalie":
-        return _enrich_anomalie_payload(payload)
-    return payload
+        enriched = _enrich_assenze_payload(payload)
+    elif normalized_source == "tickets":
+        enriched = _enrich_tickets_payload(payload)
+    elif normalized_source == "anomalie":
+        enriched = _enrich_anomalie_payload(payload)
+    else:
+        enriched = payload
+
+    # {object_url}: link al record nel portale, disponibile a tutti i template della regola.
+    # Non sovrascrive un valore gia' presente nel payload.
+    if isinstance(enriched, dict) and enriched.get("object_url") in (None, ""):
+        object_url = _build_object_url(normalized_source, enriched)
+        if object_url:
+            if enriched is payload:
+                enriched = dict(payload)
+            enriched["object_url"] = object_url
+    return enriched
 
 
 def enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
@@ -1870,11 +1911,14 @@ def _send_approval_email(
             f'</table>'
         )
 
+        # Preserva gli a-capo del message_template: prima si escapa l'HTML (sicurezza),
+        # poi i newline diventano <br> cosi' il corpo non collassa su una riga unica.
+        message_body_html = _html.escape(message_body).replace("\n", "<br>")
         html_body = render_to_string("core/email/base_email.html", {
             "email_type": "Approvazione",
             "badge": "Richiede azione",
             "section_label": "Richiesta approvazione",
-            "body_content": mark_safe(f'<p style="color:#475569;font-size:15px;line-height:1.7;">{_html.escape(message_body)}</p>'),
+            "body_content": mark_safe(f'<p style="color:#475569;font-size:15px;line-height:1.7;">{message_body_html}</p>'),
             "expires_html": mark_safe(expires_warning),
             "cta_buttons": mark_safe(cta_buttons),
         })
@@ -2611,6 +2655,46 @@ def find_matching_rules(queue_event: dict[str, Any]) -> list[AutomationRule]:
     return matched_rules
 
 
+def _log_skipped_by_group(
+    rule: AutomationRule,
+    queue_id: int,
+    winner: AutomationRule,
+    payload: Any,
+    old_payload: Any,
+) -> None:
+    """Registra un run-log SKIPPED per una regola esclusa da un'altra del gruppo.
+
+    Preserva la tracciabilita': in UI resta visibile perche' la regola non ha
+    agito, senza eseguirne le azioni.
+    """
+    try:
+        now = timezone.now()
+        AutomationRunLog.objects.create(
+            rule=rule,
+            queue_event_id=queue_id,
+            source_code=rule.source_code,
+            operation_type=rule.operation_type,
+            trigger_event_label=_build_trigger_event_label(rule),
+            status=AutomationRunLogStatus.SKIPPED,
+            payload_json=payload if isinstance(payload, dict) else {},
+            old_payload_json=old_payload,
+            started_at=now,
+            finished_at=now,
+            execution_ms=0,
+            is_test=False,
+            result_message=(
+                f"Saltata: gruppo '{rule.exclusion_group}' gia' gestito dalla "
+                f"regola {winner.code} (priorita' {int(getattr(winner, 'priority', 0) or 0)})."
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "Impossibile registrare il run-log SKIPPED di gruppo per la regola %s (queue %s)",
+            getattr(rule, "code", "?"),
+            queue_id,
+        )
+
+
 def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
     queue_id = int(queue_event["id"])
     source_code = str(queue_event.get("source_code") or "").strip()
@@ -2642,10 +2726,27 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
         mark_queue_error(queue_id, f"Errore matching regole: {exc}")
         return {"queue_id": queue_id, "status": QueueEventStatus.ERROR, "rule_runs": 0, "message": str(exc)}
 
-    worker_errors: list[str] = []
+    # Le regole senza exclusion_group vengono eseguite tutte (comportamento storico).
+    # Le regole con lo stesso exclusion_group si escludono a vicenda sul medesimo
+    # record: ne parte una sola, quella a priorita' piu' alta. Se la vincente va in
+    # errore si prova la successiva del gruppo (fallback a cascata), cosi' il flusso
+    # non viene perso; gli errori "assorbiti" dal fallback non mettono in errore
+    # l'evento di coda. Un gruppo va in errore solo se TUTTE le sue regole falliscono.
+    ungrouped_rules: list[AutomationRule] = []
+    grouped_rules: dict[str, list[AutomationRule]] = {}
     for rule in matching_rules:
+        group = str(getattr(rule, "exclusion_group", "") or "").strip()
+        if group:
+            grouped_rules.setdefault(group, []).append(rule)
+        else:
+            ungrouped_rules.append(rule)
+
+    worker_errors: list[str] = []
+
+    def _run_rule_status(rule: AutomationRule) -> tuple[str | None, str | None]:
+        """Esegue una regola; ritorna (status_run_log, errore_o_None)."""
         try:
-            run_rule(
+            run_log = run_rule(
                 rule,
                 payload,
                 old_payload=old_payload,
@@ -2654,9 +2755,44 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
                 is_test=False,
                 queue_event=queue_event,
             )
+            return getattr(run_log, "status", None), None
         except Exception as exc:
             logger.exception("Errore run_rule per queue event %s e regola %s", queue_id, rule.code)
-            worker_errors.append(f"{rule.code}: {exc}")
+            return AutomationRunLogStatus.ERROR, f"{rule.code}: {exc}"
+
+    for rule in ungrouped_rules:
+        _status, error = _run_rule_status(rule)
+        if error:
+            worker_errors.append(error)
+
+    for group, rules in grouped_rules.items():
+        ordered = sorted(rules, key=lambda r: (-int(getattr(r, "priority", 0) or 0), r.id))
+        group_errors: list[str] = []
+        winner: AutomationRule | None = None
+        for rule in ordered:
+            if winner is not None:
+                _log_skipped_by_group(rule, queue_id, winner, payload, old_payload)
+                continue
+            status, error = _run_rule_status(rule)
+            if status in {
+                AutomationRunLogStatus.SUCCESS,
+                AutomationRunLogStatus.WAITING_APPROVAL,
+            }:
+                # Vincente: blocca il gruppo, le restanti vengono saltate (loggate).
+                winner = rule
+                continue
+            if status == AutomationRunLogStatus.SKIPPED:
+                # Condizioni non soddisfatte: non e' la regola giusta per questo
+                # record, si prova la successiva senza considerarla errore.
+                continue
+            # status ERROR (con o senza eccezione): la regola e' fallita ->
+            # fallback alla successiva del gruppo. Si registra comunque un errore
+            # cosi' che, se nessuna del gruppo vince, l'evento resti ritentabile.
+            group_errors.append(error or f"{rule.code}: esecuzione terminata in errore.")
+        # Il gruppo propaga errore solo se nessuna regola ha vinto: in tal caso
+        # tutti i tentativi sono falliti e l'evento deve restare ritentabile.
+        if winner is None and group_errors:
+            worker_errors.extend(group_errors)
 
     matched_rule_codes = [rule.code for rule in matching_rules]
 
@@ -3272,7 +3408,7 @@ def _insert_loop_reschedule_event(
     source_pk = str(payload.get(pk_field) or "0")
     event_code = f"do_until_loop_rule_{getattr(rule, 'pk', 0)}"
 
-    _insert_scheduled_queue_event(
+    _schedule_queue_event(
         source_code=source_code,
         source_table=source_table,
         source_pk=source_pk,

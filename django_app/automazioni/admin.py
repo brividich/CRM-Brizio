@@ -20,12 +20,14 @@ class AutomationRuleAdmin(admin.ModelAdmin):
         "operation_type",
         "trigger_scope",
         "watched_field",
+        "exclusion_group",
+        "priority",
         "is_active",
         "is_draft",
         "last_run_at",
     )
-    list_filter = ("source_code", "operation_type", "trigger_scope", "is_active", "is_draft")
-    search_fields = ("code", "name", "description", "watched_field")
+    list_filter = ("source_code", "operation_type", "trigger_scope", "exclusion_group", "is_active", "is_draft")
+    search_fields = ("code", "name", "description", "watched_field", "exclusion_group")
     autocomplete_fields = ("created_by", "updated_by")
     readonly_fields = ("created_at", "updated_at", "last_run_at", "last_test_at")
 

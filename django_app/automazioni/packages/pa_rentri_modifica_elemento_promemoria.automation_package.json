@@ -1,0 +1,255 @@
+{
+  "package_version": "2026.06",
+  "input": {
+    "flow_name": "Power Automate - RENTRI - MODIFICA ELEMENTO",
+    "source_zip": "rentri_20260604152402.zip"
+  },
+  "source_candidate": {
+    "source_code": "rentri",
+    "label": "RENTRI / Rifiuti"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok",
+    "notes": "Conversione conservativa del flow Power Automate SharePoint/Outlook in regole NOVICROM HUB draft e inattive. Le attese del flow sono rese con do_until e retry differito."
+  },
+  "issues": [
+    "Il flow originale usa SharePoint GetItemChanges per verificare se ARRIVOFIR o RentriSI/NO sono cambiati dopo l'attesa. Il motore locale ri-legge il payload del record dalla queue differita a ogni iterazione do_until: il check su arrivo_fir/rentri_si_no riflette lo stato del record al momento del reschedule. Verificare comunque il comportamento su record reali prima dell'attivazione.",
+    "Il flow originale calcola il promemoria FIR su Data + 30 giorni. Il package usa retry_delay di 30 giorni dall'evento di update, perche' il formato package non espone date arithmetic su campi.",
+    "FILTRO TIPO MOVIMENTO: il flow filtrava sul valore testuale di Carico/Scarico ('C - Carico' / 'O - Scarico originario'). Il package filtra invece sul campo canonico `tipo` (C/O/M/R), che nel model RegistroRifiuti e' indicizzato e con choices vincolate, mentre `carico_scarico` e' un CharField libero ereditato da SharePoint (non indicizzato, non vincolato). Mappatura: 'C - Carico'->tipo=C, 'O - Scarico originario'->tipo=O. Scelta piu' robusta della sorgente SharePoint.",
+    "COMPLEMENTARITA' CON AU31: `au31_scarico_senza_fir_notifica` notifica lo scarico senza FIR all'INSERT (immediato); la regola `pa-rentri-scarico-senza-fir-promemoria-30g` di questo package agisce all'UPDATE con promemoria a +30gg. Operano su eventi diversi (insert vs update), quindi NON collidono sullo stesso evento e un exclusion_group fra loro sarebbe inefficace. Sono complementari per design: AU31 = presidio immediato, questa regola = sollecito differito. Allineare il destinatario fra i due package.",
+    "Il package documentale `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` copre i movimenti consolidati da trasmettere a RENTRI; questo package copre invece il flow SharePoint `RENTRI - MODIFICA ELEMENTO`."
+  ],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rentri",
+    "power_automate_flow": "RENTRI - MODIFICA ELEMENTO",
+    "related_existing_packages": [
+      "django_app/automazioni/packages/au31_scarico_senza_fir_notifica.automation_package.json",
+      "docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json"
+    ]
+  },
+  "approved_field_mapping": {
+    "IDRegistrazione": "id_registrazione",
+    "Carico_x002f_Scarico/Value": "carico_scarico",
+    "Data": "data",
+    "Codice/Value": "codice",
+    "Quantit_x00e0_": "quantita",
+    "RentriSI_x002f_NO": "rentri_si_no",
+    "ARRIVOFIR": "arrivo_fir",
+    "ID": "id",
+    "id_registrazione": "id_registrazione",
+    "tipo": "tipo",
+    "data": "data",
+    "codice": "codice",
+    "quantita": "quantita",
+    "rentri_si_no": "rentri_si_no",
+    "carico_scarico": "carico_scarico",
+    "arrivo_fir": "arrivo_fir",
+    "salva": "salva",
+    "inserito_da": "inserito_da"
+  },
+  "proposed_rules": [
+    {
+      "code": "pa-rentri-nuovo-carico-notifica",
+      "name": "PA RENTRI - Nuovo carico rifiuti - notifica",
+      "description": "Equivalente locale del ramo Power Automate `Condizione` con `Carico/Scarico = C - Carico` e versione SharePoint 1.0 (prima versione = creazione). Nel portale la creazione e' modellata con operation_type=insert su tipo=C; il campo {VersionNumber} SharePoint non esiste nella sorgente `rentri`. NOTA: la condizione `salva is_true` approssima 'record consolidato'; se nel flusso applicativo `salva` non e' true al primo insert, la notifica non parte - valutare se rimuovere la condizione salva per notificare ogni nuovo carico, oppure spostare la regola su update. Destinatario allineato a `rentri@costruzioninovicrom.it` (come nel flow originale).",
+      "source_code": "rentri",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field": "tipo",
+          "operator": "equals",
+          "value": "C",
+          "value_type": "string"
+        },
+        {
+          "order": 2,
+          "field": "salva",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "send_email",
+          "description": "Notifica nuovo carico a referente RENTRI",
+          "from_email": "avviso@costruzioninovicrom.it",
+          "to": "rentri@costruzioninovicrom.it",
+          "subject_template": "[RENTRI] Nuovo carico rifiuti - {id_registrazione}",
+          "body_text_template": "Buongiorno,\n\nE' stato registrato un nuovo carico rifiuti nel portale.\n\nDettaglio movimento\nRegistrazione: {id_registrazione}\nData: {data}\nCodice CER: {codice}\nQuantita': {quantita}\nDirezione: {carico_scarico}\nInserito da: {inserito_da}\n\nAzione richiesta: verificare il movimento e gestire gli adempimenti RENTRI previsti.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p>Buongiorno,</p><p>E' stato registrato un nuovo carico rifiuti nel portale.</p><p><strong>Dettaglio movimento</strong><br>Registrazione: {id_registrazione}<br>Data: {data}<br>Codice CER: {codice}<br>Quantita': {quantita}<br>Direzione: {carico_scarico}<br>Inserito da: {inserito_da}</p><p>Azione richiesta: verificare il movimento e gestire gli adempimenti RENTRI previsti.</p>"
+        },
+        {
+          "order": 2,
+          "action_type": "write_log",
+          "description": "Log nuovo carico RENTRI",
+          "message_template": "PA RENTRI: notificato nuovo carico {id_registrazione} (codice={codice}, quantita={quantita})."
+        }
+      ]
+    },
+    {
+      "code": "pa-rentri-carico-non-trasmesso-promemoria-5g",
+      "name": "PA RENTRI - Promemoria carico non ancora marcato RENTRI",
+      "description": "Equivalente locale del ramo Power Automate `Flusso_per_controllo_caricamento_RENTRI`: quando un movimento di carico resta con `rentri_si_no=false`, programma un controllo dopo 5 giorni e invia il promemoria se il flag risulta ancora non valorizzato. Modellato su update per evitare che gli eventi differiti entrino in conflitto con la regola di notifica insert.",
+      "source_code": "rentri",
+      "operation_type": "update",
+      "trigger_scope": "all_updates",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field": "tipo",
+          "operator": "equals",
+          "value": "C",
+          "value_type": "string"
+        },
+        {
+          "order": 2,
+          "field": "rentri_si_no",
+          "operator": "is_false",
+          "value": "",
+          "value_type": "bool"
+        },
+        {
+          "order": 3,
+          "field": "salva",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "do_until",
+          "description": "Attendi fino a flag RENTRI o timeout 5 giorni",
+          "check_field": "rentri_si_no",
+          "check_operator": "is_true",
+          "check_value": "",
+          "check_value_type": "bool",
+          "max_iterations": 1,
+          "retry_delay_value": 5,
+          "retry_delay_unit": "days",
+          "loop_actions": [
+            {
+              "action_type": "write_log",
+              "description": "Log programmazione promemoria",
+              "message_template": "PA RENTRI: controllo trasmissione programmato fra 5 giorni per carico {id_registrazione}."
+            }
+          ],
+          "on_success_actions": [
+            {
+              "action_type": "write_log",
+              "description": "Log carico gia' marcato RENTRI",
+              "message_template": "PA RENTRI: carico {id_registrazione} gia' marcato RENTRI, nessun promemoria inviato."
+            }
+          ],
+          "on_timeout_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Promemoria trasmissione RENTRI",
+              "from_email": "avviso@costruzioninovicrom.it",
+              "to": "rentri@costruzioninovicrom.it",
+              "subject_template": "[RENTRI] Promemoria invio scheda - {id_registrazione}",
+              "body_text_template": "Buongiorno,\n\nIl movimento di carico sotto riportato risulta ancora non marcato come caricato a sistema RENTRI.\n\nDettaglio movimento\nRegistrazione: {id_registrazione}\nData: {data}\nCodice CER: {codice}\nQuantita': {quantita}\nDirezione: {carico_scarico}\n\nAzione richiesta: verificare lo stato della scheda e completare il caricamento RENTRI se ancora dovuto.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+              "body_html_template": "<p>Buongiorno,</p><p>Il movimento di carico sotto riportato risulta ancora non marcato come caricato a sistema RENTRI.</p><p><strong>Dettaglio movimento</strong><br>Registrazione: {id_registrazione}<br>Data: {data}<br>Codice CER: {codice}<br>Quantita': {quantita}<br>Direzione: {carico_scarico}</p><p>Azione richiesta: verificare lo stato della scheda e completare il caricamento RENTRI se ancora dovuto.</p>"
+            },
+            {
+              "action_type": "write_log",
+              "description": "Log promemoria trasmissione RENTRI",
+              "message_template": "PA RENTRI: inviato promemoria trasmissione per carico {id_registrazione}."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "pa-rentri-scarico-senza-fir-promemoria-30g",
+      "name": "PA RENTRI - Promemoria FIR mancante dopo 30 giorni",
+      "description": "Equivalente locale del ramo Power Automate `Flusso_per_controllo_FIR`: per scarichi senza FIR, programma un controllo dopo 30 giorni e invia il promemoria se `arrivo_fir` risulta ancora vuoto. Da coordinare con `au31_scarico_senza_fir_notifica`, che e' il presidio immediato gia' presente nei package AU.",
+      "source_code": "rentri",
+      "operation_type": "update",
+      "trigger_scope": "all_updates",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "order": 1,
+          "field": "tipo",
+          "operator": "equals",
+          "value": "O",
+          "value_type": "string"
+        },
+        {
+          "order": 2,
+          "field": "arrivo_fir",
+          "operator": "is_empty",
+          "value": "",
+          "value_type": "string"
+        },
+        {
+          "order": 3,
+          "field": "salva",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "order": 1,
+          "action_type": "do_until",
+          "description": "Attendi FIR o timeout 30 giorni",
+          "check_field": "arrivo_fir",
+          "check_operator": "is_not_empty",
+          "check_value": "",
+          "check_value_type": "string",
+          "max_iterations": 1,
+          "retry_delay_value": 30,
+          "retry_delay_unit": "days",
+          "loop_actions": [
+            {
+              "action_type": "write_log",
+              "description": "Log programmazione controllo FIR",
+              "message_template": "PA RENTRI: controllo FIR programmato fra 30 giorni per scarico {id_registrazione}."
+            }
+          ],
+          "on_success_actions": [
+            {
+              "action_type": "write_log",
+              "description": "Log FIR presente",
+              "message_template": "PA RENTRI: FIR presente per scarico {id_registrazione}, nessun promemoria inviato."
+            }
+          ],
+          "on_timeout_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Promemoria FIR mancante",
+              "from_email": "avviso@costruzioninovicrom.it",
+              "to": "rentri@costruzioninovicrom.it",
+              "subject_template": "[RENTRI] Promemoria FIR mancante - {id_registrazione}",
+              "body_text_template": "Buongiorno,\n\nRisulta ancora mancante il riferimento FIR per lo scarico sotto riportato.\n\nDettaglio movimento\nRegistrazione: {id_registrazione}\nData: {data}\nCodice CER: {codice}\nQuantita': {quantita}\nDirezione: {carico_scarico}\nRiferimento operativo: {rif_op}\n\nAzione richiesta: richiedere o registrare il FIR mancante e verificare la conformita' del movimento.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+              "body_html_template": "<p>Buongiorno,</p><p>Risulta ancora mancante il riferimento FIR per lo scarico sotto riportato.</p><p><strong>Dettaglio movimento</strong><br>Registrazione: {id_registrazione}<br>Data: {data}<br>Codice CER: {codice}<br>Quantita': {quantita}<br>Direzione: {carico_scarico}<br>Riferimento operativo: {rif_op}</p><p>Azione richiesta: richiedere o registrare il FIR mancante e verificare la conformita' del movimento.</p>"
+            },
+            {
+              "action_type": "write_log",
+              "description": "Log promemoria FIR",
+              "message_template": "PA RENTRI: inviato promemoria FIR mancante per scarico {id_registrazione}."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

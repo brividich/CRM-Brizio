@@ -40,6 +40,36 @@ def run_automation_queue(
         raise
 
 
+def run_report_scadenze_settimanale(
+    giorni: int | None = None,
+    dry_run: bool = False,
+) -> dict:
+    """Check schedulato visite mediche / contratti in scadenza con invio email ai referenti.
+
+    Parametri (giorni, categorie, destinatari, on/off) si leggono da SiteConfig,
+    configurabili dalla pagina Impostazioni automazioni. 'giorni' qui e' solo un
+    override opzionale; di norma None -> usa il valore della UI.
+    """
+    from monitoring.models import AutomationExecution
+    from automazioni.management.commands.report_scadenze_settimanale import _monitored_report
+
+    try:
+        summary = _monitored_report(
+            giorni=giorni,
+            dry_run=dry_run,
+            monitoring_trigger_type=AutomationExecution.TriggerType.SCHEDULER,
+        ) or {}
+        logger.info(
+            "run_report_scadenze_settimanale: visite=%s contratti=%s",
+            (summary.get("visite") or {}).get("count", 0),
+            (summary.get("contratti") or {}).get("count", 0),
+        )
+        return summary
+    except Exception:
+        logger.exception("run_report_scadenze_settimanale: eccezione inattesa")
+        raise
+
+
 def run_approval_mailbox(
     limit: int = 25,
     dry_run: bool = False,

@@ -25,6 +25,7 @@ reportlab>=4.0                  # generazione PDF
 
 # --- Task queue ---
 django-q2>=1.7,<2               # code automazioni e task asincroni
+croniter>=2.0                   # richiesto da django-q2 per gli Schedule di tipo CRON (report scadenze)
 
 # --- Utilità runtime ---
 cachetools>=5.3                 # TTLCache per _SPNEGO_CONTEXTS

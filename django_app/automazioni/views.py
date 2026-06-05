@@ -3421,7 +3421,11 @@ def _describe_condition_values(
     return {
         "item_id": item_id,
         "order_value": order or "-",
+        "field_name": field_name,
         "field_label": field_label,
+        "operator": operator,
+        "operator_label": _choice_label(AutomationConditionOperator, operator) if operator else "",
+        "expected_value": expected_value,
         "summary": summary,
         "human_summary": f"{field_label} • {_choice_label(AutomationConditionOperator, operator)}",
         "expected_preview": expected_text,
@@ -3956,11 +3960,14 @@ def _build_automation_settings_context(
     approval_graph_form=None,
 ) -> dict[str, object]:
     from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
+    from .scadenze_config import get_scadenze_config
 
     mailbox_details = get_default_approval_mailbox_details()
     active_backend = get_approval_mailbox_backend()
     return {
         **_base_context(),
+        # ── Report scadenze (visite mediche / contratti) ──────────────────
+        "scadenze_config": get_scadenze_config(),
         # ── Graph (nuovo backend) ──────────────────────────────────────────
         "approval_graph_status": get_approval_graph_status(),
         "approval_graph_form": approval_graph_form or get_approval_graph_form_defaults(),
@@ -4112,16 +4119,19 @@ def _build_flow_nodes(rule, trigger_descriptor: dict, condition_entries: list, a
         cond_items = []
         for ce in existing_conditions:
             d = ce.get("descriptor") or {}
-            field = str(d.get("field_name") or ce.get("field_name") or "?")
+            field = str(d.get("field_label") or d.get("field_name") or "Campo")
             op = str(d.get("operator_label") or d.get("operator") or "")
             val = str(d.get("expected_value") or "")
-            enabled = bool(ce.get("is_existing"))
-            cond_items.append({"label": f"{field} {op} {val}".strip(), "enabled": enabled})
+            label = " ".join(part for part in (field, op, val) if part).strip()
+            badges = d.get("badges") or []
+            enabled = "disabilitata" not in badges
+            cond_items.append({"label": label or field, "enabled": enabled})
+        cond_count = len(existing_conditions)
         nodes.append({
             "id": "conditions",
             "type": "conditions",
             "title": "Condizioni (AND)",
-            "subtitle": f"{len(existing_conditions)} condizione{'i' if len(existing_conditions) > 1 else ''}",
+            "subtitle": f"{cond_count} condizion{'i' if cond_count > 1 else 'e'}",
             "items": cond_items,
             "icon": "🔍",
             "color": "#d97706",
@@ -6070,6 +6080,27 @@ def settings_page(request):
 
     if request.method == "POST":
         action = _string_value(request.POST.get("action"))
+
+        if action == "save_scadenze_config":
+            from .scadenze_config import save_scadenze_config
+
+            try:
+                posted_giorni = int(_string_value(request.POST.get("scadenze_giorni")) or "30")
+            except (TypeError, ValueError):
+                posted_giorni = 30
+            saved = save_scadenze_config(
+                attivo=_bool_value(request.POST.get("scadenze_attivo")),
+                giorni=posted_giorni,
+                email_visite=_string_value(request.POST.get("scadenze_email_visite")),
+                email_contratti=_string_value(request.POST.get("scadenze_email_contratti")),
+                includi_visite=_bool_value(request.POST.get("scadenze_includi_visite")),
+                includi_contratti=_bool_value(request.POST.get("scadenze_includi_contratti")),
+            )
+            if saved:
+                messages.success(request, "Configurazione report scadenze salvata.")
+            else:
+                messages.error(request, "Impossibile salvare la configurazione report scadenze.")
+            return redirect("admin_portale:automazioni_settings")
 
         if action == "save_default_approval_mailbox":
             from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY

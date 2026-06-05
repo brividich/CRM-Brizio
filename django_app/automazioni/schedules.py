@@ -23,4 +23,14 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {"limit": 25},
     },
+    {
+        # Cadenza fissa (lunedi 06:00); attivazione e parametri si gestiscono
+        # dalla pagina Impostazioni automazioni (SiteConfig), non da qui.
+        "name": "report_scadenze_settimanale",
+        "func": "automazioni.tasks.run_report_scadenze_settimanale",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 6 * * 1",        # ogni lunedi alle 06:00
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]

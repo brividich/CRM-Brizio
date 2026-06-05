@@ -149,6 +149,12 @@ ACL_STRICT_CANONICAL = env_bool("ACL_STRICT_CANONICAL", False)
 # Permette di misurare l'uso effettivo del fallback e decidere quando
 # attivare ACL_STRICT_CANONICAL in prod. Default True in ambiente test/UAT.
 ACL_LOG_LEGACY_FALLBACK = env_bool("ACL_LOG_LEGACY_FALLBACK", True)
+# ACL_LEGACY_PERMESSI_UI_ENABLED=True riabilita la vecchia pagina di gestione
+# permessi legacy (/admin-portale/permessi/). Default False: la pagina
+# reindirizza a /admin-portale/acl-canonico/ (schermata unica di gestione,
+# Fase 3 dismissione legacy). Il corpo legacy resta nel codice come rete di
+# sicurezza finche' la migrazione canonica non e' definitivamente chiusa.
+ACL_LEGACY_PERMESSI_UI_ENABLED = env_bool("ACL_LEGACY_PERMESSI_UI_ENABLED", False)
 ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300") or "300")
 ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", True)
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")
@@ -467,6 +473,9 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = "core/pages/lockout.html"
+# Silenzia il messaggio INFO "AXES: BEGIN version ..." emesso a ogni boot/reload;
+# non incide sulla protezione anti-brute-force né sui log di lockout/tentativi falliti.
+AXES_VERBOSE = False
 
 
 _default_log_dir = Path(tempfile.gettempdir()) / "briziohub_logs"

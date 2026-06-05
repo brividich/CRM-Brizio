@@ -124,6 +124,26 @@ class AutomationRule(models.Model):
     is_active = models.BooleanField(default=True, db_index=True)
     is_draft = models.BooleanField(default=True, db_index=True)
     stop_on_first_failure = models.BooleanField(default=False)
+    exclusion_group = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Gruppo di esclusione: le regole con lo stesso gruppo che matchano "
+            "lo stesso record si escludono a vicenda. Ne parte una sola, quella "
+            "a priorita' piu' alta; se va in errore si prova la successiva del "
+            "gruppo (fallback a cascata). Vuoto = nessuna esclusione."
+        ),
+    )
+    priority = models.IntegerField(
+        default=0,
+        db_index=True,
+        help_text=(
+            "Priorita' nel gruppo di esclusione: valore piu' alto = valutata "
+            "prima. Ignorata se exclusion_group e' vuoto."
+        ),
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

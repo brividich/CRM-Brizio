@@ -248,7 +248,9 @@ def render_approval_email(
 
         intro = _render(template.intro_template, ctx)
         if intro:
-            parts_html.append(f'<p style="color:#334155;line-height:1.6;">{_escape_html(intro)}</p>')
+            # Preserva gli a-capo dell'intro: escape HTML poi newline -> <br>.
+            intro_html = _escape_html(intro).replace("\n", "<br>")
+            parts_html.append(f'<p style="color:#334155;line-height:1.6;">{intro_html}</p>')
             parts_text.append(intro + "\n")
 
         if template.include_facts and template.facts_lines:

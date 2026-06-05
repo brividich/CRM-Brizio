@@ -242,6 +242,9 @@ Finché AU-GAP1 non è fatto, AU42 si implementa nella versione "notifica al cam
       Pacchetto `au35_offboarding_non_chiuso_alert_it`. Validato + run_if `value` provato a runtime.
 - [x] **AU31** — scarico rifiuti `tipo=O` senza `arrivo_fir` → notifica resp. ambientale (no `salva=false`).
       Pacchetto `au31_scarico_senza_fir_notifica`.
+- [x] **PA RENTRI** — conversione flow Power Automate `RENTRI - MODIFICA ELEMENTO`: notifica nuovo carico,
+      promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni. Pacchetto
+      `pa_rentri_modifica_elemento_promemoria`. Da coordinare con AU31 per evitare doppie email immediate/differite.
 - [x] **AU29** — visita `esito` → `NON_IDONEO_TEMP` → SOLO notifica resp. formazione (no for_each).
       Pacchetto `au29_visita_non_idonea_notifica`.
 - [x] **AU36/AU37/AU38** — soglie "N eventi in M giorni" via `count_branch` (motore esteso, batch 4).
@@ -256,7 +259,7 @@ Finché AU-GAP1 non è fatto, AU42 si implementa nella versione "notifica al cam
 - [ ] A seguire: rifinire i 4 digest (destinatari reali, aggregazione per-capo AU51, % per reparto AU47) e
       schedularli come Task Windows. AU21/22/44/46 = NO; AU39/40 = NO/per ora no.
 
-### Tutti i pacchetti pronti (cartella packages/) — 27 pacchetti + 4 management command + 1 trigger SQL
+### Tutti i pacchetti pronti (cartella packages/) — 29 pacchetti + 4 management command + 1 trigger SQL
 | Pacchetto | Flusso | Stato |
 |-----------|--------|-------|
 | au41_anomalia_creata_notifica | AU41 | validato, da importare |
@@ -280,6 +283,7 @@ Finché AU-GAP1 non è fatto, AU42 si implementa nella versione "notifica al cam
 | au34_segnalazione_preposto_followup_rspp | AU34 (delay 14gg) | validato, da importare |
 | au35_offboarding_non_chiuso_alert_it | AU35 (delay until + run_if) | validato + runtime, da importare |
 | au31_scarico_senza_fir_notifica | AU31 (solo notifica) | validato, da importare |
+| pa_rentri_modifica_elemento_promemoria | PA RENTRI modifica elemento | validato, da importare |
 | au29_visita_non_idonea_notifica | AU29 (solo notifica) | validato, da importare |
 | au36_dpi_consumo_anomalo_count | AU36 (count_branch) | validato + runtime, da importare |
 | au37_ticket_ricorrente_approvazione_manutenzione | AU37 (count_branch + approval) | validato + runtime, da importare |

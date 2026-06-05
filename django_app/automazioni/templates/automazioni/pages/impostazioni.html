@@ -41,6 +41,16 @@
     }
     details.legacy-section > summary::before { content:"▶  "; font-size:10px; }
     details.legacy-section[open] > summary::before { content:"▼  "; }
+    .ms-checkbox {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:14px;
+      color:#0f172a;
+      cursor:pointer;
+      margin-top:4px;
+    }
+    .ms-checkbox input { width:16px; height:16px; }
   </style>
 {% endblock %}
 
@@ -158,6 +168,79 @@
               </div>
               <div class="ms-form-actions">
                 <button type="submit" class="btn btn-primary">Salva mailbox</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="ms-card">
+          <div class="ms-card-head">
+            <div class="ms-card-title-wrap">
+              <h2 class="ms-card-title">
+                Report scadenze
+                {% if scadenze_config.attivo %}
+                  <span class="backend-badge backend-badge-graph">Attivo</span>
+                {% else %}
+                  <span class="backend-badge backend-badge-imap">Disattivo</span>
+                {% endif %}
+              </h2>
+              <p class="ms-card-subtitle">
+                Invio automatico di un riepilogo email delle <strong>visite mediche</strong> e dei
+                <strong>contratti / periodi di prova</strong> in scadenza. Cadenza:
+                <strong>{{ scadenze_config.cadenza_label }}</strong>.
+              </p>
+            </div>
+          </div>
+          <div class="ms-card-body">
+            <form method="post" class="ms-field-grid">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_scadenze_config">
+
+              <div class="ms-field">
+                <label class="ms-checkbox">
+                  <input type="checkbox" name="scadenze_attivo" value="1" {% if scadenze_config.attivo %}checked{% endif %}>
+                  Attiva l'invio automatico del report
+                </label>
+                <span class="ms-field-help">Se disattivato, il controllo settimanale non invia alcuna email.</span>
+              </div>
+
+              <div class="ms-field">
+                <label for="scadenze_giorni">Giorni di anticipo</label>
+                <input id="scadenze_giorni" type="number" min="1" max="365"
+                       name="scadenze_giorni" value="{{ scadenze_config.giorni }}">
+                <span class="ms-field-help">Segnala le scadenze che cadono entro questo numero di giorni (default 30).</span>
+              </div>
+
+              <div class="ms-field">
+                <label>Categorie da includere</label>
+                <label class="ms-checkbox">
+                  <input type="checkbox" name="scadenze_includi_visite" value="1" {% if scadenze_config.includi_visite %}checked{% endif %}>
+                  Visite mediche (sorveglianza sanitaria)
+                </label>
+                <label class="ms-checkbox">
+                  <input type="checkbox" name="scadenze_includi_contratti" value="1" {% if scadenze_config.includi_contratti %}checked{% endif %}>
+                  Contratti e periodi di prova
+                </label>
+              </div>
+
+              <div class="ms-field">
+                <label for="scadenze_email_visite">Destinatari visite mediche</label>
+                <input id="scadenze_email_visite" type="text"
+                       name="scadenze_email_visite" value="{{ scadenze_config.email_visite_raw }}"
+                       placeholder="sorveglianza@azienda.it, rspp@azienda.it">
+                <span class="ms-field-help">Una o più email separate da virgola. Vuoto = usa il mittente di sistema.</span>
+              </div>
+
+              <div class="ms-field">
+                <label for="scadenze_email_contratti">Destinatari contratti / HR</label>
+                <input id="scadenze_email_contratti" type="text"
+                       name="scadenze_email_contratti" value="{{ scadenze_config.email_contratti_raw }}"
+                       placeholder="personale@azienda.it">
+                <span class="ms-field-help">Una o più email separate da virgola. Vuoto = usa il mittente di sistema.</span>
+              </div>
+
+              <div class="ms-form-actions">
+                <button type="submit" class="btn btn-primary">Salva configurazione</button>
               </div>
             </form>
           </div>

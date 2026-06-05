@@ -57,16 +57,25 @@ class Command(BaseCommand):
             defaults = {
                 "func": spec["func"],
                 "schedule_type": spec["schedule_type"],
-                "minutes": spec["minutes"],
                 "repeats": spec.get("repeats", -1),
                 "kwargs": kwargs_repr,
             }
+            # Schedule a intervallo (S/I/...) usa 'minutes'; schedule CRON usa 'cron'.
+            if spec.get("schedule_type") == "C":
+                defaults["cron"] = spec["cron"]
+                defaults["minutes"] = None
+            else:
+                defaults["minutes"] = spec["minutes"]
 
             if dry_run:
+                cadence = (
+                    f"cron={spec['cron']}" if spec.get("schedule_type") == "C"
+                    else f"minutes={spec.get('minutes')}"
+                )
                 self.stdout.write(
                     f"{mode} Creerei/aggiornerei schedule '{name}': "
                     f"func={spec['func']} type={spec['schedule_type']} "
-                    f"minutes={spec['minutes']} repeats={spec.get('repeats', -1)}"
+                    f"{cadence} repeats={spec.get('repeats', -1)}"
                 )
             else:
                 _obj, created = Schedule.objects.update_or_create(name=name, defaults=defaults)

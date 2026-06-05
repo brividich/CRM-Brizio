@@ -48,7 +48,7 @@
           "description": "Alza priorita' e annota ricorrenza",
           "update_fields": {
             "priorita": "CRITICA",
-            "note_interne": "Guasto ricorrente: gia' verificato nel ticket #{ticket_origine_id}."
+            "note_interne": "Guasto ricorrente rilevato automaticamente: gia' verificato nel ticket di origine #{ticket_origine_id}. Priorita' elevata a CRITICA da NOVICROM HUB."
           }
         }
       ]
