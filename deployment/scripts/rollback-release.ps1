@@ -42,7 +42,7 @@ $paths       = Get-EnvPaths -Env $Environment
 $appPoolName = "PortaleNovicrom-$($Environment.ToUpper())"
 
 Write-LogSeparator
-Write-Log "ROLLBACK — $($Environment.ToUpper())" "STEP"
+Write-Log "ROLLBACK - $($Environment.ToUpper())" "STEP"
 Write-LogSeparator
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ if ($ReleaseTag) {
         Write-Log "Release precedente trovato (marker): $rollbackTag" "INFO"
     } else {
         # Fallback: secondo release più recente in releases\
-        Write-Log "Marker 'previous_release.txt' non trovato — uso il penultimo release disponibile." "WARN"
+        Write-Log "Marker 'previous_release.txt' non trovato - uso il penultimo release disponibile." "WARN"
         $allReleases = Get-ChildItem $paths.Releases -Directory -ErrorAction SilentlyContinue |
                        Sort-Object Name -Descending
         # Filtra il release corrente

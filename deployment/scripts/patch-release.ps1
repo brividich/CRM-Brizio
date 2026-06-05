@@ -124,7 +124,7 @@ if ($PatchList -and (Test-Path $PatchList)) {
 # Riepilogo
 # ---------------------------------------------------------------------------
 Write-LogSeparator
-Write-Log "patch-release.ps1 — ambiente: $Environment" "STEP"
+Write-Log "patch-release.ps1 - ambiente: $Environment" "STEP"
 Write-Log "Current release : $currentDir" "INFO"
 Write-Log "Repo root       : $RepoRoot" "INFO"
 Write-Log "File da patchare: $($filesToPatch.Count)" "INFO"
@@ -171,7 +171,7 @@ if ($filesToPatch.Count -gt 0) {
     }
     Write-Log "Copia completata: $copied OK, $skipped non trovati, $errors errori." "INFO"
 } else {
-    Write-Log "[1] Nessun file da copiare — saltato." "INFO"
+    Write-Log "[1] Nessun file da copiare - saltato." "INFO"
 }
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ if (-not $SkipRecycle) {
     Write-Log "[3] Recycle IIS App Pool: $AppPool..." "STEP"
     Invoke-IISRecycle -AppPoolName $AppPool
 } else {
-    Write-Log "[3] Recycle IIS — saltato (flag -SkipRecycle)." "WARN"
+    Write-Log "[3] Recycle IIS - saltato (flag -SkipRecycle)." "WARN"
 }
 
 # ---------------------------------------------------------------------------

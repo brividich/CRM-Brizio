@@ -5,7 +5,7 @@
 .DESCRIPTION
     - Salva il release attivo come "previous" (per rollback)
     - Ferma l'app pool IIS
-    - Aggiorna il junction current → releases\ReleaseTag
+    - Aggiorna il junction current -> releases\ReleaseTag
     - Riavvia l'app pool IIS
     - Esegue smoke test automatico
     - In caso di fallimento smoke test: rollback automatico
@@ -62,7 +62,7 @@ if (-not $ReleaseTag) {
         exit 1
     }
     $ReleaseTag = $latest.Name
-    Write-Log "Nessun ReleaseTag specificato — uso l'ultimo: $ReleaseTag" "INFO"
+    Write-Log "Nessun ReleaseTag specificato - uso l'ultimo: $ReleaseTag" "INFO"
 }
 
 $targetDir = "$($paths.Releases)\$ReleaseTag"
@@ -72,7 +72,7 @@ if (-not (Test-Path $targetDir)) {
 }
 
 Write-LogSeparator
-Write-Log "ATTIVAZIONE RELEASE — $($Environment.ToUpper())" "STEP"
+Write-Log "ATTIVAZIONE RELEASE - $($Environment.ToUpper())" "STEP"
 Write-Log "Release:    $ReleaseTag" "INFO"
 Write-Log "Target:     $targetDir" "INFO"
 Write-LogSeparator
@@ -128,7 +128,7 @@ try {
 # ---------------------------------------------------------------------------
 Write-Log "Avvio app pool: $appPoolName" "STEP"
 Start-IISAppPool -AppPoolName $appPoolName
-Start-Sleep -Seconds 5   # attesa avvio processo Python/waitress
+Start-Sleep -Seconds 15  # attesa avvio processo Python/waitress (waitress impiega alcuni secondi)
 
 # ---------------------------------------------------------------------------
 # Smoke test
@@ -146,7 +146,7 @@ if (-not $SkipSmokeTest) {
         if ($currentTarget) {
             Set-CurrentJunction -JunctionPath $paths.Current -TargetPath $currentTarget
             Invoke-IISRecycle -AppPoolName $appPoolName
-            Write-Log "Rollback completato — ripristinato: $currentTarget" "WARN"
+            Write-Log "Rollback completato - ripristinato: $currentTarget" "WARN"
         }
         exit 1
     }
@@ -165,7 +165,7 @@ Write-LogSeparator
 Write-Log "Release ATTIVATO con successo!" "SUCCESS"
 Write-Log "  Ambiente:  $($Environment.ToUpper())" "INFO"
 Write-Log "  Release:   $ReleaseTag" "INFO"
-Write-Log "  Current:   $($paths.Current) → $targetDir" "INFO"
+Write-Log "  Current:   $($paths.Current) -> $targetDir" "INFO"
 Write-Log "" "INFO"
 Write-Log "Per rollback rapido:" "INFO"
 Write-Log "  .\rollback-release.ps1 -Environment $Environment" "INFO"

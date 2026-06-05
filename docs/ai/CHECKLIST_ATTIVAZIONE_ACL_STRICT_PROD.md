@@ -16,7 +16,7 @@ schermata canonica.
 - [x] UI permessi legacy reindirizza a `/admin-portale/acl-canonico/` (default).
 - [x] Comando `acl_strict_readiness` disponibile.
 - [x] Su dev: 0 route dipendono dal fallback legacy (tutti i 6 ruoli).
-- [ ] Branch `feat/acl-chiusura-migrazione-fase1` **mergiato** e **rilasciato in prod**.
+- [x] Branch `feat/acl-chiusura-migrazione-fase1` **mergiato** e **rilasciato in prod** (release aggiornata il 2026-06-05).
 - [ ] Setting `ACL_LEGACY_PERMESSI_UI_ENABLED` presente in `config/settings/base.py`
       (potrebbe essere rimasto nel working tree alla convergenza — verificare).
 
@@ -29,7 +29,11 @@ schermata canonica.
 python django_app\manage.py acl_strict_readiness --settings=config.settings.prod
 ```
 
-- [ ] Output: "Accessi consentiti SOLO via fallback legacy: **0**".
+- [x] Output: "Accessi consentiti SOLO via fallback legacy: **0**".
+      Misurato in prod il 2026-06-05 dopo l'aggiornamento della release:
+      833 route applicative verificate, 0 via fallback su tutti i 9 ruoli
+      (portal_superadmin, caporeparto, HR, qualita, amministrazione, utente,
+      Manutenzione, admin, Direzione).
 - [ ] Se > 0: NON attivare strict. Per ogni route elencata, decidere:
       - se è una route applicativa reale → creare il binding canonico
         (`bootstrap_acl_v2 --apps <app_label> --import-legacy --apply`) e
@@ -102,4 +106,5 @@ Eseguire solo dopo ~2 settimane di strict-mode stabile in prod senza rollback:
 | Data | Evento |
 |---|---|
 | 2026-06-04 | Strumenti Fase 3 pronti (UI redirect, readiness). Misura dev = 0. |
-| _da compilare_ | Misura prod, attivazione UAT, attivazione prod, esito. |
+| 2026-06-05 | Release `feat/acl-chiusura-migrazione-fase1` rilasciata in prod. Misura prod = **0** via fallback (833 route, 9 ruoli). Passo 1 superato: strict attivabile senza regressioni. |
+| _da compilare_ | Osservazione passiva log (Passo 2), attivazione UAT (Passo 3), attivazione prod (Passo 4). |

@@ -339,7 +339,7 @@ if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 # ---------------------------------------------------------------------------
-# Pattern di esclusione — separati per tipo (directory vs file)
+# Pattern di esclusione - separati per tipo (directory vs file)
 # ---------------------------------------------------------------------------
 # IMPORTANTE: il pacchetto è costruito con una ALLOWLIST (vedi $includeTopLevel
 # più sotto): si copiano SOLO i path noti necessari al deploy, non "tutto tranne".
@@ -360,7 +360,7 @@ $excludeDirs = @(
     "__pycache__",    # cache Python
     "logs",           # log applicazione
     "media",          # media locale (upload runtime, dati personali)
-    "media_private",  # documenti personali fuori webroot (referti, ecc.) — GDPR
+    "media_private",  # documenti personali fuori webroot (referti, ecc.) - GDPR
     "doc",            # documentazione interna: contiene xlsx/csv con dati personali
     "docs",           # idem: import/export con dati personali, non serve in prod
     "dist",           # build output
@@ -374,7 +374,7 @@ $excludeDirs = @(
 
 # FILE da escludere (passati a robocopy con /XF)
 $excludeFiles = @(
-    ".env",           # NON includere .env — va gestito separatamente sul server
+    ".env",           # NON includere .env - va gestito separatamente sul server
     "config.ini",     # eventuale residuo legacy locale
     "db.sqlite3",
     "*.sqlite3",

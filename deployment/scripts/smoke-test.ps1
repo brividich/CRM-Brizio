@@ -50,7 +50,7 @@ $BaseUrl = $BaseUrl.TrimEnd("/")
 
 if (-not $Quiet) {
     Write-LogSeparator
-    Write-Log "SMOKE TEST — $($Environment.ToUpper())" "STEP"
+    Write-Log "SMOKE TEST - $($Environment.ToUpper())" "STEP"
     Write-Log "URL base: $BaseUrl" "INFO"
     Write-LogSeparator
 }
@@ -89,7 +89,7 @@ function Test-Endpoint {
                                       -ErrorAction SilentlyContinue
         $actual = $response.StatusCode
     } catch [System.Net.WebException] {
-        # WebException per 3xx, 4xx, 5xx — leggi il codice dalla response
+        # WebException per 3xx, 4xx, 5xx - leggi il codice dalla response
         if ($_.Exception.Response) {
             $actual = [int]$_.Exception.Response.StatusCode
         } else {
@@ -117,14 +117,14 @@ foreach ($test in $tests) {
     if ($result.Pass) {
         $passed++
         if (-not $Quiet) {
-            Write-Log "  [PASS] $($test.Description) → HTTP $($result.Actual)" "SUCCESS"
+            Write-Log "  [PASS] $($test.Description) -> HTTP $($result.Actual)" "SUCCESS"
         }
     } else {
         $failed++
         $statusStr = if ($result.Actual -eq -1) { "TIMEOUT/CONN_ERR" } else { "HTTP $($result.Actual)" }
         Write-Log "  [FAIL] $($test.Description)" "ERROR"
         Write-Log "         URL: $url" "ERROR"
-        Write-Log "         Atteso: HTTP $($test.ExpectedCode) — Ottenuto: $statusStr" "ERROR"
+        Write-Log "         Atteso: HTTP $($test.ExpectedCode) - Ottenuto: $statusStr" "ERROR"
     }
     $results += $result
 }
@@ -168,6 +168,6 @@ if ($failed -eq 0) {
     Write-Log "SMOKE TEST PASSATO: $passed/$total test OK" "SUCCESS"
     exit 0
 } else {
-    Write-Log "SMOKE TEST FALLITO: $failed/$total test KO — $passed OK, $failed FAIL" "ERROR"
+    Write-Log "SMOKE TEST FALLITO: $failed/$total test KO - $passed OK, $failed FAIL" "ERROR"
     exit 1
 }

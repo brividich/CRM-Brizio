@@ -253,7 +253,7 @@ function Assert-EnvConfigMatchesCurrent {
         return
     }
 
-    $driftKeys = Get-EnvDriftKeys -ConfigEnvPath $ConfigEnvPath -CurrentEnvPath $CurrentEnvPath
+    $driftKeys = @(Get-EnvDriftKeys -ConfigEnvPath $ConfigEnvPath -CurrentEnvPath $CurrentEnvPath)
     $keysLabel = if ($driftKeys.Count -gt 0) { $driftKeys -join ", " } else { "(solo commenti/ordine/encoding)" }
 
     if ($AllowDrift) {
@@ -372,8 +372,17 @@ if (-not (Test-Path $reqFile)) {
     Remove-Item $releaseDir -Recurse -Force
     exit 1
 }
-& $venvPython -m pip install -r $reqFile --no-warn-script-location 2>&1 | Tee-Object -FilePath "$($paths.Logs)\pip-install-$releaseTag.log"
-if ($LASTEXITCODE -ne 0) {
+# NB: pip scrive warning innocui su stderr; sotto ErrorActionPreference=Stop PowerShell
+# li promuove a errore terminante (NativeCommandError) anche con exit code 0.
+# Disattiviamo temporaneamente lo Stop attorno alla sola chiamata nativa e ci
+# affidiamo a $LASTEXITCODE come unico indicatore di successo.
+$pipLog = "$($paths.Logs)\pip-install-$releaseTag.log"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $venvPython -m pip install -r $reqFile --no-warn-script-location 2>&1 | Tee-Object -FilePath $pipLog
+$pipExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($pipExit -ne 0) {
     Write-Log "Installazione pip fallita. Vedi log: $($paths.Logs)\pip-install-$releaseTag.log" "ERROR"
     Remove-Item $releaseDir -Recurse -Force
     exit 1
@@ -399,7 +408,7 @@ if (-not $SkipCollectStatic) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "collectstatic", "--noinput", "--clear", "--settings=$settingsMod") `
+                    -PyArgs   @("manage.py", "collectstatic", "--noinput", "--clear", "--settings=$settingsMod") `
                     -EnvVars  $djangoEnv
         Assert-StaticAssetsPresent -StaticRoot $paths.Static
         Write-Log "collectstatic completato e statici verificati." "SUCCESS"
@@ -453,7 +462,7 @@ if (-not $SkipMigrate) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "migrate", "--settings=$settingsMod", "--noinput") `
+                    -PyArgs   @("manage.py", "migrate", "--settings=$settingsMod", "--noinput") `
                     -EnvVars  $djangoEnv
         Write-Log "migrate completato." "SUCCESS"
     }
@@ -467,9 +476,12 @@ if (-not $SkipMigrate) {
     # Verifica che non ci siano migration pendenti dopo il migrate
     Write-Log "  Verifica migration pendenti post-migrate..." "INFO"
     try {
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         $showOutput = & "$($paths.Venv)\Scripts\python.exe" "$djangoApp\manage.py" showmigrations `
             --settings=$settingsMod --list 2>&1 | Out-String
-        $pendingLines = ($showOutput -split "`n") | Where-Object { $_ -match "^\s+\[ \]" }
+        $ErrorActionPreference = $prevEAP
+        $pendingLines = @(($showOutput -split "`n") | Where-Object { $_ -match "^\s+\[ \]" })
         if ($pendingLines.Count -gt 0) {
             Write-Log "ERRORE: $($pendingLines.Count) migration non applicate dopo il migrate:" "ERROR"
             $pendingLines | ForEach-Object { Write-Log "  $_" "ERROR" }
@@ -496,7 +508,7 @@ if (-not $SkipMigrate) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "ensure_legacy_schema", "--settings=$settingsMod") `
+                    -PyArgs   @("manage.py", "ensure_legacy_schema", "--settings=$settingsMod") `
                     -EnvVars  $djangoEnv
         Write-Log "ensure_legacy_schema completato." "SUCCESS"
     }
@@ -519,7 +531,7 @@ if (-not $SkipSqlTriggers) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "apply_sql_triggers", "--settings=$settingsMod") `
+                    -PyArgs   @("manage.py", "apply_sql_triggers", "--settings=$settingsMod") `
                     -EnvVars  $djangoEnv
         Write-Log "Trigger SQL applicati." "SUCCESS"
     }
@@ -541,7 +553,7 @@ if (-not $SkipMigrate) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "allinea_tipo_assenza_flessibilita", "--settings=$settingsMod") `
+                    -PyArgs   @("manage.py", "allinea_tipo_assenza_flessibilita", "--settings=$settingsMod") `
                     -EnvVars  $djangoEnv
         Write-Log "allinea_tipo_assenza_flessibilita completato." "SUCCESS"
     }
@@ -563,7 +575,7 @@ Write-Log "[10/10] createcachetable (idempotente)..." "STEP"
 try {
     Invoke-Venv -VenvPath $paths.Venv `
                 -WorkDir  $djangoApp `
-                -Args     @("manage.py", "createcachetable", "--settings=$settingsMod") `
+                -PyArgs   @("manage.py", "createcachetable", "--settings=$settingsMod") `
                 -EnvVars  $djangoEnv
     Write-Log "createcachetable completato." "SUCCESS"
 }
@@ -587,7 +599,7 @@ if (Test-Path $scheduleScript) {
     }
 }
 else {
-    Write-Log "schedule-automation-queue.ps1 non trovato — task non registrato." "WARN"
+    Write-Log "schedule-automation-queue.ps1 non trovato - task non registrato." "WARN"
 }
 
 # ---------------------------------------------------------------------------

@@ -228,7 +228,7 @@ if ($RequirementsPath -and (Test-Path $RequirementsPath)) {
     }
     Write-Log "Dipendenze installate." "SUCCESS"
 } else {
-    Write-Log "RequirementsPath non specificato o non trovato — skip. Le dipendenze verranno installate durante deploy-release.ps1." "WARN"
+    Write-Log "RequirementsPath non specificato o non trovato - skip. Le dipendenze verranno installate durante deploy-release.ps1." "WARN"
 }
 
 # ---------------------------------------------------------------------------
@@ -239,9 +239,9 @@ $envDest       = "$($paths.Config)\.env"
 if (-not (Test-Path $envDest)) {
     if (Test-Path $envExampleSrc) {
         Copy-Item $envExampleSrc $envDest
-        Write-Log "Copiato .env.example in $envDest — MODIFICA CON I VALORI REALI!" "WARN"
+        Write-Log "Copiato .env.example in $envDest - MODIFICA CON I VALORI REALI!" "WARN"
     } else {
-        Write-Log "File .env non trovato in $envDest — crealo prima del deploy!" "WARN"
+        Write-Log "File .env non trovato in $envDest - crealo prima del deploy!" "WARN"
     }
 }
 

@@ -1,4 +1,4 @@
-# _lib.ps1 — Libreria condivisa per tutti gli script di deployment Portale Novicrom
+# _lib.ps1 - Libreria condivisa per tutti gli script di deployment Portale Novicrom
 # Da includere con: . "$PSScriptRoot\_lib.ps1"
 # Non eseguire direttamente.
 
@@ -173,14 +173,40 @@ function Stop-IISAppPool {
 }
 
 function Start-IISAppPool {
-    param([string]$AppPoolName)
+    param(
+        [string]$AppPoolName,
+        [int]$MaxRetries = 6,
+        [int]$RetryDelaySeconds = 3
+    )
     try {
         Import-Module WebAdministration -ErrorAction Stop
-        Start-WebAppPool -Name $AppPoolName
-        Write-Log "App pool '$AppPoolName' avviato." "SUCCESS"
     } catch {
-        Write-Log "Impossibile avviare app pool '$AppPoolName': $_" "WARN"
+        Write-Log "Impossibile caricare WebAdministration: $_" "WARN"
+        return
     }
+    # Lo stato 'Stopping'/transizione dopo uno stop fa fallire Start-WebAppPool con
+    # HRESULT 0x80070425 ("Il servizio non puo accettare messaggi di controllo in
+    # questo momento."). Ritentiamo finche' lo stato diventa 'Started'.
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        $state = (Get-WebAppPoolState -Name $AppPoolName -ErrorAction SilentlyContinue).Value
+        if ($state -eq "Started") {
+            Write-Log "App pool '$AppPoolName' avviato." "SUCCESS"
+            return
+        }
+        try {
+            Start-WebAppPool -Name $AppPoolName -ErrorAction Stop
+            Start-Sleep -Seconds 2
+            $state = (Get-WebAppPoolState -Name $AppPoolName -ErrorAction SilentlyContinue).Value
+            if ($state -eq "Started") {
+                Write-Log "App pool '$AppPoolName' avviato." "SUCCESS"
+                return
+            }
+        } catch {
+            Write-Log "Avvio app pool '$AppPoolName' tentativo $attempt/$MaxRetries non riuscito: $_" "WARN"
+        }
+        Start-Sleep -Seconds $RetryDelaySeconds
+    }
+    Write-Log "Impossibile avviare app pool '$AppPoolName' dopo $MaxRetries tentativi." "WARN"
 }
 
 # ---------------------------------------------------------------------------
@@ -208,7 +234,7 @@ function Invoke-Venv {
     param(
         [string]$VenvPath,
         [string]$WorkDir,
-        [string[]]$Args,
+        [string[]]$PyArgs,
         [hashtable]$EnvVars = @{}
     )
     $pythonExe = "$VenvPath\Scripts\python.exe"
@@ -224,9 +250,16 @@ function Invoke-Venv {
             $env_backup[$kv.Key] = [System.Environment]::GetEnvironmentVariable($kv.Key)
             [System.Environment]::SetEnvironmentVariable($kv.Key, $kv.Value)
         }
-        & $pythonExe @Args
-        if ($LASTEXITCODE -ne 0) {
-            Write-Log "Comando Python fallito con exit code $LASTEXITCODE" "ERROR"
+        # I comandi Django scrivono spesso warning su stderr (deprecazioni, migrate):
+        # sotto ErrorActionPreference=Stop PowerShell potrebbe promuoverli a errore
+        # terminante. Ci affidiamo a $LASTEXITCODE come unico indicatore di esito.
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & $pythonExe @PyArgs
+        $pyExit = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+        if ($pyExit -ne 0) {
+            Write-Log "Comando Python fallito con exit code $pyExit" "ERROR"
             throw "Python command failed"
         }
     } finally {

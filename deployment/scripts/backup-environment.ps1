@@ -6,7 +6,7 @@
     Esegue backup di:
     - config\.env
     - media\ (file utente)
-    - Database SQL Server (via sqlcmd — opzionale)
+    - Database SQL Server (via sqlcmd - opzionale)
     - Lista pacchetti pip installati (pip freeze)
     - Info sul release attivo
 
@@ -59,7 +59,7 @@ $timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupRoot = "$DEPLOY_BASE\shared\backups\$Environment-$timestamp"
 
 Write-LogSeparator
-Write-Log "BACKUP — $($Environment.ToUpper())" "STEP"
+Write-Log "BACKUP - $($Environment.ToUpper())" "STEP"
 Write-Log "Destinazione: $backupRoot" "INFO"
 Write-LogSeparator
 
@@ -152,7 +152,7 @@ if ($IncludeDatabase) {
     }
 
     if (-not $SqlServerName -or -not $DatabaseName) {
-        Log-BackupStep "  SQL Server non configurato — skip. Specifica -SqlServerName e -DatabaseName."
+        Log-BackupStep "  SQL Server non configurato - skip. Specifica -SqlServerName e -DatabaseName."
     } else {
         $bakFile = "$backupRoot\${DatabaseName}_$timestamp.bak"
         $sqlCmd = @"
@@ -170,7 +170,7 @@ WITH FORMAT, INIT, SKIP, STATS=10;
                     Log-BackupStep "  DB backup fallito (exit code $LASTEXITCODE). Vedi db_backup.log."
                 }
             } else {
-                Log-BackupStep "  sqlcmd non trovato nel PATH — skip DB backup."
+                Log-BackupStep "  sqlcmd non trovato nel PATH - skip DB backup."
             }
         } catch {
             Log-BackupStep "  DB backup errore: $_"
@@ -181,7 +181,7 @@ WITH FORMAT, INIT, SKIP, STATS=10;
 }
 
 # ---------------------------------------------------------------------------
-# 6. Zip del backup (opzionale, solo per config — non per media che può essere enorme)
+# 6. Zip del backup (opzionale, solo per config - non per media che può essere enorme)
 # ---------------------------------------------------------------------------
 Log-BackupStep "[6] Compressione config backup..."
 $zipPath = "$DEPLOY_BASE\shared\backups\$Environment-$timestamp-config.zip"
