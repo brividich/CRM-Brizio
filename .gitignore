@@ -12,6 +12,8 @@ backup/
 # Pacchetti hotfix generati localmente
 hotfix/*.zip
 hotfix/app.log
+# Anche i pacchetti hotfix lasciati nella radice del repo
+/hotfix-*.zip
 
 # Python
 __pycache__/
