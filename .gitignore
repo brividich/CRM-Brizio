@@ -182,6 +182,10 @@ django_app/deployment_validation*.json
 agent-flow/
 docs/assets/asset_import_start_*.csv
 docs/assets/asset_import_start_*.xlsx
+# Export Power Automate / RENTRI scaricati in radice (artefatti di import, non codice)
+/rentri_*.zip
+/*_flow_export*.zip
+rentri_*.docx
 
 # OS / misc
 Thumbs.db
