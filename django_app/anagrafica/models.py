@@ -652,6 +652,11 @@ class DipendenteAnagraficaCivile(models.Model):
     email_privata = models.EmailField(blank=True, default="")
     telefono_privato = models.CharField(max_length=30, blank=True, default="")
     patente_auto = models.BooleanField(default=False)
+    figli_a_carico = models.BooleanField(
+        default=False,
+        verbose_name="Figli a carico",
+        help_text="Indica se il dipendente ha figli a carico. La quantità è data dai figli registrati.",
+    )
 
     # Dati sensibili — accesso limitato a ruolo HR
     nome_banca = models.CharField(max_length=200, blank=True, default="")
@@ -687,6 +692,50 @@ class DipendenteAnagraficaCivile(models.Model):
         if len(v) < 8:
             return v
         return f"{v[:4]} **** **** **** {v[-4:]}"
+
+    @property
+    def numero_figli(self) -> int:
+        """Quantità di figli a carico, derivata dai record registrati."""
+        return self.figli.count()
+
+
+def _calcola_eta(data_nascita: date | None, riferimento: date | None = None) -> int | None:
+    """Calcola l'età in anni compiuti alla data di riferimento (default: oggi)."""
+    if not data_nascita:
+        return None
+    rif = riferimento or timezone.localdate()
+    eta = rif.year - data_nascita.year - (
+        (rif.month, rif.day) < (data_nascita.month, data_nascita.day)
+    )
+    return max(eta, 0)
+
+
+class FiglioACarico(models.Model):
+    """Figlio a carico di un dipendente. L'età è derivata dalla data di nascita."""
+
+    anagrafica = models.ForeignKey(
+        DipendenteAnagraficaCivile,
+        on_delete=models.CASCADE,
+        related_name="figli",
+        verbose_name="Anagrafica civile",
+    )
+    nome = models.CharField(max_length=120, blank=True, default="", verbose_name="Nome")
+    data_nascita = models.DateField(verbose_name="Data di nascita")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Figlio a carico"
+        verbose_name_plural = "Figli a carico"
+        ordering = ["data_nascita"]
+
+    def __str__(self) -> str:
+        return self.nome or f"Figlio nato il {self.data_nascita:%d/%m/%Y}"
+
+    @property
+    def eta(self) -> int | None:
+        """Età del figlio in anni compiuti."""
+        return _calcola_eta(self.data_nascita)
 
 
 # ---------------------------------------------------------------------------

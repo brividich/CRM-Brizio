@@ -35,6 +35,7 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
+    FiglioACaricoFormSet,
     DipendenteLegacyForm,
     TrainingCompletionRuleForm,
     TrainingCourseDependencyForm,
@@ -731,6 +732,7 @@ def dipendente_create(request):
         legacy_form = DipendenteLegacyForm(request.POST)
         form_civile = AnagraficaCivileForm(request.POST, request.FILES)
         form_aziendale = AnagraficaAziendaleForm(request.POST)
+        formset_figli = FiglioACaricoFormSet(request.POST, prefix="figli")
 
         # Le form civile/aziendale sono facoltative: ignora errori se tutti i campi sono vuoti
         civile_has_data = any(
@@ -785,6 +787,20 @@ def dipendente_create(request):
                     civ.legacy_anagrafica_id = new_id
                     civ.updated_by = request.user
                     civ.save()
+                    # Figli a carico: salva il formset e allinea il flag ai record registrati
+                    if formset_figli.is_valid():
+                        formset_figli.instance = civ
+                        formset_figli.save()
+                        ha_figli = civ.figli.exists()
+                        if civ.figli_a_carico != ha_figli:
+                            civ.figli_a_carico = ha_figli
+                            civ.save(update_fields=["figli_a_carico"])
+
+                # Reparto effettivo: sincronizza area aziendale e caporeparto dal catalogo
+                if new_id:
+                    _sync_aziendale_from_reparto(
+                        new_id, (data.get("reparto") or "").strip(), saved_by=request.user
+                    )
 
                 # Crea automaticamente account portale (solo se non già collegato)
                 if new_id and _alias:
@@ -920,13 +936,19 @@ def dipendente_create(request):
         legacy_form = DipendenteLegacyForm(initial={"attivo": True})
         form_civile = AnagraficaCivileForm()
         form_aziendale = AnagraficaAziendaleForm()
+        formset_figli = FiglioACaricoFormSet(prefix="figli")
 
+    reparti_catalogo = list(
+        Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome")
+    )
     return render(request, "anagrafica/pages/dipendente_create.html", {
         "legacy_form": legacy_form,
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
+        "formset_figli": formset_figli,
         "can_hr": can_hr,
         "mansioni_catalogo": list(Mansione.objects.filter(is_active=True).order_by("nome")),
+        "reparti_catalogo": reparti_catalogo,
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "tipologie_contratto": list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")),
         "livelli_contrattuali": list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice")),
@@ -1286,6 +1308,8 @@ def dipendente_detail(request, legacy_id: int):
     civile_foto_url = _file_field_url(civile.foto) if civile else ""
     form_civile = AnagraficaCivileForm(instance=civile) if is_admin else None
     form_aziendale = AnagraficaAziendaleForm(instance=aziendale) if is_admin else None
+    formset_figli = FiglioACaricoFormSet(instance=civile, prefix="figli") if is_admin else None
+    figli_list = list(civile.figli.all()) if civile else []
 
     # Widget layout viewer
     layout_obj = DipendenteStatLayout.objects.filter(viewer_user_id=request.user.id).first()
@@ -1705,6 +1729,8 @@ def dipendente_detail(request, legacy_id: int):
         "aziendale": aziendale,
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
+        "formset_figli": formset_figli,
+        "figli_list": figli_list,
         "reparti_catalog": reparti_catalog,
         "reparto_in_catalog": reparto_in_catalog,
         "caporeparto_label": caporeparto_label,
@@ -2712,16 +2738,28 @@ def dipendente_anagrafica_civile_save(request, legacy_id: int):
         legacy_anagrafica_id=legacy_id
     )
     form = AnagraficaCivileForm(request.POST, request.FILES, instance=instance)
-    if form.is_valid():
+    formset = FiglioACaricoFormSet(request.POST, instance=instance, prefix="figli")
+    if form.is_valid() and formset.is_valid():
         obj = form.save(commit=False)
         obj.legacy_anagrafica_id = legacy_id
         obj.updated_by = request.user
         obj.save()
+        formset.instance = obj
+        formset.save()
+        # Allinea il flag al numero effettivo di figli registrati.
+        ha_figli = obj.figli.exists()
+        if obj.figli_a_carico != ha_figli:
+            obj.figli_a_carico = ha_figli
+            obj.save(update_fields=["figli_a_carico"])
         messages.success(request, "Anagrafica civile salvata.")
     else:
         for field, errs in form.errors.items():
             for err in errs:
                 messages.error(request, f"{field}: {err}")
+        for sub in formset:
+            for field, errs in sub.errors.items():
+                for err in errs:
+                    messages.error(request, f"Figli — {field}: {err}")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 

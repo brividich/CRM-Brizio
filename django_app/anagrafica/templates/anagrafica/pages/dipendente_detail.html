@@ -735,7 +735,20 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Email privata</div><div class="dp-info-value">{% if civile.email_privata %}<a href="mailto:{{ civile.email_privata }}" style="color:#1f5c91;">{{ civile.email_privata }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono privato</div><div class="dp-info-value">{{ civile.telefono_privato|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Patente auto</div><div class="dp-info-value">{% if civile.patente_auto %}<span class="dp-pill dp-pill-green">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Figli a carico</div><div class="dp-info-value">{% if civile.figli_a_carico %}<span class="dp-pill dp-pill-green">Sì</span> <span style="font-size:11px;color:#64748b;">({{ civile.numero_figli }})</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
       </div>
+
+      {% if figli_list %}
+      <div class="dp-form-section-title" style="margin-top:14px;">Figli a carico</div>
+      <div class="dp-info-grid">
+        {% for figlio in figli_list %}
+        <div class="dp-info-item">
+          <div class="dp-info-label">{{ figlio.nome|default:"Figlio" }}</div>
+          <div class="dp-info-value">{{ figlio.data_nascita|date:"d/m/Y" }} · {{ figlio.eta }} anni</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
       <!-- Form modifica anagrafica civile (campi non sensibili mostrati nel form; campi HR esclusi) -->
       <div class="dp-edit-section" id="civ-edit">
@@ -753,6 +766,53 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
               {% endif %}
             {% endfor %}
           </div>
+
+          {% if formset_figli %}
+          <div class="dp-form-section-title" style="margin-top:14px;">Figli a carico</div>
+          <p style="font-size:11px;color:#64748b;margin:0 0 8px;">Compila la data di nascita di ogni figlio: l'età viene calcolata automaticamente. Il flag "Figli a carico" si allinea ai figli registrati.</p>
+          {{ formset_figli.management_form }}
+          <!-- Sezione figli abilitata solo con il flag "Figli a carico" attivo; gestita lato client da toggleFigliSection() -->
+          <div id="dp-figli-wrap">
+            <div class="dp-figli-formset" id="dp-figli-formset">
+              {% for sub in formset_figli %}
+              <div class="dp-form-grid dp-figlio-row" style="align-items:end;margin-bottom:8px;">
+                {{ sub.id }}
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="{{ sub.nome.id_for_label }}">Nome</label>
+                  {{ sub.nome }}
+                  {% if sub.nome.errors %}<div style="font-size:11px;color:#b91c1c;">{{ sub.nome.errors|join:", " }}</div>{% endif %}
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="{{ sub.data_nascita.id_for_label }}">Data di nascita</label>
+                  {{ sub.data_nascita }}
+                  {% if sub.data_nascita.errors %}<div style="font-size:11px;color:#b91c1c;">{{ sub.data_nascita.errors|join:", " }}</div>{% endif %}
+                </div>
+                {% if sub.instance.pk %}
+                <div class="dp-form-field" style="max-width:140px;">
+                  <label class="dp-form-label" style="color:#b91c1c;">{{ sub.DELETE }} Rimuovi</label>
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            <!-- Template riga vuota per "+ Aggiungi figlio" -->
+            <template id="dp-figlio-empty">
+              <div class="dp-form-grid dp-figlio-row" style="align-items:end;margin-bottom:8px;">
+                {{ formset_figli.empty_form.id }}
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="{{ formset_figli.empty_form.nome.id_for_label }}">Nome</label>
+                  {{ formset_figli.empty_form.nome }}
+                </div>
+                <div class="dp-form-field">
+                  <label class="dp-form-label" for="{{ formset_figli.empty_form.data_nascita.id_for_label }}">Data di nascita</label>
+                  {{ formset_figli.empty_form.data_nascita }}
+                </div>
+              </div>
+            </template>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" id="dp-figli-add" onclick="addFiglioRow()">+ Aggiungi figlio</button>
+          </div>
+          {% endif %}
+
           <div style="display:flex;gap:8px;margin-top:14px;">
             <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
             <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('civ-edit')">Annulla</button>
@@ -760,182 +820,6 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         </form>
       </div>
     </div>
-  </div>
-  {% endif %}
-
-  <!-- DATI RISERVATI HR -->
-  {% if can_hr %}
-  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
-    <div class="dp-card-head" style="background:#fffbeb;">
-      <div class="dp-card-title">🔒 Dati riservati HR</div>
-      {% if is_admin %}
-        <button type="button" onclick="toggleSection('hr-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
-      {% endif %}
-    </div>
-    <div class="dp-card-body">
-      <div class="dp-hr-badge">⚠ Dati sensibili — visibili solo agli utenti con autorizzazione HR</div>
-      <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{{ civile.codice_fiscale|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Nome banca</div><div class="dp-info-value">{{ civile.nome_banca|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">IBAN</div><div class="dp-info-value">{% if civile.iban %}{{ civile.iban_mascherato }}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Intestatario conto</div><div class="dp-info-value">{{ civile.intestatario_conto|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Categoria protetta</div><div class="dp-info-value">{% if civile.categoria_protetta %}<span class="dp-pill dp-pill-blue">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Categoria disabili</div><div class="dp-info-value">{% if civile.categoria_disabili %}<span class="dp-pill dp-pill-blue">Sì</span>{% if civile.percentuale_disabilita %} <span style="font-size:11px;color:#64748b;">{{ civile.percentuale_disabilita }}%</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
-      </div>
-
-      {% if is_admin %}
-      <div class="dp-edit-section" id="hr-edit">
-        <div class="dp-form-section-title">Modifica dati riservati HR</div>
-        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
-          {% csrf_token %}
-          <div class="dp-form-grid">
-            {% for field in form_civile %}
-              {% if field.html_name in "codice_fiscale,nome_banca,iban,intestatario_conto" %}
-              <div class="dp-form-field">
-                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
-              </div>
-              {% endif %}
-            {% endfor %}
-            {% for field in form_civile %}
-              {% if field.html_name in "categoria_protetta,categoria_disabili,percentuale_disabilita" %}
-              <div class="dp-form-field">
-                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
-              </div>
-              {% endif %}
-            {% endfor %}
-          </div>
-          <div style="display:flex;gap:8px;margin-top:14px;">
-            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
-            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('hr-edit')">Annulla</button>
-          </div>
-        </form>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- VOCI RETRIBUTIVE -->
-  {% if can_hr %}
-  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
-    <div class="dp-card-head" style="background:#fffbeb;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div class="dp-card-title">💰 Voci retributive</div>
-        {% if retribuzioni_data_competenza %}
-          <span style="font-size:11px;color:#92400e;font-weight:600;">{{ retribuzioni_data_competenza|date:"F Y" }}</span>
-        {% endif %}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendente_retribuzioni' legacy_id %}">📋 Storico</a>
-        {% if is_admin %}
-          <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:retribuzioni_import' %}">⬆ Importa CSV</a>
-        {% endif %}
-      </div>
-    </div>
-    {% if retribuzioni_latest %}
-    <div class="dp-retr-sections">
-
-      {% if retribuzioni_fissi %}
-      <details class="dp-retr-block" open>
-        <summary><span class="dp-retr-block-title">🔒 Elementi Fissi</span></summary>
-        <div class="dp-retr-table-wrap">
-          <table class="dp-retr-table">
-            {% for v in retribuzioni_fissi %}
-            <tr>
-              <td class="dp-retr-name">
-                {{ v.pay_item }}
-                {% if v.is_changed %}<span class="dp-retr-changed">
-                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
-                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
-                </span>{% endif %}
-              </td>
-              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if retribuzioni_variabili %}
-      <details class="dp-retr-block" open>
-        <summary><span class="dp-retr-block-title">📈 Elementi Variabili</span></summary>
-        <div class="dp-retr-table-wrap">
-          <table class="dp-retr-table">
-            {% for v in retribuzioni_variabili %}
-            <tr>
-              <td class="dp-retr-name">
-                {{ v.pay_item }}
-                {% if v.is_changed %}<span class="dp-retr-changed">
-                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
-                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
-                </span>{% endif %}
-              </td>
-              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if retribuzioni_altri %}
-      <details class="dp-retr-block" open>
-        <summary><span class="dp-retr-block-title">📋 Altri Elementi</span></summary>
-        <div class="dp-retr-table-wrap">
-          <table class="dp-retr-table">
-            {% for v in retribuzioni_altri %}
-            <tr>
-              <td class="dp-retr-name">{{ v.pay_item }}</td>
-              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-      {% if retribuzioni_totali %}
-      <details class="dp-retr-block" open>
-        <summary><span class="dp-retr-block-title">Σ Totali Elementi</span></summary>
-        <div class="dp-retr-table-wrap">
-          <table class="dp-retr-table">
-            {% for v in retribuzioni_totali %}
-            <tr>
-              <td class="dp-retr-name" style="font-weight:700;">
-                {{ v.pay_item }}
-                {% if v.is_changed %}<span class="dp-retr-changed">
-                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
-                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
-                </span>{% endif %}
-              </td>
-              <td class="dp-retr-val {% if v.pay_item_key == 'ral' %}is-ral{% else %}is-totale{% endif %}">
-                {{ v.importo|floatformat:2 }}
-              </td>
-            </tr>
-            {% endfor %}
-          </table>
-        </div>
-      </details>
-      {% endif %}
-
-    </div>
-    <div class="dp-retr-footer">
-      <span>Importazione: {{ retribuzioni_importazione.data_importazione|date:"d/m/Y H:i" }}</span>
-      {% if retribuzioni_has_changes %}
-        <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;">⚡ voci modificate rispetto al mese precedente</span>
-      {% endif %}
-    </div>
-    {% else %}
-    <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
-      Nessuna voce retributiva disponibile.
-      {% if is_admin %}<br><a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1f5c91;font-weight:600;">Importa il file CSV →</a>{% endif %}
-    </div>
-    {% endif %}
   </div>
   {% endif %}
 
@@ -1105,6 +989,183 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
       </details>
       {% endif %}
 
+    </div>
+  </div>
+  {% endif %}
+
+  
+  <!-- VOCI RETRIBUTIVE -->
+  {% if can_hr %}
+  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
+    <div class="dp-card-head" style="background:#fffbeb;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="dp-card-title">💰 Voci retributive</div>
+        {% if retribuzioni_data_competenza %}
+          <span style="font-size:11px;color:#92400e;font-weight:600;">{{ retribuzioni_data_competenza|date:"F Y" }}</span>
+        {% endif %}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendente_retribuzioni' legacy_id %}">📋 Storico</a>
+        {% if is_admin %}
+          <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:retribuzioni_import' %}">⬆ Importa CSV</a>
+        {% endif %}
+      </div>
+    </div>
+    {% if retribuzioni_latest %}
+    <div class="dp-retr-sections">
+
+      {% if retribuzioni_fissi %}
+      <details class="dp-retr-block" open>
+        <summary><span class="dp-retr-block-title">🔒 Elementi Fissi</span></summary>
+        <div class="dp-retr-table-wrap">
+          <table class="dp-retr-table">
+            {% for v in retribuzioni_fissi %}
+            <tr>
+              <td class="dp-retr-name">
+                {{ v.pay_item }}
+                {% if v.is_changed %}<span class="dp-retr-changed">
+                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
+                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
+                </span>{% endif %}
+              </td>
+              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if retribuzioni_variabili %}
+      <details class="dp-retr-block" open>
+        <summary><span class="dp-retr-block-title">📈 Elementi Variabili</span></summary>
+        <div class="dp-retr-table-wrap">
+          <table class="dp-retr-table">
+            {% for v in retribuzioni_variabili %}
+            <tr>
+              <td class="dp-retr-name">
+                {{ v.pay_item }}
+                {% if v.is_changed %}<span class="dp-retr-changed">
+                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
+                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
+                </span>{% endif %}
+              </td>
+              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if retribuzioni_altri %}
+      <details class="dp-retr-block" open>
+        <summary><span class="dp-retr-block-title">📋 Altri Elementi</span></summary>
+        <div class="dp-retr-table-wrap">
+          <table class="dp-retr-table">
+            {% for v in retribuzioni_altri %}
+            <tr>
+              <td class="dp-retr-name">{{ v.pay_item }}</td>
+              <td class="dp-retr-val">{{ v.importo|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+      {% if retribuzioni_totali %}
+      <details class="dp-retr-block" open>
+        <summary><span class="dp-retr-block-title">Σ Totali Elementi</span></summary>
+        <div class="dp-retr-table-wrap">
+          <table class="dp-retr-table">
+            {% for v in retribuzioni_totali %}
+            <tr>
+              <td class="dp-retr-name" style="font-weight:700;">
+                {{ v.pay_item }}
+                {% if v.is_changed %}<span class="dp-retr-changed">
+                  {% if v.importo > v.importo_precedente %}<span class="dp-retr-up">▲</span>{% else %}<span class="dp-retr-down">▼</span>{% endif %}
+                  <span class="dp-retr-prev">era {{ v.importo_precedente|floatformat:2 }}</span>
+                </span>{% endif %}
+              </td>
+              <td class="dp-retr-val {% if v.pay_item_key == 'ral' %}is-ral{% else %}is-totale{% endif %}">
+                {{ v.importo|floatformat:2 }}
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+      </details>
+      {% endif %}
+
+    </div>
+    <div class="dp-retr-footer">
+      <span>Importazione: {{ retribuzioni_importazione.data_importazione|date:"d/m/Y H:i" }}</span>
+      {% if retribuzioni_has_changes %}
+        <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;">⚡ voci modificate rispetto al mese precedente</span>
+      {% endif %}
+    </div>
+    {% else %}
+    <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
+      Nessuna voce retributiva disponibile.
+      {% if is_admin %}<br><a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1f5c91;font-weight:600;">Importa il file CSV →</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- DATI RISERVATI HR -->
+  {% if can_hr %}
+  <div class="dp-card" data-tab="contratto" style="border-color:#fde68a;">
+    <div class="dp-card-head" style="background:#fffbeb;">
+      <div class="dp-card-title">🔒 Dati riservati HR</div>
+      {% if is_admin %}
+        <button type="button" onclick="toggleSection('hr-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-hr-badge">⚠ Dati sensibili — visibili solo agli utenti con autorizzazione HR</div>
+      <div class="dp-info-grid">
+        <div class="dp-info-item"><div class="dp-info-label">Codice fiscale</div><div class="dp-info-value">{{ civile.codice_fiscale|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nome banca</div><div class="dp-info-value">{{ civile.nome_banca|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">IBAN</div><div class="dp-info-value">{% if civile.iban %}{{ civile.iban_mascherato }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Intestatario conto</div><div class="dp-info-value">{{ civile.intestatario_conto|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Categoria protetta</div><div class="dp-info-value">{% if civile.categoria_protetta %}<span class="dp-pill dp-pill-blue">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Categoria disabili</div><div class="dp-info-value">{% if civile.categoria_disabili %}<span class="dp-pill dp-pill-blue">Sì</span>{% if civile.percentuale_disabilita %} <span style="font-size:11px;color:#64748b;">{{ civile.percentuale_disabilita }}%</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+      </div>
+
+      {% if is_admin %}
+      <div class="dp-edit-section" id="hr-edit">
+        <div class="dp-form-section-title">Modifica dati riservati HR</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_civile_save' legacy_id %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            {% for field in form_civile %}
+              {% if field.html_name in "codice_fiscale,nome_banca,iban,intestatario_conto" %}
+              <div class="dp-form-field">
+                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+            {% for field in form_civile %}
+              {% if field.html_name in "categoria_protetta,categoria_disabili,percentuale_disabilita" %}
+              <div class="dp-form-field">
+                <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('hr-edit')">Annulla</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -2149,6 +2210,42 @@ function toggleSection(id) {
   const el = document.getElementById(id);
   if (el) el.classList.toggle('open');
 }
+
+/* ── Figli a carico: aggiunta righe e abilitazione legata al flag ───────────── */
+function addFiglioRow() {
+  const formset = document.getElementById('dp-figli-formset');
+  const tmpl = document.getElementById('dp-figlio-empty');
+  const totalEl = document.getElementById('id_figli-TOTAL_FORMS');
+  if (!formset || !tmpl || !totalEl) return;
+  const idx = parseInt(totalEl.value, 10) || 0;
+  // Sostituisce il placeholder __prefix__ del formset Django con l'indice corrente
+  const html = tmpl.innerHTML.replace(/__prefix__/g, idx);
+  const holder = document.createElement('div');
+  holder.innerHTML = html.trim();
+  const row = holder.firstElementChild;
+  if (!row) return;
+  formset.appendChild(row);
+  totalEl.value = idx + 1;
+}
+
+(function () {
+  // La sezione figli è utilizzabile solo se "Figli a carico" è spuntato.
+  const wrap = document.getElementById('dp-figli-wrap');
+  const flag = document.getElementById('id_figli_a_carico');
+  if (!wrap || !flag) return;
+  function sync() {
+    const on = flag.checked;
+    wrap.style.opacity = on ? '' : '0.45';
+    wrap.style.pointerEvents = on ? '' : 'none';
+    // Non disabilitare gli hidden (id/management): servono al formset Django al POST.
+    wrap.querySelectorAll('input:not([type=hidden]), button').forEach(function (el) {
+      if (el === flag) return;
+      el.disabled = !on;
+    });
+  }
+  flag.addEventListener('change', sync);
+  sync();
+})();
 
 // Storico contrattuale — livello auto-descrizione e toggle edit
 const CONTR_LIVELLI = JSON.parse(document.getElementById('contr-livelli-data') ? document.getElementById('contr-livelli-data').textContent : '{}');

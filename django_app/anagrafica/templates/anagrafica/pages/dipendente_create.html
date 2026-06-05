@@ -145,7 +145,15 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.reparto.id_for_label }}">Reparto</label>
-              <input id="{{ legacy_form.reparto.id_for_label }}" name="reparto" type="text" class="dc-input" value="{{ legacy_form.reparto.value|default:'' }}" placeholder="Es. Produzione">
+              <select id="{{ legacy_form.reparto.id_for_label }}" name="reparto" class="dc-input">
+                <option value="">— Nessun reparto —</option>
+                {% for rep in reparti_catalogo %}
+                  <option value="{{ rep.nome }}" {% if legacy_form.reparto.value == rep.nome %}selected{% endif %}>
+                    {{ rep.nome }}{% if rep.area_aziendale %} · {{ rep.area_aziendale.nome }}{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <span style="font-size:11px;color:#94a3b8;">Area aziendale e caporeparto vengono assegnati automaticamente dal catalogo reparti.</span>
             </div>
             <div class="dc-field">
               <label class="dc-label" for="{{ legacy_form.mansione.id_for_label }}">Mansione</label>
@@ -199,9 +207,12 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
         <!-- Ruolo e organizzazione -->
         <div class="dc-area">
           <div class="dc-area-title">Ruolo e organizzazione</div>
+          <p style="font-size:12px;color:#64748b;margin:-6px 0 12px;">
+            Il <strong>reparto</strong> si imposta nella sezione “Dati account” e determina automaticamente l'area aziendale e il caporeparto.
+          </p>
           <div class="dc-grid">
             {% for field in form_aziendale %}
-              {% if field.html_name in "area,ruolo_aziendale,badge" %}
+              {% if field.html_name in "ruolo_aziendale,badge" %}
               <div class="dc-field">
                 <label class="dc-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
@@ -445,6 +456,56 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           </div>
         </div>
 
+        <!-- Figli a carico -->
+        {% if formset_figli %}
+        <div class="dc-area">
+          <div class="dc-area-title">Figli a carico</div>
+          <div class="dc-field">
+            <label class="dc-checkrow">
+              {% for field in form_civile %}{% if field.html_name == "figli_a_carico" %}{{ field }}{% endif %}{% endfor %}
+              Figli a carico
+            </label>
+          </div>
+          <p style="font-size:12px;color:#64748b;margin:6px 0 12px;">
+            Compila la data di nascita di ogni figlio: l'età viene calcolata automaticamente.
+          </p>
+          {{ formset_figli.management_form }}
+          <div id="dc-figli-wrap">
+            <div id="dc-figli-formset">
+              {% for sub in formset_figli %}
+              <div class="dc-grid dc-figlio-row" style="margin-bottom:8px;">
+                {{ sub.id }}
+                <div class="dc-field">
+                  <label class="dc-label" for="{{ sub.nome.id_for_label }}">Nome</label>
+                  {{ sub.nome }}
+                  {% if sub.nome.errors %}<div class="dc-error">{{ sub.nome.errors|join:", " }}</div>{% endif %}
+                </div>
+                <div class="dc-field">
+                  <label class="dc-label" for="{{ sub.data_nascita.id_for_label }}">Data di nascita</label>
+                  {{ sub.data_nascita }}
+                  {% if sub.data_nascita.errors %}<div class="dc-error">{{ sub.data_nascita.errors|join:", " }}</div>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <template id="dc-figlio-empty">
+              <div class="dc-grid dc-figlio-row" style="margin-bottom:8px;">
+                {{ formset_figli.empty_form.id }}
+                <div class="dc-field">
+                  <label class="dc-label" for="{{ formset_figli.empty_form.nome.id_for_label }}">Nome</label>
+                  {{ formset_figli.empty_form.nome }}
+                </div>
+                <div class="dc-field">
+                  <label class="dc-label" for="{{ formset_figli.empty_form.data_nascita.id_for_label }}">Data di nascita</label>
+                  {{ formset_figli.empty_form.data_nascita }}
+                </div>
+              </div>
+            </template>
+            <button type="button" class="dc-btn dc-btn-ghost" id="dc-figli-add" onclick="dcAddFiglioRow()">+ Aggiungi figlio</button>
+          </div>
+        </div>
+        {% endif %}
+
       </div>
     </div>
 
@@ -532,5 +593,39 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
 function toggleCard(id) {
   document.getElementById(id).classList.toggle('dc-collapsed');
 }
+
+/* ── Figli a carico: aggiunta righe e abilitazione legata al flag ───────────── */
+function dcAddFiglioRow() {
+  const formset = document.getElementById('dc-figli-formset');
+  const tmpl = document.getElementById('dc-figlio-empty');
+  const totalEl = document.getElementById('id_figli-TOTAL_FORMS');
+  if (!formset || !tmpl || !totalEl) return;
+  const idx = parseInt(totalEl.value, 10) || 0;
+  const html = tmpl.innerHTML.replace(/__prefix__/g, idx);
+  const holder = document.createElement('div');
+  holder.innerHTML = html.trim();
+  const row = holder.firstElementChild;
+  if (!row) return;
+  formset.appendChild(row);
+  totalEl.value = idx + 1;
+}
+
+(function () {
+  // La sezione figli è utilizzabile solo se "Figli a carico" è spuntato.
+  const wrap = document.getElementById('dc-figli-wrap');
+  const flag = document.getElementById('id_figli_a_carico');
+  if (!wrap || !flag) return;
+  function sync() {
+    const on = flag.checked;
+    wrap.style.opacity = on ? '' : '0.45';
+    wrap.style.pointerEvents = on ? '' : 'none';
+    // Non disabilitare gli hidden (id/management): servono al formset Django al POST.
+    wrap.querySelectorAll('input:not([type=hidden]), button').forEach(function (el) {
+      el.disabled = !on;
+    });
+  }
+  flag.addEventListener('change', sync);
+  sync();
+})();
 </script>
 {% endblock %}

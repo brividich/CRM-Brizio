@@ -8,6 +8,7 @@ from .models import (
     Reparto,
     DipendenteAnagraficaAziendale,
     DipendenteAnagraficaCivile,
+    FiglioACarico,
     Mansione,
     RuoloAziendale,
     RuoloOperativo,
@@ -82,6 +83,25 @@ class AnagraficaCivileForm(forms.ModelForm):
 
     def clean_iban(self):
         return self.cleaned_data.get("iban", "").replace(" ", "").upper()
+
+
+class FiglioACaricoForm(forms.ModelForm):
+    class Meta:
+        model = FiglioACarico
+        fields = ["nome", "data_nascita"]
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Nome (facoltativo)"}),
+            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+        }
+
+
+FiglioACaricoFormSet = forms.inlineformset_factory(
+    DipendenteAnagraficaCivile,
+    FiglioACarico,
+    form=FiglioACaricoForm,
+    extra=1,
+    can_delete=True,
+)
 
 
 class AnagraficaAziendaleForm(forms.ModelForm):
