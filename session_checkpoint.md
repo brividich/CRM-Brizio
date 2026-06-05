@@ -4,6 +4,13 @@ Data: 2026-05-29
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-04 - Codex` (Automazioni: conversione Power Automate RENTRI modifica elemento)
+- `django_app/automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json` -> nuovo package importabile da `rentri_20260604152402.zip`, sorgente `rentri`, con 3 regole draft/inattive: notifica nuovo carico, promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni.
+- Riferimenti: package coordinato con `django_app/automazioni/packages/au31_scarico_senza_fir_notifica.automation_package.json` e `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` per evitare sovrapposizioni operative.
+- `django_app/automazioni/packages/HANDOFF_AUTOMAZIONI.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato nuovo package e conteggio pacchetti importabili aggiornato.
+- Test/check: JSON valido; `analyze_package_dict` con `config.settings.test` OK (`status=ready`, 3/3 regole importabili); `run_package_dry_run` OK su campioni sintetici carico/scarico.
+- Note: nessun file critico modificato; nessuna modifica a runtime, ACL, middleware, settings, autenticazione, routing globale o navigazione globale; nessun backup creato.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-05-29 - Codex` (mockup grafico email automazioni)
 - `docs/email_templates/automation_email_graphic_template.html` -> nuovo mockup HTML statico per layout grafico email automazioni: header NOVICROM HUB con logo reale `django_app/core/static/core/img/logo_novicrom.png`, badge automazione, riepilogo a tabella, box scadenza, CTA e footer.
 - Test/check: verifica manuale del file creato; nessun test Django eseguito perche modifica documentale/prototipale.

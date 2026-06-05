@@ -1,5 +1,19 @@
 # Agent Changelog
 
+## 2026-06-04 - Codex
+
+- Area: `django_app/automazioni/packages`, conversione flow Power Automate RENTRI.
+- Richiesta: analizzare `rentri_20260604152402.zip`, fare riferimento anche ai flussi gia' presenti in `django_app/automazioni/packages` e creare un package importabile.
+- File modificati/creati: `django_app/automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json` (nuovo), `django_app/automazioni/packages/HANDOFF_AUTOMAZIONI.md`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a runtime, ACL, middleware, settings, autenticazione, routing globale o navigazione globale.
+- Motivo tecnico: convertire il flow Power Automate SharePoint/Outlook `RENTRI - MODIFICA ELEMENTO` in regole Automazioni importabili e coerenti con il catalogo AU esistente, senza introdurre dipendenze o chiamate esterne.
+- Modifica: aggiunto package `pa_rentri_modifica_elemento_promemoria` su sorgente `rentri`, con 3 regole draft/inattive: notifica nuovo carico, controllo differito a 5 giorni per carico non marcato RENTRI e controllo differito a 30 giorni per FIR mancante. Le attese del flow sono modellate con `do_until` e retry differito; il package documenta i limiti rispetto a `GetItemChanges` e al calcolo `Data + 30 giorni` di Power Automate. Handoff e README aggiornati a 29 package importabili.
+- Riferimenti ai flussi esistenti: il package cita `au31_scarico_senza_fir_notifica.automation_package.json` come presidio immediato FIR e `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` per i movimenti consolidati da trasmettere, cosi' da evitare destinatari/attivazioni duplicate.
+- Impatto previsto: il package puo' essere importato da Automazioni -> Regole -> Importa package e configurato nel designer; nessuna regola viene attivata automaticamente.
+- Rischi residui: i controlli differiti usano il payload della queue e non rileggono automaticamente SharePoint/DB come `GetItemChanges`; prima dell'attivazione verificare su record reali oppure valutare un job schedulato che rilegga lo stato corrente. I destinatari `RENTRI_DA_CONFIGURARE` vanno sostituiti.
+- Test/check: JSON valido con `python -m json.tool`; `analyze_package_dict` con `config.settings.test` OK (`status=ready`, 3/3 regole importabili); `run_package_dry_run` OK su campioni sintetici carico/scarico.
+- Note: nessun backup creato; lo zip sorgente `rentri_20260604152402.zip` e' rimasto invariato.
+
 ## 2026-05-29 - Codex
 
 - Area: `docs/email_templates`, mockup grafico email automazioni.

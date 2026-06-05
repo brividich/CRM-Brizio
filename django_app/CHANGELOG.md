@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Automazioni - package Power Automate RENTRI
+
+- **[package] `automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json`** — nuovo package importabile da `rentri_20260604152402.zip` per il flow Power Automate `RENTRI - MODIFICA ELEMENTO`: notifica nuovo carico, promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni. Riferisce i package gia' presenti `au31_scarico_senza_fir_notifica` e `docs/automation_packages/rentri_movimenti_da_trasmettere` per evitare sovrapposizioni operative.
+
 ### Fix
 
 - **[fix] `assenze/views.py`** — URL notifica accettazione/rifiuto assenza corretta da `/assenze/gestione/` (inesistente) a `/assenze/richiesta_assenze` (riepilogo richieste del dipendente).
