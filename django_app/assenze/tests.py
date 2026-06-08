@@ -12,6 +12,7 @@ from django.utils import timezone
 from core.models import UserOnboarding
 
 from .views import (
+    _anagrafica_employee_ids_for_capo,
     _build_submit_token,
     _certificazione_presenza_dipendenti_attivi,
     _diagnose_sharepoint_sync_item,
@@ -1285,3 +1286,44 @@ class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
         self.assertIn("([tipo_assenza]=N'Certifica presenza')", executed_sql)
         self.assertNotIn("([tipo_assenza]=N'Infortunio')", executed_sql)
         self.assertIn("riallineato", stdout.getvalue())
+
+
+class AssenzeInsertForOthersScopeTests(TestCase):
+    """Scope reparto per l'inserimento richieste 'per conto di' (CAR)."""
+
+    def _make_aziendale(self, *, anagrafica_id, capo_anagrafica_id=None, area=""):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        return DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=anagrafica_id,
+            caporeparto_legacy_id=capo_anagrafica_id,
+            area=area,
+        )
+
+    def test_includes_employees_with_matching_caporeparto(self):
+        capo_id = 100
+        self._make_aziendale(anagrafica_id=11, capo_anagrafica_id=capo_id)
+        self._make_aziendale(anagrafica_id=12, capo_anagrafica_id=capo_id)
+        self._make_aziendale(anagrafica_id=13, capo_anagrafica_id=999)  # altro reparto
+
+        ids = _anagrafica_employee_ids_for_capo(capo_id)
+
+        self.assertEqual(ids, {11, 12})
+
+    def test_includes_employees_via_reparto_area_fallback(self):
+        from anagrafica.models import Reparto
+
+        capo_id = 200
+        Reparto.objects.create(nome="Verniciatura", caporeparto_legacy_id=capo_id, is_active=True)
+        # Dipendente senza capo diretto ma nell'area gestita dal capo.
+        self._make_aziendale(anagrafica_id=21, area="Verniciatura")
+        # Dipendente in area diversa: escluso.
+        self._make_aziendale(anagrafica_id=22, area="Magazzino")
+
+        ids = _anagrafica_employee_ids_for_capo(capo_id)
+
+        self.assertIn(21, ids)
+        self.assertNotIn(22, ids)
+
+    def test_returns_empty_when_no_capo_id(self):
+        self.assertEqual(_anagrafica_employee_ids_for_capo(None), set())

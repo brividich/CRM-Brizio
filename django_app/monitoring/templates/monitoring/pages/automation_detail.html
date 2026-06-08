@@ -70,8 +70,8 @@
               <tbody>
                 {% for execution in executions %}
                   <tr>
-                    <td>{{ execution.started_at|date:"d/m/Y H:i" }}</td>
-                    <td>{{ execution.finished_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td>{{ execution.started_at|date:"d-m-Y H:i" }}</td>
+                    <td>{{ execution.finished_at|date:"d-m-Y H:i"|default:"-" }}</td>
                     <td><span class="monitoring-pill status-{{ execution.status }}">{{ execution.status }}</span></td>
                     <td>{{ execution.duration_seconds|default:"-" }}</td>
                     <td>{{ execution.message|default:execution.exception_class|truncatechars:160 }}</td>
@@ -93,15 +93,15 @@
           <div class="monitoring-inline-list">
             <div class="monitoring-inline-item">
               <strong>Missing</strong>
-              <div class="monitoring-meta">{% if job_row.missing_alert %}Si, atteso entro {{ job_row.missing_alert.expected_at|date:"d/m/Y H:i" }}{% else %}No{% endif %}</div>
+              <div class="monitoring-meta">{% if job_row.missing_alert %}Si, atteso entro {{ job_row.missing_alert.expected_at|date:"d-m-Y H:i" }}{% else %}No{% endif %}</div>
             </div>
             <div class="monitoring-inline-item">
               <strong>Delayed / stuck</strong>
-              <div class="monitoring-meta">{% if job_row.stuck_alert %}Si, deadline {{ job_row.stuck_alert.deadline|date:"d/m/Y H:i" }}{% else %}No{% endif %}</div>
+              <div class="monitoring-meta">{% if job_row.stuck_alert %}Si, deadline {{ job_row.stuck_alert.deadline|date:"d-m-Y H:i" }}{% else %}No{% endif %}</div>
             </div>
             <div class="monitoring-inline-item">
               <strong>Prossima esecuzione attesa</strong>
-              <div class="monitoring-meta">{{ job_row.next_expected_at|date:"d/m/Y H:i"|default:"-" }}</div>
+              <div class="monitoring-meta">{{ job_row.next_expected_at|date:"d-m-Y H:i"|default:"-" }}</div>
             </div>
           </div>
         </div>

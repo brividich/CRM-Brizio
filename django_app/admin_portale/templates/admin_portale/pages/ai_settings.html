@@ -621,7 +621,7 @@ body.theme-dark .ai-faq-title {
             <tbody>
               {% for row in runtime_audit_rows %}
                 <tr>
-                  <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
+                  <td>{{ row.created_at|date:"d-m-Y H:i" }}</td>
                   <td>{{ row.utente_display }}</td>
                   <td><code>{{ row.azione }}</code></td>
                   <td>{{ row.tools|join:", " }}</td>
@@ -779,7 +779,7 @@ body.theme-dark .ai-faq-title {
           <tbody>
             {% for fb in feedback_page_obj %}
               <tr>
-                <td style="white-space:nowrap;">{{ fb.created_at|date:"d/m/Y H:i" }}</td>
+                <td style="white-space:nowrap;">{{ fb.created_at|date:"d-m-Y H:i" }}</td>
                 <td>{{ fb.user.username|default:"—" }}</td>
                 <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ fb.prompt }}">{{ fb.prompt|truncatechars:100 }}</td>
                 <td>
@@ -889,7 +889,7 @@ body.theme-dark .ai-faq-title {
                   <strong>Correzione proposta:</strong><br>{{ fb.correction|truncatechars:300 }}
                 </div>
                 <div class="ai-faq-meta">
-                  <span class="cell-muted">{{ fb.user.username|default:"anonimo" }} &middot; {{ fb.created_at|date:"d/m/Y" }}</span>
+                  <span class="cell-muted">{{ fb.user.username|default:"anonimo" }} &middot; {{ fb.created_at|date:"d-m-Y" }}</span>
                   {% if fb.knowledge_entry and not fb.knowledge_entry.is_active %}
                     <div class="ai-inline-form">
                       <form method="post" action="{% url 'admin_portale:ai_feedback_approva' fb.id %}" class="ai-inline-form">
@@ -976,7 +976,7 @@ body.theme-dark .ai-faq-title {
                   </td>
                   <td style="font-size:11px;">
                     {% if row.review and row.review.reviewed_by %}
-                      {{ row.review.reviewed_by.username }}<br>{{ row.review.reviewed_at|date:"d/m/Y" }}
+                      {{ row.review.reviewed_by.username }}<br>{{ row.review.reviewed_at|date:"d-m-Y" }}
                     {% else %}
                       <span class="cell-muted">—</span>
                     {% endif %}

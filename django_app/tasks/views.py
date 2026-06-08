@@ -1132,9 +1132,9 @@ def _display_event_value(field_name: str, value, *, users_by_id: dict[int, objec
     if value in (None, ""):
         return "non impostato"
     if isinstance(value, date):
-        return value.strftime("%d/%m/%Y")
+        return value.strftime("%d-%m-%Y")
     if field_name in {"due_date", "next_step_due"} and _looks_like_iso_date(value):
-        return date.fromisoformat(value).strftime("%d/%m/%Y")
+        return date.fromisoformat(value).strftime("%d-%m-%Y")
     if field_name in {"status", "from", "to"} and value in TASK_STATUS_LABELS_IT:
         return TASK_STATUS_LABELS_IT[value]
     if field_name == "priority" and value in TASK_PRIORITY_LABELS_IT:
@@ -1520,7 +1520,7 @@ def _add_task_absence_warnings(request, task: Task) -> None:
         messages.warning(
             request,
             (
-                f"Conflitto assenze: {field_labels[field_name]} del {target_date.strftime('%d/%m/%Y')} "
+                f"Conflitto assenze: {field_labels[field_name]} del {target_date.strftime('%d-%m-%Y')} "
                 f"coincide con assenza di {assignee_name} ({label_text})."
             ),
         )
@@ -2500,8 +2500,8 @@ def project_info_json(request, project_id: int):
             "id": t["id"],
             "title": t["title"],
             "status": t["status"],
-            "next_step_due": t["next_step_due"].strftime("%d/%m/%Y") if t["next_step_due"] else "",
-            "due_date": t["due_date"].strftime("%d/%m/%Y") if t["due_date"] else "",
+            "next_step_due": t["next_step_due"].strftime("%d-%m-%Y") if t["next_step_due"] else "",
+            "due_date": t["due_date"].strftime("%d-%m-%Y") if t["due_date"] else "",
             "assignee": assignee,
         })
     pm = project.project_manager
@@ -3687,7 +3687,7 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             labels = [f"{entry['tipo']} ({entry['status']})" for entry in conflicts[field_name]]
             label_text = ", ".join(dict.fromkeys(labels))
             conflict_messages.append(
-                f"{field_name}:{target_date.strftime('%d/%m/%Y')}:{label_text}"
+                f"{field_name}:{target_date.strftime('%d-%m-%Y')}:{label_text}"
             )
 
     return JsonResponse(
@@ -3699,8 +3699,8 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             "cascade_count": cascade_count,
             "next_step_due": task.next_step_due.isoformat() if task.next_step_due else None,
             "due_date": task.due_date.isoformat() if task.due_date else None,
-            "next_step_due_display": task.next_step_due.strftime("%d/%m/%Y") if task.next_step_due else "",
-            "due_date_display": task.due_date.strftime("%d/%m/%Y") if task.due_date else "",
+            "next_step_due_display": task.next_step_due.strftime("%d-%m-%Y") if task.next_step_due else "",
+            "due_date_display": task.due_date.strftime("%d-%m-%Y") if task.due_date else "",
             "absence_conflicts": conflict_messages,
         }
     )
@@ -4177,7 +4177,7 @@ def _handle_tasks_reminders_post(request):
                 skipped += 1
                 continue
             project_label = f" [{task.project.name}]" if task.project_id and task.project else ""
-            due_str = task.due_date.strftime("%d/%m/%Y") if task.due_date else "(senza data)"
+            due_str = task.due_date.strftime("%d-%m-%Y") if task.due_date else "(senza data)"
             message_text = (
                 f"Promemoria scadenza attivita kickoff: \"{task.title}\"{project_label} "
                 f"in scadenza il {due_str}."
@@ -5822,7 +5822,7 @@ def _meeting_issue_agenda_item(issue: MeetingIssue) -> dict:
     if owner:
         custom_fields.append({"label": "Responsabile", "value": owner})
     if issue.due_date:
-        custom_fields.append({"label": "Scadenza", "value": issue.due_date.strftime("%d/%m/%Y")})
+        custom_fields.append({"label": "Scadenza", "value": issue.due_date.strftime("%d-%m-%Y")})
     if issue.source_meeting_id:
         custom_fields.append({"label": "Origine", "value": f"Incontro {issue.source_meeting.numero}"})
     return {
@@ -6273,7 +6273,7 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
         priority=priority_raw,
         status=TaskStatus.TODO,
         created_by=request.user,
-        description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d/%m/%Y})",
+        description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})",
     )
     task.save()
 

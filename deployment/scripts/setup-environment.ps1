@@ -170,6 +170,7 @@ $dirs  = @(
     $paths.Config,
     $paths.Static,
     $paths.Media,
+    $paths.MediaPrivate,
     $paths.Run,
     "$DEPLOY_BASE\shared",
     "$DEPLOY_BASE\shared\scripts",

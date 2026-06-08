@@ -102,7 +102,7 @@ body.theme-dark .dp-btn-pdf     { background:rgba(15,118,110,.2); color:#2dd4bf;
       <div class="dp-card-meta">
         ID {{ segnalazione.codice_identificativo|default:"-" }}
         &nbsp;|&nbsp;
-        Inserita il {{ segnalazione.created_at|date:"d/m/Y H:i" }}
+        Inserita il {{ segnalazione.created_at|date:"d-m-Y H:i" }}
       </div>
     </div>
 
@@ -123,12 +123,12 @@ body.theme-dark .dp-btn-pdf     { background:rgba(15,118,110,.2); color:#2dd4bf;
         </div>
         <div class="dp-field">
           <label>Data segnalazione</label>
-          <div class="val">{{ segnalazione.data_segnalazione|date:"d/m/Y H:i" }}</div>
+          <div class="val">{{ segnalazione.data_segnalazione|date:"d-m-Y H:i" }}</div>
         </div>
         {% if segnalazione.updated_at %}
         <div class="dp-field">
           <label>Ultima modifica</label>
-          <div class="val">{{ segnalazione.updated_at|date:"d/m/Y H:i" }}</div>
+          <div class="val">{{ segnalazione.updated_at|date:"d-m-Y H:i" }}</div>
         </div>
         {% endif %}
       </div>

@@ -6,8 +6,10 @@ from pathlib import Path
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 
+from core.encrypted_storage import EncryptedStorageMixin
 
-class PrivateTicketStorage(FileSystemStorage):
+
+class PrivateTicketStorage(EncryptedStorageMixin, FileSystemStorage):
     """
     Storage privato per gli allegati ticket.
     I nuovi file vengono salvati in TICKETS_PRIVATE_ROOT e non espongono URL diretti.

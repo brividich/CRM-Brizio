@@ -61,11 +61,11 @@
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Started</div>
-            <div class="auto-meta-value">{{ run_log.started_at|date:"d/m/Y H:i:s" }}</div>
+            <div class="auto-meta-value">{{ run_log.started_at|date:"d-m-Y H:i:s" }}</div>
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Finished</div>
-            <div class="auto-meta-value">{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+            <div class="auto-meta-value">{{ run_log.finished_at|date:"d-m-Y H:i:s"|default:"-" }}</div>
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Execution ms</div>
@@ -146,7 +146,7 @@
                 <td>{{ action_log.status }}</td>
                 <td>{{ action_log.result_message|default:"-" }}</td>
                 <td>{{ action_log.error_trace|default:"-" }}</td>
-                <td>{{ action_log.created_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ action_log.created_at|date:"d-m-Y H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr>

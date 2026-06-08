@@ -204,7 +204,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
                 {% for o in ordini %}
                 <tr>
                   <td><strong>{{ o.numero_ordine|default:"—" }}</strong></td>
-                  <td>{{ o.data_ordine|date:"d/m/Y" }}</td>
+                  <td>{{ o.data_ordine|date:"d-m-Y" }}</td>
                   <td><strong>€ {{ o.importo }}</strong></td>
                   <td><span class="ana-pill stato-{{ o.stato }}">{{ o.get_stato_display }}</span></td>
                   <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.descrizione|default:"—" }}</td>
@@ -245,7 +245,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
               <div class="ana-doc-icon">📄</div>
               <div>
                 <div style="font-weight:700;font-size:13px;"><a href="{{ doc.file.url }}" target="_blank" style="color:#1d4ed8;text-decoration:none;">{{ doc.nome }}</a></div>
-                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d/m/Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
+                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d-m-Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
               </div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
@@ -278,7 +278,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
               <tbody>
                 {% for v in valutazioni %}
                 <tr>
-                  <td>{{ v.data|date:"d/m/Y" }}</td>
+                  <td>{{ v.data|date:"d-m-Y" }}</td>
                   <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.qualita %}★{% else %}☆{% endif %}{% endfor %}</span></td>
                   <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.puntualita %}★{% else %}☆{% endif %}{% endfor %}</span></td>
                   <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.comunicazione %}★{% else %}☆{% endif %}{% endfor %}</span></td>
@@ -315,7 +315,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
                 <strong style="font-size:13px;color:#0f172a;">{{ fa.asset.name }}</strong>
                 <span class="ana-pill {% if fa.is_attivo %}ana-pill-green{% else %}ana-pill-gray{% endif %}">{% if fa.is_attivo %}Attivo{% else %}Scaduto{% endif %}</span>
               </div>
-              <div style="font-size:12px;color:#64748b;">{{ fa.get_tipo_display }} · Dal {{ fa.data_inizio|date:"d/m/Y" }}{% if fa.data_fine %} al {{ fa.data_fine|date:"d/m/Y" }}{% endif %}{% if fa.note %} · {{ fa.note }}{% endif %}</div>
+              <div style="font-size:12px;color:#64748b;">{{ fa.get_tipo_display }} · Dal {{ fa.data_inizio|date:"d-m-Y" }}{% if fa.data_fine %} al {{ fa.data_fine|date:"d-m-Y" }}{% endif %}{% if fa.note %} · {{ fa.note }}{% endif %}</div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_asset_remove' fornitore.pk fa.pk %}">{% csrf_token %}
               <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Rimuovere?')" type="submit">Rimuovi</button>
@@ -368,7 +368,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
               {{ fornitore.citta }}{% if fornitore.cap %} {{ fornitore.cap }}{% endif %}{% if fornitore.provincia %} ({{ fornitore.provincia }}){% endif %}
             </div></div>
             {% endif %}
-            <div><div class="ana-spec-k">Aggiornato</div><div class="ana-spec-v" style="font-size:12px;color:#64748b;">{{ fornitore.updated_at|date:"d/m/Y H:i" }}</div></div>
+            <div><div class="ana-spec-k">Aggiornato</div><div class="ana-spec-v" style="font-size:12px;color:#64748b;">{{ fornitore.updated_at|date:"d-m-Y H:i" }}</div></div>
           </div>
         </div>
       </div>
@@ -384,7 +384,7 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
           <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Qualità</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.qualita|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.qualita }}/5</span></div>
           <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Puntualità</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.puntualita|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.puntualita }}/5</span></div>
           <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Comunicazione</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.comunicazione|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.comunicazione }}/5</span></div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:10px;">Ultima: {{ last.data|date:"d/m/Y" }}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:10px;">Ultima: {{ last.data|date:"d-m-Y" }}</div>
           {% endwith %}
         </div>
       </div>

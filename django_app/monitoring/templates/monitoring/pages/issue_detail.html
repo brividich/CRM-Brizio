@@ -62,7 +62,7 @@
               <tbody>
                 {% for occurrence in occurrences %}
                   <tr>
-                    <td>{{ occurrence.occurred_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ occurrence.occurred_at|date:"d-m-Y H:i" }}</td>
                     <td><span class="monitoring-pill source-{{ occurrence.source }}">{{ occurrence.source }}</span></td>
                     <td>{{ occurrence.message|default:occurrence.exception_class|truncatechars:160 }}</td>
                     <td>{{ occurrence.username_snapshot|default:"-" }}</td>
@@ -150,7 +150,7 @@
             {% for report in related_reports %}
               <div class="monitoring-inline-item">
                 <strong>{{ report.username_snapshot|default:"Utente" }}</strong>
-                <div class="monitoring-meta">{{ report.created_at|date:"d/m/Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
+                <div class="monitoring-meta">{{ report.created_at|date:"d-m-Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
                 <div style="margin-top:6px;">{{ report.message }}</div>
               </div>
             {% empty %}
@@ -167,7 +167,7 @@
             {% for execution in related_automation_executions %}
               <div class="monitoring-inline-item">
                 <strong>{{ execution.job.name }}</strong>
-                <div class="monitoring-meta">{{ execution.started_at|date:"d/m/Y H:i" }} | {{ execution.status }}</div>
+                <div class="monitoring-meta">{{ execution.started_at|date:"d-m-Y H:i" }} | {{ execution.status }}</div>
                 <div style="margin-top:6px;">{{ execution.message|default:execution.exception_class|truncatechars:160 }}</div>
               </div>
             {% empty %}

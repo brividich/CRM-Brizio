@@ -253,7 +253,7 @@ body.theme-dark .tkt-empty { color:var(--text-light); }
           </td>
           <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
           <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
-          <td style="white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+          <td style="white-space:nowrap;">{{ t.created_at|date:"d-m-Y H:i" }}</td>
           {% if is_gestore or is_admin %}<td>{{ t.assegnato_a|default:"-" }}</td>{% endif %}
           <td style="white-space:nowrap;"><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
         </tr>

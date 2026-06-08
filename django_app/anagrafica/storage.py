@@ -5,8 +5,10 @@ import os
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 
+from core.encrypted_storage import EncryptedStorageMixin
 
-class PrivateAnagraficaStorage(FileSystemStorage):
+
+class PrivateAnagraficaStorage(EncryptedStorageMixin, FileSystemStorage):
     """Storage privato per i documenti del dipendente.
 
     I file (PDF consegne DPI, referti visite mediche, contratti, ecc.) sono

@@ -730,7 +730,7 @@ class FiglioACarico(models.Model):
         ordering = ["data_nascita"]
 
     def __str__(self) -> str:
-        return self.nome or f"Figlio nato il {self.data_nascita:%d/%m/%Y}"
+        return self.nome or f"Figlio nato il {self.data_nascita:%d-%m-%Y}"
 
     @property
     def eta(self) -> int | None:
@@ -1333,8 +1333,8 @@ class StoricoContratto(models.Model):
         verbose_name_plural = "Storico contrattuale"
 
     def __str__(self) -> str:
-        fine = self.data_fine.strftime("%d/%m/%Y") if self.data_fine else "in corso"
-        return f"{self.tax_code} {self.data_inizio.strftime('%d/%m/%Y')} – {fine}"
+        fine = self.data_fine.strftime("%d-%m-%Y") if self.data_fine else "in corso"
+        return f"{self.tax_code} {self.data_inizio.strftime('%d-%m-%Y')} – {fine}"
 
     @property
     def is_in_corso(self) -> bool:
@@ -1453,7 +1453,7 @@ class SaldoCedolino(models.Model):
         verbose_name_plural = "Saldi cedolini"
 
     def __str__(self) -> str:
-        mese = self.data_competenza.strftime("%m/%Y") if self.data_competenza else "?"
+        mese = self.data_competenza.strftime("%m-%Y") if self.data_competenza else "?"
         return f"{self.tax_code} — {mese}"
 
 
@@ -1628,11 +1628,32 @@ class DocumentoDipendente(models.Model):
     )
     created_by_display = models.CharField(max_length=200, blank=True, default="")
 
+    # GDPR – data limite di conservazione (calcolata automaticamente al salvataggio).
+    # Null = non ancora calcolata (documenti pre-migrazione). Il management command
+    # `cleanup_expired_documents` elimina solo i doc scaduti di dipendenti cessati.
+    retention_until = models.DateField(
+        null=True, blank=True, db_index=True,
+        verbose_name="Conservare fino al",
+        help_text="Data limite GDPR. Calcolata automaticamente; modificabile manualmente.",
+    )
+
+    # Anni di conservazione per tipo documento (riferimento normativo italiano).
+    # Referti/DPI/Formazione: D.Lgs. 81/2008 – almeno 10 anni post-cessazione.
+    # Contratti/Cedolini: Art. 2220 c.c. + D.P.R. 445/2000 – 10 anni.
+    _RETENTION_ANNI = {
+        Tipo.VISITA_MEDICA_REFERTO: 10,
+        Tipo.DPI_CONSEGNA: 10,
+        Tipo.CERTIFICATO_FORMAZIONE: 10,
+        Tipo.MANUALE: 10,
+        Tipo.ALTRO: 10,
+    }
+
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["legacy_anagrafica_id", "tipo"]),
             models.Index(fields=["oggetto_riferimento_tipo", "oggetto_riferimento_id"]),
+            models.Index(fields=["retention_until"]),
         ]
         verbose_name = "Documento dipendente"
         verbose_name_plural = "Documenti dipendente"
@@ -1640,6 +1661,15 @@ class DocumentoDipendente(models.Model):
     def __str__(self) -> str:
         nome = self.nome_originale or Path(self.file.name or "").name or "documento"
         return f"[{self.legacy_anagrafica_id}] {self.get_tipo_display()} — {nome}"
+
+    def save(self, *args, **kwargs):
+        if self.retention_until is None and self.tipo:
+            anni = self._RETENTION_ANNI.get(self.tipo, 10)
+            # Per record già esistenti usa created_at; per i nuovi (pk non ancora
+            # assegnato) created_at non è ancora scritto → usa date.today().
+            base = self.created_at.date() if self.pk and self.created_at else date.today()
+            self.retention_until = _add_months(base, anni * 12)
+        super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         storage = self.file.storage if self.file else None

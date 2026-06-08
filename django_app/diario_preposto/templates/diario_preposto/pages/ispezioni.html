@@ -64,7 +64,7 @@ body.theme-dark .dpi-section-sub, body.theme-dark .dpi-kpi-lbl { color:var(--tex
     </div>
     <div class="dpi-kpi{% if ispezione_scaduta %} dpi-kpi-alert{% endif %}">
       <div class="dpi-kpi-val">
-        {% if prossima_scadenza %}{{ prossima_scadenza|date:"d/m/Y" }}{% else %}Da pianificare{% endif %}
+        {% if prossima_scadenza %}{{ prossima_scadenza|date:"d-m-Y" }}{% else %}Da pianificare{% endif %}
       </div>
       <div class="dpi-kpi-lbl">Prossima scadenza</div>
     </div>
@@ -100,7 +100,7 @@ body.theme-dark .dpi-section-sub, body.theme-dark .dpi-kpi-lbl { color:var(--tex
         <tbody>
           {% for e in esecuzioni %}
           <tr>
-            <td style="white-space:nowrap;">{{ e.data_esecuzione|date:"d/m/Y H:i" }}</td>
+            <td style="white-space:nowrap;">{{ e.data_esecuzione|date:"d-m-Y H:i" }}</td>
             <td>{{ e.meta.area|default:e.utente_nome|default:"-" }}</td>
             <td>{{ e.meta.macchina|default:"-" }}</td>
             <td>{{ e.eseguita_da_nome|default:"-" }}</td>

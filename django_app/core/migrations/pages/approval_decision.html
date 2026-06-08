@@ -109,12 +109,12 @@
           </div>
           <div class="meta-item">
             <div class="meta-label">Creata il</div>
-            <div class="meta-value">{{ approval.created_at|date:"d/m/Y H:i" }}</div>
+            <div class="meta-value">{{ approval.created_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% if approval.decided_at %}
           <div class="meta-item">
             <div class="meta-label">Decisa il</div>
-            <div class="meta-value">{{ approval.decided_at|date:"d/m/Y H:i" }}</div>
+            <div class="meta-value">{{ approval.decided_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% endif %}
           {% if approval.decided_by_email %}
@@ -155,7 +155,7 @@
         <div class="alert alert-warning">
           Questa richiesta è già in stato
           <span class="status-badge status-{{ approval.status }}">{{ approval.get_status_display }}</span>
-          {% if approval.decided_at %}il {{ approval.decided_at|date:"d/m/Y \a\l\l\e H:i" }}{% endif %}
+          {% if approval.decided_at %}il {{ approval.decided_at|date:"d-m-Y \a\l\l\e H:i" }}{% endif %}
           {% if approval.decided_by_email %}da {{ approval.decided_by_email }}{% endif %}.
         </div>
 
@@ -177,12 +177,12 @@
           </div>
           <div class="meta-item">
             <div class="meta-label">Creata il</div>
-            <div class="meta-value">{{ approval.created_at|date:"d/m/Y H:i" }}</div>
+            <div class="meta-value">{{ approval.created_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% if approval.expires_at %}
           <div class="meta-item">
             <div class="meta-label">Scade il</div>
-            <div class="meta-value">{{ approval.expires_at|date:"d/m/Y H:i" }}</div>
+            <div class="meta-value">{{ approval.expires_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% endif %}
         </div>

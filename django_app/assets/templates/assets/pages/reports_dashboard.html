@@ -223,7 +223,7 @@
                   <td><a href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><br><span class="rd-empty">{{ row.asset.name }}</span></td>
                   <td>{{ row.effective_intervention_template.label }}</td>
                   <td><span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span></td>
-                  <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                  <td>{% if row.due_date %}{{ row.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                   <td><a class="btn btn-primary" href="{{ row.primary_action.url }}">{{ row.primary_action.label }}</a></td>
                 </tr>
               {% empty %}
@@ -251,7 +251,7 @@
                 <tr>
                   <td><a href="{% url 'assets:wo_view' row.workorder.id %}">#{{ row.workorder.id }} - {{ row.workorder.title }}</a></td>
                   <td>{{ row.workorder.asset.asset_tag }} - {{ row.workorder.asset.name }}</td>
-                  <td>{{ row.workorder.opened_at|date:"d/m/Y" }}</td>
+                  <td>{{ row.workorder.opened_at|date:"d-m-Y" }}</td>
                   <td>
                     {% if row.is_late %}
                       <span class="as-badge as-badge--warn">{{ row.open_days }} gg</span>
@@ -286,7 +286,7 @@
                 <tr>
                   <td><a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a></td>
                   <td>{{ wo.asset.asset_tag }} - {{ wo.asset.name }}</td>
-                  <td>{{ wo.closed_at|date:"d/m/Y" }}</td>
+                  <td>{{ wo.closed_at|date:"d-m-Y" }}</td>
                   <td>{{ wo.resolved_total_cost_eur|default:"0" }} €</td>
                   <td>
                     {% if wo.covered_by_contract %}
@@ -322,7 +322,7 @@
             <tbody>
               {% for row in maintenance_month_rows %}
                 <tr>
-                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
                   <td>{{ row.asset.asset_tag }}</td>
                   <td>{{ row.asset.name }}</td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>

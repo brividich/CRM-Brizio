@@ -191,7 +191,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
             {% if is_gestore %}<td>{{ r.richiedente_nome }}</td><td>{{ r.richiedente_reparto|default:"-" }}</td>{% endif %}
             <td>{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
             <td><span class="dpi-badge dpi-badge-{{ r.stato }}">{{ r.label_stato }}</span></td>
-            <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+            <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d-m-Y" }}</td>
             <td>
               {% if is_gestore %}
               <a href="{% url 'dpi:gestione_detail' r.pk %}" style="font-size:12px; color:#0369a1;">Gestisci</a>

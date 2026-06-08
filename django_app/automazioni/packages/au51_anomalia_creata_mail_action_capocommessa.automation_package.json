@@ -1,0 +1,47 @@
+{
+  "package_version": "2026.06",
+  "input": {
+    "flow_name": "AU51 - Anomalia creata: mail-action con link guidato al capocommessa"
+  },
+  "source_candidate": {
+    "source_code": "anomalie",
+    "label": "Anomalie"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anomalie"
+  },
+  "proposed_rules": [
+    {
+      "code": "au51-anomalia-creata-mail-action-cc",
+      "name": "AU51 - Anomalia creata: mail-action link guidato capocommessa",
+      "description": "Alla creazione di una nuova anomalia, invia un'email al capocommessa con il riepilogo e un link sicuro alla pagina 'Azione da mail' del portale. Il click apre il form guidato (richiede login), dove il capocommessa può prendere in carico, inserire note e registrare l'azione — senza accedere al modulo anomalie completo. CONFIGURARE: (1) impostare 'to' con l'email reale del capocommessa o usare il campo {ex_op_nominativo} se il destinatario è derivabile dalla regola; (2) verificare che SITE_URL sia impostato nel .env di produzione; (3) attivare is_active=true dopo il test.",
+      "source_code": "anomalie",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Email mail-action con link guidato al capocommessa",
+          "to": "CAPOCOMMESSA_DA_CONFIGURARE@costruzioninovicrom.it",
+          "cc": "",
+          "subject_template": "[Anomalie] Nuova anomalia #{id} su OP {ex_op_nominativo} — risposta richiesta",
+          "body_text_template": "Gentile Capocommessa,\n\ne' stata registrata una nuova anomalia sull'OP {ex_op_nominativo} che richiede la tua attenzione.\n\nDettaglio anomalia\nRiferimento: #{id}\nOP: {ex_op_nominativo}\nPN / Seriale: {seriale}\nStato: {avanzamento}\n\nPuoi rispondere direttamente dal portale cliccando il link nell'email HTML, oppure accedere al modulo Gestione Anomalie.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile Capocommessa,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">e' stata registrata una nuova anomalia sull'OP <strong>{ex_op_nominativo}</strong> che richiede la tua attenzione.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #1f5c91;border-radius:10px;margin:0 0 18px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">OP</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{ex_op_nominativo}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">PN / Seriale</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{seriale}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Stato</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{avanzamento}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 6px;color:#475569;font-size:14px;\">Clicca il pulsante per aprire la pagina guidata sul portale e registrare la tua risposta:</p>",
+          "email_type": "Anomalie",
+          "section_label": "Gestione Anomalie",
+          "title_template": "Nuova anomalia #{id} — OP {ex_op_nominativo}"
+        }
+      ]
+    }
+  ]
+}

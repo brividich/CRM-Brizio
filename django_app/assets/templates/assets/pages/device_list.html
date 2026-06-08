@@ -387,7 +387,7 @@ body.theme-dark .dv-maint-ok-notice { background:rgba(21,128,61,.18); color:#4ad
             <td>{{ asset.manufacturer|default:"-" }}</td>
             <td>{{ asset.model|default:"-" }}</td>
             <td>{{ asset.serial_number|default:"-" }}</td>
-            <td><span title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
+            <td><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
             <td class="dv-act"><a class="dv-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
           </tr>
           {% empty %}

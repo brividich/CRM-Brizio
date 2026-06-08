@@ -58,6 +58,7 @@ class Asset(models.Model):
     ]
 
     asset_tag = models.CharField(max_length=32, unique=True)
+    internal_number = models.CharField(max_length=64, blank=True, default="", db_index=True)
     name = models.CharField(max_length=255)
     asset_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_OTHER)
     asset_category = models.ForeignKey(
@@ -690,7 +691,7 @@ class AssetAdministrativeDeadline(models.Model):
         verbose_name_plural = "Scadenze asset"
 
     def __str__(self) -> str:
-        return f"{self.title} - {self.asset.asset_tag} ({self.due_date:%d/%m/%Y})"
+        return f"{self.title} - {self.asset.asset_tag} ({self.due_date:%d-%m-%Y})"
 
     def clean(self):
         self.title = (self.title or "").strip()
@@ -734,7 +735,7 @@ class AssetAdministrativeDeadlineCompletion(models.Model):
         verbose_name_plural = "Esecuzioni scadenze"
 
     def __str__(self) -> str:
-        return f"Completamento {self.deadline_id} del {self.completed_on:%d/%m/%Y}"
+        return f"Completamento {self.deadline_id} del {self.completed_on:%d-%m-%Y}"
 
 
 def _admin_deadline_completion_attachment_upload_to(instance, filename: str) -> str:
@@ -822,6 +823,27 @@ class MaintenanceInterventionTemplate(models.Model):
         self.description = (self.description or "").strip()
         if not self.label:
             raise ValidationError({"label": "Inserisci il nome del template intervento."})
+
+
+class MaintenanceChecklistStep(models.Model):
+    """Step di checklist predefiniti collegati a un template intervento.
+    Vengono copiati automaticamente come WorkOrderChecklist alla creazione dell'OdL."""
+
+    intervention_template = models.ForeignKey(
+        MaintenanceInterventionTemplate,
+        on_delete=models.CASCADE,
+        related_name="checklist_steps",
+    )
+    step_number = models.PositiveSmallIntegerField(default=10)
+    description = models.CharField(max_length=255)
+
+    class Meta:
+        ordering = ["intervention_template", "step_number", "id"]
+        verbose_name = "Step checklist template"
+        verbose_name_plural = "Step checklist template"
+
+    def __str__(self) -> str:
+        return f"{self.intervention_template.label} - step {self.step_number}: {self.description}"
 
 
 class MaintenanceRule(models.Model):
@@ -1756,6 +1778,14 @@ class WorkOrder(models.Model):
         default=ORIGIN_MANUAL,
         db_index=True,
         help_text="Origine della manutenzione (periodica, manuale, da ticket)",
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorders_assigned",
+        help_text="Manutentore assegnato all'intervento",
     )
     executed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

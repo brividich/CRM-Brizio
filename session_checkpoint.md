@@ -4,6 +4,12 @@ Data: 2026-05-29
 
 Ultime voci viste/aggiunte in questa sessione:
 
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-08 - Codex` (commit e push GitHub branch `feat/acl-chiusura-migrazione-fase1`)
+- Branch Git: `feat/acl-chiusura-migrazione-fase1`, remoto `origin` su GitHub `brividich/CRM-Brizio`.
+- Scope pubblicato: 2 commit gia' locali piu' nuovo commit di integrazione del working tree corrente; perimetro principale documentato in `CHANGELOG.md`/`README.md` (README riallineato, `media_private`, GDPR/cifratura at rest, Assets manutenzione, Timbri permessi copy/download, Anomalie mail action token, Automazioni "Ripeti", normalizzazione date, fix ACL/identita' e UI operative).
+- Test/check: `git diff --check` OK; `python django_app\manage.py check --settings=config.settings.test` OK; scansione basilare diff/untracked per pattern secret senza valori reali evidenti.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; `gh` non installato, quindi niente draft PR via CLI; nessun backup creato.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-04 - Codex` (Automazioni: conversione Power Automate RENTRI modifica elemento)
 - `django_app/automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json` -> nuovo package importabile da `rentri_20260604152402.zip`, sorgente `rentri`, con 3 regole draft/inattive: notifica nuovo carico, promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni.
 - Riferimenti: package coordinato con `django_app/automazioni/packages/au31_scarico_senza_fir_notifica.automation_package.json` e `docs/automation_packages/rentri_movimenti_da_trasmettere.automation_package.json` per evitare sovrapposizioni operative.

@@ -466,7 +466,7 @@ body.theme-dark .wm-bulk-hint { color:var(--text-light); }
             <td>{{ asset.manufacturer|default:"-" }}</td>
             <td>{{ asset.model|default:"-" }}</td>
             <td><span class="wm-cell-muted">{{ asset.serial_number|default:"-" }}</span></td>
-            <td><span class="wm-cell-muted" title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|date:"d/m/Y" }}</span></td>
+            <td><span class="wm-cell-muted" title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|date:"d-m-Y" }}</span></td>
             <td class="wm-act"><a class="wm-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
           </tr>
           {% empty %}
@@ -548,9 +548,9 @@ body.theme-dark .wm-bulk-hint { color:var(--text-light); }
             <div class="wm-mc-maint">
               <span>Manut.:</span>
               {% if machine.next_maintenance_date < today %}
-                <span class="wm-status danger" style="padding:1px 6px; font-size:10px;">{{ machine.next_maintenance_date|date:"d/m/Y" }} scaduta</span>
+                <span class="wm-status danger" style="padding:1px 6px; font-size:10px;">{{ machine.next_maintenance_date|date:"d-m-Y" }} scaduta</span>
               {% else %}
-                <strong style="color:#0f172a;">{{ machine.next_maintenance_date|date:"d/m/Y" }}</strong>
+                <strong style="color:#0f172a;">{{ machine.next_maintenance_date|date:"d-m-Y" }}</strong>
               {% endif %}
             </div>
             {% endif %}

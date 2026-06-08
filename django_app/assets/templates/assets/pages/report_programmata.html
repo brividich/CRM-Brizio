@@ -1,0 +1,188 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Manutenzione programmata{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.rp-page { display:grid; gap:14px; }
+.rp-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.rp-kpi {
+  padding:14px 16px;
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+}
+.rp-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
+.rp-kpi-value { margin-top:6px; font-size:var(--fs-display-md); font-weight:800; color:#0f172a; }
+.rp-kpi--danger .rp-kpi-value { color:#dc2626; }
+.rp-kpi--warn .rp-kpi-value { color:#d97706; }
+.rp-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15,23,42,.05);
+}
+.rp-card-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  flex-wrap:wrap;
+}
+.rp-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.rp-card-body { padding:18px; }
+.rp-filters { display:flex; gap:8px; flex-wrap:wrap; }
+.rp-filter-btn {
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#fff;
+  color:#334155;
+  padding:6px 14px;
+  font:inherit;
+  font-size:var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+}
+.rp-filter-btn.is-active, .rp-filter-btn:hover {
+  background:#eff6ff;
+  border-color:#bfdbfe;
+  color:#1d4ed8;
+}
+.rp-table-wrap { overflow:auto; }
+.rp-table { width:100%; border-collapse:collapse; }
+.rp-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.rp-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  vertical-align:top;
+}
+.rp-empty { color:#64748b; }
+@media print {
+  .rp-filters, .rp-card-head a, .rp-card-head button { display:none !important; }
+  .rp-card { box-shadow:none; border:none; }
+}
+@media (max-width: 1024px) {
+  .rp-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .rp-kpis { grid-template-columns:1fr 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Manutenzione programmata{% endblock %}
+{% block assets_shell_subtitle %}<p>Scadenzario completo delle regole di manutenzione: scadute, in warning, pianificate e senza baseline.</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ reports_url }}">Tutti i report</a>
+  <a class="btn" href="{{ maintenance_schedule_url }}">Gestione scadenzario</a>
+  <button class="btn" onclick="window.print()">Stampa</button>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="rp-page">
+
+  <section class="rp-kpis">
+    <article class="rp-kpi rp-kpi--danger">
+      <div class="rp-kpi-label">Scadute</div>
+      <div class="rp-kpi-value">{{ overdue_count }}</div>
+    </article>
+    <article class="rp-kpi rp-kpi--warn">
+      <div class="rp-kpi-label">In warning</div>
+      <div class="rp-kpi-value">{{ warning_count }}</div>
+    </article>
+    <article class="rp-kpi">
+      <div class="rp-kpi-label">Pianificate</div>
+      <div class="rp-kpi-value">{{ upcoming_count }}</div>
+    </article>
+    <article class="rp-kpi">
+      <div class="rp-kpi-label">Senza baseline</div>
+      <div class="rp-kpi-value">{{ missing_count }}</div>
+    </article>
+  </section>
+
+  <article class="rp-card">
+    <div class="rp-card-head">
+      <h2>Scadenzario ({{ rows|length }} su {{ total }})</h2>
+      <div class="rp-filters">
+        <a class="rp-filter-btn {% if stato_filter == 'all' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=all">Tutti ({{ total }})</a>
+        <a class="rp-filter-btn {% if stato_filter == 'overdue' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=overdue">Scadute ({{ overdue_count }})</a>
+        <a class="rp-filter-btn {% if stato_filter == 'warning' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=warning">Warning ({{ warning_count }})</a>
+        <a class="rp-filter-btn {% if stato_filter == 'upcoming' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=upcoming">Pianificate ({{ upcoming_count }})</a>
+        <a class="rp-filter-btn {% if stato_filter == 'missing' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=missing">Senza baseline ({{ missing_count }})</a>
+      </div>
+    </div>
+    <div class="rp-card-body">
+      <div class="rp-table-wrap">
+        <table class="rp-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Intervento</th>
+              <th>Categoria</th>
+              <th>Ultima esecuzione</th>
+              <th>Scadenza</th>
+              <th>Stato</th>
+              <th>Azione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td>
+                  <a href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><br>
+                  <span class="rp-empty">{{ row.asset.name }}</span>
+                </td>
+                <td>{{ row.effective_intervention_template.label }}</td>
+                <td>{{ row.asset.asset_category|default:"-" }}</td>
+                <td>
+                  {% if row.last_execution_date %}
+                    {{ row.last_execution_date|date:"d/m/Y" }}
+                  {% else %}
+                    <span class="rp-empty">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.due_date %}
+                    {{ row.due_date|date:"d/m/Y" }}
+                  {% else %}
+                    <span class="rp-empty">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="as-badge as-badge--{% if row.schedule_status == 'overdue' %}danger{% elif row.schedule_status == 'warning' %}warn{% elif row.schedule_status == 'missing' %}muted{% else %}ok{% endif %}">
+                    {{ row.schedule_label|default:row.schedule_status }}
+                  </span>
+                </td>
+                <td>
+                  <a class="btn btn-primary" href="{{ row.primary_action.url }}">{{ row.primary_action.label }}</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="rp-empty">Nessuna manutenzione programmata con il filtro selezionato.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
+</section>
+{% endblock %}

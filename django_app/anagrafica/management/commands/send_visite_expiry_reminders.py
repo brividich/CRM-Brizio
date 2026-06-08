@@ -106,7 +106,7 @@ class Command(BaseCommand):
             return
 
         lines = [
-            f"NOVICROM HUB - Promemoria visite mediche del {today:%d/%m/%Y}",
+            f"NOVICROM HUB - Promemoria visite mediche del {today:%d-%m-%Y}",
             "=" * 60,
             "",
         ]
@@ -119,7 +119,7 @@ class Command(BaseCommand):
                 days_over = (today - scad).days if scad else 0
                 lines.append(
                     f"  [{days_over}gg] dipendente #{legacy_id} - {tipo.nome}"
-                    f" - scaduta il {scad:%d/%m/%Y}" if scad else
+                    f" - scaduta il {scad:%d-%m-%Y}" if scad else
                     f"  dipendente #{legacy_id} - {tipo.nome} - scaduta"
                 )
                 if not dry_run:
@@ -127,7 +127,7 @@ class Command(BaseCommand):
                         legacy_id,
                         "visita_scadenza",
                         f"Visita medica scaduta: {tipo.nome}"
-                        + (f" dal {scad:%d/%m/%Y}." if scad else "."),
+                        + (f" dal {scad:%d-%m-%Y}." if scad else "."),
                         "/anagrafica/dipendenti/",
                     )
             lines.append("")
@@ -140,7 +140,7 @@ class Command(BaseCommand):
                 days_left = row.get("giorni_a_scadenza") or 0
                 lines.append(
                     f"  [{days_left}gg] dipendente #{legacy_id} - {tipo.nome}"
-                    f" - scadenza {scad:%d/%m/%Y}"
+                    f" - scadenza {scad:%d-%m-%Y}"
                 )
                 if not dry_run:
                     invia_notifica(
@@ -154,7 +154,7 @@ class Command(BaseCommand):
         body = "\n".join(lines)
         subject = (
             f"[VISITE MEDICHE] {len(scadute)} scadute + {len(in_scadenza)}"
-            f" in scadenza - {today:%d/%m/%Y}"
+            f" in scadenza - {today:%d-%m-%Y}"
         )
 
         if dry_run:

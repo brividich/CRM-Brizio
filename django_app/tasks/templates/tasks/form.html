@@ -247,7 +247,7 @@
 
     <section class="tf-panel">
       <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date sono il riferimento per backlog, Gantt e segnalazioni di sovraccarico.</p></div></div>
-      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio impostata automaticamente al <strong>{{ suggested_start_date|date:"d/m/Y" }}</strong> (giorno successivo alla fine dell'ultima attivita del kickoff). Puoi modificarla liberamente.</div></div>{% endif %}
+      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio impostata automaticamente al <strong>{{ suggested_start_date|date:"d-m-Y" }}</strong> (giorno successivo alla fine dell'ultima attivita del kickoff). Puoi modificarla liberamente.</div></div>{% endif %}
       <div class="tf-grid-2">
         <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
         <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>

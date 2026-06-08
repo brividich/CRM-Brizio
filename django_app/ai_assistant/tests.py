@@ -1292,7 +1292,7 @@ class AiAssistantTests(TestCase):
         self.assertIn("Mario Rossi", context.text)
         self.assertNotIn("Luigi Bianchi", context.text)
         self.assertIn("consenso privacy: si", context.text)
-        self.assertIn("01/05/2026", context.text)
+        self.assertIn("01-05-2026", context.text)
         self.assertEqual(context.audit["tools"][0]["tool"], "anagrafica_summary")
         self.assertTrue(context.audit["tools"][0]["allowed"])
 
@@ -1333,7 +1333,7 @@ class AiAssistantTests(TestCase):
 
         self.assertIn("tool:anagrafica:ratei", context.sources)
         self.assertIn("Ferie residue", context.text)
-        self.assertIn("31/05/2026", context.text)
+        self.assertIn("31-05-2026", context.text)
         self.assertIn("Laura Neri", context.text)
         self.assertIn("48.25 ore", context.text)
         self.assertIn("Luigi Bianchi", context.text)

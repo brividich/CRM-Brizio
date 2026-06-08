@@ -141,15 +141,15 @@
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Creato</div>
-            <div class="auto-meta-value">{{ queue_event.created_at|date:"d/m/Y H:i:s" }}</div>
+            <div class="auto-meta-value">{{ queue_event.created_at|date:"d-m-Y H:i:s" }}</div>
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Preso in carico</div>
-            <div class="auto-meta-value">{{ queue_event.picked_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+            <div class="auto-meta-value">{{ queue_event.picked_at|date:"d-m-Y H:i:s"|default:"-" }}</div>
           </div>
           <div class="auto-meta-item">
             <div class="auto-meta-label">Processato</div>
-            <div class="auto-meta-value">{{ queue_event.processed_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+            <div class="auto-meta-value">{{ queue_event.processed_at|date:"d-m-Y H:i:s"|default:"-" }}</div>
           </div>
         </div>
 
@@ -202,8 +202,8 @@
                 <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
                 <td>{{ run_log.rule|default:"-" }}</td>
                 <td>{{ run_log.status }}</td>
-                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.started_at|date:"d-m-Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
                 <td>{{ run_log.execution_ms|default:"-" }}</td>
                 <td>{{ run_log.result_message|default:"-" }}</td>
               </tr>
@@ -241,7 +241,7 @@
                 <td>{{ action_log.action|default:"-" }}</td>
                 <td>{{ action_log.status }}</td>
                 <td>{{ action_log.result_message|default:"-" }}</td>
-                <td>{{ action_log.created_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ action_log.created_at|date:"d-m-Y H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr>

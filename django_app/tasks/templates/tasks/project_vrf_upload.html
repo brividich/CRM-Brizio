@@ -236,7 +236,7 @@
       <div style="flex:1;">{{ vrf_detail.label }}
         {% if project.vrf_original_name %}
           File: <strong>{{ project.vrf_original_name }}</strong>
-          {% if project.vrf_uploaded_at %}— caricato il {{ project.vrf_uploaded_at|date:"d/m/Y H:i" }}{% endif %}
+          {% if project.vrf_uploaded_at %}— caricato il {{ project.vrf_uploaded_at|date:"d-m-Y H:i" }}{% endif %}
         {% endif %}
       </div>
       {% if project.vrf_file %}

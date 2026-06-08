@@ -482,20 +482,52 @@ def _permission_grant_stats() -> tuple[dict[str, int], dict[str, int]]:
     return dict(enabled_counts), dict(total_counts)
 
 
+# Un permission code e' "API" quando ha un segmento "api" (es. modulo.api_xxx.view).
+_API_PERMISSION_RE = re.compile(r"(^|[._])api(_|[._]|$)")
+
+
+def _is_api_permission_code(code: str) -> bool:
+    return bool(_API_PERMISSION_RE.search((code or "").lower()))
+
+
+def _summarize_perm_subgroup(rows: list) -> dict:
+    """Conteggi/stato aggregato per un sottogruppo (Permessi o Permessi API)."""
+    granted_count = sum(1 for r in rows if r["granted"])
+    total = len(rows)
+    all_granted = total > 0 and granted_count == total
+    any_granted = granted_count > 0
+    return {
+        "rows": rows,
+        "granted_count": granted_count,
+        "total_count": total,
+        "all_granted": all_granted,
+        "partial": any_granted and not all_granted,
+        "any_granted": any_granted,
+    }
+
+
 def _group_permission_rows_by_module(permission_rows: list) -> list[dict]:
-    """Raggruppa permission_rows per modulo, calcola stato aggregato per la card header."""
+    """Raggruppa permission_rows per modulo, separando permessi standard e permessi API,
+    e calcola lo stato aggregato per la card header."""
     grouped: dict[str, list] = defaultdict(list)
     for row in permission_rows:
         module = row["permission"].module or "—"
         grouped[module].append(row)
     result = []
     for module, rows in sorted(grouped.items()):
+        standard_rows = [r for r in rows if not _is_api_permission_code(r["permission"].code)]
+        api_rows = [r for r in rows if _is_api_permission_code(r["permission"].code)]
         granted_count = sum(1 for r in rows if r["granted"])
         all_granted = granted_count == len(rows)
         any_granted = granted_count > 0
+        standard = {"label": "Permessi", **_summarize_perm_subgroup(standard_rows)}
+        api = {"label": "Permessi API", **_summarize_perm_subgroup(api_rows)}
         result.append({
             "module": module,
             "rows": rows,
+            "subgroups": [standard, api],
+            "standard": standard,
+            "api": api,
             "granted_count": granted_count,
             "total_count": len(rows),
             "all_granted": all_granted,

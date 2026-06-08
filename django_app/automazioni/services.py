@@ -1878,7 +1878,7 @@ def _send_approval_email(
     vengono usati direttamente. Altrimenti viene generato il corpo inline (comportamento legacy).
     """
     from_email = _validate_sender_email("", {})
-    expires_label = expires_at.strftime("%d/%m/%Y %H:%M") if expires_at else "N/D"
+    expires_label = timezone.localtime(expires_at).strftime("%d-%m-%Y %H:%M") if expires_at else "N/D"
 
     if html_body_override is not None and text_body_override is not None:
         html_body = html_body_override
@@ -3629,7 +3629,7 @@ def execute_action(
                     )
                     # Aggiunge expires_at nel context per il rendering del template
                     if approval.expires_at:
-                        tpl_context["expires_at"] = approval.expires_at.strftime("%d/%m/%Y %H:%M")
+                        tpl_context["expires_at"] = timezone.localtime(approval.expires_at).strftime("%d-%m-%Y %H:%M")
                     rendered = render_approval_email(
                         email_template,
                         tpl_context,
@@ -4426,7 +4426,7 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         run_log = approval.run_log
         run_log.status = AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
         run_log.result_message = (
-            f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {timezone.localtime(approval.decided_at).strftime('%d/%m/%Y %H:%M')}."
+            f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {timezone.localtime(approval.decided_at).strftime('%d-%m-%Y %H:%M')}."
         )
         run_log.save(update_fields=["status", "result_message"])
 

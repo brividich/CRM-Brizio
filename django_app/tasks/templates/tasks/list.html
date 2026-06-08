@@ -653,7 +653,7 @@
                           <span class="kb-card-aname" style="color:#94a3b8;">—</span>
                         {% endif %}
                       </div>
-                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d-m" }}{% else %}—{% endif %}</span>
                     </div>
                   </a>
                 {% endif %}
@@ -684,7 +684,7 @@
                           <span class="kb-card-aname" style="color:#94a3b8;">—</span>
                         {% endif %}
                       </div>
-                      <span class="kb-card-date">{% if task.next_step_due %}{{ task.next_step_due|date:"d/m" }} → {% endif %}{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                      <span class="kb-card-date">{% if task.next_step_due %}{{ task.next_step_due|date:"d-m" }} → {% endif %}{% if task.due_date %}{{ task.due_date|date:"d-m" }}{% else %}—{% endif %}</span>
                     </div>
                   </a>
                 {% endif %}
@@ -715,7 +715,7 @@
                           <span class="kb-card-aname" style="color:#94a3b8;">—</span>
                         {% endif %}
                       </div>
-                      <span class="kb-card-date overdue">{% if task.due_date %}{{ task.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+                      <span class="kb-card-date overdue">{% if task.due_date %}{{ task.due_date|date:"d-m-Y" }}{% else %}—{% endif %}</span>
                     </div>
                   </a>
                 {% endif %}
@@ -745,7 +745,7 @@
                           <span class="kb-card-aname" style="color:#94a3b8;">—</span>
                         {% endif %}
                       </div>
-                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d/m" }}{% else %}—{% endif %}</span>
+                      <span class="kb-card-date">{% if task.due_date %}{{ task.due_date|date:"d-m" }}{% else %}—{% endif %}</span>
                     </div>
                   </a>
                 {% endif %}
@@ -956,7 +956,7 @@
                   </td>
                   <td>
                     {% if task.due_date %}
-                      <span class="tl-date {% if task.is_overdue %}overdue{% endif %}">{{ task.due_date|date:"d/m/Y" }}</span>
+                      <span class="tl-date {% if task.is_overdue %}overdue{% endif %}">{{ task.due_date|date:"d-m-Y" }}</span>
                     {% else %}
                       <span style="color:#94a3b8;font-size:12px;">&mdash;</span>
                     {% endif %}

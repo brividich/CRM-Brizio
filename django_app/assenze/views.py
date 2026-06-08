@@ -268,7 +268,7 @@ def _dt_label(value) -> str:
         return ""
     if timezone.is_naive(dt):
         dt = timezone.make_aware(dt, timezone.get_current_timezone())
-    return timezone.localtime(dt).strftime("%d/%m/%Y %H:%M")
+    return timezone.localtime(dt).strftime("%d-%m-%Y %H:%M")
 
 
 def _norm_tipo(value) -> str:
@@ -479,6 +479,56 @@ def _load_dipendenti_attivi_list() -> list[dict]:
         seen.add(key)
         out.append({"id": ana_id, "full_name": full_name})
     return out
+
+
+def _anagrafica_employee_ids_for_capo(capo_anagrafica_id: int | None) -> set[int]:
+    """Restituisce gli id anagrafica dei dipendenti assegnati al caporeparto indicato.
+
+    Il legame autoritativo è ``DipendenteAnagraficaAziendale.caporeparto_legacy_id``
+    (id anagrafica del capo). Come fallback, si includono i dipendenti delle aree il
+    cui ``Reparto.caporeparto_legacy_id`` coincide, in modo coerente con
+    ``_resolve_anagrafica_hr_effective_capo_ids``.
+    """
+    if capo_anagrafica_id is None:
+        return set()
+    ids: set[int] = set()
+    try:
+        from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+
+        ids.update(
+            int(v)
+            for v in DipendenteAnagraficaAziendale.objects.filter(
+                caporeparto_legacy_id=int(capo_anagrafica_id)
+            ).values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        )
+
+        aree = [
+            str(nome).strip()
+            for nome in Reparto.objects.filter(
+                is_active=True, caporeparto_legacy_id=int(capo_anagrafica_id)
+            ).values_list("nome", flat=True)
+            if str(nome or "").strip()
+        ]
+        if aree:
+            ids.update(
+                int(v)
+                for v in DipendenteAnagraficaAziendale.objects.filter(area__in=aree).values_list(
+                    "legacy_anagrafica_id", flat=True
+                )
+                if v is not None
+            )
+    except Exception:
+        return set()
+    return ids
+
+
+def _load_dipendenti_for_capo(capo_anagrafica_id: int | None) -> list[dict]:
+    """Come ``_load_dipendenti_attivi_list`` ma ristretto al reparto del caporeparto."""
+    allowed = _anagrafica_employee_ids_for_capo(capo_anagrafica_id)
+    if not allowed:
+        return []
+    return [d for d in _load_dipendenti_attivi_list() if _as_int(d.get("id")) in allowed]
 
 
 def _blank_expr(expr: str) -> str:
@@ -814,11 +864,27 @@ def _assenze_permissions(request) -> dict:
         manager_email=manager_email,
     )
 
+    # Ambito "inserimento per altri": l'Amministrazione (e i superuser) vede tutti i
+    # dipendenti; il Caporeparto è ristretto ai dipendenti del proprio reparto.
+    insert_for_others_scope = "all" if (can_insert_for_others and group == "AMMINISTRAZIONE") else (
+        "reparto" if can_insert_for_others else "none"
+    )
+    insert_capo_anagrafica_id: int | None = None
+    if insert_for_others_scope == "reparto":
+        insert_capo_anagrafica_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_user_id,
+            email=manager_email,
+            username=request.user.get_username(),
+            name=manager_name,
+        )
+
     perms = {
         "group": group,
         "legacy_user_id": legacy_user_id,
         "can_insert": can_insert,
         "can_insert_for_others": can_insert_for_others,
+        "insert_for_others_scope": insert_for_others_scope,
+        "insert_capo_anagrafica_id": insert_capo_anagrafica_id,
         "can_view_calendar": can_view_calendar,
         "can_update_any": can_update_any,
         "can_update_owned": can_update_owned,
@@ -831,6 +897,32 @@ def _assenze_permissions(request) -> dict:
     }
     setattr(request, "_assenze_perm_cache", perms)
     return perms
+
+
+def _insertable_dipendenti_for_request(request) -> list[dict]:
+    """Elenco dipendenti per cui l'utente corrente può inserire una richiesta."""
+    perms = _assenze_permissions(request)
+    scope = perms.get("insert_for_others_scope")
+    if scope == "all":
+        return _load_dipendenti_attivi_list()
+    if scope == "reparto":
+        return _load_dipendenti_for_capo(perms.get("insert_capo_anagrafica_id"))
+    return []
+
+
+def _can_insert_for_dipendente(request, anagrafica_id: int | None) -> bool:
+    """True se l'utente può inserire una richiesta per il dipendente indicato."""
+    if anagrafica_id is None:
+        return False
+    perms = _assenze_permissions(request)
+    scope = perms.get("insert_for_others_scope")
+    if scope == "all":
+        return True
+    if scope == "reparto":
+        return int(anagrafica_id) in _anagrafica_employee_ids_for_capo(
+            perms.get("insert_capo_anagrafica_id")
+        )
+    return False
 
 
 def _template_perm_context(request) -> dict:
@@ -3271,6 +3363,8 @@ def api_dipendente_default_capo(request):
     dipendente_id = _as_int(request.GET.get("dipendente_id"))
     if not dipendente_id:
         return JsonResponse({"ok": True, "capo_value": ""})
+    if not _can_insert_for_dipendente(request, dipendente_id):
+        return _json_error("Dipendente fuori dal tuo reparto.", status=403)
     identity = _resolve_employee_identity_from_anagrafica(dipendente_id)
     if not identity:
         return JsonResponse({"ok": False, "capo_value": "", "error": "Dipendente non trovato"})
@@ -3302,7 +3396,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
     prefill = _prefill_from_copy(copy_from, capi)
 
     can_insert_for_others = perms.get("can_insert_for_others", False)
-    dipendenti = _load_dipendenti_attivi_list() if can_insert_for_others else []
+    dipendenti = _insertable_dipendenti_for_request(request) if can_insert_for_others else []
 
     merged_form = {
         "tipoassenza": "",
@@ -3590,9 +3684,9 @@ def car_dashboard(request):
             "gestite": gestite,
             "riepilogo_oggi": riepilogo_oggi,
             "riepilogo_settimana": riepilogo_settimana,
-            "data_oggi": today_start.strftime("%d/%m/%Y"),
-            "data_lunedi": monday.strftime("%d/%m/%Y"),
-            "data_domenica": (next_monday - timedelta(days=1)).strftime("%d/%m/%Y"),
+            "data_oggi": today_start.strftime("%d-%m-%Y"),
+            "data_lunedi": monday.strftime("%d-%m-%Y"),
+            "data_domenica": (next_monday - timedelta(days=1)).strftime("%d-%m-%Y"),
             "is_admin_view": is_admin,
             "pending_scope": pending_scope,
             "show_diag": show_diag,
@@ -4015,6 +4109,12 @@ def invio_placeholder(request):
         ana_id = _as_int(dipendente_id_raw)
         if not ana_id:
             return _render_richiesta(request, error="ID dipendente non valido.", form_data=request.POST.dict())
+        if not _can_insert_for_dipendente(request, ana_id):
+            return _render_richiesta(
+                request,
+                error="Non sei autorizzato a inserire richieste per questo dipendente (fuori dal tuo reparto).",
+                form_data=request.POST.dict(),
+            )
         identity = _resolve_employee_identity_from_anagrafica(ana_id)
         if not identity:
             return _render_richiesta(request, error="Dipendente selezionato non trovato in anagrafica.", form_data=request.POST.dict())
@@ -4646,7 +4746,7 @@ def api_check_corsi(request):
         first_overlap = max(s.data_inizio, d_start)
         conflicts.append({
             "date":          first_overlap.strftime("%Y-%m-%d"),
-            "date_label":    first_overlap.strftime("%d/%m/%Y"),
+            "date_label":    first_overlap.strftime("%d-%m-%Y"),
             "session_id":    s.pk,
             "code":          s.codice_sessione,
             "title":         s.corso.titolo,

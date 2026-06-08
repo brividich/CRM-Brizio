@@ -694,7 +694,8 @@ if (catSelect) {
 function showAssetResults(list, q) {
   if (!assetRes || !list.length) { if (assetRes) assetRes.style.display = 'none'; return; }
   assetRes.innerHTML = list.map(a => {
-    const tag    = a.asset_tag ? `<span style="color:#64748b;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px;">${escapeHtmlN(a.asset_tag)}</span>` : '';
+    const tagText = a.internal_number ? `${escapeHtmlN(a.internal_number)} · ${escapeHtmlN(a.asset_tag)}` : escapeHtmlN(a.asset_tag);
+    const tag    = a.asset_tag ? `<span style="color:#64748b;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px;">${tagText}</span>` : '';
     const meta   = [a.asset_type_label || a.asset_type, a.asset_category, a.reparto].filter(Boolean).join(' · ');
     return `<div style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${a.id}" data-name="${escapeHtmlN(a.name)} [${escapeHtmlN(a.asset_tag)}]">
       <strong style="font-size:13px;">${escapeHtmlN(a.name)}</strong> ${tag}

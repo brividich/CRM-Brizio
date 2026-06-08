@@ -20,15 +20,12 @@
   font-weight:600; color:#374151; text-decoration:none; white-space:nowrap; }
 .hrnav-dd-menu a:hover { background:#f1f5f9; color:#12395f; }
 .hrnav-dd-menu a.active { background:#eef2ff; color:#12395f; }
-.hrnav-notice { margin-top:10px; font-size:13px; color:#475569; }
-.hrnav-notice-hidden { display:none; }
 body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
 body.theme-dark .hrnav-tab { color:var(--text-light); }
 body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
 body.theme-dark .hrnav-dd-menu { background:var(--surface); border-color:var(--border); }
 body.theme-dark .hrnav-dd-menu a { color:var(--text-mid); }
 body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#93c5fd; }
-body.theme-dark .hrnav-notice { color:var(--text-light); }
 </style>
 <div class="hrnav">
   {% for item in nav.items %}
@@ -55,31 +52,4 @@ body.theme-dark .hrnav-notice { color:var(--text-light); }
   {% empty %}
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
-</div>
-<div class="hrnav-notice{% if request.resolver_match.view_name == 'anagrafica:dipendente_detail' or request.resolver_match.view_name == 'anagrafica:dipendenti_list' or request.resolver_match.view_name == 'anagrafica:ex_dipendenti_list' %} hrnav-notice-hidden{% endif %}">
-  {% with current=request.resolver_match.view_name %}
-  {% if current != 'anagrafica:dipendente_detail' and current != 'anagrafica:dipendenti_list' and current != 'anagrafica:ex_dipendenti_list' %}
-  {% if current == 'anagrafica:index' %}
-    <strong>Anagrafica HR:</strong> panoramica dei dipendenti, ruoli, mansioni e qualifiche.
-  {% elif current == 'anagrafica:ratei_list' %}
-    <strong>Ratei Ferie / Permessi:</strong> saldi mensili ferie, ROL ed ex-festività da cedolino paga.
-  {% elif current == 'anagrafica:retribuzioni_globale' %}
-    <strong>Retribuzioni — Vista globale:</strong> voci retributive di tutti i dipendenti, una riga per mese, filtrabili per dipendente, reparto, sesso e livello contrattuale.
-  {% elif current == 'anagrafica:visite_mediche_dashboard' %}
-    <strong>Visite mediche:</strong> scadenze, copertura per tipologia e ultime visite registrate.
-  {% elif current == 'anagrafica:documenti_list' %}
-    <strong>Archivio documenti:</strong> documenti caricati manualmente per i dipendenti, filtrabili per cartella e anno.
-  {% elif current == 'anagrafica:impostazioni' %}
-    <strong>Impostazioni anagrafica:</strong> cataloghi (mansioni, aree, ruoli, qualifiche), navigazione personalizzata e permessi.
-  {% elif current == 'anagrafica:ruoli_operativi_list' %}
-    <strong>Ruoli operativi:</strong> catalogo ruoli sicurezza assegnabili ai dipendenti.
-  {% elif current == 'anagrafica:mansioni_list' %}
-    <strong>Mansioni:</strong> catalogo job title aziendali.
-  {% elif current == 'anagrafica:qualifiche_list' %}
-    <strong>Qualifiche professionali:</strong> certificazioni e attestati con scadenze.
-  {% else %}
-    <strong>Anagrafica HR:</strong> gestione dipendenti, mansioni, ruoli e qualifiche.
-  {% endif %}
-  {% endif %}
-  {% endwith %}
 </div>

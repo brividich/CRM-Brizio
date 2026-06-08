@@ -105,8 +105,8 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
     <div class="pr-doc-title">{{ document.title }}</div>
     <div class="pr-doc-meta">
       Rev. {{ revision.revision_code }} &nbsp;·&nbsp;
-      Data revisione: {{ revision.revision_date|date:"d/m/Y" }} &nbsp;·&nbsp;
-      Efficace dal: {{ revision.effective_date|date:"d/m/Y" }}
+      Data revisione: {{ revision.revision_date|date:"d-m-Y" }} &nbsp;·&nbsp;
+      Efficace dal: {{ revision.effective_date|date:"d-m-Y" }}
       {% if document.owner_department %}
         &nbsp;·&nbsp; {{ document.owner_department }}
       {% endif %}
@@ -123,7 +123,7 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
       <dt>Revisione</dt><dd>{{ revision.revision_code }}</dd>
       <dt>File</dt><dd>{{ revision.file_name }}</dd>
       <dt>Campagna</dt><dd>{{ assignment.campaign.name }}</dd>
-      <dt>Scadenza</dt><dd>{{ assignment.due_date|date:"d/m/Y"|default:"—" }}</dd>
+      <dt>Scadenza</dt><dd>{{ assignment.due_date|date:"d-m-Y"|default:"—" }}</dd>
     </dl>
 
     {% if document.description %}
@@ -148,7 +148,7 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
 
   {% if assignment.status == 'read_confirmed' %}
     <div class="pr-confirmed-banner">
-      ✓ Presa visione confermata il {{ assignment.read_confirmed_at|date:"d/m/Y H:i" }}
+      ✓ Presa visione confermata il {{ assignment.read_confirmed_at|date:"d-m-Y H:i" }}
     </div>
     {% if assignment.user_note %}
       <div class="pr-card">
@@ -163,7 +163,7 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
           <div class="pr-quiz-result">
             Quiz completato: {{ quiz_attempt.score }}/{{ quiz_attempt.total_questions }} risposte corrette
           </div>
-          <div class="pr-muted" style="margin-top:8px;">Inviato il {{ quiz_attempt.submitted_at|date:"d/m/Y H:i" }}</div>
+          <div class="pr-muted" style="margin-top:8px;">Inviato il {{ quiz_attempt.submitted_at|date:"d-m-Y H:i" }}</div>
         {% else %}
           <form method="post">
             {% csrf_token %}
@@ -218,10 +218,10 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
 
   <div style="font-size:12px;color:#94a3b8;display:flex;gap:16px;flex-wrap:wrap;">
     {% if assignment.first_opened_at %}
-      <span>Prima apertura: {{ assignment.first_opened_at|date:"d/m/Y H:i" }}</span>
+      <span>Prima apertura: {{ assignment.first_opened_at|date:"d-m-Y H:i" }}</span>
     {% endif %}
     {% if assignment.last_opened_at %}
-      <span>Ultima apertura: {{ assignment.last_opened_at|date:"d/m/Y H:i" }}</span>
+      <span>Ultima apertura: {{ assignment.last_opened_at|date:"d-m-Y H:i" }}</span>
     {% endif %}
     <span>Aperture totali: {{ assignment.open_count }}</span>
   </div>

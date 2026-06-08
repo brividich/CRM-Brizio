@@ -255,7 +255,7 @@ body.theme-dark .btn-danger { background:rgba(185,28,28,.15); border-color:rgba(
                 <div class="tiny">
                   v{{ row.notizia.versione }}
                   {% if row.notizia.obbligatoria %} | obbligatoria{% endif %}
-                  {% if row.notizia.pubblicato_il %} | {{ row.notizia.pubblicato_il|date:"d/m/Y H:i" }}{% endif %}
+                  {% if row.notizia.pubblicato_il %} | {{ row.notizia.pubblicato_il|date:"d-m-Y H:i" }}{% endif %}
                 </div>
               </td>
               <td>

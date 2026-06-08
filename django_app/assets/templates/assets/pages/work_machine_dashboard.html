@@ -199,7 +199,7 @@ body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4a
                     <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
                   </td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>
-                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
                   <td><span class="wmd-pill danger">{{ row.state.label }}</span></td>
                   <td>
                     <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
@@ -215,7 +215,7 @@ body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4a
                     <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
                   </td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>
-                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
                   <td><span class="wmd-pill warn">{{ row.state.label }}</span></td>
                   <td>
                     <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
@@ -253,7 +253,7 @@ body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4a
                   {% if wo.id in overdue_workorder_ids %}Urgente{% else %}Aperto{% endif %}
                 </span>
               </div>
-              <div class="wmd-list-meta">{{ wo.asset.reparto|default:"-" }} · aperto il {{ wo.opened_at|date:"d/m/Y" }}</div>
+              <div class="wmd-list-meta">{{ wo.asset.reparto|default:"-" }} · aperto il {{ wo.opened_at|date:"d-m-Y" }}</div>
               <div><a class="wmd-link" href="{% url 'assets:wo_view' wo.id %}">Apri work order</a></div>
             </article>
           {% empty %}
@@ -311,7 +311,7 @@ body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4a
                 </div>
                 <span class="wmd-pill ok">Chiusa</span>
               </div>
-              <div class="wmd-list-meta">Chiusa il {{ wo.closed_at|date:"d/m/Y" }} · {{ wo.get_kind_display }}</div>
+              <div class="wmd-list-meta">Chiusa il {{ wo.closed_at|date:"d-m-Y" }} · {{ wo.get_kind_display }}</div>
               <div><a class="wmd-link" href="{% url 'assets:wo_view' wo.id %}">Vedi dettaglio</a></div>
             </article>
           {% empty %}

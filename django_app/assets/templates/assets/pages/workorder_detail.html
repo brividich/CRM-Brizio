@@ -160,6 +160,21 @@ body.theme-dark .wod-cl-meta { color:var(--text-light); }
 body.theme-dark .wod-cl-toggle { color:var(--text-light); }
 body.theme-dark .wod-cl-toggle:hover { background:var(--border); }
 body.theme-dark .wod-cl-add-input { background:var(--surface); border-color:var(--border); color:var(--text); }
+
+/* Link standard inline */
+.wod-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
+.wod-link:hover { text-decoration:underline; }
+body.theme-dark .wod-link { color:#60a5fa; }
+
+/* Allegato cliccabile */
+.wod-attachment-link { text-decoration:none; color:inherit; }
+.wod-attachment-link:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); }
+
+/* Form log */
+.wod-log-form { display:grid; gap:8px; margin-bottom:14px; }
+
+/* Note vuote */
+.wod-empty-note { margin:0; }
 </style>
 {% endblock %}
 
@@ -186,10 +201,12 @@ body.theme-dark .wod-cl-add-input { background:var(--surface); border-color:var(
     <a href="{% url 'assets:wo_list' %}" class="as-backlink">&larr; Torna agli interventi</a>
   </header>
 
+  <!-- ===== CARD PRINCIPALE ===== -->
   <article class="wod-card">
     <div class="wod-card-body">
       <div class="wod-hero">
         <div>
+          <!-- Stato e badge -->
           <div class="wod-chip-row">
             <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
             <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
@@ -197,91 +214,126 @@ body.theme-dark .wod-cl-add-input { background:var(--surface); border-color:var(
           </div>
           <h2 class="wod-title">{{ workorder.title }}</h2>
           <p class="wod-sub">
-            {% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento non agganciato a una regola{% endif %}
-            {% if workorder.assistance_contract %} · {{ workorder.assistance_contract.title }}{% endif %}
+            {% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento manuale{% endif %}
+            {% if workorder.assistance_contract %} &middot; {{ workorder.assistance_contract.title }}{% endif %}
           </p>
 
           <div class="wod-grid">
+            <!-- Colonna sinistra: chi, cosa, asset -->
             <div>
-              <h3 class="wod-section-title">Contesto operativo</h3>
+              <h3 class="wod-section-title">Chi / Dove</h3>
               <div class="wod-list">
-                <div class="wod-row"><span class="wod-row-label">Asset</span><span class="wod-row-value"><a href="{{ workorder_asset_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</a></span></div>
-                <div class="wod-row"><span class="wod-row-label">Fornitore</span><span class="wod-row-value">{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Manutenzione periodica collegata</span><span class="wod-row-value">{% if workorder.periodic_verification %}{{ workorder.periodic_verification.name }}{% else %}-{% endif %}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Regola manutenzione</span><span class="wod-row-value">{% if workorder.maintenance_rule and workorder_rule_url %}<a href="{{ workorder_rule_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.maintenance_rule.intervention_template.label }}</a>{% elif workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Contratto assistenza</span><span class="wod-row-value">{% if workorder.assistance_contract %}<a href="{{ workorder_contract_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.assistance_contract.title }}</a>{% else %}-{% endif %}</span></div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Asset</span>
+                  <span class="wod-row-value"><a class="wod-link" href="{{ workorder_asset_url }}">{{ workorder.asset.asset_tag }} &mdash; {{ workorder.asset.name }}</a></span>
+                </div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Assegnato a</span>
+                  <span class="wod-row-value">{% if workorder.assigned_to %}{{ workorder.assigned_to.get_full_name|default:workorder.assigned_to.username }}{% else %}&mdash;{% endif %}</span>
+                </div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Eseguito da</span>
+                  <span class="wod-row-value">{% if workorder.executed_by %}{{ workorder.executed_by.get_full_name|default:workorder.executed_by.username }}{% else %}&mdash;{% endif %}</span>
+                </div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Fornitore esterno</span>
+                  <span class="wod-row-value">{{ workorder.supplier|default:"&mdash;" }}</span>
+                </div>
+                {% if workorder.assistance_contract %}
+                <div class="wod-row">
+                  <span class="wod-row-label">Contratto assistenza</span>
+                  <span class="wod-row-value"><a class="wod-link" href="{{ workorder_contract_url }}">{{ workorder.assistance_contract.title }}</a></span>
+                </div>
+                {% endif %}
+                {% if workorder.maintenance_rule %}
+                <div class="wod-row">
+                  <span class="wod-row-label">Regola manutenzione</span>
+                  <span class="wod-row-value">{% if workorder_rule_url %}<a class="wod-link" href="{{ workorder_rule_url }}">{{ workorder.maintenance_rule.intervention_template.label }}</a>{% else %}{{ workorder.maintenance_rule.intervention_template.label }}{% endif %}</span>
+                </div>
+                {% endif %}
               </div>
             </div>
 
+            <!-- Colonna destra: descrizione, date, risoluzione -->
             <div>
-              <h3 class="wod-section-title">Descrizione e chiusura</h3>
+              <h3 class="wod-section-title">Dettaglio intervento</h3>
               <div class="wod-list">
-                <div class="wod-row"><span class="wod-row-label">Descrizione</span><span class="wod-row-value wod-note">{{ workorder.description|default:"-" }}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Risoluzione</span><span class="wod-row-value wod-note">{{ workorder.resolution|default:"-" }}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Aperta il</span><span class="wod-row-value">{{ workorder.opened_at|date:"d/m/Y H:i" }}</span></div>
-                <div class="wod-row"><span class="wod-row-label">Chiusa il</span><span class="wod-row-value">{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</span></div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Problema segnalato</span>
+                  <span class="wod-row-value wod-note">{{ workorder.description|default:"&mdash;" }}</span>
+                </div>
+                {% if workorder.resolution %}
+                <div class="wod-row">
+                  <span class="wod-row-label">Risoluzione</span>
+                  <span class="wod-row-value wod-note">{{ workorder.resolution }}</span>
+                </div>
+                {% endif %}
+                <div class="wod-row">
+                  <span class="wod-row-label">Aperto il</span>
+                  <span class="wod-row-value">{{ workorder.opened_at|date:"d-m-Y H:i" }}</span>
+                </div>
+                <div class="wod-row">
+                  <span class="wod-row-label">Chiuso il</span>
+                  <span class="wod-row-value">{% if workorder.closed_at %}{{ workorder.closed_at|date:"d-m-Y H:i" }}{% else %}&mdash;{% endif %}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Sidebar: metriche operative -->
         <aside class="wod-stats">
           <div class="wod-stat">
-            <span>Costo totale</span>
-            <strong>{{ workorder.resolved_total_cost_eur|default:"-" }} €</strong>
-          </div>
-          <div class="wod-stat">
             <span>Durata intervento</span>
-            <strong>{{ workorder.intervention_duration_minutes|default:"-" }} min</strong>
+            <strong>{% if workorder.intervention_duration_minutes %}{{ workorder.intervention_duration_minutes }} min{% else %}&mdash;{% endif %}</strong>
           </div>
           <div class="wod-stat">
             <span>Fermo impianto</span>
             <strong>{{ workorder.downtime_minutes|default:"0" }} min</strong>
-          </div>
-          <div class="wod-stat">
-            <span>Costi componenti</span>
-            <strong>Manodopera {{ workorder.labor_cost_eur|default:"-" }} € · Materiali {{ workorder.materials_cost_eur|default:"-" }} €</strong>
           </div>
         </aside>
       </div>
     </div>
   </article>
 
+  <!-- ===== CHECKLIST ===== -->
   {% include "assets/components/workorder_checklist.html" %}
 
+  <!-- ===== ALLEGATI ===== -->
   <article class="wod-card">
     <div class="wod-card-body">
       <h3 class="wod-section-title">Allegati</h3>
       <div class="wod-attachments">
         {% for attachment in attachments %}
-          <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" class="wod-attachment" style="text-decoration:none;color:inherit;">
+          <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" class="wod-attachment wod-attachment-link">
             <strong>{{ attachment.original_name|default:attachment.file.name }}</strong><br>
-            <span class="wod-log-meta">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+            <span class="wod-log-meta">{{ attachment.created_at|date:"d-m-Y H:i" }}</span>
           </a>
         {% empty %}
-          <p class="as-note" style="margin:0;">Nessun allegato presente.</p>
+          <p class="as-note wod-empty-note">Nessun allegato presente.</p>
         {% endfor %}
       </div>
     </div>
   </article>
 
+  <!-- ===== LOG INTERVENTO ===== -->
   <article class="wod-card">
     <div class="wod-card-body">
       <h3 class="wod-section-title">Log intervento</h3>
-      <form method="post" style="display:grid;gap:8px;margin-bottom:14px;">
+      <form method="post" class="wod-log-form">
         {% csrf_token %}
         <label for="id_log_note">Aggiungi nota</label>
-        <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento..."></textarea>
+        <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento, un'osservazione o un'azione eseguita..."></textarea>
         <div><button class="btn btn-primary" type="submit">Aggiungi log</button></div>
       </form>
       <div class="wod-logs">
         {% for log in logs %}
           <div class="wod-log">
-            <div class="wod-log-meta">{{ log.ts|date:"d/m/Y H:i" }}{% if log.author %} - {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
-            <div style="white-space:pre-wrap;">{{ log.note }}</div>
+            <div class="wod-log-meta">{{ log.ts|date:"d-m-Y H:i" }}{% if log.author %} &mdash; {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
+            <div class="wod-note">{{ log.note }}</div>
           </div>
         {% empty %}
-          <p class="as-note" style="margin:0;">Nessun log presente.</p>
+          <p class="as-note wod-empty-note">Nessun log ancora. Aggiungi la prima nota sopra.</p>
         {% endfor %}
       </div>
     </div>

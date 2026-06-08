@@ -106,6 +106,61 @@ def _legacy_identity(request) -> tuple[str, str]:
     return name, email
 
 
+def _user_acl_identities(request) -> set[str]:
+    """Raccoglie tutte le identità (lowercase) con cui l'utente può essere
+    stato registrato in ``acl_scrittura``.
+
+    L'elenco può contenere — a seconda di cosa salva il widget impostazioni —
+    l'username Django (UPN), l'email di login aziendale o l'``aliasusername``
+    legacy. Per evitare esclusioni da mismatch (es. ``a.astarita`` vs
+    ``a.astarita@dominio``) il match considera tutte queste forme, incluso il
+    prefisso dell'UPN. NON si considera l'email privata: l'identità valida è
+    solo mail aziendale o username. Stesso pattern di ``tickets._user_acl_identities``.
+    """
+    identities: set[str] = set()
+
+    def _add(value) -> None:
+        text = str(value or "").strip().lower()
+        if text:
+            identities.add(text)
+            if "@" in text:
+                identities.add(text.split("@", 1)[0])  # prefisso UPN
+
+    _add(request.user.get_username())
+    _add(request.user.email)
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    legacy_id = getattr(legacy_user, "id", None) if legacy_user else None
+    if legacy_id:
+        try:
+            from core.legacy_models import AnagraficaDipendente
+            ana = (
+                AnagraficaDipendente.objects
+                .filter(utente_id=legacy_id)
+                .only("aliasusername", "email")
+                .first()
+            )
+            if ana:
+                _add(ana.aliasusername)   # username legacy
+                _add(ana.email)           # mail aziendale / UPN
+        except Exception:
+            pass  # in caso di errore DB usiamo solo le identità Django
+    return identities
+
+
+def _acl_list_matches(acl: list, identities: set[str]) -> bool:
+    """True se una qualsiasi voce della ACL list combacia con un'identità utente."""
+    for raw in acl or []:
+        value = str(raw or "").strip().lower()
+        if not value:
+            continue
+        if value in identities:
+            return True
+        if "@" in value and value.split("@", 1)[0] in identities:
+            return True
+    return False
+
+
 def _can_write(request) -> bool:
     """Controlla se l'utente puo creare/modificare/eliminare segnalazioni."""
     if not request.user.is_authenticated:
@@ -118,10 +173,8 @@ def _can_write(request) -> bool:
         return True  # nessuna config = accesso aperto
     acl = cfg.acl_scrittura or []
     if not acl:
-        return True
-    username = request.user.get_username().lower()
-    email = (request.user.email or "").lower()
-    return any(v.lower() in (username, email) for v in acl)
+        return True  # elenco vuoto = accesso aperto a tutti gli autenticati
+    return _acl_list_matches(acl, _user_acl_identities(request))
 
 
 def _can_manage_settings(request) -> bool:
@@ -575,12 +628,12 @@ def export_excel(request):
 
         for row_num, segnalazione in enumerate(qs, start=2):
             data_segnalazione = (
-                timezone.localtime(segnalazione.data_segnalazione).strftime("%d/%m/%Y %H:%M")
+                timezone.localtime(segnalazione.data_segnalazione).strftime("%d-%m-%Y %H:%M")
                 if segnalazione.data_segnalazione
                 else ""
             )
-            created_at = timezone.localtime(segnalazione.created_at).strftime("%d/%m/%Y %H:%M")
-            updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d/%m/%Y %H:%M")
+            created_at = timezone.localtime(segnalazione.created_at).strftime("%d-%m-%Y %H:%M")
+            updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d-%m-%Y %H:%M")
             creato_da = segnalazione.creato_da.get_full_name() if segnalazione.creato_da else ""
 
             ws.cell(row=row_num, column=1, value=segnalazione.codice_identificativo or "")
@@ -640,12 +693,12 @@ def export_pdf(request, pk):
         generated_at = timezone.localtime(timezone.now())
         codice = segnalazione.codice_identificativo or f"PK-{segnalazione.pk}"
         data_segnalazione = (
-            timezone.localtime(segnalazione.data_segnalazione).strftime("%d/%m/%Y %H:%M")
+            timezone.localtime(segnalazione.data_segnalazione).strftime("%d-%m-%Y %H:%M")
             if segnalazione.data_segnalazione
             else "-"
         )
-        created_at = timezone.localtime(segnalazione.created_at).strftime("%d/%m/%Y %H:%M")
-        updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d/%m/%Y %H:%M")
+        created_at = timezone.localtime(segnalazione.created_at).strftime("%d-%m-%Y %H:%M")
+        updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d-%m-%Y %H:%M")
 
         doc = SimpleDocTemplate(
             buf,
@@ -812,7 +865,7 @@ def export_pdf(request, pk):
             canvas.setFont("Helvetica-Bold", 12)
             canvas.drawRightString(width - 16 * mm, height - 16 * mm, codice)
             canvas.setFont("Helvetica", 8)
-            canvas.drawRightString(width - 16 * mm, height - 23 * mm, f"Generato il {generated_at.strftime('%d/%m/%Y %H:%M')}")
+            canvas.drawRightString(width - 16 * mm, height - 23 * mm, f"Generato il {generated_at.strftime('%d-%m-%Y %H:%M')}")
 
             canvas.setStrokeColor(colors.HexColor("#cbd5e1"))
             canvas.line(16 * mm, 15 * mm, width - 16 * mm, 15 * mm)
@@ -955,6 +1008,56 @@ def allegato_download(request, allegato_id: int):
         filename=filename,
         content_type=content_type,
     )
+
+
+@login_required
+def api_cerca_utenti(request):
+    """Ricerca dipendenti per il widget autorizzazioni — solo admin legacy.
+
+    Stesso contratto di ``tickets.api_cerca_utenti``: ritorna nome, username
+    (aliasusername legacy = fonte unica username) ed email di login aziendale.
+    """
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not (legacy_user and is_legacy_admin(legacy_user)):
+        return _json_err("Non autorizzato", 403)
+
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    results = []
+    try:
+        from core.legacy_models import AnagraficaDipendente
+
+        qs = AnagraficaDipendente.objects.filter(
+            Q(nome__icontains=q) | Q(cognome__icontains=q) |
+            Q(email__icontains=q) | Q(aliasusername__icontains=q)
+        ).order_by("cognome", "nome")[:20]
+
+        for a in qs:
+            nome_completo = f"{(a.nome or '').strip()} {(a.cognome or '').strip()}".strip()
+            username = (a.aliasusername or "").strip()      # fonte unica username
+            email_login = (a.email or "").strip()           # UPN / mail aziendale
+            results.append({
+                "nome": nome_completo,
+                "username": username,
+                "email": email_login,
+                "label": nome_completo + (f" — {username}" if username else ""),
+            })
+    except Exception:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        qs = User.objects.filter(username__icontains=q).order_by("last_name", "first_name")[:20]
+        for u in qs:
+            nome = f"{u.first_name} {u.last_name}".strip() or u.username
+            results.append({
+                "nome": nome,
+                "username": u.username,
+                "email": u.email or "",
+                "label": nome,
+            })
+
+    return JsonResponse({"results": results})
 
 
 @login_required

@@ -337,7 +337,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
 
   {% if aziendale.data_cessazione %}
   <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-left:4px solid #64748b;border-radius:.6rem;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#334155;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-    <strong>Ex dipendente</strong> · rapporto cessato il {{ aziendale.data_cessazione|date:"d/m/Y" }}.
+    <strong>Ex dipendente</strong> · rapporto cessato il {{ aziendale.data_cessazione|date:"d-m-Y" }}.
     Il fascicolo resta consultabile per adempimenti e audit.
     <a href="{% url 'anagrafica:ex_dipendenti_list' %}" style="color:#1f5c91;font-weight:600;">Elenco ex dipendenti →</a>
   </div>
@@ -460,12 +460,12 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         </div>
         <div class="dp-info-item">
           <span class="dp-info-label">Data uscita</span>
-          <span class="dp-info-value">{{ offboarding_pratica_attiva.data_cessazione_prevista|date:"d/m/Y" }}</span>
+          <span class="dp-info-value">{{ offboarding_pratica_attiva.data_cessazione_prevista|date:"d-m-Y" }}</span>
         </div>
         {% if offboarding_pratica_attiva.ultimo_giorno_operativo and offboarding_pratica_attiva.ultimo_giorno_operativo != offboarding_pratica_attiva.data_cessazione_prevista %}
         <div class="dp-info-item">
           <span class="dp-info-label">Ultimo giorno operativo</span>
-          <span class="dp-info-value">{% if offboarding_pratica_attiva.ultimo_giorno_operativo %}{{ offboarding_pratica_attiva.ultimo_giorno_operativo|date:"d/m/Y" }}{% else %}-{% endif %}</span>
+          <span class="dp-info-value">{% if offboarding_pratica_attiva.ultimo_giorno_operativo %}{{ offboarding_pratica_attiva.ultimo_giorno_operativo|date:"d-m-Y" }}{% else %}-{% endif %}</span>
         </div>
         {% endif %}
         <div class="dp-info-item">
@@ -530,8 +530,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
       {% for pratica in offboarding_pratiche_recenti %}
         <div class="dp-qual-item">
           <div>
-            <div class="dp-qual-name">{{ pratica.get_motivo_display }} · {{ pratica.data_cessazione_prevista|date:"d/m/Y" }}</div>
-            <div class="dp-qual-cat">{{ pratica.get_stato_display }}{% if pratica.closed_at %} · chiusa il {{ pratica.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+            <div class="dp-qual-name">{{ pratica.get_motivo_display }} · {{ pratica.data_cessazione_prevista|date:"d-m-Y" }}</div>
+            <div class="dp-qual-cat">{{ pratica.get_stato_display }}{% if pratica.closed_at %} · chiusa il {{ pratica.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
           </div>
         </div>
       {% endfor %}
@@ -664,11 +664,11 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f5c91;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f5c91;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d/m/Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d/m/Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d/m/Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d/m/Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d-m-Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d-m-Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d-m-Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia pantalone</div><div class="dp-info-value">{{ aziendale.taglia_pantalone|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia maglia</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_taglia_maglia_display|default:"—" }}{% else %}—{% endif %}</div></div>
@@ -717,7 +717,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
     </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Data di nascita</div><div class="dp-info-value">{{ civile.data_nascita|date:"d/m/Y"|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Data di nascita</div><div class="dp-info-value">{{ civile.data_nascita|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Luogo di nascita</div><div class="dp-info-value">{{ civile.luogo_nascita|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Provincia di nascita</div><div class="dp-info-value">{{ civile.provincia_nascita|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Nazionalità</div><div class="dp-info-value">{{ civile.nazionalita|default:"—" }}</div></div>
@@ -744,7 +744,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
         {% for figlio in figli_list %}
         <div class="dp-info-item">
           <div class="dp-info-label">{{ figlio.nome|default:"Figlio" }}</div>
-          <div class="dp-info-value">{{ figlio.data_nascita|date:"d/m/Y" }} · {{ figlio.eta }} anni</div>
+          <div class="dp-info-value">{{ figlio.data_nascita|date:"d-m-Y" }} · {{ figlio.eta }} anni</div>
         </div>
         {% endfor %}
       </div>
@@ -853,8 +853,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             {% for c in storico_contratti %}
             <tr id="contr-row-{{ c.pk }}"{% if c.is_in_corso %} class="dp-contr-incorso"{% endif %}>
               <td style="white-space:nowrap;">
-                {{ c.data_inizio|date:"d/m/Y" }} –
-                {% if c.data_fine %}{{ c.data_fine|date:"d/m/Y" }}{% else %}<strong>in corso</strong>{% endif %}
+                {{ c.data_inizio|date:"d-m-Y" }} –
+                {% if c.data_fine %}{{ c.data_fine|date:"d-m-Y" }}{% else %}<strong>in corso</strong>{% endif %}
               </td>
               <td>{{ c.tipologia_nome|default:"—" }}</td>
               <td>
@@ -1100,7 +1100,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
 
     </div>
     <div class="dp-retr-footer">
-      <span>Importazione: {{ retribuzioni_importazione.data_importazione|date:"d/m/Y H:i" }}</span>
+      <span>Importazione: {{ retribuzioni_importazione.data_importazione|date:"d-m-Y H:i" }}</span>
       {% if retribuzioni_has_changes %}
         <span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;">⚡ voci modificate rispetto al mese precedente</span>
       {% endif %}
@@ -1201,7 +1201,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
           <tbody id="sc-tbody">
             {% for c in storico_cambiamenti %}
             <tr class="sc-row" data-tipo="{{ c.tipo }}" style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:8px 10px;white-space:nowrap;color:#1e293b;font-weight:600;">{{ c.data_effetto|date:"d/m/Y" }}</td>
+              <td style="padding:8px 10px;white-space:nowrap;color:#1e293b;font-weight:600;">{{ c.data_effetto|date:"d-m-Y" }}</td>
               <td style="padding:8px 10px;white-space:nowrap;">
                 <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;background:{{ c.colore }};">{{ c.get_tipo_display }}</span>
               </td>
@@ -1209,7 +1209,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
               <td style="padding:8px 10px;color:#0f172a;font-weight:600;">{{ c.valore_nuovo|default:"(vuoto)" }}</td>
               <td style="padding:8px 10px;color:#64748b;font-size:12px;white-space:nowrap;">
                 {% if c.created_by %}{{ c.created_by.get_full_name|default:c.created_by.username }}{% else %}—{% endif %}
-                <br><span style="color:#cbd5e1;font-size:10px;">{{ c.created_at|date:"d/m/Y H:i" }}</span>
+                <br><span style="color:#cbd5e1;font-size:10px;">{{ c.created_at|date:"d-m-Y H:i" }}</span>
               </td>
             </tr>
             {% endfor %}
@@ -1334,8 +1334,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             <tbody>
               {% for a in assenze_list %}
               <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:7px 10px;color:#1e293b;white-space:nowrap;">{{ a.data_inizio|date:"d/m/Y" }}</td>
-                <td style="padding:7px 10px;color:#475569;white-space:nowrap;">{{ a.data_fine|date:"d/m/Y"|default:"—" }}</td>
+                <td style="padding:7px 10px;color:#1e293b;white-space:nowrap;">{{ a.data_inizio|date:"d-m-Y" }}</td>
+                <td style="padding:7px 10px;color:#475569;white-space:nowrap;">{{ a.data_fine|date:"d-m-Y"|default:"—" }}</td>
                 <td style="padding:7px 10px;color:#1e293b;font-weight:600;">{{ a.tipo_assenza|default:"—" }}</td>
                 <td style="padding:7px 10px;">
                   {% if a.moderation_status == 0 %}
@@ -1439,11 +1439,11 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
               </div>
               <div class="dp-qual-dates">
                 {% if q.data_conseguimento %}
-                  <span>Conseguita: <strong>{{ q.data_conseguimento|date:"d/m/Y" }}</strong></span>
+                  <span>Conseguita: <strong>{{ q.data_conseguimento|date:"d-m-Y" }}</strong></span>
                 {% endif %}
                 {% if q.data_scadenza %}
                   <span class="{% if q.is_scaduta %}dp-qual-scad-red{% elif q.in_scadenza %}dp-qual-scad-orange{% endif %}">
-                    Scadenza: {{ q.data_scadenza|date:"d/m/Y" }}
+                    Scadenza: {{ q.data_scadenza|date:"d-m-Y" }}
                   </span>
                 {% else %}
                   <span style="color:#94a3b8;">Nessuna scadenza</span>
@@ -1534,11 +1534,11 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             <div style="color:#16a34a;margin-top:3px;">Qtà: {{ r.quantita }} {{ r.categoria.unita_misura }}</div>
             {% if r.consegna.data_scadenza_stimata %}
               {% if r.consegna.data_scadenza_stimata < oggi %}
-                <div style="color:#b91c1c;font-weight:700;margin-top:2px;">🔴 Scaduto {{ r.consegna.data_scadenza_stimata|date:"d/m/Y" }}</div>
+                <div style="color:#b91c1c;font-weight:700;margin-top:2px;">🔴 Scaduto {{ r.consegna.data_scadenza_stimata|date:"d-m-Y" }}</div>
               {% elif r.consegna.data_scadenza_stimata <= oggi_plus60 %}
-                <div style="color:#9a3412;font-weight:700;margin-top:2px;">🟠 Scade {{ r.consegna.data_scadenza_stimata|date:"d/m/Y" }}</div>
+                <div style="color:#9a3412;font-weight:700;margin-top:2px;">🟠 Scade {{ r.consegna.data_scadenza_stimata|date:"d-m-Y" }}</div>
               {% else %}
-                <div style="color:#64748b;margin-top:2px;">Scade {{ r.consegna.data_scadenza_stimata|date:"d/m/Y" }}</div>
+                <div style="color:#64748b;margin-top:2px;">Scade {{ r.consegna.data_scadenza_stimata|date:"d-m-Y" }}</div>
               {% endif %}
             {% endif %}
             <div style="margin-top:4px;">
@@ -1586,7 +1586,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
                   <span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">{{ r.stato }}</span>
                 {% endif %}
               </td>
-              <td style="padding:7px 8px;color:#64748b;font-size:12px;">{{ r.created_at|date:"d/m/Y" }}
+              <td style="padding:7px 8px;color:#64748b;font-size:12px;">{{ r.created_at|date:"d-m-Y" }}
                 {% if r.consegna and r.consegna.id in dpi_consegna_doc_map %}
                   &nbsp;·&nbsp;<a href="{% url 'anagrafica:documento_download' dpi_consegna_doc_map|dictlookup:r.consegna.id %}" style="color:#1f5c91;font-weight:600;">📄 PDF</a>
                 {% endif %}
@@ -1635,8 +1635,8 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
             {% for row in visite_stato_list %}
             <tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ row.tipo.nome }}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d/m/Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d/m/Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if row.stato == "mancante" %}
                   <span style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">⏳ Mancante</span>
@@ -1672,10 +1672,10 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
           <tbody>
             {% for v in visite_storico_list %}
             <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:7px 8px;color:#1e293b;">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+              <td style="padding:7px 8px;color:#1e293b;">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
               <td style="padding:7px 8px;color:#1e293b;font-weight:600;">{{ v.tipo.nome }}</td>
               <td style="padding:7px 8px;color:#475569;">{{ v.get_esito_display }}</td>
-              <td style="padding:7px 8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d/m/Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
+              <td style="padding:7px 8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if v.referto_documento_id %}
                   <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f5c91;font-weight:600;">📄 Apri</a>
@@ -1687,7 +1687,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
               <td style="padding:7px 8px;text-align:right;">
                 <form method="post" action="{% url 'anagrafica:dipendente_visita_delete' legacy_id v.id %}" style="display:inline;">
                   {% csrf_token %}
-                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare la visita del {{ v.data_svolgimento|date:"d/m/Y" }}?')">🗑</button>
+                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare la visita del {{ v.data_svolgimento|date:"d-m-Y" }}?')">🗑</button>
                 </form>
               </td>
               {% endif %}
@@ -1822,11 +1822,14 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
                   </td>
                   <td style="padding:6px 8px;color:#64748b;font-size:12px;">
                     {% if d.descrizione %}<span style="color:#475569;">{{ d.descrizione }}</span> · {% endif %}
-                    {{ d.created_at|date:"d/m/Y" }}
+                    {{ d.created_at|date:"d-m-Y" }}
                     {% if d.created_by_display %} · {{ d.created_by_display }}{% endif %}
                   </td>
                   <td style="padding:6px 8px;color:#94a3b8;font-size:11px;white-space:nowrap;">
                     {% if d.dimensione_bytes %}{{ d.dimensione_bytes|filesizeformat }}{% endif %}
+                    {% if is_admin and d.retention_until %}
+                      <br><span title="Conservare fino al (GDPR)" style="color:#cbd5e1;">⏳ {{ d.retention_until|date:"d-m-Y" }}</span>
+                    {% endif %}
                   </td>
                   <td style="padding:6px 8px;text-align:right;white-space:nowrap;">
                     <a href="{% url 'anagrafica:documento_download' d.id %}" class="dp-btn dp-btn-ghost dp-btn-xs">⬇ Scarica</a>
@@ -1869,7 +1872,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
                 <div class="dp-qual-cat">{{ lic.get_category_display }}{% if lic.vendor %} | {{ lic.vendor }}{% endif %}</div>
                 <div class="dp-qual-dates">
                   {% if lic.expiry_date %}
-                    <span>Scadenza {{ lic.expiry_date|date:"d/m/Y" }}</span>
+                    <span>Scadenza {{ lic.expiry_date|date:"d-m-Y" }}</span>
                   {% else %}
                     <span>Scadenza non impostata</span>
                   {% endif %}

@@ -165,7 +165,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dd>{{ richiesta.motivazione }}</dd>
           {% endif %}
           <dt>Data richiesta</dt>
-          <dd>{{ richiesta.created_at|date:"d/m/Y H:i" }}</dd>
+          <dd>{{ richiesta.created_at|date:"d-m-Y H:i" }}</dd>
         </dl>
       </div>
 
@@ -174,7 +174,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
       <div class="dpi-card">
         <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:12px;">Consegna registrata</div>
         <dl class="dpi-consegna-box">
-          <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
+          <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d-m-Y" }}</dd>
           <dt>DPI</dt><dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome }}</dd>{% endif %}
           {% if consegna.scadenza_calcolata %}
@@ -182,7 +182,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dd>
             <span class="dpi-semaforo dpi-semaforo-{{ consegna.semaforo_scadenza }}">
               <span class="dpi-semaforo-dot"></span>
-              {{ consegna.scadenza_calcolata|date:"d/m/Y" }}
+              {{ consegna.scadenza_calcolata|date:"d-m-Y" }}
             </span>
           </dd>
           {% endif %}
@@ -280,7 +280,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
                 {% if c.is_interno %}<span class="dpi-interno-badge">INTERNO</span>{% endif %}
                 <br>{{ c.testo }}
               </div>
-              <div class="dpi-timeline-meta">{{ c.created_at|date:"d/m/Y H:i" }}</div>
+              <div class="dpi-timeline-meta">{{ c.created_at|date:"d-m-Y H:i" }}</div>
             </div>
           </li>
           {% endfor %}

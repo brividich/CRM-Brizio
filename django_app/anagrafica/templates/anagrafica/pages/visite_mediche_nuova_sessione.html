@@ -124,7 +124,7 @@
               </td>
               <td style="padding:8px 10px;color:#475569;">
                 {% if c.ultima_visita %}
-                {{ c.ultima_visita.data_svolgimento|date:"d/m/Y" }}<br>
+                {{ c.ultima_visita.data_svolgimento|date:"d-m-Y" }}<br>
                 <span style="font-size:11px;color:#94a3b8;">{{ c.ultima_visita.get_esito_display }}</span>
                 {% else %}
                 <span style="color:#94a3b8;font-style:italic;">mai effettuata</span>

@@ -141,7 +141,7 @@
                   </td>
                   <td>
                     {% if row.last_execution_date %}
-                      <strong>{{ row.last_execution_date|date:"d/m/Y" }}</strong><br>
+                      <strong>{{ row.last_execution_date|date:"d-m-Y" }}</strong><br>
                       <span class="as-note">
                         {% if row.last_execution_workorder %}
                           Da intervento #{{ row.last_execution_workorder.id }}
@@ -155,7 +155,7 @@
                   </td>
                   <td>
                     {% if row.due_date %}
-                      <strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>
+                      <strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>
                     {% endif %}
                     <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
                   </td>

@@ -5,7 +5,8 @@
 {% block assets_shell_title %}Interventi{% endblock %}
 {% block assets_shell_subtitle %}<p>Interventi aperti, chiusi o annullati.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:asset_list' %}">Vai all'inventario</a>
+  <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
+  <a class="btn" href="{% url 'assets:asset_list' %}">Inventario</a>
   <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn">&#8595; Esporta</button>
   <dialog id="woExportDlg" style="border:1px solid #dbe1ea;border-radius:14px;padding:20px;min-width:280px;box-shadow:0 8px 32px rgba(15,23,42,.15);">
     <div style="font-weight:700;font-size:1rem;margin-bottom:12px;color:#1e3a5f;">Esporta interventi</div>
@@ -60,7 +61,7 @@
         <div>
           <div><strong>#{{ wo.id }} - {{ wo.title }}</strong></div>
           <div class="as-note">{{ wo.asset.asset_tag }} | {{ wo.asset.name }} | {{ wo.get_kind_display }} | {{ wo.get_status_display }}</div>
-          <div class="as-meta">Aperta: {{ wo.opened_at|date:"d/m/Y H:i" }} {% if wo.closed_at %}| Chiusa: {{ wo.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+          <div class="as-meta">Aperta: {{ wo.opened_at|date:"d-m-Y H:i" }} {% if wo.closed_at %}| Chiusa: {{ wo.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
         </div>
         <div style="display:flex;gap:8px;">
           <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>

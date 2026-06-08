@@ -132,9 +132,9 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                   {% elif a.status == 'overdue' %}<span class="pr-badge pr-badge-overdue">Scaduta</span>
                   {% else %}<span class="pr-badge pr-badge-cancelled">{{ a.get_status_display }}</span>{% endif %}
                 </td>
-                <td>{{ a.due_date|date:"d/m/Y"|default:"—" }}</td>
-                <td>{{ a.first_opened_at|date:"d/m/Y H:i"|default:"—" }}</td>
-                <td>{{ a.read_confirmed_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                <td>{{ a.due_date|date:"d-m-Y"|default:"—" }}</td>
+                <td>{{ a.first_opened_at|date:"d-m-Y H:i"|default:"—" }}</td>
+                <td>{{ a.read_confirmed_at|date:"d-m-Y H:i"|default:"—" }}</td>
                 <td style="max-width:180px;color:#64748b;font-size:12px;">{{ a.user_note|default:"—"|truncatechars:60 }}</td>
               </tr>
             {% endfor %}

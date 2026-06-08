@@ -61,7 +61,7 @@ class Command(BaseCommand):
                 project_label = f" [{task.project.name}]"
             message = (
                 f"Promemoria scadenza attivita kickoff: \"{task.title}\"{project_label} "
-                f"in scadenza il {task.due_date:%d/%m/%Y}."
+                f"in scadenza il {task.due_date:%d-%m-%Y}."
             )[:500]
             url_action = reverse("tasks:detail", args=[task.id])
 

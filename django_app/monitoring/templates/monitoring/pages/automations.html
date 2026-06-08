@@ -34,7 +34,7 @@
                   <a href="{% url 'monitoring_admin:automation_detail' row.job.pk %}"><strong>{{ row.job.name }}</strong></a>
                   <div class="cell-muted">{{ row.job.code }} | {{ row.job.module_name|default:"monitoring" }}</div>
                 </td>
-                <td>{{ row.last_execution.started_at|date:"d/m/Y H:i"|default:"Mai eseguita" }}</td>
+                <td>{{ row.last_execution.started_at|date:"d-m-Y H:i"|default:"Mai eseguita" }}</td>
                 <td>
                   {% if row.last_execution %}
                     <span class="monitoring-pill status-{{ row.last_execution.status }}">{{ row.last_execution.status }}</span>
@@ -44,7 +44,7 @@
                 </td>
                 <td>{{ row.consecutive_failures }}</td>
                 <td>{{ row.last_duration_seconds|default:"-" }}</td>
-                <td>{{ row.next_expected_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                <td>{{ row.next_expected_at|date:"d-m-Y H:i"|default:"-" }}</td>
                 <td>
                   {% if row.job.is_critical %}<span class="monitoring-pill severity-critical">critica</span>{% else %}<span class="monitoring-pill severity-low">normale</span>{% endif %}
                   {% if row.missing_alert %}<span class="monitoring-pill status-new" style="margin-left:4px;">missing</span>{% endif %}

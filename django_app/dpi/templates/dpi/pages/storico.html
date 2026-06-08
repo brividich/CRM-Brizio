@@ -133,13 +133,13 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
             {% if r.stato == "CONSEGNATA" %}
               {% with c=r.consegna %}
               {% if c.data_scadenza_stimata %}
-                {{ c.data_scadenza_stimata|date:"d/m/Y" }}
+                {{ c.data_scadenza_stimata|date:"d-m-Y" }}
                 {% if r.is_scaduta %}<span class="dpi-scaduto">SCADUTO</span>{% endif %}
               {% else %}-{% endif %}
               {% endwith %}
             {% else %}-{% endif %}
           </td>
-          <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+          <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d-m-Y" }}</td>
           <td><a href="{% url 'dpi:detail' r.pk %}">Dettaglio →</a></td>
         </tr>
         {% endfor %}

@@ -6032,6 +6032,37 @@ def utenti_bulk_action(request):
                 UtenteLegacy.objects.filter(id__in=ids).update(deve_cambiare_password=True)
                 _audit_safe(request, "utenti_bulk_force_pwd", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Forzato cambio password per {len(ids)} utenti.")
+            elif mode == "delete":
+                current_legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+                current_id = int(current_legacy_user.id) if current_legacy_user else None
+                safe_ids = [i for i in ids if i != current_id]
+                skipped = len(ids) - len(safe_ids)
+                deleted = 0
+                errors = 0
+                for uid in safe_ids:
+                    try:
+                        utente = UtenteLegacy.objects.filter(id=uid).first()
+                        if utente:
+                            _delete_legacy_user_with_dependencies(utente)
+                            deleted += 1
+                    except Exception:
+                        logger.exception("utenti_bulk_delete: errore uid=%s", uid)
+                        errors += 1
+                _audit_safe(request, "utenti_bulk_delete", "admin_portale", {
+                    "target_user_ids": safe_ids,
+                    "deleted": deleted,
+                    "errors": errors,
+                    "skipped_self": skipped,
+                })
+                parts = [f"Eliminati {deleted} utenti."]
+                if skipped:
+                    parts.append(f"{skipped} saltati (utente corrente).")
+                if errors:
+                    parts.append(f"{errors} errori durante l'eliminazione.")
+                if errors:
+                    messages.warning(request, " ".join(parts))
+                else:
+                    messages.success(request, " ".join(parts))
             else:
                 messages.error(request, "Azione bulk non valida.")
     except DatabaseError as exc:
@@ -9324,7 +9355,7 @@ def admin_health_check(request):
         from core.models import Notifica
         ultima = Notifica.objects.order_by("-created_at").first()
         if ultima:
-            checks.append({"nome": "Notifiche", "ok": True, "dettaglio": f"Ultima: {ultima.created_at:%d/%m/%Y %H:%M}"})
+            checks.append({"nome": "Notifiche", "ok": True, "dettaglio": f"Ultima: {ultima.created_at:%d-%m-%Y %H:%M}"})
         else:
             checks.append({"nome": "Notifiche", "ok": True, "dettaglio": "Nessuna notifica presente"})
     except Exception as exc:

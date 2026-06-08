@@ -45,7 +45,7 @@
               {% endif %}
             </div>
             {% if item.is_done and item.done_by %}
-              <div class="wod-cl-meta">Fatto da {{ item.done_by.get_full_name|default:item.done_by.username }}{% if item.done_at %} il {{ item.done_at|date:"d/m/Y H:i" }}{% endif %}</div>
+              <div class="wod-cl-meta">Fatto da {{ item.done_by.get_full_name|default:item.done_by.username }}{% if item.done_at %} il {{ item.done_at|date:"d-m-Y H:i" }}{% endif %}</div>
             {% endif %}
           </div>
         {% endfor %}

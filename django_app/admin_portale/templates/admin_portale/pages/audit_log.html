@@ -66,7 +66,7 @@
           <tbody>
             {% for log in page_obj %}
               <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:9px 14px;font-size:12px;color:#64748b;white-space:nowrap;">{{ log.created_at|date:"d/m/Y H:i:s" }}</td>
+                <td style="padding:9px 14px;font-size:12px;color:#64748b;white-space:nowrap;">{{ log.created_at|date:"d-m-Y H:i:s" }}</td>
                 <td style="padding:9px 14px;font-size:13px;font-weight:500;color:#1e293b;">{{ log.utente_display|default:"—" }}</td>
                 <td style="padding:9px 14px;">
                   <span style="display:inline-block;padding:2px 8px;background:#dbeafe;color:#1e40af;border-radius:99px;font-size:11px;font-weight:600;">{{ log.modulo }}</span>

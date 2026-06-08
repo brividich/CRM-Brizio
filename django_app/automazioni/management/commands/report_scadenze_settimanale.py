@@ -123,7 +123,7 @@ def _raccogli_visite(oggi, limite):
         {
             "dipendente": nomi.get(r["legacy_anagrafica_id"], f"#{r['legacy_anagrafica_id']}"),
             "dettaglio": f"Visita medica — {r['tipo__nome'] or 'periodica'}",
-            "scadenza": r["data_scadenza"].strftime("%d/%m/%Y"),
+            "scadenza": r["data_scadenza"].strftime("%d-%m-%Y"),
         }
         for r in rows
     ]
@@ -158,7 +158,7 @@ def _raccogli_contratti(oggi, limite):
         righe.append({
             "dipendente": nomi.get(lid, f"#{lid}"),
             "dettaglio": f"Fine contratto — {tipo}",
-            "scadenza": c["data_fine"].strftime("%d/%m/%Y"),
+            "scadenza": c["data_fine"].strftime("%d-%m-%Y"),
             "_sort": c["data_fine"],
         })
     for p in prove:
@@ -166,7 +166,7 @@ def _raccogli_contratti(oggi, limite):
         righe.append({
             "dipendente": nomi.get(lid, f"#{lid}"),
             "dettaglio": "Fine periodo di prova",
-            "scadenza": p["prova_data_fine"].strftime("%d/%m/%Y"),
+            "scadenza": p["prova_data_fine"].strftime("%d-%m-%Y"),
             "_sort": p["prova_data_fine"],
         })
 

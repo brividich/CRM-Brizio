@@ -1,0 +1,109 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-mh" x1="80" y1="60" x2="1200" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFC"/>
+      <stop offset="1" stop-color="#E5EBF4"/>
+    </linearGradient>
+    <linearGradient id="hero-mh" x1="172" y1="190" x2="1108" y2="310" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#2D5A8F"/>
+    </linearGradient>
+    <filter id="shadow-mh" x="118" y="78" width="1044" height="604" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="760" rx="28" fill="url(#bg-mh)"/>
+  <circle cx="1120" cy="98" r="104" fill="#FFF4ED"/>
+  <circle cx="184" cy="674" r="120" fill="#E0E7FF"/>
+  <circle cx="1188" cy="676" r="72" fill="#DBEAFE"/>
+
+  <g filter="url(#shadow-mh)">
+    <rect x="140" y="100" width="1000" height="560" rx="28" fill="#EEF0F5"/>
+
+    <!-- Browser chrome -->
+    <rect x="140" y="100" width="1000" height="56" rx="28" fill="#1E3A5F"/>
+    <rect x="140" y="128" width="1000" height="28" fill="#1E3A5F"/>
+    <circle cx="178" cy="128" r="6" fill="#FCA5A5"/>
+    <circle cx="198" cy="128" r="6" fill="#FCD34D"/>
+    <circle cx="218" cy="128" r="6" fill="#86EFAC"/>
+    <rect x="246" y="112" width="640" height="32" rx="10" fill="rgba(255,255,255,0.10)"/>
+    <text x="266" y="133" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" opacity="0.75">novicrom-hub.local / assets / manutenzione</text>
+
+    <!-- Hero -->
+    <rect x="172" y="180" width="936" height="118" rx="22" fill="url(#hero-mh)"/>
+    <rect x="196" y="208" width="6" height="60" rx="3" fill="#F97316"/>
+    <text x="220" y="222" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700" opacity="0.78">ASSETS · MANUTENZIONE</text>
+    <text x="220" y="252" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">Pannello manutenzione</text>
+    <text x="220" y="278" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.85">OdL aperti · scadenze · verifiche · piani 90 giorni in un'unica vista operativa</text>
+
+    <rect x="940" y="218" width="148" height="34" rx="12" fill="#F97316"/>
+    <text x="1014" y="240" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">+ Nuovo OdL</text>
+
+    <!-- KPI strip 5 metriche -->
+    <rect x="172" y="318" width="180" height="84" rx="18" fill="#FFFFFF"/>
+    <text x="192" y="346" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">ODL APERTI</text>
+    <text x="192" y="382" fill="#1D4ED8" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">23</text>
+    <text x="248" y="382" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">/ 41</text>
+
+    <rect x="362" y="318" width="180" height="84" rx="18" fill="#FFFFFF"/>
+    <text x="382" y="346" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">IN RITARDO</text>
+    <text x="382" y="382" fill="#DC2626" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">5</text>
+    <text x="412" y="382" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">&gt;21gg</text>
+
+    <rect x="552" y="318" width="180" height="84" rx="18" fill="#FFFFFF"/>
+    <text x="572" y="346" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">SCADENZE 30gg</text>
+    <text x="572" y="382" fill="#EA580C" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">12</text>
+
+    <rect x="742" y="318" width="180" height="84" rx="18" fill="#FFFFFF"/>
+    <text x="762" y="346" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">VERIFICHE</text>
+    <text x="762" y="382" fill="#059669" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">8</text>
+    <text x="804" y="382" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">attive</text>
+
+    <rect x="932" y="318" width="156" height="84" rx="18" fill="#FFFFFF"/>
+    <text x="952" y="346" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">CHIUSI 30gg</text>
+    <text x="952" y="382" fill="#1E3A5F" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">47</text>
+
+    <!-- Colonna sinistra: OdL urgenti -->
+    <rect x="172" y="420" width="586" height="220" rx="22" fill="#FFFFFF"/>
+    <text x="196" y="450" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">OdL urgenti</text>
+    <rect x="276" y="436" width="64" height="20" rx="10" fill="#FEE2E2"/>
+    <text x="308" y="450" text-anchor="middle" fill="#B91C1C" font-family="Segoe UI, Arial, sans-serif" font-size="10" font-weight="700">5 IN RITARDO</text>
+    <text x="708" y="450" text-anchor="end" fill="#1D4ED8" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Vedi tutti →</text>
+
+    <!-- Riga OdL 1 ritardo -->
+    <rect x="196" y="468" width="538" height="46" rx="10" fill="#FEF2F2" stroke="#DC2626" stroke-width="2"/>
+    <text x="212" y="488" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">OdL-2026-0184 · Revisione cambio olio</text>
+    <text x="212" y="505" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">#CNC-007 · M. Rossi · scaduto 28gg</text>
+    <rect x="666" y="481" width="60" height="20" rx="10" fill="#DC2626"/>
+    <text x="696" y="495" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="10" font-weight="700">RITARDO</text>
+
+    <!-- Riga OdL 2 ambra -->
+    <rect x="196" y="520" width="538" height="46" rx="10" fill="#FFFBEB" stroke="#F59E0B" stroke-width="2"/>
+    <text x="212" y="540" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">OdL-2026-0191 · Verifica antincendio</text>
+    <text x="212" y="557" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">#REP-A · L. Bova · entro 7gg</text>
+    <rect x="666" y="533" width="60" height="20" rx="10" fill="#F59E0B"/>
+    <text x="696" y="547" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="10" font-weight="700">URGENTE</text>
+
+    <!-- Riga OdL 3 normale -->
+    <rect x="196" y="572" width="538" height="46" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <text x="212" y="592" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">OdL-2026-0196 · Sostituzione filtri impianto</text>
+    <text x="212" y="609" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">#FIL-02 · A. Verdi · entro 14gg</text>
+    <rect x="666" y="585" width="60" height="20" rx="10" fill="#3B82F6"/>
+    <text x="696" y="599" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="10" font-weight="700">APERTO</text>
+
+    <!-- Colonna destra: prossimi 7 giorni + azioni rapide -->
+    <rect x="778" y="420" width="310" height="100" rx="22" fill="#FFFFFF"/>
+    <text x="802" y="450" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Azioni rapide</text>
+    <rect x="802" y="466" width="124" height="34" rx="10" fill="#1E3A5F"/>
+    <text x="864" y="488" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">+ Crea OdL</text>
+    <rect x="934" y="466" width="130" height="34" rx="10" fill="#F1F5F9" stroke="#CBD5E1"/>
+    <text x="999" y="488" text-anchor="middle" fill="#1E3A5F" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">Centro operativo</text>
+
+    <rect x="778" y="540" width="310" height="100" rx="22" fill="#FFFFFF"/>
+    <text x="802" y="568" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Prossimi 7 giorni</text>
+    <text x="802" y="592" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">Lun 06/06 · Verifica CNC-003</text>
+    <text x="802" y="610" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">Mer 08/06 · Cambio olio CNC-007</text>
+    <text x="802" y="628" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="11">Ven 10/06 · Contratto assistenza scade</text>
+  </g>
+</svg>

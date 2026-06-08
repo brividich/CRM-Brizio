@@ -53,7 +53,7 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 
 | | |
 |---|---|
-| 🧩 **22 app Django custom** | raggruppate per area funzionale |
+| 🧩 **25 app Django custom** | raggruppate per area funzionale |
 | 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
 | 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
 | 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
@@ -73,6 +73,14 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 | Assets / Officina | Automazioni |
 |:---:|:---:|
 | ![Preview modulo assets e officina](.github/assets/assets-preview.svg) | ![Preview designer automazioni](.github/assets/automation-preview.svg) |
+
+<div align="center">
+
+![Preview pannello manutenzione](.github/assets/maintenance-hub-preview.svg)
+
+*Pannello manutenzione `/assets/manutenzione/` — KPI strip, OdL urgenti, prossimi 7 giorni, azioni rapide.*
+
+</div>
 
 > Le anteprime sono SVG GitHub-friendly renderizzate direttamente nel browser.
 > Per screenshot reali del portale in produzione vedi `/admin-portale/hub/guide/`
@@ -126,7 +134,7 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
-### Tutti i 23 moduli custom a colpo d'occhio
+### Tutti i 25 moduli custom a colpo d'occhio
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
@@ -236,6 +244,7 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **Branding portale** (favicon, logo, login banner, pagina login personalizzabile)
 - **Module Manager** integrato per abilitazione moduli runtime
 - **Automazioni admin**: impostazioni runtime, queue list, log mailbox, convertitore Power Automate
+- **Eliminazione massiva utenti** (`/admin-portale/utenti/`): pulsante "Elimina selezionati" nella toolbar con confirm JS sul numero righe; per ciascun ID chiama `_delegate_legacy_user_with_dependencies` (release asset, pulizia override/dashboard/profilo Django, unlink anagrafica), salta l'utente corrente, aggrega contatori `deleted`/`errors`/`skipped_self` e registra nell'audit log
 - **Crea Release** (`/admin-portale/crea-release/`) con package zip, riavvio IIS TEST/PROD automatico via task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` e terminale web con preset Django/ACL sull'ambiente selezionato
 </details>
 
@@ -346,8 +355,13 @@ Modulo dedicato all'anagrafica fornitori, scorporato da `anagrafica` per separar
 
 Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT, infrastruttura, software.
 
-- **35+ modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log/Checklist, WorkOrderChecklist, PeriodicVerification, MaintenanceRule, MaintenanceRuleAssetOverride, MaintenanceInterventionTemplate, AssetMeter, AssetMeterHistory, AssetMaintenanceRuleState, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
+- **35+ modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log/Checklist, WorkOrderChecklist, MaintenanceChecklistStep, PeriodicVerification, MaintenanceRule, MaintenanceRuleAssetOverride, MaintenanceInterventionTemplate, AssetMeter, AssetMeterHistory, AssetMaintenanceRuleState, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
 - **Tipi asset**: PC, Portatile, Server, VM, Firewall, Stampante, Dispositivo, Fonia, CNC, Macchina di lavoro, Carroponte, Videosorveglianza, Altro
+- **Numero interno asset** (`internal_number`): campo dedicato al codice fisico/matricola in uso in azienda, visibile come sottotitolo nelle liste (`#TAG · N.xxx`) e nell'header dettaglio. Include la ricerca rapida in lista asset, dispositivi, scadenzario e autocomplete ticket
+- **Pannello manutenzione unico** su `/assets/manutenzione/` (nuovo): hub operativo a 2 colonne con KPI strip a 5 metriche, OdL urgenti/scadenze 30gg, mini-lista 7 giorni e statistiche mese. La sidebar raggruppa "Pannello manutenzione · Centro operativo · Scadenzario · Template · Regole · Contratti · Interventi" sotto un unico padre **Manutenzione**
+- **Scadenzario unificato evoluto** su `/assets/manutenzione/scadenzario/`: KPI strip a 6 valori con colori dinamici, 3 tab (Verifiche · Scadenze amministrative · Contratti) con chip asset, filtri scope e pill stato. Look-ahead 90 giorni raggruppato per settimana ISO
+- **Assegnazione manutentore preventiva** (`WorkOrder.assigned_to`): campo dedicato al tecnico preassegnato; la todo list filtra per utente, non-admin vede solo i propri
+- **Checklist da template** (`MaintenanceChecklistStep`): step pre-compilati per ogni `MaintenanceInterventionTemplate`, copiati automaticamente come `WorkOrderChecklist` alla creazione di un OdL da regola
 - **Inventari asset** su `/assets/lista/`, `/assets/dispositivi/` e `/assets/work-machines/` con tabelle operative allineate sulle colonne comuni **Asset, Stato, Categoria, Responsabile, Collocazione, Produttore, Modello, Seriale, Aggiornato**. I dati specialistici (IP/VLAN, capability macchina, foto, manutenzioni, campi dinamici e note tecniche) restano nella scheda del singolo asset, così le liste rimangono confrontabili e leggere
 - **Inventario IT** su `/assets/dispositivi/` — tabella filtrabile per tipo (Server, PC, Rete, TVCC, Fonia), stato, reparto
 - **Inventario produzione** su `/assets/work-machines/` — tabella con badge disponibilità (Libera/Occupata/Manutenzione), filtro per tipo (CNC/Carroponti/Macchine Utensili), export Excel
@@ -437,6 +451,7 @@ Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`
 - **Certificazione presenza** come tipo applicativo dedicato (persistita come `Altro` con metadato interno)
 - **Sync bidirezionale** con lista SharePoint via Graph API; il pull automatico su pagine operative e' attivo di default (`ASSENZE_SYNC_ON_PAGE_LOAD=1`) e resta throttled dall'intervallo `ASSENZE_SP_PULL_INTERVAL_SECONDS`
 - **Capo reparto** nella richiesta letto dai Reparti di Anagrafica HR, con default sul caporeparto effettivo del dipendente e fallback compatibile verso `capi_reparto`
+- **Inserimento "per conto di"**: Caporeparto e Amministrazione possono creare richieste per altri dipendenti; il Caporeparto è ristretto ai dipendenti del **proprio reparto** (assegnazione da Anagrafica HR, con fallback per area), l'Amministrazione vede tutti. Lo scope è applicato sia nel form sia in fase di submit/API
 - **Regole orario richiesta**: data inizio/fine predefinite sul giorno corrente; permesso nello stesso giorno; ferie a giornata intera `00:00-23:59`
 - **Tipo assenza canonico** `Flessibilità` (allineamento da legacy `Infortunio` via management command idempotente)
 - **Timestamp approvazione** salvato in `assenze.approvazione_datetime` quando il CAR approva una richiesta ferie/permessi
@@ -452,6 +467,7 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 - **Segnalazione rapida** con launcher dedicato `/anomalie-menu` (compat ACL con permessi operativi)
 - **Gestione** su `/gestione-anomalie` con workflow di presa in carico e chiusura
 - **Impostazioni** su `/gestione-anomalie/configurazione` con tab `Ruoli operativi` (sola lettura: catalogo + assegnazioni dall'Anagrafica) e `Accessi`
+- **Mail action senza login** (`/gestione-anomalie/mail-action/<token>/`): il capocommessa/CAR riceve un'email con il riepilogo delle anomalie sull'OP e un link personalizzato che apre la pagina senza login — il token (`secrets.token_urlsafe(32)`) è l'unica autorizzazione. Modelli `AnomaliaMailActionToken` (scadenza configurabile, monouso per azioni dispositive, snapshot anomalie alla creazione, traccia IP/user-agent all'uso) e `AnomaliaActionLog` (log con sorgente `mail_action`/`portal`/`system`). Azioni: `prendi_in_carico` · `approva` · `respingi` · `richiedi_modifica` · `chiudi` (monouso) + `visualizza` (sola lettura, token riusabile). URL esente da `ACLMiddleware`/`SessionIdleTimeoutMiddleware` via `MIDDLEWARE_EXEMPT_PREFIXES`. Service riusabile `send_anomalie_action_email()` + management command `test_mail_action` per test e2e da CLI. Package automazione pronto: `au51_anomalia_creata_mail_action_capocommessa.automation_package.json`
 - **Ruoli operativi da Anagrafica**: il catalogo e le assegnazioni utente↔ruolo provengono dalla fonte unica `anagrafica.RuoloOperativo`/`DipendenteRuoloOperativo` (helper condiviso `core/operational_roles.py`); il modulo non gestisce più ruoli locali, solo le regole di accesso per-ruolo
 - **Accessi granulari**: ACL pagina come prima barriera, poi regole modulo per Capocommessa/CAR (ruoli di sistema risolti dai campi OP), ruoli operativi Anagrafica, ruoli aziendali legacy (`ruoli.id`/`utenti.ruolo_id`) e override singolo utente
 - **Modifica in carico**: `EDIT_ASSIGNED` permette di modificare solo gli OP dove l'utente compare come Capocommessa o CAR/Incaricato; `EDIT_ALL` abilita la modifica globale
@@ -482,10 +498,15 @@ Sistema ticket per richieste interne con capabilities analitiche avanzate.
 
 Lettura e reporting timbrature dal sistema di rilevazione presenze esterno.
 
-- **4 modelli**: OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
+- **5 modelli**: OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue, TimbriUserPermOverride
 - **Report** per periodo, operatore, reparto
-- **Import timbrature** da file esterno con tracking issue
-- **Immagini badge** associate a ogni timbratura per verifica
+- **UI rinnovata** (PATCH UX): KPI card con striscia accent-teal, avatar dipendente a gradient teal, tabella operatori con toggle chevron e contatori colorati, hero operatore con **foto profilo da anagrafica** e dropdown "Report", card record orizzontale a due colonne con immagini fisse 96×72px, storico con sfondo distinto e chevron animato, dark mode via CSS vars, responsive fino a 560px
+- **Index con preview espansa**: layout card a 3 colonne (TIMBRO / FIRMA / SIGLA) con thumbnail 130px, bottoni inline **Copia** (clipboard) e **Scarica** (PNG via `?download=1`) gated per permesso. Ricerca live con debounce 280ms su `q` e `reparto`
+- **Permessi copia/download** ACL v2 (`timbri_copy`, `timbri_download`) con **override per-utente** (`TimbriUserPermOverride`, `granted` boolean) che vince sul ruolo: badge "Forzato ON"/"Forzato OFF" nella tab Permessi delle impostazioni. La view `serve_timbri_image` distingue inline (richiede `timbri_view`) da download forzato (richiede `timbri_download`), audit separato per ogni accesso
+- **Impostazioni** semplificate: tab **Permessi** (toggle per ruolo/azione + override per utente), tab **Operazioni** (export CSV, reset tabella), tab **Log audit** (filtro per azione, badge colorati, ultimi 200 entry). La configurazione SharePoint/Graph è stata spostata fuori dalla pagina impostazioni del modulo
+- **Import da SharePoint** (lista "Registro timbri") via Microsoft Graph dal pulsante "Importa da SharePoint" in `/timbri/impostazioni/?tab=import`: idempotente (dedup per `sharepoint_item_id`), non sovrascrive i record modificati nel portale e aggancia solo i dipendenti presenti in anagrafica (gli altri finiscono in `TimbriImportIssue`). Richiede `GRAPH_SITE_ID` e `GRAPH_LIST_ID_TIMBRI` nel `.env`. Import alternativo da CSV con `manage.py import_timbri_csv` o `manage.py import_timbri_da_share [--tutti]` (`--tutti` rimuove il filtro CNO per importare anche RICEVUTO/RIESAME/MESSA IN LAVORO).
+- **Import immagini timbro** (pulsante "Importa immagini (da libreria)"): gli allegati di lista SharePoint non sono scaricabili in app-only (Graph non li espone, REST `_api/web` rifiuta i token app-only, ACS ritirato). Workaround: un flow **Power Automate** copia gli allegati nella document library `Documenti/TimbriImport` (nome `{sharepoint_item_id}__<nome>.png`), che Graph legge col token app-only; l'import li aggancia ai record in ordine alle varianti TIMBRO/FIRMA/SIGLA. Env opzionali `GRAPH_DRIVE_ID_TIMBRI_IMPORT` e `GRAPH_FOLDER_TIMBRI_IMPORT`.
+- **Immagini badge** associate a ogni timbratura per verifica (storage privato `TIMBRI_PRIVATE_ROOT` sovrascrivibile da `.env`, cifrate at rest)
 - **Registro** con correzione manuale auditata
 </details>
 
@@ -534,6 +555,7 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 - **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
 - **Allegati multipli** (foto, documenti) con upload hardening e **storage privato** (`DIARIO_PREPOSTO_PRIVATE_ROOT`) servito solo via download autenticato `/diario-preposto/allegato/<id>/download/` (no esposizione `/media/` pubblico)
 - **Ispezioni periodiche** in `/diario-preposto/ispezioni/` con template `ChecklistVoce`, registrazioni `ChecklistEsecuzione`/`ChecklistRisposta`, area/macchina/voce e frequenza configurabile nelle impostazioni
+- **Autorizzazioni scrittura** in `/diario-preposto/impostazioni/` (solo admin legacy): chi può creare/modificare/eliminare segnalazioni si seleziona con un widget di ricerca dipendenti (autocomplete su nome/username/email aziendale, API `api_cerca_utenti`); match robusto su username Django/`aliasusername`/email aziendale. Elenco vuoto = aperto a tutti gli autenticati; admin legacy sempre abilitati
 - **Export Excel** testato con filtri correnti (ricerca, preposto) e colonne complete (codice, data, titolo, descrizione, preposto, chi segnala, creato da, numero allegati, `created_at`, `updated_at`)
 - **Export PDF** per singola segnalazione con layout professionale
 - **Follow-up** con azioni correttive e verifica efficacia
@@ -617,6 +639,7 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Import Power Automate** (`.zip`/`.json`) con analisi, remediation, preview, handoff a draft nel designer
 - **Converter integrato** con selettore target table dal catalogo del portale
 - **Test inline**: esegui regola con record reale (ultimi 20) o dati campione, output per azione
+- **Pulsante "Ripeti" nel run log** (`/automazioni/run-log/<id>/`): apre la pagina test della regola con `payload_json` e `old_payload_json` del log originale già precompilati — analogo al "Resubmit" di Power Automate. Caricamento via `?from_log=<id>`, validato server-side
 - **Picker valori smart** per condizioni: `allowed_values` registry + valori distinti DB
 - **Queue admin** con azioni `Stoppa` / `Elimina`, card salute poller, timezone-aware
 - **Schema drift difensivo**: UI resta funzionante anche se migration non ancora applicate (warning leggibili)
@@ -759,6 +782,15 @@ prima del `.env` copiato nella release attiva, cosi un riavvio IIS applica i
 salvataggi del pannello admin. Un pre-commit hook in `tools/git-hooks/` blocca
 commit accidentali di `.env*`, chiavi private e pattern secret.
 
+### Cifratura at rest & GDPR
+
+| Area | Implementazione |
+|---|---|
+| **Cifratura at rest AES-256** | `EncryptedStorageMixin` (Fernet, libreria `cryptography` v44+) applicato a **tutti** gli storage privati: documenti dipendente, immagini timbri/firme, allegati ticket, Diario Preposto, scadenze asset. Formato disco: `b"NCENC1\n" + <Fernet token>`. File già presenti privi del magic prefix restituiti as-is (migrazione trasparente). Generazione chiave: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Attivazione: `DOCUMENT_ENCRYPTION_KEY=<chiave>` in `config/.env` + `python manage.py encrypt_existing_documents --apply` una-tantum |
+| **Retention documenti dipendente** | Campo `DocumentoDipendente.retention_until` (DateField indicizzato), valorizzato automaticamente in `save()` da `created_at + anni_retention` per tipo (default 10 anni: D.Lgs. 81/2008 + Art. 2220 c.c.). Command `cleanup_expired_documents [--apply] [--backfill] [--tipo] [--limit]` con triple-check: `retention_until < oggi` AND dipendente cessato AND `data_cessazione + anni_retention < oggi` |
+| **Storage privati env-overridable** | Tutti i `*_PRIVATE_ROOT` (anagrafica, timbri, tickets, diario_preposto, assets) sono ora sovrascrivibili via env var: in produzione impostare su percorso locale al server con NTFS ACL ristrette all'app pool identity, mai su share SMB |
+| **`media_private` infrastruttura standard** | Cartella aggiunta ai path standard di `Get-EnvPaths`; `setup-environment.ps1` la crea al primo setup; `configure-iis-site.ps1` assegna `Modify` all'AppPool senza creare virtual directory HTTP. Template `web.config` include `<location path="media_private">` con verbi `allowUnlisted="false"`, autenticazione anonima disabilitata e deny esplicito come difesa in profondità |
+
 `ENV/config/.env` e' la sorgente persistente dell'ambiente. Non salvare modifiche
 solo in `ENV/current/django_app/.env`: alla release successiva verrebbero perse.
 Il Release Manager e `deployment/scripts/deploy-release.ps1` confrontano il
@@ -796,6 +828,7 @@ powershell tools\install-git-hooks.ps1
 | Database prod | **SQL Server** via `mssql-django` + `pyodbc 5.2` (driver 18/17/13) |
 | Auth cascata | `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend` |
 | Frontend | **SSR** con Django templates, CSS custom, nessun framework JS |
+| Localizzazione | `it-it`, TZ `Europe/Rome`; formati data canonici **`dd-mm-yyyy`** (date) e **`dd-mm-yyyy HH:mm`** (datetime) via `FORMAT_MODULE_PATH` → [`config/formats/it/formats.py`](django_app/config/formats/it/formats.py) |
 | LLM locale | **Ollama** opzionale via HTTP API (`ai_assistant`, nessuna dipendenza Python aggiuntiva) |
 | Cache | `DatabaseCache` su SQL Server (prod), `LocMemCache` (dev) |
 | Background | Windows Scheduled Tasks (queue processor, mailbox poll, backup) |

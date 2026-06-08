@@ -54,7 +54,7 @@ class Command(BaseCommand):
             if not email:
                 continue
             lines = [
-                f"NOVICROM HUB - I tuoi ticket di oggi ({today:%d/%m/%Y})",
+                f"NOVICROM HUB - I tuoi ticket di oggi ({today:%d-%m-%Y})",
                 "=" * 60,
                 f"Ticket assegnati in scadenza o scaduti ({len(items)}):",
                 "",
@@ -64,10 +64,10 @@ class Command(BaseCommand):
                 tag = "SCADUTO" if days_over > 0 else "OGGI"
                 lines.append(
                     f"  [{tag}] {t.numero_ticket} - {t.titolo} - stato {t.stato} - "
-                    f"prevista {t.data_prevista_risoluzione:%d/%m/%Y}"
+                    f"prevista {t.data_prevista_risoluzione:%d-%m-%Y}"
                 )
             body = "\n".join(lines)
-            subject = f"[Ticket] {len(items)} da gestire oggi - {today:%d/%m/%Y}"
+            subject = f"[Ticket] {len(items)} da gestire oggi - {today:%d-%m-%Y}"
 
             if dry_run:
                 self.stdout.write(self.style.WARNING(f"[DRY-RUN] -> {email} ({len(items)} ticket)"))

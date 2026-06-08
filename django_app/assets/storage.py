@@ -7,8 +7,10 @@ from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import FileSystemStorage
 
+from core.encrypted_storage import EncryptedStorageMixin
 
-class PrivateAssetAdministrativeDeadlineStorage(FileSystemStorage):
+
+class PrivateAssetAdministrativeDeadlineStorage(EncryptedStorageMixin, FileSystemStorage):
     """
     Storage privato per gli allegati dei completamenti scadenze asset.
     I nuovi file vengono salvati in ASSETS_PRIVATE_ROOT e non espongono URL diretti.

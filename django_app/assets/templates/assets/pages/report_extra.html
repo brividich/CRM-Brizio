@@ -1,0 +1,190 @@
+{% extends "assets/base_shell.html" %}
+{% load assets_extras %}
+
+{% block title %}Interventi extra{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.re-page { display:grid; gap:14px; }
+.re-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.re-kpi {
+  padding:14px 16px;
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+}
+.re-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
+.re-kpi-value { margin-top:6px; font-size:var(--fs-display-md); font-weight:800; color:#0f172a; }
+.re-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15,23,42,.05);
+}
+.re-card-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  flex-wrap:wrap;
+}
+.re-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.re-card-body { padding:18px; }
+.re-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.re-filter-sep { color:#cbd5e1; }
+.re-filter-btn {
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#fff;
+  color:#334155;
+  padding:6px 14px;
+  font:inherit;
+  font-size:var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+}
+.re-filter-btn.is-active, .re-filter-btn:hover {
+  background:#eff6ff;
+  border-color:#bfdbfe;
+  color:#1d4ed8;
+}
+.re-table-wrap { overflow:auto; }
+.re-table { width:100%; border-collapse:collapse; }
+.re-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.re-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  vertical-align:top;
+}
+.re-empty { color:#64748b; }
+@media print {
+  .re-filters, .re-card-head a, .re-card-head button { display:none !important; }
+  .re-card { box-shadow:none; border:none; }
+}
+@media (max-width: 1024px) {
+  .re-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .re-kpis { grid-template-columns:1fr 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Interventi extra{% endblock %}
+{% block assets_shell_subtitle %}<p>Workorder di tipo correttivo, sicurezza, taratura e altro: aperti e chiusi negli ultimi 90 giorni.</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ reports_url }}">Tutti i report</a>
+  <a class="btn" href="{{ workorders_url }}">Tutti i workorder</a>
+  <button class="btn" onclick="window.print()">Stampa</button>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="re-page">
+
+  <section class="re-kpis">
+    <article class="re-kpi">
+      <div class="re-kpi-label">Aperti</div>
+      <div class="re-kpi-value">{{ open_count }}</div>
+    </article>
+    <article class="re-kpi">
+      <div class="re-kpi-label">Chiusi (90 gg)</div>
+      <div class="re-kpi-value">{{ done_90d }}</div>
+    </article>
+    <article class="re-kpi">
+      <div class="re-kpi-label">Costo visualizzati</div>
+      <div class="re-kpi-value">{{ total_cost }} €</div>
+    </article>
+  </section>
+
+  <article class="re-card">
+    <div class="re-card-head">
+      <h2>Interventi ({{ workorders|length }})</h2>
+      <div class="re-filters">
+        <a class="re-filter-btn {% if tipo_filter == 'all' %}is-active{% endif %}"
+           href="?scope={{ scope }}&tipo=all&stato={{ stato_filter }}">Tutti i tipi</a>
+        {% for kind in extra_kinds %}
+          <a class="re-filter-btn {% if tipo_filter == kind %}is-active{% endif %}"
+             href="?scope={{ scope }}&tipo={{ kind }}&stato={{ stato_filter }}">{{ kind_labels|dict_get:kind|default:kind }}</a>
+        {% endfor %}
+        <span class="re-filter-sep">|</span>
+        <a class="re-filter-btn {% if stato_filter == 'recent' %}is-active{% endif %}"
+           href="?scope={{ scope }}&tipo={{ tipo_filter }}&stato=recent">Recenti</a>
+        <a class="re-filter-btn {% if stato_filter == 'open' %}is-active{% endif %}"
+           href="?scope={{ scope }}&tipo={{ tipo_filter }}&stato=open">Solo aperti</a>
+        <a class="re-filter-btn {% if stato_filter == 'done' %}is-active{% endif %}"
+           href="?scope={{ scope }}&tipo={{ tipo_filter }}&stato=done">Solo chiusi</a>
+      </div>
+    </div>
+    <div class="re-card-body">
+      <div class="re-table-wrap">
+        <table class="re-table">
+          <thead>
+            <tr>
+              <th>Work order</th>
+              <th>Asset</th>
+              <th>Tipo</th>
+              <th>Stato</th>
+              <th>Aperto il</th>
+              <th>Chiuso il</th>
+              <th>Fornitore</th>
+              <th>Costo</th>
+              <th>Copertura</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for wo in workorders %}
+              <tr>
+                <td><a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }}{% if wo.title %} – {{ wo.title }}{% endif %}</a></td>
+                <td>{{ wo.asset.asset_tag }} – {{ wo.asset.name }}</td>
+                <td>{{ wo.get_kind_display }}</td>
+                <td>
+                  {% if wo.status == 'OPEN' %}
+                    <span class="as-badge as-badge--warn">Aperta</span>
+                  {% elif wo.status == 'DONE' %}
+                    <span class="as-badge as-badge--ok">Chiusa</span>
+                  {% else %}
+                    <span class="as-badge as-badge--muted">{{ wo.get_status_display }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
+                <td>{% if wo.closed_at %}{{ wo.closed_at|date:"d/m/Y" }}{% else %}<span class="re-empty">-</span>{% endif %}</td>
+                <td>{{ wo.supplier|default:"-" }}</td>
+                <td>
+                  {% if wo.resolved_total_cost_eur %}
+                    {{ wo.resolved_total_cost_eur }} €
+                  {% else %}
+                    <span class="re-empty">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if wo.covered_by_contract %}
+                    <span class="as-badge as-badge--info">Coperto</span>
+                  {% else %}
+                    <span class="as-badge as-badge--muted">Scoperto</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="9" class="re-empty">Nessun intervento con il filtro selezionato.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
+</section>
+{% endblock %}

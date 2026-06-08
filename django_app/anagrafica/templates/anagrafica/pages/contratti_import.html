@@ -132,13 +132,13 @@
           {% for r in recenti %}
           <tr>
             <td style="font-family:monospace;font-size:12px;">{{ r.tax_code|default:"—" }}</td>
-            <td style="white-space:nowrap;">{{ r.data_inizio|date:"d/m/Y" }}</td>
-            <td style="white-space:nowrap;">{% if r.data_fine %}{{ r.data_fine|date:"d/m/Y" }}{% else %}<span class="ci-badge ci-badge-ok">in corso</span>{% endif %}</td>
+            <td style="white-space:nowrap;">{{ r.data_inizio|date:"d-m-Y" }}</td>
+            <td style="white-space:nowrap;">{% if r.data_fine %}{{ r.data_fine|date:"d-m-Y" }}{% else %}<span class="ci-badge ci-badge-ok">in corso</span>{% endif %}</td>
             <td>{{ r.get_tipologia_contratto_display|default:"—" }}</td>
             <td>{% if r.codice_livello %}<strong>{{ r.codice_livello }}</strong>{% if r.descrizione_livello %} <span style="font-size:11px;color:#64748b;">{{ r.descrizione_livello }}</span>{% endif %}{% else %}—{% endif %}</td>
             <td style="font-size:12px;">{{ r.qualifica_nome|default:"—" }}</td>
             <td style="font-size:12px;color:#64748b;">{{ r.importato_da.get_full_name|default:r.importato_da|default:"—" }}</td>
-            <td style="font-size:11px;color:#94a3b8;white-space:nowrap;">{{ r.created_at|date:"d/m/Y H:i" }}</td>
+            <td style="font-size:11px;color:#94a3b8;white-space:nowrap;">{{ r.created_at|date:"d-m-Y H:i" }}</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -834,11 +834,11 @@ class TaskForm(forms.ModelForm):
             if start_date and end_date and end_date < start_date:
                 start_date, end_date = end_date, start_date
             if start_date and end_date and start_date != end_date:
-                date_label = f"{start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}"
+                date_label = f"{start_date.strftime('%d-%m-%Y')} - {end_date.strftime('%d-%m-%Y')}"
             elif start_date:
-                date_label = start_date.strftime("%d/%m/%Y")
+                date_label = start_date.strftime("%d-%m-%Y")
             elif end_date:
-                date_label = end_date.strftime("%d/%m/%Y")
+                date_label = end_date.strftime("%d-%m-%Y")
             else:
                 date_label = "senza data"
             chunks.append(f"{conflict.title} ({date_label})")

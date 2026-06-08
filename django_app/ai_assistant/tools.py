@@ -804,18 +804,18 @@ def _target_period(prompt: str) -> tuple[str, datetime, datetime] | None:
     today = timezone.localdate()
     if "domani" in text:
         day = today + timedelta(days=1)
-        label = f"domani ({day.strftime('%d/%m/%Y')})"
+        label = f"domani ({day.strftime('%d-%m-%Y')})"
         start = datetime.combine(day, datetime.min.time())
         return label, start, start + timedelta(days=1)
     if "oggi" in text:
         day = today
-        label = f"oggi ({day.strftime('%d/%m/%Y')})"
+        label = f"oggi ({day.strftime('%d-%m-%Y')})"
         start = datetime.combine(day, datetime.min.time())
         return label, start, start + timedelta(days=1)
     if "settimana" in text:
         start_day = today - timedelta(days=today.weekday())
         end_day = start_day + timedelta(days=7)
-        label = f"questa settimana ({start_day.strftime('%d/%m/%Y')}-{(end_day - timedelta(days=1)).strftime('%d/%m/%Y')})"
+        label = f"questa settimana ({start_day.strftime('%d-%m-%Y')}-{(end_day - timedelta(days=1)).strftime('%d-%m-%Y')})"
         return label, datetime.combine(start_day, datetime.min.time()), datetime.combine(end_day, datetime.min.time())
     if "questo mese" in text or "mese corrente" in text:
         first = today.replace(day=1)
@@ -842,13 +842,13 @@ def _target_date_window(prompt: str) -> tuple[str, date, date] | None:
     today = timezone.localdate()
     if "domani" in text:
         day = today + timedelta(days=1)
-        return f"domani ({day.strftime('%d/%m/%Y')})", day, day
+        return f"domani ({day.strftime('%d-%m-%Y')})", day, day
     if "oggi" in text:
-        return f"oggi ({today.strftime('%d/%m/%Y')})", today, today
+        return f"oggi ({today.strftime('%d-%m-%Y')})", today, today
     if "settimana" in text:
         start_day = today - timedelta(days=today.weekday())
         end_day = start_day + timedelta(days=6)
-        return f"questa settimana ({start_day.strftime('%d/%m/%Y')}-{end_day.strftime('%d/%m/%Y')})", start_day, end_day
+        return f"questa settimana ({start_day.strftime('%d-%m-%Y')}-{end_day.strftime('%d-%m-%Y')})", start_day, end_day
     if "questo mese" in text or "mese corrente" in text:
         first = today.replace(day=1)
         last_day = _cal.monthrange(first.year, first.month)[1]
@@ -867,7 +867,7 @@ def _short_datetime(value) -> str:
     if not value:
         return "N/D"
     try:
-        return timezone.localtime(value).strftime("%d/%m/%Y %H:%M")
+        return timezone.localtime(value).strftime("%d-%m-%Y %H:%M")
     except (AttributeError, ValueError):
         return str(value)
 
@@ -876,7 +876,7 @@ def _short_date(value) -> str:
     if not value:
         return "N/D"
     try:
-        return value.strftime("%d/%m/%Y")
+        return value.strftime("%d-%m-%Y")
     except AttributeError:
         return str(value)
 
@@ -2806,7 +2806,7 @@ def _cross_domain_router_context(prompt: str) -> RuntimeContext:
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - ROUTER CROSS-DOMINIO\n"
-            f"Richiesta trasversale riconosciuta per oggi ({today.strftime('%d/%m/%Y')}).\n"
+            f"Richiesta trasversale riconosciuta per oggi ({today.strftime('%d-%m-%Y')}).\n"
             "Priorita risposta: 1) sicurezza e compliance personale, incluse notizie obbligatorie, procedure e DPI; "
             "2) scadenze operative; 3) ticket urgenti o aperti; 4) task in ritardo o in scadenza. "
             "Usa solo le sezioni live autorizzate qui sotto, cita le fonti tool:* disponibili e segnala chiaramente "

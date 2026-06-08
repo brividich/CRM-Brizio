@@ -311,7 +311,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 
   <div class="af-header">
     <div>
-      <h1 class="af-title">{{ asset.name }} - #{{ asset.asset_tag }}</h1>
+      <h1 class="af-title">{{ asset.name }} - #{{ asset.asset_tag }}{% if asset.internal_number %} &nbsp;<span style="font-size:.7em;font-weight:500;color:#64748b;">(N.{{ asset.internal_number }})</span>{% endif %}</h1>
       <div class="af-sub">
         <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
         <span>{{ sync_text }}</span>
@@ -436,7 +436,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                   </div>
                   {% if event.description %}<div class="af-tl-desc">{{ event.description }}</div>{% endif %}
                   <div class="af-tl-meta">
-                    {% if event.date %}{{ event.date|date:"d/m/Y" }}{% endif %}
+                    {% if event.date %}{{ event.date|date:"d-m-Y" }}{% endif %}
                     {% if event.meta %} | {{ event.meta }}{% endif %}
                   </div>
                 </li>
@@ -475,14 +475,14 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                       <td style="white-space:nowrap;">{{ row.effective_threshold_value }} {{ row.effective_threshold_label|lower }}</td>
                       <td>
                         {% if row.last_execution_date %}
-                          {{ row.last_execution_date|date:"d/m/Y" }}
+                          {{ row.last_execution_date|date:"d-m-Y" }}
                         {% else %}
                           <span style="color:#94a3b8;font-size:11px;">—</span>
                         {% endif %}
                       </td>
                       <td style="white-space:nowrap;">
                         {% if row.due_date %}
-                          {{ row.due_date|date:"d/m/Y" }}
+                          {{ row.due_date|date:"d-m-Y" }}
                         {% else %}
                           <span style="color:#94a3b8;">—</span>
                         {% endif %}
@@ -514,7 +514,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               <tbody>
                 {% for row in maintenance_rows %}
                   <tr>
-                    <td>{% if row.executed_at %}{{ row.executed_at|date:"d/m/Y" }}{% else %}{{ row.created_at|date:"d/m/Y" }}{% endif %}</td>
+                    <td>{% if row.executed_at %}{{ row.executed_at|date:"d-m-Y" }}{% else %}{{ row.created_at|date:"d-m-Y" }}{% endif %}</td>
                     <td>
                       {% if row.source == "TICKET" %}
                         <span style="font-size:11px;font-weight:700;background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;">Ticket</span>
@@ -588,7 +588,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               <tbody>
                 {% for comp in deadline_completion_history %}
                 <tr>
-                  <td style="white-space:nowrap;">{{ comp.completed_on|date:"d/m/Y" }}</td>
+                  <td style="white-space:nowrap;">{{ comp.completed_on|date:"d-m-Y" }}</td>
                   <td>
                     <span class="as-badge as-badge--muted">{{ comp.deadline.get_deadline_type_display }}</span>
                   </td>
@@ -755,7 +755,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                       {% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;
                       {% else %}color:#5b21b6;background:#ede9fe;{% endif %}
                       padding:1px 6px;border-radius:4px;">{{ row.tipo_label }}</span>
-                    {% if row.data %}<span style="font-size:11px;color:#94a3b8;">{{ row.data|date:"d/m/Y" }}</span>{% endif %}
+                    {% if row.data %}<span style="font-size:11px;color:#94a3b8;">{{ row.data|date:"d-m-Y" }}</span>{% endif %}
                   </div>
                   <div style="font-size:12px;color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{{ row.titolo }}</div>
                   {% if row.dettaglio %}<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.dettaglio }}">{{ row.dettaglio }}</div>{% endif %}
@@ -889,8 +889,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     <td>{{ ticket.stato_label }}</td>
                     <td>{{ ticket.priorita_label }}</td>
                     <td>{{ ticket.componente|default:"—" }}</td>
-                    <td>{{ ticket.created_at|date:"d/m/Y" }}</td>
-                    <td>{% if ticket.closed_at %}{{ ticket.closed_at|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{{ ticket.created_at|date:"d-m-Y" }}</td>
+                    <td>{% if ticket.closed_at %}{{ ticket.closed_at|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                   </tr>
                 {% empty %}
                   <tr><td colspan="8" class="af-doc-empty">Nessun ticket per questa macchina.</td></tr>
@@ -922,7 +922,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                   </div>
                   <div class="af-cust-sub">
                     <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
-                    {% if row.verification.next_verification_date %} | prossima {{ row.verification.next_verification_date|date:"d/m/Y" }}{% endif %}
+                    {% if row.verification.next_verification_date %} | prossima {{ row.verification.next_verification_date|date:"d-m-Y" }}{% endif %}
                   </div>
                   {% if row.execution_rows %}
                     <details class="af-pv-history">
@@ -930,7 +930,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                       <ul style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px;">
                         {% for execution in row.execution_rows %}
                           <li>
-                            <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
+                            <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
                             {% if execution.resolution %} - {{ execution.resolution|truncatechars:120 }}{% endif %}
                             {% if execution.cost_eur is not None %} ({{ execution.cost_eur }} EUR){% endif %}
                             {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
@@ -1026,7 +1026,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     <div class="af-cust-sub">
                       {{ row.license.get_category_display }}
                       {% if row.license.vendor %} | {{ row.license.vendor }}{% endif %}
-                      {% if row.license.expiry_date %} | scade {{ row.license.expiry_date|date:"d/m/Y" }}{% endif %}
+                      {% if row.license.expiry_date %} | scade {{ row.license.expiry_date|date:"d-m-Y" }}{% endif %}
                     </div>
                     {% if row.license.assigned_to_display %}
                       <div class="af-cust-sub">
@@ -1209,8 +1209,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 <td>{{ row.category_name|default:"-" }}</td>
                 <td>{{ row.field_label }}</td>
                 <td>{{ row.project_name|default:"-" }}</td>
-                <td>{% if row.start_date %}{{ row.start_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-                <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                <td>{% if row.start_date %}{{ row.start_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
+                <td>{% if row.due_date %}{{ row.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                 <td>{{ row.status }}</td>
                 <td>{{ row.assignee|default:"-" }}</td>
               </tr>
@@ -1252,7 +1252,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 <td>{{ row.field_label }}</td>
                 <td>{{ row.project_name|default:"-" }}</td>
                 <td>{{ row.status }}</td>
-                <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                <td>{% if row.due_date %}{{ row.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                 <td>{{ row.assignee|default:"-" }}</td>
               </tr>
             {% endfor %}

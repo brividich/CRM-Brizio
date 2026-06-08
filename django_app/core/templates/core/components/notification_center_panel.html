@@ -16,7 +16,7 @@
         <div class="notify-center-copy">
           <div class="notify-center-type">{{ n.get_tipo_display }}</div>
           <div class="notify-center-msg">{{ n.messaggio }}</div>
-          <div class="notify-center-time">{{ n.created_at|date:"d/m/Y H:i" }}</div>
+          <div class="notify-center-time">{{ n.created_at|date:"d-m-Y H:i" }}</div>
         </div>
         {% if n.url_azione %}
           <a href="{{ n.url_azione }}" class="notify-center-open">Apri</a>

@@ -4,6 +4,37 @@
 
 {% block extra_head %}
   {% include "core/components/module_settings_styles.html" %}
+  <style>
+    /* Widget autorizzazioni scrittura (selettore dipendenti) */
+    .dp-acl-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; min-height:30px; }
+    .dp-acl-tag {
+      display:inline-flex; align-items:center; gap:6px;
+      background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;
+      border-radius:8px; padding:4px 10px; font-size:12px; font-weight:700;
+    }
+    .dp-acl-tag-remove { cursor:pointer; font-size:13px; line-height:1; color:#1d4ed8; }
+    .dp-acl-tag-remove:hover { color:#dc2626; }
+    .dp-user-search-wrap { position:relative; }
+    .dp-user-dropdown {
+      display:none; position:absolute; z-index:200; top:100%; left:0; right:0;
+      background:#fff; border:1px solid #dbe5ef; border-radius:10px; margin-top:3px;
+      box-shadow:0 8px 24px rgba(15,23,42,.12); max-height:220px; overflow-y:auto;
+    }
+    .dp-user-dropdown.open { display:block; }
+    .dp-user-option { padding:9px 13px; cursor:pointer; font-size:13px; border-bottom:1px solid #f1f5f9; display:flex; flex-direction:column; gap:2px; }
+    .dp-user-option:last-child { border-bottom:none; }
+    .dp-user-option:hover { background:#f0f9ff; }
+    .dp-user-option-name { font-weight:700; color:#0f172a; }
+    .dp-user-option-sub  { font-size:11px; color:#64748b; }
+    .dp-user-option-empty { padding:10px 13px; font-size:12px; color:#94a3b8; }
+    body.theme-dark .dp-acl-tag { background:rgba(29,78,216,.2); color:#93c5fd; border-color:rgba(29,78,216,.4); }
+    body.theme-dark .dp-acl-tag-remove { color:#93c5fd; }
+    body.theme-dark .dp-user-dropdown { background:var(--surface); border-color:var(--border); }
+    body.theme-dark .dp-user-option { border-color:var(--border); }
+    body.theme-dark .dp-user-option:hover { background:var(--hover-bg); }
+    body.theme-dark .dp-user-option-name { color:var(--text); }
+    body.theme-dark .dp-user-option-sub  { color:var(--text-mid); }
+  </style>
 {% endblock %}
 
 {% block content %}
@@ -24,20 +55,16 @@
           <form method="post" class="ms-field-grid">
             {% csrf_token %}
             <div class="ms-field">
-              <label for="acl_scrittura">Utenti autorizzati</label>
-              <textarea id="acl_scrittura" name="acl_scrittura" rows="8" placeholder="uno per riga oppure separati da virgola&#10;es:&#10;mario.rossi&#10;lucia.bianchi@azienda.it">{{ acl_text }}</textarea>
-              <span class="ms-field-help">Gli admin legacy mantengono sempre l'accesso completo anche se l'elenco e vuoto.</span>
-            </div>
-            {% if cfg.acl_scrittura %}
-              <div class="ms-field">
-                <label>Accessi attivi</label>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                  {% for entry in cfg.acl_scrittura %}
-                    <span class="ms-pill" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">{{ entry }}</span>
-                  {% endfor %}
-                </div>
+              <label>Utenti autorizzati</label>
+              <div class="dp-acl-tags" id="dp-acl-tags"></div>
+              <div class="dp-user-search-wrap">
+                <input type="text" id="dp-acl-search"
+                       placeholder="Cerca dipendente per nome o username…" autocomplete="off">
+                <div class="dp-user-dropdown" id="dp-acl-dropdown"></div>
               </div>
-            {% endif %}
+              <input type="hidden" name="acl_scrittura" id="dp-acl-hidden" value="{{ acl_text }}">
+              <span class="ms-field-help">Digita almeno 2 caratteri per cercare. Lascia vuoto = tutti gli utenti autenticati possono scrivere; gli admin legacy mantengono sempre l'accesso completo.</span>
+            </div>
             <div class="ms-field">
               <label for="ispezione_frequenza_giorni">Frequenza ispezioni periodiche</label>
               <input id="ispezione_frequenza_giorni" name="ispezione_frequenza_giorni" type="number" min="1" max="365" value="{{ cfg.ispezione_frequenza_giorni }}">
@@ -54,4 +81,88 @@
       {% include "core/components/module_branding_card.html" %}
     </div>
   </div>
+
+  <script>
+    const DP_API_CERCA = "{% url 'diario_preposto:api_cerca_utenti' %}";
+    // Lista identità autorizzate (username/email account aziendale)
+    let dpAcl = {{ cfg.acl_scrittura|default:"[]"|safe }};
+    if (!Array.isArray(dpAcl)) dpAcl = [];
+
+    const dpTags   = document.getElementById("dp-acl-tags");
+    const dpHidden = document.getElementById("dp-acl-hidden");
+    const dpInput  = document.getElementById("dp-acl-search");
+    const dpDrop   = document.getElementById("dp-acl-dropdown");
+
+    function dpEscape(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function dpRender() {
+      dpTags.innerHTML = dpAcl.map((v, i) =>
+        `<span class="dp-acl-tag">${dpEscape(v)}` +
+        `<span class="dp-acl-tag-remove" data-i="${i}" title="Rimuovi">✕</span></span>`
+      ).join("") || '<span class="ms-field-help">Nessun utente selezionato — accesso aperto a tutti gli autenticati.</span>';
+      dpHidden.value = dpAcl.join("\n");
+      dpTags.querySelectorAll(".dp-acl-tag-remove").forEach(el => {
+        el.addEventListener("click", () => {
+          dpAcl.splice(parseInt(el.dataset.i, 10), 1);
+          dpRender();
+        });
+      });
+    }
+
+    function dpAdd(value) {
+      const v = String(value || "").trim();
+      if (v && !dpAcl.some(x => x.toLowerCase() === v.toLowerCase())) {
+        dpAcl.push(v);
+        dpRender();
+      }
+    }
+
+    let dpTimer = null;
+    dpInput.addEventListener("input", () => {
+      clearTimeout(dpTimer);
+      const q = dpInput.value.trim();
+      if (q.length < 2) { dpDrop.classList.remove("open"); return; }
+      dpTimer = setTimeout(async () => {
+        try {
+          const r = await fetch(`${DP_API_CERCA}?q=${encodeURIComponent(q)}`);
+          const d = await r.json();
+          dpRenderDrop(d.results || []);
+        } catch (e) { dpDrop.classList.remove("open"); }
+      }, 220);
+    });
+
+    function dpRenderDrop(results) {
+      if (!results.length) {
+        dpDrop.innerHTML = '<div class="dp-user-option-empty">Nessun risultato.</div>';
+        dpDrop.classList.add("open");
+        return;
+      }
+      dpDrop.innerHTML = results.map((u, i) =>
+        `<div class="dp-user-option" data-i="${i}">` +
+        `<span class="dp-user-option-name">${dpEscape(u.nome || u.username)}</span>` +
+        `<span class="dp-user-option-sub">${dpEscape(u.username || "")}${u.email ? " · " + dpEscape(u.email) : ""}</span>` +
+        `</div>`
+      ).join("");
+      dpDrop.classList.add("open");
+      dpDrop.querySelectorAll(".dp-user-option").forEach((el, i) => {
+        el.addEventListener("click", () => {
+          const u = results[i];
+          dpAdd(u.username || u.email);   // username = fonte unica; email come fallback
+          dpInput.value = "";
+          dpDrop.classList.remove("open");
+        });
+      });
+    }
+
+    document.addEventListener("click", e => {
+      if (!dpInput.contains(e.target) && !dpDrop.contains(e.target))
+        dpDrop.classList.remove("open");
+    });
+
+    dpRender();
+  </script>
 {% endblock %}

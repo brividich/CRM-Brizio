@@ -847,7 +847,7 @@ def consegna_richiesta(request, pk: int):
         invia_notifica(
             legacy_user_id=richiesta.richiedente_legacy_id,
             tipo="dpi_consegnata",
-            messaggio=f"Il tuo {richiesta.categoria.nome} ({richiesta.numero}) è stato consegnato il {data_consegna.strftime('%d/%m/%Y')}.",
+            messaggio=f"Il tuo {richiesta.categoria.nome} ({richiesta.numero}) è stato consegnato il {data_consegna.strftime('%d-%m-%Y')}.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
     messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")

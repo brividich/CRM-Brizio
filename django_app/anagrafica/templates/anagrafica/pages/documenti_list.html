@@ -109,6 +109,7 @@ body.theme-dark .dl-input { background:var(--surface-alt); border-color:var(--bo
               <th data-col="file" data-col-label="File" data-col-type="text" data-col-sortable="1" data-col-filterable="1">File</th>
               <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
               <th data-col="caricato" data-col-label="Caricato" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Caricato</th>
+              <th data-col="retention" data-col-label="Conservare fino al" data-col-type="date" data-col-sortable="1" title="Data limite GDPR">Scade</th>
               <th style="text-align:right;">Azioni</th>
             </tr>
           </thead>
@@ -122,8 +123,17 @@ body.theme-dark .dl-input { background:var(--surface-alt); border-color:var(--bo
               <td>📄 {{ d.nome_originale }}</td>
               <td style="color:#64748b;font-size:12px;">{{ d.descrizione|default:"—" }}</td>
               <td style="color:#64748b;font-size:12px;white-space:nowrap;" data-sort-value="{{ d.created_at|date:'Y-m-d' }}">
-                {{ d.created_at|date:"d/m/Y" }}
+                {{ d.created_at|date:"d-m-Y" }}
                 {% if d.created_by_display %}<br><span style="color:#94a3b8;">{{ d.created_by_display }}</span>{% endif %}
+              </td>
+              <td style="font-size:12px;white-space:nowrap;" data-sort-value="{{ d.retention_until|date:'Y-m-d'|default:'' }}">
+                {% if d.retention_until %}
+                  <span style="color:{% if d.retention_until < today %}#b91c1c{% elif d.retention_until|date:'Y' < today_plus_1y %}#92400e{% else %}#64748b{% endif %};">
+                    {{ d.retention_until|date:"d-m-Y" }}
+                  </span>
+                {% else %}
+                  <span style="color:#cbd5e1;">—</span>
+                {% endif %}
               </td>
               <td style="text-align:right;white-space:nowrap;">
                 <a href="{% url 'anagrafica:documento_download' d.id %}" class="hr-btn hr-btn-outline hr-btn-sm">⬇ Scarica</a>

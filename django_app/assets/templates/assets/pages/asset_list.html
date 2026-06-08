@@ -522,7 +522,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
               {% for asset in assets %}
                 <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
                   <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
-                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}</div></div></div></td>
+                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div class="cell-main"><div class="cell-title">{{ asset.name }}</div><div class="cell-sub">#{{ asset.asset_tag }}{% if asset.internal_number %} &middot; N.{{ asset.internal_number }}{% endif %}</div></div></div></td>
                   <td data-col="status">{% if asset.status == "IN_USE" %}<span class="st ok">In uso</span>{% elif asset.status == "IN_REPAIR" %}<span class="st er">Critico</span>{% elif asset.status == "IN_STOCK" %}<span class="st id">Inattivo</span>{% else %}<span class="st wg">{{ asset.get_status_display }}</span>{% endif %}</td>
                   <td data-col="category"><div class="cell-main"><div class="cell-title">{{ asset.category_label }}</div><div class="cell-sub">{{ asset.get_asset_type_display }}</div></div></td>
                   <td data-col="assigned">{% if asset.assignment_to %}<div class="cell-main"><div class="cell-title">{{ asset.assignment_to }}</div><div class="cell-sub">{{ asset.assignment_reparto|default:"-" }}</div></div>{% else %}<span class="cell-muted">Non assegnato</span>{% endif %}</td>
@@ -530,7 +530,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
                   <td data-col="manufacturer">{{ asset.manufacturer|default:"-" }}</td>
                   <td data-col="model">{{ asset.model|default:"-" }}</td>
                   <td data-col="serial_number">{{ asset.serial_number|default:"-" }}</td>
-                  <td data-col="last_seen"><span title="{{ asset.updated_at|date:'d/m/Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
+                  <td data-col="last_seen"><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
                   <td class="act-col"><a class="row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
                 </tr>
               {% empty %}

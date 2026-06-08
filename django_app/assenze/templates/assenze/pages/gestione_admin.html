@@ -192,7 +192,7 @@
           </div>
           {% for entry in audit_entries %}
             <div class="ga-log-row">
-              <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+              <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
               <span>{{ entry.utente_display|default:"-" }}</span>
               <span>{{ entry.azione }}</span>
               <span style="color:#64748b;">{{ entry.dettaglio }}</span>

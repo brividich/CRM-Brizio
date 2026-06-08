@@ -164,13 +164,13 @@ body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
             {% if r.consegna and r.consegna.scadenza_calcolata %}
             <span class="dpi-semaforo dpi-semaforo-{{ r.consegna.semaforo_scadenza }}">
               <span class="dpi-semaforo-dot"></span>
-              {{ r.consegna.scadenza_calcolata|date:"d/m/Y" }}
+              {{ r.consegna.scadenza_calcolata|date:"d-m-Y" }}
             </span>
             {% else %}
             <span style="color:#94a3b8;">-</span>
             {% endif %}
           </td>
-          <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+          <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d-m-Y" }}</td>
           <td><a href="{% url 'dpi:gestione_detail' r.pk %}">Gestisci →</a></td>
         </tr>
         {% endfor %}

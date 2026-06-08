@@ -141,7 +141,7 @@ body.theme-dark .dp-empty { color:var(--text-light); }
           <td><a href="{% url 'diario_preposto:dettaglio' s.pk %}">{{ s.titolo|truncatechars:70 }}</a></td>
           <td>{{ s.preposto|default:"-" }}</td>
           <td>{{ s.chi_segnala|default:"-" }}</td>
-          <td style="white-space:nowrap;">{{ s.data_segnalazione|date:"d/m/Y H:i" }}</td>
+          <td style="white-space:nowrap;">{{ s.data_segnalazione|date:"d-m-Y H:i" }}</td>
           <td>
             {% with n=s.allegati.count %}
             {% if n %}

@@ -19,6 +19,7 @@ from .models import (
     AssetMeter,
     AssetMeterHistory,
     AssetSidebarButton,
+    MaintenanceChecklistStep,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -283,6 +284,13 @@ class AssetAdministrativeDeadlineAdmin(admin.ModelAdmin):
     ordering = ("due_date", "asset__name", "title")
 
 
+class MaintenanceChecklistStepInline(admin.TabularInline):
+    model = MaintenanceChecklistStep
+    extra = 1
+    fields = ("step_number", "description")
+    ordering = ("step_number", "id")
+
+
 @admin.register(MaintenanceInterventionTemplate)
 class MaintenanceInterventionTemplateAdmin(admin.ModelAdmin):
     list_display = ("label", "code", "asset_category", "sort_order", "is_active", "updated_at")
@@ -290,6 +298,7 @@ class MaintenanceInterventionTemplateAdmin(admin.ModelAdmin):
     list_select_related = ("asset_category",)
     search_fields = ("label", "code", "description", "asset_category__label")
     ordering = ("sort_order", "label", "id")
+    inlines = [MaintenanceChecklistStepInline]
 
 
 @admin.register(MaintenanceRule)

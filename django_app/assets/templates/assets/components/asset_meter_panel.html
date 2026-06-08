@@ -54,7 +54,7 @@
           <div class="am-label">{{ m.get_meter_type_display }}</div>
           <div class="am-value">{{ m.current_value|floatformat:0 }}</div>
           <div class="am-unit">{{ m.unit_label|default:m.get_meter_type_display }}</div>
-          {% if m.updated_at %}<div class="am-updated">agg. {{ m.updated_at|date:"d/m/Y H:i" }}{% if m.updated_by %} da {{ m.updated_by.get_full_name|default:m.updated_by.username }}{% endif %}</div>{% endif %}
+          {% if m.updated_at %}<div class="am-updated">agg. {{ m.updated_at|date:"d-m-Y H:i" }}{% if m.updated_by %} da {{ m.updated_by.get_full_name|default:m.updated_by.username }}{% endif %}</div>{% endif %}
         </div>
       {% endfor %}
     </div>
@@ -81,7 +81,7 @@
           <tbody>
             {% for h in recent_history %}
               <tr>
-                <td>{{ h.recorded_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ h.recorded_at|date:"d-m-Y H:i" }}</td>
                 <td>{{ h.meter.get_meter_type_display }}</td>
                 <td>{{ h.old_value|floatformat:0 }}</td>
                 <td>{{ h.new_value|floatformat:0 }}</td>

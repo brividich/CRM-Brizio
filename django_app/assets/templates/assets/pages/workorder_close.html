@@ -108,6 +108,20 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
         </div>
 
         <div class="woc-field">
+          <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>
+          {{ form.assigned_to }}
+          {% if form.assigned_to.help_text %}<div class="as-note">{{ form.assigned_to.help_text }}</div>{% endif %}
+          {% if form.assigned_to.errors %}<div class="as-error">{{ form.assigned_to.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.executed_by.id_for_label }}">{{ form.executed_by.label }}</label>
+          {{ form.executed_by }}
+          {% if form.executed_by.help_text %}<div class="as-note">{{ form.executed_by.help_text }}</div>{% endif %}
+          {% if form.executed_by.errors %}<div class="as-error">{{ form.executed_by.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
           <label for="{{ form.intervention_duration_minutes.id_for_label }}">{{ form.intervention_duration_minutes.label }}</label>
           {{ form.intervention_duration_minutes }}
           {% if form.intervention_duration_minutes.errors %}<div class="as-error">{{ form.intervention_duration_minutes.errors }}</div>{% endif %}
@@ -117,26 +131,6 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
           <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
           {{ form.downtime_minutes }}
           {% if form.downtime_minutes.errors %}<div class="as-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field">
-          <label for="{{ form.labor_cost_eur.id_for_label }}">{{ form.labor_cost_eur.label }}</label>
-          {{ form.labor_cost_eur }}
-          {% if form.labor_cost_eur.errors %}<div class="as-error">{{ form.labor_cost_eur.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field">
-          <label for="{{ form.materials_cost_eur.id_for_label }}">{{ form.materials_cost_eur.label }}</label>
-          {{ form.materials_cost_eur }}
-          {% if form.materials_cost_eur.errors %}<div class="as-error">{{ form.materials_cost_eur.errors }}</div>{% endif %}
-        </div>
-
-        <div class="woc-field">
-          <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
-          {{ form.cost_eur }}
-          {% if form.cost_eur.help_text %}<div class="as-note">{{ form.cost_eur.help_text }}</div>{% endif %}
-          <div class="as-note">Dati calcolati automaticamente.</div>
-          {% if form.cost_eur.errors %}<div class="as-error">{{ form.cost_eur.errors }}</div>{% endif %}
         </div>
 
         <div class="woc-field woc-field--full">

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Anomalie OP {{ op_id }} — {{ action_label }}</title>
+  <style>
+    @media (max-width:640px) {
+      .ew { width:100% !important; }
+      .ep { padding-left:20px !important; padding-right:20px !important; }
+      .ecta { display:block !important; margin:0 0 10px 0 !important; text-align:center !important; }
+      .an-row td { display:block !important; width:100% !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
+
+<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">
+  {% if n_tot == 1 %}Anomalia #{{ anomalie_visibili.0.id }} su OP {{ op_id }} — {{ action_label }}{% else %}{{ n_tot }} anomalie su OP {{ op_id }} richiedono la tua attenzione{% endif %}
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="width:100%;border-collapse:collapse;background:#eef3f8;">
+  <tr>
+    <td align="center" style="padding:32px 12px 48px;">
+
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="ew"
+             style="width:640px;max-width:640px;border-collapse:separate;border-spacing:0;
+                    background:#ffffff;border-radius:18px;overflow:hidden;
+                    box-shadow:0 18px 45px rgba(15,23,42,.16);">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="padding:0;background:#002b5c;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td class="ep" style="padding:20px 30px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                    <tr>
+                      <td valign="middle">
+                        <img src="https://costruzioninovicrom.it/wp-content/uploads/2026/05/novicrmhub.png"
+                             width="180" alt="NOVICROM HUB"
+                             style="display:block;width:180px;max-width:180px;height:auto;border:0;">
+                      </td>
+                      <td valign="middle" align="right" style="padding-left:12px;">
+                        <div style="color:#c7d6e8;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:6px;">Gestione Anomalie</div>
+                        <span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 11px;color:#ffffff;font-size:11px;font-weight:700;background:rgba(255,255,255,.08);">
+                          OP {{ op_id }}
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:5px;background:#ff6b00;line-height:5px;font-size:0;">&nbsp;</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- TITOLO -->
+        <tr>
+          <td class="ep" style="padding:28px 34px 6px;background:#ffffff;">
+            <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Richiesta azione</div>
+            <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">
+              {% if n_tot == 1 %}
+                Anomalia #{{ anomalie_visibili.0.id }} — {{ action_label }}
+              {% else %}
+                {{ n_tot }} anomalie su OP {{ op_id }} — {{ action_label }}
+              {% endif %}
+            </h2>
+            {% if op_nominativo %}
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{{ op_nominativo }}</p>
+            {% endif %}
+            <p style="margin:10px 0 0;color:#475569;font-size:15px;line-height:1.6;">
+              Gentile {{ recipient_display }},<br>
+              {% if n_tot == 1 %}
+                è presente <strong>1 anomalia</strong> sull'OP {{ op_id }} che richiede la tua attenzione.
+              {% else %}
+                sono presenti <strong>{{ n_tot }} anomalie</strong> sull'OP {{ op_id }} che richiedono la tua attenzione.
+              {% endif %}
+            </p>
+          </td>
+        </tr>
+
+        <!-- ELENCO ANOMALIE -->
+        <tr>
+          <td class="ep" style="padding:20px 34px 8px;background:#ffffff;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                   style="width:100%;border-collapse:collapse;">
+
+              {% for a in anomalie_visibili %}
+              <tr class="an-row">
+                <td style="padding:0 0 10px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                         style="width:100%;border-collapse:collapse;background:#f8fafc;
+                                border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                    <tr>
+                      <!-- Indicatore priorità laterale -->
+                      <td style="width:6px;background:#1f5c91;border-radius:10px 0 0 10px;">&nbsp;</td>
+                      <td style="padding:14px 16px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                          <tr>
+                            <td>
+                              <div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
+                                Anomalia #{{ a.id }}{% if a.seriale %} &middot; {{ a.seriale }}{% endif %}
+                              </div>
+                              <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
+                                {{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:140 }}
+                              </div>
+                              {% if a.avanzamento %}
+                              <div style="margin-top:6px;">
+                                <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;">
+                                  {{ a.avanzamento }}
+                                </span>
+                              </div>
+                              {% endif %}
+                              {% if a.note_capocommessa %}
+                              <div style="margin-top:8px;font-size:13px;color:#64748b;font-style:italic;">
+                                Note: {{ a.note_capocommessa|truncatechars:200 }}
+                              </div>
+                              {% endif %}
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              {% endfor %}
+
+              {% if troncato %}
+              <tr>
+                <td style="padding:4px 0 10px;">
+                  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;font-size:13px;color:#9a3412;">
+                    Sono mostrate le prime <strong>{{ max_in_email }}</strong> anomalie su <strong>{{ n_tot }}</strong>.
+                    Apri la pagina del portale per vedere l'elenco completo.
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- CTA PRINCIPALE -->
+        <tr>
+          <td class="ep" style="padding:22px 34px 28px;background:#ffffff;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <tr>
+                <td style="border-radius:10px;background:#12395f;">
+                  <a href="{{ action_url }}"
+                     style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;
+                            color:#ffffff;text-decoration:none;border-radius:10px;
+                            background:#12395f;mso-padding-alt:14px 32px;">
+                    {% if action == "visualizza" %}
+                      Visualizza anomali{% if n_tot == 1 %}a{% else %}e{% endif %} sul portale
+                    {% else %}
+                      {{ action_label }} — Apri modulo sul portale
+                    {% endif %}
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:14px 0 0;font-size:12px;color:#94a3b8;word-break:break-all;">
+              Link diretto: <a href="{{ action_url }}" style="color:#1f5c91;text-decoration:none;">{{ action_url }}</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- AVVISO SCADENZA -->
+        {% if expires_at %}
+        <tr>
+          <td class="ep" style="padding:4px 34px 16px;background:#ffffff;">
+            <div style="background:#f1f5f9;border-left:4px solid #94a3b8;border-radius:0 6px 6px 0;padding:10px 14px;font-size:12px;color:#64748b;">
+              Link valido fino a: <strong>{{ expires_at|date:"d/m/Y H:i" }}</strong>.
+              Dopo la scadenza sarà necessario richiedere un nuovo link.
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+
+        <!-- DIVIDER -->
+        <tr>
+          <td style="padding:0 34px;background:#ffffff;">
+            <div style="height:1px;background:#d8e1ec;line-height:1px;font-size:0;">&nbsp;</div>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td class="ep" style="padding:18px 34px 24px;background:#ffffff;">
+            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.55;">
+              Messaggio automatico generato da NOVICROM HUB.<br>
+              Il link è personale e tracciato. Non condividerlo con altri.<br>
+              Se non sei tu il destinatario, ignora questa email.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+
+      <div style="padding:15px 0 0;color:#94a3b8;font-size:11px;text-align:center;">
+        NOVICROM HUB &middot; Portale interno &middot; Email automatica
+      </div>
+
+    </td>
+  </tr>
+</table>
+</body>
+</html>

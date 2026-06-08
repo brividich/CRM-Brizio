@@ -1,19 +1,13 @@
 from __future__ import annotations
 
 import csv
-import io
 import logging
 import os
 import re
-from urllib.parse import unquote, urlparse
-from datetime import datetime
 from pathlib import Path
 
-import requests
-from PIL import Image
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, Prefetch, Q
@@ -22,10 +16,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.audit import log_action
-from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_anagrafica import ensure_anagrafica_schema
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 from core.models import AuditLog
@@ -38,76 +30,14 @@ logger = logging.getLogger(__name__)
 
 _READ_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 _EDIT_ROLE_NAMES = {"admin", "amministrazione"}
-_TIMBRI_IMAGE_MAX_DIM = 1600
+_COPY_ROLE_NAMES = {"admin", "amministrazione", "hr"}
+_DOWNLOAD_ROLE_NAMES = {"admin", "amministrazione", "hr"}
 _TIMBRI_REQUIRED_TABLES = {
     "timbri_operatoretimbri",
     "timbri_registrotimbro",
     "timbri_registrotimbroimmagine",
     "timbri_timbriimportissue",
 }
-_GUID_RE = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
-
-# SEC-PREPROD-02 (M2): host attendibili a cui è consentito inviare il bearer
-# token Graph quando si scaricano immagini referenziate dalla lista SharePoint.
-_GRAPH_TRUSTED_HOSTS = {"graph.microsoft.com"}
-_GRAPH_TRUSTED_HOST_SUFFIXES = (".graph.microsoft.com", ".sharepoint.com")
-
-
-def _is_graph_trusted_host(url: str) -> bool:
-    """True solo se l'URL punta a un host Microsoft Graph/SharePoint via http(s)."""
-    try:
-        parsed = urlparse(str(url or ""))
-    except Exception:
-        return False
-    if parsed.scheme not in ("http", "https"):
-        return False
-    host = (parsed.hostname or "").strip().lower()
-    if not host:
-        return False
-    if host in _GRAPH_TRUSTED_HOSTS:
-        return True
-    return any(host.endswith(suffix) for suffix in _GRAPH_TRUSTED_HOST_SUFFIXES)
-
-TIMBRI_CONFIG_FIELDS = [
-    ("list_id", "List ID SharePoint", "GUID della lista SharePoint 'Registro timbri'."),
-    ("field_operatore_lookup", "Campo operatore lookup", "Nome interno del lookup operatore."),
-    ("field_operatore_label", "Campo operatore label", "Etichetta/nominativo operatore."),
-    ("field_matricola", "Campo matricola", "Matricola operatore."),
-    ("field_reparto", "Campo reparto", "Reparto operatore."),
-    ("field_qualifica", "Campo qualifica", "Qualifica collegata al record."),
-    ("field_codice_timbro", "Campo codice timbro", "Codice o nome timbro."),
-    ("field_data_consegna", "Campo data consegna", "Data consegna timbro."),
-    ("field_data_ritiro", "Campo data ritiro", "Data ritiro / superato."),
-    ("field_note", "Campo note", "Note del registro."),
-    ("field_firma_testo", "Campo firma testo", "Campo testuale firma/note firma."),
-    ("field_attivo", "Campo attivo", "Flag attivo in SharePoint."),
-    ("field_tipo_timbro", "Campo tipo timbro", "Fisico, digitale o fisico e digitale."),
-    ("field_image_1", "Campo immagine 1", "Prima immagine: Timbro."),
-    ("field_image_2", "Campo immagine 2", "Seconda immagine: Firma."),
-    ("field_image_3", "Campo immagine 3", "Terza immagine: Sigla."),
-]
-
-_FIELD_CANDIDATES = {
-    "field_operatore_lookup": ["OperatoreLookupId", "operatorelookupid", "Operatore Lookup"],
-    "field_operatore_label": ["Operatore", "OPERATORE CON...", "OPERATORE CONTATTO", "Nominativo"],
-    "field_matricola": ["Operatore: Matricola", "Matricola", "matricola"],
-    "field_reparto": ["Operatore: Reparto", "Reparto"],
-    "field_qualifica": ["Qualifica"],
-    "field_codice_timbro": ["Timbro", "Codice Timbro"],
-    "field_data_consegna": ["Consegna Timbro", "Data consegna timbro"],
-    "field_data_ritiro": ["Data ritiro timbro", "Data ritiro"],
-    "field_note": ["Note"],
-    "field_firma_testo": ["Firma"],
-    "field_attivo": ["Attivo"],
-    "field_tipo_timbro": ["Tipo timbro"],
-    "field_image_1": ["Timbro digitale", "URL Timbro1", "URL Timbro"],
-    "field_image_2": ["Timbro digitale 2", "URL Timbro2"],
-    "field_image_3": ["Timbro digitale 3", "URL Timbro3"],
-}
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
 
 
 def _legacy_user(request):
@@ -147,6 +77,15 @@ def _can_edit_timbri(request) -> bool:
     return user_can_modulo_action(request, "timbri", "timbri_edit")
 
 
+def _user_timbri_override(user, azione: str):
+    """Ritorna il TimbriUserPermOverride per l'utente e l'azione dati, o None."""
+    try:
+        from .models import TimbriUserPermOverride
+        return TimbriUserPermOverride.objects.filter(user=user, azione=azione).first()
+    except Exception:
+        return None
+
+
 def _can_copy_timbri(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
@@ -155,128 +94,34 @@ def _can_copy_timbri(request) -> bool:
         return False
     if is_legacy_admin(legacy_user):
         return True
-    if _legacy_role_name(legacy_user) in _EDIT_ROLE_NAMES:
+    # user-level override (explicit grant or deny)
+    override = _user_timbri_override(request.user, "timbri_copy")
+    if override is not None:
+        return bool(override.granted)
+    if _legacy_role_name(legacy_user) in _COPY_ROLE_NAMES:
         return True
     return user_can_modulo_action(request, "timbri", "timbri_copy")
 
 
+def _can_download_timbri(request) -> bool:
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = _legacy_user(request)
+    if not legacy_user:
+        return False
+    if is_legacy_admin(legacy_user):
+        return True
+    # user-level override (explicit grant or deny)
+    override = _user_timbri_override(request.user, "timbri_download")
+    if override is not None:
+        return bool(override.granted)
+    if _legacy_role_name(legacy_user) in _DOWNLOAD_ROLE_NAMES:
+        return True
+    return user_can_modulo_action(request, "timbri", "timbri_download")
+
+
 def _can_manage_timbri_config(request) -> bool:
     return _can_edit_timbri(request)
-
-
-def _mapping_env_key(key: str) -> str:
-    return f"TIMBRI_{str(key or '').upper()}"
-
-
-def _graph_runtime_value(*env_keys: str, normalize_list_id: bool = False) -> tuple[str, str]:
-    raw, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
-    if normalize_list_id:
-        raw = _normalize_graph_list_id(raw)
-    if source == "process_env":
-        return raw, "ambiente processo"
-    if source == "dotenv":
-        return raw, ".env"
-    return raw, "non configurato"
-
-
-def _graph_settings() -> dict[str, str]:
-    tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
-    client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
-    client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-    site_id = get_first_env_value("GRAPH_SITE_ID")
-    list_id = _normalize_graph_list_id(get_first_env_value("GRAPH_LIST_ID_TIMBRI"))
-    return {
-        "tenant_id": tenant_id,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "site_id": site_id,
-        "list_id": list_id,
-    }
-
-
-def _graph_config_issue() -> str:
-    gs = _graph_settings()
-    missing = [key for key in ["tenant_id", "client_id", "client_secret", "site_id", "list_id"] if is_placeholder_value(gs.get(key, ""))]
-    if not missing:
-        return ""
-    return "Configurazione Graph timbri incompleta: " + ", ".join(missing)
-
-
-def _graph_token() -> str:
-    issue = _graph_config_issue()
-    if issue:
-        raise RuntimeError(issue)
-    gs = _graph_settings()
-    return acquire_graph_token(gs["tenant_id"], gs["client_id"], gs["client_secret"])
-
-
-def _graph_list_base_url() -> str:
-    gs = _graph_settings()
-    return f"https://graph.microsoft.com/v1.0/sites/{gs['site_id']}/lists/{gs['list_id']}"
-
-
-def _graph_healthcheck() -> tuple[bool, str]:
-    issue = _graph_config_issue()
-    if issue:
-        return False, issue
-    try:
-        response = requests.get(
-            f"{_graph_list_base_url()}/items?expand=fields&$top=1",
-            headers={"Authorization": f"Bearer {_graph_token()}", "Content-Type": "application/json"},
-            timeout=20,
-        )
-        if response.status_code == 200:
-            return True, "Connessione Graph timbri OK."
-        return False, f"Graph timbri {response.status_code}: {response.text[:300]}"
-    except Exception as exc:
-        return False, f"Test Graph timbri fallito: {exc}"
-
-
-def _mapping_value(key: str) -> str:
-    return str(load_env_file_values().get(_mapping_env_key(key), "") or "").strip()
-
-
-def _normalize_graph_list_id(value: str) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    decoded = unquote(text).strip()
-    if decoded.startswith("{") and decoded.endswith("}"):
-        decoded = decoded[1:-1].strip()
-    match = _GUID_RE.search(decoded) or _GUID_RE.search(text)
-    if match:
-        return match.group(1).lower()
-    return decoded
-
-
-def _sharepoint_admin_config() -> dict[str, object]:
-    dotenv_values = load_env_file_values()
-    tenant_id, tenant_source = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
-    client_id, client_source = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
-    secret, secret_source = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-    site_id, site_source = _graph_runtime_value("GRAPH_SITE_ID")
-    list_id, list_source = _graph_runtime_value("GRAPH_LIST_ID_TIMBRI", normalize_list_id=True)
-    return {
-        "tenant_id": str(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID") or "").strip(),
-        "client_id": str(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID") or "").strip(),
-        "site_id": str(dotenv_values.get("GRAPH_SITE_ID") or "").strip(),
-        "list_id": _normalize_graph_list_id(str(dotenv_values.get("GRAPH_LIST_ID_TIMBRI") or "").strip()),
-        "client_secret_configured": bool(str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()),
-        "runtime_ready": not _graph_config_issue(),
-        "runtime_sources": {
-            "tenant_id": tenant_source,
-            "client_id": client_source,
-            "client_secret": secret_source,
-            "site_id": site_source,
-            "list_id": list_source,
-        },
-        "env_override_active": any(
-            src == "ambiente processo"
-            for src in [tenant_source, client_source, secret_source, site_source, list_source]
-        ),
-        "sync_issue": _graph_config_issue(),
-        "mapping": {key: _mapping_value(key) for key, _label, _help in TIMBRI_CONFIG_FIELDS if key.startswith("field_")},
-    }
 
 
 def _normalized_key(value: str) -> str:
@@ -349,29 +194,6 @@ def _merge_duplicate_legacy_rows(rows: list[dict]) -> list[dict]:
     return ordered
 
 
-def _resolve_field_name(fields: dict, configured_value: str, candidates: list[str]) -> str:
-    if configured_value:
-        if configured_value in fields:
-            return configured_value
-        norm = _normalized_key(configured_value)
-        for key in fields.keys():
-            if _normalized_key(key) == norm:
-                return str(key)
-    normalized_map = {_normalized_key(key): str(key) for key in fields.keys()}
-    for candidate in candidates:
-        found = normalized_map.get(_normalized_key(candidate))
-        if found:
-            return found
-    return ""
-
-
-def _extract_field_value(fields: dict, mapping_key: str):
-    field_name = _resolve_field_name(fields, _mapping_value(mapping_key), _FIELD_CANDIDATES.get(mapping_key, []))
-    if not field_name:
-        return None
-    return fields.get(field_name)
-
-
 def _field_to_text(value) -> str:
     if value is None:
         return ""
@@ -384,41 +206,6 @@ def _field_to_text(value) -> str:
     if isinstance(value, list):
         return " ".join([str(x).strip() for x in value if str(x or "").strip()])
     return str(value).strip()
-
-
-def _field_to_bool(value) -> bool:
-    if isinstance(value, bool):
-        return value
-    text = _field_to_text(value).lower()
-    return text in {"1", "true", "yes", "si", "s", "x"}
-
-
-def _field_to_date(value):
-    text = _field_to_text(value)
-    if not text:
-        return None
-    for fmt in ["%Y-%m-%d", "%d/%m/%Y"]:
-        try:
-            return datetime.strptime(text[:10], fmt).date()
-        except Exception:
-            continue
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
-    except Exception:
-        return None
-
-
-def _tipo_from_text(raw_value: str) -> str:
-    text = _field_to_text(raw_value).lower()
-    if not text:
-        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
-    if "fisico" in text and "digit" in text:
-        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
-    if "digit" in text:
-        return RegistroTimbro.TIPO_DIGITALE
-    if "fisico" in text:
-        return RegistroTimbro.TIPO_FISICO
-    return RegistroTimbro.TIPO_ALTRO
 
 
 def _legacy_employee_rows(*, legacy_id: int | None = None) -> list[dict]:
@@ -597,24 +384,6 @@ def _employee_row_payload(row: dict, bridge: OperatoreTimbri | None = None) -> d
     }
 
 
-def _resolve_operatore(lookup_value, label_value, matricola_value, reparto_value, ruolo_value) -> OperatoreTimbri:
-    row = _find_legacy_employee(
-        lookup_value=lookup_value,
-        label_value=label_value,
-        matricola_value=matricola_value,
-    )
-    if row is None:
-        reparto = _field_to_text(reparto_value)
-        ruolo = _field_to_text(ruolo_value)
-        raise LookupError(
-            "Operatore non trovato nell'anagrafica centrale"
-            + (f" (matricola {matricola_value})" if _field_to_text(matricola_value) else "")
-            + (f" [reparto {reparto}]" if reparto else "")
-            + (f" [ruolo {ruolo}]" if ruolo else "")
-        )
-    return _ensure_legacy_operatore(row)
-
-
 def _categorize_records(records: list[RegistroTimbro]) -> tuple[list, list, list]:
     """Split records into (timbri, firme, sigle) based on tipo_timbro."""
     timbri, firme, sigle = [], [], []
@@ -636,148 +405,6 @@ def _attach_image_maps(registri: list[RegistroTimbro]) -> None:
             {"key": RegistroTimbroImmagine.VARIANTE_FIRMA, "label": "Firma", "image": registro.image_map.get(RegistroTimbroImmagine.VARIANTE_FIRMA)},
             {"key": RegistroTimbroImmagine.VARIANTE_SIGLA, "label": "Sigla", "image": registro.image_map.get(RegistroTimbroImmagine.VARIANTE_SIGLA)},
         ]
-
-
-def _normalize_png(content: bytes) -> bytes:
-    image = Image.open(io.BytesIO(content))
-    if image.mode not in {"RGB", "RGBA"}:
-        image = image.convert("RGBA" if "A" in image.mode else "RGB")
-    if max(image.size or (0, 0)) > _TIMBRI_IMAGE_MAX_DIM:
-        image.thumbnail((_TIMBRI_IMAGE_MAX_DIM, _TIMBRI_IMAGE_MAX_DIM))
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-def _extract_image_url(value) -> str:
-    if not value:
-        return ""
-    if isinstance(value, dict):
-        for key in ["url", "serverUrl", "serverRelativeUrl", "webUrl", "fileUrl"]:
-            raw = value.get(key)
-            if raw:
-                return str(raw).strip()
-        for key in ["value", "Value"]:
-            nested = value.get(key)
-            if nested:
-                return _extract_image_url(nested)
-        return ""
-    text = _field_to_text(value)
-    if text.startswith("http://") or text.startswith("https://"):
-        return text
-    return ""
-
-
-def _download_image(url: str) -> bytes:
-    if not url:
-        raise RuntimeError("URL immagine mancante")
-    # SEC-PREPROD-02 (M2): non inviare mai il token Graph — né scaricare
-    # contenuti — verso host fuori dall'allowlist Microsoft Graph/SharePoint.
-    if not _is_graph_trusted_host(url):
-        raise RuntimeError("URL immagine non attendibile: host non in allowlist Graph/SharePoint.")
-    token = None
-    try:
-        token = _graph_token()
-    except Exception:
-        token = None
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    response = requests.get(url, headers=headers, timeout=30)
-    if response.status_code == 401 and headers:
-        response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    return _normalize_png(response.content)
-
-
-def _save_remote_variant(registro: RegistroTimbro, variante: str, raw_value) -> bool:
-    image_url = _extract_image_url(raw_value)
-    if not image_url:
-        return False
-    existing = RegistroTimbroImmagine.objects.filter(registro=registro, variante=variante).first()
-    if existing and existing.source_url == image_url and existing.image:
-        return False
-    content = _download_image(image_url)
-    uploaded = ContentFile(content, name=f"{variante.lower()}_{registro.pk}.png")
-    image_obj = save_variant_image(registro=registro, variante=variante, uploaded_file=uploaded)
-    image_obj.source_url = image_url[:1000]
-    image_obj.save(update_fields=["source_url", "updated_at"])
-    return True
-
-
-def _graph_list_items() -> list[dict]:
-    token = _graph_token()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    next_url = f"{_graph_list_base_url()}/items?expand=fields&$top=200"
-    items: list[dict] = []
-    iterations = 0
-    while next_url and iterations < 20:
-        response = requests.get(next_url, headers=headers, timeout=30)
-        response.raise_for_status()
-        payload = response.json() if response.text else {}
-        items.extend(list(payload.get("value") or []))
-        next_url = str(payload.get("@odata.nextLink") or "").strip()
-        iterations += 1
-    return items
-
-
-def _import_sharepoint_records(request) -> dict[str, int]:
-    summary = {"created": 0, "updated": 0, "skipped": 0, "failed": 0, "images": 0}
-    now = timezone.now()
-    items = _graph_list_items()
-    for item in items:
-        fields = item.get("fields") if isinstance(item, dict) else {}
-        if not isinstance(fields, dict):
-            summary["failed"] += 1
-            continue
-        sharepoint_item_id = str(item.get("id") or "").strip()
-        try:
-            operatore = _resolve_operatore(
-                _extract_field_value(fields, "field_operatore_lookup"),
-                _extract_field_value(fields, "field_operatore_label"),
-                _extract_field_value(fields, "field_matricola"),
-                _extract_field_value(fields, "field_reparto"),
-                _extract_field_value(fields, "field_qualifica"),
-            )
-            existing = RegistroTimbro.objects.filter(sharepoint_item_id=sharepoint_item_id).order_by("-id").first()
-            if existing and existing.edited_in_portal:
-                summary["skipped"] += 1
-                continue
-
-            registro = existing or RegistroTimbro(operatore=operatore, sharepoint_item_id=sharepoint_item_id)
-            registro.operatore = operatore
-            registro.codice_timbro = _field_to_text(_extract_field_value(fields, "field_codice_timbro"))[:120]
-            registro.qualifica = _field_to_text(_extract_field_value(fields, "field_qualifica"))[:200]
-            registro.tipo_timbro = _tipo_from_text(_extract_field_value(fields, "field_tipo_timbro"))
-            registro.data_consegna = _field_to_date(_extract_field_value(fields, "field_data_consegna"))
-            registro.data_ritiro = _field_to_date(_extract_field_value(fields, "field_data_ritiro"))
-            registro.note = _field_to_text(_extract_field_value(fields, "field_note"))
-            registro.firma_testo = _field_to_text(_extract_field_value(fields, "field_firma_testo"))
-            attivo_raw = _extract_field_value(fields, "field_attivo")
-            registro.is_attivo = _field_to_bool(attivo_raw) if attivo_raw is not None else not bool(registro.data_ritiro)
-            registro.is_archived = not registro.is_attivo and bool(registro.data_ritiro)
-            registro.last_import_at = now
-            if not existing:
-                registro.imported_at = now
-            registro.edited_in_portal = False
-            registro.save()
-
-            for variante, key in [
-                (RegistroTimbroImmagine.VARIANTE_TIMBRO, "field_image_1"),
-                (RegistroTimbroImmagine.VARIANTE_FIRMA, "field_image_2"),
-                (RegistroTimbroImmagine.VARIANTE_SIGLA, "field_image_3"),
-            ]:
-                try:
-                    if _save_remote_variant(registro, variante, _extract_field_value(fields, key)):
-                        summary["images"] += 1
-                except Exception:
-                    logger.exception("[timbri] download immagine fallito item=%s variante=%s", sharepoint_item_id, variante)
-
-            summary["updated" if existing else "created"] += 1
-        except Exception:
-            summary["failed"] += 1
-            logger.exception("[timbri] import item failed id=%s", sharepoint_item_id)
-
-    log_action(request, "timbri_import_sharepoint", "timbri", summary)
-    return summary
 
 
 def _forbidden():
@@ -832,6 +459,7 @@ def _base_context(request, **extra):
         "username": display_name,
         "can_edit_timbri": _can_edit_timbri(request),
         "can_copy_timbri": _can_copy_timbri(request),
+        "can_download_timbri": _can_download_timbri(request),
         "can_manage_timbri_config": _can_manage_timbri_config(request),
         **get_module_branding_context("timbri", fallback_label="Timbri"),
     }
@@ -1152,6 +780,15 @@ def operatore_detail_by_legacy(request, legacy_id: int):
     hist_timbri, hist_firme, hist_sigle = _categorize_records(historical_records)
     legacy_id_int = int(row.get("id") or 0)
 
+    from anagrafica.models import DipendenteAnagraficaCivile
+    civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id_int).first()
+    foto_url = ""
+    if civile and civile.foto:
+        try:
+            foto_url = civile.foto.url
+        except (OSError, ValueError):
+            foto_url = ""
+
     return render(
         request,
         "timbri/pages/operatore_detail.html",
@@ -1162,11 +799,14 @@ def operatore_detail_by_legacy(request, legacy_id: int):
             employee={
                 "legacy_id": legacy_id_int,
                 "full_name": _legacy_full_name(row),
+                "nome": _field_to_text(row.get("nome")),
+                "cognome": _field_to_text(row.get("cognome")),
                 "matricola": _field_to_text(row.get("matricola")),
                 "reparto": _field_to_text(row.get("reparto")),
                 "ruolo": _legacy_role_value(row),
                 "email_notifica": _field_to_text(row.get("email_notifica")),
                 "source_label": "anagrafica centrale",
+                "foto_url": foto_url,
             },
             is_central_profile=True,
             active_records=active_records,
@@ -1359,13 +999,74 @@ def registro_edit(request, record_id: int):
     )
 
 
+def _permessi_timbri_context() -> dict:
+    """Legge i permessi ACL v2 correnti per copia/download timbri, inclusi override utente."""
+    try:
+        from core.legacy_models import Permesso, Ruolo
+        from .models import TimbriUserPermOverride
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        ruoli = list(Ruolo.objects.order_by("nome"))
+        permessi_copy = {
+            int(p.ruolo_id): p
+            for p in Permesso.objects.filter(modulo="timbri", azione="timbri_copy")
+        }
+        permessi_download = {
+            int(p.ruolo_id): p
+            for p in Permesso.objects.filter(modulo="timbri", azione="timbri_download")
+        }
+        rows = []
+        for ruolo in ruoli:
+            rid = int(ruolo.id)
+            pc = permessi_copy.get(rid)
+            pd = permessi_download.get(rid)
+            rows.append({
+                "ruolo_id": rid,
+                "ruolo_nome": ruolo.nome,
+                "can_copy": bool(pc and pc.can_view),
+                "can_download": bool(pd and pd.can_view),
+            })
+
+        # Override per-utente
+        overrides = list(
+            TimbriUserPermOverride.objects.select_related("user").order_by("user__username", "azione")
+        )
+        # Raggruppa per user: {user_id: {"user": ..., "copy": bool|None, "download": bool|None}}
+        user_override_map: dict[int, dict] = {}
+        for ov in overrides:
+            uid = int(ov.user_id)
+            if uid not in user_override_map:
+                user_override_map[uid] = {"user": ov.user, "copy": None, "download": None}
+            if ov.azione == TimbriUserPermOverride.AZIONE_COPY:
+                user_override_map[uid]["copy"] = ov.granted
+            elif ov.azione == TimbriUserPermOverride.AZIONE_DOWNLOAD:
+                user_override_map[uid]["download"] = ov.granted
+        user_override_rows = list(user_override_map.values())
+
+        # Tutti gli utenti attivi (per la select di aggiunta)
+        all_users = list(
+            User.objects.filter(is_active=True).order_by("username").values("id", "username", "first_name", "last_name")
+        )
+        overridden_user_ids = set(user_override_map.keys())
+
+        return {
+            "permessi_rows": rows,
+            "user_override_rows": user_override_rows,
+            "all_users": all_users,
+            "overridden_user_ids": overridden_user_ids,
+        }
+    except Exception:
+        return {"permessi_rows": [], "user_override_rows": [], "all_users": [], "overridden_user_ids": set()}
+
+
 @login_required
 def configurazione_page(request):
     if not _can_manage_timbri_config(request):
         return _forbidden()
 
     schema_issue = _timbri_schema_issue()
-    tab = str(request.GET.get("tab") or "config").strip() or "config"
+    tab = str(request.GET.get("tab") or "operazioni").strip() or "operazioni"
     if request.method == "POST":
         action = str(request.POST.get("action") or "").strip()
         redirect_url = f"{reverse('timbri:configurazione')}?tab={tab}"
@@ -1378,43 +1079,88 @@ def configurazione_page(request):
         )
         if branding_response is not None:
             return branding_response
-        if action == "save_sharepoint_config":
+
+        if action == "save_permessi":
             try:
-                updates: dict[str, str] = {}
-                for field_name, _label, _help in TIMBRI_CONFIG_FIELDS:
-                    value = str(request.POST.get(field_name) or "").strip()[:1000]
-                    if field_name == "list_id":
-                        value = _normalize_graph_list_id(value)
-                        updates["GRAPH_LIST_ID_TIMBRI"] = value
-                    else:
-                        updates[_mapping_env_key(field_name)] = value
-                update_env_file_values(updates)
-                messages.success(request, "Configurazione timbri aggiornata.")
-                log_action(request, "timbri_config_save", "timbri", {"fields": [x[0] for x in TIMBRI_CONFIG_FIELDS]})
+                from core.legacy_models import Permesso, Ruolo
+                ruoli = list(Ruolo.objects.all())
+                azioni = ["timbri_copy", "timbri_download"]
+                for ruolo in ruoli:
+                    rid = int(ruolo.id)
+                    for azione in azioni:
+                        field_key = f"perm_{azione}_{rid}"
+                        granted = request.POST.get(field_key) == "1"
+                        row = Permesso.objects.filter(ruolo_id=rid, modulo="timbri", azione=azione).order_by("-id").first()
+                        fields = {
+                            "consentito": 1 if granted else 0,
+                            "can_view": 1 if granted else 0,
+                            "can_edit": 1 if granted else 0,
+                            "can_delete": 0,
+                            "can_approve": 0,
+                        }
+                        if row is None:
+                            Permesso.objects.create(ruolo_id=rid, modulo="timbri", azione=azione, **fields)
+                        else:
+                            updates = []
+                            for f, v in fields.items():
+                                if getattr(row, f, None) != v:
+                                    setattr(row, f, v)
+                                    updates.append(f)
+                            if updates:
+                                row.save(update_fields=updates)
+                log_action(request, "timbri_permessi_save", "timbri", {"azioni": azioni})
+                messages.success(request, "Permessi copia/download aggiornati.")
             except Exception as exc:
-                messages.error(request, f"Errore scrittura .env: {exc}")
-            return redirect(redirect_url)
-        if action == "test_sharepoint_config":
-            ok, message = _graph_healthcheck()
-            if ok:
-                messages.success(request, message)
-            else:
-                messages.error(request, message)
-            return redirect(redirect_url)
-        if action == "import_sharepoint":
-            if schema_issue:
-                messages.error(request, schema_issue)
-                return redirect(redirect_url)
+                logger.exception("[timbri] salvataggio permessi fallito")
+                messages.error(request, f"Errore salvataggio permessi: {exc}")
+            return redirect(f"{reverse('timbri:configurazione')}?tab=permessi")
+
+        if action == "save_user_override":
             try:
-                result = _import_sharepoint_records(request)
-                messages.success(
-                    request,
-                    f"Import completato. Creati={result['created']} Aggiornati={result['updated']} Skippati={result['skipped']} Falliti={result['failed']} Immagini={result['images']}",
-                )
+                from .models import TimbriUserPermOverride
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                user_id = int(request.POST.get("user_id") or 0)
+                target_user = User.objects.filter(pk=user_id).first()
+                if not target_user:
+                    messages.error(request, "Utente non trovato.")
+                else:
+                    for azione in [TimbriUserPermOverride.AZIONE_COPY, TimbriUserPermOverride.AZIONE_DOWNLOAD]:
+                        field_key = f"user_perm_{azione}"
+                        val = request.POST.get(field_key)
+                        if val == "grant":
+                            TimbriUserPermOverride.objects.update_or_create(
+                                user=target_user, azione=azione, defaults={"granted": True}
+                            )
+                        elif val == "deny":
+                            TimbriUserPermOverride.objects.update_or_create(
+                                user=target_user, azione=azione, defaults={"granted": False}
+                            )
+                        elif val == "remove":
+                            TimbriUserPermOverride.objects.filter(user=target_user, azione=azione).delete()
+                    log_action(request, "timbri_user_override_save", "timbri", {"target_user": target_user.username})
+                    messages.success(request, f"Override utente {target_user.username} aggiornato.")
             except Exception as exc:
-                logger.exception("[timbri] import sharepoint fallito")
-                messages.error(request, f"Import SharePoint fallito: {exc}")
-            return redirect(f"{reverse('timbri:configurazione')}?tab=import")
+                logger.exception("[timbri] salvataggio override utente fallito")
+                messages.error(request, f"Errore override utente: {exc}")
+            return redirect(f"{reverse('timbri:configurazione')}?tab=permessi")
+
+        if action == "delete_user_override":
+            try:
+                from .models import TimbriUserPermOverride
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                user_id = int(request.POST.get("user_id") or 0)
+                target_user = User.objects.filter(pk=user_id).first()
+                if target_user:
+                    deleted, _ = TimbriUserPermOverride.objects.filter(user=target_user).delete()
+                    log_action(request, "timbri_user_override_delete", "timbri", {"target_user": target_user.username, "deleted": deleted})
+                    messages.success(request, f"Override per {target_user.username} rimosso.")
+            except Exception as exc:
+                logger.exception("[timbri] eliminazione override utente fallita")
+                messages.error(request, f"Errore rimozione override: {exc}")
+            return redirect(f"{reverse('timbri:configurazione')}?tab=permessi")
+
         if action == "cleanup_orphans":
             if schema_issue:
                 messages.error(request, schema_issue)
@@ -1435,6 +1181,7 @@ def configurazione_page(request):
                 logger.exception("[timbri] bonifica orfani fallita")
                 messages.error(request, f"Bonifica operatori orfani fallita: {exc}")
             return redirect(redirect_url)
+
         if action == "reset_table":
             if schema_issue:
                 messages.error(request, schema_issue)
@@ -1453,20 +1200,19 @@ def configurazione_page(request):
             except Exception as exc:
                 logger.exception("[timbri] reset tabella fallito")
                 messages.error(request, f"Reset tabella timbri fallito: {exc}")
-            return redirect(f"{reverse('timbri:configurazione')}?tab=import")
+            return redirect(redirect_url)
 
-    audit_entries = AuditLog.objects.filter(modulo="timbri").order_by("-created_at")[:100]
-    sharepoint_config = _sharepoint_admin_config()
-    mapping = dict(sharepoint_config.get("mapping") or {})
-    config_rows = [
-        {
-            "name": field_name,
-            "label": field_label,
-            "help": field_help,
-            "value": mapping.get(field_name, "") if field_name.startswith("field_") else sharepoint_config.get(field_name, ""),
-        }
-        for field_name, field_label, field_help in TIMBRI_CONFIG_FIELDS
-    ]
+    log_filter = str(request.GET.get("log_action") or "").strip()
+    audit_qs = AuditLog.objects.filter(modulo="timbri").order_by("-created_at")
+    if log_filter:
+        audit_qs = audit_qs.filter(azione=log_filter)
+    audit_entries = list(audit_qs[:200])
+    audit_actions = list(
+        AuditLog.objects.filter(modulo="timbri")
+        .values_list("azione", flat=True)
+        .distinct()
+        .order_by("azione")
+    )
     return render(
         request,
         "timbri/pages/configurazione.html",
@@ -1474,15 +1220,16 @@ def configurazione_page(request):
             request,
             current="timbri:configurazione",
             tab=tab,
-            sharepoint_admin_config=sharepoint_config,
-            config_rows=config_rows,
             audit_entries=audit_entries,
+            audit_actions=audit_actions,
+            log_filter=log_filter,
             schema_issue=schema_issue,
             local_stats={
                 "linked_anagrafica": 0 if schema_issue else OperatoreTimbri.objects.filter(legacy_anagrafica_id__isnull=False).count(),
                 "registri": 0 if schema_issue else RegistroTimbro.objects.count(),
                 "orphan_operatori": 0 if schema_issue else OperatoreTimbri.objects.filter(legacy_anagrafica_id__isnull=True).count(),
             },
+            **_permessi_timbri_context(),
         ),
     )
 
@@ -1548,43 +1295,52 @@ def export_csv(request):
 def serve_timbri_image(request, image_id: int):
     """Serve un'immagine timbro/firma verificando i permessi ACL.
     I file sono in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
+    ?download=1  → forza Content-Disposition attachment (richiede timbri_download).
+    Senza parametro → inline (richiede timbri_view).
     """
-    if not _can_view_timbri(request):
+    as_download = request.GET.get("download") == "1"
+
+    if as_download:
+        can_access = _can_download_timbri(request)
+        denied_reason = "download_not_allowed"
+    else:
+        can_access = _can_view_timbri(request)
+        denied_reason = "permission_denied"
+
+    if not can_access:
         log_action(
             request,
-            "download_timbri_image",
+            "timbri_image_denied",
             "timbri",
-            {
-                "image_id": int(image_id),
-                "esito": "denied",
-                "motivo": "permission_denied",
-            },
+            {"image_id": int(image_id), "tipo": "download" if as_download else "view", "motivo": denied_reason},
         )
         return HttpResponseForbidden("Accesso non autorizzato.")
+
     img = get_object_or_404(RegistroTimbroImmagine, pk=image_id)
     storage = img.image.storage
     if not img.image or not img.image.name or not storage.exists(img.image.name):
         log_action(
             request,
-            "download_timbri_image",
+            "timbri_image_not_found",
             "timbri",
-            {
-                "image_id": img.id,
-                "registro_id": getattr(img, "registro_id", None),
-                "esito": "not_found",
-            },
+            {"image_id": img.id, "registro_id": getattr(img, "registro_id", None)},
         )
         return HttpResponse("Immagine non trovata.", status=404)
+
     ext = Path(img.image.name).suffix.lower()
     content_type = "image/png" if ext == ".png" else "image/jpeg" if ext in {".jpg", ".jpeg"} else "application/octet-stream"
     log_action(
         request,
-        "download_timbri_image",
+        "timbri_image_download" if as_download else "timbri_image_view",
         "timbri",
         {
             "image_id": img.id,
             "registro_id": getattr(img, "registro_id", None),
-            "esito": "success",
+            "variante": img.variante,
         },
     )
-    return FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)
+    response = FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)
+    if as_download:
+        safe_name = img.original_filename or f"timbro_{img.id}{ext}"
+        response["Content-Disposition"] = f'attachment; filename="{safe_name}"'
+    return response

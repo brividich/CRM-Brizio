@@ -80,7 +80,7 @@
         <td>{{ item.display_part_number }}</td>
         <td><span class="badge{% if item.is_finita or item.is_pronta_produzione %} ok{% elif item.is_in_ritardo %} danger{% endif %}">{{ item.get_stato_display }}</span></td>
         <td>{{ item.get_disponibilita_stato_display }}</td>
-        <td>{{ item.data_consegna_prevista|date:"d/m/Y"|default:"-" }}</td>
+        <td>{{ item.data_consegna_prevista|date:"d-m-Y"|default:"-" }}</td>
         <td>{% if item.kickoff_link_count %}<span class="badge info">{{ item.kickoff_link_count }}</span>{% else %}-{% endif %}</td>
         <td>{{ item.task_count }}</td>
       </tr>

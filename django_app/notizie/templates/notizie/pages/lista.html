@@ -117,7 +117,7 @@ body.theme-dark .badge-non_letto { background:var(--surface-alt); color:var(--te
       </div>
       <div style="font-size:.82rem;color:var(--text-secondary,#64748b);">
         Versione {{ n.versione }}
-        {% if n.pubblicato_il %} · {{ n.pubblicato_il|date:"d/m/Y" }}{% endif %}
+        {% if n.pubblicato_il %} · {{ n.pubblicato_il|date:"d-m-Y" }}{% endif %}
       </div>
     </div>
     <div>

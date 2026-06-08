@@ -106,7 +106,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
     <div>
       <div class="pr-camp-title">{{ campaign.name }}</div>
       <div class="pr-camp-meta">
-        {{ campaign.start_date|date:"d/m/Y" }} → {{ campaign.due_date|date:"d/m/Y" }}
+        {{ campaign.start_date|date:"d-m-Y" }} → {{ campaign.due_date|date:"d-m-Y" }}
         &nbsp;·&nbsp;
         {% if campaign.status == 'draft' %}<span class="pr-badge pr-badge-draft">Bozza</span>
         {% elif campaign.status == 'published' %}<span class="pr-badge pr-badge-published">Pubblicata</span>
@@ -273,9 +273,9 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                   {% else %}<span class="pr-badge pr-badge-cancelled">{{ a.get_status_display }}</span>
                   {% endif %}
                 </td>
-                <td>{{ a.due_date|date:"d/m/Y"|default:"—" }}</td>
-                <td>{{ a.first_opened_at|date:"d/m/Y H:i"|default:"—" }}</td>
-                <td>{{ a.read_confirmed_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                <td>{{ a.due_date|date:"d-m-Y"|default:"—" }}</td>
+                <td>{{ a.first_opened_at|date:"d-m-Y H:i"|default:"—" }}</td>
+                <td>{{ a.read_confirmed_at|date:"d-m-Y H:i"|default:"—" }}</td>
                 {% if campaign.status != 'closed' %}
                   <td>
                     {% if a.status != 'read_confirmed' and a.status != 'cancelled' %}

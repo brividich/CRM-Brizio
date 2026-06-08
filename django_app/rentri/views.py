@@ -719,7 +719,7 @@ def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
 
             rows.append({
                 "riga": line_no,
-                "data": data.strftime("%d/%m/%Y"),
+                "data": data.strftime("%d-%m-%Y"),
                 "_data_iso": data.isoformat(),
                 "tipo": tipo,
                 "id_reg": id_reg,
@@ -860,7 +860,7 @@ def export_pdf(request):
             pass
 
     records = list(qs.order_by("data", "id"))
-    now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+    now_str = datetime.now().strftime("%d-%m-%Y %H:%M")
 
     # ── palette colori ────────────────────────────────────────────────────────
     COL_DARK  = colors.HexColor("#1e3a5f")
@@ -1009,7 +1009,7 @@ def export_pdf(request):
     for r in records:
         note_fir = r.note_rentri or r.arrivo_fir or ""
         table_data.append([
-            Paragraph(r.data.strftime("%d/%m/%Y") if r.data else "", cell_s),
+            Paragraph(r.data.strftime("%d-%m-%Y") if r.data else "", cell_s),
             Paragraph(r.id_registrazione or "", cell_s),
             _tipo_cell(r.tipo),
             Paragraph((r.codice or "")[:80], cell_s),

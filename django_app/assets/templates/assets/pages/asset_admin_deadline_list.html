@@ -263,7 +263,7 @@
                     {% endif %}
                   </td>
                   <td>
-                    {{ row.deadline.due_date|date:"d/m/Y" }}<br>
+                    {{ row.deadline.due_date|date:"d-m-Y" }}<br>
                     <span class="as-note">Preavviso {{ row.deadline.warning_days }} gg</span>
                   </td>
                   <td>
@@ -310,7 +310,7 @@
                           {% else %}
                             <span class="dl-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
                           {% endif %}
-                          <div class="dl-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                          <div class="dl-inline-note">Scadenza {{ event_row.due_date|date:"d-m-Y" }} | creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
                         {% endfor %}
                       </div>
                     {% endif %}
@@ -360,10 +360,10 @@
                         <div class="dl-inline-note" style="font-weight:800;text-transform:uppercase;letter-spacing:.05em;">Storico completamenti ({{ row.completion_count }})</div>
                         {% for completion in row.completion_rows %}
                           <div class="dl-inline-note">
-                            <strong>{{ completion.completed_on|date:"d/m/Y" }}</strong>
+                            <strong>{{ completion.completed_on|date:"d-m-Y" }}</strong>
                             {% if completion.cost_eur is not None %} · {{ completion.cost_eur }} EUR{% endif %}
                             {% if completion.duration_minutes %} · {{ completion.duration_minutes }} min{% endif %}
-                            {% if completion.next_due_date %} · prossima {{ completion.next_due_date|date:"d/m/Y" }}{% endif %}
+                            {% if completion.next_due_date %} · prossima {{ completion.next_due_date|date:"d-m-Y" }}{% endif %}
                             {% if completion.completed_by_label %} · {{ completion.completed_by_label }}{% endif %}
                             {% if completion.notes %}<br>{{ completion.notes|truncatechars:160 }}{% endif %}
                             {% if completion.attachment_rows %}

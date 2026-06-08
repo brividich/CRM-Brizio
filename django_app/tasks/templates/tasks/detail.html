@@ -434,7 +434,7 @@
           </div>
           <div class="task-detail-meta-item">
             <strong>Data richiesta fine</strong>
-            {% if task.due_date %}{{ task.due_date|date:"d/m/Y" }}{% else %}-{% endif %}
+            {% if task.due_date %}{{ task.due_date|date:"d-m-Y" }}{% else %}-{% endif %}
             {% if can_update_due_date %}
               <form method="post" action="{% url 'tasks:update_due_date' task.id %}" class="task-inline-form">
                 {% csrf_token %}
@@ -445,7 +445,7 @@
           </div>
           <div class="task-detail-meta-item">
             <strong>Data inizio</strong>
-            {% if task.next_step_due %}{{ task.next_step_due|date:"d/m/Y" }}{% else %}-{% endif %}
+            {% if task.next_step_due %}{{ task.next_step_due|date:"d-m-Y" }}{% else %}-{% endif %}
           </div>
           <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
             <strong>Kickoff</strong>
@@ -576,7 +576,7 @@
                         -
                       {% endif %}
                     </td>
-                    <td>{% if subtask.due_date %}{{ subtask.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{% if subtask.due_date %}{{ subtask.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                     <td>
                       <span class="st-status-badge {{ subtask.status|lower }}" id="st-badge-{{ subtask.id }}">
                         {{ subtask.get_status_display }}
@@ -641,7 +641,7 @@
               <li class="task-list-card task-comment-card">
                 <div class="ts-card-meta" style="margin-bottom:8px;">
                   <span style="font-weight:800;color:#0f172a;">{{ comment.author.get_full_name|default:comment.author.username }}</span>
-                  <span style="color:#94a3b8;">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
+                  <span style="color:#94a3b8;">{{ comment.created_at|date:"d-m-Y H:i" }}</span>
                 </div>
                 <div class="task-detail-body" style="font-size:13px;">{{ comment.body }}</div>
                 {% if comment.target_user %}
@@ -699,7 +699,7 @@
                     <div class="task-attach-body">
                       <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
                       <div class="ts-card-text" style="margin-top:3px;font-size:11px;">
-                        {{ attachment.created_at|date:"d/m/Y H:i" }}
+                        {{ attachment.created_at|date:"d-m-Y H:i" }}
                         {% if attachment.uploaded_by %} &middot; {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}
                       </div>
                     </div>
@@ -722,7 +722,7 @@
                     <li class="task-list-card">
                       <a class="task-attachment-link" href="{{ attachment.file.url }}" target="_blank" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
                       <div class="ts-card-text" style="margin-top:6px;">
-                        {{ attachment.created_at|date:"d/m/Y H:i" }}
+                        {{ attachment.created_at|date:"d-m-Y H:i" }}
                         {% if attachment.uploaded_by %}
                           - {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}
                         {% endif %}
@@ -794,7 +794,7 @@
             {% for item in task_timeline_events %}
               <li class="task-list-card task-event-card tone-{{ item.tone }}">
                 <div class="task-event-head">
-                  <span class="task-event-time">{{ item.event.created_at|date:"d/m/Y H:i" }}</span>
+                  <span class="task-event-time">{{ item.event.created_at|date:"d-m-Y H:i" }}</span>
                   <span class="task-event-actor">{{ item.actor_name }}</span>
                 </div>
                 <h3 class="task-event-title">{{ item.title }}</h3>

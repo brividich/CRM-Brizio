@@ -139,7 +139,7 @@
             <td><span class="ri-badge ri-badge-ok">{{ imp.righe_ok }}</span></td>
             <td>{% if imp.righe_errore %}<span class="ri-badge ri-badge-err">{{ imp.righe_errore }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td style="font-size:12px;">{{ imp.importato_da.get_full_name|default:imp.importato_da|default:"—" }}</td>
-            <td style="font-size:12px;color:#64748b;">{{ imp.data_importazione|date:"d/m/Y H:i" }}</td>
+            <td style="font-size:12px;color:#64748b;">{{ imp.data_importazione|date:"d-m-Y H:i" }}</td>
           </tr>
           {% endfor %}
         </tbody>

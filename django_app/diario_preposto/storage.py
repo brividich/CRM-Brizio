@@ -7,8 +7,10 @@ from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import FileSystemStorage
 
+from core.encrypted_storage import EncryptedStorageMixin
 
-class PrivateDiarioPrepostoStorage(FileSystemStorage):
+
+class PrivateDiarioPrepostoStorage(EncryptedStorageMixin, FileSystemStorage):
     """
     Storage privato per gli allegati delle segnalazioni del Diario Preposto.
 

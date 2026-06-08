@@ -870,7 +870,7 @@
             <label for="restore-snapshot-id">Ripristina snapshot</label>
             <select class="input" id="restore-snapshot-id">
               {% for s in snapshots %}
-                <option value="{{ s.id }}">v{{ s.version }} — {{ s.created_at|date:"d/m/Y H:i" }}{% if s.note %} — {{ s.note }}{% endif %}</option>
+                <option value="{{ s.id }}">v{{ s.version }} — {{ s.created_at|date:"d-m-Y H:i" }}{% if s.note %} — {{ s.note }}{% endif %}</option>
               {% empty %}
                 <option value="">Nessuno snapshot pubblicato</option>
               {% endfor %}

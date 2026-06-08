@@ -118,7 +118,7 @@ Write-Log "App pool '$appPoolName' associato al sito." "SUCCESS"
 Write-Log "Configurazione virtual directories..." "STEP"
 
 # Assicura che le cartelle esistano
-foreach ($vdir in @($paths.Static, $paths.Media)) {
+foreach ($vdir in @($paths.Static, $paths.Media, $paths.MediaPrivate)) {
     if (-not (Test-Path -LiteralPath $vdir)) {
         New-Item -ItemType Directory -Path $vdir -Force | Out-Null
     }
@@ -184,12 +184,13 @@ else {
 Write-Log "Impostazione permessi NTFS..." "STEP"
 $iisUser = "IIS AppPool\$appPoolName"
 $acls = @(
-    @{ Path = $siteRoot;        Rights = "ReadAndExecute" },
-    @{ Path = $paths.Static;    Rights = "ReadAndExecute" },
-    @{ Path = $paths.Media;     Rights = "Modify" },
-    @{ Path = $paths.Logs;      Rights = "Modify" },
-    @{ Path = $paths.Run;       Rights = "Modify" },
-    @{ Path = $paths.Config;    Rights = "Read" }
+    @{ Path = $siteRoot;             Rights = "ReadAndExecute" },
+    @{ Path = $paths.Static;         Rights = "ReadAndExecute" },
+    @{ Path = $paths.Media;          Rights = "Modify" },
+    @{ Path = $paths.MediaPrivate;   Rights = "Modify" },
+    @{ Path = $paths.Logs;           Rights = "Modify" },
+    @{ Path = $paths.Run;            Rights = "Modify" },
+    @{ Path = $paths.Config;         Rights = "Read" }
 )
 foreach ($acl in $acls) {
     try {
@@ -247,6 +248,7 @@ Write-Log "Root:       $siteRoot" "INFO"
 Write-Log "App Pool:   $appPoolName" "INFO"
 Write-Log "Static:     $($paths.Static)" "INFO"
 Write-Log "Media:      $($paths.Media)" "INFO"
+Write-Log "MediaPriv:  $($paths.MediaPrivate) (solo AppPool, non servita da IIS)" "INFO"
 Write-Log "" "INFO"
 Write-Log "PROSSIMO: .\deploy-release.ps1 -Environment $Environment -PackagePath <zip>" "STEP"
 Write-LogSeparator

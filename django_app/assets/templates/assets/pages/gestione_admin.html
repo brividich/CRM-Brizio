@@ -5,10 +5,19 @@
 {% include "core/components/module_settings_styles.html" %}
 <style>
 .ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
-.ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.ga-title { font-size: var(--fs-heading); font-weight: 800; color: #0f172a; margin: 0; }
-.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: var(--fs-sm); font-weight: 700; }
-.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
+/* Hero */
+.ga-hero { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; background:linear-gradient(135deg,#1a3a6b 0%,#1f64d8 100%); border-radius:16px; padding:22px 26px; margin-bottom:22px; flex-wrap:wrap; }
+.ga-hero-left { display:grid; gap:4px; }
+.ga-eyebrow { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.65); font-weight:700; }
+.ga-hero-title { margin:0; color:#fff; font-size:var(--fs-display-lg); font-weight:800; line-height:1.15; }
+.ga-hero-sub { color:rgba(255,255,255,.75); font-size:var(--fs-sm); margin-top:2px; }
+.ga-hero-kpis { display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; }
+.ga-hkpi { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:12px; padding:12px 18px; min-width:80px; text-align:center; display:grid; gap:2px; }
+.ga-hkpi--accent { background:rgba(255,255,255,.22); border-color:rgba(255,255,255,.4); }
+.ga-hkpi-val { font-size:var(--fs-display-xl); font-weight:800; color:#fff; line-height:1; }
+.ga-hkpi-label { font-size:var(--fs-xs); color:rgba(255,255,255,.7); font-weight:600; }
+/* Tabs */
+.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; flex-wrap:wrap; }
 .ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: var(--fs-base); color: #5a7296; border: 1px solid transparent; border-bottom: none; }
 .ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
 .ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
@@ -69,8 +78,14 @@
 .admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
 .admin-hint { font-size: var(--fs-sm); color: #64748b; }
 .admin-item + form { margin-top: -6px; }
-.sidebar-shell { display:grid; gap:14px; }
-.sidebar-editor { border:1px solid #dbe3f0; border-radius:11px; padding:12px; display:grid; gap:10px; }
+.sidebar-shell { display:grid; gap:8px; }
+.sidebar-editor { border:1px solid #dbe3f0; border-radius:11px; overflow:hidden; }
+.sidebar-editor-summary { list-style:none; cursor:pointer; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; user-select:none; -webkit-user-select:none; }
+.sidebar-editor-summary::-webkit-details-marker { display:none; }
+.sidebar-editor-summary:hover { background:#f8fbff; }
+.sidebar-editor-summary-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+details.sidebar-editor[open] > .sidebar-editor-summary .ga-chevron { transform:rotate(180deg); }
+.sidebar-editor-body { padding:12px; border-top:1px solid #e5ecf6; display:grid; gap:10px; }
 .sidebar-editor-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
 .sidebar-editor-title { display:grid; gap:4px; }
 .sidebar-editor-grid { display:grid; gap:10px; }
@@ -81,6 +96,57 @@
 .sidebar-editor-check { display:inline-flex; align-items:center; gap:8px; font-size:var(--fs-base); color:#0f172a; text-transform:none; }
 .sidebar-editor-check input { margin:0; }
 .sidebar-editor-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+/* ── Sidebar tab ───────────────────────────────────────────────────── */
+.sb-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; background:#f8fbff; border:1px solid #dbe3f0; border-radius:12px; padding:12px 16px; margin-bottom:14px; }
+.sb-toolbar-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.sb-section { border:1px solid #dbe3f0; border-radius:12px; margin-bottom:12px; overflow:hidden; }
+.sb-section-summary { list-style:none; cursor:pointer; padding:10px 16px; display:flex; align-items:center; gap:10px; background:#f0f5ff; user-select:none; -webkit-user-select:none; }
+.sb-section-summary::-webkit-details-marker { display:none; }
+.sb-section-title { font-weight:800; font-size:var(--fs-base); color:#1f64d8; flex:1; }
+.sb-section-count { background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:1px 8px; font-size:var(--fs-xs); font-weight:700; }
+details.sb-section[open] > .sb-section-summary .ga-chevron { transform:rotate(180deg); }
+.sb-section-body { padding:12px; display:grid; gap:6px; }
+.sb-group { border:1px solid #e5ecf6; border-radius:10px; overflow:hidden; }
+.sb-child { margin-left:24px; border-left:3px solid #bfdbfe; border-radius:0 10px 10px 0; }
+.sb-child-arrow { color:#93c5fd; font-size:var(--fs-base); margin-right:4px; }
+.sb-add-child, .sb-add-root { padding:6px 8px; }
+.sb-add-child-btn, .sb-add-root-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; font-size:var(--fs-sm); width:100%; text-align:left; }
+.sb-add-child-btn:hover, .sb-add-root-btn:hover { background:#f8fbff; border-color:#93c5fd; color:#1d4ed8; }
+.sb-add-root { margin-top:6px; border-top:1px dashed #e5ecf6; padding-top:10px; }
+.sb-inline-form-grid { display:grid; grid-template-columns:1fr 1fr 1fr 80px; gap:8px; align-items:end; }
+.sb-inline-form-footer { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.sb-empty { padding:24px; border:1px dashed #cbd5e1; border-radius:12px; text-align:center; display:grid; gap:12px; place-items:center; color:#64748b; }
+/* Dark mode sidebar tab */
+body.theme-dark .sb-toolbar { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .sb-section { border-color:var(--border); }
+body.theme-dark .sb-section-summary { background:rgba(37,99,235,.12); }
+body.theme-dark .sb-section-title { color:#93c5fd; }
+body.theme-dark .sb-section-count { background:rgba(37,99,235,.25); color:#93c5fd; }
+body.theme-dark .sb-group { border-color:var(--border); }
+body.theme-dark .sb-child { border-left-color:#1e3a5f; }
+body.theme-dark .sb-child-arrow { color:#60a5fa; }
+body.theme-dark .sb-add-child-btn, body.theme-dark .sb-add-root-btn { border-color:var(--border); color:var(--text-light); }
+body.theme-dark .sb-add-child-btn:hover, body.theme-dark .sb-add-root-btn:hover { background:var(--surface-alt); border-color:#3b82f6; color:#93c5fd; }
+body.theme-dark .sb-add-root { border-color:var(--border); }
+body.theme-dark .sb-empty { border-color:var(--border); color:var(--text-light); }
+@media (max-width:900px) { .sb-inline-form-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:600px) { .sb-inline-form-grid { grid-template-columns:1fr; } }
+/* Collapsible card */
+details.card { margin-bottom:14px; }
+details.card > summary { list-style:none; cursor:pointer; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; user-select:none; -webkit-user-select:none; }
+details.card > summary::-webkit-details-marker { display:none; }
+details.card > summary .card-title { margin:0; }
+details.card > summary .ga-chevron { font-size:var(--fs-sm); color:#7e94b2; transition:transform .2s; display:inline-block; }
+details.card[open] > summary .ga-chevron { transform:rotate(180deg); }
+details.card > summary .ga-sum-right { display:flex; align-items:center; gap:10px; }
+details.card > .card-body { border-top:1px solid #e5ecf6; }
+body.theme-dark details.card > .card-body { border-color:var(--border); }
+.btn-reset { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.btn-reset:hover { background:#fee2e2; }
+.btn-clear { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+.btn-clear:hover { background:#ffedd5; }
+body.theme-dark .btn-reset { background:#2d1515; color:#fca5a5; border-color:#7f1d1d; }
+body.theme-dark .btn-clear { background:#2d1a0a; color:#fdba74; border-color:#7c2d12; }
 .cat-intro { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); gap:14px; align-items:stretch; }
 .cat-create-grid { display:grid; grid-template-columns:minmax(220px,1.2fr) minmax(180px,.8fr) minmax(180px,.8fr) 110px 110px; gap:10px; align-items:end; }
 .cat-help-panel { border:1px solid #dbe3f0; border-radius:11px; background:#f8fbff; padding:12px; display:grid; gap:8px; }
@@ -146,7 +212,9 @@
   .sidebar-editor-actions { width:100%; }
 }
 /* ── Dark mode ─────────────────────────────────────────────────────── */
-body.theme-dark .ga-title { color:var(--text); }
+body.theme-dark .ga-hero { background:linear-gradient(135deg,#0f2040 0%,#1a3a6b 100%); }
+body.theme-dark .ga-hkpi { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.15); }
+body.theme-dark .ga-hkpi--accent { background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.3); }
 body.theme-dark .ga-tabs { border-color:var(--border); }
 body.theme-dark .ga-tab { color:var(--text-light); }
 body.theme-dark .ga-tab:hover { background:rgba(255,255,255,.07); color:#60a5fa; }
@@ -168,6 +236,8 @@ body.theme-dark .admin-item { background:var(--surface); border-color:var(--bord
 body.theme-dark .admin-hint { color:var(--text-light); }
 body.theme-dark .muted-note { color:var(--text-light); }
 body.theme-dark .sidebar-editor { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sidebar-editor-summary:hover { background:var(--surface-alt); }
+body.theme-dark .sidebar-editor-body { border-color:var(--border); }
 body.theme-dark .sidebar-editor-check { color:var(--text); }
 body.theme-dark .cat-help-panel,
 body.theme-dark .cat-metric,
@@ -196,6 +266,57 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 {% block assets_shell_scripts %}
 <script>
 (function () {
+  // ── Sidebar inline add forms ──────────────────────────────────────
+  function sbSubmitInline(form) {
+    var redirect = form.dataset.redirect || window.location.href;
+    var data = new FormData(form);
+    fetch(window.location.pathname, { method: "POST", body: data })
+      .then(function () { window.location.href = redirect; })
+      .catch(function () { form.submit(); });
+  }
+
+  document.addEventListener("click", function (e) {
+    // Toggle sottovoce form
+    var addChildBtn = e.target.closest(".sb-add-child-btn");
+    if (addChildBtn) {
+      var pid = addChildBtn.dataset.parentId;
+      var frm = document.querySelector(".sb-add-child-form[data-parent-id='" + pid + "']");
+      if (frm) { frm.style.display = frm.style.display === "none" ? "grid" : "none"; frm.querySelector("[name=label]").focus(); }
+      return;
+    }
+    var cancelChild = e.target.closest(".sb-add-child-cancel");
+    if (cancelChild) {
+      var pid = cancelChild.dataset.parentId;
+      var frm = document.querySelector(".sb-add-child-form[data-parent-id='" + pid + "']");
+      if (frm) frm.style.display = "none";
+      return;
+    }
+    // Toggle primo livello form
+    var addRootBtn = e.target.closest(".sb-add-root-btn");
+    if (addRootBtn) {
+      var sec = addRootBtn.dataset.section;
+      var frm = document.querySelector(".sb-add-root-form[data-section='" + sec + "']");
+      if (frm) { frm.style.display = frm.style.display === "none" ? "grid" : "none"; frm.querySelector("[name=label]").focus(); }
+      return;
+    }
+    var cancelRoot = e.target.closest(".sb-add-root-cancel");
+    if (cancelRoot) {
+      var sec = cancelRoot.dataset.section;
+      var frm = document.querySelector(".sb-add-root-form[data-section='" + sec + "']");
+      if (frm) frm.style.display = "none";
+      return;
+    }
+  });
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (form.classList.contains("sb-add-child-form") || form.classList.contains("sb-add-root-form")) {
+      e.preventDefault();
+      sbSubmitInline(form);
+    }
+  });
+
+  // ── Category dialogs ──────────────────────────────────────────────
   document.querySelectorAll("[data-cat-dialog]").forEach(function (button) {
     button.addEventListener("click", function () {
       var dialog = document.getElementById(button.getAttribute("data-cat-dialog"));
@@ -221,16 +342,30 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 </script>
 {% endblock %}
 
-{% block assets_shell_title %}Impostazioni {{ module_branding_display_label }} <span class="ga-badge">Admin</span>{% endblock %}
+{% block assets_shell_title %}Impostazioni {{ module_branding_display_label }}{% endblock %}
 {% block assets_shell_toolbar %}
 <a class="as-backlink" href="{% url 'assets:asset_list' %}" onclick="if (window.history.length > 1) { window.history.back(); return false; }">&larr; Inventario</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 
+  <div class="ga-hero">
+    <div class="ga-hero-left">
+      <div class="ga-eyebrow">Modulo Assets · Admin</div>
+      <h1 class="ga-hero-title">{{ module_branding_display_label|default:"Assets" }}</h1>
+      <div class="ga-hero-sub">Configurazione, categorie, sidebar e log operativo del modulo inventario.</div>
+    </div>
+    <div class="ga-hero-kpis">
+      <div class="ga-hkpi"><div class="ga-hkpi-val">{{ total_assets }}</div><div class="ga-hkpi-label">Asset</div></div>
+      <div class="ga-hkpi"><div class="ga-hkpi-val">{{ total_wo }}</div><div class="ga-hkpi-label">Work order</div></div>
+      <div class="ga-hkpi ga-hkpi--accent"><div class="ga-hkpi-val">{{ wo_by_status.OPEN|default:0 }}</div><div class="ga-hkpi-label">OdL aperti</div></div>
+    </div>
+  </div>
+
   <div class="ga-tabs">
     <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
     <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
+    <a href="?tab=sidebar" class="ga-tab {% if tab == 'sidebar' %}active{% endif %}">Sidebar</a>
     <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
@@ -290,30 +425,10 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 
   {# ========== TAB CONFIGURAZIONE ========== #}
   {% if tab == 'config' %}
-  <div class="ms-grid-2" style="margin-bottom:14px;">
-    <section class="ms-card">
-      <div class="ms-card-head">
-        <div class="ms-card-title-wrap">
-          <h2 class="ms-card-title">Quick links modulo</h2>
-          <p class="ms-card-subtitle">Collegamenti rapidi alle aree operative piu usate del modulo asset.</p>
-        </div>
-      </div>
-      <div class="ms-card-body">
-        <div class="inline-actions">
-          <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-sm">Inventario</a>
-          <a href="{% url 'assets:gestione_admin' %}?tab=categorie" class="btn btn-secondary btn-sm">Categorie asset</a>
-          <a href="{% url 'assets:maintenance_template_list' %}" class="btn btn-secondary btn-sm">Template manutenzione</a>
-          <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-secondary btn-sm">Regole manutenzione</a>
-          <a href="{% url 'assets:reports' %}" class="btn btn-secondary btn-sm">Report</a>
-        </div>
-        <div class="muted-note">La pagina impostazioni mantiene qui dentro anche le configurazioni tecniche, i template e il log amministrativo.</div>
-      </div>
-    </section>
-    {% include "core/components/module_branding_card.html" %}
-  </div>
+  {% include "core/components/module_branding_card.html" %}
 
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">Etichette QR stampabili</h3></div>
+  <details class="card">
+    <summary><h3 class="card-title">Etichette QR stampabili</h3><span class="ga-sum-right"><span class="muted-note">Template QR per tipologia asset</span><span class="ga-chevron">&#9660;</span></span></summary>
     <div class="card-body" style="display:grid;gap:14px;">
       <div style="display:grid;gap:8px;">
         <div class="muted-note" style="color:#475569;">
@@ -433,10 +548,10 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         {% endif %}
       </div>
     </div>
-  </div>
+  </details>
 
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">Policy manutenzione standard</h3></div>
+  <details class="card">
+    <summary><h3 class="card-title">Policy manutenzione standard</h3><span class="ga-sum-right"><span class="muted-note">Template e regole manutentive</span><span class="ga-chevron">&#9660;</span></span></summary>
     <div class="card-body" style="display:grid;gap:10px;">
       <div class="muted-note">
         Da qui puoi aprire il catalogo dei template intervento e le regole manutentive standard per categoria.
@@ -447,205 +562,32 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-primary btn-sm">Apri regole manutenzione</a>
       </div>
     </div>
-  </div>
+  </details>
 
-  <div class="card" id="asset-sidebar-menu" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">Menu laterale inventario</h3></div>
-    <div class="card-body" style="display:grid;gap:14px;">
-      <div class="muted-note">
-        Qui personalizzi le voci mostrate nella colonna laterale del modulo asset. Se non esiste ancora una configurazione dedicata,
-        il portale continua a usare il menu predefinito finche non premi il caricamento iniziale.
+  <details class="card">
+    <summary>
+      <h3 class="card-title">Menu laterale inventario</h3>
+      <span class="ga-sum-right">
+        {% if sidebar_buttons %}<span class="chip-soft green">{{ sidebar_buttons|length }} voci</span>{% else %}<span class="chip-soft slate">Fallback</span>{% endif %}
+        <span class="ga-chevron">&#9660;</span>
+      </span>
+    </summary>
+    <div class="card-body">
+      <div class="inline-actions">
+        <span class="muted-note">Gestisci le voci del menu laterale del modulo asset dal tab dedicato.</span>
+        <a href="?tab=sidebar" class="btn btn-primary btn-sm">Apri editor sidebar &rarr;</a>
       </div>
-
-      {% if sidebar_buttons %}
-        <div class="inline-actions">
-          <span class="chip-soft blue">Configurato</span>
-          <strong>{{ sidebar_buttons|length }}</strong>
-          <span class="muted-note">voci personalizzate attive o gestibili da questa schermata.</span>
-          <form method="post" style="margin:0;" onsubmit="return confirm('Tutte le voci sidebar personalizzate verranno eliminate e sostituite con i valori predefiniti aggiornati. Continuare?')">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="reset_sidebar_buttons">
-            <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border-color:#fecaca;">Reimposta predefiniti</button>
-          </form>
-          <form method="post" style="margin:0;" onsubmit="return confirm('Vuoi rimuovere tutte le voci personalizzate e usare il menu predefinito di sistema?')">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="clear_sidebar_buttons">
-            <button type="submit" class="btn btn-sm" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;">Svuota (usa predefinito)</button>
-          </form>
-        </div>
-      {% else %}
-        <div class="inline-actions">
-          <span class="chip-soft slate">Fallback attivo</span>
-          <span class="muted-note">La sidebar visibile usa ancora il menu predefinito hardcoded.</span>
-        </div>
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="seed_sidebar_buttons">
-          <button type="submit" class="btn btn-primary btn-sm">Crea menu predefinito modificabile</button>
-        </form>
-      {% endif %}
-
-      <datalist id="assets-sidebar-target-options">
-        {% for option in sidebar_target_suggestions %}
-          <option value="{{ option.value }}">{{ option.label }}</option>
-        {% endfor %}
-      </datalist>
-      <datalist id="assets-sidebar-active-match-options">
-        {% for option in sidebar_active_match_suggestions %}
-          <option value="{{ option.value }}">{{ option.label }}</option>
-        {% endfor %}
-      </datalist>
-
-      <div class="sidebar-editor">
-        <div>
-          <div class="card-title" style="margin-bottom:4px;">Nuova voce sidebar</div>
-          <div class="muted-note">Puoi creare voci di primo livello o sottovoci collegate a una voce padre.</div>
-        </div>
-        <form method="post" style="display:grid;gap:12px;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="create_sidebar_button">
-          <div class="sidebar-editor-grid meta">
-            <div class="form-group">
-              <label>Etichetta</label>
-              <input type="text" name="label" placeholder="Es. TVCC" required>
-            </div>
-            <div class="form-group">
-              <label>Sezione</label>
-              <select name="section">
-                {% for section_code, section_label in sidebar_section_choices %}
-                  <option value="{{ section_code }}">{{ section_label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Voce padre</label>
-              <select name="parent_sidebar_button_id">
-                <option value="">Nessuna (primo livello)</option>
-                {% for parent_item in sidebar_parent_choices %}
-                  <option value="{{ parent_item.id }}">{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Ordine</label>
-              <input type="number" name="sort_order" value="100">
-            </div>
-          </div>
-          <div class="sidebar-editor-grid routes">
-            <div class="form-group" style="max-width:none;">
-              <label>URL destinazione</label>
-              <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/?asset_type=SERVER&rows={rows} oppure django:assets:wo_list">
-            </div>
-            <div class="form-group" style="max-width:none;">
-              <label>Criterio attivo</label>
-              <input type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=SERVER oppure /assets/work-machines/">
-            </div>
-          </div>
-          <div class="sidebar-editor-footer">
-            <div class="sidebar-editor-flags">
-              <label class="sidebar-editor-check">
-                <input type="checkbox" name="is_subitem" value="1">
-                Sottovoce
-              </label>
-              <label class="sidebar-editor-check">
-                <input type="checkbox" name="is_visible" value="1" checked>
-                Visibile
-              </label>
-            </div>
-            <div class="sidebar-editor-actions">
-              <button type="submit" class="btn btn-primary btn-sm">Aggiungi voce</button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      {% if sidebar_buttons %}
-        <div class="sidebar-shell">
-          {% for item in sidebar_buttons %}
-            <div class="sidebar-editor">
-              <div class="sidebar-editor-head">
-                <div class="sidebar-editor-title">
-                  <strong>{{ item.label }}</strong>
-                  <span class="muted-note">codice: <code>{{ item.code }}</code></span>
-                </div>
-                <span class="chip-soft {% if item.is_visible %}green{% else %}slate{% endif %}">
-                  {% if item.is_visible %}Visibile{% else %}Nascosta{% endif %}
-                </span>
-              </div>
-              <form id="sidebar-edit-{{ item.id }}" method="post" style="display:grid;gap:10px;">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="update_sidebar_button">
-                <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
-                <div class="sidebar-editor-grid meta">
-                  <div class="form-group">
-                    <label>Etichetta</label>
-                    <input type="text" name="label" value="{{ item.label }}" required>
-                  </div>
-                  <div class="form-group">
-                    <label>Sezione</label>
-                    <select name="section">
-                      {% for section_code, section_label in sidebar_section_choices %}
-                        <option value="{{ section_code }}" {% if item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label>Voce padre</label>
-                    <select name="parent_sidebar_button_id">
-                      <option value="">Nessuna (primo livello)</option>
-                      {% for parent_item in sidebar_parent_choices %}
-                        <option value="{{ parent_item.id }}" {% if item.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label>Ordine</label>
-                    <input type="number" name="sort_order" value="{{ item.sort_order }}">
-                  </div>
-                </div>
-                <div class="sidebar-editor-grid routes">
-                  <div class="form-group" style="max-width:none;">
-                    <label>URL destinazione</label>
-                    <input type="text" name="target_url" list="assets-sidebar-target-options" value="{{ item.target_url }}">
-                  </div>
-                  <div class="form-group" style="max-width:none;">
-                    <label>Criterio attivo</label>
-                    <input type="text" name="active_match" list="assets-sidebar-active-match-options" value="{{ item.active_match }}">
-                  </div>
-                </div>
-                <div class="sidebar-editor-footer">
-                  <div class="sidebar-editor-flags">
-                    <label class="sidebar-editor-check">
-                      <input type="checkbox" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}>
-                      Sottovoce
-                    </label>
-                    <label class="sidebar-editor-check">
-                      <input type="checkbox" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}>
-                      Visibile
-                    </label>
-                  </div>
-                  <div class="sidebar-editor-actions">
-                    <button type="submit" form="sidebar-edit-{{ item.id }}" class="btn btn-primary btn-sm">Salva</button>
-                  </div>
-                </div>
-              </form>
-              <div class="sidebar-editor-actions" style="justify-content:flex-end;">
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="delete_sidebar_button">
-                  <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
-                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare la voce di menu?')">Elimina</button>
-                </form>
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
     </div>
-  </div>
+  </details>
 
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">SharePoint / Microsoft Graph</h3></div>
+  <details class="card">
+    <summary>
+      <h3 class="card-title">SharePoint / Microsoft Graph</h3>
+      <span class="ga-sum-right">
+        <span class="chip-soft {% if sharepoint_admin_config.runtime_ready %}green{% else %}slate{% endif %}">{% if sharepoint_admin_config.runtime_ready %}Connesso{% else %}Non configurato{% endif %}</span>
+        <span class="ga-chevron">&#9660;</span>
+      </span>
+    </summary>
     <div class="card-body" style="display:grid;gap:14px;">
       <div class="kpi-row" style="margin-bottom:0;">
         <div class="kpi">
@@ -767,8 +709,11 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         <button type="submit" class="btn btn-sm" style="border:1px solid #dbe3f0;">Test connessione Graph</button>
       </form>
     </div>
-  </div>
+  </details>
 
+  <details class="card" open>
+    <summary><h3 class="card-title">Valori lista (dropdown)</h3><span class="ga-sum-right"><span class="muted-note">Opzioni nei form asset</span><span class="ga-chevron">&#9660;</span></span></summary>
+    <div class="card-body">
   <div class="section-grid">
     {% for field_key, field_label in list_option_fields %}
     <div class="card">
@@ -807,9 +752,11 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     </div>
     {% endfor %}
   </div>
+    </div>
+  </details>
 
-  <div class="card" style="margin-top:6px;">
-    <div class="card-head"><h3 class="card-title">Campi personalizzati (Custom Fields)</h3></div>
+  <details class="card">
+    <summary><h3 class="card-title">Campi personalizzati</h3><span class="ga-sum-right"><span class="muted-note">Custom fields per schede asset</span><span class="ga-chevron">&#9660;</span></span></summary>
     <div class="card-body">
       <table class="tbl" style="margin-bottom:12px;">
         <thead><tr><th>Codice</th><th>Etichetta</th><th>Tipo</th><th></th></tr></thead>
@@ -853,11 +800,11 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
         <button type="submit" class="btn btn-primary btn-sm">+ Aggiungi campo</button>
       </form>
     </div>
-  </div>
+  </details>
 
   {# ---- Logo modulo ---- #}
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">Logo modulo</h3></div>
+  <details class="card">
+    <summary><h3 class="card-title">Logo modulo</h3><span class="ga-sum-right"><span class="muted-note">{% if assets_logo_url %}Personalizzato{% else %}Default{% endif %}</span><span class="ga-chevron">&#9660;</span></span></summary>
     <div class="card-body" style="display:grid;gap:16px;">
       <div style="display:flex;align-items:center;gap:16px;">
         <div id="logo-preview-wrap" style="width:52px;height:52px;border-radius:12px;background:#1f64d8;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
@@ -903,7 +850,204 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
       </form>
       {% endif %}
     </div>
+  </details>
+
+  {% endif %}
+
+  {# ========== TAB SIDEBAR ========== #}
+  {% if tab == 'sidebar' %}
+
+  <datalist id="assets-sidebar-target-options">
+    {% for option in sidebar_target_suggestions %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
+  </datalist>
+  <datalist id="assets-sidebar-active-match-options">
+    {% for option in sidebar_active_match_suggestions %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
+  </datalist>
+
+  {# Toolbar globale #}
+  <div class="sb-toolbar">
+    <div>
+      {% if sidebar_buttons %}
+        <span class="chip-soft green">{{ sidebar_buttons|length }} voci</span>
+        <span class="muted-note">Menu personalizzato attivo</span>
+      {% else %}
+        <span class="chip-soft slate">Fallback di sistema</span>
+        <span class="muted-note">Il portale usa il menu predefinito hardcoded finch&eacute; non crei un menu personalizzato.</span>
+      {% endif %}
+    </div>
+    <div class="sb-toolbar-actions">
+      {% if sidebar_buttons %}
+        <form method="post" onsubmit="return confirm('Sostituire tutte le voci con i predefiniti aggiornati?')">
+          {% csrf_token %}<input type="hidden" name="action" value="reset_sidebar_buttons">
+          <button type="submit" class="btn btn-sm btn-reset">Reimposta predefiniti</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Rimuovere tutte le voci personalizzate?')">
+          {% csrf_token %}<input type="hidden" name="action" value="clear_sidebar_buttons">
+          <button type="submit" class="btn btn-sm btn-clear">Svuota</button>
+        </form>
+      {% else %}
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="seed_sidebar_buttons">
+          <button type="submit" class="btn btn-primary btn-sm">Crea menu predefinito modificabile</button>
+        </form>
+      {% endif %}
+    </div>
   </div>
+
+  {% if sidebar_buttons %}
+    {# Raggruppa per sezione, poi per voce padre #}
+    {% regroup sidebar_buttons by get_section_display as section_groups %}
+    {% for section_group in section_groups %}
+    <details class="sb-section" open>
+      <summary class="sb-section-summary">
+        <span class="sb-section-title">{{ section_group.grouper }}</span>
+        <span class="sb-section-count">{{ section_group.list|length }}</span>
+        <span class="ga-chevron">&#9660;</span>
+      </summary>
+
+      <div class="sb-section-body">
+        {# Separa top-level e children #}
+        {% for item in section_group.list %}{% if not item.parent_id %}
+        {# Voce di primo livello #}
+        <div class="sb-group">
+          <details class="sidebar-editor">
+            <summary class="sidebar-editor-summary">
+              <div class="sidebar-editor-title">
+                <strong>{{ item.label }}</strong>
+                {% if item.target_url %}<span class="muted-note"><code>{{ item.target_url }}</code></span>{% endif %}
+              </div>
+              <div class="sidebar-editor-summary-right">
+                <span class="chip-soft {% if item.is_visible %}green{% else %}slate{% endif %}">{% if item.is_visible %}Visibile{% else %}Nascosta{% endif %}</span>
+                <span class="ga-chevron">&#9660;</span>
+              </div>
+            </summary>
+            <div class="sidebar-editor-body">
+              {% include "assets/components/sidebar_item_form.html" with item=item %}
+            </div>
+          </details>
+
+          {# Sotto-voci di questo padre #}
+          {% for child in section_group.list %}{% if child.parent_id == item.id %}
+          <details class="sidebar-editor sb-child">
+            <summary class="sidebar-editor-summary">
+              <div class="sidebar-editor-title">
+                <span class="sb-child-arrow">&#8627;</span>
+                <strong>{{ child.label }}</strong>
+                {% if child.target_url %}<span class="muted-note"><code>{{ child.target_url }}</code></span>{% endif %}
+              </div>
+              <div class="sidebar-editor-summary-right">
+                <span class="chip-soft {% if child.is_visible %}green{% else %}slate{% endif %}">{% if child.is_visible %}Visibile{% else %}Nascosta{% endif %}</span>
+                <span class="ga-chevron">&#9660;</span>
+              </div>
+            </summary>
+            <div class="sidebar-editor-body">
+              {% include "assets/components/sidebar_item_form.html" with item=child %}
+            </div>
+          </details>
+          {% endif %}{% endfor %}
+
+          {# Form inline aggiungi sottovoce #}
+          <div class="sb-add-child">
+            <button type="button" class="btn btn-sm sb-add-child-btn" data-parent-id="{{ item.id }}" data-parent-label="{{ item.label|escapejs }}" data-section="{{ item.section }}">
+              + Aggiungi sottovoce a &ldquo;{{ item.label }}&rdquo;
+            </button>
+            <form class="sb-add-child-form" data-parent-id="{{ item.id }}" style="display:none;" data-redirect="{% url 'assets:gestione_admin' %}?tab=sidebar">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_sidebar_button">
+              <input type="hidden" name="parent_sidebar_button_id" value="{{ item.id }}">
+              <input type="hidden" name="section" value="{{ item.section }}">
+              <input type="hidden" name="is_subitem" value="1">
+              <input type="hidden" name="is_visible" value="1">
+              <div class="sb-inline-form-grid">
+                <div class="form-group">
+                  <label>Etichetta</label>
+                  <input type="text" name="label" placeholder="Es. Lista CNC" required>
+                </div>
+                <div class="form-group">
+                  <label>URL</label>
+                  <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="django:assets:asset_list">
+                </div>
+                <div class="form-group">
+                  <label>Criterio attivo</label>
+                  <input type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=CNC">
+                </div>
+                <div class="form-group">
+                  <label>Ordine</label>
+                  <input type="number" name="sort_order" value="100" style="width:80px;">
+                </div>
+              </div>
+              <div class="sb-inline-form-footer">
+                <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
+                <button type="button" class="btn btn-sm sb-add-child-cancel" data-parent-id="{{ item.id }}">Annulla</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}{% endfor %}
+
+        {# Voci orfane (parent_id impostato ma padre non in questa sezione — safety) #}
+        {% for item in section_group.list %}{% if item.parent_id %}{% with found=0 %}
+          {% for check in section_group.list %}{% if check.id == item.parent_id %}{% with found=1 %}{% endwith %}{% endif %}{% endfor %}
+        {% endwith %}{% endif %}{% endfor %}
+
+        {# Form aggiungi voce di primo livello in questa sezione #}
+        <div class="sb-add-root">
+          <button type="button" class="btn btn-sm sb-add-root-btn" data-section="{{ section_group.list.0.section }}">
+            + Nuova voce in &ldquo;{{ section_group.grouper }}&rdquo;
+          </button>
+          <form class="sb-add-root-form" data-section="{{ section_group.list.0.section }}" style="display:none;" data-redirect="{% url 'assets:gestione_admin' %}?tab=sidebar">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_sidebar_button">
+            <input type="hidden" name="section" value="{{ section_group.list.0.section }}">
+            <input type="hidden" name="is_visible" value="1">
+            <div class="sb-inline-form-grid">
+              <div class="form-group">
+                <label>Etichetta</label>
+                <input type="text" name="label" placeholder="Es. Macchine" required>
+              </div>
+              <div class="form-group">
+                <label>Voce padre</label>
+                <select name="parent_sidebar_button_id">
+                  <option value="">Nessuna (primo livello)</option>
+                  {% for parent_item in sidebar_parent_choices %}{% if parent_item.section == section_group.list.0.section %}
+                    <option value="{{ parent_item.id }}">{{ parent_item.label }}</option>
+                  {% endif %}{% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>URL</label>
+                <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="django:assets:asset_list">
+              </div>
+              <div class="form-group">
+                <label>Criterio attivo</label>
+                <input type="text" name="active_match" list="assets-sidebar-active-match-options">
+              </div>
+              <div class="form-group">
+                <label>Ordine</label>
+                <input type="number" name="sort_order" value="100" style="width:80px;">
+              </div>
+            </div>
+            <div class="sb-inline-form-footer">
+              <label class="sidebar-editor-check"><input type="checkbox" name="is_subitem" value="1"> Sottovoce</label>
+              <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
+              <button type="button" class="btn btn-sm sb-add-root-cancel" data-section="{{ section_group.list.0.section }}">Annulla</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </details>
+    {% endfor %}
+
+  {% else %}
+  <div class="sb-empty">
+    <div>Nessuna voce personalizzata &mdash; il portale usa il menu predefinito di sistema.</div>
+    <form method="post">
+      {% csrf_token %}<input type="hidden" name="action" value="seed_sidebar_buttons">
+      <button type="submit" class="btn btn-primary btn-sm">Crea menu predefinito modificabile</button>
+    </form>
+  </div>
+  {% endif %}
 
   {% endif %}
 
@@ -1070,7 +1214,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                     <span class="chip-soft slate">Titoli dettaglio standard</span>
                   {% endif %}
                   {% if row.child_count %}<span class="chip-soft slate">{{ row.child_count }} sottocategorie</span>{% endif %}
-                  {% if row.last_updated %}<span class="chip-soft slate">Ultimo asset {{ row.last_updated|date:"d/m/Y" }}</span>{% endif %}
+                  {% if row.last_updated %}<span class="chip-soft slate">Ultimo asset {{ row.last_updated|date:"d-m-Y" }}</span>{% endif %}
                 </div>
               </div>
 
@@ -1212,7 +1356,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
                       <td>{{ asset_status_labels|get_item:asset.status|default:asset.status }}</td>
                       <td>{{ asset.reparto|default:"-" }}</td>
                       <td>{{ asset.assignment_to|default:"-" }}</td>
-                      <td>{{ asset.updated_at|date:"d/m/Y" }}</td>
+                      <td>{{ asset.updated_at|date:"d-m-Y" }}</td>
                       <td><a class="btn btn-secondary btn-sm" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
                     </tr>
                     {% endfor %}
@@ -1474,7 +1618,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
               <td>{{ wo.title }}</td>
               <td>{{ wo.get_kind_display }}</td>
               <td><span class="badge badge-{{ wo.status|lower }}">{{ wo.get_status_display }}</span></td>
-              <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
+              <td>{{ wo.opened_at|date:"d-m-Y" }}</td>
               <td><a href="{% url 'assets:wo_view' wo.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a></td>
             </tr>
           {% empty %}
@@ -1660,7 +1804,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
       </div>
       {% for entry in audit_entries %}
       <div class="log-row">
-        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
         <span>{{ entry.utente_display|default:"—" }}</span>
         <span>{{ entry.azione }}</span>
         <span class="text-xs" style="color:#64748b;">{{ entry.dettaglio }}</span>

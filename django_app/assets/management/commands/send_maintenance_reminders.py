@@ -129,7 +129,7 @@ class Command(BaseCommand):
             return
 
         lines = [
-            f"NOVICROM HUB — Promemoria manutenzione del {today:%d/%m/%Y}",
+            f"NOVICROM HUB — Promemoria manutenzione del {today:%d-%m-%Y}",
             "=" * 60,
             "",
         ]
@@ -138,14 +138,14 @@ class Command(BaseCommand):
             lines.append(f"SCADENZE AMMINISTRATIVE nei prossimi {deadline_days} giorni ({len(admin_deadlines)}):")
             for d in admin_deadlines:
                 days_left = (d.due_date - today).days
-                lines.append(f"  [{days_left}gg] {d.asset.asset_tag} — {d.title} — scadenza {d.due_date:%d/%m/%Y}")
+                lines.append(f"  [{days_left}gg] {d.asset.asset_tag} — {d.title} — scadenza {d.due_date:%d-%m-%Y}")
             lines.append("")
 
         if periodic:
             lines.append(f"VERIFICHE PERIODICHE nei prossimi {deadline_days} giorni ({len(periodic)}):")
             for v in periodic:
                 days_left = (v.next_verification_date - today).days
-                lines.append(f"  [{days_left}gg] {v.name} — {v.next_verification_date:%d/%m/%Y}")
+                lines.append(f"  [{days_left}gg] {v.name} — {v.next_verification_date:%d-%m-%Y}")
             lines.append("")
 
         if overdue_wo:
@@ -156,7 +156,7 @@ class Command(BaseCommand):
             lines.append("")
 
         body = "\n".join(lines)
-        subject = f"[Manutenzione] {len(admin_deadlines)} scad. + {len(periodic)} verif. + {len(overdue_wo)} OdL — {today:%d/%m/%Y}"
+        subject = f"[Manutenzione] {len(admin_deadlines)} scad. + {len(periodic)} verif. + {len(overdue_wo)} OdL — {today:%d-%m-%Y}"
 
         if dry_run:
             self.stdout.write(self.style.WARNING("[DRY-RUN] Nessuna email inviata."))

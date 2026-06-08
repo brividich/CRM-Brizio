@@ -21,5 +21,6 @@ urlpatterns = [
         views.allegato_download,
         name="allegato_download",
     ),
+    path("api/cerca-utenti/", views.api_cerca_utenti, name="api_cerca_utenti"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
 ]

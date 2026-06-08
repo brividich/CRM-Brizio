@@ -5095,10 +5095,23 @@ def rule_test_page(request, rule_id: int):
             else:
                 messages.success(request, f"Test eseguito correttamente. Run log #{run_log.id}.")
     else:
+        from_log_id = request.GET.get("from_log")
+        prefill_payload = example_payload_json
+        prefill_old_payload = example_old_payload_json
+        if from_log_id:
+            try:
+                source_log = AutomationRunLog.objects.get(pk=from_log_id, rule=rule)
+                prefill_payload = json.dumps(source_log.payload_json, indent=2, ensure_ascii=False)
+                prefill_old_payload = (
+                    json.dumps(source_log.old_payload_json, indent=2, ensure_ascii=False)
+                    if source_log.old_payload_json is not None else ""
+                )
+            except AutomationRunLog.DoesNotExist:
+                pass
         form = AutomationRuleTestForm(
             initial={
-                "payload_json": example_payload_json,
-                "old_payload_json": example_old_payload_json,
+                "payload_json": prefill_payload,
+                "old_payload_json": prefill_old_payload,
                 "is_test": True,
             }
         )
@@ -5139,7 +5152,7 @@ def _format_display_datetime(value) -> str:
             # Li trattiamo come orario del progetto prima della formattazione finale.
             parsed = timezone.make_aware(parsed, current_tz)
         parsed = timezone.localtime(parsed, current_tz)
-        return parsed.strftime("%d/%m/%Y %H:%M:%S")
+        return parsed.strftime("%d-%m-%Y %H:%M:%S")
     return str(parsed)
 
 

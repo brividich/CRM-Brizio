@@ -1,0 +1,181 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.rv-page { display:grid; gap:14px; }
+.rv-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.rv-kpi {
+  padding:14px 16px;
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+}
+.rv-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
+.rv-kpi-value { margin-top:6px; font-size:var(--fs-display-md); font-weight:800; color:#0f172a; }
+.rv-kpi--danger .rv-kpi-value { color:#dc2626; }
+.rv-kpi--warn .rv-kpi-value { color:#d97706; }
+.rv-kpi--ok .rv-kpi-value { color:#16a34a; }
+.rv-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15,23,42,.05);
+}
+.rv-card-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  flex-wrap:wrap;
+}
+.rv-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.rv-card-body { padding:18px; }
+.rv-filters { display:flex; gap:8px; flex-wrap:wrap; }
+.rv-filter-btn {
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#fff;
+  color:#334155;
+  padding:6px 14px;
+  font:inherit;
+  font-size:var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+}
+.rv-filter-btn.is-active, .rv-filter-btn:hover {
+  background:#eff6ff;
+  border-color:#bfdbfe;
+  color:#1d4ed8;
+}
+.rv-table-wrap { overflow:auto; }
+.rv-table { width:100%; border-collapse:collapse; }
+.rv-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.rv-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  vertical-align:top;
+}
+.rv-empty { color:#64748b; }
+@media print {
+  .rv-filters, .rv-card-head a, .rv-card-head button { display:none !important; }
+  .rv-card { box-shadow:none; border:none; }
+}
+@media (max-width: 1024px) {
+  .rv-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Verifiche periodiche{% endblock %}
+{% block assets_shell_subtitle %}<p>Stato di tutte le verifiche periodiche attive: scadute, in scadenza, nella norma e senza data impostata.</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ reports_url }}">Tutti i report</a>
+  <a class="btn" href="{{ verifications_url }}">Gestione verifiche</a>
+  <button class="btn" onclick="window.print()">Stampa</button>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="rv-page">
+
+  <section class="rv-kpis">
+    <article class="rv-kpi rv-kpi--danger">
+      <div class="rv-kpi-label">Scadute</div>
+      <div class="rv-kpi-value">{{ overdue_count }}</div>
+    </article>
+    <article class="rv-kpi rv-kpi--warn">
+      <div class="rv-kpi-label">In scadenza (30 gg)</div>
+      <div class="rv-kpi-value">{{ warning_count }}</div>
+    </article>
+    <article class="rv-kpi rv-kpi--ok">
+      <div class="rv-kpi-label">Nella norma</div>
+      <div class="rv-kpi-value">{{ ok_count }}</div>
+    </article>
+    <article class="rv-kpi">
+      <div class="rv-kpi-label">Senza data</div>
+      <div class="rv-kpi-value">{{ missing_count }}</div>
+    </article>
+  </section>
+
+  <article class="rv-card">
+    <div class="rv-card-head">
+      <h2>Verifiche periodiche ({{ rows|length }} su {{ total }})</h2>
+      <div class="rv-filters">
+        <a class="rv-filter-btn {% if stato_filter == 'all' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=all">Tutte ({{ total }})</a>
+        <a class="rv-filter-btn {% if stato_filter == 'overdue' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=overdue">Scadute ({{ overdue_count }})</a>
+        <a class="rv-filter-btn {% if stato_filter == 'warning' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=warning">In scadenza ({{ warning_count }})</a>
+        <a class="rv-filter-btn {% if stato_filter == 'ok' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=ok">Nella norma ({{ ok_count }})</a>
+        <a class="rv-filter-btn {% if stato_filter == 'missing' %}is-active{% endif %}"
+           href="?scope={{ scope }}&stato=missing">Senza data ({{ missing_count }})</a>
+      </div>
+    </div>
+    <div class="rv-card-body">
+      <div class="rv-table-wrap">
+        <table class="rv-table">
+          <thead>
+            <tr>
+              <th>Verifica</th>
+              <th>Fornitore</th>
+              <th>Frequenza</th>
+              <th>Ultima verifica</th>
+              <th>Prossima verifica</th>
+              <th>Asset coinvolti</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td><strong>{{ row.verification.name }}</strong></td>
+                <td>{{ row.verification.supplier|default:"-" }}</td>
+                <td>Ogni {{ row.verification.frequency_months }} mes{% if row.verification.frequency_months == 1 %}e{% else %}i{% endif %}</td>
+                <td>
+                  {% if row.verification.last_verification_date %}
+                    {{ row.verification.last_verification_date|date:"d/m/Y" }}
+                  {% else %}
+                    <span class="rv-empty">Mai eseguita</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.verification.next_verification_date %}
+                    {{ row.verification.next_verification_date|date:"d/m/Y" }}
+                  {% else %}
+                    <span class="rv-empty">-</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.asset_count }}</td>
+                <td>
+                  <span class="as-badge as-badge--{% if row.status == 'overdue' %}danger{% elif row.status == 'warning' %}warn{% elif row.status == 'ok' %}ok{% else %}muted{% endif %}">
+                    {{ row.status_label }}
+                  </span>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="rv-empty">Nessuna verifica periodica con il filtro selezionato.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
+</section>
+{% endblock %}

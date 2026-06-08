@@ -1,24 +1,25 @@
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 
+from core.encrypted_storage import EncryptedStorageMixin
 
-class PrivateTimbriStorage(FileSystemStorage):
+
+class PrivateTimbriStorage(EncryptedStorageMixin, FileSystemStorage):
     """
     Storage per immagini timbri/firme.
-    Salva in TIMBRI_PRIVATE_ROOT, una cartella mai esposta dal web server.
+    Salva in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
     I file vengono serviti esclusivamente dalla view `timbri_serve_image`
     che verifica i permessi ACL prima di restituire il contenuto.
+    I file sono cifrati at rest con AES-256 Fernet (DOCUMENT_ENCRYPTION_KEY).
     """
 
     def __init__(self):
         super().__init__(
             location=settings.TIMBRI_PRIVATE_ROOT,
-            base_url=None,  # nessun URL diretto — solo view protetta
+            base_url=None,
         )
 
     def url(self, name):
-        # Non restituisce mai un URL diretto al file.
-        # La view deve essere chiamata con l'id dell'immagine.
         raise NotImplementedError(
             "Usa {% url 'timbri:serve_image' image_id %} al posto di .image.url"
         )

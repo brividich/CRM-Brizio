@@ -23,6 +23,9 @@ urlpatterns = [
         views.asset_administrative_deadline_edit,
         name="asset_administrative_deadline_edit",
     ),
+    path("assets/manutenzione/", views.maintenance_hub, name="maintenance_hub"),
+    path("assets/manutenzione/scadenzario/", views.maintenance_scadenzario, name="maintenance_scadenzario"),
+    path("assets/manutenzione/impostazioni/", views.maintenance_impostazioni, name="maintenance_impostazioni"),
     path("assets/manutenzione/templates/", views.maintenance_template_list, name="maintenance_template_list"),
     path("assets/manutenzione/templates/new/", views.maintenance_template_create, name="maintenance_template_create"),
     path(

@@ -91,8 +91,8 @@
               </a>
             </td>
             <td class="muted">{{ s.corso.piano.nome|truncatechars:25 }}</td>
-            <td class="nowrap" data-sort-value="{{ s.data_inizio|date:'Y-m-d' }}">{{ s.data_inizio|date:"d/m/Y" }}</td>
-            <td class="nowrap muted" data-sort-value="{{ s.data_fine|date:'Y-m-d' }}">{{ s.data_fine|date:"d/m/Y" }}</td>
+            <td class="nowrap" data-sort-value="{{ s.data_inizio|date:'Y-m-d' }}">{{ s.data_inizio|date:"d-m-Y" }}</td>
+            <td class="nowrap muted" data-sort-value="{{ s.data_fine|date:'Y-m-d' }}">{{ s.data_fine|date:"d-m-Y" }}</td>
             <td data-value="{{ s.stato }}"><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
             <td class="muted" data-value="{{ s.modalita }}">{{ s.get_modalita_display }}</td>
             <td class="muted">{{ s.docente_nome|default:s.docente|default:"—" }}</td>

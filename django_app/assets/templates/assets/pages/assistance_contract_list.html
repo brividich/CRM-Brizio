@@ -225,9 +225,9 @@
                       </span>
                     </td>
                     <td>
-                      <strong>{{ row.contract.start_date|date:"d/m/Y" }}</strong><br>
+                      <strong>{{ row.contract.start_date|date:"d-m-Y" }}</strong><br>
                       <span class="ac-meta">
-                        {% if row.contract.end_date %}fino al {{ row.contract.end_date|date:"d/m/Y" }}{% else %}senza scadenza{% endif %}
+                        {% if row.contract.end_date %}fino al {{ row.contract.end_date|date:"d-m-Y" }}{% else %}senza scadenza{% endif %}
                         {% if row.contract.periodic_cost_eur %}<br>{{ row.contract.periodic_cost_eur }} €{% endif %}
                       </span>
                     </td>
@@ -296,7 +296,7 @@
                             {% else %}
                               <span class="ac-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
                             {% endif %}
-                            <div class="ac-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                            <div class="ac-inline-note">Scadenza {{ event_row.due_date|date:"d-m-Y" }} | creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
                           {% endfor %}
                         </div>
                       {% endif %}

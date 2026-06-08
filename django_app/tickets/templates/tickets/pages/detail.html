@@ -142,8 +142,8 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
         </div>
       </div>
       <div style="font-size:12px;color:#94a3b8;text-align:right;">
-        Aperto il {{ ticket.created_at|date:"d/m/Y \a\l\l\e H:i" }}<br>
-        {% if ticket.closed_at %}Chiuso il {{ ticket.closed_at|date:"d/m/Y H:i" }}{% endif %}
+        Aperto il {{ ticket.created_at|date:"d-m-Y \a\l\l\e H:i" }}<br>
+        {% if ticket.closed_at %}Chiuso il {{ ticket.closed_at|date:"d-m-Y H:i" }}{% endif %}
       </div>
     </div>
   </div>
@@ -198,7 +198,7 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
                 {{ c.autore_nome }}
                 {% if c.is_interno %}<span class="tkt-interno-badge">Nota interna</span>{% endif %}
               </span>
-              <span class="tkt-commento-date">{{ c.created_at|date:"d/m/Y H:i" }}</span>
+              <span class="tkt-commento-date">{{ c.created_at|date:"d-m-Y H:i" }}</span>
             </div>
             <div class="tkt-commento-testo">{{ c.testo }}</div>
           </div>
@@ -261,12 +261,12 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
         {% endif %}
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Apertura</span>
-          <span class="tkt-meta-val">{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+          <span class="tkt-meta-val">{{ ticket.created_at|date:"d-m-Y H:i" }}</span>
         </div>
         {% if ticket.closed_at %}
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Chiusura</span>
-          <span class="tkt-meta-val">{{ ticket.closed_at|date:"d/m/Y H:i" }}</span>
+          <span class="tkt-meta-val">{{ ticket.closed_at|date:"d-m-Y H:i" }}</span>
         </div>
         {% endif %}
       </div>

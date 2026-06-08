@@ -1,300 +1,413 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}To-do manutenzione{% endblock %}
+{% block title %}Centro manutenzioni{% endblock %}
 
 {% block assets_shell_head %}
 <style>
-.mt-page { display:grid; gap:16px; }
+/* Layout principale */
+.mc-page { display:grid; gap:20px; }
 
-/* KPI chips */
-.mt-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
-.mt-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid #dbe1ea; border-radius:999px; padding:5px 12px; font-size:var(--fs-sm); font-weight:700; color:#334155; background:#fff; text-decoration:none; transition:background .15s; }
-.mt-chip:hover { background:#f1f5f9; }
-.mt-chip-num { font-size:var(--fs-md); font-weight:800; }
-.mt-chip-num.red { color:#dc2626; }
-.mt-chip-num.amber { color:#d97706; }
-.mt-chip-num.blue { color:#2563eb; }
-.mt-chip-num.green { color:#16a34a; }
+/* Barra sommario superiore */
+.mc-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+.mc-kpi { background:#fff; border:1px solid #dbe1ea; border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:4px; text-decoration:none; color:inherit; transition:box-shadow .15s,transform .1s; }
+.mc-kpi:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); transform:translateY(-1px); }
+.mc-kpi-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.mc-kpi-value { font-size:1.6rem; font-weight:900; line-height:1; }
+.mc-kpi-sub { font-size:var(--fs-xs); color:#94a3b8; }
+.mc-kpi.red { border-color:#fca5a5; background:#fff5f5; }
+.mc-kpi.red .mc-kpi-value { color:#dc2626; }
+.mc-kpi.amber { border-color:#fcd34d; background:#fffbeb; }
+.mc-kpi.amber .mc-kpi-value { color:#d97706; }
+.mc-kpi.green { border-color:#86efac; background:#f0fdf4; }
+.mc-kpi.green .mc-kpi-value { color:#16a34a; }
+.mc-kpi.blue { border-color:#93c5fd; background:#eff6ff; }
+.mc-kpi.blue .mc-kpi-value { color:#2563eb; }
 
-/* Filtro reparto */
-.mt-filter { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 14px; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; }
-.mt-filter label { font-size:var(--fs-sm); font-weight:700; color:#374151; }
-.mt-filter select { padding:5px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:var(--fs-sm); color:#0f172a; background:#fff; }
+/* Barra filtri */
+.mc-filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:10px 14px; }
+.mc-filters label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.mc-filters select { padding:5px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:var(--fs-sm); background:#fff; }
+.mc-filters a.reset { font-size:var(--fs-sm); color:#94a3b8; text-decoration:none; margin-left:auto; }
+.mc-filters a.reset:hover { color:#ef4444; }
 
-/* Sezioni */
-.mt-section { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
-.mt-section-head { padding:12px 16px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:10px; }
-.mt-section-head h2 { margin:0; font-size:var(--fs-display-sm); font-weight:800; color:#0f172a; flex:1; }
-.mt-badge { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 6px; border-radius:999px; font-size:var(--fs-xs); font-weight:800; }
-.mt-badge-red { background:#fee2e2; color:#b91c1c; }
-.mt-badge-amber { background:#fef3c7; color:#92400e; }
-.mt-badge-blue { background:#dbeafe; color:#1e40af; }
-.mt-badge-green { background:#dcfce7; color:#15803d; }
-.mt-badge-muted { background:#f1f5f9; color:#64748b; }
+/* Sezione card */
+.mc-section { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
+.mc-section-head { padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.mc-section-head h2 { margin:0; font-size:var(--fs-md); font-weight:800; color:#0f172a; flex:1; white-space:nowrap; }
+.mc-section.urgent { border-color:#fca5a5; }
+.mc-section.urgent .mc-section-head { background:#fff5f5; border-color:#fca5a5; }
+.mc-section.warn { border-color:#fcd34d; }
+.mc-section.warn .mc-section-head { background:#fffbeb; border-color:#fcd34d; }
 
-/* Tabelle */
-.mt-table-wrap { overflow-x:auto; }
-.mt-table { width:100%; min-width:600px; border-collapse:separate; border-spacing:0; }
-.mt-table th { padding:9px 12px; background:#f8fafc; font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
-.mt-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; font-size:var(--fs-sm); color:#334155; vertical-align:middle; }
-.mt-table tr:last-child td { border-bottom:none; }
-.mt-table tr:hover td { background:#fafafa; }
-.mt-table a { color:#1d4ed8; text-decoration:none; font-weight:600; }
-.mt-table a:hover { text-decoration:underline; }
-.mt-tag { font-size:var(--fs-xs); font-weight:800; color:#1d4ed8; letter-spacing:.03em; font-family:monospace; }
-.mt-days-red { color:#dc2626; font-weight:700; }
-.mt-days-amber { color:#d97706; font-weight:700; }
-.mt-days-green { color:#16a34a; font-weight:700; }
-.mt-empty { padding:20px 16px; text-align:center; color:#94a3b8; font-size:var(--fs-sm); }
-.mt-section-action { margin-left:auto; }
+/* Badge */
+.mc-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; font-size:var(--fs-xs); font-weight:800; }
+.mc-badge-red { background:#fee2e2; color:#b91c1c; }
+.mc-badge-amber { background:#fef3c7; color:#92400e; }
+.mc-badge-blue { background:#dbeafe; color:#1e40af; }
+.mc-badge-green { background:#dcfce7; color:#15803d; }
+.mc-badge-muted { background:#f1f5f9; color:#64748b; }
 
-/* Responsive */
+/* Griglia OdL card */
+.mc-wo-grid { display:grid; gap:10px; padding:14px; }
+.mc-wo-card { border:1px solid #e5e7eb; border-radius:10px; padding:12px 14px; display:grid; grid-template-columns:auto 1fr auto; gap:8px 14px; align-items:start; transition:box-shadow .15s; }
+.mc-wo-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.07); }
+.mc-wo-card.overdue { border-color:#fca5a5; background:#fff9f9; border-left:3px solid #dc2626; }
+.mc-wo-card.recent { border-left:3px solid #f59e0b; }
+.mc-wo-num { font-size:var(--fs-xs); font-weight:900; color:#94a3b8; font-family:monospace; padding-top:2px; }
+.mc-wo-body { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.mc-wo-title { font-size:var(--fs-sm); font-weight:700; color:#1d4ed8; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mc-wo-title:hover { text-decoration:underline; }
+.mc-wo-meta { font-size:var(--fs-xs); color:#64748b; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.mc-wo-tag { font-size:var(--fs-xs); font-weight:800; color:#1d4ed8; letter-spacing:.04em; font-family:monospace; background:#eff6ff; padding:1px 5px; border-radius:4px; }
+.mc-wo-action { display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+.mc-age-red { color:#dc2626; font-size:var(--fs-xs); font-weight:800; white-space:nowrap; }
+.mc-age-amber { color:#d97706; font-size:var(--fs-xs); font-weight:800; white-space:nowrap; }
+
+/* Tabella secondaria (scadenze, verifiche, macchine) */
+.mc-table-wrap { overflow-x:auto; }
+.mc-table { width:100%; min-width:520px; border-collapse:separate; border-spacing:0; }
+.mc-table th { padding:8px 12px; background:#f8fafc; font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
+.mc-table td { padding:9px 12px; border-bottom:1px solid #f1f5f9; font-size:var(--fs-sm); color:#334155; vertical-align:middle; }
+.mc-table tr:last-child td { border-bottom:none; }
+.mc-table tr:hover td { background:#fafafa; }
+.mc-table a { color:#1d4ed8; text-decoration:none; font-weight:600; }
+.mc-table a:hover { text-decoration:underline; }
+.mc-tag { font-size:var(--fs-xs); font-weight:800; color:#1d4ed8; font-family:monospace; background:#eff6ff; padding:1px 5px; border-radius:4px; }
+.mc-days-red { color:#dc2626; font-weight:700; }
+.mc-days-amber { color:#d97706; font-weight:700; }
+.mc-days-green { color:#16a34a; font-weight:700; }
+.mc-empty { padding:20px 16px; text-align:center; color:#94a3b8; font-size:var(--fs-sm); }
+.mc-section-action { margin-left:auto; white-space:nowrap; }
+.mc-wo-age-sub { font-size:var(--fs-xs); color:#94a3b8; }
+.mc-ticket-num { font-family:monospace; font-weight:800; color:#64748b; }
+
+/* Sezioni collassabili */
+.mc-collapsible-head { cursor:pointer; -webkit-user-select:none; user-select:none; }
+.mc-collapsible-head::after { content:" ▾"; font-size:.85em; color:#94a3b8; }
+.mc-collapsible-head.collapsed::after { content:" ▸"; }
+.mc-collapsible-body { transition:max-height .2s ease; overflow:hidden; }
+
+/* Azioni rapide nella head */
+.mc-head-actions { display:flex; gap:8px; align-items:center; margin-left:auto; }
+
+/* Dark mode */
+body.theme-dark .mc-kpi { background:#1e293b; border-color:#334155; color:#cbd5e1; }
+body.theme-dark .mc-kpi.red { background:#2d1515; border-color:#7f1d1d; }
+body.theme-dark .mc-kpi.amber { background:#2d2008; border-color:#78350f; }
+body.theme-dark .mc-kpi.green { background:#0d2e18; border-color:#14532d; }
+body.theme-dark .mc-kpi.blue { background:#0d1f3c; border-color:#1e3a5f; }
+body.theme-dark .mc-section { background:#1e293b; border-color:#334155; }
+body.theme-dark .mc-section-head { border-color:#334155; }
+body.theme-dark .mc-section.urgent .mc-section-head { background:#2d1515; }
+body.theme-dark .mc-section.warn .mc-section-head { background:#2d2008; }
+body.theme-dark .mc-wo-card { background:#253347; border-color:#334155; }
+body.theme-dark .mc-wo-card.overdue { background:#2d1515; border-color:#7f1d1d; }
+body.theme-dark .mc-filters { background:#1e293b; border-color:#334155; }
+body.theme-dark .mc-filters select { background:#253347; border-color:#475569; color:#cbd5e1; }
+body.theme-dark .mc-table th { background:#1e293b; border-color:#334155; color:#94a3b8; }
+body.theme-dark .mc-table td { border-color:#253347; color:#cbd5e1; }
+body.theme-dark .mc-table tr:hover td { background:#253347; }
+body.theme-dark .mc-table a { color:#60a5fa; }
+body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
+
 @media (max-width:700px) {
-  .mt-chips { gap:6px; }
-  .mt-table { min-width:480px; }
+  .mc-summary { grid-template-columns:1fr 1fr; }
+  .mc-wo-card { grid-template-columns:auto 1fr; }
+  .mc-wo-action { grid-column:1/-1; flex-direction:row; justify-content:flex-end; }
 }
-body.theme-dark .mt-section { background:#1e293b; border-color:#334155; }
-body.theme-dark .mt-section-head { border-color:#334155; }
-body.theme-dark .mt-filter { background:#1e293b; border-color:#334155; }
-body.theme-dark .mt-table th { background:#1e293b; border-color:#334155; }
-body.theme-dark .mt-table td { border-color:#1e293b; color:#cbd5e1; }
-body.theme-dark .mt-table tr:hover td { background:#273344; }
-body.theme-dark .mt-table a { color:#60a5fa; }
-body.theme-dark .mt-chip { background:#1e293b; border-color:#334155; color:#cbd5e1; }
-body.theme-dark .mt-chip:hover { background:#273344; }
 </style>
 {% endblock %}
 
-{% block assets_shell_content %}
-<div class="mt-page">
+{% block assets_shell_title %}Centro manutenzioni{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Panoramica operativa: ordini di lavoro aperti, scadenze e verifiche imminenti.</p>
+{% endblock %}
 
-  <div class="mt-chips">
-    {% with wo_od=wo_overdue|length wo_rc=wo_recent|length ud=upcoming_deadlines|length uv=upcoming_verifications|length mo=machines_overdue|length mw=machines_warning|length %}
-    <a href="{{ wo_list_url }}" class="mt-chip">
-      OdL aperti <span class="mt-chip-num {% if wo_od %}red{% elif wo_rc %}amber{% else %}green{% endif %}">{{ wo_total }}</span>
+{% block assets_shell_content %}
+{% with wo_od=wo_overdue|length wo_rc=wo_recent|length ud=upcoming_deadlines|length uv=upcoming_verifications|length mo=machines_overdue|length mw=machines_warning|length %}
+<div class="mc-page">
+
+  <!-- KPI sommario -->
+  <div class="mc-summary">
+    <a href="{{ wo_list_url }}" class="mc-kpi {% if wo_od %}red{% elif wo_rc %}amber{% elif wo_total %}blue{% else %}green{% endif %}">
+      <span class="mc-kpi-label">OdL aperti</span>
+      <span class="mc-kpi-value">{{ wo_total }}</span>
+      <span class="mc-kpi-sub">{% if wo_od %}{{ wo_od }} in ritardo{% elif wo_rc %}{{ wo_rc }} recenti{% else %}tutti nei tempi{% endif %}</span>
     </a>
-    <a href="{{ deadline_list_url }}" class="mt-chip">
-      Scadenze (30gg) <span class="mt-chip-num {% if ud %}amber{% else %}green{% endif %}">{{ ud }}</span>
+    <a href="{{ deadline_list_url }}" class="mc-kpi {% if ud %}amber{% else %}green{% endif %}">
+      <span class="mc-kpi-label">Scadenze amm.</span>
+      <span class="mc-kpi-value">{{ ud }}</span>
+      <span class="mc-kpi-sub">nei prossimi 30 gg</span>
     </a>
-    <a href="{{ verifications_url }}" class="mt-chip">
-      Verifiche (30gg) <span class="mt-chip-num {% if uv %}amber{% else %}green{% endif %}">{{ uv }}</span>
+    <a href="{{ verifications_url }}" class="mc-kpi {% if uv %}amber{% else %}green{% endif %}">
+      <span class="mc-kpi-label">Verifiche</span>
+      <span class="mc-kpi-value">{{ uv }}</span>
+      <span class="mc-kpi-sub">nei prossimi 30 gg</span>
     </a>
-    <a href="{{ work_machine_list_url }}" class="mt-chip">
-      Macchine in scadenza <span class="mt-chip-num {% if mo %}red{% elif mw %}amber{% else %}green{% endif %}">{{ mo|add:mw }}</span>
+    <a href="{{ work_machine_list_url }}" class="mc-kpi {% if mo %}red{% elif mw %}amber{% else %}green{% endif %}">
+      <span class="mc-kpi-label">Macchine</span>
+      <span class="mc-kpi-value">{{ mo|add:mw }}</span>
+      <span class="mc-kpi-sub">{% if mo %}{{ mo }} scadute{% elif mw %}{{ mw }} imminenti{% else %}tutto ok{% endif %}</span>
     </a>
     {% if man_tickets %}
-    <span class="mt-chip">
-      Ticket MAN <span class="mt-chip-num blue">{{ man_tickets|length }}</span>
-    </span>
+    <a href="{{ wo_list_url }}" class="mc-kpi blue">
+      <span class="mc-kpi-label">Ticket MAN</span>
+      <span class="mc-kpi-value">{{ man_tickets|length }}</span>
+      <span class="mc-kpi-sub">aperti</span>
+    </a>
     {% endif %}
-    {% endwith %}
   </div>
 
-  <!-- Filtro reparto -->
-  {% if reparto_options %}
-  <form method="get" class="mt-filter">
-    <label for="mt-reparto">Reparto:</label>
-    <select id="mt-reparto" name="reparto" onchange="this.form.submit()">
+  <!-- Filtri -->
+  <form method="get" class="mc-filters">
+    {% if reparto_options %}
+    <label for="mc-reparto">Reparto</label>
+    <select id="mc-reparto" name="reparto" onchange="this.form.submit()">
       <option value="">— tutti —</option>
       {% for r in reparto_options %}
       <option value="{{ r }}" {% if r == reparto_filter %}selected{% endif %}>{{ r }}</option>
       {% endfor %}
     </select>
-    {% if reparto_filter %}<a href="?" style="font-size:var(--fs-sm);color:#64748b;">× Rimuovi filtro</a>{% endif %}
+    {% endif %}
+    {% if is_admin and user_options %}
+    <label for="mc-assigned">Manutentore</label>
+    <select id="mc-assigned" name="assigned" onchange="this.form.submit()">
+      <option value="">— tutti —</option>
+      {% for u in user_options %}
+      <option value="{{ u.pk }}" {% if assigned_filter == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    {% if reparto_filter or assigned_filter %}
+    <a href="?" class="reset">× rimuovi filtri</a>
+    {% endif %}
   </form>
+
+  <!-- ===== SEZIONE 1: OdL APERTI ===== -->
+  <div class="mc-section {% if wo_od %}urgent{% elif wo_rc %}warn{% endif %}">
+    <div class="mc-section-head">
+      <h2>Ordini di lavoro aperti</h2>
+      {% if wo_od %}<span class="mc-badge mc-badge-red">{{ wo_od }} in ritardo</span>{% endif %}
+      {% if wo_rc %}<span class="mc-badge mc-badge-amber">{{ wo_rc }} recenti</span>{% endif %}
+      {% if not wo_od and not wo_rc and wo_total %}<span class="mc-badge mc-badge-green">{{ wo_total }} nei tempi</span>{% endif %}
+      <div class="mc-head-actions">
+        <a href="{{ wo_create_url }}" class="btn btn-sm btn-primary">+ Nuovo OdL</a>
+        <a href="{{ wo_list_url }}" class="btn btn-sm">Tutti gli OdL</a>
+      </div>
+    </div>
+
+    {% if wo_overdue or wo_recent %}
+    <div class="mc-wo-grid">
+      <!-- OdL IN RITARDO (> 21 giorni) -->
+      {% for wo in wo_overdue %}
+      <div class="mc-wo-card overdue">
+        <div class="mc-wo-num">#{{ wo.pk }}</div>
+        <div class="mc-wo-body">
+          <a href="{% url 'assets:wo_view' wo.id %}" class="mc-wo-title">{{ wo.title|truncatechars:80 }}</a>
+          <div class="mc-wo-meta">
+            <span class="mc-wo-tag">{{ wo.asset.asset_tag }}</span>
+            <span>{{ wo.asset.name|truncatechars:35 }}</span>
+            {% if wo.asset.reparto %}<span>· {{ wo.asset.reparto }}</span>{% endif %}
+            <span class="mc-badge mc-badge-muted">{{ wo.get_kind_display }}</span>
+            {% with u=wo.assigned_to|default:wo.executed_by %}
+            {% if u %}<span>· {{ u.get_full_name|default:u.username }}</span>{% endif %}
+            {% endwith %}
+          </div>
+        </div>
+        <div class="mc-wo-action">
+          <span class="mc-age-red">{{ wo.opened_at.date|timesince:today }} fa</span>
+          <span class="mc-wo-age-sub">aperto {{ wo.opened_at|date:"d-m-Y" }}</span>
+        </div>
+      </div>
+      {% endfor %}
+      <!-- OdL RECENTI (< 21 giorni) -->
+      {% for wo in wo_recent %}
+      <div class="mc-wo-card recent">
+        <div class="mc-wo-num">#{{ wo.pk }}</div>
+        <div class="mc-wo-body">
+          <a href="{% url 'assets:wo_view' wo.id %}" class="mc-wo-title">{{ wo.title|truncatechars:80 }}</a>
+          <div class="mc-wo-meta">
+            <span class="mc-wo-tag">{{ wo.asset.asset_tag }}</span>
+            <span>{{ wo.asset.name|truncatechars:35 }}</span>
+            {% if wo.asset.reparto %}<span>· {{ wo.asset.reparto }}</span>{% endif %}
+            <span class="mc-badge mc-badge-muted">{{ wo.get_kind_display }}</span>
+            {% with u=wo.assigned_to|default:wo.executed_by %}
+            {% if u %}<span>· {{ u.get_full_name|default:u.username }}</span>{% endif %}
+            {% endwith %}
+          </div>
+        </div>
+        <div class="mc-wo-action">
+          <span class="mc-age-amber">{{ wo.opened_at.date|timesince:today }} fa</span>
+          <span class="mc-wo-age-sub">aperto {{ wo.opened_at|date:"d-m-Y" }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="mc-empty">Nessun ordine di lavoro aperto.</p>
+    {% endif %}
+  </div>
+
+  <!-- ===== SEZIONE 2: SCADENZE AMMINISTRATIVE ===== -->
+  <div class="mc-section {% if upcoming_deadlines %}warn{% endif %}">
+    <div class="mc-section-head mc-collapsible-head {% if not upcoming_deadlines %}collapsed{% endif %}" data-mc-toggle="deadlines">
+      <h2>Scadenze amministrative</h2>
+      {% if upcoming_deadlines %}<span class="mc-badge mc-badge-amber">{{ ud }} nei prossimi 30 gg</span>{% else %}<span class="mc-badge mc-badge-green">nessuna imminente</span>{% endif %}
+      <a href="{{ deadline_list_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
+    </div>
+    <div id="mc-body-deadlines" class="mc-collapsible-body" {% if not upcoming_deadlines %}style="display:none"{% endif %}>
+      {% if upcoming_deadlines %}
+      <div class="mc-table-wrap">
+        <table class="mc-table">
+          <thead>
+            <tr><th>Scadenza</th><th>Asset</th><th>Tipo</th><th>Data</th><th>Residuo</th></tr>
+          </thead>
+          <tbody>
+            {% for d in upcoming_deadlines %}
+            <tr>
+              <td><a href="{{ deadline_list_url }}?asset={{ d.asset_id }}">{{ d.title|truncatechars:55 }}</a></td>
+              <td><span class="mc-tag">{{ d.asset.asset_tag }}</span> {{ d.asset.name|truncatechars:30 }}</td>
+              <td><span class="mc-badge mc-badge-muted">{{ d.get_deadline_type_display }}</span></td>
+              <td>{{ d.due_date|date:"d-m-Y" }}</td>
+              <td>
+                {% if d.due_date <= today %}
+                  <span class="mc-days-red">Scaduta</span>
+                {% else %}
+                  <span class="{% if d.days_until_due <= 7 %}mc-days-red{% elif d.days_until_due <= 14 %}mc-days-amber{% else %}mc-days-green{% endif %}">{{ d.days_until_due }} gg</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="mc-empty">Nessuna scadenza amministrativa nei prossimi 30 giorni.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ===== SEZIONE 3: VERIFICHE PERIODICHE ===== -->
+  <div class="mc-section {% if upcoming_verifications %}warn{% endif %}">
+    <div class="mc-section-head mc-collapsible-head {% if not upcoming_verifications %}collapsed{% endif %}" data-mc-toggle="verifications">
+      <h2>Verifiche periodiche</h2>
+      {% if upcoming_verifications %}<span class="mc-badge mc-badge-amber">{{ uv }} nei prossimi 30 gg</span>{% else %}<span class="mc-badge mc-badge-green">nessuna imminente</span>{% endif %}
+      <a href="{{ verifications_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
+    </div>
+    <div id="mc-body-verifications" class="mc-collapsible-body" {% if not upcoming_verifications %}style="display:none"{% endif %}>
+      {% if upcoming_verifications %}
+      <div class="mc-table-wrap">
+        <table class="mc-table">
+          <thead>
+            <tr><th>Verifica</th><th>Cadenza</th><th>Prossima data</th></tr>
+          </thead>
+          <tbody>
+            {% for v in upcoming_verifications %}
+            <tr>
+              <td>{{ v.name }}</td>
+              <td><span class="mc-badge mc-badge-muted">ogni {{ v.frequency_months }} mesi</span></td>
+              <td>
+                {% if v.next_verification_date <= today %}
+                  <span class="mc-days-red">{{ v.next_verification_date|date:"d-m-Y" }} — scaduta</span>
+                {% else %}
+                  <span class="mc-days-amber">{{ v.next_verification_date|date:"d-m-Y" }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="mc-empty">Nessuna verifica periodica nei prossimi 30 giorni.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ===== SEZIONE 4: MACCHINE IN SCADENZA ===== -->
+  {% if machines_overdue or machines_warning %}
+  <div class="mc-section {% if machines_overdue %}urgent{% elif machines_warning %}warn{% endif %}">
+    <div class="mc-section-head mc-collapsible-head" data-mc-toggle="machines">
+      <h2>Macchine — manutenzione in scadenza</h2>
+      {% if machines_overdue %}<span class="mc-badge mc-badge-red">{{ mo }} scadute</span>{% endif %}
+      {% if machines_warning %}<span class="mc-badge mc-badge-amber">{{ mw }} imminenti (14 gg)</span>{% endif %}
+      <a href="{{ work_machine_list_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
+    </div>
+    <div id="mc-body-machines" class="mc-collapsible-body">
+      <div class="mc-table-wrap">
+        <table class="mc-table">
+          <thead>
+            <tr><th>Macchina</th><th>Reparto</th><th>Prossima manutenzione</th><th>Stato</th></tr>
+          </thead>
+          <tbody>
+            {% for m in machines_overdue %}
+            <tr>
+              <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mc-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:40 }}</a></td>
+              <td>{{ m.asset.reparto|default:"—" }}</td>
+              <td class="mc-days-red">{{ m.next_maintenance_date|date:"d-m-Y" }}</td>
+              <td><span class="mc-badge mc-badge-red">In ritardo</span></td>
+            </tr>
+            {% endfor %}
+            {% for m in machines_warning %}
+            <tr>
+              <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mc-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:40 }}</a></td>
+              <td>{{ m.asset.reparto|default:"—" }}</td>
+              <td class="mc-days-amber">{{ m.next_maintenance_date|date:"d-m-Y" }}</td>
+              <td><span class="mc-badge mc-badge-amber">Imminente</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
   {% endif %}
 
-  <!-- SEZIONE 1: OdL aperti -->
-  <div class="mt-section">
-    <div class="mt-section-head">
-      <h2>OdL aperti</h2>
-      {% if wo_overdue %}<span class="mt-badge mt-badge-red">{{ wo_overdue|length }} in ritardo</span>{% endif %}
-      {% if wo_recent %}<span class="mt-badge mt-badge-amber">{{ wo_recent|length }} recenti</span>{% endif %}
-      <a href="{{ wo_create_url }}" class="btn btn-sm btn-primary mt-section-action">+ Nuovo OdL</a>
-    </div>
-    {% if wo_overdue or wo_recent %}
-    <div class="mt-table-wrap">
-      <table class="mt-table">
-        <thead>
-          <tr>
-            <th>#</th><th>Asset</th><th>Titolo</th><th>Tipo</th><th>Assegnato a</th><th>Aperto il</th><th>Giorni aperti</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for wo in wo_overdue %}
-          {% with age=today|timesince:wo.opened_at %}
-          <tr>
-            <td><a href="{% url 'assets:wo_view' wo.id %}">{{ wo.pk }}</a></td>
-            <td><span class="mt-tag">{{ wo.asset.asset_tag }}</span></td>
-            <td><a href="{% url 'assets:wo_view' wo.id %}">{{ wo.title|truncatechars:60 }}</a></td>
-            <td><span class="mt-badge mt-badge-muted">{{ wo.get_kind_display }}</span></td>
-            <td>{% if wo.executed_by %}{{ wo.executed_by.get_full_name|default:wo.executed_by.username }}{% else %}&mdash;{% endif %}</td>
-            <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
-            <td class="mt-days-red">{{ wo.opened_at.date|timesince:today }}</td>
-          </tr>
-          {% endwith %}
-          {% endfor %}
-          {% for wo in wo_recent %}
-          <tr>
-            <td><a href="{% url 'assets:wo_view' wo.id %}">{{ wo.pk }}</a></td>
-            <td><span class="mt-tag">{{ wo.asset.asset_tag }}</span></td>
-            <td><a href="{% url 'assets:wo_view' wo.id %}">{{ wo.title|truncatechars:60 }}</a></td>
-            <td><span class="mt-badge mt-badge-muted">{{ wo.get_kind_display }}</span></td>
-            <td>{% if wo.executed_by %}{{ wo.executed_by.get_full_name|default:wo.executed_by.username }}{% else %}&mdash;{% endif %}</td>
-            <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
-            <td class="mt-days-amber">{{ wo.opened_at.date|timesince:today }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="mt-empty">Nessun ordine di lavoro aperto.</p>
-    {% endif %}
-  </div>
-
-  <!-- SEZIONE 2: Scadenze amministrative -->
-  <div class="mt-section">
-    <div class="mt-section-head">
-      <h2>Scadenze amministrative (prossimi 30 gg)</h2>
-      {% if upcoming_deadlines %}<span class="mt-badge mt-badge-amber">{{ upcoming_deadlines|length }}</span>{% endif %}
-      <a href="{{ deadline_list_url }}" class="btn btn-sm mt-section-action" style="color:#1d4ed8;">Vedi tutte</a>
-    </div>
-    {% if upcoming_deadlines %}
-    <div class="mt-table-wrap">
-      <table class="mt-table">
-        <thead>
-          <tr><th>Scadenza</th><th>Asset</th><th>Tipo</th><th>Giorni rimanenti</th></tr>
-        </thead>
-        <tbody>
-          {% for d in upcoming_deadlines %}
-          {% with days_left=d.due_date|timeuntil:today %}
-          <tr>
-            <td><a href="{{ deadline_list_url }}?asset={{ d.asset_id }}">{{ d.title|truncatechars:60 }}</a></td>
-            <td><span class="mt-tag">{{ d.asset.asset_tag }}</span> {{ d.asset.name }}</td>
-            <td><span class="mt-badge mt-badge-muted">{{ d.get_deadline_type_display }}</span></td>
-            <td>
-              {% with dl=d.due_date %}
-              {% if dl <= today %}
-                <span class="mt-days-red">Scaduta</span>
-              {% elif dl <= today|date:"Y-m-d"|add:" 7 days" %}
-                <span class="mt-days-amber">{{ d.due_date|date:"d/m/Y" }}</span>
-              {% else %}
-                <span class="mt-days-green">{{ d.due_date|date:"d/m/Y" }}</span>
-              {% endif %}
-              {% endwith %}
-            </td>
-          </tr>
-          {% endwith %}
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="mt-empty">Nessuna scadenza amministrativa nei prossimi 30 giorni.</p>
-    {% endif %}
-  </div>
-
-  <!-- SEZIONE 3: Verifiche periodiche -->
-  <div class="mt-section">
-    <div class="mt-section-head">
-      <h2>Verifiche periodiche (prossimi 30 gg)</h2>
-      {% if upcoming_verifications %}<span class="mt-badge mt-badge-amber">{{ upcoming_verifications|length }}</span>{% endif %}
-      <a href="{{ verifications_url }}" class="btn btn-sm mt-section-action" style="color:#1d4ed8;">Vedi tutte</a>
-    </div>
-    {% if upcoming_verifications %}
-    <div class="mt-table-wrap">
-      <table class="mt-table">
-        <thead>
-          <tr><th>Nome verifica</th><th>Frequenza</th><th>Prossima data</th></tr>
-        </thead>
-        <tbody>
-          {% for v in upcoming_verifications %}
-          <tr>
-            <td>{{ v.name }}</td>
-            <td>{{ v.frequency_months }} mesi</td>
-            <td>
-              {% if v.next_verification_date <= today %}
-                <span class="mt-days-red">{{ v.next_verification_date|date:"d/m/Y" }}</span>
-              {% else %}
-                <span class="mt-days-amber">{{ v.next_verification_date|date:"d/m/Y" }}</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="mt-empty">Nessuna verifica periodica nei prossimi 30 giorni.</p>
-    {% endif %}
-  </div>
-
-  <!-- SEZIONE 4: Macchine utensili in scadenza -->
-  <div class="mt-section">
-    <div class="mt-section-head">
-      <h2>Macchine — manutenzione in scadenza (14 gg)</h2>
-      {% if machines_overdue %}<span class="mt-badge mt-badge-red">{{ machines_overdue|length }} in ritardo</span>{% endif %}
-      {% if machines_warning %}<span class="mt-badge mt-badge-amber">{{ machines_warning|length }} imminenti</span>{% endif %}
-      <a href="{{ work_machine_list_url }}" class="btn btn-sm mt-section-action" style="color:#1d4ed8;">Vedi tutte</a>
-    </div>
-    {% if machines_overdue or machines_warning %}
-    <div class="mt-table-wrap">
-      <table class="mt-table">
-        <thead>
-          <tr><th>Macchina</th><th>Reparto</th><th>Prossima manutenzione</th><th>Stato</th></tr>
-        </thead>
-        <tbody>
-          {% for m in machines_overdue %}
-          <tr>
-            <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mt-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name }}</a></td>
-            <td>{{ m.asset.reparto|default:"—" }}</td>
-            <td class="mt-days-red">{{ m.next_maintenance_date|date:"d/m/Y" }}</td>
-            <td><span class="mt-badge mt-badge-red">In ritardo</span></td>
-          </tr>
-          {% endfor %}
-          {% for m in machines_warning %}
-          <tr>
-            <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mt-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name }}</a></td>
-            <td>{{ m.asset.reparto|default:"—" }}</td>
-            <td class="mt-days-amber">{{ m.next_maintenance_date|date:"d/m/Y" }}</td>
-            <td><span class="mt-badge mt-badge-amber">Imminente</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="mt-empty">Nessuna macchina con manutenzione in scadenza nei prossimi 14 giorni.</p>
-    {% endif %}
-  </div>
-
-  <!-- SEZIONE 5: Ticket MAN aperti -->
+  <!-- ===== SEZIONE 5: TICKET MAN ===== -->
   {% if man_tickets %}
-  <div class="mt-section">
-    <div class="mt-section-head">
+  <div class="mc-section">
+    <div class="mc-section-head mc-collapsible-head" data-mc-toggle="tickets">
       <h2>Ticket manutenzione aperti</h2>
-      <span class="mt-badge mt-badge-blue">{{ man_tickets|length }}</span>
+      <span class="mc-badge mc-badge-blue">{{ man_tickets|length }}</span>
     </div>
-    <div class="mt-table-wrap">
-      <table class="mt-table">
-        <thead>
-          <tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr>
-        </thead>
-        <tbody>
-          {% for t in man_tickets %}
-          <tr>
-            <td>{{ t.pk }}</td>
-            <td>{{ t.oggetto|default:t.descrizione|truncatechars:60 }}</td>
-            <td>{% if t.data_apertura %}{{ t.data_apertura|date:"d/m/Y" }}{% else %}&mdash;{% endif %}</td>
-            <td>{% if t.assegnato_a %}{{ t.assegnato_a.get_full_name|default:t.assegnato_a.username }}{% else %}&mdash;{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div id="mc-body-tickets" class="mc-collapsible-body">
+      <div class="mc-table-wrap">
+        <table class="mc-table">
+          <thead>
+            <tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr>
+          </thead>
+          <tbody>
+            {% for t in man_tickets %}
+            <tr>
+              <td class="mc-ticket-num">{{ t.pk }}</td>
+              <td>{{ t.oggetto|default:t.descrizione|truncatechars:65 }}</td>
+              <td>{% if t.data_apertura %}{{ t.data_apertura|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td>{% if t.assegnato_a %}{{ t.assegnato_a.get_full_name|default:t.assegnato_a.username }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
   {% endif %}
 
 </div>
+{% endwith %}
+
+<script>
+(() => {
+  document.querySelectorAll(".mc-collapsible-head").forEach(head => {
+    const key = head.dataset.mcToggle;
+    const body = document.getElementById(`mc-body-${key}`);
+    if (!body) return;
+    head.addEventListener("click", e => {
+      if (e.target.tagName === "A" || e.target.tagName === "BUTTON") return;
+      const open = body.style.display !== "none";
+      body.style.display = open ? "none" : "";
+      head.classList.toggle("collapsed", open);
+    });
+  });
+})();
+</script>
 {% endblock %}

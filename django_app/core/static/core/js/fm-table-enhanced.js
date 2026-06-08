@@ -102,8 +102,21 @@
     return cleanText((cell.dataset && (cell.dataset.value || cell.dataset.sortValue)) || cell.textContent || "");
   }
 
+  // Una "detail row" è una riga figlia di espansione (es. dettaglio collassabile
+  // di una riga dati) che NON deve partecipare a filtro/sort/visibilità del
+  // componente: la sua visibilità è controllata da JS esterno (toggle). Si
+  // marca con class="fm-detail-row" oppure data-fm-detail-row="1".
+  function isDetailRow(row) {
+    return !!(row && row.nodeType === 1 && (
+      row.classList.contains("fm-detail-row") ||
+      (row.dataset && row.dataset.fmDetailRow === "1")
+    ));
+  }
+
   function bodyRows(table) {
-    return table.tBodies && table.tBodies[0] ? $$("tr", table.tBodies[0]) : [];
+    return table.tBodies && table.tBodies[0]
+      ? $$("tr", table.tBodies[0]).filter(tr => !isDetailRow(tr))
+      : [];
   }
 
   function rowCellCount(row) {
@@ -452,7 +465,16 @@
   function mergeState(defaults, saved) {
     if (!saved || typeof saved !== "object") return defaults;
     const out = JSON.parse(JSON.stringify(defaults));
-    if (Array.isArray(saved.visible)) out.visible = saved.visible.filter(k => defaults.order.includes(k));
+    if (Array.isArray(saved.visible)) {
+      // Tieni solo le chiavi note dello stato salvato, ma AGGIUNGI come visibili
+      // le colonne nuove (presenti nei default ma non ancora nella preferenza
+      // salvata), altrimenti una colonna introdotta dopo resterebbe nascosta
+      // per gli utenti che hanno già una preferenza memorizzata.
+      const savedVisible = saved.visible.filter(k => defaults.order.includes(k));
+      const savedKnown = new Set(saved.visible);
+      const newlyAdded = defaults.visible.filter(k => !savedKnown.has(k));
+      out.visible = savedVisible.concat(newlyAdded);
+    }
     if (Array.isArray(saved.order)) {
       const known = new Set(defaults.order);
       const merged = saved.order.filter(k => known.has(k));
@@ -942,41 +964,70 @@
   }
 
   function applyState(table, cols, state) {
+    // Righe dati reali (escluse le detail-row di espansione, controllate da JS esterno)
+    const dataRows = bodyRows(table);
+
     // Visibilità colonne
     const visible = new Set(state.visible);
     cols.forEach((col) => {
       if (!col.key) return;
       const hide = !visible.has(col.key) && !col.locked;
       col.th.style.display = hide ? "none" : "";
-      $$("tr", table.tBodies[0]).forEach(tr => {
+      dataRows.forEach(tr => {
         const cell = tr.cells[col.idx];
         if (cell) cell.style.display = hide ? "none" : "";
       });
     });
 
-    // Filtra
-    const rows = $$("tr", table.tBodies[0]);
-    rows.forEach(tr => {
-      tr.style.display = rowMatchesFilters(tr, cols, state) ? "" : "none";
+    // Cap righe (opzionale): con data-fm-row-cap="N", quando NON c'è alcuna
+    // query attiva (filtro/sort/search) si mostrano solo le prime N righe dati;
+    // appena l'utente filtra/cerca/ordina il cap si disattiva e agisce su tutto.
+    const rowCap = parseInt(table.dataset.fmRowCap || "0", 10);
+    const capActive = rowCap > 0 && !hasActiveQuery(state);
+    let shownSoFar = 0;
+
+    // Filtra (solo righe dati). Le detail-row associate seguono lo stato della
+    // riga padre: se il padre è filtrato via, la detail-row va nascosta; se il
+    // padre torna visibile, la detail-row resta collassata (la riapre il toggle).
+    dataRows.forEach(tr => {
+      let show = rowMatchesFilters(tr, cols, state);
+      if (show && capActive) {
+        if (shownSoFar >= rowCap) show = false;
+        else shownSoFar += 1;
+      }
+      tr.style.display = show ? "" : "none";
+      let sib = tr.nextElementSibling;
+      while (sib && isDetailRow(sib)) {
+        if (!show) sib.style.display = "none";
+        sib = sib.nextElementSibling;
+      }
     });
 
-    // Sort
+    // Sort: riordina le righe dati portando con sé le eventuali detail-row figlie.
     if (state.sort.length) {
-      const visibleRows = rows.filter(r => r.style.display !== "none");
+      const visibleRows = dataRows.filter(r => r.style.display !== "none");
       visibleRows.sort((a, b) => compareRows(a, b, cols, state));
       const tbody = table.tBodies[0];
       const frag = document.createDocumentFragment();
-      visibleRows.forEach(r => frag.appendChild(r));
+      visibleRows.forEach(r => {
+        frag.appendChild(r);
+        let sib = r.nextElementSibling;
+        while (sib && isDetailRow(sib)) {
+          const next = sib.nextElementSibling;
+          frag.appendChild(sib);
+          sib = next;
+        }
+      });
       tbody.appendChild(frag);
     }
 
     updateSortIndicators(cols, state);
 
-    // Conta
+    // Conta (solo righe dati)
     const countEl = table._fmTblCountEl || (table.parentNode.parentNode && table.parentNode.parentNode.querySelector(".fm-tbl-count"));
     if (countEl) {
-      const tot = rows.length;
-      const shown = rows.filter(r => r.style.display !== "none").length;
+      const tot = dataRows.length;
+      const shown = dataRows.filter(r => r.style.display !== "none").length;
       countEl.textContent = shown < tot ? `${shown} / ${tot}` : `${tot}`;
     }
   }
@@ -1290,11 +1341,39 @@
     table._fmTblCountEl = countSpan;
     bar.appendChild(countSpan);
 
+    // API programmatica per impostare/azzerare un filtro di colonna dall'esterno
+    // (es. click su un KPI che filtra la tabella per anno). Aggiorna lo stato,
+    // l'icona del funnel e l'input del popover, poi riapplica.
+    table._fmSetColumnFilter = function (colKey, value) {
+      const col = cols.find(c => c.key === colKey);
+      if (!col) return false;
+      if (value === "" || value == null) delete state.filters[colKey];
+      else state.filters[colKey] = String(value);
+      const active = !!state.filters[colKey];
+      if (col._fmInput) col._fmInput.value = state.filters[colKey] || "";
+      if (col._fmFilterBtn) {
+        col._fmFilterBtn.classList.toggle("active", active);
+        col._fmFilterBtn.innerHTML = active ? FUNNEL_SVG_ACTIVE : FUNNEL_SVG;
+      }
+      onChange();
+      return true;
+    };
+
     // Applica stato iniziale e, se le preferenze salvate hanno già una query
     // attiva (filtro/sort/search), carica subito tutto il dataset così che il
     // primo render rifletta la filtro su tutti i record e non solo sulla pagina.
     applyState(table, cols, state);
     maybeLoadAll();
+  }
+
+  // Imposta (o azzera con value vuoto) un filtro di colonna su una tabella già
+  // inizializzata. Ritorna true se applicato. Usato dai KPI cliccabili.
+  function setColumnFilter(tableOrId, colKey, value) {
+    const table = typeof tableOrId === "string"
+      ? document.querySelector('table[data-table-id="' + tableOrId + '"], #' + tableOrId)
+      : tableOrId;
+    if (!table || typeof table._fmSetColumnFilter !== "function") return false;
+    return table._fmSetColumnFilter(colKey, value);
   }
 
   // ─── Auto-bind ────────────────────────────────────────────────────────────
@@ -1329,5 +1408,5 @@
     initAll();
     watchDynamicTables();
   }
-  window.fmTableEnhanced = { init: initTable, initAll: initAll };
+  window.fmTableEnhanced = { init: initTable, initAll: initAll, setColumnFilter: setColumnFilter };
 })();

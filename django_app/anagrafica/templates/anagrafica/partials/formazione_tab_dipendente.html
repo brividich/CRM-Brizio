@@ -30,13 +30,28 @@
   </div>
 
   <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px 0;border-bottom:1px solid #f1f5f9;margin-bottom:8px;">
-    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
-      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_n_completati }}</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">Corsi completati</div>
+    {# Anno in corso — click filtra lo storico per l'anno corrente #}
+    <div class="fm-kpi-card" data-fm-year="{{ fm_kpi_anno_corrente.anno }}" role="button" tabindex="0"
+         title="Filtra lo storico per il {{ fm_kpi_anno_corrente.anno }}"
+         style="text-align:center;padding:6px 14px;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;min-width:96px;cursor:pointer;">
+      <div style="font-size:20px;font-weight:800;color:#1d4ed8;">{{ fm_kpi_anno_corrente.n }}</div>
+      <div style="font-size:11px;color:#1d4ed8;margin-top:2px;font-weight:600;">Anno in corso ({{ fm_kpi_anno_corrente.anno }})</div>
+      <div style="font-size:10px;color:#64748b;margin-top:1px;">{{ fm_kpi_anno_corrente.ore|floatformat:1 }}h</div>
     </div>
-    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
-      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_ore_totali|floatformat:1 }}h</div>
-      <div style="font-size:11px;color:#64748b;margin-top:2px;">Ore formazione</div>
+    {# Anni precedenti — totale + breakdown espandibile #}
+    <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:96px;">
+      {% if fm_kpi_precedenti_per_anno %}
+      <button type="button" class="fm-prev-toggle" onclick="fmTogglePrevYears()"
+              style="background:none;border:none;cursor:pointer;padding:0;width:100%;">
+      {% endif %}
+        <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_kpi_precedenti_totale.n }}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;font-weight:600;">
+          Anni precedenti{% if fm_kpi_precedenti_per_anno %} <span id="fm-prev-caret">▾</span>{% endif %}
+        </div>
+        <div style="font-size:10px;color:#64748b;margin-top:1px;">{{ fm_kpi_precedenti_totale.ore|floatformat:1 }}h</div>
+      {% if fm_kpi_precedenti_per_anno %}
+      </button>
+      {% endif %}
     </div>
     <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
       <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_n_attestati }}</div>
@@ -49,6 +64,28 @@
       <div style="font-size:11px;color:#64748b;margin-top:2px;">Scadenze urgenti</div>
     </div>
   </div>
+
+  {# ── Breakdown anni precedenti per singolo anno (collassato di default) ─── #}
+  {% if fm_kpi_precedenti_per_anno %}
+  <div id="fm-prev-years" style="display:none;padding:0 16px 4px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% for y in fm_kpi_precedenti_per_anno %}
+      <div class="fm-kpi-card" data-fm-year="{{ y.anno }}" role="button" tabindex="0"
+           title="Filtra lo storico per il {{ y.anno }}"
+           style="text-align:center;padding:5px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;min-width:74px;cursor:pointer;">
+        <div style="font-size:15px;font-weight:700;color:#334155;">{{ y.n }}</div>
+        <div style="font-size:11px;color:#475569;font-weight:600;">{{ y.anno }}</div>
+        <div style="font-size:10px;color:#64748b;">{{ y.ore|floatformat:1 }}h</div>
+      </div>
+      {% endfor %}
+      <div data-fm-year="" role="button" tabindex="0"
+           title="Mostra tutti gli anni"
+           style="display:flex;align-items:center;justify-content:center;padding:5px 12px;background:#fff;border:1px dashed #cbd5e1;border-radius:7px;min-width:74px;cursor:pointer;font-size:11px;color:#64748b;font-weight:600;">
+        ↺ Tutti
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   {# ── Scadenze urgenti ─────────────────────────────────────────────────── #}
   {% if fm_scadenze_urgenti %}
@@ -72,7 +109,7 @@
             <td style="font-weight:500;">{{ sc.corso.titolo }}</td>
             <td style="color:#64748b;">{{ sc.corso.piano.nome|default:"—" }}</td>
             <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;">
-              {{ sc.data_scadenza|date:"d/m/Y"|default:"—" }}
+              {{ sc.data_scadenza|date:"d-m-Y"|default:"—" }}
             </td>
             <td>
               {% if sc.stato_scadenza == "SCADUTO" %}
@@ -98,18 +135,22 @@
   {# ── Storico corsi completati ─────────────────────────────────────────── #}
   <div style="padding:10px 16px 4px;">
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
-      Storico completamenti (ultimi 30)
+      Storico completamenti <span id="fm-storico-hint">(ultimi {{ fm_storico_cap }})</span>
     </div>
 
     {% if fm_storico %}
     <div style="overflow-x:auto;">
-      <table class="hr-table" style="font-size:12px;">
+      <table class="hr-table fm-storico-table" style="font-size:12px;"
+             data-table-id="anagrafica.formazione.storico_completamenti"
+             data-fm-row-cap="{{ fm_storico_cap }}">
         <thead>
           <tr>
-            <th style="width:32px;"></th>
-            <th>Corso</th>
+            <th style="width:32px;" data-col-sortable="0" data-col-filterable="0" data-col-locked="1"></th>
             <th>Piano</th>
+            <th>Corso</th>
+            <th>Nome corso</th>
             <th>Completato il</th>
+            <th data-col-type="select">Anno</th>
             <th>Scadenza</th>
             <th>Ore</th>
             <th>Idoneo</th>
@@ -117,23 +158,26 @@
         </thead>
         <tbody>
           {% for rec in fm_storico %}
-          <tr>
+          {# Cap "primi N" gestito dall'enhancer (data-fm-row-cap): si disattiva quando si filtra per anno #}
+          <tr{% if forloop.counter > fm_storico_cap %} style="display:none;"{% endif %}>
             <td>
-              <button class="fm-toggle-btn"
+              <button type="button" class="fm-toggle-btn"
                       id="fm-toggle-{{ rec.pk }}"
                       onclick="fmToggleExpand({{ rec.pk }})">▶</button>
             </td>
-            <td style="font-weight:500;">
-              <span title="{{ rec.course_title_snapshot|default:rec.corso.titolo }}">
-                {{ rec.course_code_snapshot|default:rec.corso.codice }}
-              </span>
-            </td>
             <td style="color:#64748b;">{{ rec.plan_name_snapshot|default:rec.corso.piano.nome|default:"—" }}</td>
+            <td style="font-weight:500;font-variant-numeric:tabular-nums;">
+              {{ rec.course_code_snapshot|default:rec.corso.codice }}
+            </td>
+            <td style="color:#334155;">{{ rec.course_title_snapshot|default:rec.corso.titolo|default:"—" }}</td>
             <td style="white-space:nowrap;color:#334155;font-variant-numeric:tabular-nums;">
-              {{ rec.data_completamento|date:"d/m/Y" }}
+              {{ rec.data_completamento|date:"d-m-Y" }}
+            </td>
+            <td data-value="{{ rec.data_completamento|date:'Y' }}" style="color:#64748b;font-variant-numeric:tabular-nums;">
+              {{ rec.data_completamento|date:"Y" }}
             </td>
             <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;">
-              {{ rec.data_scadenza|date:"d/m/Y"|default:"Una tantum" }}
+              {{ rec.data_scadenza|date:"d-m-Y"|default:"Una tantum" }}
             </td>
             <td style="color:#64748b;">{{ rec.ore_frequentate|default:"—" }}h</td>
             <td>
@@ -141,9 +185,9 @@
               {% else %}<span class="fm-pill fm-pill-expired" style="font-size:10px;">✗</span>{% endif %}
             </td>
           </tr>
-          {# Expand row: snapshot dettaglio #}
-          <tr id="fm-expand-{{ rec.pk }}" class="fm-expand-row" style="display:none;">
-            <td colspan="7">
+          {# Detail row: snapshot dettaglio (collassata di default, esclusa da filtro/sort dell'enhancer) #}
+          <tr id="fm-expand-{{ rec.pk }}" class="fm-expand-row fm-detail-row" data-fm-detail-row="1" style="display:none;">
+            <td colspan="9">
               <div class="fm-expand-inner">
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;">
                   <div><span style="color:#94a3b8;font-weight:600;">Versione:</span> {{ rec.course_version_snapshot|default:"—" }}</div>
@@ -191,7 +235,73 @@ function fmToggleExpand(pk) {
     btn.textContent = '▶';
   }
 }
+function fmTogglePrevYears() {
+  const box = document.getElementById('fm-prev-years');
+  const caret = document.getElementById('fm-prev-caret');
+  if (!box) return;
+  if (box.style.display === 'none') {
+    box.style.display = '';
+    if (caret) caret.textContent = '▴';
+  } else {
+    box.style.display = 'none';
+    if (caret) caret.textContent = '▾';
+  }
+}
+
+// Click su un KPI con [data-fm-year] → filtra lo storico per quell'anno
+// (stringa vuota = azzera il filtro). Sfrutta l'API del componente tabella.
+(function () {
+  const TABLE_ID = 'anagrafica.formazione.storico_completamenti';
+
+  function fmApplyYearFilter(year) {
+    const api = window.fmTableEnhanced;
+    if (!api || typeof api.setColumnFilter !== 'function') return false;
+    const ok = api.setColumnFilter(TABLE_ID, 'anno', year || '');
+    if (ok) {
+      // Evidenzia la card attiva
+      document.querySelectorAll('.fm-kpi-card[data-fm-year]').forEach(function (el) {
+        el.classList.toggle('fm-kpi-active', !!year && el.dataset.fmYear === String(year));
+      });
+      // Aggiorna l'etichetta dello storico: filtrato per anno = tutti i record
+      // di quell'anno (nessun cap), altrimenti torna agli "ultimi N".
+      const hint = document.getElementById('fm-storico-hint');
+      const tbl = document.querySelector('table[data-table-id="' + TABLE_ID + '"]');
+      if (hint) {
+        const cap = tbl ? (tbl.dataset.fmRowCap || '30') : '30';
+        hint.textContent = year ? '(anno ' + year + ')' : '(ultimi ' + cap + ')';
+      }
+      // Porta lo storico in vista
+      if (tbl && year) tbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    return ok;
+  }
+
+  function fmYearClickHandler(e) {
+    const card = e.target.closest('[data-fm-year]');
+    if (!card) return;
+    const year = card.dataset.fmYear;
+    // L'enhancer inizializza in modo asincrono: ritenta brevemente se non pronto.
+    let tries = 0;
+    (function attempt() {
+      if (fmApplyYearFilter(year)) return;
+      if (tries++ < 20) setTimeout(attempt, 100);
+    })();
+  }
+
+  document.addEventListener('click', fmYearClickHandler);
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-fm-year]')) {
+      e.preventDefault();
+      fmYearClickHandler(e);
+    }
+  });
+})();
 </script>
+<style>
+.fm-kpi-card{transition:box-shadow .12s,transform .12s;}
+.fm-kpi-card:hover{box-shadow:0 1px 6px rgba(15,23,42,.12);}
+.fm-kpi-active{outline:2px solid #2563eb;outline-offset:1px;}
+</style>
 
 {% else %}
 {# Fallback per utenti senza accesso formazione #}

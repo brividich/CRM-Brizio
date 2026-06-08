@@ -130,9 +130,9 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
               {% elif s.tipo_categoria == "GESTIONALE" %}<span class="ql-badge ql-badge-purple">Gestionale</span>
               {% else %}<span class="ql-badge ql-badge-gray">Altro</span>{% endif %}
             </td>
-            <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+            <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d-m-Y" }}{% else %}-{% endif %}</td>
             <td style="font-weight:600;{% if s.scaduta %}color:#b91c1c;{% elif s.in_scadenza %}color:#9a3412;{% endif %}" data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}">
-              {{ s.data_scadenza|date:"d/m/Y" }}
+              {{ s.data_scadenza|date:"d-m-Y" }}
             </td>
             <td>
               {% if s.scaduta %}

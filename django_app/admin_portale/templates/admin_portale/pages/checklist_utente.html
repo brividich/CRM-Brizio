@@ -205,7 +205,7 @@
                 <span class="st-esec-tipo {% if esec.tipo_checklist == 'checkin' %}st-tipo-checkin{% else %}st-tipo-checkout{% endif %}">
                   {{ esec.get_tipo_checklist_display }}
                 </span>
-                <span>{{ esec.data_esecuzione|date:"d/m/Y H:i" }}</span>
+                <span>{{ esec.data_esecuzione|date:"d-m-Y H:i" }}</span>
                 <span style="color:var(--text-muted,#888);font-size:12px;">da {{ esec.eseguita_da_nome|default:"—" }}</span>
                 {% if esec.note %}<span style="font-size:12px;color:var(--text-muted,#888);font-style:italic;">· {{ esec.note|truncatechars:60 }}</span>{% endif %}
                 <span style="margin-left:auto;font-size:11px;color:var(--text-muted,#888);">▼</span>

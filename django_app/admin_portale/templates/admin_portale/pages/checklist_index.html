@@ -134,7 +134,7 @@
               <td style="padding:8px 12px;font-weight:500;">{{ row.utente.nome }}</td>
               <td style="padding:8px 12px;" class="cl-stato">
                 {% if row.checkin %}
-                  <span class="cl-ok">✓</span> {{ row.checkin.data_esecuzione|date:"d/m/Y" }}
+                  <span class="cl-ok">✓</span> {{ row.checkin.data_esecuzione|date:"d-m-Y" }}
                   <span style="color:var(--text-muted,#888);font-size:11px;">da {{ row.checkin.eseguita_da_nome|default:"—" }}</span>
                 {% else %}
                   <span class="cl-no">—</span>
@@ -142,7 +142,7 @@
               </td>
               <td style="padding:8px 12px;" class="cl-stato">
                 {% if row.checkout %}
-                  <span class="cl-ok">✓</span> {{ row.checkout.data_esecuzione|date:"d/m/Y" }}
+                  <span class="cl-ok">✓</span> {{ row.checkout.data_esecuzione|date:"d-m-Y" }}
                   <span style="color:var(--text-muted,#888);font-size:11px;">da {{ row.checkout.eseguita_da_nome|default:"—" }}</span>
                 {% else %}
                   <span class="cl-no">—</span>

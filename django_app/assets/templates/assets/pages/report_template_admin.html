@@ -238,7 +238,7 @@
                   <p class="rta-template-title">{{ row.name }}</p>
                   <div class="rta-muted">
                     {% if row.version %}Versione {{ row.version }} · {% endif %}
-                    {{ row.original_name|default:row.file.name }} · {{ row.updated_at|date:"d/m/Y H:i" }}
+                    {{ row.original_name|default:row.file.name }} · {{ row.updated_at|date:"d-m-Y H:i" }}
                     {% if row.uploaded_by %} · {{ row.uploaded_by.username }}{% endif %}
                   </div>
                 </div>

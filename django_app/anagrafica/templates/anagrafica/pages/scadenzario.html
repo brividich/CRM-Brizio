@@ -171,7 +171,7 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
               {% endif %}
             </td>
             <td style="font-weight:600;color:#1e293b;">{{ v.tipo_nome }}</td>
-            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d/m/Y" }}</td>
+            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
             <td>
               {% if v.scaduta %}
                 <span class="sc-pill-scaduta">Scaduta da {{ v.giorni|stringformat:"d"|slice:"1:" }}gg</span>

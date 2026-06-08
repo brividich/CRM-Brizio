@@ -58,7 +58,7 @@ def _format_dt(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, datetime):
-        return value.strftime("%d/%m/%Y")
+        return value.strftime("%d-%m-%Y")
     return str(value)
 
 
@@ -1122,7 +1122,7 @@ def _board_data_tasks(legacy_user_id: int | None, params: dict) -> dict:
                 "status_label": t.get_status_display(),
                 "priority": t.priority,
                 "priority_label": t.get_priority_display(),
-                "due_date": t.due_date.strftime("%d/%m/%Y") if t.due_date else "",
+                "due_date": t.due_date.strftime("%d-%m-%Y") if t.due_date else "",
                 "is_overdue": t.is_overdue,
                 "project": str(t.project) if t.project else "",
                 "next_step": t.next_step_text or "",
@@ -1316,7 +1316,7 @@ def _board_data_notifiche(legacy_user_id: int | None, params: dict) -> list[dict
                 "messaggio": n.messaggio,
                 "url": n.url_azione or "",
                 "letta": n.letta,
-                "data": n.created_at.strftime("%d/%m/%Y %H:%M"),
+                "data": n.created_at.strftime("%d-%m-%Y %H:%M"),
             })
         return out
     except Exception:
@@ -1425,7 +1425,7 @@ def _board_data_tickets(request_user: Any, legacy_user: Any, legacy_user_id: int
                     "priorita": ticket.priorita,
                     "priorita_label": ticket.get_priorita_display(),
                     "asset": str(ticket.asset) if ticket.asset_id and ticket.asset else str(ticket.asset_descrizione_libera or ""),
-                    "updated_at": timezone.localtime(ticket.updated_at).strftime("%d/%m/%Y %H:%M"),
+                    "updated_at": timezone.localtime(ticket.updated_at).strftime("%d-%m-%Y %H:%M"),
                 }
             )
         stats = {
@@ -1475,7 +1475,7 @@ def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
                     "status_label": asset.get_status_display(),
                     "location": asset.assignment_location or asset.assignment_reparto or asset.reparto or "",
                     "deadline_title": deadline.title if deadline else "",
-                    "deadline_due_date": deadline.due_date.strftime("%d/%m/%Y") if deadline and deadline.due_date else "",
+                    "deadline_due_date": deadline.due_date.strftime("%d-%m-%Y") if deadline and deadline.due_date else "",
                     "deadline_state": (
                         "overdue"
                         if deadline and days_until_due is not None and days_until_due < 0
@@ -1525,7 +1525,7 @@ def _board_data_procedure_refresh(request_user: Any, params: dict) -> dict:
                     "document_title": getattr(document, "title", ""),
                     "status": assignment.status,
                     "status_label": assignment.get_status_display(),
-                    "due_date": assignment.due_date.strftime("%d/%m/%Y") if assignment.due_date else "",
+                    "due_date": assignment.due_date.strftime("%d-%m-%Y") if assignment.due_date else "",
                 }
             )
         stats = {
@@ -1925,7 +1925,7 @@ def employee_board_pdf(request):
         "is_admin": is_admin,
         "ordered_widgets": ordered_widgets,
         "widget_data": widget_data,
-        "now": timezone.localtime(timezone.now()).strftime("%d/%m/%Y %H:%M"),
+        "now": timezone.localtime(timezone.now()).strftime("%d-%m-%Y %H:%M"),
     }
     return render(request, "dashboard/pages/employee_board_pdf.html", context)
 

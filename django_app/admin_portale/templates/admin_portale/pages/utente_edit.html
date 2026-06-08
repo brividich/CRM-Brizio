@@ -387,7 +387,7 @@
             <button class="btn" type="button" id="btn-salva-anagrafica">Salva</button>
             {% if extra_info and extra_info.updated_at %}
               <span style="font-size:11px;color:var(--text-muted,#888);">
-                Ultimo aggiornamento: {{ extra_info.updated_at|date:"d/m/Y H:i" }}
+                Ultimo aggiornamento: {{ extra_info.updated_at|date:"d-m-Y H:i" }}
               </span>
             {% endif %}
           </div>
@@ -411,7 +411,7 @@
             {% if checklist_checkin %}
               <div style="color:#16a34a;font-weight:600;font-size:14px;">✓ Completato</div>
               <div style="font-size:12px;color:var(--text-muted,#888);margin-top:4px;">
-                {{ checklist_checkin.data_esecuzione|date:"d/m/Y H:i" }}<br>
+                {{ checklist_checkin.data_esecuzione|date:"d-m-Y H:i" }}<br>
                 da {{ checklist_checkin.eseguita_da_nome|default:"—" }}
               </div>
             {% else %}
@@ -423,7 +423,7 @@
             {% if checklist_checkout %}
               <div style="color:#dc2626;font-weight:600;font-size:14px;">✓ Completato</div>
               <div style="font-size:12px;color:var(--text-muted,#888);margin-top:4px;">
-                {{ checklist_checkout.data_esecuzione|date:"d/m/Y H:i" }}<br>
+                {{ checklist_checkout.data_esecuzione|date:"d-m-Y H:i" }}<br>
                 da {{ checklist_checkout.eseguita_da_nome|default:"—" }}
               </div>
             {% else %}
@@ -452,7 +452,7 @@
               {% elif onboarding_data.completed %}
                 <span style="color:#16a34a;font-weight:600;">✓ Completato</span>
                 {% if onboarding_data.completed_at %}
-                  <div style="font-size:12px;color:var(--text-muted,#888);margin-top:3px;">{{ onboarding_data.completed_at|date:"d/m/Y H:i" }}</div>
+                  <div style="font-size:12px;color:var(--text-muted,#888);margin-top:3px;">{{ onboarding_data.completed_at|date:"d-m-Y H:i" }}</div>
                 {% endif %}
               {% else %}
                 <span style="color:#94a3b8;">— In attesa</span>
@@ -475,7 +475,7 @@
           </div>
           {% if onboarding_data.reset_at %}
             <div style="font-size:12px;color:var(--text-muted,#888);margin-bottom:10px;">
-              Ultimo reset: {{ onboarding_data.reset_at|date:"d/m/Y H:i" }}
+              Ultimo reset: {{ onboarding_data.reset_at|date:"d-m-Y H:i" }}
               {% if onboarding_data.reset_by %} da {{ onboarding_data.reset_by.get_full_name|default:onboarding_data.reset_by.username }}{% endif %}
             </div>
           {% endif %}

@@ -158,7 +158,7 @@
             <tr>
               <td class="mono">{{ v.version_label }}</td>
               <td>{{ v.titolo_snapshot|truncatechars:40|default:"—" }}</td>
-              <td class="nowrap muted">{{ v.created_at|date:"d/m/Y" }}</td>
+              <td class="nowrap muted">{{ v.created_at|date:"d-m-Y" }}</td>
               <td class="nowrap">
                 {% if is_editor %}
                 <form method="post"
@@ -395,8 +395,8 @@
           <td class="mono">
             <a class="fm-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
           </td>
-          <td class="nowrap">{{ s.data_inizio|date:"d/m/Y" }}</td>
-          <td class="nowrap muted">{{ s.data_fine|date:"d/m/Y" }}</td>
+          <td class="nowrap">{{ s.data_inizio|date:"d-m-Y" }}</td>
+          <td class="nowrap muted">{{ s.data_fine|date:"d-m-Y" }}</td>
           <td class="muted">{{ s.get_modalita_display }}</td>
           <td><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
           <td class="muted">{{ s.docente_nome|default:s.docente|default:"—" }}</td>
@@ -453,7 +453,7 @@
           <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
           <td class="num">{{ d.n_sessioni }}</td>
           <td class="num">{{ d.n_completati }}</td>
-          <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
           <td>
             {% if d.idoneo is True %}<span class="fm-pill fm-pill-valid">Sì</span>
             {% elif d.idoneo is False %}<span class="fm-pill fm-pill-expired">No</span>

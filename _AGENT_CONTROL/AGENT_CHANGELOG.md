@@ -1,5 +1,17 @@
 # Agent Changelog
 
+## 2026-06-08 - Codex
+
+- Area: repository completo, commit e push GitHub del branch `feat/acl-chiusura-migrazione-fase1`.
+- Richiesta: fare commit e push su GitHub delle modifiche locali.
+- File modificati in questa sessione: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File inclusi nel commit: working tree locale completo su branch `feat/acl-chiusura-migrazione-fase1`, con 2 commit gia' locali e un nuovo commit di integrazione/publish. Perimetro principale gia' documentato in `CHANGELOG.md`/`README.md`: README riallineato, infrastruttura `media_private`, GDPR/cifratura at rest, manutenzione Assets, Timbri permessi copy/download, Anomalie mail action token, Automazioni "Ripeti", normalizzazione date, fix ACL/identita' e varie UI operative.
+- File critici modificati/inclusi: `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace; nel perimetro pubblicato sono comunque presenti superfici globali o sensibili gia' modificate nel working tree (`django_app/config/settings/base.py`, deployment PowerShell/IIS, URL/view di moduli, `admin_portale`, storage privati e pagine pubbliche tokenizzate Anomalie). Motivo tecnico: pubblicare lo stato locale esistente richiesto dall'utente; questa sessione non ha introdotto modifiche funzionali aggiuntive su tali file.
+- Impatto previsto: GitHub riceve i commit locali gia' presenti piu' il commit di integrazione del working tree corrente; il branch remoto si allinea alla workspace locale.
+- Rischi residui: commit molto ampio e multi-area; richiede review funzionale mirata prima di promozione in produzione, soprattutto per superfici pubbliche tokenizzate, settings/middleware, deploy, storage cifrati e ACL/permessi.
+- Test/check: `git diff --check` OK; `python django_app\manage.py check --settings=config.settings.test` OK; scansione basilare diff/untracked per pattern secret senza valori reali evidenti (solo riferimenti a token/secret nel codice e nella documentazione).
+- Note: `gh` non installato, quindi nessuna draft PR creata tramite GitHub CLI; pubblicazione prevista via `git push`. Nessun backup creato; README e CHANGELOG risultano gia' aggiornati nel working tree.
+
 ## 2026-06-04 - Codex
 
 - Area: `django_app/automazioni/packages`, conversione flow Power Automate RENTRI.

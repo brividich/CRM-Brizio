@@ -61,7 +61,7 @@
         <td><span class="badge{% if task.is_completed %} ok{% elif task.is_overdue %} danger{% endif %}">{{ task.get_stato_display }}</span></td>
         <td>{{ task.get_priorita_display }}</td>
         <td>{{ task.part_number|default:"-" }}</td>
-        <td>{{ task.scadenza|date:"d/m/Y"|default:"-" }}</td>
+        <td>{{ task.scadenza|date:"d-m-Y"|default:"-" }}</td>
         <td>{{ task.get_origine_display }}</td>
       </tr>
       {% empty %}

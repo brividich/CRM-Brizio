@@ -1643,15 +1643,42 @@ def dipendente_detail(request, legacy_id: int):
     fm_n_completati = 0
     fm_ore_totali = 0.0
     fm_n_attestati = 0
+    # KPI formazione divisi per anno corrente / anni precedenti
+    fm_anno_corrente = tz.localdate().year
+    fm_kpi_anno_corrente = {"anno": fm_anno_corrente, "n": 0, "ore": 0.0}
+    fm_kpi_precedenti_totale = {"n": 0, "ore": 0.0}
+    fm_kpi_precedenti_per_anno: list = []
     if can_view_formazione_tab:
         try:
+            # Carico TUTTI i completamenti (non più solo 30): lo storico mostra di
+            # default i primi 30 (cap lato template) ma quando si filtra per anno
+            # dai KPI il filtro deve poter agire su tutti i record senza limite.
             fm_storico = list(
                 TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=legacy_id)
                 .select_related("corso", "corso__piano")
-                .order_by("-data_completamento")[:30]
+                .order_by("-data_completamento")
             )
-            fm_n_completati = len(fm_storico)
-            fm_ore_totali = sum(float(r.ore_frequentate or 0) for r in fm_storico)
+            # Aggregazione KPI sugli stessi record (nessuna seconda query)
+            _per_anno: dict = {}
+            for _rec in fm_storico:
+                _data = _rec.data_completamento
+                _anno = _data.year if _data else None
+                _ore_f = float(_rec.ore_frequentate or 0)
+                if _anno == fm_anno_corrente:
+                    fm_kpi_anno_corrente["n"] += 1
+                    fm_kpi_anno_corrente["ore"] += _ore_f
+                else:
+                    fm_kpi_precedenti_totale["n"] += 1
+                    fm_kpi_precedenti_totale["ore"] += _ore_f
+                    if _anno is not None:
+                        _bucket = _per_anno.setdefault(_anno, {"anno": _anno, "n": 0, "ore": 0.0})
+                        _bucket["n"] += 1
+                        _bucket["ore"] += _ore_f
+            fm_kpi_precedenti_per_anno = sorted(
+                _per_anno.values(), key=lambda b: b["anno"], reverse=True
+            )
+            fm_n_completati = fm_kpi_anno_corrente["n"] + fm_kpi_precedenti_totale["n"]
+            fm_ore_totali = fm_kpi_anno_corrente["ore"] + fm_kpi_precedenti_totale["ore"]
             fm_scadenze_urgenti = list(
                 TrainingDeadline.objects.filter(
                     legacy_anagrafica_id=legacy_id,
@@ -1785,6 +1812,10 @@ def dipendente_detail(request, legacy_id: int):
         "fm_n_completati": fm_n_completati,
         "fm_ore_totali": fm_ore_totali,
         "fm_n_attestati": fm_n_attestati,
+        "fm_kpi_anno_corrente": fm_kpi_anno_corrente,
+        "fm_kpi_precedenti_totale": fm_kpi_precedenti_totale,
+        "fm_kpi_precedenti_per_anno": fm_kpi_precedenti_per_anno,
+        "fm_storico_cap": 30,
         # Offboarding
         "offboarding_pratica_attiva": offboarding_pratica_attiva,
         "offboarding_tasks": offboarding_tasks,
@@ -2417,7 +2448,7 @@ def dipendente_offboarding_licenziamento(request, legacy_id: int):
 
         messages.success(
             request,
-            f"Pratica offboarding avviata per il {data_cessazione:%d/%m/%Y}. "
+            f"Pratica offboarding avviata per il {data_cessazione:%d-%m-%Y}. "
             "Completa le restituzioni e poi conferma la chiusura del rapporto.",
         )
     except Exception:
@@ -2565,7 +2596,7 @@ def dipendente_offboarding_chiudi(request, legacy_id: int, pratica_id: int):
         })
         messages.success(
             request,
-            f"Pratica offboarding chiusa: dipendente cessato dal {data_cessazione:%d/%m/%Y}, "
+            f"Pratica offboarding chiusa: dipendente cessato dal {data_cessazione:%d-%m-%Y}, "
             "non piu in forza e account scollegato.",
         )
     except Exception:
@@ -4939,7 +4970,7 @@ def scadenzario(request):
                 v["reparto"],
                 v["kind_label"],
                 v["tipo_nome"],
-                v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
+                v["data_scadenza"].strftime("%d-%m-%Y") if v["data_scadenza"] else "",
                 stato,
             ])
         return resp
@@ -5840,7 +5871,7 @@ def retribuzioni_globale_export(request):
     ws.freeze_panes = "A3"
 
     for r in rows:
-        periodo = r["data_competenza"].strftime("%m/%Y") if r["data_competenza"] else ""
+        periodo = r["data_competenza"].strftime("%m-%Y") if r["data_competenza"] else ""
         line = [r["nome"], periodo, r["reparto"], r["livello"], r["sesso"]]
         for cell in r["celle"]:
             line.append(float(cell["importo"]) if cell["importo"] is not None else None)
@@ -6876,6 +6907,7 @@ def documenti_list(request):
     for d in documenti:
         d.nome_dipendente = nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}")
 
+    _oggi = __import__("datetime").date.today()
     return render(request, "anagrafica/pages/documenti_list.html", {
         "is_admin": is_admin,
         "documenti": documenti,
@@ -6883,7 +6915,9 @@ def documenti_list(request):
         "filtro_cartella": filtro_cartella,
         "filtro_cerca": filtro_cerca,
         "filtro_anno": filtro_anno,
-        "anni_disponibili": list(range(2020, __import__("datetime").date.today().year + 1)),
+        "anni_disponibili": list(range(2020, _oggi.year + 1)),
+        "today": _oggi,
+        "today_plus_1y": _oggi.replace(year=_oggi.year + 1),
     })
 
 
@@ -7498,7 +7532,7 @@ def visite_mediche_nuova_sessione(request):
         if errori:
             messages.warning(request, f"{creati} visite registrate. Errori per: {', '.join(errori)}.")
         else:
-            messages.success(request, f"{creati} visite registrate per {tipo.nome} del {data_svolgimento.strftime('%d/%m/%Y')}.")
+            messages.success(request, f"{creati} visite registrate per {tipo.nome} del {data_svolgimento.strftime('%d-%m-%Y')}.")
         return redirect("anagrafica:visite_mediche_dashboard")
 
     # ---- Step 1: carica candidati ----------------------------------------
@@ -7664,8 +7698,8 @@ def visite_mediche_export_scadenze(request):
         giorni = (v.data_scadenza - oggi).days if v.data_scadenza else ""
         ws.append([
             nome, cf, v.tipo.nome,
-            v.data_svolgimento.strftime("%d/%m/%Y") if v.data_svolgimento else "",
-            v.data_scadenza.strftime("%d/%m/%Y") if v.data_scadenza else "",
+            v.data_svolgimento.strftime("%d-%m-%Y") if v.data_svolgimento else "",
+            v.data_scadenza.strftime("%d-%m-%Y") if v.data_scadenza else "",
             giorni,
             v.get_esito_display(),
             v.prescrizioni or "",

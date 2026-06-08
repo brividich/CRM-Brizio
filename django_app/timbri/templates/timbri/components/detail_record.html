@@ -1,47 +1,166 @@
-<div class="tim-record">
-  <div class="tim-record-head">
-    <div>
-      <div style="font-size:18px;font-weight:800;color:#0f172a;">{{ record.codice_timbro|default:"Senza codice" }}</div>
-      <div style="font-size:13px;color:#64748b;">{{ record.qualifica|default:"Nessuna qualifica" }}</div>
+<div class="tim-record{% if not active %} tim-record-storico{% endif %}">
+  <div class="tim-rec-row">
+
+    {# Codice + meta #}
+    <div class="tim-rec-id">
+      <div class="tim-rec-code">{{ record.codice_timbro|default:"—" }}</div>
+      {% if record.qualifica %}<div class="tim-rec-qual">{{ record.qualifica }}</div>{% endif %}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+
+    {# Date #}
+    <div class="tim-rec-dates">
+      <span class="tim-rec-date-k">Cons.</span>
+      <span class="tim-rec-date-v">{{ record.data_consegna|default:"—" }}</span>
+      {% if record.data_ritiro %}
+        <span class="tim-rec-arrow">›</span>
+        <span class="tim-rec-date-k">Ritiro</span>
+        <span class="tim-rec-date-v">{{ record.data_ritiro }}</span>
+      {% endif %}
+    </div>
+
+    {# Badges #}
+    <div class="tim-rec-badges">
       {% if active %}
         <span class="tim-pill tim-pill-green">{{ record.stato_label }}</span>
       {% else %}
         <span class="tim-pill {% if record.is_archived %}tim-pill-gray{% else %}tim-pill-amber{% endif %}">{{ record.stato_label }}</span>
       {% endif %}
       <span class="tim-pill tim-pill-gray">{{ record.get_tipo_timbro_display }}</span>
-      {% if active %}
-        {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Modifica</a>{% endif %}
-      {% else %}
-        <button class="tim-btn" type="button" onclick="timToggleImages(this)">Apri</button>
-        {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}" style="font-size:11px;padding:5px 9px;color:#64748b;">Modifica</a>{% endif %}
+    </div>
+
+    {# Slot immagini inline #}
+    <div class="tim-rec-imgs{% if not active %} tim-rec-imgs-collapsed{% endif %}" id="tim-imgs-{{ record.id }}">
+      {% for slot in record.image_slots %}
+        <div class="tim-rec-slot">
+          <div class="tim-rec-slot-label">{{ slot.label }}</div>
+          {% if slot.image %}
+            <div class="tim-rec-slot-img">
+              <img src="{% url 'timbri:serve_image' slot.image.id %}" alt="{{ slot.label }}" loading="lazy">
+            </div>
+            {% if can_copy_timbri %}
+              <button type="button" class="tim-btn-copy-sm" data-url="{% url 'timbri:serve_image' slot.image.id %}">Copia</button>
+            {% endif %}
+          {% else %}
+            <div class="tim-rec-slot-empty">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {# Azioni #}
+    <div class="tim-rec-actions">
+      {% if not active %}
+        <button class="tim-rec-toggle-btn" type="button" data-target="tim-imgs-{{ record.id }}" title="Mostra immagini">
+          <svg class="tim-toggle-icon" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      {% endif %}
+      {% if can_edit_timbri %}
+        <a class="tim-rec-edit-btn" href="{% url 'timbri:registro_edit' record.id %}">Modifica</a>
       {% endif %}
     </div>
+
   </div>
-  <div style="margin-top:10px;color:#475569;font-size:13px;">
-    Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
-  </div>
-  {% if record.note %}<div style="margin-top:10px;font-size:13px;color:#334155;">{{ record.note|linebreaksbr }}</div>{% endif %}
-  {% if record.firma_testo %}
-    <div style="margin-top:10px;font-size:13px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
-      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Firma / note firma</div>
-      {{ record.firma_testo|linebreaksbr }}
+
+  {# Note / firma: sotto la riga, collassate di default #}
+  {% if record.note or record.firma_testo %}
+    <div class="tim-rec-extra">
+      {% if record.note %}<div class="tim-rec-note">{{ record.note|linebreaksbr }}</div>{% endif %}
+      {% if record.firma_testo %}
+        <div class="tim-rec-firma"><span class="tim-rec-firma-k">Firma / note</span>{{ record.firma_testo|linebreaksbr }}</div>
+      {% endif %}
     </div>
   {% endif %}
-  <div class="tim-images"{% if not active %} style="display:none"{% endif %}>
-    {% for slot in record.image_slots %}
-      <div class="tim-image">
-        <div class="tim-img-label">{{ slot.label }}</div>
-        {% if slot.image %}
-          <img src="{% url 'timbri:serve_image' slot.image.id %}" alt="{{ slot.label }}">
-          {% if can_copy_timbri %}
-            <button class="tim-btn tim-btn-copy" data-url="{% url 'timbri:serve_image' slot.image.id %}">Copia</button>
-          {% endif %}
-        {% else %}
-          <div style="height:140px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>
-        {% endif %}
-      </div>
-    {% endfor %}
-  </div>
 </div>
+
+<style>
+/* ── Record riga compatta ────────────────────────────────────────────────── */
+.tim-record { border-bottom:1px solid #f1f5f9; padding:11px 20px; background:#fff; transition:background .1s; }
+.tim-record:first-child { border-top:1px solid #f1f5f9; }
+.tim-record:hover { background:#fafbfc; }
+.tim-record-storico { background:#fafbfc; }
+.tim-record-storico:hover { background:#f5f7fa; }
+
+.tim-rec-row { display:flex; align-items:center; gap:14px; min-height:52px; }
+
+/* Codice */
+.tim-rec-id { flex:0 0 auto; min-width:90px; }
+.tim-rec-code { font-size:14px; font-weight:800; color:#0f172a; letter-spacing:-.01em; }
+.tim-rec-qual { font-size:11px; color:#94a3b8; margin-top:2px; }
+
+/* Date */
+.tim-rec-dates { flex:0 0 auto; display:flex; align-items:center; gap:5px; font-size:11.5px; white-space:nowrap; }
+.tim-rec-date-k { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; }
+.tim-rec-date-v { font-weight:700; color:#334155; }
+.tim-rec-arrow { color:#cbd5e1; }
+
+/* Badges */
+.tim-rec-badges { flex:0 0 auto; display:flex; gap:5px; flex-wrap:wrap; }
+.tim-pill { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; white-space:nowrap; }
+.tim-pill-green  { background:#dcfce7; color:#166534; }
+.tim-pill-gray   { background:#f1f5f9; color:#475569; }
+.tim-pill-amber  { background:#fef3c7; color:#92400e; }
+
+/* Immagini inline */
+.tim-rec-imgs { display:flex; align-items:flex-start; gap:8px; flex:1; justify-content:flex-end; }
+.tim-rec-imgs-collapsed { display:none; }
+.tim-rec-slot { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.tim-rec-slot-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; }
+.tim-rec-slot-img { width:72px; height:52px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+.tim-rec-slot-img img { max-width:100%; max-height:100%; object-fit:contain; }
+.tim-rec-slot-empty { width:72px; height:52px; border:1px dashed #e8edf3; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#d1d9e6; }
+
+/* Copia sotto slot */
+.tim-btn-copy-sm { display:inline-flex; align-items:center; justify-content:center; padding:2px 6px; border-radius:6px; font-size:10px; font-weight:700; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; cursor:pointer; transition:background .12s; white-space:nowrap; }
+.tim-btn-copy-sm:hover { background:#dbeafe; }
+.tim-btn-copy-sm.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
+
+/* Azioni */
+.tim-rec-actions { flex:0 0 auto; display:flex; align-items:center; gap:6px; }
+.tim-rec-toggle-btn { width:26px; height:26px; border-radius:7px; border:1px solid #e2e8f0; background:#f8fafc; color:#94a3b8; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .12s, color .12s; }
+.tim-rec-toggle-btn:hover { background:#f1f5f9; color:#475569; }
+.tim-rec-toggle-btn.is-open { background:#f0fdfa; border-color:#99f6e4; color:#0f766e; }
+.tim-toggle-icon { transition:transform .2s; display:block; }
+.tim-rec-toggle-btn.is-open .tim-toggle-icon { transform:rotate(180deg); }
+.tim-rec-edit-btn { display:inline-flex; align-items:center; padding:5px 10px; border-radius:8px; font-size:11.5px; font-weight:600; text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#334155; transition:background .12s; white-space:nowrap; }
+.tim-rec-edit-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+
+/* Note extra (sotto) */
+.tim-rec-extra { padding:8px 0 2px; border-top:1px solid #f8fafc; margin-top:6px; }
+.tim-rec-note { font-size:12px; color:#475569; line-height:1.6; }
+.tim-rec-firma { font-size:12px; color:#334155; margin-top:4px; border-left:2px solid #e2e8f0; padding-left:10px; line-height:1.6; }
+.tim-rec-firma-k { display:block; font-size:9.5px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; }
+
+/* Responsive */
+@media (max-width:700px) {
+  .tim-rec-row { flex-wrap:wrap; gap:8px; }
+  .tim-rec-imgs { justify-content:flex-start; flex:none; width:100%; }
+}
+
+/* Dark mode */
+body.theme-dark .tim-record { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-record:hover { background:var(--surface-alt); }
+body.theme-dark .tim-record-storico { background:var(--surface-alt); }
+body.theme-dark .tim-rec-code { color:var(--text); }
+body.theme-dark .tim-rec-qual { color:var(--text-light); }
+body.theme-dark .tim-rec-date-k { color:var(--text-light); }
+body.theme-dark .tim-rec-date-v { color:var(--text-mid); }
+body.theme-dark .tim-rec-arrow { color:var(--border); }
+body.theme-dark .tim-pill-green  { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .tim-pill-gray   { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .tim-pill-amber  { background:rgba(146,64,14,.2); color:#fde68a; }
+body.theme-dark .tim-rec-slot-img { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tim-rec-slot-empty { border-color:var(--border); color:var(--border); }
+body.theme-dark .tim-btn-copy-sm { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
+body.theme-dark .tim-btn-copy-sm:hover { background:rgba(29,78,216,.3); }
+body.theme-dark .tim-btn-copy-sm.copied { background:rgba(21,128,61,.2); border-color:rgba(134,239,172,.3); color:#86efac; }
+body.theme-dark .tim-rec-toggle-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .tim-rec-toggle-btn.is-open { background:rgba(15,118,110,.15); border-color:rgba(45,212,191,.3); color:#2dd4bf; }
+body.theme-dark .tim-rec-edit-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-rec-edit-btn:hover { background:var(--surface-alt); }
+body.theme-dark .tim-rec-extra { border-color:var(--border); }
+body.theme-dark .tim-rec-note { color:var(--text-mid); }
+body.theme-dark .tim-rec-firma { color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .tim-rec-firma-k { color:var(--text-light); }
+</style>

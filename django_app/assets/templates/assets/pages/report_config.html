@@ -1,0 +1,152 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Configurazione report{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.rc-page { display:grid; gap:14px; }
+.rc-header-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  padding:20px 24px;
+  box-shadow:0 4px 12px rgba(15,23,42,.04);
+}
+.rc-header-card h2 { margin:0 0 4px; font-size:var(--fs-heading); color:#0f172a; }
+.rc-header-card p { margin:0; color:#64748b; }
+.rc-grid { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.rc-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 4px 12px rgba(15,23,42,.04);
+  display:flex;
+  flex-direction:column;
+}
+.rc-card-head {
+  padding:16px 18px 14px;
+  border-bottom:1px solid #f1f5f9;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+}
+.rc-card-head h3 { margin:0; font-size:var(--fs-base); color:#0f172a; }
+.rc-card-head-meta { font-size:var(--fs-xs); color:#64748b; margin-top:2px; }
+.rc-card-body { padding:16px 18px; flex:1; }
+.rc-tpl-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f8fafc; }
+.rc-tpl-row:last-child { border-bottom:none; }
+.rc-tpl-name { flex:1; font-size:var(--fs-sm); color:#1e293b; font-weight:600; }
+.rc-tpl-meta { font-size:var(--fs-xs); color:#64748b; }
+.rc-tpl-active {
+  font-size:var(--fs-xs);
+  font-weight:700;
+  background:#dcfce7;
+  color:#15803d;
+  border-radius:999px;
+  padding:2px 8px;
+  flex-shrink:0;
+}
+.rc-tpl-inactive {
+  font-size:var(--fs-xs);
+  background:#f1f5f9;
+  color:#64748b;
+  border-radius:999px;
+  padding:2px 8px;
+  flex-shrink:0;
+}
+.rc-no-tpl { color:#64748b; font-size:var(--fs-sm); }
+.rc-badge-code {
+  font-size:var(--fs-xs);
+  background:#f1f5f9;
+  color:#475569;
+  border-radius:6px;
+  padding:2px 7px;
+  font-family:monospace;
+}
+@media (max-width: 900px) {
+  .rc-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Configurazione report{% endblock %}
+{% block assets_shell_subtitle %}<p>Visione d'insieme di tutte le definizioni report e dei template attivi. Per caricare o attivare template usa la gestione completa.</p>{% endblock %}
+
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ reports_url }}">Tutti i report</a>
+  <a class="btn btn-primary" href="{{ report_template_admin_url }}">Gestione template</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="rc-page">
+
+  <div class="rc-header-card">
+    <h2>Report disponibili — {{ sections|length }}</h2>
+    <p>Ogni card mostra la definizione, il template attivo e l'elenco di tutti i template caricati per quel report. Usa <a href="{{ report_template_admin_url }}" class="as-link-subtle">Gestione template</a> per caricare nuovi template, attivarne uno o eliminare quelli obsoleti.</p>
+  </div>
+
+  <div class="rc-grid">
+    {% for section in sections %}
+      <article class="rc-card">
+        <div class="rc-card-head">
+          <div>
+            <h3>{{ section.definition.label }}</h3>
+            {% if section.definition.description %}
+              <div class="rc-card-head-meta">{{ section.definition.description }}</div>
+            {% endif %}
+            <div style="margin-top:6px;">
+              <span class="rc-badge-code">{{ section.definition.code }}</span>
+            </div>
+          </div>
+          {% if section.definition.is_active %}
+            <span class="as-badge as-badge--ok">Attivo</span>
+          {% else %}
+            <span class="as-badge as-badge--muted">Disattivo</span>
+          {% endif %}
+        </div>
+        <div class="rc-card-body">
+          {% if section.active_template %}
+            <div style="margin-bottom:10px;">
+              <div style="font-size:var(--fs-xs);color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Template attivo</div>
+              <div class="rc-tpl-row" style="border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;background:#f0fdf4;">
+                <div class="rc-tpl-name">{{ section.active_template.name }}</div>
+                {% if section.active_template.version %}
+                  <div class="rc-tpl-meta">v{{ section.active_template.version }}</div>
+                {% endif %}
+                <span class="rc-tpl-active">Attivo</span>
+              </div>
+            </div>
+          {% else %}
+            <div style="margin-bottom:10px;">
+              <span class="rc-no-tpl">Nessun template attivo — il report usa il layout di default.</span>
+            </div>
+          {% endif %}
+
+          {% if section.templates %}
+            <div style="font-size:var(--fs-xs);color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
+              Tutti i template ({{ section.template_count }})
+            </div>
+            {% for tpl in section.templates %}
+              {% if not tpl.is_active %}
+                <div class="rc-tpl-row">
+                  <div class="rc-tpl-name">{{ tpl.name }}</div>
+                  {% if tpl.version %}
+                    <div class="rc-tpl-meta">v{{ tpl.version }}</div>
+                  {% endif %}
+                  <span class="rc-tpl-inactive">Non attivo</span>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div style="font-size:var(--fs-xs);color:#94a3b8;margin-top:4px;">Nessun template caricato.</div>
+          {% endif %}
+        </div>
+      </article>
+    {% empty %}
+      <div style="grid-column:1/-1;color:#64748b;">Nessuna definizione report trovata. Esegui prima le migrazioni.</div>
+    {% endfor %}
+  </div>
+
+</section>
+{% endblock %}

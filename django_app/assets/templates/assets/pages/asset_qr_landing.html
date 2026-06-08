@@ -215,7 +215,7 @@
           <div class="qrl-kv-row">
             <span class="qrl-kv-label">Prossima scadenza</span>
             <span class="qrl-kv-value">
-              {{ next_deadline.expiry_date|date:"d/m/Y" }}
+              {{ next_deadline.expiry_date|date:"d-m-Y" }}
               {% if next_deadline.expiry_date <= today %}
                 <span class="qrl-badge qrl-badge--alert">Scaduta</span>
               {% elif next_deadline.expiry_date|timeuntil <= "7 giorni" %}
@@ -240,7 +240,7 @@
               <div class="qrl-wo-title">{{ wo.title|truncatechars:60 }}</div>
               <div class="qrl-wo-meta">
                 {{ wo.get_kind_display }}
-                &nbsp;·&nbsp; aperto il {{ wo.opened_at|date:"d/m/Y" }}
+                &nbsp;·&nbsp; aperto il {{ wo.opened_at|date:"d-m-Y" }}
               </div>
             </div>
           </div>

@@ -301,7 +301,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"  {'[DRY] ' if dry_run else ''}Riga {i}: {nome_excel} — "
                 f"{categoria.nome} / {modello_dpi.nome}{taglia_display}"
-                f" ({data_consegna:%d/%m/%Y})"
+                f" ({data_consegna:%d-%m-%Y})"
             )
 
             if not dry_run:

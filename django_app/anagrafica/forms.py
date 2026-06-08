@@ -91,7 +91,9 @@ class FiglioACaricoForm(forms.ModelForm):
         fields = ["nome", "data_nascita"]
         widgets = {
             "nome": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Nome (facoltativo)"}),
-            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
+            # type="date" richiede il valore in formato ISO (YYYY-MM-DD), altrimenti
+            # il browser non precompila il campo con la data già salvata.
+            "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
         }
 
 
@@ -521,8 +523,8 @@ class TrainingLessonForm(forms.ModelForm):
                 self.add_error(
                     "data",
                     f"La data della lezione deve essere compresa tra "
-                    f"{self.sessione.data_inizio.strftime('%d/%m/%Y')} e "
-                    f"{self.sessione.data_fine.strftime('%d/%m/%Y')}.",
+                    f"{self.sessione.data_inizio.strftime('%d-%m-%Y')} e "
+                    f"{self.sessione.data_fine.strftime('%d-%m-%Y')}.",
                 )
         # Snapshot nome docente
         docente = cd.get("docente")

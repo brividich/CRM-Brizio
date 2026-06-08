@@ -278,7 +278,7 @@ def _notification_payload(notifica) -> dict:
     if created_at:
         created_local = timezone.localtime(created_at)
         created_iso = created_local.isoformat()
-        created_label = created_local.strftime("%d/%m/%Y %H:%M")
+        created_label = created_local.strftime("%d-%m-%Y %H:%M")
     else:
         created_iso = ""
         created_label = ""

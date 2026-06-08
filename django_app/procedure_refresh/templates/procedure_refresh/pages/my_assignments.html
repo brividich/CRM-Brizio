@@ -135,7 +135,7 @@ body.theme-dark .pr-empty { color:var(--text-light); }
               <td>{{ a.revision.document.document_type }}</td>
               <td>{{ a.revision.revision_code }}</td>
               <td>{{ a.campaign.name }}</td>
-              <td>{{ a.due_date|date:"d/m/Y"|default:"—" }}</td>
+              <td>{{ a.due_date|date:"d-m-Y"|default:"—" }}</td>
               <td>
                 {% if a.status == 'assigned' %}
                   <span class="pr-badge pr-badge-assigned">Assegnata</span>

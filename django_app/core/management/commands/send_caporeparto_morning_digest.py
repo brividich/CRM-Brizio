@@ -56,12 +56,12 @@ class Command(BaseCommand):
             # incidenti_aperti     = RilevazioneIncidente.objects.filter(reparto=reparto, chiusura_rspp=False)
             # dpi_in_attesa        = RichiestaDPI.objects.filter(richiedente_reparto=reparto, stato=INVIATA)
             lines = [
-                f"NOVICROM HUB - Buongiorno, riepilogo reparto {reparto} ({today:%d/%m/%Y})",
+                f"NOVICROM HUB - Buongiorno, riepilogo reparto {reparto} ({today:%d-%m-%Y})",
                 "=" * 60,
                 "  (sezioni da popolare: assenze da approvare, ticket reparto, incidenti aperti, DPI in attesa)",
             ]
             body = "\n".join(lines)
-            subject = f"[Caporeparto] Riepilogo {reparto} - {today:%d/%m/%Y}"
+            subject = f"[Caporeparto] Riepilogo {reparto} - {today:%d-%m-%Y}"
             if dry_run:
                 self.stdout.write(self.style.WARNING(f"[DRY-RUN] -> {capo.get('email')}"))
                 self.stdout.write(body)

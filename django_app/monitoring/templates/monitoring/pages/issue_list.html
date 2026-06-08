@@ -102,8 +102,8 @@
                 <td><span class="monitoring-pill status-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
                 <td><span class="monitoring-pill source-{{ issue.source }}">{{ issue.source }}</span></td>
                 <td>{{ issue.module_name|default:"-" }}</td>
-                <td>{{ issue.first_seen_at|date:"d/m/Y H:i" }}</td>
-                <td>{{ issue.last_seen_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ issue.first_seen_at|date:"d-m-Y H:i" }}</td>
+                <td>{{ issue.last_seen_at|date:"d-m-Y H:i" }}</td>
                 <td>{{ issue.occurrences_count }}</td>
               </tr>
             {% empty %}

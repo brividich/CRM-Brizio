@@ -160,7 +160,7 @@
                     <td>{{ n.titolo }}</td>
                     <td><span class="badge badge-{{ n.stato }}">{{ n.get_stato_display }}</span></td>
                     <td>{% if n.obbligatoria %}<span class="badge badge-obbligatoria">Si</span>{% else %}No{% endif %}</td>
-                    <td>{% if n.pubblicato_il %}{{ n.pubblicato_il|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{% if n.pubblicato_il %}{{ n.pubblicato_il|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                     <td>{{ n.n_letture }}</td>
                     <td>{{ n.n_conformi }}</td>
                     <td>
@@ -234,7 +234,7 @@
             </div>
             {% for entry in audit_entries %}
               <div class="log-row">
-                <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+                <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
                 <span>{{ entry.utente_display|default:"-" }}</span>
                 <span>{{ entry.azione }}</span>
                 <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>

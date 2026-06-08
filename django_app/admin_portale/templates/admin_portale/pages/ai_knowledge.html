@@ -103,7 +103,7 @@
                     <span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:11px;font-weight:800;">Disattivata</span>
                   {% endif %}
                 </td>
-                <td style="padding:10px 14px;vertical-align:top;color:#64748b;font-size:12px;white-space:nowrap;">{{ entry.updated_at|date:"d/m/Y H:i" }}</td>
+                <td style="padding:10px 14px;vertical-align:top;color:#64748b;font-size:12px;white-space:nowrap;">{{ entry.updated_at|date:"d-m-Y H:i" }}</td>
                 <td style="padding:10px 14px;vertical-align:top;text-align:right;white-space:nowrap;">
                   <a class="btn btn-secondary btn-sm" href="?edit={{ entry.id }}">Modifica</a>
                   <form method="post" style="display:inline;">

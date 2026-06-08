@@ -110,8 +110,8 @@ body.theme-dark .badge-non_letto { background:var(--surface-alt); color:var(--te
             {{ r.lettura.hash_versione_letta|slice:":12" }}…
           </td>
           <td><span class="badge-compliance badge-{{ r.compliance }}">{{ r.compliance }}</span></td>
-          <td>{% if r.lettura.opened_at %}{{ r.lettura.opened_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
-          <td>{% if r.lettura.ack_at %}{{ r.lettura.ack_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+          <td>{% if r.lettura.opened_at %}{{ r.lettura.opened_at|date:"d-m-Y H:i" }}{% else %}—{% endif %}</td>
+          <td>{% if r.lettura.ack_at %}{{ r.lettura.ack_at|date:"d-m-Y H:i" }}{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

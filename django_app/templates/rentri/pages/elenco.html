@@ -272,7 +272,7 @@
             {% for r in fam.carichi %}
             <tr class="rn-fam-c">
               <td><span class="rn-badge rn-badge-C">C</span></td>
-              <td>{{ r.data|date:"d/m/Y" }}</td>
+              <td>{{ r.data|date:"d-m-Y" }}</td>
               <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
               <td style="color:#94a3b8;font-size:11px;">{{ r.rif_op|default:"—" }}</td>
               <td><strong>{{ r.codice|default:"—" }}</strong></td>
@@ -294,7 +294,7 @@
             {% for r in fam.operazioni %}
             <tr class="rn-fam-op">
               <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
-              <td>{{ r.data|date:"d/m/Y" }}</td>
+              <td>{{ r.data|date:"d-m-Y" }}</td>
               <td style="font-family:monospace;font-size:11px;">{{ r.id_registrazione|default:"—" }}</td>
               <td style="font-size:11px;color:#94a3b8;">{{ r.rif_op|default:"—" }}</td>
               <td>{{ r.codice|default:"—" }}</td>
@@ -331,7 +331,7 @@
           {% for r in grp.rows %}
           <tr>
             <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
-            <td>{{ r.data|date:"d/m/Y" }}</td>
+            <td>{{ r.data|date:"d-m-Y" }}</td>
             <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
             <td>{{ r.rif_op|default:"—" }}</td>
             <td><strong>{{ r.codice|default:"—" }}</strong></td>
@@ -355,7 +355,7 @@
           {% for r in page_obj.object_list %}
           <tr>
             <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
-            <td>{{ r.data|date:"d/m/Y" }}</td>
+            <td>{{ r.data|date:"d-m-Y" }}</td>
             <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
             <td>{{ r.rif_op|default:"—" }}</td>
             <td><strong>{{ r.codice|default:"—" }}</strong></td>

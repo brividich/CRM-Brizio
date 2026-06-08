@@ -320,7 +320,7 @@ body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
         <li class="ad-list-item">
           <a href="{% url 'assets:asset_administrative_deadline_list' %}?focus_deadline={{ dl.id }}" class="ad-list-name" title="{{ dl.title }} — clicca per registrare il completamento">{{ dl.title|truncatechars:36 }}</a>
           <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
-          <span class="ad-list-date ad-list-badge red">{{ dl.due_date|date:"d/m/Y" }}</span>
+          <span class="ad-list-date ad-list-badge red">{{ dl.due_date|date:"d-m-Y" }}</span>
         </li>
         {% endfor %}
       </ul>
@@ -343,7 +343,7 @@ body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
         <li class="ad-list-item">
           <a href="{% url 'assets:asset_administrative_deadline_list' %}?focus_deadline={{ dl.id }}" class="ad-list-name" title="{{ dl.title }} — clicca per registrare il completamento">{{ dl.title|truncatechars:36 }}</a>
           <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
-          <span class="ad-list-date ad-list-badge yellow">{{ dl.due_date|date:"d/m/Y" }}</span>
+          <span class="ad-list-date ad-list-badge yellow">{{ dl.due_date|date:"d-m-Y" }}</span>
         </li>
         {% endfor %}
       </ul>
@@ -413,7 +413,7 @@ body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
         {% for pv in kpis.prossime_verifiche %}
         <li class="ad-list-item">
           <span class="ad-list-name">{{ pv.name|truncatechars:40 }}</span>
-          <span class="ad-list-date ad-list-badge yellow">{{ pv.next_verification_date|date:"d/m/Y" }}</span>
+          <span class="ad-list-date ad-list-badge yellow">{{ pv.next_verification_date|date:"d-m-Y" }}</span>
         </li>
         {% endfor %}
       </ul>

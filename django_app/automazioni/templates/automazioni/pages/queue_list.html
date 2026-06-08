@@ -254,9 +254,9 @@ python manage.py apply_sql_triggers</pre>
                   <span class="auto-badge auto-badge-{{ event.status|lower }}">{{ event.status }}</span>
                 </td>
                 <td>{{ event.retry_count }}</td>
-                <td>{{ event.created_at|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ event.picked_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                <td>{{ event.processed_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ event.created_at|date:"d-m-Y H:i:s" }}</td>
+                <td>{{ event.picked_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
+                <td>{{ event.processed_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
                 <td class="auto-preline">{{ event.error_message_short|default:"-" }}</td>
                 <td>
                   {% if event.run_log_count %}

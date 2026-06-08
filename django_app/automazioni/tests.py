@@ -5541,14 +5541,14 @@ class AutomationQueueDisplayDateTests(SimpleTestCase):
 
         with timezone.override("Europe/Rome"):
             value = datetime(2026, 4, 17, 10, 33, 41, tzinfo=dt_timezone.utc)
-            self.assertEqual(_format_display_datetime(value), "17/04/2026 12:33:41")
+            self.assertEqual(_format_display_datetime(value), "17-04-2026 12:33:41")
 
     def test_format_display_datetime_assumes_project_timezone_for_naive_values(self):
         from .views import _format_display_datetime
 
         with timezone.override("Europe/Rome"):
             value = datetime(2026, 4, 17, 12, 33, 41)
-            self.assertEqual(_format_display_datetime(value), "17/04/2026 12:33:41")
+            self.assertEqual(_format_display_datetime(value), "17-04-2026 12:33:41")
 
 
 # ---------------------------------------------------------------------------

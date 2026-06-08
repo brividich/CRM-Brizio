@@ -125,8 +125,8 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
               {% if row.stato == "ok" %}OK{% elif row.stato == "scaduto" %}Scaduto{% else %}Mancante{% endif %}
             </span>
           </td>
-          <td>{% if row.consegna %}{{ row.consegna.data_consegna|date:"d/m/Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
-          <td>{% if row.consegna.scadenza_calcolata %}{{ row.consegna.scadenza_calcolata|date:"d/m/Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
+          <td>{% if row.consegna %}{{ row.consegna.data_consegna|date:"d-m-Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
+          <td>{% if row.consegna.scadenza_calcolata %}{{ row.consegna.scadenza_calcolata|date:"d-m-Y" }}{% else %}<span class="dpi-muted">-</span>{% endif %}</td>
           <td>{% if row.consegna %}<a href="{% url 'dpi:gestione_detail' row.consegna.richiesta.pk %}">{{ row.consegna.richiesta.numero }}</a>{% else %}<span class="dpi-muted">Nessuna consegna</span>{% endif %}</td>
         </tr>
         {% empty %}

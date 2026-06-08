@@ -160,7 +160,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY-RUN: nessuna scrittura su DB."))
             for dt in sorted(periodi):
-                self.stdout.write(f"  Periodo {dt.strftime('%m/%Y')}: {len(periodi[dt])} dipendenti")
+                self.stdout.write(f"  Periodo {dt.strftime('%m-%Y')}: {len(periodi[dt])} dipendenti")
             return
 
         totale_ok = totale_err = totale_nf = 0
@@ -223,7 +223,7 @@ class Command(BaseCommand):
                 totale_err += err
                 totale_nf += nf
                 self.stdout.write(
-                    f"  {dt.strftime('%m/%Y')}: {ok} OK, {err} errori, {nf} CF non in anagrafica"
+                    f"  {dt.strftime('%m-%Y')}: {ok} OK, {err} errori, {nf} CF non in anagrafica"
                 )
 
         self.stdout.write(self.style.SUCCESS(

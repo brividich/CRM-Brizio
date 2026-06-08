@@ -380,6 +380,11 @@ TIME_ZONE = env("TIME_ZONE", "Europe/Rome")
 USE_I18N = True
 USE_TZ = True
 
+# Formati data/ora italiani normalizzati: date pure "d-m-Y", datetime "d-m-Y H:i".
+# I formati custom vivono in config/formats/it/formats.py e sovrascrivono i
+# default Django per template ({{ x|date }} senza argomenti) e form.
+FORMAT_MODULE_PATH = ["config.formats"]
+
 STATIC_URL = "/static/"
 STATIC_ROOT = Path(env("STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
@@ -397,7 +402,7 @@ BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
 
 # Immagini timbri/firme: cartella privata, MAI servita dal web server.
 # Il web server (IIS/nginx) non deve avere accesso a questa directory.
-TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
+TIMBRI_PRIVATE_ROOT = Path(env("TIMBRI_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati ticket: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
@@ -414,6 +419,11 @@ DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE
 # Documenti dipendente (consegne DPI archiviate, referti visite mediche, contratti).
 # Storage privato, mai esposto da IIS: accessibile solo via view protetta con ACL.
 ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+
+# Chiave AES-256 Fernet per cifratura at rest dei file privati.
+# Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Se vuota: nessuna cifratura (sviluppo). In produzione DEVE essere impostata.
+DOCUMENT_ENCRYPTION_KEY = env("DOCUMENT_ENCRYPTION_KEY", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -460,6 +470,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/automazioni/approvazione/",  # token-based, no login required
     "/approval-actions/",          # token-based, Entra Application Proxy frontend
     "/2fa/",                       # 2FA verify/setup — gestiti internamente
+    "/gestione-anomalie/mail-action/",  # token-based, no login required
 )
 
 AUTHENTICATION_BACKENDS = [

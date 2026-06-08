@@ -30,7 +30,7 @@
           <div class="notify-banner-copy">
             <div class="notify-banner-item-title">{{ n.get_tipo_display }}</div>
             <div class="notify-banner-item-message">{{ n.messaggio }}</div>
-            <div class="notify-banner-meta">{{ n.created_at|date:"d/m/Y H:i" }}</div>
+            <div class="notify-banner-meta">{{ n.created_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% if n.url_azione %}
             <a class="notify-banner-item-link" href="{{ n.url_azione }}">Apri</a>

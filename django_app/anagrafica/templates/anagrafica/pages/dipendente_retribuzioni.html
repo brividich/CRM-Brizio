@@ -223,7 +223,7 @@
             </tr>
             {% for mese in anno.mesi %}
               <tr class="dr-month-row" data-year="{{ anno.anno }}"{% if not anno.open %} style="display:none;"{% endif %}>
-                <td class="dr-col-date">{{ mese.data|date:"d/m/Y" }}</td>
+                <td class="dr-col-date">{{ mese.data|date:"d-m-Y" }}</td>
                 {% for cell in mese.celle %}
                   <td
                     class="dr-cell{% if cell.changed and cell.importo is not None %} changed{% endif %}{% if cell.is_totale %} dr-cell-totale{% endif %}{% if cell.is_ral %} dr-cell-ral{% endif %}{% if cell.manuale %} manuale{% endif %}"
@@ -233,7 +233,7 @@
                     data-voce-importo="{{ cell.voce.importo }}"
                     data-voce-categoria="{{ cell.voce.categoria }}"
                     data-voce-note="{{ cell.voce.note }}"
-                    data-voce-mese="{{ cell.voce.data_competenza|date:'d/m/Y' }}"
+                    data-voce-mese="{{ cell.voce.data_competenza|date:'d-m-Y' }}"
                     onclick="openManualeModal(this)"
                     {% endif %}
                   >

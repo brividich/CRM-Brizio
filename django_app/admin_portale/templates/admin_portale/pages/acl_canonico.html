@@ -89,6 +89,22 @@
   .acl-partial-badge { font-size:10px; background:#fef3c7; color:#92400e; border-radius:4px; padding:1px 5px; margin-right:6px; }
   #acl-grants-status,#acl-ov-status { font-size:12px; min-height:16px; padding:4px 0; display:inline-block; }
   .ov-module-btn { padding:3px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc; color:#94a3b8; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  /* Collapse moduli e sottogruppi */
+  .acl-collapse-head { cursor:pointer; user-select:none; }
+  .acl-collapse-head:focus-visible { outline:2px solid var(--accent,#3b82f6); outline-offset:-2px; }
+  .acl-collapse-caret { display:inline-flex; font-size:10px; color:var(--text-muted,#888); transition:transform .15s ease; flex-shrink:0; }
+  .acl-collapsed > .acl-collapse-head .acl-collapse-caret { transform:rotate(0deg); }
+  .acl-mod-card:not(.acl-collapsed) > .acl-collapse-head .acl-collapse-caret,
+  .acl-subgroup:not(.acl-collapsed) > .acl-collapse-head .acl-collapse-caret { transform:rotate(90deg); }
+  .acl-collapsed > .acl-collapse-body { display:none; }
+  .acl-subgroup { border-bottom:1px solid var(--border,#eee); }
+  .acl-subgroup:last-child { border-bottom:none; }
+  .acl-subgroup-head {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 14px 7px 18px; background:var(--bg-card,#fcfcfd);
+  }
+  .acl-subgroup-name { font-size:12px; font-weight:600; color:var(--text,#444); }
+  .acl-subgroup-count { font-size:11px; color:var(--text-muted,#888); }
   @media(max-width:640px){ .acl-mod-cards { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
@@ -178,7 +194,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="field field-actions">
+        <div class="field field-actions" style="grid-column:1/-1;justify-content:flex-start;">
           <button class="btn" type="submit">Applica filtri</button>
           <a class="btn btn-secondary" href="{% url 'admin_portale:acl_canonico' %}">Reset</a>
           <a class="btn btn-secondary" href="{% url 'admin_portale:acl_route_coverage' %}">Report route</a>
@@ -195,6 +211,20 @@
     <a class="acl-tab {% if active_tab == 'grants' %}active{% endif %}" href="?tab=grants&role_id={{ selected_role_id }}">3. Role Grant</a>
     <a class="acl-tab {% if active_tab == 'overrides' %}active{% endif %}" href="?tab=overrides&role_id={{ selected_role_id }}">4. User Override</a>
     <a class="acl-tab {% if active_tab == 'nav-overrides' %}active{% endif %}" href="?tab=nav-overrides&role_id={{ selected_role_id }}">5. Nav Override</a>
+  </div>
+
+  <div class="acl-notice" style="margin-top:12px;">
+    {% if active_tab == 'permissions' %}
+      <strong>Step 1 - Permission Definition:</strong> è il <em>catalogo dei permessi canonici</em> (es. <code>tickets.view</code>). Qui definisci <em>cosa</em> può essere autorizzato. Un permesso da solo non protegge nulla finché non gli colleghi una route (Step 2) e non lo assegni a un ruolo (Step 3).
+    {% elif active_tab == 'bindings' %}
+      <strong>Step 2 - Route Binding:</strong> collega ogni route/path al permission code che la protegge. È il punto in cui un permesso inizia davvero a <em>gateare</em> una pagina. Un permesso senza binding non ha effetto; una route senza binding ricade sul fallback legacy.
+    {% elif active_tab == 'grants' %}
+      <strong>Step 3 - Role Grant:</strong> assegni <em>quali permessi ha un ruolo</em>. È la pagina principale per configurare i permessi per ruolo: seleziona il ruolo nei filtri, spunta i permessi e salva. Vale per tutti gli utenti con quel ruolo.
+    {% elif active_tab == 'overrides' %}
+      <strong>Step 4 - User Override:</strong> eccezioni <em>per singolo utente</em> che scavalcano i grant di ruolo (allow o deny puntuale). Usalo solo per casi specifici: è più difficile da tracciare rispetto ai grant di ruolo.
+    {% elif active_tab == 'nav-overrides' %}
+      <strong>Step 5 - Nav Override:</strong> forza la <em>visibilità delle voci di menu</em> per un singolo utente. Riguarda solo la navigazione, <em>non</em> è un confine di sicurezza: l'accesso reale resta deciso da binding/grant/override server-side.
+    {% endif %}
   </div>
 
   {% if active_tab == 'permissions' %}
@@ -408,9 +438,10 @@
         {% if permission_rows_by_module %}
           <div class="acl-mod-cards" id="grants-card-grid">
             {% for grp in permission_rows_by_module %}
-              <div class="acl-mod-card" data-module="{{ grp.module }}">
-                <div class="acl-mod-head">
+              <div class="acl-mod-card acl-collapsed" data-module="{{ grp.module }}">
+                <div class="acl-mod-head acl-collapse-head" role="button" tabindex="0" aria-expanded="false">
                   <div class="acl-mod-head-left">
+                    <span class="acl-collapse-caret" aria-hidden="true">▶</span>
                     <div class="acl-mod-icon">{{ grp.module|slice:":1"|upper }}</div>
                     <div>
                       <div class="acl-mod-name">{{ grp.module }}</div>
@@ -428,25 +459,39 @@
                     </label>
                   </div>
                 </div>
-                <div>
-                  {% for row in grp.rows %}
-                    <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}">
-                      <div class="acl-perm-label">
-                        {{ row.permission.label }}
-                        <span class="acl-perm-code">{{ row.permission.code }}</span>
+                <div class="acl-collapse-body">
+                  {% for sub in grp.subgroups %}
+                    {% if sub.rows %}
+                      <div class="acl-subgroup acl-collapsed">
+                        <div class="acl-subgroup-head acl-collapse-head" role="button" tabindex="0" aria-expanded="false">
+                          <span class="acl-collapse-caret" aria-hidden="true">▶</span>
+                          <span class="acl-subgroup-name">{{ sub.label }}</span>
+                          <span class="acl-subgroup-count">{{ sub.granted_count }}/{{ sub.total_count }}</span>
+                          {% if sub.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
+                        </div>
+                        <div class="acl-collapse-body">
+                          {% for row in sub.rows %}
+                            <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}">
+                              <div class="acl-perm-label">
+                                {{ row.permission.label }}
+                                <span class="acl-perm-code">{{ row.permission.code }}</span>
+                              </div>
+                              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                                {% if row.warning_missing_binding %}<span class="acl-badge warn" style="font-size:9px;">NO BIND</span>{% endif %}
+                                <label class="acl-toggle-switch" onclick="event.stopPropagation()">
+                                  <input type="checkbox"
+                                         class="grants-perm-toggle"
+                                         data-code="{{ row.permission.code }}"
+                                         data-module="{{ row.permission.module }}"
+                                         {% if row.granted %}checked{% endif %}>
+                                  <span class="acl-toggle-slider"></span>
+                                </label>
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
                       </div>
-                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                        {% if row.warning_missing_binding %}<span class="acl-badge warn" style="font-size:9px;">NO BIND</span>{% endif %}
-                        <label class="acl-toggle-switch" onclick="event.stopPropagation()">
-                          <input type="checkbox"
-                                 class="grants-perm-toggle"
-                                 data-code="{{ row.permission.code }}"
-                                 data-module="{{ row.permission.module }}"
-                                 {% if row.granted %}checked{% endif %}>
-                          <span class="acl-toggle-slider"></span>
-                        </label>
-                      </div>
-                    </div>
+                    {% endif %}
                   {% endfor %}
                 </div>
               </div>
@@ -485,6 +530,24 @@
             });
             return window.portalReadJsonResponse(resp, { fallbackError: "Errore aggiornamento grant ruolo." });
           }
+
+          // Collapse moduli/sottogruppi: click (o Enter/Spazio) sull'header alterna .acl-collapsed.
+          // I toggle switch hanno gia' stopPropagation sulla label, quindi non collassano la card.
+          function toggleCollapse(head){
+            var box = head.parentElement;
+            if(!box) return;
+            var collapsed = box.classList.toggle("acl-collapsed");
+            head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+          }
+          document.querySelectorAll("#grants-card-grid .acl-collapse-head").forEach(function(head){
+            head.addEventListener("click", function(e){
+              if(e.target.closest(".acl-toggle-switch")) return;
+              toggleCollapse(head);
+            });
+            head.addEventListener("keydown", function(e){
+              if(e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleCollapse(head); }
+            });
+          });
 
           function recalcModuleToggle(module){
             var card = document.querySelector('.acl-mod-card[data-module="'+module+'"]');

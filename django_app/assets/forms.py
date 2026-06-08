@@ -335,6 +335,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         model = Asset
         fields = [
             "asset_tag",
+            "internal_number",
             "name",
             "asset_category",
             "reparto",
@@ -351,6 +352,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         ]
         labels = {
             "asset_tag": "Tag bene",
+            "internal_number": "Numero interno",
             "name": "Nome bene",
             "asset_category": "Categoria asset",
             "reparto": "Reparto",
@@ -2372,7 +2374,7 @@ class WorkOrderForm(forms.ModelForm):
             "description",
             "resolution",
             "downtime_minutes",
-            "cost_eur",
+            "assigned_to",
         ]
         labels = {
             "periodic_verification": "Manutenzione periodica collegata",
@@ -2386,13 +2388,14 @@ class WorkOrderForm(forms.ModelForm):
             "description": "Descrizione",
             "resolution": "Risoluzione",
             "downtime_minutes": "Fermo impianto (minuti)",
-            "cost_eur": "Costo totale (EUR)",
+            "assigned_to": "Assegnato a",
         }
         widgets = {
             "periodic_verification": forms.Select(),
             "maintenance_rule": forms.Select(),
             "supplier": forms.Select(),
             "assistance_contract": forms.Select(),
+            "assigned_to": forms.Select(),
             "description": forms.Textarea(attrs={"rows": 4}),
             "resolution": forms.Textarea(attrs={"rows": 3}),
         }
@@ -2482,6 +2485,14 @@ class WorkOrderForm(forms.ModelForm):
                 if verification.supplier_id:
                     self.initial.setdefault("supplier", verification.supplier_id)
             self._apply_prefill_defaults()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        current_assigned_id = getattr(self.instance, "assigned_to_id", None)
+        self.fields["assigned_to"].required = False
+        self.fields["assigned_to"].queryset = User.objects.filter(
+            Q(is_active=True) | Q(pk=current_assigned_id)
+        ).order_by("last_name", "first_name", "username")
+        self.fields["assigned_to"].help_text = "Opzionale: assegna l'intervento a un manutentore."
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
 
@@ -2583,9 +2594,8 @@ class WorkOrderCloseForm(forms.Form):
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
     intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, label="Durata intervento (minuti)")
     downtime_minutes = forms.IntegerField(required=False, min_value=0, label="Fermo impianto (minuti)")
-    labor_cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Manodopera (EUR)")
-    materials_cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Ricambi / materiali (EUR)")
-    cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Costo totale (EUR)")
+    assigned_to = forms.ModelChoiceField(required=False, queryset=None, label="Assegnato a")
+    executed_by = forms.ModelChoiceField(required=False, queryset=None, label="Eseguito da")
     assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
     covered_by_contract = forms.BooleanField(required=False, label="Coperto da contratto")
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
@@ -2609,20 +2619,23 @@ class WorkOrderCloseForm(forms.Form):
         self.fields["assistance_contract"].queryset = contract_qs.order_by("supplier__ragione_sociale", "title", "id")
         self.fields["assistance_contract"].help_text = "Opzionale: collega la chiusura a un contratto assistenza."
         self.fields["covered_by_contract"].help_text = "Disponibile solo con un contratto selezionato."
-        self.fields["cost_eur"].help_text = "Il costo totale viene calcolato automaticamente se non inserito."
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        current_assigned_id = getattr(self.workorder, "assigned_to_id", None)
+        current_executed_id = getattr(self.workorder, "executed_by_id", None)
+        user_qs = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+        self.fields["assigned_to"].queryset = user_qs
+        self.fields["assigned_to"].help_text = "Manutentore assegnato all'intervento."
+        self.fields["executed_by"].queryset = user_qs
+        self.fields["executed_by"].help_text = "Chi ha fisicamente eseguito il lavoro."
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
 
     def clean(self):
         cleaned_data = super().clean()
-        labor_cost = cleaned_data.get("labor_cost_eur")
-        materials_cost = cleaned_data.get("materials_cost_eur")
-        total_cost = cleaned_data.get("cost_eur")
         assistance_contract = cleaned_data.get("assistance_contract")
         if cleaned_data.get("covered_by_contract") and assistance_contract is None:
             self.add_error("covered_by_contract", "Seleziona un contratto per indicare la copertura.")
-        if total_cost in (None, "") and (labor_cost is not None or materials_cost is not None):
-            cleaned_data["cost_eur"] = (labor_cost or 0) + (materials_cost or 0)
         supplier, covered_by_contract = _validate_workorder_relations(
             asset=self.asset,
             verification=getattr(self.workorder, "periodic_verification", None),

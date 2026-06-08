@@ -153,9 +153,9 @@ def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
 
         meta_parts = []
         if intervento.data_inizio:
-            window = intervento.data_inizio.strftime("%d/%m/%Y %H:%M")
+            window = intervento.data_inizio.strftime("%d-%m-%Y %H:%M")
             if intervento.data_fine:
-                window = f"{window} -> {intervento.data_fine.strftime('%d/%m/%Y %H:%M')}"
+                window = f"{window} -> {intervento.data_fine.strftime('%d-%m-%Y %H:%M')}"
             meta_parts.append(window)
         if intervento.durata_ore is not None:
             meta_parts.append(f"{intervento.durata_ore:g}h")
@@ -506,7 +506,7 @@ def _pdf_footer(pdf: canvas.Canvas, ticket: Ticket, page_num: int, page_width: f
     pdf.setFont("Helvetica", 7.5)
     pdf.setFillColor(_PDF_COLOR_GRAY)
     from django.utils.timezone import localtime, now as tz_now_pdf
-    gen_date = localtime(tz_now_pdf()).strftime("%d/%m/%Y %H:%M")
+    gen_date = localtime(tz_now_pdf()).strftime("%d-%m-%Y %H:%M")
     pdf.drawString(_PDF_MARGIN, y - 4 * mm, f"Documento generato il {gen_date}  ·  {ticket.numero_ticket}")
     pdf.drawRightString(page_width - _PDF_MARGIN, y - 4 * mm, f"Pag. {page_num}")
 
@@ -673,8 +673,8 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
         ("Imp. sicurezza", "Sì" if ticket.incide_sicurezza else "No"),
     ]
     items_right = [
-        ("Data apertura",  ticket.created_at.strftime("%d/%m/%Y %H:%M") if ticket.created_at else "-"),
-        ("Data chiusura",  ticket.closed_at.strftime("%d/%m/%Y %H:%M") if ticket.closed_at else "-"),
+        ("Data apertura",  ticket.created_at.strftime("%d-%m-%Y %H:%M") if ticket.created_at else "-"),
+        ("Data chiusura",  ticket.closed_at.strftime("%d-%m-%Y %H:%M") if ticket.closed_at else "-"),
         ("Richiedente",    ticket.richiedente_nome or "-"),
         ("Assegnato a",    ticket.assegnato_a or "-"),
         ("Asset / Macch.", asset_label[:45]),
@@ -740,7 +740,7 @@ def _ticket_pdf_response(ticket: Ticket, *, commenti, allegati, include_internal
             # Header commento
             pdf.setFillColor(HexColor("#1e40af") if not is_int else HexColor("#92400e"))
             pdf.setFont("Helvetica-Bold", 8)
-            date_str = c.created_at.strftime("%d/%m/%Y %H:%M") if c.created_at else ""
+            date_str = c.created_at.strftime("%d-%m-%Y %H:%M") if c.created_at else ""
             label_int = "  [NOTA INTERNA]" if is_int else ""
             pdf.drawString(mx + 3 * mm, y - 4.5 * mm, f"{c.autore_nome}{label_int}")
             pdf.setFont("Helvetica", 7.5)
@@ -1157,6 +1157,7 @@ def ticket_gestione_list(request):
             qs = qs.filter(
                 Q(asset__name__icontains=asset_f) |
                 Q(asset__asset_tag__icontains=asset_f) |
+                Q(asset__internal_number__icontains=asset_f) |
                 Q(asset_descrizione_libera__icontains=asset_f)
             )
         if cat_f:
@@ -1558,7 +1559,7 @@ def api_commento(request):
         "autore_nome": c.autore_nome,
         "testo": c.testo,
         "is_interno": c.is_interno,
-        "created_at": c.created_at.strftime("%d/%m/%Y %H:%M"),
+        "created_at": c.created_at.strftime("%d-%m-%Y %H:%M"),
         "auto_in_carico": auto_in_carico,
     })
 
@@ -1817,11 +1818,11 @@ def api_assets_autocomplete(request):
         from assets.models import Asset as AssetModel
         assets = (
             AssetModel.objects.filter(status__in=["IN_USE", "IN_STOCK"])
-            .filter(Q(name__icontains=q) | Q(asset_tag__icontains=q))
+            .filter(Q(name__icontains=q) | Q(asset_tag__icontains=q) | Q(internal_number__icontains=q))
             .order_by("name")[:20]
         )
         results = [
-            {"name": a.name, "tag": a.asset_tag or "", "tipo": a.get_asset_type_display() if hasattr(a, 'get_asset_type_display') else ""}
+            {"name": a.name, "tag": a.asset_tag or "", "internal_number": a.internal_number or "", "tipo": a.get_asset_type_display() if hasattr(a, 'get_asset_type_display') else ""}
             for a in assets
         ]
     except Exception:
@@ -2502,7 +2503,7 @@ def _api_intervento_create(request):
         "ok": True,
         "id": interv.pk,
         "tecnico_nome": interv.tecnico_nome,
-        "data_inizio": interv.data_inizio.strftime("%d/%m/%Y %H:%M"),
+        "data_inizio": interv.data_inizio.strftime("%d-%m-%Y %H:%M"),
         "esito": interv.esito,
         "label_esito": interv.label_esito,
         "durata_ore": interv.durata_ore,

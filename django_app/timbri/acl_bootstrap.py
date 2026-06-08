@@ -19,12 +19,15 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "timbri", "codice": "timbri_view", "label": "Timbri - Scheda operatore", "url": "/timbri/operatori", "hide": True},
     {"modulo": "timbri", "codice": "timbri_edit", "label": "Timbri - Modifica", "url": "/timbri/record", "hide": True},
     {"modulo": "timbri", "codice": "timbri_config", "label": "Timbri - Impostazioni", "url": "/timbri/impostazioni/", "hide": True},
-    {"modulo": "timbri", "codice": "timbri_import", "label": "Timbri - Import SharePoint", "url": "/timbri/impostazioni/?tab=import", "hide": True},
     {"modulo": "timbri", "codice": "timbri_export", "label": "Timbri - Export CSV", "url": "/timbri/export-csv", "hide": True},
+    {"modulo": "timbri", "codice": "timbri_copy", "label": "Timbri - Copia immagine", "url": "/timbri/", "hide": True},
+    {"modulo": "timbri", "codice": "timbri_download", "label": "Timbri - Scarica immagine", "url": "/timbri/immagine/", "hide": True},
 ]
 
 _VISIBLE_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 _EDIT_ROLE_NAMES = {"admin", "amministrazione"}
+_COPY_ROLE_NAMES = {"admin", "amministrazione", "hr"}
+_DOWNLOAD_ROLE_NAMES = {"admin", "amministrazione", "hr"}
 
 
 def _upsert_permesso(
@@ -167,16 +170,26 @@ def bootstrap_timbri_runtime(force: bool = False) -> None:
             }
             for role_name, role_id in role_map.items():
                 can_edit = role_name in _EDIT_ROLE_NAMES
+                can_copy = role_name in _COPY_ROLE_NAMES
+                can_download = role_name in _DOWNLOAD_ROLE_NAMES
                 for action in ["timbri_home", "timbri_view"]:
                     changed = _upsert_permesso(
                         ruolo_id=role_id, modulo="timbri", azione=action,
                         can_view=True, can_edit=can_edit, can_delete=False, can_approve=False,
                     ) or changed
-                for action in ["timbri_edit", "timbri_config", "timbri_import", "timbri_export"]:
+                for action in ["timbri_edit", "timbri_config", "timbri_export"]:
                     changed = _upsert_permesso(
                         ruolo_id=role_id, modulo="timbri", azione=action,
                         can_view=can_edit, can_edit=can_edit, can_delete=False, can_approve=False,
                     ) or changed
+                changed = _upsert_permesso(
+                    ruolo_id=role_id, modulo="timbri", azione="timbri_copy",
+                    can_view=can_copy, can_edit=can_copy, can_delete=False, can_approve=False,
+                ) or changed
+                changed = _upsert_permesso(
+                    ruolo_id=role_id, modulo="timbri", azione="timbri_download",
+                    can_view=can_download, can_edit=can_download, can_delete=False, can_approve=False,
+                ) or changed
 
             changed = _bootstrap_navigation() or changed
 

@@ -571,7 +571,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
             <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome }}</a>{% else %}{{ t.richiedente_nome }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
-            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d-m-Y H:i" }}</td>
             <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
             <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
           </tr>
@@ -632,7 +632,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
             <td style="font-size:12px;">{% if t.richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' t.richiedente_anagrafica_id %}">{{ t.richiedente_nome }}</a>{% else %}{{ t.richiedente_nome }}{% endif %}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
-            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d-m-Y H:i" }}</td>
             <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
             <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
           </tr>
@@ -768,9 +768,10 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
           }
           var html = '';
           data.results.forEach(function(a) {
+            var tagLabel = a.internal_number ? escHtml(a.internal_number) + ' · ' + escHtml(a.tag) : escHtml(a.tag);
             html += '<div class="tkt-ac-item" data-name="' + escHtml(a.name) + '">' +
               '<span class="tkt-ac-name">' + escHtml(a.name) + '</span>' +
-              (a.tag ? '<span class="tkt-ac-tag">' + escHtml(a.tag) + '</span>' : '') +
+              (a.tag ? '<span class="tkt-ac-tag">' + tagLabel + '</span>' : '') +
               (a.tipo ? '<span class="tkt-ac-tipo">' + escHtml(a.tipo) + '</span>' : '') +
               '</div>';
           });

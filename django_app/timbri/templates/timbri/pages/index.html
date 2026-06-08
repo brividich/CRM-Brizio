@@ -4,89 +4,156 @@
 
 {% block extra_head %}
 <style>
-.tim-page { display:flex; flex-direction:column; gap:20px; }
-.tim-topbar, .tim-kpi, .tim-form-row { display:flex; gap:14px; flex-wrap:wrap; }
-.tim-topbar { align-items:center; justify-content:space-between; }
-.tim-title { font-size:27px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
-.tim-sub { font-size:13px; color:#64748b; margin-top:4px; }
-.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; cursor:pointer; }
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.tim-page { display:flex; flex-direction:column; gap:24px; }
+.tim-topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.tim-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.025em; line-height:1.2; }
+.tim-sub { font-size:13px; color:#64748b; margin-top:5px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#334155; cursor:pointer; transition:background .12s, border-color .12s, color .12s; white-space:nowrap; }
+.tim-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
 .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
 .tim-btn-ghost { background:#f8fafc; }
-.tim-btn-copy { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; font-size:12px; padding:6px 10px; }
+.tim-btn-ghost:hover { background:#f1f5f9; }
+.tim-btn-copy { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; font-size:12px; padding:5px 10px; }
 .tim-btn-copy:hover { background:#dbeafe; }
 .tim-btn-copy.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
-.tim-card, .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
+
+/* ── KPI ─────────────────────────────────────────────────────────────────── */
 .tim-kpi { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
-.tim-k { padding:18px 20px; }
-.tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; }
-.tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:7px; }
-.tim-filters { padding:16px 20px; }
-.tim-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:170px; }
-.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; font-size:13px; background:#f8fafc; width:100%; box-sizing:border-box; }
+.tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px 22px; position:relative; overflow:hidden; }
+.tim-k::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,#0f766e,#14b8a6); border-radius:16px 16px 0 0; }
+.tim-k-val { font-size:32px; font-weight:800; color:#0f172a; line-height:1; letter-spacing:-.03em; }
+.tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.07em; margin-top:8px; }
+.tim-k-icon { position:absolute; bottom:14px; right:16px; font-size:26px; opacity:.12; line-height:1; }
+
+/* ── Card / Filtri ───────────────────────────────────────────────────────── */
+.tim-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
+.tim-filters { padding:18px 20px; }
+.tim-form-row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.tim-field { display:flex; flex-direction:column; gap:5px; flex:1; min-width:160px; }
+.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; font-size:13px; background:#f8fafc; width:100%; box-sizing:border-box; color:#334155; transition:border-color .15s; }
+.tim-input:focus { outline:none; border-color:#0f766e; background:#fff; box-shadow:0 0 0 3px rgba(15,118,110,.08); }
+
+/* ── Tabella ─────────────────────────────────────────────────────────────── */
 .tim-table-wrap { overflow:auto; }
 .tim-table { width:100%; border-collapse:collapse; font-size:13px; }
-.tim-table th { padding:11px 14px; background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e2e8f0; }
-.tim-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; color:#334155; }
-.tim-row { cursor:pointer; transition:background .12s; }
+.tim-table th { padding:11px 16px; background:#f8fafc; color:#94a3b8; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; font-weight:700; text-align:left; border-bottom:2px solid #f1f5f9; }
+.tim-table td { padding:13px 16px; border-bottom:1px solid #f8fafc; vertical-align:middle; color:#334155; }
+.tim-row { cursor:pointer; transition:background .1s; }
 .tim-row:hover td { background:#f0fdf9; }
 .tim-row.is-open td { background:#f0fdf9; border-bottom-color:transparent; }
-.tim-row-toggle { font-size:12px; color:#64748b; transition:transform .18s; display:inline-block; }
-.tim-row.is-open .tim-row-toggle { transform:rotate(90deg); }
+.tim-row-toggle { width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:6px; color:#94a3b8; font-size:10px; transition:transform .18s, background .12s; flex-shrink:0; }
+.tim-row.is-open .tim-row-toggle { transform:rotate(90deg); background:#e0f2f1; color:#0f766e; }
 .tim-expand-row td { padding:0; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
-.tim-expand-inner { padding:16px 20px; }
-.tim-preview-records { display:flex; flex-direction:column; gap:12px; }
-.tim-preview-record { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; }
+.tim-expand-inner { padding:18px 20px; }
+
+/* ── Preview espanso ─────────────────────────────────────────────────────── */
+.tim-preview-records { display:flex; flex-direction:column; gap:10px; }
+.tim-preview-record { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 18px; }
 .tim-preview-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
-.tim-preview-title { font-size:15px; font-weight:800; color:#0f172a; }
-.tim-preview-sub { font-size:12px; color:#64748b; }
-.tim-preview-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-.tim-preview-slot { border:1px solid #e2e8f0; border-radius:10px; padding:10px; text-align:center; background:#f8fafc; }
-.tim-preview-slot img { max-width:100%; max-height:120px; object-fit:contain; display:block; margin:0 auto 8px; }
-.tim-preview-slot-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
-.tim-preview-no-img { height:100px; display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:12px; }
-.tim-avatar { width:34px; height:34px; border-radius:50%; background:#0f766e; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
-.tim-name { display:flex; align-items:center; gap:10px; }
-.tim-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
-.tim-pill-gray { background:#f1f5f9; color:#475569; }
-.tim-pill-blue { background:#dbeafe; color:#1d4ed8; }
-.tim-empty { text-align:center; padding:36px; color:#94a3b8; }
-.tim-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
-.tim-issues { margin-top:18px; }
+.tim-preview-title { font-size:14px; font-weight:800; color:#0f172a; }
+.tim-preview-sub { font-size:11.5px; color:#64748b; }
+.tim-preview-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.tim-preview-slot { border:1px solid #e2e8f0; border-radius:12px; padding:14px 12px 12px; text-align:center; background:#f8fafc; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.tim-preview-slot-label { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+.tim-preview-slot-img { width:100%; display:flex; align-items:center; justify-content:center; min-height:110px; }
+.tim-preview-slot-img img { max-width:100%; max-height:130px; object-fit:contain; display:block; }
+.tim-preview-no-img { min-height:110px; display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:12px; flex-direction:column; gap:6px; width:100%; }
+.tim-preview-slot-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+.tim-btn-copy-sm { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:700; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; cursor:pointer; transition:background .12s; white-space:nowrap; }
+.tim-btn-copy-sm:hover { background:#dbeafe; }
+.tim-btn-copy-sm.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
+.tim-btn-dl-sm { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:4px 10px; border-radius:7px; font-size:11px; font-weight:700; border:1px solid #e2e8f0; background:#f8fafc; color:#334155; cursor:pointer; text-decoration:none; white-space:nowrap; transition:background .12s; }
+.tim-btn-dl-sm:hover { background:#f1f5f9; }
+
+/* ── Avatar / Name ───────────────────────────────────────────────────────── */
+.tim-name { display:flex; align-items:center; gap:12px; }
+.tim-avatar { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,#0f766e,#14b8a6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0; }
+.tim-name-text { font-weight:700; color:#0f172a; font-size:13.5px; }
+
+/* ── Badge / Contatori ───────────────────────────────────────────────────── */
+.tim-pill { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; }
+.tim-pill-gray { background:#f1f5f9; color:#64748b; }
+.tim-pill-blue { background:#eff6ff; color:#2563eb; }
+.tim-count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:8px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:800; padding:0 5px; }
+.tim-count-teal { background:#f0fdfa; color:#0f766e; }
+
+/* ── Empty / paginazione ─────────────────────────────────────────────────── */
+.tim-empty { text-align:center; padding:40px 20px; color:#94a3b8; font-size:13px; }
+.tim-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; border-top:1px solid #f1f5f9; }
+.tim-pag-info { font-size:12px; color:#94a3b8; }
+
+/* ── Issues ──────────────────────────────────────────────────────────────── */
+.tim-issues-header { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; padding:20px 20px 0; }
+.tim-issues-title { font-size:16px; font-weight:800; color:#0f172a; }
+.tim-issues-sub { font-size:12px; color:#64748b; margin-top:3px; }
 .tim-issues table { width:100%; border-collapse:collapse; font-size:13px; }
-.tim-issues th, .tim-issues td { padding:11px 14px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:top; }
-.tim-issues th { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; background:#f8fafc; }
-.tim-issue-reason { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:8px 10px; }
-@media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } .tim-preview-images { grid-template-columns:1fr; } }
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
+.tim-issues th { padding:10px 16px; font-size:10.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:.07em; font-weight:700; background:#f8fafc; border-bottom:1px solid #f1f5f9; text-align:left; }
+.tim-issues td { padding:12px 16px; border-bottom:1px solid #f8fafc; vertical-align:top; color:#334155; }
+.tim-issue-reason { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:6px 10px; display:inline-block; }
+
+@media (max-width: 900px) {
+  .tim-kpi { grid-template-columns:repeat(2,1fr); }
+  .tim-preview-images { grid-template-columns:1fr; }
+  .tim-k-icon { display:none; }
+}
+@media (max-width: 560px) {
+  .tim-kpi { grid-template-columns:1fr; }
+  .tim-title { font-size:22px; }
+}
+
+/* ── Dark mode ───────────────────────────────────────────────────────────── */
 body.theme-dark .tim-title { color:var(--text); }
 body.theme-dark .tim-sub { color:var(--text-light); }
 body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-btn:hover { background:var(--surface-alt); }
+body.theme-dark .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+body.theme-dark .tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
 body.theme-dark .tim-btn-ghost { background:var(--surface-alt); }
 body.theme-dark .tim-btn-copy { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
 body.theme-dark .tim-btn-copy:hover { background:rgba(29,78,216,.3); }
 body.theme-dark .tim-btn-copy.copied { background:rgba(21,128,61,.2); border-color:rgba(134,239,172,.3); color:#86efac; }
-body.theme-dark .tim-card, body.theme-dark .tim-k { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-k { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tim-k-val { color:var(--text); }
 body.theme-dark .tim-k-label { color:var(--text-light); }
 body.theme-dark .tim-field label { color:var(--text-light); }
 body.theme-dark .tim-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-input:focus { border-color:#2dd4bf; box-shadow:0 0 0 3px rgba(45,212,191,.1); }
 body.theme-dark .tim-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .tim-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .tim-table td { border-color:var(--surface-alt); color:var(--text-mid); }
 body.theme-dark .tim-row:hover td, body.theme-dark .tim-row.is-open td { background:var(--tbody-hover); }
-body.theme-dark .tim-row-toggle { color:var(--text-light); }
+body.theme-dark .tim-row-toggle { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .tim-row.is-open .tim-row-toggle { background:rgba(15,118,110,.25); color:#2dd4bf; }
 body.theme-dark .tim-expand-row td { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .tim-preview-record { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tim-preview-title { color:var(--text); }
 body.theme-dark .tim-preview-sub { color:var(--text-light); }
 body.theme-dark .tim-preview-slot { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .tim-preview-slot-label { color:var(--text-light); }
+body.theme-dark .tim-preview-no-img { color:var(--border); }
+body.theme-dark .tim-btn-copy-sm { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
+body.theme-dark .tim-btn-copy-sm:hover { background:rgba(29,78,216,.3); }
+body.theme-dark .tim-btn-copy-sm.copied { background:rgba(21,128,61,.2); border-color:rgba(134,239,172,.3); color:#86efac; }
+body.theme-dark .tim-btn-dl-sm { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .tim-btn-dl-sm:hover { background:var(--surface-alt); }
+body.theme-dark .tim-name-text { color:var(--text); }
 body.theme-dark .tim-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
-body.theme-dark .tim-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .tim-pill-blue { background:rgba(37,99,235,.18); color:#93c5fd; }
+body.theme-dark .tim-count { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .tim-count-teal { background:rgba(15,118,110,.2); color:#2dd4bf; }
 body.theme-dark .tim-empty { color:var(--text-light); }
-body.theme-dark .tim-issue-reason { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
+body.theme-dark .tim-pag-info { color:var(--text-light); }
+body.theme-dark .tim-pag { border-color:var(--border); }
+body.theme-dark .tim-issues-title { color:var(--text); }
+body.theme-dark .tim-issues-sub { color:var(--text-light); }
 body.theme-dark .tim-issues th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .tim-issues td { border-color:var(--border); }
+body.theme-dark .tim-issues td { border-color:var(--surface-alt); }
+body.theme-dark .tim-issue-reason { background:rgba(146,64,14,.18); border-color:rgba(253,230,138,.25); color:#fde68a; }
 </style>
 {% endblock %}
 
@@ -99,119 +166,156 @@ body.theme-dark .tim-issues td { border-color:var(--border); }
       <div class="tim-title">Registro timbri</div>
       <div class="tim-sub">Archivio timbri agganciato all'anagrafica centrale dei dipendenti.</div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      {% if can_manage_timbri_config %}<a class="tim-btn tim-btn-ghost" href="{% url 'timbri:configurazione' %}?tab=config">Configurazione</a>{% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% if can_manage_timbri_config %}
+        <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:configurazione' %}?tab=config">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Configurazione
+        </a>
+      {% endif %}
     </div>
   </div>
 
   {% include "anagrafica/components/flash_messages.html" %}
 
   {% if schema_issue %}
-    <div class="tim-card" style="border-color:#fecaca;background:#fff1f2;color:#991b1b;">
-      <strong>Schema SQL non pronto.</strong> {{ schema_issue }}
+    <div class="tim-card" style="padding:16px 20px;border-color:#fecaca;background:#fff1f2;color:#991b1b;display:flex;gap:10px;align-items:flex-start;">
+      <svg width="18" height="18" fill="none" stroke="#b91c1c" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div><strong>Schema SQL non pronto.</strong> {{ schema_issue }}</div>
     </div>
   {% endif %}
 
   <div class="tim-kpi">
-    <div class="tim-k"><div class="tim-k-val">{{ stats.dipendenti }}</div><div class="tim-k-label">Dipendenti in anagrafica</div></div>
-    <div class="tim-k"><div class="tim-k-val">{{ stats.con_timbri }}</div><div class="tim-k-label">Dipendenti con timbri</div></div>
-    <div class="tim-k"><div class="tim-k-val">{{ stats.record_attivi }}</div><div class="tim-k-label">Record attivi</div></div>
-    <div class="tim-k"><div class="tim-k-val">{{ stats.da_gestire }}</div><div class="tim-k-label">Da gestire</div></div>
+    <div class="tim-k">
+      <div class="tim-k-val">{{ stats.dipendenti }}</div>
+      <div class="tim-k-label">Dipendenti</div>
+      <div class="tim-k-icon">👥</div>
+    </div>
+    <div class="tim-k">
+      <div class="tim-k-val">{{ stats.con_timbri }}</div>
+      <div class="tim-k-label">Con timbri</div>
+      <div class="tim-k-icon">🖊️</div>
+    </div>
+    <div class="tim-k">
+      <div class="tim-k-val">{{ stats.record_attivi }}</div>
+      <div class="tim-k-label">Record attivi</div>
+      <div class="tim-k-icon">✅</div>
+    </div>
+    <div class="tim-k" style="{% if stats.da_gestire %}border-color:#fde68a;{% endif %}">
+      <div class="tim-k-val" style="{% if stats.da_gestire %}color:#92400e;{% endif %}">{{ stats.da_gestire }}</div>
+      <div class="tim-k-label">Da gestire</div>
+      <div class="tim-k-icon">⚠️</div>
+    </div>
   </div>
 
   <form method="get" class="tim-card tim-filters">
     <div class="tim-form-row">
       <div class="tim-field">
         <label>Cerca</label>
-        <input class="tim-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, matricola, reparto...">
+        <input class="tim-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, matricola, reparto…">
       </div>
-      <div class="tim-field" style="max-width:220px;">
+      <div class="tim-field" style="max-width:200px;">
         <label>Reparto</label>
         <select class="tim-input" name="reparto">
-          <option value="">Tutti</option>
+          <option value="">Tutti i reparti</option>
           {% for item in reparti %}
             <option value="{{ item }}"{% if item == reparto %} selected{% endif %}>{{ item }}</option>
           {% endfor %}
         </select>
       </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;">
-        <button class="tim-btn tim-btn-main" type="submit">Filtra</button>
-        <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>
+      <div style="display:flex;gap:8px;">
+        <button class="tim-btn tim-btn-main" type="submit">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Filtra
+        </button>
+        {% if q or reparto %}<a class="tim-btn tim-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>{% endif %}
       </div>
     </div>
   </form>
 
   <div class="tim-card">
     <div class="tim-table-wrap">
-      <table class="tim-table">
+      <table class="tim-table" data-fm-table-skip="1">
         <thead>
           <tr>
+            <th style="width:40px;"></th>
             <th>Dipendente</th>
             <th>Matricola</th>
             <th>Reparto</th>
             <th>Ruolo</th>
-            <th>Timbri attivi</th>
-            <th>Storico</th>
-            <th></th>
+            <th style="text-align:center;">Attivi</th>
+            <th style="text-align:center;">Storico</th>
+            <th style="width:80px;"></th>
           </tr>
         </thead>
-        <tbody id="tim-tbody" data-can-copy="{{ can_copy_timbri|yesno:'true,false' }}">
+        <tbody id="tim-tbody" data-can-copy="{{ can_copy_timbri|yesno:'true,false' }}" data-can-download="{{ can_download_timbri|yesno:'true,false' }}">
           {% for operatore in page_obj %}
             <tr class="tim-row" data-legacy-id="{{ operatore.legacy_id }}" data-preview-url="{% url 'timbri:operatore_preview' operatore.legacy_id %}">
+              <td><span class="tim-row-toggle">&#9654;</span></td>
               <td>
                 <div class="tim-name">
-                  <span class="tim-row-toggle">&#9654;</span>
                   <div class="tim-avatar">{{ operatore.nome|first|upper }}{{ operatore.cognome|first|upper }}</div>
                   <div>
-                    <div style="font-weight:800;color:#0f172a;">{{ operatore.full_name }}</div>
-                    {% if not operatore.is_active_legacy %}<span class="tim-pill tim-pill-gray">Storico</span>{% endif %}
+                    <div class="tim-name-text">{{ operatore.full_name }}</div>
+                    {% if not operatore.is_active_legacy %}<span class="tim-pill tim-pill-gray" style="margin-top:3px;">Storico</span>{% endif %}
                   </div>
                 </div>
               </td>
-              <td>{{ operatore.matricola|default:"-" }}</td>
-              <td>{% if operatore.reparto %}<span class="tim-pill tim-pill-blue">{{ operatore.reparto }}</span>{% else %}-{% endif %}</td>
-              <td>{{ operatore.ruolo|default:"-" }}</td>
-              <td>{{ operatore.active_records }}</td>
-              <td>{{ operatore.historical_records }}</td>
-              <td>
-                <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;" onclick="event.stopPropagation()">
-                  <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}">Apri</a>
-                </div>
+              <td style="color:#64748b;font-family:monospace;font-size:12px;">{{ operatore.matricola|default:"—" }}</td>
+              <td>{% if operatore.reparto %}<span class="tim-pill tim-pill-blue">{{ operatore.reparto }}</span>{% else %}<span style="color:#cbd5e1;">—</span>{% endif %}</td>
+              <td style="color:#475569;">{{ operatore.ruolo|default:"—" }}</td>
+              <td style="text-align:center;">
+                {% if operatore.active_records %}<span class="tim-count tim-count-teal">{{ operatore.active_records }}</span>{% else %}<span style="color:#cbd5e1;">0</span>{% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if operatore.historical_records %}<span class="tim-count">{{ operatore.historical_records }}</span>{% else %}<span style="color:#cbd5e1;">0</span>{% endif %}
+              </td>
+              <td onclick="event.stopPropagation()">
+                <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}" style="font-size:12px;padding:6px 12px;">Apri</a>
               </td>
             </tr>
             <tr class="tim-expand-row" id="expand-{{ operatore.legacy_id }}" style="display:none;">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="tim-expand-inner" id="expand-inner-{{ operatore.legacy_id }}"></div>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7" class="tim-empty">Nessun dipendente trovato.</td></tr>
+            <tr>
+              <td colspan="8" class="tim-empty">
+                <svg width="36" height="36" fill="none" stroke="#cbd5e1" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+                Nessun dipendente trovato.
+              </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% if page_obj.has_other_pages %}
       <div class="tim-pag">
-        {% if page_obj.has_previous %}<a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}">Prec</a>{% endif %}
-        <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}<a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}">Succ</a>{% endif %}
+        {% if page_obj.has_previous %}
+          <a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}" style="font-size:12px;padding:6px 12px;">← Prec</a>
+        {% endif %}
+        <span class="tim-pag-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+          <a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}" style="font-size:12px;padding:6px 12px;">Succ →</a>
+        {% endif %}
       </div>
     {% endif %}
   </div>
 
   <div class="tim-card tim-issues">
-    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+    <div class="tim-issues-header">
       <div>
-        <div class="tim-title" style="font-size:20px;">Da gestire</div>
-        <div class="tim-sub">Righe del CSV non importate perch&eacute; l'operatore non &egrave; stato trovato nell'anagrafica centrale.</div>
+        <div class="tim-issues-title">Da gestire</div>
+        <div class="tim-issues-sub">Righe del CSV non importate perché l'operatore non è stato trovato nell'anagrafica centrale.</div>
       </div>
       {% if stats.da_gestire %}
-        <span class="tim-pill tim-pill-gray">{{ stats.da_gestire }} righe</span>
+        <span class="tim-pill" style="background:#fef3c7;color:#92400e;">{{ stats.da_gestire }} righe</span>
       {% endif %}
     </div>
     {% if pending_issues %}
       <div class="tim-table-wrap" style="margin-top:14px;">
-        <table>
+        <table data-fm-table-skip="1">
           <thead>
             <tr>
               <th>Riga</th>
@@ -225,16 +329,16 @@ body.theme-dark .tim-issues td { border-color:var(--border); }
           <tbody>
             {% for issue in pending_issues %}
               <tr>
-                <td>{{ issue.csv_row_number }}</td>
+                <td style="color:#94a3b8;font-family:monospace;font-size:12px;">{{ issue.csv_row_number }}</td>
                 <td>
-                  <strong>{{ issue.operatore_label|default:issue.operatore_label_alt|default:"-" }}</strong>
+                  <strong>{{ issue.operatore_label|default:issue.operatore_label_alt|default:"—" }}</strong>
                   {% if issue.sharepoint_item_id %}
-                    <div style="font-size:11px;color:#94a3b8;">ID SP {{ issue.sharepoint_item_id }}</div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">SP {{ issue.sharepoint_item_id }}</div>
                   {% endif %}
                 </td>
-                <td>{{ issue.matricola|default:"-" }}</td>
-                <td>{{ issue.codice_timbro|default:"-" }}</td>
-                <td>{{ issue.tipo_timbro_raw|default:"-" }}</td>
+                <td style="color:#64748b;font-family:monospace;font-size:12px;">{{ issue.matricola|default:"—" }}</td>
+                <td style="color:#475569;">{{ issue.codice_timbro|default:"—" }}</td>
+                <td style="color:#475569;">{{ issue.tipo_timbro_raw|default:"—" }}</td>
                 <td><div class="tim-issue-reason">{{ issue.motivo_scarto }}</div></td>
               </tr>
             {% endfor %}
@@ -242,15 +346,51 @@ body.theme-dark .tim-issues td { border-color:var(--border); }
         </table>
       </div>
     {% else %}
-      <div class="tim-empty" style="margin-top:14px;">Nessuna riga da gestire.</div>
+      <div class="tim-empty" style="padding:28px;">
+        <svg width="32" height="32" fill="none" stroke="#86efac" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 10px;display:block;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Nessuna riga da gestire.
+      </div>
     {% endif %}
   </div>
 </div>
 
 <script>
 (function () {
-  const canCopy = document.getElementById('tim-tbody').dataset.canCopy === 'true';
+  const tbody = document.getElementById('tim-tbody');
+  const canCopy = tbody.dataset.canCopy === 'true';
+  const canDownload = tbody.dataset.canDownload === 'true';
 
+  /* ── Ricerca live ──────────────────────────────────────────────────────── */
+  const qInput = document.querySelector('input[name="q"]');
+  const repartoSelect = document.querySelector('select[name="reparto"]');
+  let debounceTimer = null;
+
+  function submitSearch() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('q', qInput.value);
+    url.searchParams.set('reparto', repartoSelect.value);
+    url.searchParams.delete('page');
+    window.location.href = url.toString();
+  }
+
+  if (qInput) {
+    qInput.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(submitSearch, 280);
+    });
+    // Impedisce submit manuale del form (enter) di fare double-navigation
+    qInput.closest('form').addEventListener('submit', function (e) {
+      clearTimeout(debounceTimer);
+    });
+  }
+  if (repartoSelect) {
+    repartoSelect.addEventListener('change', function () {
+      clearTimeout(debounceTimer);
+      submitSearch();
+    });
+  }
+
+  /* ── Copy immagine ─────────────────────────────────────────────────────── */
   async function copyImageToClipboard(btn, imgUrl) {
     try {
       btn.textContent = '…';
@@ -258,50 +398,74 @@ body.theme-dark .tim-issues td { border-color:var(--border); }
       img.crossOrigin = 'anonymous';
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = imgUrl; });
       const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
       canvas.getContext('2d').drawImage(img, 0, 0);
       const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      btn.textContent = '✓ Copiato';
+      btn.textContent = '✓';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 2000);
-    } catch (e) {
-      btn.textContent = 'Errore';
+    } catch {
+      btn.textContent = '!';
       setTimeout(() => { btn.textContent = 'Copia'; }, 2000);
     }
   }
 
+  /* ── Build preview (layout card a 3 colonne, come scheda dipendente) ────── */
   function buildPreview(records) {
     if (!records.length) {
-      return '<div style="color:#94a3b8;text-align:center;padding:16px;font-size:13px;">Nessun record attivo.</div>';
+      return `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px;">
+        <svg width="32" height="32" fill="none" stroke="#cbd5e1" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 8px;"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Nessun timbro attivo.
+      </div>`;
     }
-    return '<div class="tim-preview-records">' + records.map(r => {
+    return `<div class="tim-preview-records">${records.map(r => {
+      const tipoBadge = r.tipo ? `<span class="tim-pill tim-pill-gray" style="font-size:10.5px;">${r.tipo}</span>` : '';
+      const attivoBadge = `<span class="tim-pill tim-pill-green" style="font-size:10.5px;">Attivo</span>`;
       const slots = r.slots.map(s => {
-        const imgHtml = s.url
-          ? `<img src="${s.url}" alt="${s.label}" data-copy-url="${s.url}">`
-          : `<div class="tim-preview-no-img">Nessuna immagine</div>`;
-        const copyBtn = canCopy && s.url
-          ? `<button class="tim-btn tim-btn-copy" onclick="event.stopPropagation()" data-url="${s.url}">Copia</button>`
-          : '';
+        const imgBlock = s.url
+          ? `<div class="tim-preview-slot-img"><img src="${s.url}" alt="${s.label}" loading="lazy"></div>`
+          : `<div class="tim-preview-no-img">
+              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>—</span>
+            </div>`;
+        let actions = '';
+        if (s.url) {
+          const copyBtn = canCopy
+            ? `<button type="button" class="tim-btn-copy-sm" data-url="${s.url}" onclick="event.stopPropagation()">
+                <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copia
+              </button>`
+            : '';
+          const dlUrl = s.url + (s.url.includes('?') ? '&' : '?') + 'download=1';
+          const dlBtn = canDownload
+            ? `<a href="${dlUrl}" class="tim-btn-dl-sm" download onclick="event.stopPropagation()">
+                <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Scarica
+              </a>`
+            : '';
+          if (copyBtn || dlBtn) {
+            actions = `<div class="tim-preview-slot-actions">${copyBtn}${dlBtn}</div>`;
+          }
+        }
         return `<div class="tim-preview-slot">
           <div class="tim-preview-slot-label">${s.label}</div>
-          ${imgHtml}
-          ${copyBtn}
+          ${imgBlock}
+          ${actions}
         </div>`;
       }).join('');
-      const badge = r.tipo ? `<span class="tim-pill tim-pill-gray">${r.tipo}</span>` : '';
       return `<div class="tim-preview-record">
         <div class="tim-preview-head">
-          <span class="tim-preview-title">${r.codice || 'Senza codice'}</span>
-          ${r.qualifica ? `<span class="tim-preview-sub">${r.qualifica}</span>` : ''}
-          ${badge}
+          <div class="tim-preview-title">${r.codice || '—'}</div>
+          ${r.qualifica ? `<div class="tim-preview-sub">${r.qualifica}</div>` : ''}
+          ${attivoBadge}${tipoBadge}
         </div>
         <div class="tim-preview-images">${slots}</div>
       </div>`;
-    }).join('') + '</div>';
+    }).join('')}</div>`;
   }
 
+  /* ── Toggle riga espansa ───────────────────────────────────────────────── */
   document.querySelectorAll('.tim-row').forEach(row => {
     const legacyId = row.dataset.legacyId;
     const previewUrl = row.dataset.previewUrl;
@@ -319,17 +483,17 @@ body.theme-dark .tim-issues td { border-color:var(--border); }
       row.classList.add('is-open');
       expandRow.style.display = '';
       if (!loaded) {
-        expandInner.innerHTML = '<div style="color:#94a3b8;padding:20px;text-align:center;font-size:13px;">Caricamento...</div>';
+        expandInner.innerHTML = '<div style="color:#94a3b8;padding:16px;text-align:center;font-size:13px;">Caricamento…</div>';
         try {
           const resp = await fetch(previewUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
           const data = await resp.json();
           expandInner.innerHTML = buildPreview(data.records || []);
-          expandInner.querySelectorAll('.tim-btn-copy').forEach(btn => {
-            btn.addEventListener('click', () => copyImageToClipboard(btn, btn.dataset.url));
+          expandInner.querySelectorAll('.tim-btn-copy-sm[data-url]').forEach(btn => {
+            btn.addEventListener('click', e => { e.stopPropagation(); copyImageToClipboard(btn, btn.dataset.url); });
           });
           loaded = true;
         } catch {
-          expandInner.innerHTML = '<div style="color:#b91c1c;padding:16px;font-size:13px;">Errore nel caricamento.</div>';
+          expandInner.innerHTML = '<div style="color:#b91c1c;padding:12px;font-size:13px;">Errore nel caricamento.</div>';
         }
       }
     });

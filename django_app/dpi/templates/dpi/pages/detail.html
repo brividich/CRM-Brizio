@@ -123,7 +123,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           <dd>{{ richiesta.motivazione }}</dd>
           {% endif %}
           <dt>Data richiesta</dt>
-          <dd>{{ richiesta.created_at|date:"d/m/Y H:i" }}</dd>
+          <dd>{{ richiesta.created_at|date:"d-m-Y H:i" }}</dd>
         </dl>
 
         {% if richiesta.note_gestione %}
@@ -148,7 +148,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
         <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:16px;">Consegna effettuata</div>
         <dl class="dpi-dl">
           <dt>Data consegna</dt>
-          <dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
+          <dd>{{ consegna.data_consegna|date:"d-m-Y" }}</dd>
           <dt>DPI consegnato</dt>
           <dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>
           {% if consegna.consegnato_da_nome %}
@@ -158,7 +158,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           {% if consegna.data_scadenza_stimata %}
           <dt>Scadenza stimata</dt>
           <dd>
-            {{ consegna.data_scadenza_stimata|date:"d/m/Y" }}
+            {{ consegna.data_scadenza_stimata|date:"d-m-Y" }}
             {% if richiesta.is_scaduta %}
             <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-left:6px;">SCADUTO</span>
             {% endif %}
@@ -187,7 +187,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
             <div class="dpi-timeline-body">
               <strong>{{ c.autore_nome }}</strong>: {{ c.testo }}
             </div>
-            <div class="dpi-timeline-time">{{ c.created_at|date:"d/m/Y H:i" }}</div>
+            <div class="dpi-timeline-time">{{ c.created_at|date:"d-m-Y H:i" }}</div>
           </div>
         </li>
         {% endfor %}

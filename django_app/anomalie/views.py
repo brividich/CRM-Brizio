@@ -2894,7 +2894,7 @@ def report_segnalazione_html(request):
             "anomalie_aperte": anomalie_aperte,
             "anomalie_chiuse": max(len(anomalie) - anomalie_aperte, 0),
             "allegati_totali": total_attachments,
-            "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "generated_at": datetime.now().strftime("%d-%m-%Y %H:%M"),
             "focus_local_id": anomalia_id or "",
         },
         "anomalie": anomalie,
@@ -2934,7 +2934,7 @@ def api_anomalie_config_report_template(request):
             return JsonResponse({
                 "has_custom": True,
                 "size": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d-%m-%Y %H:%M"),
             })
         return JsonResponse({"has_custom": False})
 

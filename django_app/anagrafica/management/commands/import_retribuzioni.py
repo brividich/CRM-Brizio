@@ -133,7 +133,7 @@ class Command(BaseCommand):
                 righe = periodi[periodo]
                 dipendenti = len({r[0] for r in righe})
                 self.stdout.write(
-                    f"  Periodo {periodo.strftime('%m/%Y')}: "
+                    f"  Periodo {periodo.strftime('%m-%Y')}: "
                     f"{len(righe)} voci, {dipendenti} dipendenti"
                 )
             return
@@ -214,7 +214,7 @@ class Command(BaseCommand):
                 imp.save(update_fields=["righe_ok", "righe_errore"])
                 totale_ok += ok
                 totale_err += err
-                self.stdout.write(f"  {periodo.strftime('%m/%Y')}: {ok} voci OK, {err} errori")
+                self.stdout.write(f"  {periodo.strftime('%m-%Y')}: {ok} voci OK, {err} errori")
 
         self.stdout.write(self.style.SUCCESS(
             f"\nImport completato: {totale_ok} voci salvate, {totale_err} errori."

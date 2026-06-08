@@ -66,7 +66,7 @@ class Command(BaseCommand):
             return
 
         lines = [
-            f"NOVICROM HUB - Digest formazione (audit ISO) del {today:%d/%m/%Y}",
+            f"NOVICROM HUB - Digest formazione (audit ISO) del {today:%d-%m-%Y}",
             "=" * 60,
             f"Abilitazioni in scadenza entro {days} giorni ({len(in_scadenza)}):",
             "",
@@ -76,10 +76,10 @@ class Command(BaseCommand):
             days_left = (rec.data_scadenza - today).days
             lines.append(
                 f"  [{days_left}gg] dipendente legacy_id={rec.legacy_anagrafica_id} - "
-                f"{rec.course_title_snapshot or rec.course_code_snapshot} - scadenza {rec.data_scadenza:%d/%m/%Y}"
+                f"{rec.course_title_snapshot or rec.course_code_snapshot} - scadenza {rec.data_scadenza:%d-%m-%Y}"
             )
         body = "\n".join(lines)
-        subject = f"[Formazione ISO] {len(in_scadenza)} abilitazioni in scadenza entro {days}gg - {today:%d/%m/%Y}"
+        subject = f"[Formazione ISO] {len(in_scadenza)} abilitazioni in scadenza entro {days}gg - {today:%d-%m-%Y}"
 
         if dry_run:
             self.stdout.write(self.style.WARNING("[DRY-RUN] Nessuna email inviata."))

@@ -23,7 +23,6 @@
       <h2 class="hr-pagehead-title">Scadenzario Formazione</h2>
       <p class="hr-pagehead-desc">
         Corsi scaduti, in scadenza e mai frequentati.
-        Aggiornare con <code style="font-size:11px;background:#f1f5f9;padding:1px 4px;border-radius:4px;">manage.py refresh_training_deadlines --all</code>
       </p>
     </div>
     <div>
@@ -153,7 +152,7 @@
             <td class="muted">{{ sc.corso.piano.nome|default:"—" }}</td>
             <td class="nowrap muted"
                 data-sort-value="{{ sc.data_scadenza|date:'Y-m-d'|default:'9999-12-31' }}">
-              {{ sc.data_scadenza|date:"d/m/Y"|default:"—" }}
+              {{ sc.data_scadenza|date:"d-m-Y"|default:"—" }}
             </td>
             <td>
               {% if sc.stato_scadenza == "SCADUTO" %}

@@ -68,8 +68,8 @@
             </div>
           </div>
           <div class="auto-meta-item"><div class="auto-meta-label">Stop on first failure</div><div class="auto-meta-value">{{ rule.stop_on_first_failure|yesno:"Si,No" }}</div></div>
-          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo run</div><div class="auto-meta-value">{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
-          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo test</div><div class="auto-meta-value">{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo run</div><div class="auto-meta-value">{{ rule.last_run_at|date:"d-m-Y H:i:s"|default:"-" }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo test</div><div class="auto-meta-value">{{ rule.last_test_at|date:"d-m-Y H:i:s"|default:"-" }}</div></div>
         </div>
 
         <div class="notice">
@@ -136,8 +136,8 @@
               <tr>
                 <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
                 <td>{{ run_log.status }}</td>
-                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.started_at|date:"d-m-Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
                 <td>{{ run_log.execution_ms|default:"-" }}</td>
                 <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
                 <td>{{ run_log.result_message|default:"-" }}</td>
@@ -151,7 +151,7 @@
           <div class="notice" style="margin-top:12px;">
             <strong>Ultimo test:</strong>
             <a href="{% url 'admin_portale:automazioni_run_log_detail' latest_test_log.id %}">Run log #{{ latest_test_log.id }}</a>
-            del {{ latest_test_log.started_at|date:"d/m/Y H:i:s" }} con stato {{ latest_test_log.status }}.
+            del {{ latest_test_log.started_at|date:"d-m-Y H:i:s" }} con stato {{ latest_test_log.status }}.
           </div>
         {% endif %}
       </div>

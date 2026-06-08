@@ -142,7 +142,7 @@
                   <span class="status-dot {% if u2f.is_active %}on{% else %}off{% endif %}"></span>
                   {% if u2f.is_active %}Attivo{% else %}Disabilitato{% endif %}
                 </td>
-                <td>{% if u2f.last_used_at %}{{ u2f.last_used_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+                <td>{% if u2f.last_used_at %}{{ u2f.last_used_at|date:"d-m-Y H:i" }}{% else %}-{% endif %}</td>
                 <td>
                   <div style="display:flex;gap:6px;flex-wrap:wrap;">
                     <button class="btn btn-sm" onclick="toggle2fa({{ u2f.user.pk }}, '{{ u2f.user.username }}')">

@@ -734,7 +734,7 @@ def database(request):
                 backups.append({
                     "name": f.name,
                     "size": f"{f.stat().st_size / 1024:.1f} KB",
-                    "date": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
+                    "date": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d-%m-%Y %H:%M"),
                 })
     return render(request, "hub_tools/database.html", {
         "engine": engine,

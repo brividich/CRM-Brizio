@@ -90,7 +90,7 @@ def _articoli_row(consegna: ConsegnaDPI) -> list[str]:
     modello = r.modello_dpi.nome if r.modello_dpi_id else "—"
     taglia = r.taglia_dpi.valore if r.taglia_dpi_id else "—"
     scadenza = (
-        consegna.data_scadenza_stimata.strftime("%d/%m/%Y")
+        consegna.data_scadenza_stimata.strftime("%d-%m-%Y")
         if consegna.data_scadenza_stimata else "—"
     )
     return [categoria, tipo, modello, taglia, str(r.quantita or 0), scadenza]
@@ -145,7 +145,7 @@ def _info_consegna_paragraphs(
     consegna: ConsegnaDPI, body_style: ParagraphStyle
 ) -> list[Paragraph]:
     rows = [
-        ("Data consegna", consegna.data_consegna.strftime("%d/%m/%Y") if consegna.data_consegna else "—"),
+        ("Data consegna", consegna.data_consegna.strftime("%d-%m-%Y") if consegna.data_consegna else "—"),
         ("Consegnato da", consegna.consegnato_da_nome or "—"),
         ("Firma ricevuta", "Sì" if consegna.firmato_ricevuta else "No"),
     ]
@@ -215,7 +215,7 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
 
     flow.append(Paragraph("MODULO DI CONSEGNA DPI", title_style))
     instance_name = getattr(settings, "INSTANCE_NAME", "NOVICROM HUB")
-    now = timezone.localtime().strftime("%d/%m/%Y %H:%M")
+    now = timezone.localtime().strftime("%d-%m-%Y %H:%M")
     flow.append(Paragraph(f"{instance_name} — generato il {now}", subtitle_style))
 
     flow.append(Paragraph("Dipendente", section_style))
@@ -232,7 +232,7 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
         # mostra solo data e operatore (presi dalla prima consegna).
         c0 = consegne_list[0]
         rows = [
-            ("Data consegna", c0.data_consegna.strftime("%d/%m/%Y") if c0.data_consegna else "—"),
+            ("Data consegna", c0.data_consegna.strftime("%d-%m-%Y") if c0.data_consegna else "—"),
             ("Consegnato da", c0.consegnato_da_nome or "—"),
             ("Numero articoli", str(len(consegne_list))),
         ]

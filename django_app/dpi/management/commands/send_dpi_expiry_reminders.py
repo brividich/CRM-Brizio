@@ -100,7 +100,7 @@ class Command(BaseCommand):
             return
 
         lines = [
-            f"NOVICROM HUB - Promemoria DPI del {today:%d/%m/%Y}",
+            f"NOVICROM HUB - Promemoria DPI del {today:%d-%m-%Y}",
             "=" * 60,
             "",
         ]
@@ -111,13 +111,13 @@ class Command(BaseCommand):
                 days_over = (today - consegna.data_scadenza_stimata).days
                 lines.append(
                     f"  [{days_over}gg] {r.numero} - {r.richiedente_nome} - "
-                    f"{r.categoria.nome} - scaduto il {consegna.data_scadenza_stimata:%d/%m/%Y}"
+                    f"{r.categoria.nome} - scaduto il {consegna.data_scadenza_stimata:%d-%m-%Y}"
                 )
                 if not dry_run and r.richiedente_legacy_id:
                     invia_notifica(
                         r.richiedente_legacy_id,
                         "dpi_scadenza",
-                        f"DPI scaduto: {r.numero} - {r.categoria.nome} dal {consegna.data_scadenza_stimata:%d/%m/%Y}.",
+                        f"DPI scaduto: {r.numero} - {r.categoria.nome} dal {consegna.data_scadenza_stimata:%d-%m-%Y}.",
                         f"/dpi/{r.pk}/",
                     )
             lines.append("")
@@ -129,7 +129,7 @@ class Command(BaseCommand):
                 days_left = (consegna.data_scadenza_stimata - today).days
                 lines.append(
                     f"  [{days_left}gg] {r.numero} - {r.richiedente_nome} - "
-                    f"{r.categoria.nome} - scadenza {consegna.data_scadenza_stimata:%d/%m/%Y}"
+                    f"{r.categoria.nome} - scadenza {consegna.data_scadenza_stimata:%d-%m-%Y}"
                 )
                 if not dry_run and r.richiedente_legacy_id:
                     invia_notifica(
@@ -141,7 +141,7 @@ class Command(BaseCommand):
             lines.append("")
 
         body = "\n".join(lines)
-        subject = f"[DPI] {len(scaduti)} scaduti + {len(in_scadenza)} in scadenza - {today:%d/%m/%Y}"
+        subject = f"[DPI] {len(scaduti)} scaduti + {len(in_scadenza)} in scadenza - {today:%d-%m-%Y}"
 
         if dry_run:
             self.stdout.write(self.style.WARNING("[DRY-RUN] Nessuna email inviata."))

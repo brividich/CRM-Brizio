@@ -27,7 +27,7 @@
       <p class="hr-pagehead-desc">
         Corso: <strong>{{ sessione.corso.titolo }}</strong>
         &nbsp;·&nbsp;
-        {{ sessione.data_inizio|date:"d/m/Y" }} → {{ sessione.data_fine|date:"d/m/Y" }}
+        {{ sessione.data_inizio|date:"d-m-Y" }} → {{ sessione.data_fine|date:"d-m-Y" }}
         &nbsp;·&nbsp;
         {% if sessione.stato == "COMPLETATA" %}<span class="fm-pill fm-pill-valid">Completata</span>
         {% elif sessione.stato == "IN_CORSO" %}<span class="fm-pill fm-pill-warning">In corso</span>
@@ -57,7 +57,7 @@
       <div class="hr-metric-body">
         <div class="hr-metric-top">
           <span class="hr-metric-lbl">Durata</span>
-          <span class="hr-metric-val">{{ sessione.data_inizio|date:"d/m" }} – {{ sessione.data_fine|date:"d/m/Y" }}</span>
+          <span class="hr-metric-val">{{ sessione.data_inizio|date:"d-m" }} – {{ sessione.data_fine|date:"d-m-Y" }}</span>
         </div>
         <div class="hr-metric-sub">{{ sessione.get_modalita_display }}</div>
       </div>
@@ -126,7 +126,7 @@
           {% for lz in lezioni %}
           <tr>
             <td class="num">{{ lz.numero }}</td>
-            <td class="nowrap">{{ lz.data|date:"d/m/Y" }}</td>
+            <td class="nowrap">{{ lz.data|date:"d-m-Y" }}</td>
             <td class="nowrap muted">{{ lz.ora_inizio|time:"H:i" }}</td>
             <td class="nowrap muted">{{ lz.ora_fine|time:"H:i" }}</td>
             <td class="num muted">{{ lz.durata_ore }}h</td>

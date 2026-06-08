@@ -819,7 +819,7 @@ def _format_asset_label_value(asset: Asset | None, field_key: str, catalog_map: 
     if isinstance(raw_value, datetime):
         raw_value = raw_value.date()
     if isinstance(raw_value, date):
-        return raw_value.strftime("%d/%m/%Y")
+        return raw_value.strftime("%d-%m-%Y")
 
     if field_key in {"x_mm", "y_mm", "z_mm", "diameter_mm", "spindle_mm"}:
         return f"{_format_label_number(raw_value)} mm"
@@ -857,7 +857,7 @@ def _default_asset_label_preview_values() -> dict[str, str]:
         "cnc_controlled": "Si",
         "five_axes": "Si",
         "accuracy_from": "0.010",
-        "next_maintenance_date": (timezone.localdate() + timedelta(days=30)).strftime("%d/%m/%Y"),
+        "next_maintenance_date": (timezone.localdate() + timedelta(days=30)).strftime("%d-%m-%Y"),
         "maintenance_reminder_days": "15 gg",
     }
 
@@ -1550,7 +1550,7 @@ def _build_work_machine_maintenance_month_dataset(
         "month_end": month_end,
         "month_code": month_start.strftime("%Y-%m"),
         "month_label": _month_label(month_start),
-        "period_label": f'{month_start.strftime("%d/%m/%Y")} - {month_end.strftime("%d/%m/%Y")}',
+        "period_label": f'{month_start.strftime("%d-%m-%Y")} - {month_end.strftime("%d-%m-%Y")}',
         "reparto_filter": reparto_value,
         "rows": rows,
         "total_count": len(rows),
@@ -1614,7 +1614,7 @@ def _draw_work_machine_maintenance_month_report_header(
     pdf.drawRightString(
         page_width - margin_x,
         top_y - 4,
-        f'Generato il {generated_at.strftime("%d/%m/%Y %H:%M")} - Pagina {page_number}',
+        f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")} - Pagina {page_number}',
     )
     if reparto_filter:
         pdf.drawRightString(page_width - margin_x, top_y - 18, f"Filtro reparto: {reparto_filter}")
@@ -1781,7 +1781,7 @@ def _draw_work_machine_maintenance_month_pdf(
         pdf.rect(margin_x, current_y - row_height, total_width, row_height, fill=1, stroke=1)
 
         values = [
-            machine.next_maintenance_date.strftime("%d/%m/%Y") if machine.next_maintenance_date else "-",
+            machine.next_maintenance_date.strftime("%d-%m-%Y") if machine.next_maintenance_date else "-",
             _coalesce_str(asset.asset_tag, "-"),
             _coalesce_str(asset.name, "-"),
             _coalesce_str(asset.reparto, "-"),
@@ -2040,7 +2040,7 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
 
     workorder_rows = [
         (
-            wo.opened_at.strftime("%d/%m/%Y") if wo.opened_at else "-",
+            wo.opened_at.strftime("%d-%m-%Y") if wo.opened_at else "-",
             _coalesce_str(wo.get_kind_display(), "-"),
             _coalesce_str(wo.title, "-"),
             _coalesce_str(wo.get_status_display(), "-"),
@@ -2060,7 +2060,7 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
         (
             _coalesce_str(doc.get_category_display(), "-"),
             _coalesce_str(doc.original_name or Path(doc.file.name).name, "-"),
-            doc.created_at.strftime("%d/%m/%Y") if doc.created_at else "-",
+            doc.created_at.strftime("%d-%m-%Y") if doc.created_at else "-",
             _format_filesize(getattr(doc.file, "size", 0)),
         )
         for doc in asset.documents.all().order_by("category", "-created_at", "-id")[:12]
@@ -2069,7 +2069,7 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
         (
             _coalesce_str(verification.name, "-"),
             _coalesce_str(
-                verification.next_verification_date.strftime("%d/%m/%Y") if verification.next_verification_date else "",
+                verification.next_verification_date.strftime("%d-%m-%Y") if verification.next_verification_date else "",
                 "-",
             ),
             _coalesce_str(getattr(getattr(verification, "supplier", None), "ragione_sociale", ""), "-"),
@@ -2118,7 +2118,7 @@ def _draw_asset_report_pdf(
         pdf.drawRightString(
             page_width - margin_x,
             page_height - (12 * mm),
-            f'Generato il {generated_at.strftime("%d/%m/%Y %H:%M")} - Pagina {page_number}',
+            f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")} - Pagina {page_number}',
         )
         if template_name:
             pdf.drawRightString(
@@ -3053,7 +3053,7 @@ def _build_asset_documents_by_category(asset: Asset) -> tuple[dict[str, str], di
                 "id": uploaded.id,
                 "name": uploaded.original_name or Path(uploaded.file.name).name,
                 "size": size_text,
-                "date": uploaded.document_date.strftime("%d/%m/%Y") if uploaded.document_date else uploaded.created_at.strftime("%d/%m/%Y"),
+                "date": uploaded.document_date.strftime("%d-%m-%Y") if uploaded.document_date else uploaded.created_at.strftime("%d-%m-%Y"),
                 "url": uploaded.sharepoint_url or reverse("assets:asset_document_download", args=[uploaded.id]),
                 "kind": "uploaded",
                 "sharepoint": bool(_clean_string(uploaded.sharepoint_path)),
@@ -3599,12 +3599,12 @@ def _build_asset_primary_kpis(
         maintenance_meta = f"{maintenance_template_label} | Nessuna esecuzione registrata"
         if next_maintenance_row.get("due_date"):
             maintenance_meta = (
-                f"{maintenance_meta} · scadenza {next_maintenance_row['due_date']:%d/%m/%Y}"
+                f"{maintenance_meta} · scadenza {next_maintenance_row['due_date']:%d-%m-%Y}"
             )
         maintenance_badge_class = str(next_maintenance_row.get("schedule_badge_class") or "muted")
         maintenance_badge_label = str(next_maintenance_row.get("schedule_label") or "Da pianificare")
         if next_maintenance_row.get("due_date"):
-            maintenance_value = f"{next_maintenance_row['due_date']:%d/%m/%Y}"
+            maintenance_value = f"{next_maintenance_row['due_date']:%d-%m-%Y}"
             maintenance_meta = f"{maintenance_template_label} | {next_maintenance_row['schedule_label']}"
     deadline_badge_class = "muted"
     deadline_badge_label = "Nessuna"
@@ -4073,7 +4073,7 @@ def _build_maintenance_outlook_event_payload(
     workorder_url = request.build_absolute_uri(
         _workorder_create_page_url(asset_id=asset.id, rule_id=schedule_row["base_rule"].id, source="maintenance_schedule")
     )
-    due_date_label = due_date.strftime("%d/%m/%Y")
+    due_date_label = due_date.strftime("%d-%m-%Y")
     subject = f"Manutenzione {asset.asset_tag} - {template_label}"[:255]
 
     start_dt = datetime.combine(due_date, datetime.min.time()).replace(hour=OUTLOOK_CALENDAR_START_HOUR)
@@ -4126,7 +4126,7 @@ def _build_deadline_outlook_event_payload(
         f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
         f"<strong>Scadenza:</strong> {escape(deadline.title)}<br>"
         f"<strong>Tipo:</strong> {escape(deadline.get_deadline_type_display())}<br>"
-        f"<strong>Data:</strong> {deadline.due_date:%d/%m/%Y}<br>"
+        f"<strong>Data:</strong> {deadline.due_date:%d-%m-%Y}<br>"
         f"<strong>Preavviso:</strong> {int(deadline.warning_days or 0)} gg<br>"
         f"<strong>Riferimento:</strong> {escape(_clean_string(deadline.reference_code) or '-')}<br>"
         f"<strong>Ente/Rilasciato da:</strong> {escape(_clean_string(deadline.issuer) or '-')}<br>"
@@ -4163,7 +4163,7 @@ def _build_periodic_verification_outlook_event_payload(
         f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
         f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
         f"<strong>Manutenzione periodica:</strong> {escape(verification.name)}<br>"
-        f"<strong>Prossima data:</strong> {next_date:%d/%m/%Y}<br>"
+        f"<strong>Prossima data:</strong> {next_date:%d-%m-%Y}<br>"
         f"<strong>Cadenza:</strong> {int(verification.frequency_months or 0)} mesi<br>"
         f"<strong>Fornitore:</strong> {escape(supplier_label)}</p>"
         f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
@@ -4200,7 +4200,7 @@ def _build_assistance_contract_outlook_event_payload(
         f"<strong>Contratto:</strong> {escape(contract.title)}<br>"
         f"<strong>Fornitore:</strong> {escape(supplier_label)}<br>"
         f"<strong>Codice:</strong> {escape(_clean_string(contract.code) or '-')}<br>"
-        f"<strong>Scadenza:</strong> {contract.end_date:%d/%m/%Y}<br>"
+        f"<strong>Scadenza:</strong> {contract.end_date:%d-%m-%Y}<br>"
         f"<strong>Ambito:</strong> {escape(scope_payload.get('label') or '-')}<br>"
         f"<strong>Dettaglio:</strong> {escape(scope_payload.get('detail') or '-')}</p>"
         f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
@@ -5312,7 +5312,7 @@ def _resolve_asset_detail_source_value(
     if source_key == "storage_free":
         return _coalesce_str(extra.get("storage_free"), extra.get("free_storage"), getattr(it_details, "disco", ""), "")
     if source_key == "purchase_date":
-        return _coalesce_str(extra.get("purchase_date"), asset.created_at.strftime("%d/%m/%Y") if asset.created_at else "", "")
+        return _coalesce_str(extra.get("purchase_date"), asset.created_at.strftime("%d-%m-%Y") if asset.created_at else "", "")
     if source_key == "sync_text":
         return sync_text
     return ""
@@ -5325,9 +5325,9 @@ def _format_asset_detail_value(value, value_format: str) -> str:
         return "Si" if bool(value) else "No"
     if value_format == AssetDetailField.FORMAT_DATE:
         if isinstance(value, datetime):
-            return timezone.localtime(value).strftime("%d/%m/%Y")
+            return timezone.localtime(value).strftime("%d-%m-%Y")
         if isinstance(value, date):
-            return value.strftime("%d/%m/%Y")
+            return value.strftime("%d-%m-%Y")
         cleaned = _clean_string(value)
         return cleaned or "N/D"
     if value_format == AssetDetailField.FORMAT_MM:
@@ -5342,9 +5342,9 @@ def _format_asset_detail_value(value, value_format: str) -> str:
     if isinstance(value, bool):
         return "Si" if value else "No"
     if isinstance(value, datetime):
-        return timezone.localtime(value).strftime("%d/%m/%Y")
+        return timezone.localtime(value).strftime("%d-%m-%Y")
     if isinstance(value, date):
-        return value.strftime("%d/%m/%Y")
+        return value.strftime("%d-%m-%Y")
     cleaned = _clean_string(str(value) if value not in (None, "") else "")
     return cleaned or "N/D"
 
@@ -5561,6 +5561,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     asset_dashboard = reverse("assets:asset_dashboard")
     asset_components = reverse("assets:asset_component_list")
     asset_deadlines = reverse("assets:asset_administrative_deadline_list")
+    maintenance_hub = reverse("assets:maintenance_hub")
     maintenance_templates = reverse("assets:maintenance_template_list")
     maintenance_rules = reverse("assets:maintenance_rule_list")
     maintenance_schedule = reverse("assets:maintenance_schedule")
@@ -5641,12 +5642,37 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Manutenzione",
-            "url": maintenance_templates,
+            "url": maintenance_hub,
             "is_subitem": False,
             "active": current_route in {
+                "maintenance_hub",
                 "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
                 "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
+                "maintenance_schedule", "maintenance_todo",
+                "wo_list", "wo_view", "wo_create", "wo_close",
+                "assistance_contract_list",
             },
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Pannello manutenzione",
+            "url": maintenance_hub,
+            "is_subitem": True,
+            "active": current_route == "maintenance_hub",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Centro operativo",
+            "url": maintenance_todo,
+            "is_subitem": True,
+            "active": current_route == "maintenance_todo",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Scadenzario",
+            "url": maintenance_schedule,
+            "is_subitem": True,
+            "active": current_route == "maintenance_schedule",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5715,15 +5741,8 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Interventi",
             "url": wo_list,
-            "is_subitem": False,
-            "active": current_route == "wo_list",
-        },
-        {
-            "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "To-do manutenzione",
-            "url": maintenance_todo,
             "is_subitem": True,
-            "active": current_route == "maintenance_todo",
+            "active": current_route in {"wo_list", "wo_view", "wo_create", "wo_close"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -6648,7 +6667,7 @@ def _plant_layout_machine_catalog() -> list[dict[str, object]]:
                 "model": _clean_string(asset.model),
                 "detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
                 "next_maintenance_date": (
-                    machine.next_maintenance_date.strftime("%d/%m/%Y")
+                    machine.next_maintenance_date.strftime("%d-%m-%Y")
                     if isinstance(machine, WorkMachine) and machine.next_maintenance_date
                     else ""
                 ),
@@ -8339,6 +8358,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         if q:
             assets = assets.filter(
                 Q(asset_tag__icontains=q)
+                | Q(internal_number__icontains=q)
                 | Q(name__icontains=q)
                 | Q(serial_number__icontains=q)
                 | Q(manufacturer__icontains=q)
@@ -8553,7 +8573,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             {
                 "title": workorder.title or f"Intervento su {workorder.asset.asset_tag}",
                 "message": _coalesce_str(workorder.description, f"Asset {workorder.asset.asset_tag} richiede attenzione."),
-                "time": workorder.opened_at.strftime("%d/%m/%Y %H:%M"),
+                "time": workorder.opened_at.strftime("%d-%m-%Y %H:%M"),
                 "level": "critical" if is_critical else "warning",
             }
         )
@@ -8568,7 +8588,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
                 {
                     "title": f"Asset in riparazione: {row.get('asset_tag')}",
                     "message": _coalesce_str(row.get("name"), "Asset segnalato in riparazione."),
-                    "time": row["updated_at"].strftime("%d/%m/%Y %H:%M") if row.get("updated_at") else "-",
+                    "time": row["updated_at"].strftime("%d-%m-%Y %H:%M") if row.get("updated_at") else "-",
                     "level": "warning",
                 }
             )
@@ -8577,7 +8597,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             {
                 "title": "Nessun alert critico",
                 "message": "La situazione asset e stabile.",
-                "time": timezone.now().strftime("%d/%m/%Y %H:%M"),
+                "time": timezone.now().strftime("%d-%m-%Y %H:%M"),
                 "level": "ok",
             }
         )
@@ -9112,7 +9132,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ("Archiviazione", _coalesce_str(it_details.disco if it_details else "", "N/D")),
             ("Grafica", _coalesce_str(extra.get("graphics"), "N/D")),
             ("Schermo", _coalesce_str(extra.get("display"), "N/D")),
-            ("Data acquisto", _coalesce_str(extra.get("purchase_date"), asset.created_at.strftime("%d/%m/%Y") if asset.created_at else "", "N/D")),
+            ("Data acquisto", _coalesce_str(extra.get("purchase_date"), asset.created_at.strftime("%d-%m-%Y") if asset.created_at else "", "N/D")),
         ]
         default_profile_rows = [
             {"label": "Tag asset", "value": asset.asset_tag},
@@ -9126,7 +9146,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         {"label": "Reparto", "value": _coalesce_str(asset.assignment_reparto, "-")},
         {"label": "Posizione", "value": _coalesce_str(asset.assignment_location, "-")},
         {"label": "Assegnato a", "value": _coalesce_str(asset.assignment_to, "Non assegnato")},
-        {"label": "Assegnato dal", "value": asset.updated_at.strftime("%d/%m/%Y") if asset.updated_at else "-"},
+        {"label": "Assegnato dal", "value": asset.updated_at.strftime("%d-%m-%Y") if asset.updated_at else "-"},
     ]
     category_detail_sections = _build_asset_category_detail_sections(asset, extra)
 
@@ -10323,7 +10343,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                     )
                     messages.success(
                         request,
-                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d-%m-%Y}.",
                     )
                 else:
                     messages.info(
@@ -10438,12 +10458,12 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             if next_due_date is not None:
                 messages.success(
                     request,
-                    f"Completamento registrato. Nuova scadenza fissata al {next_due_date:%d/%m/%Y}{attach_suffix}.",
+                    f"Completamento registrato. Nuova scadenza fissata al {next_due_date:%d-%m-%Y}{attach_suffix}.",
                 )
             else:
                 messages.success(
                     request,
-                    f"Completamento registrato il {completed_on:%d/%m/%Y}. Scadenza chiusa{attach_suffix}.",
+                    f"Completamento registrato il {completed_on:%d-%m-%Y}. Scadenza chiusa{attach_suffix}.",
                 )
             return redirect(redirect_url)
 
@@ -11504,6 +11524,40 @@ def _periodic_verification_schedule_status(
     return {"status": "upcoming", "label": f"Pianificata tra {delta} gg", "badge_class": "ok"}
 
 
+def _build_maintenance_lookahead_rows(
+    *,
+    asset_queryset,
+    today: date,
+    days: int = 90,
+) -> list[dict[str, object]]:
+    """Costruisce le righe look-ahead raggruppate per settimana ISO su un orizzonte di `days` giorni.
+    Ritorna una lista di dict con chiave `week_label`, `week_start`, `week_end`, `rows`."""
+    from datetime import timedelta
+    horizon = today + timedelta(days=days)
+    all_rows = build_day_based_maintenance_schedule_rows(asset_queryset=asset_queryset)
+    week_map: dict[tuple, dict] = {}
+    for row in all_rows:
+        due_date = row.get("due_date")
+        if not isinstance(due_date, date):
+            continue
+        if due_date < today or due_date > horizon:
+            continue
+        iso = due_date.isocalendar()
+        week_key = (iso.year, iso.week)
+        if week_key not in week_map:
+            week_start = due_date - timedelta(days=due_date.weekday())
+            week_end = week_start + timedelta(days=6)
+            week_map[week_key] = {
+                "week_label": f"Settimana {iso.week}/{iso.year}  ({week_start:%d/%m} - {week_end:%d/%m})",
+                "week_start": week_start,
+                "week_end": week_end,
+                "rows": [],
+            }
+        row["asset_detail_url"] = reverse("assets:asset_view", kwargs={"id": row["asset"].id})
+        week_map[week_key]["rows"].append(row)
+    return [week_map[k] for k in sorted(week_map)]
+
+
 def _maintenance_schedule_periodic_rows(
     *,
     asset_queryset,
@@ -11642,7 +11696,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                     )
                     messages.success(
                         request,
-                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d-%m-%Y}.",
                     )
                 else:
                     messages.info(
@@ -11736,7 +11790,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
             messages.success(
                 request,
-                f"Esecuzione registrata su {asset.asset_tag} il {executed_on:%d/%m/%Y}{attach_suffix}.",
+                f"Esecuzione registrata su {asset.asset_tag} il {executed_on:%d-%m-%Y}{attach_suffix}.",
             )
             return redirect(redirect_url)
 
@@ -11764,6 +11818,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     if q:
         asset_qs = asset_qs.filter(
             Q(asset_tag__icontains=q)
+            | Q(internal_number__icontains=q)
             | Q(name__icontains=q)
             | Q(reparto__icontains=q)
             | Q(asset_category__label__icontains=q)
@@ -11881,6 +11936,51 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         .distinct()
     ]
 
+    # --- Look-ahead 90 giorni (raggruppato per settimana) ---
+    lookahead_rows = _build_maintenance_lookahead_rows(
+        asset_queryset=asset_qs,
+        today=schedule_today,
+        days=90,
+    )
+
+    # --- Scadenze amministrative nella schedule (filtrate coerentemente) ---
+    admin_deadline_qs = (
+        AssetAdministrativeDeadline.objects.filter(is_active=True)
+        .select_related("asset", "asset__asset_category")
+        .order_by("due_date", "asset__name", "title")
+    )
+    if selected_asset is not None:
+        admin_deadline_qs = admin_deadline_qs.filter(asset=selected_asset)
+    if category_id:
+        admin_deadline_qs = admin_deadline_qs.filter(asset__asset_category_id=category_id)
+    if reparto_filter:
+        admin_deadline_qs = admin_deadline_qs.filter(asset__reparto__iexact=reparto_filter)
+    if q:
+        admin_deadline_qs = admin_deadline_qs.filter(
+            Q(title__icontains=q) | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q)
+        )
+    admin_deadline_rows = []
+    for dl in admin_deadline_qs[:200]:
+        days_left = dl.days_until_due(reference_date=schedule_today)
+        if days_left is None:
+            dl_status = "missing"
+        elif days_left < 0:
+            dl_status = "overdue"
+        elif days_left <= dl.warning_days:
+            dl_status = "warning"
+        else:
+            dl_status = "upcoming"
+        if status_filter == "due" and dl_status not in {"overdue", "warning", "missing"}:
+            continue
+        if status_filter in {"overdue", "warning", "upcoming", "missing"} and dl_status != status_filter:
+            continue
+        admin_deadline_rows.append({
+            "deadline": dl,
+            "days_left": days_left,
+            "schedule_status": dl_status,
+            "asset_detail_url": reverse("assets:asset_view", kwargs={"id": dl.asset_id}),
+        })
+
     periodic_schedule_rows = _maintenance_schedule_periodic_rows(
         asset_queryset=asset_qs,
         status_filter=status_filter,
@@ -11922,6 +12022,9 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
             "calendar_user_choices": calendar_user_choices,
             "today_iso": schedule_today.isoformat(),
+            "lookahead_rows": lookahead_rows,
+            "admin_deadline_rows": admin_deadline_rows,
+            "admin_deadline_total": len(admin_deadline_rows),
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -12029,7 +12132,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                     )
                     messages.success(
                         request,
-                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d-%m-%Y}.",
                     )
                 else:
                     messages.info(
@@ -12560,6 +12663,7 @@ def device_list(request: HttpRequest) -> HttpResponse:
         if q:
             devices_qs = devices_qs.filter(
                 Q(asset_tag__icontains=q)
+                | Q(internal_number__icontains=q)
                 | Q(name__icontains=q)
                 | Q(reparto__icontains=q)
                 | Q(manufacturer__icontains=q)
@@ -12867,7 +12971,7 @@ def _report_table_pdf(title: str, headers: list, rows: list) -> bytes:
     styles = getSampleStyleSheet()
     elements: list = []
     elements.append(Paragraph(f"<b>{title}</b>", styles["Heading2"]))
-    gen_date = timezone.localdate().strftime("%d/%m/%Y")
+    gen_date = timezone.localdate().strftime("%d-%m-%Y")
     elements.append(Paragraph(f"Generato il {gen_date} — NOVICROM HUB", styles["Normal"]))
     elements.append(Spacer(1, 0.4 * cm))
     if not rows:
@@ -13018,8 +13122,8 @@ def _wo_export_row(wo: "WorkOrder") -> list:
         wo.title or "",
         wo.get_kind_display(),
         wo.get_status_display(),
-        wo.opened_at.strftime("%d/%m/%Y %H:%M") if wo.opened_at else "",
-        wo.closed_at.strftime("%d/%m/%Y %H:%M") if wo.closed_at else "",
+        wo.opened_at.strftime("%d-%m-%Y %H:%M") if wo.opened_at else "",
+        wo.closed_at.strftime("%d-%m-%Y %H:%M") if wo.closed_at else "",
         wo.description or "",
     ]
 
@@ -13199,7 +13303,7 @@ def work_machine_export_excel(request: HttpRequest) -> HttpResponse:
             asset.serial_number or "",
             wm.year if wm and wm.year else "",
             wm.tmc if wm and wm.tmc else "",
-            wm.next_maintenance_date.strftime("%d/%m/%Y") if wm and wm.next_maintenance_date else "",
+            wm.next_maintenance_date.strftime("%d-%m-%Y") if wm and wm.next_maintenance_date else "",
             "Sì" if wm and wm.cnc_controlled else "No",
             "Sì" if wm and wm.five_axes else "No",
             "Sì" if wm and wm.tcr_enabled else "No",
@@ -13493,7 +13597,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
                     )
                     messages.success(
                         request,
-                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d-%m-%Y}.",
                     )
                 else:
                     messages.info(
@@ -13619,7 +13723,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
             messages.success(
                 request,
-                f"Esecuzione registrata su {asset_label} il {executed_on:%d/%m/%Y}{attach_suffix}.",
+                f"Esecuzione registrata su {asset_label} il {executed_on:%d-%m-%Y}{attach_suffix}.",
             )
             return redirect(redirect_url)
 
@@ -13915,7 +14019,7 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
             "category": row.category,
             "name": row.name,
             "is_active": row.is_active,
-            "updated_at": timezone.localtime(row.updated_at).strftime("%d/%m/%Y %H:%M"),
+            "updated_at": timezone.localtime(row.updated_at).strftime("%d-%m-%Y %H:%M"),
             "edit_url": f"{reverse('assets:plant_layout_editor')}?layout={row.id}&category={quote(row.category)}",
         }
         for row in (filtered_layouts if current_category else all_layouts)
@@ -14254,6 +14358,31 @@ def _save_workorder_attachments(*, workorder: WorkOrder, uploads: list, user) ->
     return created
 
 
+def _prepopulate_workorder_checklist_from_template(workorder: WorkOrder) -> int:
+    """Copia gli step del MaintenanceChecklistStep del template intervento nel WorkOrder.
+    Viene chiamata una sola volta alla creazione. Ritorna il numero di step creati."""
+    if not workorder.maintenance_rule_id:
+        return 0
+    template = getattr(getattr(workorder.maintenance_rule, "intervention_template", None), "pk", None)
+    if template is None:
+        return 0
+    from .models import MaintenanceChecklistStep
+    steps = list(
+        MaintenanceChecklistStep.objects.filter(
+            intervention_template_id=workorder.maintenance_rule.intervention_template_id
+        ).order_by("step_number", "id")
+    )
+    if not steps:
+        return 0
+    WorkOrderChecklist.objects.bulk_create(
+        [
+            WorkOrderChecklist(work_order=workorder, step_number=step.step_number, description=step.description)
+            for step in steps
+        ]
+    )
+    return len(steps)
+
+
 def _add_form_validation_errors(form, exc: ValidationError) -> None:
     if hasattr(exc, "message_dict"):
         for field_name, field_errors in exc.message_dict.items():
@@ -14335,6 +14464,7 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             else:
                 with transaction.atomic():
                     workorder.save()
+                    _prepopulate_workorder_checklist_from_template(workorder)
                     created_attachments = _save_workorder_attachments(
                         workorder=workorder,
                         uploads=uploads,
@@ -14546,15 +14676,21 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             resolved_supplier = form.cleaned_data.get("resolved_supplier")
             if resolved_supplier is not None and workorder.supplier_id is None:
                 workorder.supplier = resolved_supplier
+            assigned_to = form.cleaned_data.get("assigned_to")
+            executed_by = form.cleaned_data.get("executed_by")
+            if assigned_to is not None:
+                workorder.assigned_to = assigned_to
+            if executed_by is not None:
+                workorder.executed_by = executed_by
             try:
                 workorder.close(
                     status=form.cleaned_data["status"],
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
                     downtime=form.cleaned_data.get("downtime_minutes"),
-                    labor_cost=form.cleaned_data.get("labor_cost_eur"),
-                    materials_cost=form.cleaned_data.get("materials_cost_eur"),
-                    cost=form.cleaned_data.get("cost_eur"),
+                    labor_cost=None,
+                    materials_cost=None,
+                    cost=None,
                     covered_by_contract=form.cleaned_data.get("covered_by_contract"),
                     assistance_contract=form.cleaned_data.get("assistance_contract"),
                 )
@@ -14583,11 +14719,10 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 "status": WorkOrder.STATUS_DONE,
                 "intervention_duration_minutes": workorder.intervention_duration_minutes,
                 "downtime_minutes": workorder.downtime_minutes,
-                "labor_cost_eur": workorder.labor_cost_eur,
-                "materials_cost_eur": workorder.materials_cost_eur,
-                "cost_eur": workorder.cost_eur,
                 "assistance_contract": workorder.assistance_contract_id,
                 "covered_by_contract": workorder.covered_by_contract,
+                "assigned_to": workorder.assigned_to_id,
+                "executed_by": workorder.executed_by_id,
             },
             asset=workorder.asset,
             workorder=workorder,
@@ -14794,6 +14929,320 @@ def asset_quick_report(request: HttpRequest) -> HttpResponse:
     )
 
 
+
+@login_required
+def maintenance_hub(request: HttpRequest) -> HttpResponse:
+    """Hub Manutenzione: KPI, scadenze urgenti/imminenti e accesso rapido."""
+    from datetime import timedelta
+
+    today = timezone.localdate()
+    horizon_7  = today + timedelta(days=7)
+    horizon_30 = today + timedelta(days=30)
+    overdue_threshold = today - timedelta(days=21)
+    is_admin = _is_assets_admin(request)
+
+    # OdL aperti
+    wo_qs = (
+        WorkOrder.objects
+        .filter(status=WorkOrder.STATUS_OPEN)
+        .select_related("asset", "assigned_to", "executed_by")
+        .order_by("opened_at")
+    )
+    if not is_admin:
+        wo_qs = wo_qs.filter(Q(assigned_to=request.user) | Q(executed_by=request.user))
+    open_workorders = list(wo_qs[:50])
+    wo_overdue = [wo for wo in open_workorders if wo.opened_at and wo.opened_at.date() <= overdue_threshold]
+    wo_recent  = [wo for wo in open_workorders if wo not in wo_overdue]
+    wo_total   = len(open_workorders)
+
+    # Scadenze amministrative
+    upcoming_deadlines_count = AssetAdministrativeDeadline.objects.filter(
+        is_active=True, due_date__gte=today, due_date__lte=horizon_30
+    ).count()
+    overdue_deadlines_count = AssetAdministrativeDeadline.objects.filter(
+        is_active=True, due_date__lt=today
+    ).count()
+
+    # Verifiche periodiche
+    overdue_verifications_count = PeriodicVerification.objects.filter(
+        is_active=True, next_verification_date__lt=today
+    ).count()
+    upcoming_verifications_count = PeriodicVerification.objects.filter(
+        is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30
+    ).count()
+
+    from .models import AssistanceContract
+    rules_count = MaintenanceRule.objects.filter(is_active=True).count()
+    contracts_count = AssistanceContract.objects.filter(is_active=True).count()
+    contracts_expiring_count = AssistanceContract.objects.filter(
+        is_active=True, end_date__isnull=False, end_date__gte=today, end_date__lte=horizon_30
+    ).count()
+    closed_recent_count = WorkOrder.objects.filter(
+        status=WorkOrder.STATUS_DONE,
+        closed_at__gte=today - timedelta(days=30)
+    ).count()
+
+    # Aggrega urgenti (scadute) e imminenti (entro 30gg) per la colonna sinistra
+    _url_deadlines = reverse("assets:asset_administrative_deadline_list")
+    _url_verifications = reverse("assets:periodic_verifications")
+
+    def _deadline_items(qs, is_overdue):
+        items = []
+        for d in qs.select_related("asset")[:20]:
+            asset_label = f"{d.asset.asset_tag} — {d.asset.name}" if d.asset else "—"
+            try:
+                item_url = reverse("assets:asset_administrative_deadline_edit", args=[d.pk])
+            except Exception:
+                item_url = _url_deadlines
+            items.append({
+                "title": d.title,
+                "asset_label": asset_label,
+                "due_date": d.due_date,
+                "is_overdue": is_overdue,
+                "url": item_url,
+            })
+        return items
+
+    def _verification_items(qs, is_overdue):
+        items = []
+        for v in qs.prefetch_related("assets")[:20]:
+            assets_list = list(v.assets.all()[:3])
+            if assets_list:
+                tags = ", ".join(a.asset_tag for a in assets_list[:2])
+                total = v.assets.count()
+                asset_label = f"{tags}{f' +{total - 2} altri' if total > 2 else ''}"
+            else:
+                asset_label = "Nessun asset"
+            items.append({
+                "title": v.name,
+                "asset_label": asset_label,
+                "due_date": v.next_verification_date,
+                "is_overdue": is_overdue,
+                "url": _url_verifications,
+            })
+        return items
+
+    urgent_items = (
+        _deadline_items(
+            AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__lt=today).order_by("due_date"),
+            True,
+        )
+        + _verification_items(
+            PeriodicVerification.objects.filter(is_active=True, next_verification_date__lt=today).order_by("next_verification_date"),
+            True,
+        )
+    )
+    urgent_items.sort(key=lambda x: x["due_date"])
+
+    upcoming_items = (
+        _deadline_items(
+            AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=horizon_30).order_by("due_date"),
+            False,
+        )
+        + _verification_items(
+            PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30).order_by("next_verification_date"),
+            False,
+        )
+    )
+    upcoming_items.sort(key=lambda x: x["due_date"])
+
+    # Prossimi 7gg — mini lista colonna destra
+    kind_labels = {"verifica": "Verifica", "scadenza": "Scadenza", "contratto": "Contratto"}
+    next7_items: list[dict] = []
+    for d in AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=horizon_7).order_by("due_date").select_related("asset")[:10]:
+        next7_items.append({"title": d.title, "due_date": d.due_date, "kind": "scadenza", "kind_label": "Scadenza"})
+    for v in PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_7).order_by("next_verification_date")[:10]:
+        next7_items.append({"title": v.name, "due_date": v.next_verification_date, "kind": "verifica", "kind_label": "Verifica"})
+    for c in AssistanceContract.objects.filter(is_active=True, end_date__gte=today, end_date__lte=horizon_7).order_by("end_date")[:5]:
+        next7_items.append({"title": c.title, "due_date": c.end_date, "kind": "contratto", "kind_label": "Contratto"})
+    next7_items.sort(key=lambda x: x["due_date"])
+
+    return render(
+        request,
+        "assets/pages/maintenance_hub.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Hub Manutenzione",
+            "today": today,
+            "is_admin": is_admin,
+            "wo_overdue": wo_overdue,
+            "wo_recent": wo_recent,
+            "wo_total": wo_total,
+            "upcoming_deadlines_count": upcoming_deadlines_count,
+            "overdue_deadlines_count": overdue_deadlines_count,
+            "overdue_verifications_count": overdue_verifications_count,
+            "upcoming_verifications_count": upcoming_verifications_count,
+            "contracts_count": contracts_count,
+            "contracts_expiring_count": contracts_expiring_count,
+            "rules_count": rules_count,
+            "closed_recent_count": closed_recent_count,
+            "urgent_items": urgent_items,
+            "upcoming_items": upcoming_items,
+            "next7_items": next7_items[:12],
+            "url_wo_list": reverse("assets:wo_list"),
+            "url_wo_create": reverse("assets:wo_create"),
+            "url_scadenzario": reverse("assets:maintenance_scadenzario"),
+            "url_impostazioni": reverse("assets:maintenance_impostazioni"),
+        },
+    )
+
+
+@login_required
+def maintenance_scadenzario(request: HttpRequest) -> HttpResponse:
+    """Scadenzario unificato: tab Verifiche periodiche / Scadenze amm. / Contratti."""
+    from datetime import timedelta
+
+    today = timezone.localdate()
+    horizon_30 = today + timedelta(days=30)
+    horizon_90 = today + timedelta(days=90)
+    active_tab = _clean_string(request.GET.get("tab")) or "verifiche"
+    if active_tab not in ("verifiche", "scadenze", "contratti"):
+        active_tab = "verifiche"
+
+    # ── KPI strip condivisa ────────────────────────────────────────────────
+    overdue_verifications = PeriodicVerification.objects.filter(
+        is_active=True, next_verification_date__lt=today
+    ).count()
+    upcoming_verifications = PeriodicVerification.objects.filter(
+        is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30
+    ).count()
+    overdue_deadlines = AssetAdministrativeDeadline.objects.filter(
+        is_active=True, due_date__lt=today
+    ).count()
+    upcoming_deadlines = AssetAdministrativeDeadline.objects.filter(
+        is_active=True, due_date__gte=today, due_date__lte=horizon_30
+    ).count()
+    from .models import AssistanceContract
+    contracts_active = AssistanceContract.objects.filter(is_active=True).count()
+    contracts_expiring = AssistanceContract.objects.filter(
+        is_active=True, end_date__isnull=False, end_date__gte=today, end_date__lte=horizon_30
+    ).count()
+
+    # ── Tab: Verifiche periodiche ─────────────────────────────────────────
+    scope_filter = _clean_string(request.GET.get("scope")) or "all"
+    verif_qs = PeriodicVerification.objects.prefetch_related("assets").select_related("supplier")
+    if scope_filter == "it":
+        verif_qs = verif_qs.filter(assets__asset_type__in=IT_DEVICE_TYPES).distinct()
+    elif scope_filter == "production":
+        verif_qs = verif_qs.exclude(assets__asset_type__in=IT_DEVICE_TYPES).distinct()
+    verif_rows = []
+    for v in verif_qs.order_by("next_verification_date")[:60]:
+        days_left = (v.next_verification_date - today).days if v.next_verification_date else None
+        if days_left is None:
+            state = "muted"
+        elif days_left < 0:
+            state = "danger"
+        elif days_left <= 30:
+            state = "warn"
+        else:
+            state = "ok"
+        verif_rows.append({"v": v, "days_left": days_left, "days_abs": abs(days_left) if days_left is not None else None, "state": state})
+
+    # ── Tab: Scadenze amministrative ──────────────────────────────────────
+    deadline_type_filter = _clean_string(request.GET.get("dtype")) or ""
+    deadline_qs = AssetAdministrativeDeadline.objects.filter(is_active=True).select_related("asset")
+    if deadline_type_filter:
+        deadline_qs = deadline_qs.filter(deadline_type=deadline_type_filter)
+    deadline_rows = []
+    for d in deadline_qs.order_by("due_date")[:80]:
+        days_left = (d.due_date - today).days if d.due_date else None
+        if days_left is None:
+            state = "muted"
+        elif days_left < 0:
+            state = "danger"
+        elif days_left <= 30:
+            state = "warn"
+        else:
+            state = "ok"
+        deadline_rows.append({"d": d, "days_left": days_left, "days_abs": abs(days_left) if days_left is not None else None, "state": state})
+
+    # ── Tab: Contratti assistenza ─────────────────────────────────────────
+    contract_qs = AssistanceContract.objects.filter(is_active=True).select_related("supplier", "asset", "asset_category")
+    contract_rows = []
+    for c in contract_qs.order_by("end_date")[:60]:
+        days_left = (c.end_date - today).days if c.end_date else None
+        if days_left is None:
+            state = "muted"
+        elif days_left < 0:
+            state = "danger"
+        elif days_left <= 30:
+            state = "warn"
+        else:
+            state = "ok"
+        contract_rows.append({"c": c, "days_left": days_left, "days_abs": abs(days_left) if days_left is not None else None, "state": state})
+
+    deadline_type_choices = AssetAdministrativeDeadline.TYPE_CHOICES
+
+    return render(
+        request,
+        "assets/pages/maintenance_scadenzario.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Scadenzario",
+            "today": today,
+            "active_tab": active_tab,
+            "is_admin": _is_assets_admin(request),
+            # KPI
+            "overdue_verifications": overdue_verifications,
+            "upcoming_verifications": upcoming_verifications,
+            "overdue_deadlines": overdue_deadlines,
+            "upcoming_deadlines": upcoming_deadlines,
+            "contracts_active": contracts_active,
+            "contracts_expiring": contracts_expiring,
+            # dati tab
+            "verif_rows": verif_rows,
+            "scope_filter": scope_filter,
+            "deadline_rows": deadline_rows,
+            "deadline_type_filter": deadline_type_filter,
+            "deadline_type_choices": deadline_type_choices,
+            "contract_rows": contract_rows,
+            # URL
+            "url_hub": reverse("assets:maintenance_hub"),
+            "url_impostazioni": reverse("assets:maintenance_impostazioni"),
+            "url_verifications_full": reverse("assets:periodic_verifications"),
+            "url_deadlines_full": reverse("assets:asset_administrative_deadline_list"),
+            "url_contracts_full": reverse("assets:assistance_contract_list"),
+        },
+    )
+
+
+@login_required
+def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
+    """Impostazioni manutenzione: tab Template & Regole."""
+    active_tab = _clean_string(request.GET.get("tab")) or "templates"
+    if active_tab not in ("templates", "rules"):
+        active_tab = "templates"
+    is_admin = _is_assets_admin(request)
+
+    from .models import MaintenanceInterventionTemplate
+    template_qs = MaintenanceInterventionTemplate.objects.select_related("asset_category").prefetch_related("maintenance_rules__asset_category").order_by("asset_category__label", "sort_order", "label")
+    template_rows = []
+    for t in template_qs:
+        rules = [r for r in t.maintenance_rules.all() if r.is_active]
+        template_rows.append({"t": t, "rules": rules, "rules_count": len(rules)})
+
+    rule_qs = MaintenanceRule.objects.filter(is_active=True).select_related("intervention_template", "asset_category").order_by("asset_category__label", "intervention_template__label")
+
+    return render(
+        request,
+        "assets/pages/maintenance_impostazioni.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Impostazioni manutenzione",
+            "active_tab": active_tab,
+            "is_admin": is_admin,
+            "template_rows": template_rows,
+            "template_count": len(template_rows),
+            "rule_qs": rule_qs,
+            "rules_count": rule_qs.count(),
+            "url_hub": reverse("assets:maintenance_hub"),
+            "url_scadenzario": reverse("assets:maintenance_scadenzario"),
+            "url_template_new": reverse("assets:maintenance_template_create"),
+            "url_rule_new": reverse("assets:maintenance_rule_create"),
+        },
+    )
+
+
 @login_required
 def maintenance_todo(request: HttpRequest) -> HttpResponse:
     """P2.3 — Vista "To-do manutenzione" che aggrega in un'unica pagina tutto ciò
@@ -14809,15 +15258,25 @@ def maintenance_todo(request: HttpRequest) -> HttpResponse:
     is_admin = _is_assets_admin(request)
     reparto_filter = _clean_string(request.GET.get("reparto"))
 
+    assigned_filter = _clean_string(request.GET.get("assigned"))
+
     # --- 1. OdL aperti ---
     wo_qs = (
         WorkOrder.objects
         .filter(status=WorkOrder.STATUS_OPEN)
-        .select_related("asset", "executed_by", "maintenance_rule__intervention_template")
+        .select_related("asset", "assigned_to", "executed_by", "maintenance_rule__intervention_template")
         .order_by("opened_at")
     )
     if not is_admin:
-        wo_qs = wo_qs.filter(executed_by=request.user)
+        wo_qs = wo_qs.filter(Q(assigned_to=request.user) | Q(executed_by=request.user))
+    elif assigned_filter:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            assigned_user = User.objects.get(pk=int(assigned_filter))
+            wo_qs = wo_qs.filter(Q(assigned_to=assigned_user) | Q(executed_by=assigned_user))
+        except (ValueError, User.DoesNotExist):
+            assigned_filter = ""
     if reparto_filter:
         wo_qs = wo_qs.filter(asset__reparto=reparto_filter)
     open_workorders = list(wo_qs[:50])
@@ -14879,6 +15338,10 @@ def maintenance_todo(request: HttpRequest) -> HttpResponse:
         .distinct()
     )
 
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user_options = list(User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")) if is_admin else []
+
     return render(
         request,
         "assets/pages/maintenance_todo.html",
@@ -14888,6 +15351,8 @@ def maintenance_todo(request: HttpRequest) -> HttpResponse:
             "is_admin": is_admin,
             "reparto_filter": reparto_filter,
             "reparto_options": reparto_options,
+            "assigned_filter": assigned_filter,
+            "user_options": user_options,
             # OdL
             "wo_overdue": wo_overdue,
             "wo_recent": wo_recent,
@@ -14971,7 +15436,7 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "ok_count": 0,
             "month_code": month_start.strftime("%Y-%m"),
             "month_label": _month_label(month_start),
-            "period_label": f'{month_start.strftime("%d/%m/%Y")} - {month_end.strftime("%d/%m/%Y")}',
+            "period_label": f'{month_start.strftime("%d-%m-%Y")} - {month_end.strftime("%d-%m-%Y")}',
         }
     done_rows = list(recent_done_workorders)
     total_cost = sum((workorder.resolved_total_cost_eur or Decimal("0")) for workorder in done_rows)

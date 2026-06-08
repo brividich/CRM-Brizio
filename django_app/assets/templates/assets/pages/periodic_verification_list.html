@@ -255,6 +255,37 @@
   display:grid;
   gap:10px;
 }
+.pv-item-collapse-body {
+  display:none;
+  grid-column:1 / -1;
+}
+.pv-item-collapse-body.is-open {
+  display:contents;
+}
+.pv-item-top-right {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.pv-item-toggle {
+  border:none;
+  background:transparent;
+  color:#64748b;
+  font-size: var(--fs-sm);
+  font-weight:700;
+  cursor:pointer;
+  padding:2px 6px;
+  border-radius:6px;
+  line-height:1;
+  transition:color .15s, transform .2s;
+}
+.pv-item-toggle:hover { color:#1d4ed8; }
+.pv-item-toggle[aria-expanded="true"] { color:#1d4ed8; transform:rotate(180deg); }
+.pv-record-actions {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
 .pv-execution-toggle-all {
   display:flex;
   align-items:center;
@@ -512,6 +543,9 @@ body.theme-dark .pv-asset-select { background:var(--surface-alt); border-color:v
 body.theme-dark .pv-item { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .pv-item-title { color:var(--text); }
 body.theme-dark .pv-item-sub { color:var(--text-light); }
+body.theme-dark .pv-item-toggle { color:var(--text-light); }
+body.theme-dark .pv-item-toggle:hover,
+body.theme-dark .pv-item-toggle[aria-expanded="true"] { color:#93c5fd; }
 body.theme-dark .pv-pill.ok { background:rgba(21,128,61,.25); color:#86efac; }
 body.theme-dark .pv-pill.warn { background:rgba(161,98,7,.25); color:#fde68a; }
 body.theme-dark .pv-pill.danger { background:rgba(185,28,28,.25); color:#fca5a5; }
@@ -524,6 +558,24 @@ body.theme-dark .pv-note { color:var(--text-mid); }
 body.theme-dark .pv-inline-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .pv-inline-note { color:var(--text-light); }
 body.theme-dark .pv-empty { color:var(--text-light); }
+
+/* KPI colorati per stato */
+.pv-kpi.pv-kpi--ok { border-color:#86efac; background:#f0fdf4; }
+.pv-kpi.pv-kpi--ok .pv-kpi-value { color:#16a34a; }
+.pv-kpi.pv-kpi--warn { border-color:#fcd34d; background:#fffbeb; }
+.pv-kpi.pv-kpi--warn .pv-kpi-value { color:#d97706; }
+.pv-kpi.pv-kpi--danger { border-color:#fca5a5; background:#fff5f5; }
+.pv-kpi.pv-kpi--danger .pv-kpi-value { color:#dc2626; }
+.pv-kpi.pv-kpi--blue { border-color:#93c5fd; background:#eff6ff; }
+.pv-kpi.pv-kpi--blue .pv-kpi-value { color:#2563eb; }
+body.theme-dark .pv-kpi.pv-kpi--ok { background:#0d2e18; border-color:#14532d; }
+body.theme-dark .pv-kpi.pv-kpi--warn { background:#2d2008; border-color:#78350f; }
+body.theme-dark .pv-kpi.pv-kpi--danger { background:#2d1515; border-color:#7f1d1d; }
+body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f; }
+
+/* Breadcrumb pannello */
+.pv-back-link { font-size:var(--fs-sm); color:#64748b; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.pv-back-link:hover { color:#1d4ed8; }
 </style>
 {% endblock %}
 
@@ -532,6 +584,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
 <p>{{ periodic_page_subtitle|default:"Gestisci i piani ricorrenti come categoria della manutenzione assets, con fornitore, cadenza e asset coinvolti." }}</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Pannello manutenzione</a>
   {% if selected_asset %}
     <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
   {% endif %}
@@ -543,20 +596,20 @@ body.theme-dark .pv-empty { color:var(--text-light); }
 {% block assets_shell_content %}
 <section class="pv-page">
   <section class="pv-kpis">
-    <article class="pv-kpi">
+    <article class="pv-kpi pv-kpi--blue">
       <div class="pv-kpi-label">Totale piani</div>
       <div class="pv-kpi-value">{{ verification_total }}</div>
-      <div class="pv-kpi-meta">Piani registrati nella categoria manutenzione</div>
+      <div class="pv-kpi-meta">{{ active_verification_count }} attivi</div>
     </article>
-    <article class="pv-kpi">
-      <div class="pv-kpi-label">Piani attivi</div>
-      <div class="pv-kpi-value">{{ active_verification_count }}</div>
-      <div class="pv-kpi-meta">Piani attualmente monitorati</div>
-    </article>
-    <article class="pv-kpi">
+    <article class="pv-kpi {% if due_verification_count %}pv-kpi--danger{% else %}pv-kpi--ok{% endif %}">
       <div class="pv-kpi-label">In scadenza / scadute</div>
       <div class="pv-kpi-value">{{ due_verification_count }}</div>
-      <div class="pv-kpi-meta">Situazioni da controllare a breve</div>
+      <div class="pv-kpi-meta">{% if due_verification_count %}da controllare{% else %}tutto nei tempi{% endif %}</div>
+    </article>
+    <article class="pv-kpi {% if legacy_verification_count %}pv-kpi--warn{% else %}pv-kpi--ok{% endif %}">
+      <div class="pv-kpi-label">Piani legacy</div>
+      <div class="pv-kpi-value">{{ legacy_verification_count }}</div>
+      <div class="pv-kpi-meta">{% if legacy_verification_count %}migrati a regole{% else %}nessuno{% endif %}</div>
     </article>
   </section>
 
@@ -735,7 +788,7 @@ body.theme-dark .pv-empty { color:var(--text-light); }
       <div class="pv-card-body">
         <div class="pv-list" data-pv-list-root data-pv-view="grid">
           {% for row in verification_rows %}
-            <article class="pv-item">
+            <article class="pv-item" data-pv-item="{{ row.verification.id }}">
               <div class="pv-item-top">
                 <div>
                   <div class="pv-item-title">{{ row.verification.name }}</div>
@@ -743,164 +796,169 @@ body.theme-dark .pv-empty { color:var(--text-light); }
                     {% if row.verification.supplier %}{{ row.verification.supplier }}{% else %}Fornitore non impostato{% endif %}
                   </div>
                 </div>
-                <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
+                <div class="pv-item-top-right">
+                  <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
+                  <button class="pv-item-toggle" type="button" data-pv-item-toggle="{{ row.verification.id }}" aria-expanded="false" aria-label="Espandi piano">&#9660;</button>
+                </div>
               </div>
               <div class="pv-meta">
                 <span><strong>Cadenza:</strong> {{ row.verification.frequency_months }} mesi</span>
-                <span><strong>Prossima:</strong> {% if row.verification.next_verification_date %}{{ row.verification.next_verification_date|date:"d/m/Y" }}{% else %}-{% endif %}</span>
+                <span><strong>Prossima:</strong> {% if row.verification.next_verification_date %}{{ row.verification.next_verification_date|date:"d-m-Y" }}{% else %}-{% endif %}</span>
                 <span><strong>Asset:</strong> {{ row.linked_assets_count }}</span>
               </div>
-              <div class="pv-assets">
-                {% for asset in row.linked_assets %}
-                  <a class="pv-asset-chip {% if row.is_selected_asset_linked and selected_asset and asset.id == selected_asset.id %}active{% endif %}" href="{% url 'assets:asset_view' asset.id %}">
-                    {{ asset.asset_tag }} - {{ asset.name }}
-                  </a>
-                {% empty %}
-                  <span class="pv-empty">Nessun asset collegato.</span>
-                {% endfor %}
-              </div>
-              {% if row.verification.notes %}
-                <div class="pv-note">{{ row.verification.notes }}</div>
-              {% endif %}
-              {% if can_manage_periodic_verifications %}
-                <div class="pv-inline-actions">
-                  <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
-                  <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_periodic_verification">
-                    <input type="hidden" name="scope" value="{{ periodic_scope }}">
-                    <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
-                    <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
-                    <button class="btn btn-danger" type="submit">Elimina</button>
-                  </form>
-                </div>
-              {% endif %}
-              {% if can_manage_outlook_calendar and selected_asset %}
-                {% if row.can_create_calendar_event %}
-                  {% if not outlook_calendar_ready %}
-                    <div class="pv-inline-note">Configura Graph prima di creare eventi Outlook.</div>
-                  {% elif calendar_user_choices %}
-                    <form method="post" class="pv-inline-form">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="create_outlook_calendar_event">
-                      <input type="hidden" name="scope" value="{{ periodic_scope }}">
-                      <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
-                      <input type="hidden" name="asset_id" value="{{ selected_asset.id }}">
-                      <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
-                      <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
-                      <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
-                      <select class="pv-inline-select" name="target_legacy_user_id" required>
-                        <option value="">Seleziona utente calendario</option>
-                        {% for user_id, user_label in calendar_user_choices %}
-                          <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
-                        {% endfor %}
-                      </select>
-                      <button class="btn btn-secondary" type="submit">Crea evento Outlook</button>
-                    </form>
-                  {% else %}
-                    <div class="pv-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
-                  {% endif %}
-                {% elif row.is_selected_asset_linked %}
-                  <div class="pv-inline-note">Questa manutenzione periodica non ha ancora una prossima data calendarizzabile.</div>
-                {% endif %}
-              {% endif %}
-              {% if row.calendar_event_rows %}
-                <div class="pv-existing-events">
-                  {% for event_row in row.calendar_event_rows %}
-                    {% if event_row.graph_event_web_link %}
-                      <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
-                        Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
-                      </a>
-                    {% else %}
-                      <span class="pv-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
-                    {% endif %}
-                    <div class="pv-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+              <div class="pv-item-collapse-body" data-pv-item-body="{{ row.verification.id }}">
+                <div class="pv-assets">
+                  {% for asset in row.linked_assets %}
+                    <a class="pv-asset-chip {% if row.is_selected_asset_linked and selected_asset and asset.id == selected_asset.id %}active{% endif %}" href="{% url 'assets:asset_view' asset.id %}">
+                      {{ asset.asset_tag }} - {{ asset.name }}
+                    </a>
+                  {% empty %}
+                    <span class="pv-empty">Nessun asset collegato.</span>
                   {% endfor %}
                 </div>
-              {% endif %}
-              <div class="pv-history">
-                <div class="pv-history-head">
-                  <span class="pv-history-title">Esecuzioni registrate</span>
-                  <span class="pv-history-meta">
-                    {{ row.execution_count }} nel periodo
-                    {% if selected_asset %} | asset {{ selected_asset.asset_tag }}{% endif %}
-                  </span>
-                </div>
-                {% if row.execution_rows %}
-                  <div class="pv-history-list">
-                    {% for execution in row.execution_rows %}
-                      <div class="pv-history-row">
-                        <div class="pv-history-date">{{ execution.executed_at|date:"d/m/Y" }}</div>
-                        <div class="pv-history-body">
-                          <div><strong>{{ execution.asset.asset_tag }}</strong> - {{ execution.asset.name }}</div>
-                          {% if execution.resolution %}<div>{{ execution.resolution|truncatechars:160 }}</div>{% endif %}
-                          <div class="pv-history-extra">
-                            {% if execution.supplier_label %}{{ execution.supplier_label }}{% else %}Fornitore non indicato{% endif %}
-                            {% if execution.duration_minutes %} | durata {{ execution.duration_minutes }} min{% endif %}
-                            {% if execution.cost_eur is not None %} | {{ execution.cost_eur }} EUR{% endif %}
-                          </div>
-                        </div>
-                        <div>
-                          {% if execution.url %}<a class="pv-history-link" href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
-                        </div>
-                      </div>
+                {% if row.verification.notes %}
+                  <div class="pv-note">{{ row.verification.notes }}</div>
+                {% endif %}
+                {% if can_manage_periodic_verifications %}
+                  <div class="pv-inline-actions">
+                    <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
+                    <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_periodic_verification">
+                      <input type="hidden" name="scope" value="{{ periodic_scope }}">
+                      <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                      <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                      <button class="btn btn-danger" type="submit">Elimina</button>
+                    </form>
+                  </div>
+                {% endif %}
+                {% if can_manage_outlook_calendar and selected_asset %}
+                  {% if row.can_create_calendar_event %}
+                    {% if not outlook_calendar_ready %}
+                      <div class="pv-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                    {% elif calendar_user_choices %}
+                      <form method="post" class="pv-inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_outlook_calendar_event">
+                        <input type="hidden" name="scope" value="{{ periodic_scope }}">
+                        <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                        <input type="hidden" name="asset_id" value="{{ selected_asset.id }}">
+                        <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
+                        <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+                        <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
+                        <select class="pv-inline-select" name="target_legacy_user_id" required>
+                          <option value="">Seleziona utente calendario</option>
+                          {% for user_id, user_label in calendar_user_choices %}
+                            <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
+                          {% endfor %}
+                        </select>
+                        <button class="btn btn-secondary" type="submit">Crea evento Outlook</button>
+                      </form>
+                    {% else %}
+                      <div class="pv-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
+                    {% endif %}
+                  {% elif row.is_selected_asset_linked %}
+                    <div class="pv-inline-note">Questa manutenzione periodica non ha ancora una prossima data calendarizzabile.</div>
+                  {% endif %}
+                {% endif %}
+                {% if row.calendar_event_rows %}
+                  <div class="pv-existing-events">
+                    {% for event_row in row.calendar_event_rows %}
+                      {% if event_row.graph_event_web_link %}
+                        <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
+                          Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
+                        </a>
+                      {% else %}
+                        <span class="pv-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                      {% endif %}
+                      <div class="pv-inline-note">Scadenza {{ event_row.due_date|date:"d-m-Y" }} | creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
                     {% endfor %}
                   </div>
-                {% else %}
-                  <div class="pv-empty">Nessuna esecuzione registrata nel periodo selezionato.</div>
                 {% endif %}
-                {% if can_manage_periodic_verifications and row.execution_assets %}
-                  <div>
-                    <button class="pv-record-toggle is-secondary" type="button" data-pv-record-toggle="{{ row.verification.id }}">+ Registra esecuzione</button>
+                <div class="pv-history">
+                  <div class="pv-history-head">
+                    <span class="pv-history-title">Esecuzioni registrate</span>
+                    <span class="pv-history-meta">
+                      {{ row.execution_count }} nel periodo
+                      {% if selected_asset %} | asset {{ selected_asset.asset_tag }}{% endif %}
+                    </span>
                   </div>
-                  <form method="post" class="pv-record-form" data-pv-record-form="{{ row.verification.id }}" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="record_periodic_verification_execution">
-                    <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
-                    <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
-                    <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
-                    <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
-                    <input type="hidden" name="filter_window" value="{{ execution_window }}">
-                    <div class="pv-record-full">
-                      <label>Asset coinvolti</label>
-                      <label class="pv-execution-toggle-all">
-                        <input type="checkbox" data-pv-execution-toggle-all="{{ row.verification.id }}" checked>
-                        <span>Seleziona / deseleziona tutti</span>
-                      </label>
-                      <select class="pv-execution-asset-list" name="execution_asset_ids" multiple required size="6" data-pv-execution-asset-list="{{ row.verification.id }}">
-                        {% for asset in row.execution_assets %}
-                          <option value="{{ asset.id }}" selected>{{ asset.asset_tag }} - {{ asset.name }}</option>
-                        {% endfor %}
-                      </select>
-                      <div class="pv-help">L'esecuzione viene registrata su ogni asset selezionato (un intervento per asset).</div>
+                  {% if row.execution_rows %}
+                    <div class="pv-history-list">
+                      {% for execution in row.execution_rows %}
+                        <div class="pv-history-row">
+                          <div class="pv-history-date">{{ execution.executed_at|date:"d-m-Y" }}</div>
+                          <div class="pv-history-body">
+                            <div><strong>{{ execution.asset.asset_tag }}</strong> - {{ execution.asset.name }}</div>
+                            {% if execution.resolution %}<div>{{ execution.resolution|truncatechars:160 }}</div>{% endif %}
+                            <div class="pv-history-extra">
+                              {% if execution.supplier_label %}{{ execution.supplier_label }}{% else %}Fornitore non indicato{% endif %}
+                              {% if execution.duration_minutes %} | durata {{ execution.duration_minutes }} min{% endif %}
+                              {% if execution.cost_eur is not None %} | {{ execution.cost_eur }} EUR{% endif %}
+                            </div>
+                          </div>
+                          <div>
+                            {% if execution.url %}<a class="pv-history-link" href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                          </div>
+                        </div>
+                      {% endfor %}
                     </div>
+                  {% else %}
+                    <div class="pv-empty">Nessuna esecuzione registrata nel periodo selezionato.</div>
+                  {% endif %}
+                  {% if can_manage_periodic_verifications and row.execution_assets %}
                     <div>
-                      <label>Data esecuzione</label>
-                      <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required>
+                      <button class="pv-record-toggle is-secondary" type="button" data-pv-record-toggle="{{ row.verification.id }}">+ Registra esecuzione</button>
                     </div>
-                    <div>
-                      <label>Durata (minuti)</label>
-                      <input type="number" name="execution_duration_minutes" min="0" value="0">
-                    </div>
-                    <div>
-                      <label>Costo (EUR)</label>
-                      <input type="text" name="execution_cost_eur" placeholder="es. 120.50" inputmode="decimal">
-                    </div>
-                    <div class="pv-record-full">
-                      <label>Note / risoluzione</label>
-                      <textarea name="execution_notes" rows="2" placeholder="Cosa e stato fatto, eventuali ricambi sostituiti..."></textarea>
-                    </div>
-                    <div class="pv-record-full">
-                      <label>Allegati (verbali, report, foto)</label>
-                      <input class="pv-execution-files" type="file" name="execution_files" multiple>
-                      <div class="pv-help">Caricamento opzionale. I file vengono associati all'intervento creato e saranno visibili dall'asset.</div>
-                    </div>
-                    <div class="pv-record-full" style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button class="btn btn-primary" type="submit">Registra esecuzione</button>
-                      <button class="btn" type="button" data-pv-record-cancel="{{ row.verification.id }}">Annulla</button>
-                    </div>
-                  </form>
-                {% endif %}
+                    <form method="post" class="pv-record-form" data-pv-record-form="{{ row.verification.id }}" enctype="multipart/form-data">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="record_periodic_verification_execution">
+                      <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                      <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                      <input type="hidden" name="filter_scope" value="{{ periodic_scope }}">
+                      <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+                      <input type="hidden" name="filter_window" value="{{ execution_window }}">
+                      <div class="pv-record-full">
+                        <label>Asset coinvolti</label>
+                        <label class="pv-execution-toggle-all">
+                          <input type="checkbox" data-pv-execution-toggle-all="{{ row.verification.id }}" checked>
+                          <span>Seleziona / deseleziona tutti</span>
+                        </label>
+                        <select class="pv-execution-asset-list" name="execution_asset_ids" multiple required size="6" data-pv-execution-asset-list="{{ row.verification.id }}">
+                          {% for asset in row.execution_assets %}
+                            <option value="{{ asset.id }}" selected>{{ asset.asset_tag }} - {{ asset.name }}</option>
+                          {% endfor %}
+                        </select>
+                        <div class="pv-help">L'esecuzione viene registrata su ogni asset selezionato (un intervento per asset).</div>
+                      </div>
+                      <div>
+                        <label>Data esecuzione</label>
+                        <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required>
+                      </div>
+                      <div>
+                        <label>Durata (minuti)</label>
+                        <input type="number" name="execution_duration_minutes" min="0" value="0">
+                      </div>
+                      <div>
+                        <label>Costo (EUR)</label>
+                        <input type="text" name="execution_cost_eur" placeholder="es. 120.50" inputmode="decimal">
+                      </div>
+                      <div class="pv-record-full">
+                        <label>Note / risoluzione</label>
+                        <textarea name="execution_notes" rows="2" placeholder="Cosa e stato fatto, eventuali ricambi sostituiti..."></textarea>
+                      </div>
+                      <div class="pv-record-full">
+                        <label>Allegati (verbali, report, foto)</label>
+                        <input class="pv-execution-files" type="file" name="execution_files" multiple>
+                        <div class="pv-help">Caricamento opzionale. I file vengono associati all'intervento creato e saranno visibili dall'asset.</div>
+                      </div>
+                      <div class="pv-record-full pv-record-actions">
+                        <button class="btn btn-primary" type="submit">Registra esecuzione</button>
+                        <button class="btn" type="button" data-pv-record-cancel="{{ row.verification.id }}">Annulla</button>
+                      </div>
+                    </form>
+                  {% endif %}
+                </div>
               </div>
             </article>
           {% empty %}
@@ -990,6 +1048,16 @@ body.theme-dark .pv-empty { color:var(--text-light); }
     assetSelect.classList.add("pv-asset-select");
     updateAssetList();
   }
+
+  document.querySelectorAll("[data-pv-item-toggle]").forEach((toggle) => {
+    const planId = toggle.dataset.pvItemToggle;
+    const body = document.querySelector(`[data-pv-item-body="${planId}"]`);
+    if (!body) return;
+    toggle.addEventListener("click", () => {
+      const isOpen = body.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+  });
 
   document.querySelectorAll("[data-pv-record-toggle]").forEach((toggle) => {
     const planId = toggle.dataset.pvRecordToggle;

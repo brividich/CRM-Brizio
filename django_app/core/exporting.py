@@ -35,9 +35,9 @@ def _stringify(value: Any) -> str:
     if isinstance(value, datetime):
         if timezone.is_aware(value):
             value = timezone.localtime(value)
-        return value.strftime("%d/%m/%Y %H:%M:%S")
+        return value.strftime("%d-%m-%Y %H:%M:%S")
     if isinstance(value, date):
-        return value.strftime("%d/%m/%Y")
+        return value.strftime("%d-%m-%Y")
     if isinstance(value, Decimal):
         return str(value)
     if isinstance(value, (dict, list, tuple, set)):

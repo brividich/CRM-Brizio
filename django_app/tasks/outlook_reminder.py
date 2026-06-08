@@ -53,7 +53,7 @@ def _task_body_html(request, task: Task) -> str:
     if assignee_label:
         lines.append(f"<p><strong>Assegnatario:</strong> {assignee_label}</p>")
     if task.due_date:
-        lines.append(f"<p><strong>Scadenza:</strong> {task.due_date:%d/%m/%Y}</p>")
+        lines.append(f"<p><strong>Scadenza:</strong> {task.due_date:%d-%m-%Y}</p>")
     if detail_url:
         lines.append(f'<p><a href="{detail_url}">Apri dettaglio attivita</a></p>')
     if task.description:

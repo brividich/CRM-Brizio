@@ -1,0 +1,115 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link non valido — NOVICROM HUB</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Outfit", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      background: var(--bg, #eef3f8);
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: #002b5c;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 4px solid #ff6b00;
+    }
+    .topbar-logo { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+    .main { max-width: 580px; margin: 0 auto; padding: 64px 20px 80px; text-align: center; }
+    .icon-wrap {
+      width: 72px; height: 72px;
+      background: #fee2e2;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+    }
+    .icon-wrap svg { width: 36px; height: 36px; color: #dc2626; }
+    h1 { font-size: 22px; font-weight: 800; color: #12395f; margin: 0 0 12px; }
+    .message { color: #475569; font-size: 15px; margin: 0 0 32px; }
+    .code-badge {
+      display: inline-block;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      padding: 4px 10px;
+      margin-bottom: 28px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .btn {
+      display: inline-block;
+      padding: 11px 26px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      background: #12395f;
+      color: #fff;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .help { margin-top: 24px; font-size: 13px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">NOVICROM HUB</div>
+</div>
+
+<div class="main">
+  <div class="icon-wrap">
+    {% if codice == "expired" %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+    {% else %}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="15" y1="9" x2="9" y2="15"></line>
+      <line x1="9" y1="9" x2="15" y2="15"></line>
+    </svg>
+    {% endif %}
+  </div>
+
+  <h1>
+    {% if codice == "expired" %}Link scaduto
+    {% elif codice == "revoked" %}Link revocato
+    {% elif codice == "already_used" %}Link già utilizzato
+    {% elif codice == "wrong_user" %}Accesso non consentito
+    {% elif codice == "forbidden" %}Permessi insufficienti
+    {% else %}Link non valido
+    {% endif %}
+  </h1>
+
+  <p class="message">{{ messaggio }}</p>
+  <div class="code-badge">Codice: {{ codice }}</div>
+
+  <div>
+    <a href="{% url 'gestione_anomalie_page' %}" class="btn">Vai al modulo anomalie</a>
+  </div>
+  <p class="help">
+    Se ritieni che si tratti di un errore, contatta l'amministratore o richiedi un nuovo link.
+  </p>
+</div>
+
+</body>
+</html>

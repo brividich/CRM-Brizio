@@ -14,27 +14,87 @@
     .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
     .tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; }
     .tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:6px; }
-    .tim-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-    .tim-field { display:flex; flex-direction:column; gap:5px; }
-    .tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; }
-    .tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; background:#f8fafc; width:100%; box-sizing:border-box; }
-    .tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+    .tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; cursor:pointer; transition:background .12s; }
+    .tim-btn:hover { background:#f8fafc; }
     .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
-    .tim-table { width:100%; border-collapse:collapse; font-size:13px; }
-    .tim-table th, .tim-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:top; }
-    .tim-table th { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-    @media (max-width: 900px) { .tim-kpi, .tim-grid { grid-template-columns:1fr; } }
-    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    .tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
+    .tim-btn-danger { border-color:#fecaca; color:#b91c1c; background:#fff1f2; }
+    .tim-btn-danger:hover { background:#fee2e2; }
+
+    /* ── Permessi table ───────────────────────────────────────────────────── */
+    .tim-perm-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .tim-perm-table th { padding:10px 16px; background:#f8fafc; font-size:10.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; font-weight:700; border-bottom:2px solid #f1f5f9; text-align:left; }
+    .tim-perm-table td { padding:12px 16px; border-bottom:1px solid #f8fafc; vertical-align:middle; }
+    .tim-perm-table tr:hover td { background:#fafbfc; }
+    .tim-perm-role { font-size:13px; font-weight:700; color:#0f172a; }
+    .tim-perm-toggle { display:flex; align-items:center; gap:8px; }
+    .tim-switch { position:relative; width:38px; height:22px; cursor:pointer; }
+    .tim-switch input { opacity:0; width:0; height:0; position:absolute; }
+    .tim-switch-track { position:absolute; inset:0; border-radius:999px; background:#e2e8f0; transition:background .2s; }
+    .tim-switch input:checked + .tim-switch-track { background:#0f766e; }
+    .tim-switch-thumb { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.15); transition:transform .2s; }
+    .tim-switch input:checked ~ .tim-switch-thumb { transform:translateX(16px); }
+    .tim-perm-legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#64748b; margin-top:6px; }
+    .tim-perm-legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; }
+
+    /* ── Log table ────────────────────────────────────────────────────────── */
+    .tim-log-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .tim-log-table th { padding:9px 14px; background:#f8fafc; font-size:10.5px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; font-weight:700; border-bottom:2px solid #f1f5f9; text-align:left; white-space:nowrap; }
+    .tim-log-table td { padding:10px 14px; border-bottom:1px solid #f8fafc; vertical-align:top; }
+    .tim-log-table tr:hover td { background:#fafbfc; }
+    .tim-log-action { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:10.5px; font-weight:700; background:#f1f5f9; color:#475569; }
+    .tim-log-action.download { background:#eff6ff; color:#2563eb; }
+    .tim-log-action.view { background:#f0fdfa; color:#0f766e; }
+    .tim-log-action.edit { background:#fef3c7; color:#92400e; }
+    .tim-log-action.denied { background:#fee2e2; color:#b91c1c; }
+    .tim-log-filter { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+    .tim-log-filter select, .tim-log-filter input { border:1px solid #dbe4f0; border-radius:10px; padding:7px 11px; font-size:13px; background:#f8fafc; color:#334155; }
+    .tim-log-detail { font-family:monospace; font-size:11px; color:#64748b; max-width:340px; white-space:pre-wrap; word-break:break-all; }
+
+    @media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } }
+
+    /* ── Dark mode ──────────────────────────────────────────────────────── */
     body.theme-dark .tim-tab { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
     body.theme-dark .tim-tab.active { background:#0f766e; border-color:#0f766e; color:#fff; }
     body.theme-dark .tim-card, body.theme-dark .tim-k { background:var(--surface); border-color:var(--border); }
     body.theme-dark .tim-k-val { color:var(--text); }
     body.theme-dark .tim-k-label { color:var(--text-light); }
-    body.theme-dark .tim-field label { color:var(--text-light); }
-    body.theme-dark .tim-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
     body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
-    body.theme-dark .tim-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-    body.theme-dark .tim-table td { border-color:var(--border); }
+    body.theme-dark .tim-perm-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+    body.theme-dark .tim-perm-table td { border-color:var(--border); }
+    body.theme-dark .tim-perm-table tr:hover td { background:var(--tbody-hover); }
+    body.theme-dark .tim-perm-role { color:var(--text); }
+    body.theme-dark .tim-switch-track { background:var(--surface-alt); }
+    body.theme-dark .tim-log-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+    body.theme-dark .tim-log-table td { border-color:var(--border); color:var(--text-mid); }
+    body.theme-dark .tim-log-table tr:hover td { background:var(--tbody-hover); }
+    body.theme-dark .tim-log-action { background:rgba(255,255,255,.08); color:var(--text-mid); }
+    body.theme-dark .tim-log-filter select, body.theme-dark .tim-log-filter input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+
+    /* ── Override utente ────────────────────────────────────────────────── */
+    .tim-override-card { margin-top:4px; }
+    .tim-override-head { margin-bottom:16px; }
+    .tim-override-title { font-size:15px; font-weight:800; color:#0f172a; margin-bottom:4px; }
+    .tim-override-sub { font-size:13px; color:#64748b; }
+    .tim-override-scroll { overflow:auto; margin-bottom:20px; }
+    .tim-override-empty { font-size:13px; color:#94a3b8; margin-bottom:18px; }
+    .tim-override-user-hint { font-size:11px; color:#94a3b8; margin-left:6px; }
+    .tim-perm-table th.center, .tim-perm-table td.center { text-align:center; }
+    .tim-perm-th-sub { font-weight:400; text-transform:none; letter-spacing:0; font-size:10px; }
+    .tim-override-pill { font-size:11px; }
+    .tim-override-del-btn { padding:4px 10px; font-size:11px; }
+    .tim-override-del-form { display:inline; }
+    .tim-override-form-sep { border-top:1px solid #f1f5f9; padding-top:16px; }
+    .tim-override-form-label { font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; }
+    .tim-override-form-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+    .tim-override-field { display:flex; flex-direction:column; gap:4px; }
+    .tim-override-field-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+    .tim-override-select { border:1px solid #dbe4f0; border-radius:10px; padding:7px 10px; font-size:13px; background:#f8fafc; color:#334155; min-width:160px; }
+    .tim-override-select-user { min-width:200px; }
+    .tim-override-save-btn { align-self:flex-end; }
+    body.theme-dark .tim-override-title { color:var(--text); }
+    body.theme-dark .tim-override-form-label { color:var(--text-mid); }
+    body.theme-dark .tim-override-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
   </style>
 {% endblock %}
 
@@ -44,44 +104,18 @@
   <div class="tim-page">
     {% include "anagrafica/components/flash_messages.html" %}
 
-    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Gestione Graph, mapping SharePoint, import, audit e branding dedicato del modulo. L'anagrafica dipendenti resta centralizzata." %}
+    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Permessi copia/download, operazioni di manutenzione e log audit del modulo timbri." %}
 
     <div class="tim-kpi">
-      <div class="tim-k"><div class="tim-k-val">{{ local_stats.linked_anagrafica }}</div><div class="tim-k-label">Collegamenti anagrafica</div></div>
-      <div class="tim-k"><div class="tim-k-val">{{ local_stats.registri }}</div><div class="tim-k-label">Registri</div></div>
-      <div class="tim-k"><div class="tim-k-val">{{ local_stats.orphan_operatori }}</div><div class="tim-k-label">Operatori orfani</div></div>
-    </div>
-
-    <div class="ms-grid-2">
-      <section class="ms-card">
-        <div class="ms-card-head">
-          <div class="ms-card-title-wrap">
-            <h2 class="ms-card-title">Panoramica modulo</h2>
-            <p class="ms-card-subtitle">Usa questa pagina per configurare runtime Graph, import massivi e verifiche operative senza duplicare l'anagrafica.</p>
-          </div>
-        </div>
-        <div class="ms-card-body">
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            <span class="ms-pill" style="background:#ecfeff;border-color:#99f6e4;color:#0f766e;">Tab attiva: {{ tab|default:"config" }}</span>
-            {% if sharepoint_admin_config.runtime_ready %}
-              <span class="ms-pill" style="background:#dcfce7;border-color:#86efac;color:#15803d;">Runtime Graph pronto</span>
-            {% else %}
-              <span class="ms-pill" style="background:#fef3c7;border-color:#fde68a;color:#b45309;">Runtime Graph da completare</span>
-            {% endif %}
-            {% if schema_issue %}
-              <span class="ms-pill" style="background:#fee2e2;border-color:#fecaca;color:#b91c1c;">Schema locale non pronto</span>
-            {% endif %}
-          </div>
-          <p class="ms-field-help">Il tab impostazioni centralizza parametri tecnici, operazioni di import e storico audit in una struttura coerente con gli altri moduli.</p>
-        </div>
-      </section>
-      {% include "core/components/module_branding_card.html" %}
+      <div class="tim-k"><div class="tim-k-val">{{ local_stats.linked_anagrafica }}</div><div class="tim-k-label">Collegati anagrafica</div></div>
+      <div class="tim-k"><div class="tim-k-val">{{ local_stats.registri }}</div><div class="tim-k-label">Registri totali</div></div>
+      <div class="tim-k"><div class="tim-k-val {% if local_stats.orphan_operatori %}tim-k-warn{% endif %}">{{ local_stats.orphan_operatori }}</div><div class="tim-k-label">Operatori orfani</div></div>
     </div>
 
     <div class="tim-tabs">
-      <a class="tim-tab {% if tab == 'config' %}active{% endif %}" href="?tab=config">Configurazione</a>
-      <a class="tim-tab {% if tab == 'import' %}active{% endif %}" href="?tab=import">Import</a>
-      <a class="tim-tab {% if tab == 'log' %}active{% endif %}" href="?tab=log">Log</a>
+      <a class="tim-tab {% if tab == 'permessi' %}active{% endif %}" href="?tab=permessi">Permessi</a>
+      <a class="tim-tab {% if tab == 'operazioni' %}active{% endif %}" href="?tab=operazioni">Operazioni</a>
+      <a class="tim-tab {% if tab == 'log' %}active{% endif %}" href="?tab=log">Log audit</a>
     </div>
 
     {% if schema_issue %}
@@ -92,7 +126,7 @@
 
     {% if local_stats.orphan_operatori %}
       <div class="tim-card" style="border-color:#fde68a;background:#fffbeb;color:#92400e;">
-        <strong>Attenzione.</strong> Esistono {{ local_stats.orphan_operatori }} operatori locali senza collegamento all'anagrafica centrale. Non vengono piu usati per i nuovi flussi.
+        <strong>Attenzione.</strong> Esistono {{ local_stats.orphan_operatori }} operatori locali senza collegamento all'anagrafica centrale.
         <form method="post" style="margin-top:12px;">
           {% csrf_token %}
           <input type="hidden" name="action" value="cleanup_orphans">
@@ -101,76 +135,253 @@
       </div>
     {% endif %}
 
-    {% if tab == 'config' %}
-      <form method="post" class="tim-card">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save_sharepoint_config">
-        <div class="tim-grid">
-          <div class="tim-field"><label>Tenant runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.tenant_id }}" readonly></div>
-          <div class="tim-field"><label>Client runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.client_id }}" readonly></div>
-          <div class="tim-field"><label>Site runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.site_id }}" readonly></div>
-          <div class="tim-field"><label>List ID</label><input class="tim-input" type="text" name="list_id" value="{{ sharepoint_admin_config.list_id }}" placeholder="GUID lista"></div>
-        </div>
-        <div style="font-size:12px;color:#64748b;margin:12px 0 18px;">
-          Runtime Graph: <strong>{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</strong>
-          {% if sharepoint_admin_config.sync_issue %} · {{ sharepoint_admin_config.sync_issue }}{% else %} · Configurazione valida.{% endif %}
-        </div>
-        <div class="tim-grid">
-          {% for row in config_rows %}
-            {% if row.name != 'list_id' %}
-              <div class="tim-field">
-                <label for="id_{{ row.name }}">{{ row.label }}</label>
-                <input class="tim-input" id="id_{{ row.name }}" type="text" name="{{ row.name }}" value="{{ row.value }}" placeholder="{{ row.help }}">
-                <small style="font-size:11px;color:#94a3b8;">{{ row.help }}</small>
-              </div>
-            {% endif %}
-          {% endfor %}
-        </div>
-        <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
-          <button class="tim-btn tim-btn-main" type="submit">Salva configurazione</button>
-        </div>
-      </form>
-    {% elif tab == 'import' %}
+    {# ── TAB PERMESSI ──────────────────────────────────────────────────────── #}
+    {% if tab == 'permessi' %}
       <div class="tim-card">
-        <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="test_sharepoint_config">
-          <button class="tim-btn" type="submit">Test connessione Graph</button>
-        </form>
-        <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="import_sharepoint">
-          <button class="tim-btn tim-btn-main" type="submit"{% if schema_issue %} disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>Importa da SharePoint</button>
-          <a class="tim-btn{% if schema_issue %}" style="opacity:.5;pointer-events:none;"{% else %}" href="{% url 'timbri:export_csv' %}{% endif %}>Export CSV locale</a>
-        </form>
-        <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;" onsubmit="return confirm('Reset tabella timbri? Verranno cancellati tutti i registri locali e ricreati solo i nominativi dall\\'anagrafica centrale.');">
+        <div style="margin-bottom:16px;">
+          <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:4px;">Permessi copia / download immagini</div>
+          <div style="font-size:13px;color:#64748b;">Definisce quali ruoli possono <strong>copiare</strong> (clipboard) o <strong>scaricare</strong> le immagini dei timbri. Le modifiche sono immediate.</div>
+          <div class="tim-perm-legend" style="margin-top:10px;">
+            <span><span class="tim-perm-legend-dot" style="background:#0f766e;"></span>Attivo</span>
+            <span><span class="tim-perm-legend-dot" style="background:#e2e8f0;"></span>Non consentito</span>
+          </div>
+        </div>
+        {% if permessi_rows %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_permessi">
+            <div style="overflow:auto;">
+              <table class="tim-perm-table">
+                <thead>
+                  <tr>
+                    <th>Ruolo</th>
+                    <th style="text-align:center;">Copia immagine<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">copia negli appunti</span></th>
+                    <th style="text-align:center;">Scarica immagine<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">download file PNG</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in permessi_rows %}
+                    <tr>
+                      <td><span class="tim-perm-role">{{ row.ruolo_nome }}</span></td>
+                      <td style="text-align:center;">
+                        <div class="tim-perm-toggle" style="justify-content:center;">
+                          <label class="tim-switch" title="Copia per {{ row.ruolo_nome }}">
+                            <input type="checkbox" name="perm_timbri_copy_{{ row.ruolo_id }}" value="1"{% if row.can_copy %} checked{% endif %}>
+                            <span class="tim-switch-track"></span>
+                            <span class="tim-switch-thumb"></span>
+                          </label>
+                        </div>
+                      </td>
+                      <td style="text-align:center;">
+                        <div class="tim-perm-toggle" style="justify-content:center;">
+                          <label class="tim-switch" title="Scarica per {{ row.ruolo_nome }}">
+                            <input type="checkbox" name="perm_timbri_download_{{ row.ruolo_id }}" value="1"{% if row.can_download %} checked{% endif %}>
+                            <span class="tim-switch-track"></span>
+                            <span class="tim-switch-thumb"></span>
+                          </label>
+                        </div>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" style="color:#94a3b8;text-align:center;padding:20px;">Nessun ruolo configurato.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+              <button class="tim-btn tim-btn-main" type="submit">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Salva permessi
+              </button>
+            </div>
+          </form>
+        {% else %}
+          <p style="color:#94a3b8;font-size:13px;">Permessi ACL non disponibili (modulo legacy non attivo).</p>
+        {% endif %}
+      </div>
+
+      {# ── Override per-utente ───────────────────────────────────────────── #}
+      <div class="tim-card tim-override-card">
+        <div class="tim-override-head">
+          <div class="tim-override-title">Override per utente</div>
+          <div class="tim-override-sub">Sovrascrive il permesso del ruolo per un singolo utente. L'override ha sempre la precedenza.</div>
+        </div>
+
+        {# Tabella override esistenti #}
+        {% if user_override_rows %}
+          <div class="tim-override-scroll">
+            <table class="tim-perm-table">
+              <thead>
+                <tr>
+                  <th>Utente</th>
+                  <th class="center">Copia<br><span class="tim-perm-th-sub">clipboard</span></th>
+                  <th class="center">Scarica<br><span class="tim-perm-th-sub">PNG</span></th>
+                  <th class="center">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ov in user_override_rows %}
+                  <tr>
+                    <td>
+                      <span class="tim-perm-role">{{ ov.user.username }}</span>
+                      {% if ov.user.get_full_name %}<span class="tim-override-user-hint">{{ ov.user.get_full_name }}</span>{% endif %}
+                    </td>
+                    <td class="center">
+                      {% if ov.copy is None %}
+                        <span class="tim-override-pill">— (da ruolo)</span>
+                      {% elif ov.copy %}
+                        <span class="tim-log-action view tim-override-pill">Forzato ON</span>
+                      {% else %}
+                        <span class="tim-log-action denied tim-override-pill">Forzato OFF</span>
+                      {% endif %}
+                    </td>
+                    <td class="center">
+                      {% if ov.download is None %}
+                        <span class="tim-override-pill">— (da ruolo)</span>
+                      {% elif ov.download %}
+                        <span class="tim-log-action view tim-override-pill">Forzato ON</span>
+                      {% else %}
+                        <span class="tim-log-action denied tim-override-pill">Forzato OFF</span>
+                      {% endif %}
+                    </td>
+                    <td class="center">
+                      <form class="tim-override-del-form" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_user_override">
+                        <input type="hidden" name="user_id" value="{{ ov.user.pk }}">
+                        <button class="tim-btn tim-btn-danger tim-override-del-btn" type="submit" onclick="return confirm('Rimuovere tutti gli override per {{ ov.user.username }}?')">Rimuovi</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="tim-override-empty">Nessun override utente configurato.</p>
+        {% endif %}
+
+        {# Form aggiunta / modifica override #}
+        <div class="tim-override-form-sep">
+          <div class="tim-override-form-label">Aggiungi o modifica override</div>
+          <form class="tim-override-form-row" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_user_override">
+            <div class="tim-override-field">
+              <label class="tim-override-field-label" for="ov-user-id">Utente</label>
+              <select id="ov-user-id" name="user_id" required title="Seleziona utente" class="tim-override-select tim-override-select-user">
+                <option value="">— seleziona —</option>
+                {% for u in all_users %}
+                  <option value="{{ u.id }}">{{ u.username }}{% if u.first_name or u.last_name %} ({{ u.first_name }}{% if u.first_name and u.last_name %} {% endif %}{{ u.last_name }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="tim-override-field">
+              <label class="tim-override-field-label" for="ov-perm-copy">Copia immagine</label>
+              <select id="ov-perm-copy" name="user_perm_timbri_copy" title="Override copia immagine" class="tim-override-select">
+                <option value="remove">— da ruolo —</option>
+                <option value="grant">Forza ON</option>
+                <option value="deny">Forza OFF</option>
+              </select>
+            </div>
+            <div class="tim-override-field">
+              <label class="tim-override-field-label" for="ov-perm-download">Scarica immagine</label>
+              <select id="ov-perm-download" name="user_perm_timbri_download" title="Override scarica immagine" class="tim-override-select">
+                <option value="remove">— da ruolo —</option>
+                <option value="grant">Forza ON</option>
+                <option value="deny">Forza OFF</option>
+              </select>
+            </div>
+            <button class="tim-btn tim-btn-main tim-override-save-btn" type="submit">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Salva override
+            </button>
+          </form>
+        </div>
+      </div>
+
+    {# ── TAB OPERAZIONI ───────────────────────────────────────────────────── #}
+    {% elif tab == 'operazioni' %}
+      <div class="tim-card">
+        <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:4px;">Export CSV</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:14px;">Esporta tutti i registri timbri in formato CSV.</div>
+        <a class="tim-btn{% if schema_issue %}" style="opacity:.5;pointer-events:none;{% else %}" href="{% url 'timbri:export_csv' %}{% endif %}">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV locale
+        </a>
+      </div>
+
+      <div class="tim-card" style="border-color:#fde68a;">
+        <div style="font-size:15px;font-weight:800;color:#92400e;margin-bottom:4px;">Reset tabella</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:14px;">
+          Cancella tutti i registri timbri locali e ricrea solo i nominativi dall'anagrafica centrale. I record con immagini verranno eliminati definitivamente.
+        </div>
+        <form method="post" onsubmit="return confirm('Reset tabella timbri? Verranno cancellati tutti i registri locali e ricreati solo i nominativi dall\'anagrafica centrale.');">
           {% csrf_token %}
           <input type="hidden" name="action" value="reset_table">
-          <button class="tim-btn" type="submit" style="border-color:#dc2626;color:#b91c1c;background:#fff1f2;">Reset tabella</button>
-          <span style="font-size:12px;color:#64748b;">La configurazione SharePoint resta salvata. Dopo il reset i registri saranno vuoti e resteranno solo i nominativi dell'anagrafica.</span>
+          <button class="tim-btn tim-btn-danger" type="submit"{% if schema_issue %} disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.87"/></svg>
+            Reset tabella
+          </button>
         </form>
-        <div style="margin-top:14px;font-size:13px;color:#64748b;">
-          L'import aggiorna i record con <code>sharepoint_item_id</code>, non sovrascrive quelli marcati come modificati dal portale e collega i timbri solo a dipendenti presenti nell'anagrafica centrale.
-        </div>
       </div>
+
+    {# ── TAB LOG ──────────────────────────────────────────────────────────── #}
     {% else %}
       <div class="tim-card">
-        <table class="tim-table">
-          <thead><tr><th>Quando</th><th>Utente</th><th>Azione</th><th>Dettaglio</th></tr></thead>
-          <tbody>
-            {% for row in audit_entries %}
-              <tr>
-                <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
-                <td>{{ row.utente_display|default:"-" }}</td>
-                <td>{{ row.azione }}</td>
-                <td><code>{{ row.dettaglio }}</code></td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="4" style="color:#94a3b8;">Nessun log disponibile.</td></tr>
+        <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:14px;">Log audit timbri</div>
+        <form method="get" class="tim-log-filter">
+          <input type="hidden" name="tab" value="log">
+          <select name="log_action">
+            <option value="">Tutte le azioni</option>
+            {% for act in audit_actions %}
+              <option value="{{ act }}"{% if act == log_filter %} selected{% endif %}>{{ act }}</option>
             {% endfor %}
-          </tbody>
-        </table>
+          </select>
+          <button class="tim-btn" type="submit" style="padding:7px 14px;">Filtra</button>
+          {% if log_filter %}<a class="tim-btn" href="?tab=log">Reset</a>{% endif %}
+          <span style="font-size:12px;color:#94a3b8;margin-left:4px;">{{ audit_entries|length }} righe</span>
+        </form>
+        <div style="overflow:auto;">
+          <table class="tim-log-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Utente</th>
+                <th>Azione</th>
+                <th>Dettaglio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in audit_entries %}
+                <tr>
+                  <td style="white-space:nowrap;color:#64748b;font-size:12px;">{{ entry.created_at|date:"d/m/Y H:i" }}</td>
+                  <td style="font-weight:600;color:#334155;">{{ entry.utente_display|default:"—" }}</td>
+                  <td>
+                    {% with act=entry.azione %}
+                      {% if "download" in act %}
+                        <span class="tim-log-action download">{{ act }}</span>
+                      {% elif "view" in act %}
+                        <span class="tim-log-action view">{{ act }}</span>
+                      {% elif "edit" in act or "update" in act or "create" in act or "save" in act %}
+                        <span class="tim-log-action edit">{{ act }}</span>
+                      {% elif "denied" in act or "forbidden" in act %}
+                        <span class="tim-log-action denied">{{ act }}</span>
+                      {% else %}
+                        <span class="tim-log-action">{{ act }}</span>
+                      {% endif %}
+                    {% endwith %}
+                  </td>
+                  <td><div class="tim-log-detail">{{ entry.dettaglio }}</div></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px;">Nessun log disponibile{% if log_filter %} per questa azione{% endif %}.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     {% endif %}
+
   </div>
 {% endblock %}

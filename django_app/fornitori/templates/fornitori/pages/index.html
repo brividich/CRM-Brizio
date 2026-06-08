@@ -159,7 +159,7 @@ body.theme-dark .fn-btn-ghost { background:var(--surface-alt); color:var(--text-
             <td><strong>{{ f.ragione_sociale }}</strong></td>
             <td>{% if f.categoria %}<span class="fn-cat-badge">{{ f.get_categoria_display }}</span>{% else %}—{% endif %}</td>
             <td>{{ f.citta|default:"—" }}</td>
-            <td>{{ f.created_at|date:"d/m/Y" }}</td>
+            <td>{{ f.created_at|date:"d-m-Y" }}</td>
             <td><a class="fn-link-btn" href="{% url 'fornitori:fornitore_detail' f.pk %}">Apri →</a></td>
           </tr>
           {% endfor %}

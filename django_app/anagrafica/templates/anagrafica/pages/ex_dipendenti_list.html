@@ -98,10 +98,10 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
             <td><span class="hr-pill neutral">{{ dip.aliasusername|default:"-" }}</span></td>
             <td>{{ dip.matricola_legacy|default:"-" }}</td>
             <td>{{ dip.tipologia_contratto_display|default:"-" }}</td>
-            <td data-sort-value="{{ dip.data_assunzione|date:'Y-m-d' }}">{{ dip.data_assunzione|date:"d/m/Y"|default:"-" }}</td>
+            <td data-sort-value="{{ dip.data_assunzione|date:'Y-m-d' }}">{{ dip.data_assunzione|date:"d-m-Y"|default:"-" }}</td>
             <td data-sort-value="{{ dip.data_cessazione|date:'Y-m-d' }}">
               {% if dip.data_cessazione %}
-                <span class="hr-pill neutral">{{ dip.data_cessazione|date:"d/m/Y" }}</span>
+                <span class="hr-pill neutral">{{ dip.data_cessazione|date:"d-m-Y" }}</span>
               {% else %}
                 <span style="color:#cbd5e1;">-</span>
               {% endif %}

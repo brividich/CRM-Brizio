@@ -370,6 +370,7 @@
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="activate" formnovalidate>Attiva selezionati</button>
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="deactivate" formnovalidate>Disattiva selezionati</button>
           <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="force_pwd" formnovalidate>Force pwd selezionati</button>
+          <button type="submit" class="btn btn-danger btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="delete" formnovalidate id="btn-bulk-delete">Elimina selezionati</button>
         </div>
       </div>
 
@@ -491,6 +492,20 @@
           document.querySelectorAll('input[name="user_ids"]').forEach(function (cb) {
             cb.checked = master.checked;
           });
+        });
+      }
+
+      const btnBulkDelete = document.getElementById("btn-bulk-delete");
+      if (btnBulkDelete) {
+        btnBulkDelete.addEventListener("click", function (e) {
+          const selected = document.querySelectorAll('input[name="user_ids"]:checked');
+          if (selected.length === 0) {
+            e.preventDefault();
+            return;
+          }
+          if (!confirm("Eliminare definitivamente " + selected.length + " utenti selezionati? L'operazione è irreversibile.")) {
+            e.preventDefault();
+          }
         });
       }
 

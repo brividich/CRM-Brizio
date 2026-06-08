@@ -849,7 +849,7 @@
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gantt</span>{% endblock %}
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
 {% block tasks_shell_subtitle %}
-  Timeline {{ gantt_timeline_start|date:"d/m/Y" }} → {{ gantt_timeline_end|date:"d/m/Y" }} — {{ gantt_days|length }} giorni. Le attività modificabili espongono drag e quick edit.
+  Timeline {{ gantt_timeline_start|date:"d-m-Y" }} → {{ gantt_timeline_end|date:"d-m-Y" }} — {{ gantt_days|length }} giorni. Le attività modificabili espongono drag e quick edit.
 {% endblock %}
 
 {% block tasks_shell_meta %}
@@ -1013,7 +1013,7 @@
       <div class="g-progress-pills">
         <span class="g-progress-pill">Aperte: {{ project_summary.open_tasks }}</span>
         <span class="g-progress-pill">Chiuse: {{ project_summary.done_tasks }}</span>
-        <span class="g-progress-pill">{{ project_summary.planned_start|date:"d/m" }} → {{ project_summary.planned_end|date:"d/m" }}</span>
+        <span class="g-progress-pill">{{ project_summary.planned_start|date:"d-m" }} → {{ project_summary.planned_end|date:"d-m" }}</span>
       </div>
     </article>
 
@@ -1048,7 +1048,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
       <div class="g-vrf-text">
-        Baseline attiva — fissata il {{ gantt_baseline.fixed_at|date:"d/m/Y H:i" }}{% if gantt_baseline.fixed_by %} da {{ gantt_baseline.fixed_by.get_full_name|default:gantt_baseline.fixed_by.username }}{% endif %}.
+        Baseline attiva — fissata il {{ gantt_baseline.fixed_at|date:"d-m-Y H:i" }}{% if gantt_baseline.fixed_by %} da {{ gantt_baseline.fixed_by.get_full_name|default:gantt_baseline.fixed_by.username }}{% endif %}.
         I badge <strong>BL</strong> nelle righe mostrano lo scostamento in giorni sulla data fine.
       </div>
     </div>
@@ -1260,8 +1260,8 @@
                     </div>
                   </td>
                   {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni calendario">{{ row.duration_working_days }}gg</td>{% endif %}
-                  {% if gantt_show_start %}<td class="col-date-start">{{ row.start|date:"d/m/Y" }}</td>{% endif %}
-                  {% if gantt_show_end %}<td class="col-date-end">{{ row.end|date:"d/m/Y" }}</td>{% endif %}
+                  {% if gantt_show_start %}<td class="col-date-start">{{ row.start|date:"d-m-Y" }}</td>{% endif %}
+                  {% if gantt_show_end %}<td class="col-date-end">{{ row.end|date:"d-m-Y" }}</td>{% endif %}
                   {% for cell in row.cells %}
                     <td class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}"
                         data-day-index="{{ forloop.counter0 }}"
@@ -1474,7 +1474,7 @@
             <li class="comment-item">
               <div class="ts-card-meta" style="margin-bottom:6px;">
                 <strong style="color:#0f172a;">{{ comment.author.get_full_name|default:comment.author.username }}</strong>
-                <span style="color:#94a3b8;">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
+                <span style="color:#94a3b8;">{{ comment.created_at|date:"d-m-Y H:i" }}</span>
               </div>
               <div style="white-space:pre-wrap;font-size:13px;color:#1e293b;line-height:1.6;">{{ comment.body }}</div>
               {% if comment.target_user %}

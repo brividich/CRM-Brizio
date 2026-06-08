@@ -90,10 +90,10 @@ body.theme-dark .pr-empty { color:var(--text-light); }
                 {% else %}<span class="pr-badge pr-badge-archived">{{ camp.get_status_display }}</span>
                 {% endif %}
               </td>
-              <td>{{ camp.start_date|date:"d/m/Y" }}</td>
-              <td>{{ camp.due_date|date:"d/m/Y" }}</td>
+              <td>{{ camp.start_date|date:"d-m-Y" }}</td>
+              <td>{{ camp.due_date|date:"d-m-Y" }}</td>
               <td>{{ camp.created_by.get_full_name|default:camp.created_by.username|default:"—" }}</td>
-              <td>{{ camp.published_at|date:"d/m/Y"|default:"—" }}</td>
+              <td>{{ camp.published_at|date:"d-m-Y"|default:"—" }}</td>
               <td>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;">
                   <a href="{% url 'procedure_refresh:campaign_detail' pk=camp.pk %}" class="pr-btn pr-btn-sm">Gestisci</a>

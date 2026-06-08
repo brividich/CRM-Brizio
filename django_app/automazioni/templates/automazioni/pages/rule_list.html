@@ -289,8 +289,8 @@
                           {% endif %}
                         </div>
                       </td>
-                      <td>{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
-                      <td>{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                      <td>{{ rule.last_run_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
+                      <td>{{ rule.last_test_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
                       <td>
                         <div class="auto-actions">
                           <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>

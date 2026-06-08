@@ -101,13 +101,13 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
           {% endif %}
         </div>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.78);text-align:right;">Aperto da <strong style="color:#fff;">{{ ticket.richiedente_nome }}</strong><br>{{ ticket.created_at|date:"d/m/Y H:i" }}<br>{% if ticket.closed_at %}Chiuso: {{ ticket.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.78);text-align:right;">Aperto da <strong style="color:#fff;">{{ ticket.richiedente_nome }}</strong><br>{{ ticket.created_at|date:"d-m-Y H:i" }}<br>{% if ticket.closed_at %}Chiuso: {{ ticket.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
     </div>
     <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
       <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Categoria</div><div style="font-size:14px;font-weight:800;">{{ ticket.label_categoria }}</div></div>
       <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Richiedente</div><div style="font-size:14px;font-weight:800;">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}" style="color:#fff;text-decoration:underline;">{{ ticket.richiedente_nome }}</a>{% else %}{{ ticket.richiedente_nome }}{% endif %}</div></div>
       <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Assegnato</div><div id="meta-assegnato-hero" style="font-size:14px;font-weight:800;">{{ ticket.assegnato_a|default:"Non assegnato" }}</div></div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Presa in carico</div><div style="font-size:14px;font-weight:800;">{% if ticket.data_presa_in_carico %}{{ ticket.data_presa_in_carico|date:"d/m/Y H:i" }}{% else %}Non ancora{% endif %}</div></div>
+      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Presa in carico</div><div style="font-size:14px;font-weight:800;">{% if ticket.data_presa_in_carico %}{{ ticket.data_presa_in_carico|date:"d-m-Y H:i" }}{% else %}Non ancora{% endif %}</div></div>
     </div>
   </div>
 
@@ -197,7 +197,7 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
               <div class="tkt-feed-body">
                 <div class="tkt-feed-head">
                   <div><span class="tkt-feed-actor">{{ item.actor }}</span>{% if item.badge %}<span class="tkt-feed-badge">{{ item.badge }}</span>{% endif %}<div class="tkt-feed-title">{{ item.title }}</div>{% if item.summary %}<div class="tkt-feed-summary">{{ item.summary }}</div>{% endif %}</div>
-                  <div class="tkt-feed-date">{{ item.created_at|date:"d/m/Y H:i" }}</div>
+                  <div class="tkt-feed-date">{{ item.created_at|date:"d-m-Y H:i" }}</div>
                 </div>
                 {% if item.body %}<div class="tkt-feed-copy">{{ item.body|linebreaksbr }}</div>{% endif %}
                 {% if item.meta %}<div class="tkt-feed-meta">{{ item.meta }}</div>{% endif %}
@@ -239,8 +239,8 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
             {% for i in interventi %}
             <tr data-interv-id="{{ i.pk }}">
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-weight:700;">{{ i.tecnico_nome }}{% if i.numero_rapportino %}<br><span style="font-size:11px;color:#64748b;font-weight:400;">RPT {{ i.numero_rapportino }}</span>{% endif %}</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.data_inizio|date:"d/m/Y H:i" }}</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{% if i.data_fine %}{{ i.data_fine|date:"d/m/Y H:i" }}{% else %}In corso{% endif %}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.data_inizio|date:"d-m-Y H:i" }}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{% if i.data_fine %}{{ i.data_fine|date:"d-m-Y H:i" }}{% else %}In corso{% endif %}</td>
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;">{% if i.durata_ore %}{{ i.durata_ore }}h{% else %}-{% endif %}</td>
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.componente_interessato|default:"-" }}</td>
               <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;">{% if i.costo_totale_eur %}{{ i.costo_totale_eur|floatformat:2 }} €{% else %}-{% endif %}</td>
@@ -385,10 +385,10 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
           {% if ticket.richiedente_email %}<div class="tkt-meta-item"><span class="tkt-meta-key">Email</span><span class="tkt-meta-val" style="font-size:11px;">{{ ticket.richiedente_email }}</span></div>{% endif %}
           <div class="tkt-meta-item"><span class="tkt-meta-key">Assegnato a</span><span class="tkt-meta-val" id="meta-assegnato">{{ ticket.assegnato_a|default:"-" }}</span></div>
           <div class="tkt-meta-item"><span class="tkt-meta-key">Fornitore</span><span class="tkt-meta-val">{% if ticket.delegato_fornitore %}{{ ticket.delegato_fornitore.ragione_sociale }}{% else %}-{% endif %}</span></div>
-          <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d/m/Y H:i" }}</span></div>
-          {% if ticket.data_presa_in_carico %}<div class="tkt-meta-item"><span class="tkt-meta-key">Presa in carico</span><span class="tkt-meta-val">{{ ticket.data_presa_in_carico|date:"d/m/Y H:i" }}</span></div>{% endif %}
-          {% if ticket.data_prevista_risoluzione %}<div class="tkt-meta-item"><span class="tkt-meta-key">Prevista il</span><span class="tkt-meta-val" style="color:#6b21a8;font-weight:700;">{{ ticket.data_prevista_risoluzione|date:"d/m/Y" }}</span></div>{% endif %}
-          {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d/m/Y H:i" }}</span></div>{% endif %}
+          <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d-m-Y H:i" }}</span></div>
+          {% if ticket.data_presa_in_carico %}<div class="tkt-meta-item"><span class="tkt-meta-key">Presa in carico</span><span class="tkt-meta-val">{{ ticket.data_presa_in_carico|date:"d-m-Y H:i" }}</span></div>{% endif %}
+          {% if ticket.data_prevista_risoluzione %}<div class="tkt-meta-item"><span class="tkt-meta-key">Prevista il</span><span class="tkt-meta-val" style="color:#6b21a8;font-weight:700;">{{ ticket.data_prevista_risoluzione|date:"d-m-Y" }}</span></div>{% endif %}
+          {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d-m-Y H:i" }}</span></div>{% endif %}
           {% if ticket.risolto_da_nome %}<div class="tkt-meta-item"><span class="tkt-meta-key">Risolto da</span><span class="tkt-meta-val">{{ ticket.risolto_da_nome }}</span></div>{% endif %}
           {% if ticket.ticket_origine %}<div class="tkt-meta-item"><span class="tkt-meta-key">Ticket origine</span><span class="tkt-meta-val"><a href="{% url 'tickets:gestione_detail' ticket.ticket_origine.pk %}">{{ ticket.ticket_origine.numero_ticket }}</a></span></div>{% endif %}
           {% if ticket.tipo == 'MAN' %}<div class="tkt-meta-item"><span class="tkt-meta-key">Registro manutenzione</span><span class="tkt-meta-val">{% if ticket.include_in_maintenance_register %}<span style="color:#15803d;font-weight:700;">Incluso</span>{% else %}<span style="color:#94a3b8;">Escluso</span>{% endif %}</span></div>{% endif %}

@@ -225,3 +225,36 @@ class RegistroTimbroImmagine(models.Model):
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+
+
+class TimbriUserPermOverride(models.Model):
+    """Override per-utente dei permessi copia/download timbri (sovrascrive il ruolo)."""
+
+    AZIONE_COPY = "timbri_copy"
+    AZIONE_DOWNLOAD = "timbri_download"
+    AZIONE_CHOICES = [
+        (AZIONE_COPY, "Copia immagine"),
+        (AZIONE_DOWNLOAD, "Scarica immagine"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="timbri_perm_overrides",
+    )
+    azione = models.CharField(max_length=40, choices=AZIONE_CHOICES)
+    granted = models.BooleanField(
+        help_text="True = forza permesso ON anche se il ruolo non ce l'ha; False = forza OFF."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("user", "azione")]
+        ordering = ["user__username", "azione"]
+        verbose_name = "Override permesso timbri utente"
+        verbose_name_plural = "Override permessi timbri utenti"
+
+    def __str__(self) -> str:
+        stato = "ON" if self.granted else "OFF"
+        return f"{self.user_id}:{self.azione}={stato}"

@@ -382,6 +382,13 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
             {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
           </div>
 
+          <div class="wof-field">
+            <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>
+            {{ form.assigned_to }}
+            <div class="wof-helper">{{ form.assigned_to.help_text }}</div>
+            {% if form.assigned_to.errors %}<div class="wof-error">{{ form.assigned_to.errors }}</div>{% endif %}
+          </div>
+
           <div class="wof-field wof-field--full">
             <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
             {{ form.title }}
@@ -430,8 +437,8 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
       <section class="wof-section">
         <div class="wof-section-head">
           <div>
-            <h3>Costi e allegati</h3>
-            <p>Aggiungi documentazione tecnica e valori economici dell'intervento.</p>
+            <h3>Allegati</h3>
+            <p>Aggiungi documentazione tecnica, report di intervento o foto.</p>
           </div>
         </div>
         <div class="wof-grid">
@@ -455,12 +462,6 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
             <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
             {{ form.downtime_minutes }}
             {% if form.downtime_minutes.errors %}<div class="wof-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field">
-            <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
-            {{ form.cost_eur }}
-            {% if form.cost_eur.errors %}<div class="wof-error">{{ form.cost_eur.errors }}</div>{% endif %}
           </div>
         </div>
       </section>

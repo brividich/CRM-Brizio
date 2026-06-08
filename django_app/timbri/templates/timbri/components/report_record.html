@@ -6,7 +6,7 @@
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <span class="rpt-pill">{{ record.get_tipo_timbro_display }}</span>
-      {% if record.data_consegna %}<span class="rpt-pill">Consegna: {{ record.data_consegna|date:"d/m/Y" }}</span>{% endif %}
+      {% if record.data_consegna %}<span class="rpt-pill">Consegna: {{ record.data_consegna|date:"d-m-Y" }}</span>{% endif %}
     </div>
   </div>
   <div class="rpt-images">

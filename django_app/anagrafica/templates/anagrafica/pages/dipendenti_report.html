@@ -175,11 +175,11 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
             <td>{{ az.area|default:"—" }}</td>
             <td>{% if az %}{{ az.get_tipologia_contratto_display|default:"—" }}{% else %}—{% endif %}</td>
             <td>{{ az.livello_inquadramento|default:"—" }}</td>
-            <td data-sort-value="{{ az.data_prima_assunzione|date:'Y-m-d' }}">{{ az.data_prima_assunzione|date:"d/m/Y"|default:"—" }}</td>
+            <td data-sort-value="{{ az.data_prima_assunzione|date:'Y-m-d' }}">{{ az.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</td>
             <td>
               {% if az.consenso_privacy %}
                 <span class="ana-pill ana-pill-green">Sì</span>
-                {% if az.data_consenso_privacy %}<span style="font-size:11px;color:#64748b;margin-left:4px;">{{ az.data_consenso_privacy|date:"d/m/Y" }}</span>{% endif %}
+                {% if az.data_consenso_privacy %}<span style="font-size:11px;color:#64748b;margin-left:4px;">{{ az.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}
               {% else %}
                 <span class="ana-pill ana-pill-gray">No</span>
               {% endif %}

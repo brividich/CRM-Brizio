@@ -120,7 +120,7 @@
                 <span class="at-badge at-badge-off">Disabilitato</span>
               {% endif %}
             </td>
-            <td style="font-size:12px;color:#64748b;white-space:nowrap;">{{ tpl.updated_at|date:"d/m/Y H:i" }}</td>
+            <td style="font-size:12px;color:#64748b;white-space:nowrap;">{{ tpl.updated_at|date:"d-m-Y H:i" }}</td>
             <td>
               <div class="at-actions">
                 <a href="{% url 'admin_portale:automazioni_approval_template_edit' tpl.pk %}" class="at-btn at-btn-edit">Modifica</a>

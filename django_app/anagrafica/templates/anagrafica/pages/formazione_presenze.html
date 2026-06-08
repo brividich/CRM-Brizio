@@ -36,7 +36,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       <p class="hr-pagehead-desc">
         {{ lezione.argomento }}
         &nbsp;·&nbsp;
-        {{ lezione.data|date:"d/m/Y" }},
+        {{ lezione.data|date:"d-m-Y" }},
         {{ lezione.ora_inizio|time:"H:i" }}–{{ lezione.ora_fine|time:"H:i" }}
         &nbsp;·&nbsp; {{ lezione.durata_ore }}h
         {% if lezione.docente_nome %}&nbsp;·&nbsp; {{ lezione.docente_nome }}{% endif %}
@@ -81,7 +81,7 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       <div class="hr-metric-body">
         <div class="hr-metric-top">
           <span class="hr-metric-lbl">Data</span>
-          <span class="hr-metric-val" style="font-size:14px;">{{ lezione.data|date:"d/m/Y" }}</span>
+          <span class="hr-metric-val" style="font-size:14px;">{{ lezione.data|date:"d-m-Y" }}</span>
         </div>
         <div class="hr-metric-sub">{{ sessione.codice_sessione }}</div>
       </div>

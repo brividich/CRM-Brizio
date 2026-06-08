@@ -175,4 +175,28 @@
     </system.webServer>
   </location>
 
+  <!-- ====================================================================
+       /media_private/ — MAI servita da IIS. Difesa in profondità:
+       anche se qualcuno creasse una virtual directory per errore,
+       IIS blocca tutte le richieste HTTP a questo path.
+       I file privati (cifrati AES-256) vengono letti solo da Django
+       via view protette con ACL e audit log.
+       ==================================================================== -->
+  <location path="media_private">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <verbs allowUnlisted="false" />
+        </requestFiltering>
+        <authentication>
+          <anonymousAuthentication enabled="false" />
+        </authentication>
+        <authorization>
+          <remove users="*" roles="" verbs="" />
+          <add accessType="Deny" users="*" />
+        </authorization>
+      </security>
+    </system.webServer>
+  </location>
+
 </configuration>

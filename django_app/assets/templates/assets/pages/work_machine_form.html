@@ -352,7 +352,7 @@
                           <div class="wmf-upload-top">
                             <a href="{% if doc.sharepoint_url %}{{ doc.sharepoint_url }}{% else %}{% url 'assets:asset_document_download' doc.id %}{% endif %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
                             <span class="wmf-upload-meta">
-                              {{ doc.created_at|date:"d/m/Y H:i" }}
+                              {{ doc.created_at|date:"d-m-Y H:i" }}
                               {% if doc.uploaded_by %} · {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}{% endif %}
                             </span>
                           </div>

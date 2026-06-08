@@ -61,7 +61,7 @@
                     <td><a href="{% url 'monitoring_admin:issue_detail' issue.pk %}"><strong>{{ issue.code }}</strong></a></td>
                     <td>{{ issue.title }}</td>
                     <td><span class="monitoring-pill severity-{{ issue.severity }}">{{ issue.get_severity_display }}</span></td>
-                    <td>{{ issue.last_seen_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ issue.last_seen_at|date:"d-m-Y H:i" }}</td>
                   </tr>
                 {% empty %}
                   <tr><td colspan="4" class="cell-muted">Nessuna issue aperta.</td></tr>
@@ -137,7 +137,7 @@
             {% for report in latest_manual_reports %}
               <div class="monitoring-inline-item">
                 <strong>{{ report.username_snapshot|default:"Utente" }}</strong>
-                <div class="monitoring-meta">{{ report.created_at|date:"d/m/Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
+                <div class="monitoring-meta">{{ report.created_at|date:"d-m-Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
                 <div style="margin-top:6px;">{{ report.message|truncatechars:180 }}</div>
                 {% if report.issue %}
                   <div class="monitoring-meta" style="margin-top:6px;">
@@ -163,7 +163,7 @@
               <div class="monitoring-inline-item">
                 <strong>{{ item.job.name }}</strong>
                 <div class="monitoring-meta">
-                  Atteso entro {{ item.expected_at|date:"d/m/Y H:i" }} | Ritardo {{ item.overdue_minutes }} min
+                  Atteso entro {{ item.expected_at|date:"d-m-Y H:i" }} | Ritardo {{ item.overdue_minutes }} min
                 </div>
               </div>
             {% empty %}

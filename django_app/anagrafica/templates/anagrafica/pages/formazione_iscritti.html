@@ -39,7 +39,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       <p class="hr-pagehead-desc">
         {{ sessione.corso.titolo }}
         &nbsp;·&nbsp;
-        {{ sessione.data_inizio|date:"d/m/Y" }} → {{ sessione.data_fine|date:"d/m/Y" }}
+        {{ sessione.data_inizio|date:"d-m-Y" }} → {{ sessione.data_fine|date:"d-m-Y" }}
       </p>
     </div>
     {% if is_editor %}
@@ -173,7 +173,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               {% elif isc.idoneo %}<span class="fm-pill fm-pill-valid">✓</span>
               {% else %}<span class="fm-pill fm-pill-expired">✗</span>{% endif %}
             </td>
-            <td style="font-size:12px;color:#475569;">{{ isc.data_completamento|date:"d/m/Y"|default:"—" }}</td>
+            <td style="font-size:12px;color:#475569;">{{ isc.data_completamento|date:"d-m-Y"|default:"—" }}</td>
             {% if is_editor %}
             <td>
               <button class="hr-btn hr-btn-sm"
@@ -219,7 +219,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
                     {% for lz, stato in isc.lezioni_presenze %}
                     <tr>
                       <td style="color:#94a3b8;">{{ lz.numero }}</td>
-                      <td>{{ lz.data|date:"d/m/Y" }}</td>
+                      <td>{{ lz.data|date:"d-m-Y" }}</td>
                       <td>{{ lz.argomento|truncatechars:55 }}</td>
                       <td>
                         {% if stato == "PRESENTE" %}

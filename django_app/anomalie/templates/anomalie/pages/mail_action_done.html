@@ -1,0 +1,168 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azione completata — OP {{ token.op_id }}</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Outfit", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      background: var(--bg, #eef3f8);
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: #002b5c;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 4px solid #ff6b00;
+    }
+    .topbar-logo { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+    .topbar-sub  { font-size: 12px; color: #c7d6e8; margin-left: auto; }
+    .main { max-width: 720px; margin: 0 auto; padding: 48px 20px 80px; text-align: center; }
+    .icon-wrap {
+      width: 72px; height: 72px;
+      background: #d1fae5;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+    }
+    .icon-wrap svg { width: 36px; height: 36px; color: #059669; }
+    h1 { font-size: 24px; font-weight: 800; color: #12395f; margin: 0 0 10px; }
+    .sub { color: #64748b; font-size: 15px; margin: 0 0 32px; }
+    .info-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 22px 24px;
+      text-align: left;
+      margin-bottom: 24px;
+    }
+    .info-row { display: flex; gap: 12px; margin-bottom: 8px; font-size: 14px; }
+    .info-key { color: #94a3b8; font-weight: 600; min-width: 120px; }
+    .info-val { color: #1e293b; }
+    .already-badge {
+      display: inline-block;
+      background: #fef9f0;
+      border: 1px solid #fcd34d;
+      color: #92400e;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 8px 16px;
+      margin-bottom: 22px;
+    }
+    .log-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    .log-table th { color: #94a3b8; font-weight: 700; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+    .log-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+    .btn {
+      display: inline-block;
+      padding: 11px 26px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-primary { background: #12395f; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">NOVICROM HUB</div>
+  <div class="topbar-sub">Gestione Anomalie</div>
+</div>
+
+<div class="main">
+  {% if already_done %}
+  <div class="already-badge">Azione già registrata in precedenza</div>
+  {% else %}
+  <div class="icon-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </div>
+  {% endif %}
+
+  <h1>{% if already_done %}Azione già eseguita{% else %}Azione registrata{% endif %}</h1>
+  <p class="sub">
+    {% if already_done %}
+      Questo link è stato già utilizzato.
+    {% else %}
+      La tua risposta è stata registrata correttamente.
+    {% endif %}
+  </p>
+
+  <div class="info-card">
+    <div class="info-row">
+      <span class="info-key">OP</span>
+      <span class="info-val">{{ token.op_id }}{% if token.op_nominativo %} — {{ token.op_nominativo }}{% endif %}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Azione</span>
+      <span class="info-val">{{ token.get_action_display }}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Anomalie</span>
+      <span class="info-val">{{ token.anomalie_ids|length }} (ID: {% for aid in token.anomalie_ids %}#{{ aid }}{% if not forloop.last %}, {% endif %}{% endfor %})</span>
+    </div>
+    {% if token.used_at %}
+    <div class="info-row">
+      <span class="info-key">Eseguita il</span>
+      <span class="info-val">{{ token.used_at|date:"d/m/Y H:i" }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if action_logs %}
+  <div class="info-card">
+    <div style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Log azioni registrate</div>
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Anomalia</th>
+          <th>Azione</th>
+          <th>Nuovo stato</th>
+          <th>Note</th>
+          <th>Quando</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in action_logs %}
+        <tr>
+          <td>#{{ log.anomalia_id }}</td>
+          <td>{{ log.action }}</td>
+          <td>{{ log.new_status|default:"—" }}</td>
+          <td>{{ log.note|default:"—"|truncatechars:60 }}</td>
+          <td>{{ log.created_at|date:"d/m H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="btn-row">
+    <a href="{% url 'gestione_anomalie_page' %}" class="btn btn-primary">Vai al modulo anomalie</a>
+    <a href="/" class="btn btn-secondary">Home portale</a>
+  </div>
+</div>
+
+</body>
+</html>

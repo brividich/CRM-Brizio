@@ -1,9 +1,12 @@
 from django.urls import path
 
 from . import views
+from . import mail_action_views
 
 
 urlpatterns = [
+    path("gestione-anomalie/mail-action/<str:token>/", mail_action_views.mail_action_view, name="anomalie_mail_action"),
+    path("gestione-anomalie/mail-action/<str:token>/fatto/", mail_action_views.mail_action_done_view, name="anomalie_mail_action_done"),
     path("gestione-anomalie", views.gestione_anomalie_page, name="gestione_anomalie_page"),
     path("gestione-anomalie/nuova-segnalazione", views.apertura_segnalazione_page, name="apertura_segnalazione"),
     path("gestione-anomalie/configurazione", views.anomalie_configurazione_page, name="anomalie_configurazione_page"),

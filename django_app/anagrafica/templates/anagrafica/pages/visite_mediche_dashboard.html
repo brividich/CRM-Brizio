@@ -108,7 +108,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
     <div>
       <div class="hr-pagehead-eyebrow">Sorveglianza sanitaria</div>
       <h2 class="hr-pagehead-title">Visite mediche</h2>
-      <p class="hr-pagehead-desc">Scadenze, copertura per tipologia e ultime visite registrate. Aggiornato al {{ oggi|date:"d/m/Y" }}.</p>
+      <p class="hr-pagehead-desc">Scadenze, copertura per tipologia e ultime visite registrate. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
     </div>
     {% if can_manage %}
     <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}" class="hr-btn hr-btn-primary">+ Registra sessione</a>
@@ -181,8 +181,8 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
             <tr>
               <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#12395f;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
               <td>{{ v.tipo.nome }}</td>
-              <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
-              <td data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d/m/Y" }}</td>
+              <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
+              <td data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
               <td>
                 {% if v.giorni_a_scadenza < 0 %}
                   <span class="hr-pill danger">Scaduta da {{ v.giorni_a_scadenza|stringformat:"d"|cut:"-" }}g</span>
@@ -276,7 +276,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
                       {% for s in row.sessioni %}{% if s.data_scadenza and s.giorni_a_scadenza < 0 %}
                       <div class="tipo-detail-dip">
                         <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome }}</a>
-                        <span class="hr-pill danger" style="font-size:10px;white-space:nowrap;">{{ s.data_scadenza|date:"d/m/Y" }}</span>
+                        <span class="hr-pill danger" style="font-size:10px;white-space:nowrap;">{{ s.data_scadenza|date:"d-m-Y" }}</span>
                       </div>
                       {% endif %}{% endfor %}
                       {% if not row.n_scadute %}<div class="tipo-detail-empty">Nessuna</div>{% endif %}
@@ -306,7 +306,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
                       {% for s in row.sessioni %}{% if s.data_scadenza and s.giorni_a_scadenza > 60 %}
                       <div class="tipo-detail-dip">
                         <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}#visite-mediche">{{ s.dipendente_nome }}</a>
-                        <span style="font-size:11px;color:#64748b;white-space:nowrap;">{{ s.data_scadenza|date:"d/m/Y" }}</span>
+                        <span style="font-size:11px;color:#64748b;white-space:nowrap;">{{ s.data_scadenza|date:"d-m-Y" }}</span>
                       </div>
                       {% endif %}{% endfor %}
                       {% if not row.n_valide %}<div class="tipo-detail-empty">Nessuna</div>{% endif %}
@@ -358,12 +358,12 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
             <tr class="hr-table-group-sep"><td colspan="6">📅 {{ mese_group.grouper }}</td></tr>
             {% for v in mese_group.list %}
             <tr>
-              <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d/m/Y" }}</td>
+              <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
               <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#12395f;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
               <td>{{ v.tipo.nome }}</td>
               <td>{{ v.get_esito_display }}</td>
               <td>
-                {% if v.data_scadenza %}{{ v.data_scadenza|date:"d/m/Y" }}
+                {% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}
                   {% if v.is_scaduta %} <span style="color:#b91c1c;">●</span>{% elif v.in_scadenza %} <span style="color:#ea580c;">●</span>{% endif %}
                 {% else %}—{% endif %}
               </td>

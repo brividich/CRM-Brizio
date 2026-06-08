@@ -123,7 +123,7 @@ class Command(BaseCommand):
         self.stdout.write(
             f"{'[DRY-RUN] ' if dry_run else ''}Analisi di {len(pvs)} PeriodicVerification..."
         )
-        self.stdout.write(f"Data di riferimento: {today:%d/%m/%Y}\n")
+        self.stdout.write(f"Data di riferimento: {today:%d-%m-%Y}\n")
 
         results = {
             "migrated": 0,

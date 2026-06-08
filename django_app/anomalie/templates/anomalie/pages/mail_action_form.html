@@ -1,0 +1,249 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azione anomali{% if token.anomalie_ids|length == 1 %}a{% else %}e{% endif %} — OP {{ op_id }}</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Outfit", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      background: var(--bg, #eef3f8);
+      color: #1e293b;
+      min-height: 100vh;
+    }
+    .topbar {
+      background: #002b5c;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 4px solid #ff6b00;
+    }
+    .topbar-logo { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+    .topbar-sub  { font-size: 12px; color: #c7d6e8; margin-left: auto; }
+    .main { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+    .badge-op {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 14px;
+    }
+    h1 { font-size: 22px; font-weight: 800; color: #12395f; margin: 0 0 4px; }
+    .sub-title { color: #64748b; font-size: 14px; margin: 0 0 24px; }
+
+    /* Card anomalie */
+    .anomalie-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+    .anomalia-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+    }
+    .anomalia-card-stripe { width: 6px; flex-shrink: 0; background: #1f5c91; }
+    .anomalia-card-body { padding: 14px 18px; flex: 1; }
+    .anomalia-id { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .anomalia-desc { font-size: 15px; font-weight: 600; color: #182232; margin: 4px 0 6px; }
+    .anomalia-stato { display: inline-block; background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 9px; }
+    .anomalia-note { font-size: 13px; color: #64748b; font-style: italic; margin-top: 6px; }
+    .anomalia-images { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .anomalia-images img {
+      width: 90px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      cursor: pointer;
+    }
+
+    /* Form azione */
+    .action-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 28px 28px 24px;
+    }
+    .action-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #12395f;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: 8px;
+    }
+    .action-title { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0 0 18px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 5px; }
+    textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 90px;
+      color: #1e293b;
+      background: #f8fafc;
+      outline: none;
+      transition: border-color .15s;
+    }
+    textarea:focus { border-color: #1f5c91; background: #fff; }
+    .select-wrap { margin-top: 16px; }
+    select {
+      width: 100%;
+      padding: 9px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #1e293b;
+      background: #f8fafc;
+      outline: none;
+    }
+    select:focus { border-color: #1f5c91; }
+    .btn-row { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .88; }
+    .btn-primary { background: #12395f; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .readonly-notice {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 18px;
+    }
+    .expires-notice {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 18px;
+    }
+    @media (max-width:600px) {
+      .main { padding: 16px 12px 40px; }
+      .action-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">NOVICROM HUB</div>
+  <div class="topbar-sub">Gestione Anomalie — Azione da mail</div>
+</div>
+
+<div class="main">
+  <div class="badge-op">OP {{ op_id }}{% if op_nominativo %} — {{ op_nominativo }}{% endif %}</div>
+  <h1>{{ action_label }}{% if token.anomalie_ids|length == 1 %} anomalia{% else %} anomalie{% endif %}</h1>
+  <p class="sub-title">
+    {% with n=anomalie|length %}
+    {% if n == 1 %}1 anomalia richiede la tua attenzione.{% else %}{{ n }} anomalie richiedono la tua attenzione.{% endif %}
+    {% endwith %}
+  </p>
+
+  <!-- Elenco anomalie live -->
+  <div class="anomalie-list">
+    {% for a in anomalie %}
+    <div class="anomalia-card">
+      <div class="anomalia-card-stripe"></div>
+      <div class="anomalia-card-body">
+        <div class="anomalia-id">#{{ a.id }}{% if a.seriale %} &middot; {{ a.seriale }}{% endif %}</div>
+        <div class="anomalia-desc">{{ a.descrizione|default:"(nessuna descrizione)" }}</div>
+        {% if a.avanzamento %}
+        <span class="anomalia-stato">{{ a.avanzamento }}</span>
+        {% endif %}
+        {% if a.note_capocommessa %}
+        <div class="anomalia-note">Note: {{ a.note_capocommessa }}</div>
+        {% endif %}
+        {% if forloop.first and first_images %}
+        <div class="anomalia-images">
+          {% for img in first_images %}
+          <img src="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&file_id={{ img.file_id }}"
+               alt="{{ img.filename }}"
+               title="{{ img.filename }}"
+               loading="lazy">
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p style="color:#94a3b8;font-size:14px;">Nessuna anomalia trovata. Potrebbero essere state eliminate o modificate.</p>
+    {% endfor %}
+  </div>
+
+  <!-- Form azione -->
+  <div class="action-card">
+    <div class="action-label">Azione richiesta</div>
+    <div class="action-title">{{ action_label }}</div>
+
+    {% if not is_dispositive %}
+    <div class="readonly-notice">
+      Questa è una visualizzazione. Nessuna modifica verrà apportata alle anomalie.
+    </div>
+    {% endif %}
+
+    {% if not can_edit and is_dispositive %}
+    <div class="readonly-notice" style="background:#fef9f0;border-color:#fcd34d;">
+      Non hai i permessi per modificare le anomalie di questo OP. Puoi visualizzarle ma non confermare l'azione.
+    </div>
+    {% endif %}
+
+    <form method="post" action="">
+      {% csrf_token %}
+
+      <label for="note">Note / risposta{% if not is_dispositive %} (facoltativo){% endif %}</label>
+      <textarea id="note" name="note" placeholder="Inserisci un commento o una nota opzionale..."></textarea>
+
+      {% if is_dispositive and can_edit and action != "visualizza" %}
+      <div class="select-wrap">
+        <label for="avanzamento">Imposta avanzamento (opzionale — lascia vuoto per default)</label>
+        <select id="avanzamento" name="avanzamento">
+          <option value="">— Default per questa azione —</option>
+          <option value="Accetto lo stato">Accetto lo stato</option>
+          <option value="In attesa">In attesa</option>
+          <option value="Finito trattato">Finito trattato</option>
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="btn-row">
+        {% if can_edit or not is_dispositive %}
+        <button type="submit" class="btn btn-primary">
+          {% if action == "visualizza" %}Segna come visualizzato{% else %}Conferma: {{ action_label }}{% endif %}
+        </button>
+        {% endif %}
+        <a href="{% url 'gestione_anomalie_page' %}" class="btn btn-secondary">Apri modulo anomalie</a>
+      </div>
+    </form>
+
+    <p class="expires-notice">
+      Link valido fino a: <strong>{{ token.expires_at|date:"d/m/Y H:i" }}</strong>
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

@@ -211,7 +211,7 @@
       </div>
       <div class="pb-head-right">
         <div class="pb-head-id">ID legacy #{{ legacy_id }}</div>
-        <div class="pb-head-date">Stampato il {% now "d/m/Y H:i" %}</div>
+        <div class="pb-head-date">Stampato il {% now "d-m-Y H:i" %}</div>
       </div>
     </header>
 
@@ -223,7 +223,7 @@
         <div class="pb-field">
           <span class="pb-field-lbl">Data di nascita</span>
           <span class="pb-field-val{% if not civile.data_nascita %} empty{% endif %}">
-            {% if civile.data_nascita %}{{ civile.data_nascita|date:"d/m/Y" }}{% else %}—{% endif %}
+            {% if civile.data_nascita %}{{ civile.data_nascita|date:"d-m-Y" }}{% else %}—{% endif %}
           </span>
         </div>
         <div class="pb-field">
@@ -339,28 +339,28 @@
         <div class="pb-field">
           <span class="pb-field-lbl">Prima assunzione</span>
           <span class="pb-field-val{% if not aziendale.data_prima_assunzione %} empty{% endif %}">
-            {% if aziendale.data_prima_assunzione %}{{ aziendale.data_prima_assunzione|date:"d/m/Y" }}{% else %}—{% endif %}
+            {% if aziendale.data_prima_assunzione %}{{ aziendale.data_prima_assunzione|date:"d-m-Y" }}{% else %}—{% endif %}
           </span>
         </div>
         <div class="pb-field">
           <span class="pb-field-lbl">Assunzione corrente</span>
           <span class="pb-field-val{% if not aziendale.data_assunzione_ultima %} empty{% endif %}">
-            {% if aziendale.data_assunzione_ultima %}{{ aziendale.data_assunzione_ultima|date:"d/m/Y" }}{% else %}—{% endif %}
+            {% if aziendale.data_assunzione_ultima %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}
           </span>
         </div>
         {% if aziendale.prova_data_inizio or aziendale.prova_data_fine %}
         <div class="pb-field">
           <span class="pb-field-lbl">Periodo di prova</span>
           <span class="pb-field-val">
-            {% if aziendale.prova_data_inizio %}dal {{ aziendale.prova_data_inizio|date:"d/m/Y" }}{% endif %}
-            {% if aziendale.prova_data_fine %} al {{ aziendale.prova_data_fine|date:"d/m/Y" }}{% endif %}
+            {% if aziendale.prova_data_inizio %}dal {{ aziendale.prova_data_inizio|date:"d-m-Y" }}{% endif %}
+            {% if aziendale.prova_data_fine %} al {{ aziendale.prova_data_fine|date:"d-m-Y" }}{% endif %}
           </span>
         </div>
         {% endif %}
         {% if aziendale.data_cessazione %}
         <div class="pb-field">
           <span class="pb-field-lbl">Cessazione rapporto</span>
-          <span class="pb-field-val strong" style="color:#b91c1c;">{{ aziendale.data_cessazione|date:"d/m/Y" }}</span>
+          <span class="pb-field-val strong" style="color:#b91c1c;">{{ aziendale.data_cessazione|date:"d-m-Y" }}</span>
         </div>
         {% endif %}
         <div class="pb-field">
@@ -393,7 +393,7 @@
           <span class="pb-field-lbl">Consenso privacy</span>
           <span class="pb-field-val">
             {% if aziendale.consenso_privacy %}
-              <span class="pb-bool-yes">✓ Concesso</span>{% if aziendale.data_consenso_privacy %} <span style="color:var(--muted);">— {{ aziendale.data_consenso_privacy|date:"d/m/Y" }}</span>{% endif %}
+              <span class="pb-bool-yes">✓ Concesso</span>{% if aziendale.data_consenso_privacy %} <span style="color:var(--muted);">— {{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}
             {% else %}
               <span class="pb-bool-no">— Non registrato</span>
             {% endif %}
@@ -457,7 +457,7 @@
 
     <footer class="pb-footer">
       <span>NOVICROM HUB — Anagrafica HR</span>
-      <span>ID legacy #{{ legacy_id }} · Stampa {% now "d/m/Y H:i" %} · Operatore: {{ request.user.username }}</span>
+      <span>ID legacy #{{ legacy_id }} · Stampa {% now "d-m-Y H:i" %} · Operatore: {{ request.user.username }}</span>
     </footer>
 
   </article>

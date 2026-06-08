@@ -464,7 +464,7 @@
                     <td>{{ p.name }}</td>
                     <td>{{ p.client_name|default:"-" }}</td>
                     <td>{{ p.project_manager.username|default:"-" }}</td>
-                    <td>{{ p.created_at|date:"d/m/Y" }}</td>
+                    <td>{{ p.created_at|date:"d-m-Y" }}</td>
                     <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
                   </tr>
                 {% empty %}
@@ -523,7 +523,7 @@
                     <td><span class="ts-badge ts-badge--{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
                     <td><span class="ts-badge ts-badge--{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
                     <td>{{ t.assigned_to.username|default:"-" }}</td>
-                    <td>{% if t.due_date %}{{ t.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{% if t.due_date %}{{ t.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                     <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
                   </tr>
                 {% empty %}
@@ -802,8 +802,8 @@
                     <td style="padding:8px;"><a href="{% url 'tasks:detail' r.task_id %}" style="color:#0f172a; font-weight:600;">{{ r.task_title }}</a></td>
                     <td style="padding:8px; color:#64748b;">{{ r.project_name|default:"-" }}</td>
                     <td style="padding:8px;">{{ r.assignee|default:"(id legacy " }}{% if not r.assignee %}{{ r.legacy_user_id }}){% endif %}</td>
-                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums;">{{ r.fire_at|date:"d/m/Y" }}</td>
-                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums; color:#64748b;">{% if r.due_date %}{{ r.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums;">{{ r.fire_at|date:"d-m-Y" }}</td>
+                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums; color:#64748b;">{% if r.due_date %}{{ r.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                     <td style="padding:8px; text-align:center;">
                       {% if r.fired %}
                         <span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">FIRED</span>
@@ -1067,7 +1067,7 @@
               </div>
               {% for entry in audit_entries %}
                 <div class="admin-log-row">
-                  <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+                  <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
                   <span>{{ entry.utente_display|default:"-" }}</span>
                   <span>{{ entry.azione }}</span>
                   <span style="color:#64748b;">{{ entry.dettaglio }}</span>

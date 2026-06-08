@@ -156,7 +156,7 @@ class Command(BaseCommand):
                     horizon = today + timedelta(days=rule.warning_days)
                     if next_due <= horizon:
                         due = True
-                        due_reason = f"scadenza {next_due:%d/%m/%Y}"
+                        due_reason = f"scadenza {next_due:%d-%m-%Y}"
                     else:
                         skipped_not_due += 1
                         continue

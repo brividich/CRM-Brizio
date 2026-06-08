@@ -561,7 +561,7 @@
       </div>
       {% for entry in audit_entries %}
       <div class="log-row">
-        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
         <span>{{ entry.utente_display|default:"&mdash;" }}</span>
         <span>{{ entry.azione }}</span>
         <span style="color:var(--text-mid);">{{ entry.dettaglio }}</span>

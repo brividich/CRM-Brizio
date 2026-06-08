@@ -115,8 +115,8 @@
                 <td>{{ run_log.source_code }}</td>
                 <td>{{ run_log.operation_type|upper }}</td>
                 <td>{{ run_log.status }}</td>
-                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
-                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.started_at|date:"d-m-Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d-m-Y H:i:s"|default:"-" }}</td>
                 <td>{{ run_log.execution_ms|default:"-" }}</td>
                 <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
               </tr>

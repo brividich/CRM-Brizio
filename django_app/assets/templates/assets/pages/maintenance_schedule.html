@@ -108,6 +108,49 @@ body.theme-dark .ms-suggestion { color:var(--text-light); }
 body.theme-dark .ms-inline-note { color:var(--text-light); }
 body.theme-dark .ms-existing-events { border-top-color:var(--border); }
 body.theme-dark .ms-empty { color:var(--text-light); }
+
+/* Link di navigazione nelle celle tabella */
+.ms-cell-link { color:#0f172a; text-decoration:none; font-weight:700; }
+.ms-cell-link:hover { color:#1d4ed8; }
+body.theme-dark .ms-cell-link { color:var(--text); }
+body.theme-dark .ms-cell-link:hover { color:#60a5fa; }
+
+/* Form "Registra esecuzione rapida" */
+.ms-record-form-grid { display:grid; gap:6px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.ms-record-field { display:grid; gap:4px; font-size:var(--fs-sm); font-weight:700; color:#334155; }
+.ms-record-field.full { grid-column:1/-1; }
+.ms-record-input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; width:100%; font:inherit; }
+.ms-record-input[type="file"] { border-style:dashed; background:#fff; }
+.ms-record-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.ms-record-form-wrap { display:none; gap:8px; margin-top:10px; padding:10px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc; }
+.ms-record-form-wrap.open { display:grid; }
+.ms-executions-header { font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+body.theme-dark .ms-record-field { color:var(--text); }
+body.theme-dark .ms-record-input { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .ms-record-form-wrap { background:var(--surface-alt); border-color:var(--border); }
+
+/* Note di integrazione Outlook senza margin inline */
+.ms-calendar-note { margin:0; max-width:360px; }
+
+/* Link nelle celle scadenze amministrative e look-ahead */
+.ms-blue-link { color:#1d4ed8; text-decoration:none; font-weight:600; }
+.ms-blue-link:hover { text-decoration:underline; }
+body.theme-dark .ms-blue-link { color:#60a5fa; }
+
+/* Colori badge giorni residui */
+.ms-days-red { color:#dc2626; font-weight:700; }
+.ms-days-amber { color:#d97706; font-weight:700; }
+.ms-days-ok { color:#0f172a; }
+body.theme-dark .ms-days-ok { color:var(--text); }
+
+/* Look-ahead sezione */
+.ms-lookahead-body { display:grid; gap:16px; }
+.ms-lookahead-summary { cursor:pointer; font-weight:700; color:#1e3a5f; padding:6px 0; list-style:none; display:flex; align-items:center; gap:8px; }
+.ms-lookahead-summary::-webkit-details-marker { display:none; }
+.ms-lookahead-week-label { font-size:var(--fs-base); }
+.ms-lookahead-badge { margin-left:auto; }
+.ms-lookahead-table-wrap { margin-top:8px; }
+body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
 </style>
 {% endblock %}
 
@@ -218,7 +261,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
               {% for row in periodic_schedule_rows %}
                 <tr>
                   <td>
-                    <strong><a href="{{ row.asset_detail_url }}" style="color:#0f172a;text-decoration:none;">{{ row.asset.asset_tag }}</a></strong><br>
+                    <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} &middot; {{ row.asset.reparto }}{% endif %}</span>
                   </td>
                   <td>
@@ -228,13 +271,13 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                   <td><span class="ms-meta">{{ row.frequency_months }} mesi</span></td>
                   <td>
                     {% if row.last_execution_date %}
-                      <strong>{{ row.last_execution_date|date:"d/m/Y" }}</strong>
+                      <strong>{{ row.last_execution_date|date:"d-m-Y" }}</strong>
                     {% else %}
                       <span class="ms-meta">Nessuna verifica registrata</span>
                     {% endif %}
                   </td>
                   <td>
-                    {% if row.due_date %}<strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>{% endif %}
+                    {% if row.due_date %}<strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>{% endif %}
                     <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
                   </td>
                   <td>
@@ -259,7 +302,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
         <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare.</p>
       </div>
       {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
-        <p class="ms-inline-note" style="margin:0;max-width:360px;">
+        <p class="ms-inline-note ms-calendar-note">
           Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
         </p>
       {% endif %}
@@ -282,7 +325,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
               {% for row in schedule_rows %}
                 <tr>
                   <td>
-                    <strong><a href="{{ row.asset_detail_url }}" style="color:#0f172a;text-decoration:none;">{{ row.asset.asset_tag }}</a></strong><br>
+                    <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span>
                   </td>
                   <td>
@@ -291,7 +334,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                   </td>
                   <td>
                     {% if row.last_execution_date %}
-                      <strong>{{ row.last_execution_date|date:"d/m/Y" }}</strong><br>
+                      <strong>{{ row.last_execution_date|date:"d-m-Y" }}</strong><br>
                       <span class="ms-meta">
                         {% if row.last_execution_workorder %}
                           Intervento #{{ row.last_execution_workorder.id }}
@@ -305,7 +348,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                   </td>
                   <td>
                     {% if row.due_date %}
-                      <strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>
+                      <strong>{{ row.due_date|date:"d-m-Y" }}</strong><br>
                     {% endif %}
                     <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
                     {% if row.schedule_status == "missing" %}
@@ -314,7 +357,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                   </td>
                   <td>
                     {% if row.primary_contract %}
-                      <strong><a href="{{ row.contracts_url }}" style="color:#0f172a;text-decoration:none;">{{ row.primary_contract.supplier }}</a></strong><br>
+                      <strong><a href="{{ row.contracts_url }}" class="ms-cell-link">{{ row.primary_contract.supplier }}</a></strong><br>
                       <span class="as-badge as-badge--{{ row.contract_state.badge_class }}">{{ row.contract_state.label }}</span>
                     {% else %}
                       <span class="as-badge as-badge--muted">Copertura non disponibile</span><br>
@@ -333,7 +376,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                       {% endif %}
                     </div>
                     {% if can_manage_assets %}
-                      <form method="post" class="ms-record-form" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data" style="display:none;gap:8px;margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;">
+                      <form method="post" class="ms-record-form" data-ms-record-form="{{ row.asset.id }}-{{ row.base_rule.id }}" enctype="multipart/form-data" class="ms-record-form-wrap">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="record_maintenance_rule_execution">
                         <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
@@ -344,36 +387,36 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                         <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
                         <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
                         <input type="hidden" name="filter_q" value="{{ q }}">
-                        <div style="display:grid;gap:6px;grid-template-columns:repeat(2, minmax(0, 1fr));">
-                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Data
-                            <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                        <div class="ms-record-form-grid">
+                          <label class="ms-record-field">Data
+                            <input type="date" name="execution_date" value="{{ today_iso }}" max="{{ today_iso }}" required class="ms-record-input">
                           </label>
-                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Durata (min)
-                            <input type="number" name="execution_duration_minutes" min="0" value="0" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          <label class="ms-record-field">Durata (min)
+                            <input type="number" name="execution_duration_minutes" min="0" value="0" class="ms-record-input">
                           </label>
-                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;">Costo (EUR)
-                            <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;">
+                          <label class="ms-record-field">Costo (EUR)
+                            <input type="text" name="execution_cost_eur" inputmode="decimal" placeholder="es. 120.50" class="ms-record-input">
                           </label>
-                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Note / risoluzione
-                            <textarea name="execution_notes" rows="2" placeholder="Cosa e stato fatto, ricambi, anomalie..." style="border:1px solid #cbd5e1;border-radius:8px;padding:6px 8px;"></textarea>
+                          <label class="ms-record-field full">Note / risoluzione
+                            <textarea name="execution_notes" rows="2" placeholder="Cosa è stato fatto, ricambi, anomalie..." class="ms-record-input"></textarea>
                           </label>
-                          <label style="display:grid;gap:4px;font-size:var(--fs-sm);font-weight:700;color:#334155;grid-column:1/-1;">Allegati (verbali, report, foto)
-                            <input type="file" name="execution_files" multiple style="border:1px dashed #cbd5e1;border-radius:8px;padding:6px 8px;background:#fff;">
+                          <label class="ms-record-field full">Allegati (verbali, report, foto)
+                            <input type="file" name="execution_files" multiple class="ms-record-input">
                             <span class="ms-suggestion">Caricamento opzionale. I file vengono allegati all'intervento creato e visibili dall'asset.</span>
                           </label>
                         </div>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <div class="ms-record-actions">
                           <button class="btn btn-primary" type="submit">Registra</button>
                           <button class="btn" type="button" data-ms-record-cancel="{{ row.asset.id }}-{{ row.base_rule.id }}">Annulla</button>
                         </div>
                       </form>
                     {% endif %}
                     {% if row.execution_rows %}
-                      <div class="ms-existing-events" style="margin-top:8px;">
-                        <div class="ms-meta" style="font-weight:800;text-transform:uppercase;letter-spacing:.05em;">Esecuzioni recenti ({{ row.execution_count }})</div>
+                      <div class="ms-existing-events">
+                        <div class="ms-meta ms-executions-header">Esecuzioni recenti ({{ row.execution_count }})</div>
                         {% for execution in row.execution_rows %}
                           <div class="ms-meta">
-                            <strong>{{ execution.executed_at|date:"d/m/Y" }}</strong>
+                            <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
                             {% if execution.cost_eur is not None %} · {{ execution.cost_eur }} EUR{% endif %}
                             {% if execution.duration_minutes %} · {{ execution.duration_minutes }} min{% endif %}
                             {% if execution.url %} · <a href="{{ execution.url }}" class="as-link-subtle">OdL #{{ execution.workorder.id }}</a>{% endif %}
@@ -429,7 +472,7 @@ body.theme-dark .ms-empty { color:var(--text-light); }
                           {% else %}
                             <span class="ms-inline-note">Evento registrato · {{ event_row.target_display_name|default:event_row.target_email }}</span>
                           {% endif %}
-                          <div class="ms-suggestion">Scadenza {{ event_row.due_date|date:"d/m/Y" }} · creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                          <div class="ms-suggestion">Scadenza {{ event_row.due_date|date:"d-m-Y" }} · creato il {{ event_row.created_at|date:"d-m-Y H:i" }}</div>
                         {% endfor %}
                       </div>
                     {% endif %}
@@ -444,6 +487,109 @@ body.theme-dark .ms-empty { color:var(--text-light); }
       {% endif %}
     </div>
   </article>
+
+  {% if admin_deadline_rows %}
+  <article class="ms-card">
+    <div class="ms-card-head">
+      <div>
+        <h2>Scadenze amministrative</h2>
+        <p>Certificati, revisioni normative e scadenze una tantum — {{ admin_deadline_total }} totali con i filtri correnti.</p>
+      </div>
+    </div>
+    <div class="ms-card-body">
+      <div class="ms-table-wrap">
+        <table class="ms-table">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Tipo</th>
+              <th>Scadenza</th>
+              <th>Giorni</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in admin_deadline_rows %}
+            <tr>
+              <td>
+                <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.deadline.asset.asset_tag }}</a>
+                <div class="ms-meta">{{ row.deadline.asset.name }}</div>
+                <div class="ms-meta">{{ row.deadline.title }}</div>
+              </td>
+              <td><span class="as-badge as-badge--neutral">{{ row.deadline.get_deadline_type_display }}</span></td>
+              <td>{{ row.deadline.due_date|date:"d/m/Y" }}</td>
+              <td>
+                {% if row.days_left is not None %}
+                  {% if row.days_left < 0 %}<span class="ms-days-red">{{ row.days_left }} gg</span>
+                  {% elif row.days_left <= row.deadline.warning_days %}<span class="ms-days-amber">{{ row.days_left }} gg</span>
+                  {% else %}<span class="ms-days-ok">{{ row.days_left }} gg</span>{% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if row.schedule_status == "overdue" %}<span class="as-badge as-badge--danger">Scaduta</span>
+                {% elif row.schedule_status == "warning" %}<span class="as-badge as-badge--warning">In scadenza</span>
+                {% else %}<span class="as-badge as-badge--neutral">Programmata</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+  {% endif %}
+
+  {% if lookahead_rows %}
+  <article class="ms-card">
+    <div class="ms-card-head">
+      <div>
+        <h2>Pianificazione prossimi 90 giorni</h2>
+        <p>Manutenzioni periodiche previste nelle prossime 13 settimane, raggruppate per settimana.</p>
+      </div>
+    </div>
+    <div class="ms-card-body ms-lookahead-body">
+      {% for week in lookahead_rows %}
+      <details>
+        <summary class="ms-lookahead-summary">
+          <span class="ms-lookahead-week-label">{{ week.week_label }}</span>
+          <span class="as-badge as-badge--neutral ms-lookahead-badge">{{ week.rows|length }} intervent{% if week.rows|length == 1 %}o{% else %}i{% endif %}</span>
+        </summary>
+        <div class="ms-table-wrap ms-lookahead-table-wrap">
+          <table class="ms-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Intervento</th>
+                <th>Scadenza</th>
+                <th>Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in week.rows %}
+              <tr>
+                <td>
+                  <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.asset.asset_tag }}</a>
+                  <div class="ms-meta">{{ row.asset.name }}</div>
+                </td>
+                <td>{{ row.effective_intervention_template.label }}</td>
+                <td>{{ row.due_date|date:"d/m/Y" }}</td>
+                <td>
+                  {% if row.schedule_status == "overdue" %}<span class="as-badge as-badge--danger">Scaduta</span>
+                  {% elif row.schedule_status == "warning" %}<span class="as-badge as-badge--warning">In scadenza</span>
+                  {% elif row.schedule_status == "upcoming" %}<span class="as-badge as-badge--ok">Programmata</span>
+                  {% else %}<span class="as-badge as-badge--neutral">-</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  </article>
+  {% endif %}
+
 </section>
 <script>
 (() => {
@@ -453,10 +599,10 @@ body.theme-dark .ms-empty { color:var(--text-light); }
     const cancel = document.querySelector(`[data-ms-record-cancel="${key}"]`);
     if (!form) return;
     toggle.addEventListener("click", () => {
-      form.style.display = form.style.display === "grid" ? "none" : "grid";
+      form.classList.toggle("open");
     });
     cancel?.addEventListener("click", () => {
-      form.style.display = "none";
+      form.classList.remove("open");
     });
   });
 })();

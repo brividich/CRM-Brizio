@@ -605,7 +605,7 @@ body.theme-dark .mf-attendees-preview { background: rgba(37,99,235,.1); border-c
                         <span class="mf-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
                         {% if issue.source_meeting %}<span class="mf-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
                         {% if issue.assigned_to %}<span class="mf-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
-                        {% if issue.due_date %}<span class="mf-issue-chip">Scad. {{ issue.due_date|date:"d/m/Y" }}</span>{% endif %}
+                        {% if issue.due_date %}<span class="mf-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
                         {% if issue.linked_task %}<span class="mf-issue-chip">Task: {{ issue.linked_task.title }}</span>{% endif %}
                       </div>
                       {% if issue.description %}<p class="mf-issue-desc">{{ issue.description }}</p>{% endif %}

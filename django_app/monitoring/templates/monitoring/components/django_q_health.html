@@ -32,7 +32,7 @@ Contesto richiesto: django_q_stats (dict con chiavi: available, success_24h, fai
         {% for row in django_q_stats.recent_failures %}
           <div class="monitoring-inline-item" style="border-left:3px solid var(--color-danger,#ef4444);padding-left:.75rem;">
             <strong>{{ row.name|default:"task" }}</strong>
-            <div class="monitoring-meta">{{ row.started|date:"d/m/Y H:i" }} — {{ row.func }}</div>
+            <div class="monitoring-meta">{{ row.started|date:"d-m-Y H:i" }} — {{ row.func }}</div>
             <div style="margin-top:4px;font-size:.8rem;color:var(--color-text-muted);">
               {{ row.result|truncatechars:200 }}
             </div>

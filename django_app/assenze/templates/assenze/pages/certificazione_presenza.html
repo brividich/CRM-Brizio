@@ -108,7 +108,7 @@
           <h2 class="abs-panel-title">{% if edit_obj %}Modifica certificazione{% else %}Nuova certificazione{% endif %}</h2>
           <p class="abs-panel-subtitle">
             {% if edit_obj %}
-              Aggiorna il record di {{ edit_obj.nome_dipendente }} del {{ edit_obj.data|date:"d/m/Y" }}.
+              Aggiorna il record di {{ edit_obj.nome_dipendente }} del {{ edit_obj.data|date:"d-m-Y" }}.
             {% else %}
               Compila mattina e, se necessario, attiva anche il turno pomeriggio.
             {% endif %}
@@ -275,7 +275,7 @@
                 {% for r in records %}
                   <tr>
                     <td data-label="Dipendente"><strong>{{ r.nome_dipendente }}</strong></td>
-                    <td data-label="Data">{{ r.data|date:"d/m/Y" }}</td>
+                    <td data-label="Data">{{ r.data|date:"d-m-Y" }}</td>
                     <td data-label="Entrata mattina">{{ r.entrata_mattina|time:"H:i" }}</td>
                     <td data-label="Uscita mattina">{{ r.uscita_mattina|time:"H:i" }}</td>
                     <td data-label="Ore mattina"><span class="abs-chip soft">{{ r.ore_mattina }}h</span></td>
