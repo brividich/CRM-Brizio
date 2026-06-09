@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Automazioni — debounce per gruppo (cooldown_group) per le notifiche anomalie
+
+- **[feat] `automazioni/models.py`, migration `0018_automationcooldowngroup.py`**: nuovo operatore condizione `cooldown_group` (lettura pura) + modello `AutomationCooldownGroup` (chiave `(group_key, group_value)` indipendente dalla regola, namespace condivisibile fra regole).
+- **[feat] `automazioni/services.py`**: `evaluate_condition` gestisce `cooldown_group` come gate read-only (fail-open); `_commit_cooldown_groups` scrive `last_fired_at` in `run_rule` solo dopo l'esecuzione riuscita delle azioni (non nei test) → il debounce non si "brucia" su fallimento e vale per qualsiasi azione (incluso send_email).
+- **[feat] `packages/au51_anomalia_creata_mail_action_capocommessa.automation_package.json`**: aggiunte condizioni `ex_op_nominativo is_not_empty` + `cooldown_group mail_anomalie_op:5` (max 1 mail/5 min per OP).
+
 ### Tickets — match identità ACL gestione/apertura più robusto
 
 - **[fix] `tickets/views.py`** — nuovo helper `_user_acl_identities(request)` + `_acl_list_matches()`: il controllo di `acl_apertura`/`acl_gestione` ora riconosce tutte le forme con cui un utente può essere salvato nelle liste (username Django, email aziendale/UPN, prefisso UPN, `aliasusername` legacy, email aziendale legacy). Risolve i 403 sul dettaglio ticket quando in lista è salvato l'`aliasusername` (es. `a.astarita`) ma l'account Django ha come username/email l'UPN (`a.astarita@dominio`). **`email_notifica` (mail privata) esclusa di proposito**: l'identità valida è solo mail aziendale o username. Aggiornate `_can_open_tickets` e `_can_manage_tickets` per usare gli helper.

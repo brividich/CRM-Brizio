@@ -1355,6 +1355,37 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
                 return span_days > threshold
             return span_days >= threshold
 
+        if operator == AutomationConditionOperator.COOLDOWN_GROUP:
+            # LETTURA PURA: nessuna scrittura, sicura in dry-run/test.
+            # field_name = campo che fornisce il VALORE del gruppo (es. ex_op_nominativo).
+            # expected_value = "namespace:minuti" (es. "mail_anomalie_op:5"); il namespace è una
+            # chiave logica condivisibile tra più regole. Se manca il namespace si usa field_name.
+            # Ritorna True (eseguibile) se NON c'è un invio entro la finestra di cooldown.
+            spec = _parse_cooldown_spec(condition)
+            if spec is None:
+                return True  # fail-open: expected_value malformato
+            namespace, cooldown_minutes = spec
+            group_value = str(safe_get_payload_value(payload, condition.field_name) or "").strip()
+            if not group_value:
+                return True  # campo gruppo assente: niente debounce
+            try:
+                from automazioni.models import AutomationCooldownGroup
+
+                moment = timezone.now() - timedelta(minutes=cooldown_minutes)
+                in_cooldown = AutomationCooldownGroup.objects.filter(
+                    group_key=namespace,
+                    group_value=group_value,
+                    last_fired_at__gt=moment,
+                ).exists()
+            except Exception:
+                logger.warning(
+                    "[automazioni] cooldown_group: lettura fallita per namespace=%s â€” fail-open",
+                    namespace,
+                    exc_info=True,
+                )
+                return True  # fail-open
+            return not in_cooldown
+
         return False
     except Exception:
         logger.warning(
@@ -1364,6 +1395,65 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
             exc_info=True,
         )
         return False
+
+
+def _parse_cooldown_spec(condition: Any) -> tuple[str, int] | None:
+    """Estrae (namespace, minuti) dall'expected_value di una condizione cooldown_group.
+
+    Formato atteso "namespace:minuti" (es. "mail_anomalie_op:5"); se manca il namespace si usa
+    il field_name della condizione. Ritorna None se i minuti non sono interpretabili (fail-open).
+    """
+    try:
+        raw = str(condition.expected_value or "").strip()
+        namespace, sep, raw_minutes = raw.rpartition(":")
+        namespace = namespace.strip() or str(getattr(condition, "field_name", "") or "").strip()
+        cooldown_minutes = max(1, int(str(raw_minutes if sep else raw).strip()))
+    except (TypeError, ValueError):
+        logger.warning(
+            "[automazioni] cooldown_group: expected_value malformato: %r â€” fail-open",
+            getattr(condition, "expected_value", None),
+        )
+        return None
+    if not namespace:
+        return None
+    return namespace, cooldown_minutes
+
+
+def _commit_cooldown_groups(rule: AutomationRule, payload: Any) -> None:
+    """Aggiorna last_fired_at per le condizioni cooldown_group della regola, dopo un'esecuzione
+    riuscita. È la "scrittura" del debounce: tenuta fuori da evaluate_condition (predicato puro)
+    e fatta solo a valle del successo, così un invio fallito non consuma la finestra di cooldown.
+    """
+    try:
+        cooldown_conditions = [
+            c
+            for c in rule.conditions.filter(is_enabled=True)
+            if c.operator == AutomationConditionOperator.COOLDOWN_GROUP
+        ]
+        if not cooldown_conditions:
+            return
+        from automazioni.models import AutomationCooldownGroup
+
+        now = timezone.now()
+        for condition in cooldown_conditions:
+            spec = _parse_cooldown_spec(condition)
+            if spec is None:
+                continue
+            namespace, _minutes = spec
+            group_value = str(safe_get_payload_value(payload, condition.field_name) or "").strip()
+            if not group_value:
+                continue
+            AutomationCooldownGroup.objects.update_or_create(
+                group_key=namespace,
+                group_value=group_value,
+                defaults={"last_fired_at": now},
+            )
+    except Exception:
+        logger.warning(
+            "[automazioni] cooldown_group: commit last_fired_at fallito per rule=%s",
+            getattr(rule, "code", "?"),
+            exc_info=True,
+        )
 
 
 def _create_action_log(
@@ -4352,6 +4442,10 @@ def run_rule(
             else:
                 run_log.status = AutomationRunLogStatus.TEST if is_test else AutomationRunLogStatus.SUCCESS
                 run_log.result_message = f"Regola eseguita con successo. Azioni elaborate: {action_count}."
+                # Debounce: registra l'invio per le condizioni cooldown_group SOLO ora che le
+                # azioni sono andate a buon fine (e non nei test, per non consumare la finestra).
+                if not is_test:
+                    _commit_cooldown_groups(rule, payload)
     except Exception:
         logger.exception(
             "run_rule: errore inatteso durante l'esecuzione della regola=%s queue_event_id=%s",

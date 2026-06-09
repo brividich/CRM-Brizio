@@ -27,7 +27,22 @@
       "is_active": false,
       "is_draft": true,
       "stop_on_first_failure": false,
-      "conditions": [],
+      "conditions": [
+        {
+          "field": "ex_op_nominativo",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "string",
+          "description": "OP valorizzata"
+        },
+        {
+          "field": "ex_op_nominativo",
+          "operator": "cooldown_group",
+          "value": "mail_anomalie_op:5",
+          "value_type": "string",
+          "description": "Debounce: al massimo 1 mail ogni 5 minuti per OP (namespace mail_anomalie_op). Il motore registra l'invio solo a esecuzione riuscita; il namespace e' condivisibile con altre regole anomalie (es. au42 su update) per un cooldown unico per OP."
+        }
+      ],
       "actions": [
         {
           "action_type": "send_email",

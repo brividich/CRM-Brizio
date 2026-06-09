@@ -51,6 +51,13 @@ class AutomationConditionOperator(models.TextChoices):
     DAYS_FROM_NOW_GTE = "days_from_now_gte", "Days from now ≥"
     DAYS_SPAN_GT = "days_span_gt", "Days span >"
     DAYS_SPAN_GTE = "days_span_gte", "Days span ≥"
+    # Debounce per gruppo. La condizione è una LETTURA PURA (nessun side-effect): ritorna True
+    # (regola eseguibile) solo se NON esiste un invio recente per la coppia namespace+valore.
+    # Il valore del gruppo viene da field_name; expected_value nel formato "namespace:minuti"
+    # (es. "mail_anomalie_op:5"). Il namespace è indipendente dalla regola (condivisibile fra
+    # regole insert/update). La scrittura di last_fired_at (AutomationCooldownGroup) la fa il
+    # motore SOLO dopo l'esecuzione riuscita delle azioni della regola (vedi run_rule).
+    COOLDOWN_GROUP = "cooldown_group", "Cooldown per gruppo (debounce)"
 
 
 class AutomationConditionValueType(models.TextChoices):
@@ -307,6 +314,33 @@ class AutomationActionLog(models.Model):
 
     def __str__(self) -> str:
         return f"ActionLog<{self.run_log_id}:{self.status}:{self.id or 'new'}>"
+
+
+class AutomationCooldownGroup(models.Model):
+    """Ultimo invio per chiave-logica+valore, usato dall'operatore `cooldown_group` (debounce).
+
+    La chiave è ``(group_key, group_value)``, INDIPENDENTE dalla regola: più regole (es. una su
+    insert e una su update) possono condividere lo stesso namespace e quindi lo stesso cooldown
+    per la stessa entità (es. la stessa OP).
+
+    La condizione `cooldown_group` legge soltanto questa tabella (predicato puro, sicuro in
+    dry-run/test). La scrittura di ``last_fired_at`` la fa il motore (`run_rule`) SOLO dopo
+    l'esecuzione riuscita delle azioni — così il cooldown non viene "bruciato" se l'invio fallisce.
+    """
+
+    group_key = models.CharField(max_length=120, db_index=True)   # namespace logico, es. "mail_anomalie_op"
+    group_value = models.CharField(max_length=255, db_index=True)  # valore gruppo, es. "OP-2026-0312"
+    last_fired_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "automazioni_cooldowngroup"
+        unique_together = [("group_key", "group_value")]
+        indexes = [
+            models.Index(fields=["group_key", "last_fired_at"], name="autom_cdg_key_time_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Cooldown {self.group_key}={self.group_value}"
 
 
 class DashboardMetricValue(models.Model):
