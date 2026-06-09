@@ -30,11 +30,12 @@ pyasn1==0.6.3             # via ldap3
 pycparser==3.0            # via cffi
 pyjwt==2.12.1             # via msal, pyjwt
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
-pyopenssl==24.3.0         # via -r requirements.in
+pyopenssl==25.1.0         # via -r requirements.in
 pyotp==2.9.0              # via -r requirements.in
 pyspnego==0.12.1          # via -r requirements.in
 python-dateutil==2.9.0.post0  # via croniter
 python-magic-bin==0.4.14 ; platform_system == "Windows"  # via -r requirements.in
+python-magic==0.4.27 ; platform_system != "Windows"  # via -r requirements.in
 pytz==2026.1.post1        # via mssql-django
 qrcode==8.0               # via -r requirements.in
 reportlab==4.4.10         # via -r requirements.in

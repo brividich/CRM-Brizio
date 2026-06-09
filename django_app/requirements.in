@@ -17,7 +17,7 @@ django-axes>=7.0,<8             # rate-limiting login + lockout
 
 # --- HTTP / TLS ---
 requests>=2.31.0                # chiamate Graph/SharePoint
-pyOpenSSL>=24.3,<25             # TLS per ldap3 e pyspnego
+pyOpenSSL>=25.1.0,<26             # TLS per ldap3 e pyspnego
 
 # --- Microsoft Graph / Office ---
 openpyxl>=3.1.5                 # lettura/scrittura Excel (VRF MOD.073)
