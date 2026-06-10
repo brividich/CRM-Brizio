@@ -259,18 +259,27 @@ Il portale usa **django-q2** per eseguire i job periodici delle automazioni senz
 | --- | --- | --- |
 | `automation_queue` | `automazioni.tasks.run_automation_queue` | ogni 60 s |
 | `approval_mailbox` | `automazioni.tasks.run_approval_mailbox` | ogni 120 s |
+| `report_scadenze_settimanale` | `automazioni.tasks.run_report_scadenze_settimanale` | lun 06:00 (cron) |
+| `anomalie_pending_notifications` | `anomalie.tasks.run_anomalie_pending_notifications` | ogni 60 s |
+| `anomalie_escalation` | `anomalie.tasks.run_anomalie_escalation` | ogni ora (cron) |
 
-### Prima configurazione dopo il deploy
+> L'elenco autoritativo è in [`automazioni/schedules.py`](../django_app/automazioni/schedules.py) (`SCHEDULES`). Diversi job si **auto-silenziano** in base a SiteConfig (es. `report_scadenze_settimanale`, `anomalie_escalation`): lo Schedule resta registrato sempre, l'invio è governato dalle Impostazioni nell'app.
+
+### Registrazione schedule: automatica nel deploy
+
+A partire dalla pipeline corrente, **`deploy-release.ps1` esegue `setup_q_schedules` automaticamente** (step 11/12, dopo `migrate`). Non serve più registrarli a mano dopo ogni release: aggiungere/modificare un job in `SCHEDULES` e fare il deploy è sufficiente.
+
+Lo step viene **saltato** solo con `-SkipMigrate` (in quel caso registrarli a mano). Per registrarli manualmente (primo setup o `-SkipMigrate`):
 
 ```powershell
-# 1. Migra le tabelle django-q (ORM broker + schedule)
+# 1. Migra le tabelle django-q (ORM broker + schedule) — già incluso nel deploy
 ENV\venv\Scripts\python.exe manage.py migrate django_q --settings=config.settings.prod
 
-# 2. Registra gli schedule in modo idempotente
+# 2. Registra gli schedule in modo idempotente — già incluso nel deploy
 ENV\venv\Scripts\python.exe manage.py setup_q_schedules --settings=config.settings.prod
 ```
 
-Entrambi i comandi sono **idempotenti**: ri-eseguirli non crea duplicati.
+Entrambi i comandi sono **idempotenti**: ri-eseguirli non crea duplicati. `setup_q_schedules` fa `update_or_create` per nome — non rimuove schedule tolti dal codice (usare `--delete` per quello).
 
 ### Avviare qcluster manualmente (test)
 

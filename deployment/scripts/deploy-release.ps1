@@ -17,8 +17,11 @@
     7. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/ e sql/)
     8. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
     9. Esegue createcachetable (se primo deploy)
-   10. Registra/aggiorna il Task Scheduler per process_automation_queue (idempotente)
-   11. Stampa il tag release da usare con activate-release.ps1
+   10. Esegue setup_q_schedules (registra/aggiorna gli Schedule django-q2 dei
+       background job: automation queue, mailbox approvazioni, report scadenze,
+       notifiche/escalation anomalie) - idempotente
+   11. Registra/aggiorna il Task Scheduler per process_automation_queue (idempotente)
+   12. Stampa il tag release da usare con activate-release.ps1
 
     NOTA: il release rimane in releases\ ma NON diventa "current" finche
     non si esegue activate-release.ps1 (o si usa -AutoActivate).
@@ -571,7 +574,7 @@ else {
 # ---------------------------------------------------------------------------
 # 10. createcachetable (idempotente, sicuro da rieseguire)
 # ---------------------------------------------------------------------------
-Write-Log "[10/10] createcachetable (idempotente)..." "STEP"
+Write-Log "[10/12] createcachetable (idempotente)..." "STEP"
 try {
     Invoke-Venv -VenvPath $paths.Venv `
                 -WorkDir  $djangoApp `
@@ -584,9 +587,36 @@ catch {
 }
 
 # ---------------------------------------------------------------------------
-# [10/11] Registra/aggiorna Task Scheduler automation queue (idempotente)
+# 11. setup_q_schedules (idempotente): registra/aggiorna gli Schedule django-q2
+#     dei background job (automation queue, approval mailbox, report scadenze,
+#     notifiche anomalie, escalation OP da controllare). Va dopo migrate perche
+#     usa le tabelle django-q. Idempotente: update_or_create per nome. Il
+#     qcluster attivo raccoglie gli Schedule aggiornati al ciclo successivo.
 # ---------------------------------------------------------------------------
-Write-Log "[10/11] Registrazione task poller automation queue..." "STEP"
+if (-not $SkipMigrate) {
+    Write-Log "[11/12] setup_q_schedules (registrazione background job)..." "STEP"
+    try {
+        Invoke-Venv -VenvPath $paths.Venv `
+                    -WorkDir  $djangoApp `
+                    -PyArgs   @("manage.py", "setup_q_schedules", "--settings=$settingsMod") `
+                    -EnvVars  $djangoEnv
+        Write-Log "setup_q_schedules completato: schedule django-q allineati al codice della release." "SUCCESS"
+    }
+    catch {
+        Write-Log "setup_q_schedules fallito (non bloccante): $_" "WARN"
+        Write-Log "  Gli schedule django-q potrebbero non essere aggiornati. Registrali con:" "WARN"
+        Write-Log "  manage.py setup_q_schedules --settings=$settingsMod" "WARN"
+    }
+}
+else {
+    Write-Log "[11/12] setup_q_schedules - SALTATO (flag -SkipMigrate)" "WARN"
+    Write-Log "ATTENZIONE: i nuovi schedule django-q non sono registrati. Eseguire setup_q_schedules a mano." "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# [12/12] Registra/aggiorna Task Scheduler automation queue (idempotente)
+# ---------------------------------------------------------------------------
+Write-Log "[12/12] Registrazione task poller automation queue..." "STEP"
 $scheduleScript = "$PSScriptRoot\schedule-automation-queue.ps1"
 if (Test-Path $scheduleScript) {
     try {
@@ -603,9 +633,9 @@ else {
 }
 
 # ---------------------------------------------------------------------------
-# [11/11] Registra/aggiorna helper riavvio IIS per portale (idempotente)
+# Registra/aggiorna helper riavvio IIS per portale (idempotente)
 # ---------------------------------------------------------------------------
-Write-Log "[11/11] Registrazione helper riavvio IIS..." "STEP"
+Write-Log "Registrazione helper riavvio IIS..." "STEP"
 $sharedScriptsDir = Join-Path $DEPLOY_BASE "shared\scripts"
 $releaseScriptsDir = Join-Path $releaseDir "deployment\scripts"
 if (-not (Test-Path $sharedScriptsDir)) {
