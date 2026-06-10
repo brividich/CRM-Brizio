@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **DEPLOY - Fix divergenza migrazioni automazioni tra dev e prod** (`django_app/automazioni/migrations/0018_automationcooldowngroup.py`): la migrazione `0018` in dev ricreava la tabella `automazioni_cooldowngroup` già esistente in prod (creata dalla `0017` del deploy precedente). Risolto con `migrate --fake automazioni 0018_automationcooldowngroup` sul server prima dell'attivazione della release. La catena di migrazione è ora allineata tra dev e prod.
+
+- **DEPLOY - Fix release guard: doc versione 1.1.0 → 1.2.0** (`doc/START_HERE.md`, `doc/TESTING.md`, `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`): tre file di documentazione avevano ancora `**1.1.0**` bloccando il release guard. Aggiornati a `**1.2.0**`.
+
+- **TASKS - Aggiunto `kickoff_invite.py` in dev** (`django_app/tasks/kickoff_invite.py`): il file era presente solo in prod ma non nel repository dev. Copiato in dev per allineare le due basi di codice.
+
 ### Added
 
 - **DOCS - Runbook topologia deploy PROD & incidente 401 mail anomalie** (`docs/ai/RUNBOOK_PROD_DEPLOY_E_MAIL_ANOMALIE.md`): nuovo runbook che documenta (1) la topologia di deploy PROD/TEST (server `pclogsys` 10.0.0.17, share `X:`, junction `current`→`releases`, `.env` persistente in `prod\config`, IIS/HttpPlatformHandler→Waitress, split-DNS che bypassa l'Entra proxy per le chiamate interne, log e comando di recycle); (2) l'incidente 401 sull'endpoint interno `/api/anomalie/mail-action-trigger` bloccato dall'`ACLMiddleware` perché non in `MIDDLEWARE_EXEMPT_PREFIXES` (con le piste false escluse e la regola generale per gli endpoint a token/secret); (3) la divergenza tra le due implementazioni del mail anomalie (trigger-endpoint in PROD vs token-link su `main`) e la decisione di unificare su `main`/token-link con tag `prod-deployed-20260609` a preservare lo snapshot PROD.
