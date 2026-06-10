@@ -536,3 +536,75 @@ class AnomalieCsvExportAuditTests(TestCase):
         self.assertEqual(action_args[3]["filters"]["a"], "2026-03-31")
         self.assertEqual(action_args[3]["filters"]["avanzamento"], "In attesa")
         self.assertEqual(action_args[3]["filters"]["capocommessa"], "Simone Danesi")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieStatisticheRicercaTests(TestCase):
+    """Verifica KPI estesi e tabella di ricerca paginata."""
+
+    _COLS = {
+        "id", "ex_op_nominativo", "seriale", "descrizione", "avanzamento",
+        "numero_rdc", "aprire_rdc", "segnalare_cliente", "pezzo_recuperato",
+        "chiudere", "created_datetime", "modified_datetime", "note_capocommessa",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-stat-user", password="pass12345")
+        self.factory = RequestFactory()
+
+    def _request(self, path_name, data=None):
+        request = self.factory.get(reverse(path_name), data or {})
+        request.user = self.user
+        request.legacy_user = None
+        return request
+
+    @patch("anomalie.views.legacy_table_columns")
+    @patch("anomalie.views._has_table", return_value=True)
+    @patch("anomalie.views._fetch_all_dict")
+    def test_statistiche_espone_kpi_estesi(self, mock_fetch, _mock_has, mock_cols):
+        mock_cols.return_value = self._COLS
+        # Ogni COUNT(*) ritorna [{"n": ...}]; le GROUP BY ritornano liste.
+        mock_fetch.side_effect = lambda sql, params=None: (
+            [{"n": 3}] if "COUNT(*)" in sql and "GROUP BY" not in sql
+            else [{"avanzamento": "In attesa", "n": 2}] if "GROUP BY avanzamento" in sql
+            else [{"mese": "2026-03", "n": 3}] if "FORMAT(created_datetime" in sql
+            else [{"op": "OP/A", "n": 3, "chiuse": 1}] if "ex_op_nominativo" in sql and "GROUP BY" in sql and "TOP" in sql
+            else [{"h": 48.0}] if "AVG(" in sql
+            else [{"avanzamento": "In attesa"}] if "DISTINCT avanzamento" in sql
+            else [{"ex_op_nominativo": "OP/A"}] if "DISTINCT ex_op_nominativo" in sql
+            else []
+        )
+        resp = anomalie_views.api_anomalie_statistiche.__wrapped__(self._request("api_anomalie_statistiche"))
+        self.assertEqual(resp.status_code, 200)
+        d = json.loads(resp.content)
+        for key in ("totale", "aperte", "chiuse", "rdc_aperti", "segnalazioni",
+                    "recuperati", "in_attesa", "tempo_medio_giorni", "per_op"):
+            self.assertIn(key, d)
+        self.assertEqual(d["tempo_medio_giorni"], 2.0)  # 48h / 24
+        self.assertEqual(d["per_op"], [{"op": "OP/A", "n": 3, "chiuse": 1}])
+
+    @patch("anomalie.views.legacy_table_columns")
+    @patch("anomalie.views._has_table", return_value=True)
+    @patch("anomalie.views._fetch_all_dict")
+    def test_ricerca_paginata_contratto(self, mock_fetch, _mock_has, mock_cols):
+        mock_cols.return_value = self._COLS
+        riga = {
+            "id": 7, "ex_op_nominativo": "OP/A", "seriale": "SN-7",
+            "descrizione": "Difetto", "avanzamento": "In attesa", "numero_rdc": "",
+            "aprire_rdc": 1, "segnalare_cliente": 0, "chiudere": 0,
+            "created_datetime": "2026-03-10", "modified_datetime": "2026-03-11",
+        }
+        mock_fetch.side_effect = lambda sql, params=None: (
+            [{"n": 1}] if "COUNT(*)" in sql else [riga]
+        )
+        resp = anomalie_views.api_anomalie_ricerca.__wrapped__(
+            self._request("api_anomalie_ricerca", {"q": "SN", "rdc": "si"})
+        )
+        self.assertEqual(resp.status_code, 200)
+        d = json.loads(resp.content)
+        self.assertEqual(d["totale"], 1)
+        self.assertEqual(d["page"], 1)
+        self.assertEqual(d["pages"], 1)
+        self.assertEqual(len(d["righe"]), 1)
+        self.assertEqual(d["righe"][0]["seriale"], "SN-7")

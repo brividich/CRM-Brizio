@@ -37,6 +37,7 @@ urlpatterns = [
     # Statistiche e estrazioni
     path("gestione-anomalie/statistiche", views.anomalie_statistiche_page, name="anomalie_statistiche_page"),
     path("api/anomalie/statistiche", views.api_anomalie_statistiche, name="api_anomalie_statistiche"),
+    path("api/anomalie/ricerca", views.api_anomalie_ricerca, name="api_anomalie_ricerca"),
     path("api/anomalie/export-csv-filtrato", views.export_anomalie_csv_filtrato, name="anomalie_export_csv_filtrato"),
     # Report riepilogativo OP
     path("api/anomalie/report", views.report_segnalazione_html, name="anomalie_report_segnalazione"),

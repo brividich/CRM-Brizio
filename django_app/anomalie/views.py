@@ -2737,17 +2737,16 @@ def anomalie_statistiche_page(request):
     return render(request, "anomalie/pages/anomalie_statistiche.html", context)
 
 
-@login_required
-def api_anomalie_statistiche(request):
-    """Statistiche aggregate anomalie con filtri opzionali."""
-    if not _has_table("anomalie"):
-        return _json_error("Tabella anomalie non disponibile.", 503)
-
-    cols = set(legacy_table_columns("anomalie"))
+def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
+    """Costruisce i frammenti WHERE condivisi tra statistiche, ricerca ed export."""
     da = request.GET.get("da", "").strip()
     a_val = request.GET.get("a", "").strip()
     avanzamento = request.GET.get("avanzamento", "").strip()
     capocommessa = request.GET.get("capocommessa", "").strip()
+    stato = request.GET.get("stato", "").strip().lower()          # "", "aperte", "chiuse"
+    rdc = request.GET.get("rdc", "").strip().lower()              # "", "si", "no"
+    segnalazione = request.GET.get("segnalazione", "").strip().lower()
+    q = request.GET.get("q", "").strip()
 
     where_parts: list[str] = []
     params: list = []
@@ -2764,13 +2763,69 @@ def api_anomalie_statistiche(request):
     if capocommessa and "ex_op_nominativo" in cols:
         where_parts.append("ex_op_nominativo = %s")
         params.append(capocommessa)
+    if stato == "aperte":
+        where_parts.append("COALESCE(chiudere, 0) = 0")
+    elif stato == "chiuse":
+        where_parts.append("COALESCE(chiudere, 0) = 1")
+    if rdc == "si" and "aprire_rdc" in cols:
+        where_parts.append("COALESCE(aprire_rdc, 0) = 1")
+    elif rdc == "no" and "aprire_rdc" in cols:
+        where_parts.append("COALESCE(aprire_rdc, 0) = 0")
+    if segnalazione == "si" and "segnalare_cliente" in cols:
+        where_parts.append("COALESCE(segnalare_cliente, 0) = 1")
+    elif segnalazione == "no" and "segnalare_cliente" in cols:
+        where_parts.append("COALESCE(segnalare_cliente, 0) = 0")
+    if q:
+        text_cols = [c for c in ("seriale", "descrizione", "ex_op_nominativo", "note_capocommessa", "numero_rdc") if c in cols]
+        if text_cols:
+            like = "%" + q + "%"
+            ors = " OR ".join(f"{_quote_identifier(c)} LIKE %s" for c in text_cols)
+            where_parts.append("(" + ors + ")")
+            params.extend([like] * len(text_cols))
+    return where_parts, params
+
+
+@login_required
+def api_anomalie_statistiche(request):
+    """Statistiche aggregate anomalie con filtri opzionali."""
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile.", 503)
+
+    cols = set(legacy_table_columns("anomalie"))
+    where_parts, params = _statistiche_where(request, cols)
 
     def _where(extra: str = "") -> str:
         parts = list(where_parts) + ([extra] if extra else [])
         return ("WHERE " + " AND ".join(parts)) if parts else ""
 
-    totale = int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where()}", params) or [{"n": 0}])[0]["n"])
-    chiuse = int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where('chiudere = 1')}", params) or [{"n": 0}])[0]["n"])
+    def _count(extra: str = "") -> int:
+        return int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where(extra)}", params) or [{"n": 0}])[0]["n"])
+
+    totale = _count()
+    chiuse = _count("COALESCE(chiudere, 0) = 1")
+    rdc_aperti = _count("COALESCE(aprire_rdc, 0) = 1") if "aprire_rdc" in cols else 0
+    segnalazioni = _count("COALESCE(segnalare_cliente, 0) = 1") if "segnalare_cliente" in cols else 0
+    recuperati = _count("COALESCE(pezzo_recuperato, 0) = 1") if "pezzo_recuperato" in cols else 0
+    in_attesa = 0
+    if "avanzamento" in cols:
+        params_attesa = list(params) + ["In attesa"]
+        in_attesa = int(
+            (_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where('avanzamento = %s')}", params_attesa) or [{"n": 0}])[0]["n"]
+        )
+
+    # Tempo medio di gestione (giorni) per le anomalie chiuse: modified - created.
+    tempo_medio_giorni = None
+    if {"created_datetime", "modified_datetime", "chiudere"} <= cols:
+        try:
+            row = _fetch_all_dict(
+                f"SELECT AVG(CAST(DATEDIFF(hour, created_datetime, modified_datetime) AS float)) AS h "
+                f"FROM anomalie {_where('COALESCE(chiudere,0) = 1 AND modified_datetime IS NOT NULL')}",
+                params,
+            )
+            if row and row[0].get("h") is not None:
+                tempo_medio_giorni = round(float(row[0]["h"]) / 24.0, 1)
+        except Exception:
+            tempo_medio_giorni = None
 
     per_avanzamento: list[dict] = []
     if "avanzamento" in cols:
@@ -2791,6 +2846,24 @@ def api_anomalie_statistiche(request):
             )
         except Exception:
             per_mese = []
+
+    # Top OP (nominativo) con più anomalie nel filtro corrente.
+    per_op: list[dict] = []
+    if "ex_op_nominativo" in cols:
+        try:
+            per_op = _fetch_all_dict(
+                f"SELECT TOP 15 COALESCE(ex_op_nominativo, '(non specificato)') AS op, "
+                f"COUNT(*) AS n, "
+                f"SUM(CASE WHEN COALESCE(chiudere,0)=1 THEN 1 ELSE 0 END) AS chiuse "
+                f"FROM anomalie {_where()} GROUP BY ex_op_nominativo ORDER BY n DESC",
+                params,
+            )
+        except Exception:
+            per_op = _fetch_all_dict(
+                f"SELECT COALESCE(ex_op_nominativo, '(non specificato)') AS op, COUNT(*) AS n, 0 AS chiuse "
+                f"FROM anomalie {_where()} GROUP BY ex_op_nominativo ORDER BY n DESC",
+                params,
+            )[:15]
 
     avanzamenti_list: list[str] = []
     if "avanzamento" in cols:
@@ -2816,10 +2889,72 @@ def api_anomalie_statistiche(request):
         "totale": totale,
         "aperte": totale - chiuse,
         "chiuse": chiuse,
+        "rdc_aperti": rdc_aperti,
+        "segnalazioni": segnalazioni,
+        "recuperati": recuperati,
+        "in_attesa": in_attesa,
+        "tempo_medio_giorni": tempo_medio_giorni,
         "per_avanzamento": [dict(r) for r in per_avanzamento],
         "per_mese": [dict(r) for r in per_mese],
+        "per_op": [dict(r) for r in per_op],
         "avanzamenti_disponibili": avanzamenti_list,
         "capocommessa_disponibili": capocommessa_list,
+    })
+
+
+@login_required
+def api_anomalie_ricerca(request):
+    """Tabella di ricerca dettaglio anomalie, paginata, con gli stessi filtri delle statistiche."""
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile.", 503)
+
+    cols = set(legacy_table_columns("anomalie"))
+    where_parts, params = _statistiche_where(request, cols)
+    where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+    try:
+        page = max(1, int(request.GET.get("page", "1")))
+    except ValueError:
+        page = 1
+    page_size = 25
+    offset = (page - 1) * page_size
+
+    totale = int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {where_clause}", params) or [{"n": 0}])[0]["n"])
+
+    wanted = [
+        c for c in (
+            "id", "ex_op_nominativo", "seriale", "descrizione",
+            "avanzamento", "numero_rdc", "aprire_rdc", "segnalare_cliente",
+            "chiudere", "created_datetime", "modified_datetime",
+        )
+        if c in cols
+    ]
+    quoted = _quoted_columns(wanted)
+    order_col = "id" if "id" in cols else wanted[0]
+    sql = (
+        f"SELECT {quoted} FROM anomalie {where_clause} "
+        f"ORDER BY {_quote_identifier(order_col)} DESC "
+        f"OFFSET %s ROWS FETCH NEXT %s ROWS ONLY"
+    )
+    try:
+        rows = _fetch_all_dict(sql, list(params) + [offset, page_size])
+    except Exception:
+        # Fallback per backend senza OFFSET/FETCH (es. SQLite in dev).
+        sql_lim = f"SELECT {quoted} FROM anomalie {where_clause} ORDER BY {_quote_identifier(order_col)} DESC LIMIT %s OFFSET %s"
+        rows = _fetch_all_dict(sql_lim, list(params) + [page_size, offset])
+
+    def _clean(r: dict) -> dict:
+        out = {}
+        for k, v in r.items():
+            out[k] = v.isoformat() if hasattr(v, "isoformat") else v
+        return out
+
+    return JsonResponse({
+        "totale": totale,
+        "page": page,
+        "page_size": page_size,
+        "pages": (totale + page_size - 1) // page_size if totale else 0,
+        "righe": [_clean(r) for r in rows],
     })
 
 
@@ -2839,26 +2974,7 @@ def export_anomalie_csv_filtrato(request):
         if c in cols_all
     ] or list(cols_all)[:10]
 
-    da = request.GET.get("da", "").strip()
-    a_val = request.GET.get("a", "").strip()
-    avanzamento = request.GET.get("avanzamento", "").strip()
-    capocommessa = request.GET.get("capocommessa", "").strip()
-
-    where_parts: list[str] = []
-    params: list = []
-    if da:
-        where_parts.append("created_datetime >= %s")
-        params.append(da)
-    if a_val:
-        where_parts.append("created_datetime < %s")
-        params.append(a_val + "T23:59:59")
-    if avanzamento:
-        where_parts.append("avanzamento = %s")
-        params.append(avanzamento)
-    if capocommessa:
-        where_parts.append("ex_op_nominativo = %s")
-        params.append(capocommessa)
-
+    where_parts, params = _statistiche_where(request, set(cols_all))
     where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
     quoted_wanted = _quoted_columns(wanted)
     sql = f"SELECT TOP 5000 {quoted_wanted} FROM anomalie {where_clause} ORDER BY id DESC"
@@ -2872,13 +2988,8 @@ def export_anomalie_csv_filtrato(request):
         "anomalie",
         {
             "rows": len(rows_data),
-            "filters": {
-                "da": da,
-                "a": a_val,
-                "avanzamento": avanzamento,
-                "capocommessa": capocommessa,
-                "limit": 5000,
-            },
+            "filters": {k: request.GET.get(k, "") for k in ("da", "a", "avanzamento", "capocommessa", "stato", "rdc", "segnalazione", "q")},
+            "limit": 5000,
         },
     )
 

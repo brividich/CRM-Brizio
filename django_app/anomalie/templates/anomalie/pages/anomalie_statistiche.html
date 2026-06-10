@@ -12,6 +12,16 @@
   .loading { color:var(--text-mid); font-size:var(--fs-base); padding:20px; text-align:center; }
   .empty-msg { color:var(--text-light); text-align:center; padding:24px; font-size:var(--fs-base); }
   .err-msg { color:var(--danger); font-size:var(--fs-base); padding:12px 16px; background:var(--danger-bg); border-radius:10px; border:1px solid #fca5a5; }
+  /* badge stato nella tabella ricerca */
+  .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:.72rem; font-weight:600; line-height:1.4; white-space:nowrap; }
+  .pill-open { background:#fef3c7; color:#92400e; }
+  .pill-closed { background:#dcfce7; color:#166534; }
+  .pill-rdc { background:#fee2e2; color:#991b1b; }
+  .pill-seg { background:#e0e7ff; color:#3730a3; }
+  .ricerca-tbl td { vertical-align:top; }
+  .ricerca-tbl .desc { max-width:340px; }
+  .pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+  .pager .info { color:var(--text-mid); font-size:var(--fs-sm); margin-right:auto; }
 </style>
 {% endblock %}
 
@@ -21,7 +31,7 @@
   <div class="page-header-main">
     <a href="{% url 'anomalie_menu' %}" class="btn-back">&#8592; Menu Anomalie</a>
     <div class="page-h" style="margin-top:8px;">Statistiche &amp; Estrazioni</div>
-    <div class="page-sub">Analisi dati anomalie con filtri per periodo, avanzamento e nominativo OP</div>
+    <div class="page-sub">KPI, analisi e ricerca dettaglio anomalie con filtri per periodo, stato, avanzamento, RDC/segnalazione e testo</div>
   </div>
   <div class="page-header-actions">
     <a href="{% url 'apertura_segnalazione' %}" class="btn btn-secondary btn-sm">Apertura Segnalazione</a>
@@ -36,35 +46,63 @@
   <div class="card" style="margin-bottom:16px;">
     <div class="card-body">
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
-        <div class="field" style="min-width:160px;">
+        <div class="field" style="min-width:150px;">
           <label for="f-da">Da (data creazione)</label>
           <input type="date" id="f-da" class="input">
         </div>
-        <div class="field" style="min-width:160px;">
+        <div class="field" style="min-width:150px;">
           <label for="f-a">A (data creazione)</label>
           <input type="date" id="f-a" class="input">
         </div>
-        <div class="field" style="min-width:160px;">
+        <div class="field" style="min-width:150px;">
           <label for="f-avanzamento">Avanzamento</label>
           <select id="f-avanzamento" class="input">
             <option value="">&mdash; Tutti &mdash;</option>
           </select>
         </div>
-        <div class="field" style="min-width:160px;">
+        <div class="field" style="min-width:150px;">
           <label for="f-capocommessa">Nominativo OP</label>
           <select id="f-capocommessa" class="input">
             <option value="">&mdash; Tutti &mdash;</option>
           </select>
         </div>
+        <div class="field" style="min-width:130px;">
+          <label for="f-stato">Stato</label>
+          <select id="f-stato" class="input">
+            <option value="">&mdash; Tutti &mdash;</option>
+            <option value="aperte">Aperte</option>
+            <option value="chiuse">Chiuse</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:120px;">
+          <label for="f-rdc">RDC</label>
+          <select id="f-rdc" class="input">
+            <option value="">&mdash; Tutti &mdash;</option>
+            <option value="si">Con RDC</option>
+            <option value="no">Senza RDC</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:140px;">
+          <label for="f-segnalazione">Segnalazione cliente</label>
+          <select id="f-segnalazione" class="input">
+            <option value="">&mdash; Tutti &mdash;</option>
+            <option value="si">Segnalate</option>
+            <option value="no">Non segnalate</option>
+          </select>
+        </div>
+        <div class="field" style="min-width:200px;flex:1;">
+          <label for="f-q">Ricerca (seriale, descrizione, OP, RDC)</label>
+          <input type="text" id="f-q" class="input" placeholder="Testo libero&hellip;">
+        </div>
         <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-          <button class="btn btn-sm" id="btn-cerca" type="button">Aggiorna statistiche</button>
+          <button class="btn btn-sm" id="btn-cerca" type="button">Aggiorna</button>
           <button class="btn btn-secondary btn-sm" id="btn-reset-filtri" type="button">Azzera filtri</button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="stats" id="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+  <div class="stats" id="kpi-row" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px;">
     <div class="stat">
       <div class="stat-icon-wrap blue">&#128202;</div>
       <div><div class="stat-num" id="kpi-totale">&mdash;</div><div class="stat-lbl">Totale anomalie</div></div>
@@ -79,6 +117,26 @@
         <div class="stat-num" id="kpi-chiuse">&mdash;</div>
         <div class="stat-lbl">Chiuse <span id="kpi-perc" style="font-weight:500;color:var(--text-light);"></span></div>
       </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">&#8987;</div>
+      <div><div class="stat-num" id="kpi-attesa">&mdash;</div><div class="stat-lbl">In attesa</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap red">&#128221;</div>
+      <div><div class="stat-num" id="kpi-rdc">&mdash;</div><div class="stat-lbl">Con RDC</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#128231;</div>
+      <div><div class="stat-num" id="kpi-segnalazioni">&mdash;</div><div class="stat-lbl">Segnalate cliente</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">&#9851;</div>
+      <div><div class="stat-num" id="kpi-recuperati">&mdash;</div><div class="stat-lbl">Pezzi recuperati</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#9201;</div>
+      <div><div class="stat-num" id="kpi-tempo">&mdash;</div><div class="stat-lbl">Gg medi gestione</div></div>
     </div>
   </div>
 
@@ -97,13 +155,25 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head"><div class="card-title">Top OP per numero di anomalie</div></div>
+    <div class="card-body" style="overflow-x:auto;">
+      <div id="tbl-op-wrap"><div class="loading">Caricamento...</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
     <div class="card-head">
-      <div class="card-title">Esportazione dati</div>
+      <div class="card-title">Ricerca dettaglio</div>
       <a id="btn-export-csv" href="/api/anomalie/export-csv-filtrato" class="btn btn-sm">&#8595; Esporta CSV</a>
     </div>
-    <div class="card-body" style="color:var(--text-mid);">
-      L&rsquo;export CSV include i filtri attivi (al massimo 5.000 righe). Contiene: ID, nominativo OP, seriale, descrizione, note capocommessa, numero RDC, avanzamento, stato chiuso, date.
+    <div class="card-body" style="overflow-x:auto;">
+      <div id="tbl-ricerca-wrap"><div class="loading">Caricamento...</div></div>
+      <div class="pager" id="ricerca-pager" style="display:none;">
+        <span class="info" id="ricerca-info"></span>
+        <button class="btn btn-secondary btn-sm" id="btn-prev" type="button">&#8592; Prec.</button>
+        <button class="btn btn-secondary btn-sm" id="btn-next" type="button">Succ. &#8594;</button>
+      </div>
     </div>
   </div>
 
@@ -114,28 +184,38 @@
 {% block extra_scripts %}
 <script>
 (function () {
-  const fDa          = document.getElementById('f-da');
-  const fA           = document.getElementById('f-a');
-  const fAvanz       = document.getElementById('f-avanzamento');
-  const fCapo        = document.getElementById('f-capocommessa');
-  const btnCerca     = document.getElementById('btn-cerca');
-  const btnReset     = document.getElementById('btn-reset-filtri');
-  const kpiTotale    = document.getElementById('kpi-totale');
-  const kpiAperte    = document.getElementById('kpi-aperte');
-  const kpiChiuse    = document.getElementById('kpi-chiuse');
-  const kpiPerc      = document.getElementById('kpi-perc');
-  const tblAvanz     = document.getElementById('tbl-avanzamento-wrap');
-  const tblMese      = document.getElementById('tbl-mese-wrap');
-  const btnExport    = document.getElementById('btn-export-csv');
+  const $ = id => document.getElementById(id);
+  const fDa   = $('f-da'),   fA    = $('f-a'),    fAvanz = $('f-avanzamento'),
+        fCapo = $('f-capocommessa'), fStato = $('f-stato'), fRdc = $('f-rdc'),
+        fSeg  = $('f-segnalazione'), fQ = $('f-q');
+  const btnCerca = $('btn-cerca'), btnReset = $('btn-reset-filtri');
+  const btnExport = $('btn-export-csv');
+  const tblAvanz = $('tbl-avanzamento-wrap'), tblMese = $('tbl-mese-wrap'),
+        tblOp = $('tbl-op-wrap'), tblRic = $('tbl-ricerca-wrap');
+  const pager = $('ricerca-pager'), pagerInfo = $('ricerca-info'),
+        btnPrev = $('btn-prev'), btnNext = $('btn-next');
 
   if (!btnCerca) return;
 
-  function buildParams() {
+  let ricercaPage = 1;
+  let ricercaPages = 0;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function buildParams(extra) {
     const p = new URLSearchParams();
-    if (fDa.value)    p.set('da', fDa.value);
-    if (fA.value)     p.set('a', fA.value);
+    if (fDa.value)   p.set('da', fDa.value);
+    if (fA.value)    p.set('a', fA.value);
     if (fAvanz.value) p.set('avanzamento', fAvanz.value);
-    if (fCapo.value)  p.set('capocommessa', fCapo.value);
+    if (fCapo.value) p.set('capocommessa', fCapo.value);
+    if (fStato.value) p.set('stato', fStato.value);
+    if (fRdc.value)  p.set('rdc', fRdc.value);
+    if (fSeg.value)  p.set('segnalazione', fSeg.value);
+    if (fQ.value.trim()) p.set('q', fQ.value.trim());
+    if (extra) for (const k in extra) p.set(k, extra[k]);
     return p;
   }
 
@@ -144,12 +224,14 @@
     btnExport.href = '/api/anomalie/export-csv-filtrato' + (p.toString() ? '?' + p.toString() : '');
   }
 
+  function num(v) { return (v === null || v === undefined) ? '—' : v; }
+
   function renderAvanzamento(rows, max) {
     if (!rows || !rows.length) return '<div class="empty-msg">Nessun dato disponibile.</div>';
     return '<table class="admin-table"><thead><tr><th>Avanzamento</th><th style="text-align:right">N.</th><th style="min-width:100px"></th></tr></thead><tbody>'
       + rows.map(r => {
           const pct = max ? Math.round((r.n / max) * 100) : 0;
-          return `<tr><td>${r.avanzamento || '(non specificato)'}</td><td style="text-align:right;font-weight:700">${r.n}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td></tr>`;
+          return `<tr><td>${esc(r.avanzamento || '(non specificato)')}</td><td style="text-align:right;font-weight:700">${r.n}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td></tr>`;
         }).join('')
       + '</tbody></table>';
   }
@@ -157,73 +239,133 @@
   function renderMese(rows) {
     if (!rows || !rows.length) return '<div class="empty-msg">Nessun dato disponibile.</div>';
     return '<table class="admin-table"><thead><tr><th>Mese</th><th style="text-align:right">N.</th></tr></thead><tbody>'
-      + rows.map(r => `<tr><td>${r.mese || '—'}</td><td style="text-align:right;font-weight:700">${r.n}</td></tr>`).join('')
+      + rows.map(r => `<tr><td>${esc(r.mese || '—')}</td><td style="text-align:right;font-weight:700">${r.n}</td></tr>`).join('')
       + '</tbody></table>';
   }
 
-  function fillSelects(data) {
-    const curAvanz = fAvanz.value;
-    while (fAvanz.options.length > 1) fAvanz.remove(1);
-    (data.avanzamenti_disponibili || []).forEach(v => {
+  function renderOp(rows, max) {
+    if (!rows || !rows.length) return '<div class="empty-msg">Nessun dato disponibile.</div>';
+    return '<table class="admin-table"><thead><tr><th>Nominativo OP</th><th style="text-align:right">Tot.</th><th style="text-align:right">Chiuse</th><th style="min-width:120px"></th></tr></thead><tbody>'
+      + rows.map(r => {
+          const pct = max ? Math.round((r.n / max) * 100) : 0;
+          return `<tr><td>${esc(r.op || '(non specificato)')}</td><td style="text-align:right;font-weight:700">${r.n}</td><td style="text-align:right;color:var(--text-mid)">${num(r.chiuse)}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td></tr>`;
+        }).join('')
+      + '</tbody></table>';
+  }
+
+  function fillSelect(sel, values) {
+    const cur = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    (values || []).forEach(v => {
       const o = document.createElement('option');
       o.value = v; o.textContent = v;
-      if (v === curAvanz) o.selected = true;
-      fAvanz.appendChild(o);
-    });
-    const curCapo = fCapo.value;
-    while (fCapo.options.length > 1) fCapo.remove(1);
-    (data.capocommessa_disponibili || []).forEach(v => {
-      const o = document.createElement('option');
-      o.value = v; o.textContent = v;
-      if (v === curCapo) o.selected = true;
-      fCapo.appendChild(o);
+      if (v === cur) o.selected = true;
+      sel.appendChild(o);
     });
   }
 
-  async function load() {
+  function renderRicerca(d) {
+    const rows = d.righe || [];
+    if (!rows.length) { pager.style.display = 'none'; return '<div class="empty-msg">Nessuna anomalia per i filtri selezionati.</div>'; }
+    const body = rows.map(r => {
+      const stato = (Number(r.chiudere) === 1)
+        ? '<span class="pill pill-closed">Chiusa</span>'
+        : '<span class="pill pill-open">Aperta</span>';
+      const flags = []
+        .concat(Number(r.aprire_rdc) === 1 ? ['<span class="pill pill-rdc">RDC</span>'] : [])
+        .concat(Number(r.segnalare_cliente) === 1 ? ['<span class="pill pill-seg">Cliente</span>'] : [])
+        .join(' ');
+      const data = r.created_datetime ? String(r.created_datetime).slice(0, 10) : '—';
+      return `<tr>
+        <td>${esc(r.id)}</td>
+        <td>${esc(r.ex_op_nominativo || '—')}</td>
+        <td>${esc(r.seriale || '—')}</td>
+        <td class="desc">${esc((r.descrizione || '').slice(0, 180))}</td>
+        <td>${esc(r.avanzamento || '—')}</td>
+        <td>${esc(r.numero_rdc || '—')}</td>
+        <td>${stato} ${flags}</td>
+        <td>${data}</td>
+      </tr>`;
+    }).join('');
+    pager.style.display = 'flex';
+    return '<table class="admin-table ricerca-tbl"><thead><tr>'
+      + '<th>ID</th><th>OP</th><th>Seriale</th><th>Descrizione</th><th>Avanzamento</th><th>RDC</th><th>Stato</th><th>Creata</th>'
+      + '</tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
+  async function loadRicerca() {
+    tblRic.innerHTML = '<div class="loading">Caricamento...</div>';
+    try {
+      const r = await fetch('/api/anomalie/ricerca?' + buildParams({ page: ricercaPage }).toString());
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      ricercaPages = d.pages || 0;
+      ricercaPage = d.page || 1;
+      tblRic.innerHTML = renderRicerca(d);
+      pagerInfo.textContent = d.totale
+        ? `${d.totale} anomalie · pagina ${d.page}/${d.pages}` : 'Nessun risultato';
+      btnPrev.disabled = ricercaPage <= 1;
+      btnNext.disabled = ricercaPage >= ricercaPages;
+    } catch (e) {
+      tblRic.innerHTML = `<div class="err-msg">Errore caricamento ricerca: ${esc(e.message)}</div>`;
+      pager.style.display = 'none';
+    }
+  }
+
+  async function loadStats() {
     btnCerca.disabled = true;
     tblAvanz.innerHTML = '<div class="loading">Caricamento...</div>';
     tblMese.innerHTML  = '<div class="loading">Caricamento...</div>';
+    tblOp.innerHTML    = '<div class="loading">Caricamento...</div>';
     updateExportLink();
     try {
       const r = await fetch('/api/anomalie/statistiche?' + buildParams().toString());
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
 
-      kpiTotale.textContent = d.totale ?? '—';
-      kpiAperte.textContent = d.aperte ?? '—';
-      kpiChiuse.textContent = d.chiuse ?? '—';
-      if (d.totale > 0) {
-        const pct = Math.round((d.chiuse / d.totale) * 100);
-        kpiPerc.textContent = '(' + pct + '%)';
-      } else {
-        kpiPerc.textContent = '';
-      }
+      $('kpi-totale').textContent = num(d.totale);
+      $('kpi-aperte').textContent = num(d.aperte);
+      $('kpi-chiuse').textContent = num(d.chiuse);
+      $('kpi-attesa').textContent = num(d.in_attesa);
+      $('kpi-rdc').textContent = num(d.rdc_aperti);
+      $('kpi-segnalazioni').textContent = num(d.segnalazioni);
+      $('kpi-recuperati').textContent = num(d.recuperati);
+      $('kpi-tempo').textContent = (d.tempo_medio_giorni == null) ? '—' : d.tempo_medio_giorni;
+      $('kpi-perc').textContent = (d.totale > 0) ? '(' + Math.round((d.chiuse / d.totale) * 100) + '%)' : '';
 
-      fillSelects(d);
+      fillSelect(fAvanz, d.avanzamenti_disponibili);
+      fillSelect(fCapo, d.capocommessa_disponibili);
 
       const maxN = d.per_avanzamento.length ? Math.max(...d.per_avanzamento.map(x => x.n)) : 0;
       tblAvanz.innerHTML = renderAvanzamento(d.per_avanzamento, maxN);
       tblMese.innerHTML  = renderMese(d.per_mese);
+      const maxOp = (d.per_op && d.per_op.length) ? Math.max(...d.per_op.map(x => x.n)) : 0;
+      tblOp.innerHTML = renderOp(d.per_op, maxOp);
     } catch (e) {
-      const msg = `<div class="err-msg">Errore caricamento statistiche: ${e.message}</div>`;
-      tblAvanz.innerHTML = msg;
-      tblMese.innerHTML  = '';
+      const msg = `<div class="err-msg">Errore caricamento statistiche: ${esc(e.message)}</div>`;
+      tblAvanz.innerHTML = msg; tblMese.innerHTML = ''; tblOp.innerHTML = '';
     }
     btnCerca.disabled = false;
   }
 
-  btnCerca.addEventListener('click', load);
+  function loadAll() {
+    ricercaPage = 1;
+    loadStats();
+    loadRicerca();
+  }
+
+  btnCerca.addEventListener('click', loadAll);
   btnReset.addEventListener('click', function () {
     fDa.value = ''; fA.value = ''; fAvanz.value = ''; fCapo.value = '';
-    load();
+    fStato.value = ''; fRdc.value = ''; fSeg.value = ''; fQ.value = '';
+    loadAll();
   });
-  fDa.addEventListener('change', load);
-  fA.addEventListener('change', load);
-  fAvanz.addEventListener('change', load);
-  fCapo.addEventListener('change', load);
+  [fDa, fA, fAvanz, fCapo, fStato, fRdc, fSeg].forEach(el => el.addEventListener('change', loadAll));
+  fQ.addEventListener('keydown', e => { if (e.key === 'Enter') loadAll(); });
+  btnPrev.addEventListener('click', () => { if (ricercaPage > 1) { ricercaPage--; loadRicerca(); } });
+  btnNext.addEventListener('click', () => { if (ricercaPage < ricercaPages) { ricercaPage++; loadRicerca(); } });
 
-  load();
+  loadAll();
 })();
 </script>
 {% endblock %}
