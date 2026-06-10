@@ -2028,6 +2028,69 @@ def api_salva(request):
         return JsonResponse({"success": False, "error": str(exc)}, status=500)
 
 
+@login_required
+def api_seriali_op(request):
+    """Ritorna i seriali con anomalie APERTE sull'OP, per il check duplicati live.
+
+    Risposta: {"seriali": ["LCN0001", "LCN0005", ...]}. I seriali compositi
+    (range "LCN0001-LCN0010" o liste "LCN0001, LCN0005") vengono espansi nei
+    singoli token così il confronto lato client copre anche i pezzi dentro un range.
+    """
+    op_id = _safe_text(request.GET.get("op_id"), 100)
+    if not op_id:
+        return JsonResponse({"seriali": []})
+    if not _has_table("anomalie"):
+        return JsonResponse({"seriali": []})
+    try:
+        with connections["default"].cursor() as cur:
+            if connections["default"].vendor == "sqlite":
+                sql = (
+                    "SELECT seriale FROM anomalie WHERE LOWER(ex_op_nominativo) = LOWER(%s) "
+                    "AND (chiudere IS NULL OR chiudere = 0)"
+                )
+            else:
+                sql = (
+                    "SELECT seriale FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s) "
+                    "AND (chiudere IS NULL OR chiudere = 0)"
+                )
+            cur.execute(sql, [op_id])
+            raw = [str(r[0] or "").strip() for r in cur.fetchall()]
+    except DatabaseError:
+        logger.warning("api_seriali_op: lettura fallita op=%s", op_id, exc_info=True)
+        return JsonResponse({"seriali": []})
+
+    # Espandi range numerici e liste in singoli token per il confronto duplicati.
+    seriali: set[str] = set()
+    for val in raw:
+        if not val:
+            continue
+        # rimuovi eventuale suffisso "(N pezzi)"
+        base = re.sub(r"\s*\(\d+\s*pezz[io]\)\s*$", "", val, flags=re.IGNORECASE).strip()
+        # lista separata da virgola
+        if "," in base:
+            for tok in base.split(","):
+                tok = tok.strip()
+                if tok:
+                    seriali.add(tok)
+            continue
+        # range con trattino: prefisso + numero
+        m = re.match(r"^(.*?)(\d+)\s*-\s*(?:\1)?(\d+)$", base)
+        if m:
+            prefix, a, b = m.group(1), m.group(2), m.group(3)
+            try:
+                na, nb = int(a), int(b)
+                pad = len(a)
+                if na <= nb and nb - na <= 1000:
+                    for i in range(na, nb + 1):
+                        seriali.add(f"{prefix}{str(i).zfill(pad)}")
+                    continue
+            except ValueError:
+                pass
+        seriali.add(base)
+
+    return JsonResponse({"seriali": sorted(seriali)})
+
+
 def _op_is_benestare(op_title: str) -> bool:
     """True se l'OP è un collaudo di benestare (ordini_produzione.stato = 'Benestare')."""
     op_str = str(op_title or "").strip()
@@ -2049,14 +2112,24 @@ def _op_is_benestare(op_title: str) -> bool:
     return False
 
 
+# Code della regola automazione che gestisce la notifica mail-action OP.
+# La regola è gestibile da /automazioni/regole/ (destinatari via action config,
+# scadenza link, attiva/disattiva). L'endpoint la invoca a richiesta sul "Salva ed esci".
+ANOMALIE_NOTIFICA_OP_RULE_CODE = "au51-anomalia-creata-mail-action-op"
+
+
 @login_required
 @require_POST
 def api_notifica_op(request):
-    """Invia la mail-action aggregata a CC/CAR dell'OP con tutte le anomalie aperte.
+    """Invia la mail-action aggregata a CC/CAR dell'OP eseguendo la regola automazione.
 
-    Chiamato dal frontend al 'Salva ed esci': una sola mail per OP con il link
-    guidato 'Aggiorna avanzamento'. Routing: benestare=true → to=CAR cc=CC;
-    altrimenti to=CC cc=CAR. Idempotente lato chiamante (no cooldown server-side).
+    Chiamato dal frontend al 'Salva ed esci'. Invece di mandare la mail in modo
+    diretto, esegue la regola automazione `ANOMALIE_NOTIFICA_OP_RULE_CODE` via
+    `run_rule(...)`: così la configurazione (action, destinatari, scadenza link,
+    attivazione) vive nella regola gestibile da UI e ogni invio finisce nel run log.
+
+    Il trigger resta il bottone (non l'insert): nessun cooldown, nessun doppione.
+    Se la regola non esiste o è disattivata, non viene inviata alcuna mail.
     """
     try:
         data = json.loads(request.body.decode("utf-8") or "{}")
@@ -2071,93 +2144,54 @@ def api_notifica_op(request):
     if not _can_edit_anomalie_for_op(request, op_id):
         return _json_error("Permesso negato: non autorizzato su questo OP", status=403)
 
-    # Routing benestare: risolto lato server da ordini_produzione.stato (= "Benestare"
-    # quando l'OP è un collaudo di benestare). Non dipende dal frontend.
-    benestare = _op_is_benestare(op_id)
+    from automazioni.models import AutomationRule
+    from automazioni.services import run_rule, _fetch_anomalie_by_op
 
-    # Riusa gli helper del motore automazioni per risoluzione CC/CAR e lettura anomalie.
-    from automazioni.services import _resolve_op_recipients, _fetch_anomalie_by_op
-    from anomalie.mail_action_service import build_anomalie_action_email, send_anomalie_action_email
-
-    recipients = _resolve_op_recipients(op_id)
-    if not recipients:
-        # Nessun destinatario risolto: non blocca il salvataggio, segnala soft.
-        return JsonResponse({"success": False, "sent": False, "reason": "no_recipients"})
-
-    cc_rec = next((r for r in recipients if r.get("role") == "CC"), None)
-    car_rec = next((r for r in recipients if r.get("role") == "CAR"), None)
-
-    if benestare:
-        primary = car_rec or cc_rec
-        secondary = cc_rec if primary is car_rec else None
-    else:
-        primary = cc_rec or car_rec
-        secondary = car_rec if primary is cc_rec else None
-
-    if not primary:
-        return JsonResponse({"success": False, "sent": False, "reason": "no_primary"})
-
+    # Niente mail se non ci sono anomalie aperte sull'OP.
     anomalie_rows = _fetch_anomalie_by_op(op_id)
     if not anomalie_rows:
-        return JsonResponse({"success": False, "sent": False, "reason": "no_open_anomalie"})
+        return JsonResponse({"success": True, "sent": False, "reason": "no_open_anomalie"})
 
-    mail_action = "aggiorna_avanzamento"
-    expires_hours = 48
+    rule = (
+        AutomationRule.objects.filter(code=ANOMALIE_NOTIFICA_OP_RULE_CODE, is_active=True)
+        .order_by("id")
+        .first()
+    )
+    if rule is None:
+        # Regola assente o disattivata: gestione interamente da UI, nessun invio.
+        return JsonResponse({"success": True, "sent": False, "reason": "rule_inactive"})
+
+    # Il payload deve contenere ex_op_nominativo (per risolvere CC/CAR e anomalie)
+    # e il pk dell'anomalia (richiesto dall'handler dell'action). Usa la prima aperta.
+    first_anomalia_id = anomalie_rows[0].get("id")
+    payload = {
+        "id": first_anomalia_id,
+        "ex_op_nominativo": op_id,
+    }
 
     try:
-        token_obj = send_anomalie_action_email(
-            recipient_email=primary["email"],
-            recipient_display=primary["display"],
-            op_id=op_id,
-            op_nominativo=op_id,
-            anomalie_rows=anomalie_rows,
-            action=mail_action,
-            expires_hours=expires_hours,
-            source_automation="anomalie_notifica_op",
-        )
-
-        if secondary:
-            from django.core.mail import EmailMultiAlternatives
-            subj, body_text, body_html = build_anomalie_action_email(
-                recipient_email=primary["email"],
-                recipient_display=primary["display"],
-                op_id=op_id,
-                op_nominativo=op_id,
-                anomalie_rows=anomalie_rows,
-                action=mail_action,
-                token_str=token_obj.token,
-                expires_at=token_obj.expires_at,
-            )
-            msg = EmailMultiAlternatives(
-                subject=subj,
-                body=body_text,
-                from_email=None,
-                to=[primary["email"]],
-                cc=[secondary["email"]],
-            )
-            msg.attach_alternative(body_html, "text/html")
-            msg.send(fail_silently=True)
+        run_log = run_rule(rule, payload, initiated_by=request.user)
     except Exception as exc:
-        logger.warning("api_notifica_op: invio mail fallito op=%s: %s", op_id, exc, exc_info=True)
-        return JsonResponse({"success": False, "sent": False, "reason": "send_error", "error": str(exc)}, status=500)
+        logger.warning("api_notifica_op: run_rule fallita op=%s: %s", op_id, exc, exc_info=True)
+        return JsonResponse({"success": False, "sent": False, "reason": "run_error", "error": str(exc)}, status=500)
 
     try:
         log_action(request, "anomalia_notifica_op", "anomalie", {
             "op_id": op_id,
-            "to": primary["email"],
-            "cc": secondary["email"] if secondary else None,
-            "benestare": benestare,
+            "rule_code": ANOMALIE_NOTIFICA_OP_RULE_CODE,
+            "run_log_id": run_log.id,
+            "run_status": run_log.status,
             "n_anomalie": len(anomalie_rows),
-            "token": token_obj.token[:8],
         })
     except Exception:
         pass
 
+    sent = run_log.status == "success"
     return JsonResponse({
         "success": True,
-        "sent": True,
-        "to": primary["display"],
-        "cc": secondary["display"] if secondary else None,
+        "sent": sent,
+        "run_log_id": run_log.id,
+        "run_status": run_log.status,
         "n_anomalie": len(anomalie_rows),
     })
 

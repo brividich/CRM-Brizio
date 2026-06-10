@@ -14,6 +14,10 @@ from .source_registry import get_source_definition, get_source_fields
 class AutomationRuleOperationType(models.TextChoices):
     INSERT = "insert", "Insert"
     UPDATE = "update", "Update"
+    # MANUAL: regole eseguite solo on-demand (es. da un endpoint via run_rule).
+    # Gli eventi di coda DB producono solo insert/update, quindi una regola manual
+    # non viene mai agganciata automaticamente dal dispatcher (find_matching_rules).
+    MANUAL = "manual", "Manuale (on-demand)"
 
 
 class AutomationRuleTriggerScope(models.TextChoices):

@@ -5046,6 +5046,30 @@ def rule_toggle_view(request, rule_id: int):
 
 @legacy_admin_required
 @require_POST
+def rule_delete_view(request, rule_id: int):
+    rule = get_object_or_404(AutomationRule, pk=rule_id)
+    rule_name = rule.name
+    rule_code = rule.code
+    # Le condizioni/azioni hanno FK on_delete=CASCADE: vengono rimosse con la regola.
+    rule.delete()
+    try:
+        log_action(
+            request,
+            azione="automazione_regola_eliminata",
+            modulo="automazioni",
+            dettaglio={"rule_id": rule_id, "code": rule_code, "name": rule_name},
+        )
+    except Exception:
+        pass
+    messages.success(request, f"Regola «{rule_name}» eliminata.")
+    next_url = str(request.POST.get("next") or "").strip()
+    if next_url:
+        return redirect(next_url)
+    return redirect("admin_portale:automazioni_rule_list")
+
+
+@legacy_admin_required
+@require_POST
 def rule_condition_reorder_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
     try:

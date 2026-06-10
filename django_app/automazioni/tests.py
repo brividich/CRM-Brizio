@@ -1372,6 +1372,26 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
+    def test_rule_delete_view_removes_rule(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        rule = AutomationRule.objects.create(
+            code="builder-delete-rule",
+            name="Builder delete rule",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+            is_active=False,
+            is_draft=True,
+        )
+        rule_id = rule.id
+
+        response = self.client.post(reverse("admin_portale:automazioni_rule_delete", args=[rule_id]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AutomationRule.objects.filter(pk=rule_id).exists())
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
     def test_rule_test_page_executes_manual_test_and_creates_run_log(self, mock_get_legacy_user, _mock_is_admin):
         mock_get_legacy_user.return_value = self.legacy_admin
         rule = AutomationRule.objects.create(

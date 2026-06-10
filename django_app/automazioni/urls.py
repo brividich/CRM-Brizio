@@ -44,6 +44,7 @@ urlpatterns = [
         name="automazioni_rule_action_reorder",
     ),
     path("regole/<int:rule_id>/toggle/", views.rule_toggle_view, name="automazioni_rule_toggle"),
+    path("regole/<int:rule_id>/elimina/", views.rule_delete_view, name="automazioni_rule_delete"),
     path("regole/<int:rule_id>/test/", views.rule_test_page, name="automazioni_rule_test"),
     path("queue/", views.queue_list_page, name="automazioni_queue_list"),
     path("queue/<int:queue_id>/", views.queue_detail_page, name="automazioni_queue_detail"),

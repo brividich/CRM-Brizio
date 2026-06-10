@@ -1,7 +1,7 @@
 {
   "package_version": "2026.06",
   "input": {
-    "flow_name": "AU51 - Anomalia creata: mail-action con link guidato a CC/CAR dell'OP (risolti automaticamente)"
+    "flow_name": "AU51 - Notifica mail-action CC/CAR dell'OP (su 'Salva ed esci' anomalie)"
   },
   "source_candidate": {
     "source_code": "anomalie",
@@ -19,13 +19,13 @@
   "proposed_rules": [
     {
       "code": "au51-anomalia-creata-mail-action-op",
-      "name": "AU51 - Anomalia creata: mail-action link guidato a CC/CAR dell'OP",
-      "description": "Alla creazione di una nuova anomalia, risolve automaticamente il capocommessa (CC) e l'incaricato (CAR) dell'OP tramite le tabelle legacy ordini_produzione + anagrafica_dipendenti, e invia un'email con token sicuro monouso contenente il link guidato 'Azione da mail'. Il routing destinatario/cc dipende dal campo benestare nel payload (benestare=true → to=CAR, cc=CC; altrimenti to=CC, cc=CAR). Il click sul link apre il form guidato sul portale senza accedere al modulo completo. Non richiede configurazione di email fissa: tutto viene risolto in fase di esecuzione dall'OP.",
+      "name": "AU51 - Notifica mail-action CC/CAR dell'OP",
+      "description": "Invia una mail-action aggregata a CC (capocommessa) e CAR (incaricato) dell'OP, risolti automaticamente da ordini_produzione + anagrafica_dipendenti. L'email contiene tutte le anomalie aperte dell'OP e un link sicuro monouso 'Aggiorna avanzamento' che apre il form guidato sul portale (il CC/CAR decide il da farsi per ciascuna anomalia). Routing destinatario/cc via benestare_field. IMPORTANTE: questa regola NON parte sull'insert della singola anomalia: viene eseguita on-demand dall'endpoint /api/anomalie/notifica-op quando l'operatore preme 'Salva ed esci' nella pagina nuova-segnalazione. Una sola mail per OP, senza cooldown e senza doppioni. Disattivando questa regola si disabilita completamente l'invio mail al salvataggio anomalie.",
       "source_code": "anomalie",
-      "operation_type": "insert",
+      "operation_type": "manual",
       "trigger_scope": "all_inserts",
-      "is_active": false,
-      "is_draft": true,
+      "is_active": true,
+      "is_draft": false,
       "stop_on_first_failure": false,
       "conditions": [
         {
@@ -34,13 +34,6 @@
           "value": "",
           "value_type": "string",
           "description": "OP valorizzata"
-        },
-        {
-          "field": "ex_op_nominativo",
-          "operator": "cooldown_group",
-          "value": "mail_anomalie_op:5",
-          "value_type": "string",
-          "description": "Debounce: al massimo 1 mail ogni 5 minuti per OP (namespace condivisibile con altre regole anomalie su insert/update)"
         }
       ],
       "actions": [

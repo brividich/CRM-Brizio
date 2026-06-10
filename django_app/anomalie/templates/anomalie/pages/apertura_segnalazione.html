@@ -66,6 +66,9 @@
     .range-row { display: flex; align-items: center; gap: 10px; }
     .range-row .text-input { flex: 1; }
     .range-sep { font-size: var(--fs-xl); color: var(--text-light); font-weight: 700; flex-shrink: 0; }
+    .sn-preview { margin-top: 8px; font-size: var(--fs-sm); color: var(--text-mid); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 11px; }
+    .sn-preview strong { color: var(--text); }
+    .sn-warn { margin-top: 8px; font-size: var(--fs-sm); color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 7px 11px; font-weight: 600; }
     .error-msg { background: var(--danger-bg); border: 1px solid #fca5a5; color: var(--danger); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
     .info-msg { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); color: var(--text); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
     .loading-msg, .empty-msg { padding: 32px 28px; text-align: center; font-size: var(--fs-md); color: var(--text-light); }
@@ -119,6 +122,7 @@
       db_ordini_crea: "{% url 'api_anomalie_db_ordini_crea' %}",
       salva: "{% url 'api_anomalie_salva' %}",
       notifica_op: "{% url 'api_anomalie_notifica_op' %}",
+      seriali_op: "{% url 'api_anomalie_seriali_op' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
     };
   </script>
@@ -130,6 +134,7 @@
     db_ordini_crea: '/api/anomalie/db/ordini/crea',
     salva: '/api/anomalie/salva',
     notifica_op: '/api/anomalie/notifica-op',
+    seriali_op: '/api/anomalie/seriali-op',
     allegati_upload: '/api/anomalie/allegati/upload',
   };
 
@@ -521,6 +526,20 @@
     const [attachMsg, setAttachMsg] = useState('');
     const [pendingFiles, setPendingFiles] = useState([]);
     const fileInputRef = useRef(null);
+    // Seriali con anomalie aperte sull'OP (per check duplicati live)
+    const [serialiEsistenti, setSerialiEsistenti] = useState([]);
+    const [snWarn, setSnWarn] = useState('');
+
+    // Carica i seriali già presenti (anomalie aperte) sull'OP selezionato.
+    useEffect(() => {
+      if (!op || !op.id) { setSerialiEsistenti([]); return; }
+      let alive = true;
+      fetch(`${API.seriali_op}?op_id=${encodeURIComponent(op.id)}`, { credentials: 'same-origin' })
+        .then(r => r.ok ? r.json() : { seriali: [] })
+        .then(d => { if (alive) setSerialiEsistenti(Array.isArray(d.seriali) ? d.seriali : []); })
+        .catch(() => { if (alive) setSerialiEsistenti([]); });
+      return () => { alive = false; };
+    }, [op && op.id]);
 
     const toggleStato = (s) =>
       setStatiSup(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -586,21 +605,91 @@
       return '';
     };
 
-    /* Expand range: se numerici, genera tutti i seriali; altrimenti usa stringa "inizio-fine" */
-    const expandRange = () => {
-      const prefix = snInizio.replace(/\d+$/, '');
-      const suffix1 = snInizio.slice(prefix.length);
-      const suffix2 = snFine.slice(prefix.length);
-      const n1 = parseInt(suffix1, 10);
-      const n2 = parseInt(suffix2, 10);
-      const pad = suffix1.length;
-      if (!isNaN(n1) && !isNaN(n2) && n1 <= n2 && n2 - n1 <= 100) {
-        const list = [];
-        for (let i = n1; i <= n2; i++) list.push(prefix + String(i).padStart(pad, '0'));
-        return list;
-      }
-      return [`${snInizio}-${snFine}`];
+    /* Scompone un seriale in prefisso (non numerico finale) + parte numerica. */
+    const splitSeriale = (s) => {
+      const t = String(s || '').trim();
+      const m = t.match(/^(.*?)(\d+)$/);
+      if (!m) return { prefix: t, num: null, pad: 0 };
+      return { prefix: m[1], num: m[2], pad: m[2].length };
     };
+
+    /* Tokenizza l'input S/N libero: lista virgola, oppure singolo. */
+    const tokensFromInput = () => {
+      if (isRange) {
+        return [snInizio.trim(), snFine.trim()].filter(Boolean);
+      }
+      return sn.split(',').map(x => x.trim()).filter(Boolean);
+    };
+
+    /* Numero di pezzi coperti dall'input corrente. */
+    const countPezzi = () => {
+      if (isRange) {
+        const a = splitSeriale(snInizio), b = splitSeriale(snFine);
+        if (a.num !== null && b.num !== null && a.prefix === b.prefix) {
+          const n1 = parseInt(a.num, 10), n2 = parseInt(b.num, 10);
+          if (!isNaN(n1) && !isNaN(n2) && n1 <= n2) return n2 - n1 + 1;
+        }
+        return 2; // inizio + fine non numerici coerenti: conta 2
+      }
+      return tokensFromInput().length;
+    };
+
+    /* Costruisce il seriale composito da salvare (UNA anomalia):
+       - range:  "LCN0001-LCN0010 (10 pezzi)"
+       - lista:  "LCN0001, LCN0005 (2 pezzi)"
+       - singolo: "LCN0001" */
+    const buildSeriale = () => {
+      if (isRange) {
+        const n = countPezzi();
+        return `${snInizio.trim()}-${snFine.trim()} (${n} pezz${n === 1 ? 'o' : 'i'})`;
+      }
+      const toks = tokensFromInput();
+      if (toks.length <= 1) return toks[0] || '';
+      return `${toks.join(', ')} (${toks.length} pezzi)`;
+    };
+
+    /* Formato seriale canonico: 3 lettere + 5 cifre (es. LCN00001). */
+    const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
+
+    /* Check live: formato canonico + coerenza prefisso + duplicati.
+       Tutto NON bloccante: ritorna un messaggio di warning o ''. */
+    const computeSnWarn = () => {
+      const toks = tokensFromInput();
+      if (!toks.length) return '';
+      const warns = [];
+
+      // 1) Formato canonico 3 lettere + 5 cifre su ogni token
+      const fuoriFormato = toks.filter(t => !SN_PATTERN.test(t));
+      if (fuoriFormato.length) {
+        warns.push(`Formato atteso "AAA00000" (3 lettere + 5 cifre): ${fuoriFormato.join(', ')}`);
+      }
+
+      // 2) Coerenza prefisso lettere col primo seriale valido
+      const primo = toks.find(t => SN_PATTERN.test(t));
+      if (primo) {
+        const prefixPrimo = primo.slice(0, 3).toUpperCase();
+        const diversi = toks.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== prefixPrimo);
+        if (diversi.length) {
+          warns.push(`Prefisso diverso da "${prefixPrimo}": ${diversi.join(', ')}`);
+        }
+      }
+
+      // 3) Duplicati: token già presenti tra le anomalie aperte dell'OP
+      if (serialiEsistenti.length) {
+        const existSet = new Set(serialiEsistenti.map(x => x.toLowerCase()));
+        const dups = toks.filter(t => existSet.has(t.toLowerCase()));
+        if (dups.length) {
+          warns.push(`Già presente${dups.length > 1 ? 'i' : ''} anomalia aperta per: ${dups.join(', ')}`);
+        }
+      }
+
+      return warns.join(' · ');
+    };
+
+    // Ricalcola il warning quando cambia l'input o i seriali esistenti.
+    useEffect(() => {
+      setSnWarn(computeSnWarn());
+    }, [sn, snInizio, snFine, isRange, serialiEsistenti]);
 
     const buildPayload = (snVal) => ({
       op_id:       op.id,
@@ -615,21 +704,19 @@
       chiudere:    false,
     });
 
-    const doSave = async (snList) => {
+    /* Salva UNA sola anomalia col seriale composito (range/lista in un'unica riga). */
+    const doSave = async () => {
       const csrf = getCsrf();
-      const localIds = [];
-      for (const snVal of snList) {
-        const r = await fetch(API.salva, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify(buildPayload(snVal)),
-          credentials: 'same-origin',
-        });
-        const j = await parseJsonStrict(r, 'Salvataggio anomalia');
-        if (!r.ok || !j.success) throw new Error(j.error || 'Errore salvataggio');
-        if (j.local_id) localIds.push(j.local_id);
-      }
-      return localIds;
+      const snVal = buildSeriale();
+      const r = await fetch(API.salva, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+        body: JSON.stringify(buildPayload(snVal)),
+        credentials: 'same-origin',
+      });
+      const j = await parseJsonStrict(r, 'Salvataggio anomalia');
+      if (!r.ok || !j.success) throw new Error(j.error || 'Errore salvataggio');
+      return j.local_id ? [j.local_id] : [];
     };
 
     const uploadPendingAttachments = async (localId) => {
@@ -660,9 +747,10 @@
       setAttachMsg('');
       setSaving(true);
       try {
-        const snList = isRange ? expandRange() : [sn.trim()];
-        const localIds = await doSave(snList);
-        if (!isRange && pendingFiles.length && localIds.length) {
+        const localIds = await doSave();
+        // Allegati ammessi solo su singolo S/N (no range, no lista multipla)
+        const isMultiplo = isRange || tokensFromInput().length > 1;
+        if (!isMultiplo && pendingFiles.length && localIds.length) {
           await uploadPendingAttachments(localIds[0]);
         }
         // Al 'Salva ed esci': invia la mail-action aggregata a CC/CAR dell'OP.
@@ -680,7 +768,9 @@
             console.warn('notifica_op fallita:', e);
           }
         }
-        onSaved(action, isRange ? null : sn.trim());
+        // Per "stesso S/N" rilancia solo se è un singolo seriale, non range/lista
+        const singleSn = (!isRange && tokensFromInput().length === 1) ? sn.trim() : null;
+        onSaved(action, singleSn);
       } catch (e) {
         setError(e.message);
       } finally {
@@ -743,7 +833,7 @@
               <input
                 className="text-input"
                 type="text"
-                placeholder="Numero seriale..."
+                placeholder="Numero seriale (o più separati da virgola: LCN0001, LCN0005)"
                 value={sn}
                 onChange={e => setSn(e.target.value)}
               />
@@ -765,6 +855,16 @@
                   onChange={e => setSnFine(e.target.value)}
                 />
               </div>
+            )}
+            {/* Anteprima seriale composito + numero pezzi */}
+            {(isRange ? (snInizio.trim() && snFine.trim()) : sn.trim()) && (
+              <div className="sn-preview">
+                Verrà salvata <strong>1 anomalia</strong> · S/N: <strong>{buildSeriale()}</strong>
+              </div>
+            )}
+            {/* Warning live non bloccante: linea seriale / duplicati */}
+            {snWarn && (
+              <div className="sn-warn">⚠ {snWarn}</div>
             )}
           </div>
 

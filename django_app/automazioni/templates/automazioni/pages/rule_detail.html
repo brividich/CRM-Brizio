@@ -142,6 +142,11 @@
             {% csrf_token %}
             <button class="btn" type="submit">{% if rule.is_active and not rule.is_draft %}Disattiva{% else %}Attiva{% endif %}</button>
           </form>
+          <form method="post" action="{% url 'admin_portale:automazioni_rule_delete' rule.id %}"
+                onsubmit="return confirm('Eliminare definitivamente la regola «{{ rule.name|escapejs }}»? L&apos;operazione non è reversibile e rimuove condizioni e azioni collegate.');">
+            {% csrf_token %}
+            <button class="btn btn-danger" type="submit">Elimina</button>
+          </form>
         </div>
 
         <div class="auto-meta">

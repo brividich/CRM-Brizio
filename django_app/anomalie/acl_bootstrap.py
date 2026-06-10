@@ -13,6 +13,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "anomalie", "codice": "anomalie_api_anomalie", "label": "Anomalie - API anomalie", "url": "/api/anomalie/anomalie", "hide": True},
     {"modulo": "anomalie", "codice": "anomalie_api_salva", "label": "Anomalie - API salva", "url": "/api/anomalie/salva", "hide": True},
     {"modulo": "anomalie", "codice": "anomalie_api_notifica_op", "label": "Anomalie - API notifica OP", "url": "/api/anomalie/notifica-op", "hide": True},
+    {"modulo": "anomalie", "codice": "anomalie_api_seriali_op", "label": "Anomalie - API seriali OP", "url": "/api/anomalie/seriali-op", "hide": True},
     {"modulo": "anomalie", "codice": "anomalie_api_sync", "label": "Anomalie - API sync", "url": "/api/anomalie/sync", "hide": True},
     {"modulo": "anomalie", "codice": "anomalie_api_campi", "label": "Anomalie - API campi", "url": "/api/anomalie/campi", "hide": True},
     {"modulo": "anomalie", "codice": "anomalie_api_allegati", "label": "Anomalie - API allegati", "url": "/api/anomalie/allegati", "hide": True},
