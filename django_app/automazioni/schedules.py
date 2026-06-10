@@ -33,4 +33,14 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # Fallback debounce per la mail di conferma aggiornamenti anomalie:
+        # invia il riepilogo per gli OP modificati e fermi da > 5 minuti.
+        "name": "anomalie_pending_notifications",
+        "func": "anomalie.tasks.run_anomalie_pending_notifications",
+        "schedule_type": "S",   # Schedule.SECONDS
+        "minutes": 60,          # controllo ogni 60 secondi
+        "repeats": -1,
+        "kwargs": {"threshold_minutes": 5},
+    },
 ]

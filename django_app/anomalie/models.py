@@ -171,3 +171,12 @@ class AnomalieLegacyRoleAccessRule(models.Model):
 
     def __str__(self) -> str:
         return f"AnomalieLegacyRoleAccessRule<role={self.legacy_role_id}={self.access_level}>"
+
+
+# Modelli definiti in file separati: importati qui per garantirne la registrazione
+# nell'app registry a runtime (token mail-action, log azioni, coda notifiche pending).
+from .mail_action_models import (  # noqa: E402,F401
+    AnomaliaMailActionToken,
+    AnomaliaActionLog,
+    AnomaliaPendingNotification,
+)

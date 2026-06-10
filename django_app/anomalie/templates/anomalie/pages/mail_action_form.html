@@ -112,6 +112,14 @@
       font-size: 11px; font-weight: 700; color: #64748b;
       text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px;
     }
+    .toggle-group {
+      display: flex; flex-direction: column; gap: 9px; margin-bottom: 14px;
+      padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;
+    }
+    .toggle-row { display: flex; align-items: center; gap: 9px; font-size: 13px; color: #334155; cursor: pointer; }
+    .toggle-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #ff6b00; cursor: pointer; }
+    .toggle-readonly { color: #94a3b8; cursor: default; }
+    .toggle-readonly input { cursor: not-allowed; }
     .decisione-fields {
       display: grid; grid-template-columns: 220px 1fr auto; gap: 10px; align-items: end;
     }
@@ -296,16 +304,28 @@
           {% if is_dispositive and can_edit %}
           <div class="decisione-panel" id="panel-{{ a.id }}">
             <div class="decisione-panel-title">Aggiorna avanzamento</div>
+
+            <!-- Toggle Aprire RDC / Segnalare a cliente (regole Power Apps) -->
+            <div class="toggle-group">
+              <label class="toggle-row">
+                <input type="checkbox" id="rdc-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
+                <span>Aprire RDC?</span>
+              </label>
+              <label class="toggle-row">
+                <input type="checkbox" id="seg-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
+                <span>Segnalare a cliente?</span>
+              </label>
+              <label class="toggle-row toggle-readonly">
+                <input type="checkbox" id="chiudi-{{ a.id }}" disabled>
+                <span>Chiudere? (automatico)</span>
+              </label>
+            </div>
+
             <div class="decisione-fields">
               <div>
                 <div class="field-label">Nuovo avanzamento</div>
-                <select class="field-select" id="av-{{ a.id }}">
+                <select class="field-select" id="av-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
                   <option value="">— invariato —</option>
-                  <option value="Accetto lo stato">Accetto lo stato</option>
-                  <option value="In attesa">In attesa</option>
-                  <option value="Finito trattato">Finito trattato</option>
-                  <option value="Attesa risposta cliente">Attesa risposta cliente</option>
-                  <option value="Rilavorazione">Rilavorazione</option>
                 </select>
               </div>
               <div>
@@ -406,13 +426,87 @@
   var ACTION_LABEL = "{{ action_label }}";
   var aggiornamenti = {};
 
+  // ── Regole Power Apps (identiche alla pagina web di gestione) ──
+  var BASE_AVANZAMENTO = ["In attesa", "Accetto lo stato", "Finito trattato"];
+
+  function buildAvanzamentoOptions(isAprireRdc) {
+    var dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
+    var dynamicAlt   = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
+    var base = BASE_AVANZAMENTO.filter(function(o){ return o.toLowerCase() !== dynamicAlt.toLowerCase(); });
+    var out = [dynamicFirst];
+    base.forEach(function(o){ if (out.map(function(x){return x.toLowerCase();}).indexOf(o.toLowerCase()) < 0) out.push(o); });
+    return out;
+  }
+
+  function shouldAutoClose(isAprireRdc, avanz) {
+    var a = String(avanz || '').trim().toLowerCase();
+    return Boolean(isAprireRdc || a === 'accetto lo stato' || a === 'apertura ore/ripi');
+  }
+
+  // Popola le select avanzamento di ogni riga in base allo stato corrente dei toggle.
+  function rebuildSelect(id) {
+    var sel = document.getElementById('av-' + id);
+    var rdc = document.getElementById('rdc-' + id);
+    if (!sel) return;
+    var prev = sel.value;
+    var opts = buildAvanzamentoOptions(rdc && rdc.checked);
+    sel.innerHTML = '<option value="">— invariato —</option>';
+    opts.forEach(function(o){
+      var op = document.createElement('option');
+      op.value = o; op.textContent = o;
+      sel.appendChild(op);
+    });
+    // ripristina selezione se ancora valida
+    if (prev && opts.indexOf(prev) >= 0) sel.value = prev;
+  }
+
+  // Applica le regole: se "Segnalare a cliente" è ON disabilita l'avanzamento;
+  // ricalcola "Chiudere automatico" da aprireRdc + avanzamento.
+  function onToggleChange(id) {
+    var rdc  = document.getElementById('rdc-' + id);
+    var seg  = document.getElementById('seg-' + id);
+    var av   = document.getElementById('av-' + id);
+    var chk  = document.getElementById('chiudi-' + id);
+
+    rebuildSelect(id);
+
+    if (av) {
+      var disabled = seg && seg.checked;
+      av.disabled = disabled;
+      av.style.opacity = disabled ? '0.6' : '1';
+      av.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    }
+    if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
+  }
+
+  // Inizializza tutte le righe al load.
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[id^="panel-"]').forEach(function(p){
+      var id = p.id.replace('panel-', '');
+      onToggleChange(id);
+    });
+  });
+
   function salvaIndividuale(id) {
     var av   = document.getElementById('av-' + id);
     var note = document.getElementById('note-' + id);
+    var rdc  = document.getElementById('rdc-' + id);
+    var seg  = document.getElementById('seg-' + id);
     var esito = document.getElementById('esito-' + id);
     if (!av) return;
 
-    aggiornamenti[id] = { avanzamento: av.value, note: note ? note.value.trim() : '', salvato: true };
+    var aprireRdc = !!(rdc && rdc.checked);
+    var segnalare = !!(seg && seg.checked);
+    var chiudere = shouldAutoClose(aprireRdc, av.value);
+
+    aggiornamenti[id] = {
+      avanzamento: av.value,
+      note: note ? note.value.trim() : '',
+      aprire_rdc: aprireRdc,
+      segnalare: segnalare,
+      chiudere: chiudere,
+      salvato: true,
+    };
 
     var badge = document.getElementById('badge-' + id);
     if (badge) { badge.textContent = av.value || 'Aggiornato'; }

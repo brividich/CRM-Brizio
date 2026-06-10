@@ -156,3 +156,33 @@ class AnomaliaActionLog(models.Model):
 
     def __str__(self) -> str:
         return f"AnomaliaActionLog<{self.anomalia_id}:{self.action}:{self.source}>"
+
+
+class AnomaliaPendingNotification(models.Model):
+    """Coda di debounce per la mail di conferma aggiornamenti dalla pagina web.
+
+    Quando un'anomalia viene aggiornata in gestione (senza notifica immediata),
+    si registra/aggiorna qui l'OP con il timestamp dell'ultima modifica. Un task
+    periodico invia la mail di conferma per gli OP fermi da più di una soglia
+    (es. 5 minuti) e marca `notified=True`. Il tasto "Salva e notifica" invia
+    subito e marca notified, svuotando il pending.
+    """
+
+    op_id = models.CharField(max_length=100, unique=True, db_index=True)
+    op_nominativo = models.CharField(max_length=255, blank=True, default="")
+    last_modified_at = models.DateTimeField(db_index=True)
+    last_modified_by = models.CharField(max_length=200, blank=True, default="")
+    # Snapshot incrementale delle modifiche da includere nella mail (lista di dict)
+    updates_snapshot = models.JSONField(default=list, blank=True)
+    notified = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Notifica anomalie in attesa"
+        verbose_name_plural = "Notifiche anomalie in attesa"
+        indexes = [
+            models.Index(fields=["notified", "last_modified_at"], name="anom_pending_notif_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"AnomaliaPendingNotification<{self.op_id}:notified={self.notified}>"

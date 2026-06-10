@@ -152,6 +152,9 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
             per_riga = aggiornamenti_per_id.get(str(anomalia_id), {})
             riga_avanzamento = (per_riga.get("avanzamento") or "").strip() or default_avanzamento
             riga_note = (per_riga.get("note") or "").strip() or note
+            riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
+            riga_segnalare = bool(per_riga.get("segnalare"))
+            riga_chiudere = bool(per_riga.get("chiudere"))
             prev = anomalia.get(_STATO_FIELD) or ""
             ok = _apply_action_to_anomalia(
                 anomalia_id=anomalia_id,
@@ -159,6 +162,9 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 action=action,
                 nuovo_avanzamento=riga_avanzamento,
                 note=riga_note,
+                aprire_rdc=riga_aprire_rdc,
+                segnalare=riga_segnalare,
+                chiudere=riga_chiudere,
             )
             results.append({
                 "id": anomalia_id,
@@ -194,6 +200,36 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 "recipient": token_obj.recipient_display,
             },
         )
+
+        # Mail di conferma post-aggiornamento al segnalante + CC/CAR + lista fissa.
+        try:
+            from anomalie.mail_action_service import send_anomalie_update_confirmation
+            by_id = {str(a.get("id")): a for a in anomalie_live}
+            updates_summary = []
+            for r in results:
+                if not r.get("ok"):
+                    continue
+                a = by_id.get(str(r["id"]), {})
+                per_riga = aggiornamenti_per_id.get(str(r["id"]), {})
+                updates_summary.append({
+                    "id": r["id"],
+                    "seriale": a.get("seriale") or "",
+                    "avanzamento": r.get("new") or "",
+                    "note": (per_riga.get("note") or note or "").strip(),
+                    "aprire_rdc": bool(per_riga.get("aprire_rdc")),
+                    "segnalare": bool(per_riga.get("segnalare")),
+                    "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
+                })
+            if updates_summary:
+                send_anomalie_update_confirmation(
+                    op_id=token_obj.op_id,
+                    op_nominativo=token_obj.op_nominativo or "",
+                    anomalie_rows=anomalie_live,
+                    updates_summary=updates_summary,
+                    source_label=f"Risposta da mail ({token_obj.recipient_display})",
+                )
+        except Exception:
+            logger.warning("mail_action: invio conferma aggiornamento fallito op=%s", token_obj.op_id, exc_info=True)
     else:
         _write_action_log(
             request=request,
@@ -314,15 +350,24 @@ def _apply_action_to_anomalia(
     action: str,
     nuovo_avanzamento: str,
     note: str,
+    aprire_rdc: bool | None = None,
+    segnalare: bool | None = None,
+    chiudere: bool | None = None,
 ) -> bool:
-    """Applica l'azione (update avanzamento / campi) alla riga anomalia legacy."""
+    """Applica l'azione (update avanzamento / campi / flag) alla riga anomalia legacy."""
     try:
         from django.db import connections
         updates: dict[str, object] = {}
         if nuovo_avanzamento:
             updates["avanzamento"] = nuovo_avanzamento
-        if action == "chiudi":
-            updates["chiudere"] = True
+        # Flag dai toggle del form (regole Power Apps risolte lato client)
+        if aprire_rdc is not None:
+            updates["aprire_rdc"] = 1 if aprire_rdc else 0
+        if segnalare is not None:
+            updates["segnalare_cliente"] = 1 if segnalare else 0
+        # chiudere: dall'azione "chiudi" oppure dal flag automatico per-riga
+        if action == "chiudi" or chiudere:
+            updates["chiudere"] = 1
         if action in ("approva", "respingi", "richiedi_modifica") and note:
             updates["note_capocommessa"] = note
 

@@ -1898,7 +1898,7 @@ def api_salva(request):
         "numero_rdc": _safe_text(data.get("numero_rdc"), 100),
         "segnalare_cliente": segnalare_val,
         "chiudere": chiudere_val,
-        "avanzamento": _safe_text(data.get("avanzamento"), 100) or "Accetto lo stato",
+        "avanzamento": _safe_text(data.get("avanzamento"), 100) or "In attesa",
     }
 
     writable = {k: v for k, v in payload_map.items() if k in cols}
@@ -2016,6 +2016,45 @@ def api_salva(request):
             _notify_anomalia_event(request, "segnalare", local_id, op_id, sn_val)
         if chiudere_val:
             _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
+
+        # Mail di conferma post-aggiornamento, solo su UPDATE (non su creazione):
+        # - notify_update=true (tasto "Salva e notifica"): invio immediato + chiude il pending
+        # - altrimenti: registra nella coda di debounce (mail dopo ~5 min di inattività)
+        if updated > 0:
+            try:
+                identity = _current_user_identity(request)
+                modified_by = identity.get("name") or request.user.username
+                update_row = {
+                    "id": local_id,
+                    "seriale": sn_val,
+                    "avanzamento": payload_map.get("avanzamento") or "",
+                    "note": _safe_text(data.get("note")) or "",
+                    "aprire_rdc": bool(payload_map.get("aprire_rdc")),
+                    "segnalare": bool(segnalare_val),
+                    "chiudere": bool(chiudere_val),
+                }
+                if bool(data.get("notify_update")):
+                    from anomalie.mail_action_service import send_anomalie_update_confirmation
+                    from anomalie.mail_action_models import AnomaliaPendingNotification
+                    send_anomalie_update_confirmation(
+                        op_id=op_id,
+                        op_nominativo=op_id,
+                        anomalie_rows=[{"id": local_id, "seriale": sn_val}],
+                        updates_summary=[update_row],
+                        source_label=f"Modifica da portale ({modified_by})",
+                    )
+                    # Chiudi eventuale pending in coda per questo OP
+                    AnomaliaPendingNotification.objects.filter(op_id=op_id, notified=False).update(notified=True)
+                else:
+                    from anomalie.mail_action_service import register_pending_update
+                    register_pending_update(
+                        op_id=op_id,
+                        op_nominativo=op_id,
+                        update_row=update_row,
+                        modified_by=modified_by,
+                    )
+            except Exception:
+                logger.warning("api_salva: gestione conferma aggiornamento fallita op=%s", op_id, exc_info=True)
 
         return JsonResponse(
             {
