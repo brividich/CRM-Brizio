@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OP da controllare — resoconto</title>
+  <style>
+    @media (max-width:640px) {
+      .ew { width:100% !important; }
+      .ep { padding-left:18px !important; padding-right:18px !important; }
+      .hide-sm { display:none !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
+
+<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">
+  {{ n_op }} OP da controllare — {{ tot_anomalie }} anomalie in attesa oltre {{ soglia_ore }}h
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="width:100%;border-collapse:collapse;background:#eef3f8;">
+  <tr>
+    <td align="center" style="padding:32px 12px 48px;">
+
+      <table role="presentation" width="680" cellpadding="0" cellspacing="0" class="ew"
+             style="width:680px;max-width:680px;border-collapse:separate;border-spacing:0;
+                    background:#ffffff;border-radius:18px;overflow:hidden;
+                    box-shadow:0 18px 45px rgba(15,23,42,.16);">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="padding:0;background:#002b5c;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td class="ep" style="padding:20px 30px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                    <tr>
+                      <td valign="middle">
+                        <span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.04em;">NOVICROM HUB</span>
+                      </td>
+                      <td valign="middle" align="right">
+                        <span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 11px;color:#ffffff;font-size:11px;font-weight:700;background:rgba(255,255,255,.08);">
+                          OP da controllare
+                        </span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="height:5px;background:#ff6b00;line-height:5px;font-size:0;">&nbsp;</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- TITOLO -->
+        <tr>
+          <td class="ep" style="padding:28px 34px 6px;background:#ffffff;">
+            <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Resoconto promemoria</div>
+            <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">
+              {{ n_op }} OP con anomalie da gestire
+            </h2>
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px;">
+              {{ tot_anomalie }} anomali{% if tot_anomalie == 1 %}a in stato{% else %}e in stato{% endif %} <strong>&laquo;In attesa&raquo;</strong> da oltre <strong>{{ soglia_ore }} ore</strong>. Si richiede la presa in carico.
+            </p>
+          </td>
+        </tr>
+
+        <!-- TABELLA OP -->
+        <tr>
+          <td class="ep" style="padding:18px 34px 8px;background:#ffffff;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+              <tr style="background:#f1f5f9;">
+                <th align="left" style="padding:9px 12px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">OP / P-N</th>
+                <th align="center" style="padding:9px 8px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">Anomalie</th>
+                <th align="center" style="padding:9px 8px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">Ferma da</th>
+                <th align="left" class="hide-sm" style="padding:9px 12px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">CC / CAR</th>
+              </tr>
+              {% for op in op_rows %}
+              <tr style="background:{% cycle '#ffffff' '#fafbfc' %};">
+                <td style="padding:11px 12px;font-size:13px;color:#182232;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                  <strong>{{ op.op_id }}</strong>{% if op.pn %}<br><span style="color:#64748b;font-size:12px;">P/N {{ op.pn }}</span>{% endif %}
+                  {% if op.seriali %}<div style="margin-top:4px;color:#94a3b8;font-size:11px;">S/N: {{ op.seriali|join:", "|truncatechars:80 }}</div>{% endif %}
+                </td>
+                <td align="center" style="padding:11px 8px;font-size:14px;color:#182232;font-weight:700;border-bottom:1px solid #f1f5f9;vertical-align:top;">{{ op.n_anomalie }}</td>
+                <td align="center" style="padding:11px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                  <span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;">{{ op.ore_max|floatformat:0 }}h</span>
+                </td>
+                <td class="hide-sm" style="padding:11px 12px;font-size:12px;color:#475569;border-bottom:1px solid #f1f5f9;vertical-align:top;">{{ op.cc_car|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td class="ep" style="padding:18px 34px 24px;background:#ffffff;border-top:1px solid #d8e1ec;">
+            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.55;">
+              Resoconto automatico generato da NOVICROM HUB. La presa in carico aggiorna l'avanzamento e rimuove l'OP dal prossimo resoconto.<br>
+              Non rispondere a questa email.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+</body>
+</html>

@@ -416,6 +416,7 @@ class Notifica(models.Model):
         ("assenza_in_attesa", "Assenza in attesa di approvazione"),
         ("anomalia_segnalata", "Anomalia segnalata al cliente"),
         ("anomalia_chiusa", "Anomalia chiusa"),
+        ("anomalia_da_gestire", "Anomalia da gestire (OP da controllare)"),
         ("dpi_approvata", "DPI approvata"),
         ("dpi_rifiutata", "DPI rifiutata"),
         ("dpi_consegnata", "DPI consegnata"),

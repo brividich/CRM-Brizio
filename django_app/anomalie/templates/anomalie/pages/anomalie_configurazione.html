@@ -223,6 +223,11 @@
         <textarea id="rdc_segnalazione" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label for="escalation_supervisori">Email supervisori (resoconto OP da controllare)</label>
+        <small>Una <strong>email per riga</strong>. Ricevono il <strong>resoconto giornaliero</strong> degli OP con anomalie ferme in &laquo;In attesa&raquo; oltre la soglia (vedi sezione <em>Promemoria &amp; escalation</em> sotto), oltre a capocommessa/CAR dell'OP.</small>
+        <textarea id="escalation_supervisori" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label for="attachments_dir">Percorso cartella allegati</label>
         <small>Percorso relativo (es. <code>media\anomalie_allegati</code>) o assoluto/di rete (es. <code>\\SERVER\Condivisa\Anomalie</code>). Deve essere una cartella gi&agrave; esistente e scrivibile dal servizio Django.</small>
         <input id="attachments_dir" type="text" class="input" spellcheck="false" />
@@ -232,6 +237,39 @@
     <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
       <button id="btn-default" class="btn btn-secondary" type="button">Ripristina default</button>
       <button id="btn-save" class="btn" type="button">Salva configurazione</button>
+    </div>
+  </div>
+
+  {# ── Promemoria & escalation OP da controllare ── #}
+  <div class="card" style="margin-top:18px;">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Promemoria &amp; escalation</div>
+        <div class="page-sub" style="margin-top:4px;">Promemoria in dashboard a capocommessa/CAR appena un'anomalia &egrave; segnalata; resoconto email automatico per gli OP/PN ancora &laquo;In attesa&raquo; oltre la soglia. Cadenza: <strong>{{ escalation_cfg.cadenza_label }}</strong> all'ora impostata.</div>
+      </div>
+    </div>
+    <div class="card-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
+      <div class="field" style="grid-column:1/-1;">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="esc_attivo" />
+          <span>Attiva il resoconto email di escalation</span>
+        </label>
+        <small>Se disattivo, i promemoria in dashboard continuano a comparire ma non viene inviata alcuna email.</small>
+      </div>
+      <div class="field">
+        <label for="esc_soglia_ore">Soglia (ore in &laquo;In attesa&raquo;)</label>
+        <small>Ore oltre cui un'anomalia non gestita entra nel resoconto. Default 24, max 720 (30 giorni).</small>
+        <input id="esc_soglia_ore" type="number" min="1" max="720" step="1" class="input" />
+      </div>
+      <div class="field">
+        <label for="esc_ora_invio">Ora di invio resoconto</label>
+        <small>Il resoconto parte a quest'ora ogni giorno lavorativo (lun&ndash;ven). Default 06:00.</small>
+        <select id="esc_ora_invio" class="input"></select>
+      </div>
+    </div>
+    <div id="esc-status" class="status" style="margin:0 16px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
+      <button id="btn-esc-save" class="btn" type="button">Salva promemoria &amp; escalation</button>
     </div>
   </div>
 
@@ -587,6 +625,11 @@
 <script>
   window._CFG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
   window._CFG_ATTACHMENTS_DIR = "{{ attachments_dir|escapejs }}";
+  window._CFG_ESCALATION = {
+    attivo: {% if escalation_cfg.attivo %}true{% else %}false{% endif %},
+    soglia_ore: {{ escalation_cfg.soglia_ore|default:24 }},
+    ora_invio: {{ escalation_cfg.ora_invio|default:6 }}
+  };
 </script>
 {% endblock %}
 
@@ -608,6 +651,7 @@
       ],
       conferma_aggiornamenti: [],
       rdc_segnalazione: [],
+      escalation_supervisori: [],
       attachments_dir: "media\\anomalie_allegati",
     };
 
@@ -618,6 +662,7 @@
       "autorizzati_modifica",
       "conferma_aggiornamenti",
       "rdc_segnalazione",
+      "escalation_supervisori",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
     // Liste derivate dall'anagrafica: sola lettura, renderizzate come elenco.
@@ -722,6 +767,69 @@
 
     fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
     loadFromApi();
+  })();
+</script>
+<script>
+  // ── Promemoria & escalation ─────────────────────────────────────────────────
+  (function () {
+    const elAttivo = document.getElementById('esc_attivo');
+    const elSoglia = document.getElementById('esc_soglia_ore');
+    const elOra    = document.getElementById('esc_ora_invio');
+    const elSupervisori = document.getElementById('escalation_supervisori'); // condiviso con le liste
+    const btnSave  = document.getElementById('btn-esc-save');
+    const statusEl = document.getElementById('esc-status');
+    if (!btnSave || !elAttivo) return; // non siamo nella tab config
+
+    const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+    const setStatus = (ok, msg) => { statusEl.className = 'status ' + (ok ? 'ok' : 'err'); statusEl.textContent = msg; };
+
+    // Popola la select delle ore 00..23
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = String(h);
+      o.textContent = (h < 10 ? '0' + h : String(h)) + ':00';
+      elOra.appendChild(o);
+    }
+
+    const cfg = window._CFG_ESCALATION || { attivo: false, soglia_ore: 24, ora_invio: 6 };
+    elAttivo.checked = !!cfg.attivo;
+    elSoglia.value = cfg.soglia_ore != null ? cfg.soglia_ore : 24;
+    elOra.value = String(cfg.ora_invio != null ? cfg.ora_invio : 6);
+
+    btnSave.addEventListener('click', async () => {
+      // I supervisori viaggiano nella stessa chiave liste; li salviamo insieme
+      // riusando l'endpoint config/liste con il blocco "escalation".
+      const fromText = (v) => String(v || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const payload = {
+        // includi la chiave lista supervisori per non azzerarla lato server
+        escalation_supervisori: elSupervisori ? fromText(elSupervisori.value) : [],
+        escalation: {
+          attivo: !!elAttivo.checked,
+          soglia_ore: parseInt(elSoglia.value, 10) || 24,
+          ora_invio: parseInt(elOra.value, 10) || 6,
+        },
+      };
+      btnSave.disabled = true;
+      try {
+        const r = await fetch('/api/anomalie/config/liste', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (!r.ok || !j.success) throw new Error(j.error || 'Salvataggio non riuscito');
+        if (j.escalation) {
+          elAttivo.checked = !!j.escalation.attivo;
+          elSoglia.value = j.escalation.soglia_ore;
+          elOra.value = String(j.escalation.ora_invio);
+        }
+        setStatus(true, 'Impostazioni promemoria & escalation salvate.');
+      } catch (e) {
+        setStatus(false, e.message || 'Errore durante il salvataggio');
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
   })();
 </script>
 <script>

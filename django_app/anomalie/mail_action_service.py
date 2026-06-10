@@ -540,3 +540,284 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
         if ok:
             sent += 1
     return {"sent": sent, "checked": len(pending)}
+
+
+# ── Promemoria & escalation "OP da controllare" ──────────────────────────────
+
+def _fetch_op_da_controllare(soglia_ore: int) -> list[dict]:
+    """Raggruppa per OP le anomalie aperte ferme in stato 'In attesa'.
+
+    Un'anomalia entra nel set se: non chiusa (`COALESCE(chiudere,0)=0`) e avanzamento
+    uguale allo STATO_DA_GESTIRE. Per ogni OP calcola da quante ore è ferma la più
+    vecchia (su `created_datetime`, fallback `modified_datetime`). `over_threshold`
+    indica se la più vecchia supera `soglia_ore`.
+
+    Ritorna lista di dict per OP: {op_id, pn, n_anomalie, seriali, ore_max, over_threshold}.
+    """
+    from .escalation_config import STATO_DA_GESTIRE
+    try:
+        from core.legacy_utils import legacy_table_columns
+        from django.db import connections, connection as _conn
+    except Exception:
+        return []
+
+    cols = legacy_table_columns("anomalie") or set()
+    if not cols:
+        return []
+    age_col = "created_datetime" if "created_datetime" in cols else (
+        "modified_datetime" if "modified_datetime" in cols else None
+    )
+    if age_col is None:
+        return []
+
+    is_sqlite = _conn.vendor == "sqlite"
+    op_expr = "ex_op_nominativo" if is_sqlite else "CAST(ex_op_nominativo AS NVARCHAR(MAX))"
+    sql = (
+        f"SELECT {op_expr} AS op_id, id, seriale, {age_col} AS age_ts "
+        f"FROM anomalie "
+        f"WHERE COALESCE(chiudere, 0) = 0 AND LOWER(COALESCE(avanzamento, '')) = LOWER(%s)"
+    )
+    try:
+        with connections["default"].cursor() as cur:
+            cur.execute(sql, [STATO_DA_GESTIRE])
+            rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
+    except Exception:
+        logger.exception("_fetch_op_da_controllare: query fallita")
+        return []
+
+    from django.utils import timezone as _tz
+    now = _tz.now()
+
+    def _ore(ts) -> float:
+        if ts is None:
+            return 0.0
+        try:
+            import datetime as _dt
+            if isinstance(ts, str):
+                ts = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if _tz.is_naive(ts):
+                ts = _tz.make_aware(ts, _tz.utc)
+            return max(0.0, (now - ts).total_seconds() / 3600.0)
+        except Exception:
+            return 0.0
+
+    grouped: dict[str, dict] = {}
+    for r in rows:
+        op = str(r.get("op_id") or "").strip()
+        if not op:
+            continue
+        g = grouped.setdefault(op, {"op_id": op, "ids": [], "seriali": [], "ore_max": 0.0})
+        g["ids"].append(r.get("id"))
+        sn = str(r.get("seriale") or "").strip()
+        if sn:
+            g["seriali"].append(sn)
+        g["ore_max"] = max(g["ore_max"], _ore(r.get("age_ts")))
+
+    if not grouped:
+        return []
+
+    pn_map = _fetch_pn_for_ops(list(grouped.keys()))
+    out = []
+    for op, g in grouped.items():
+        out.append({
+            "op_id": op,
+            "pn": pn_map.get(op.lower(), ""),
+            "n_anomalie": len(g["ids"]),
+            "seriali": g["seriali"],
+            "ore_max": round(g["ore_max"], 1),
+            "over_threshold": g["ore_max"] >= soglia_ore,
+        })
+    out.sort(key=lambda x: x["ore_max"], reverse=True)
+    return out
+
+
+def _fetch_pn_for_ops(op_titles: list[str]) -> dict[str, str]:
+    """Mappa op_title (lower) -> P/N da ordini_produzione, se la colonna esiste."""
+    if not op_titles:
+        return {}
+    try:
+        from core.legacy_utils import legacy_table_columns
+        from django.db import connections, connection as _conn
+        cols = legacy_table_columns("ordini_produzione") or set()
+        pn_col = "pn" if "pn" in cols else ("part_number" if "part_number" in cols else None)
+        if pn_col is None:
+            return {}
+        is_sqlite = _conn.vendor == "sqlite"
+        title_expr = "title" if is_sqlite else "CAST(title AS NVARCHAR(MAX))"
+        placeholders = ",".join(["%s"] * len(op_titles))
+        sql = f"SELECT {title_expr} AS t, {pn_col} AS pn FROM ordini_produzione WHERE LOWER({title_expr}) IN ({placeholders})"
+        with connections["default"].cursor() as cur:
+            cur.execute(sql, [t.lower() for t in op_titles])
+            return {
+                str(r[0] or "").strip().lower(): str(r[1] or "").strip()
+                for r in cur.fetchall()
+            }
+    except Exception:
+        return {}
+
+
+def _resolve_op_cc_car_legacy_ids(op_id: str) -> list[tuple[int, str]]:
+    """Risolve (legacy_user_id, display) di CC e CAR dell'OP per i reminder dashboard.
+
+    Riusa il pattern di anomalie.views._notify_anomalia_event: dai nominativi CC/CAR
+    (via _resolve_op_recipients) cerca l'utente legacy per alias email o per nome.
+    """
+    from automazioni.services import _resolve_op_recipients
+    out: list[tuple[int, str]] = []
+    try:
+        from core.legacy_models import UtenteLegacy
+    except Exception:
+        return out
+    seen: set[int] = set()
+    for rec in _resolve_op_recipients(op_id):
+        display = str(rec.get("display") or "").strip()
+        email = str(rec.get("email") or "").strip()
+        user = None
+        try:
+            if email:
+                alias = email.split("@")[0].strip()
+                user = UtenteLegacy.objects.filter(email__istartswith=f"{alias}@").first()
+            if user is None and display:
+                user = UtenteLegacy.objects.filter(nome__icontains=display).first()
+        except Exception:
+            user = None
+        if user and user.id not in seen:
+            seen.add(user.id)
+            out.append((user.id, display or email or str(user.id)))
+    return out
+
+
+def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
+    """Crea promemoria in-app (core.Notifica) per CC/CAR degli OP da controllare.
+
+    Idempotente: per ogni (utente, OP) non duplica se esiste già una notifica non letta
+    dello stesso tipo che punta allo stesso OP. Aggiorna il messaggio a "in ritardo" quando
+    l'OP supera la soglia. Ritorna il numero di notifiche create.
+    """
+    from core.models import Notifica
+
+    created = 0
+    for op in op_rows:
+        op_id = op.get("op_id") or ""
+        if not op_id:
+            continue
+        over = bool(op.get("over_threshold"))
+        n = op.get("n_anomalie") or 0
+        ritardo = f" — in ritardo da {int(op.get('ore_max') or 0)}h" if over else ""
+        messaggio = (
+            f"OP {op_id}: {n} anomali{'a' if n == 1 else 'e'} da gestire (stato 'In attesa'){ritardo}."
+        )[:500]
+        url = f"/gestione-anomalie?op={op_id}"
+        for legacy_uid, _display in _resolve_op_cc_car_legacy_ids(op_id):
+            try:
+                # Idempotenza: una sola notifica non letta per (utente, OP)
+                exists = Notifica.objects.filter(
+                    legacy_user_id=legacy_uid,
+                    tipo="anomalia_da_gestire",
+                    url_azione=url,
+                    letta=False,
+                ).first()
+                if exists:
+                    # Aggiorna il testo se è cambiato lo stato di ritardo
+                    if exists.messaggio != messaggio:
+                        exists.messaggio = messaggio
+                        exists.save(update_fields=["messaggio"])
+                    continue
+                Notifica.objects.create(
+                    legacy_user_id=legacy_uid,
+                    tipo="anomalia_da_gestire",
+                    messaggio=messaggio,
+                    url_azione=url,
+                )
+                created += 1
+            except Exception:
+                logger.warning("create_dashboard_reminders: notifica fallita op=%s uid=%s", op_id, legacy_uid, exc_info=True)
+    return created
+
+
+def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_email: str | None = None) -> bool:
+    """Invia UNA mail aggregata con il resoconto degli OP/PN oltre soglia.
+
+    Destinatari: CC/CAR di tutti gli OP coinvolti + lista fissa supervisori
+    (config liste anomalie chiave `escalation_supervisori`). Ritorna True se inviata.
+    """
+    from .escalation_config import LISTA_SUPERVISORI_KEY
+    from automazioni.services import _resolve_op_recipients
+
+    over_rows = [op for op in op_rows if op.get("over_threshold")]
+    if not over_rows:
+        return False
+
+    # Arricchisci ogni OP con i nomi CC/CAR per la tabella
+    enriched = []
+    destinatari: list[str] = []
+    for op in over_rows:
+        recs = _resolve_op_recipients(op.get("op_id") or "")
+        cc_car = ", ".join(
+            f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))
+        )
+        for r in recs:
+            if r.get("email"):
+                destinatari.append(r["email"])
+        enriched.append({**op, "cc_car": cc_car})
+
+    destinatari.extend(_resolve_lista_config(LISTA_SUPERVISORI_KEY))
+
+    seen = set()
+    to_list = []
+    for e in destinatari:
+        k = str(e).strip().lower()
+        if k and "@" in k and k not in seen:
+            seen.add(k)
+            to_list.append(str(e).strip())
+    if not to_list:
+        logger.info("send_escalation_resoconto: nessun destinatario")
+        return False
+
+    n_op = len(enriched)
+    tot_anomalie = sum(op.get("n_anomalie") or 0 for op in enriched)
+    subject = (
+        f"[Novicrom Hub] {n_op} OP da controllare — {tot_anomalie} anomali"
+        f"{'a' if tot_anomalie == 1 else 'e'} in attesa oltre {soglia_ore}h"
+    )
+
+    lines = [
+        f"Resoconto OP da controllare (anomalie in stato 'In attesa' da oltre {soglia_ore} ore).",
+        "",
+    ]
+    for op in enriched:
+        sn = ", ".join(op.get("seriali") or [])
+        pn = f" · P/N {op['pn']}" if op.get("pn") else ""
+        lines.append(
+            f"  • OP {op['op_id']}{pn} — {op['n_anomalie']} anomalie · ferma da {int(op.get('ore_max') or 0)}h"
+            + (f" · S/N {sn}" if sn else "")
+            + (f" · {op['cc_car']}" if op.get("cc_car") else "")
+        )
+    lines += [
+        "",
+        "—",
+        "NOVICROM HUB · Portale interno · Email automatica",
+        "Non rispondere a questa email.",
+    ]
+    body_text = "\n".join(lines)
+
+    body_html = render_to_string(
+        "anomalie/email/anomalie_escalation_resoconto.html",
+        {
+            "op_rows": enriched,
+            "n_op": n_op,
+            "tot_anomalie": tot_anomalie,
+            "soglia_ore": soglia_ore,
+        },
+    )
+
+    _from = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
+    msg = EmailMultiAlternatives(subject=subject, body=body_text, from_email=_from, to=to_list)
+    msg.attach_alternative(body_html, "text/html")
+    try:
+        msg.send(fail_silently=False)
+        logger.info("anomalie escalation resoconto inviato a=%s n_op=%s", to_list, n_op)
+        return True
+    except Exception:
+        logger.exception("anomalie escalation resoconto FALLITO")
+        return False

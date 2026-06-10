@@ -43,4 +43,16 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {"threshold_minutes": 5},
     },
+    {
+        # Promemoria dashboard (sempre) + resoconto email "OP da controllare".
+        # Cadenza oraria: il task aggiorna i promemoria a ogni run e invia il
+        # resoconto solo nei giorni lavorativi all'ora configurata (default 06:00),
+        # se l'escalation è attivata da Impostazioni anomalie (SiteConfig).
+        "name": "anomalie_escalation",
+        "func": "anomalie.tasks.run_anomalie_escalation",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 * * * *",        # ogni ora in punto
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]

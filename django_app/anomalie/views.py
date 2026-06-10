@@ -62,6 +62,7 @@ ANOMALIE_LIST_KEYS = (
     "autorizzati_modifica",
     "conferma_aggiornamenti",
     "rdc_segnalazione",
+    "escalation_supervisori",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -81,6 +82,9 @@ ANOMALIE_LIST_DEFAULTS = {
     # Email dedicata alle anomalie da aprire RDC / segnalare a cliente
     # (riceve la mail solo quando l'aggiornamento contiene quei flag).
     "rdc_segnalazione": [],
+    # Email supervisori del resoconto escalation "OP da controllare"
+    # (anomalie ferme in "In attesa" oltre soglia ore).
+    "escalation_supervisori": [],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
@@ -2473,11 +2477,14 @@ def anomalie_configurazione_page(request):
             },
         }
 
+    from anomalie.escalation_config import get_escalation_config
+
     context = {
         "page_title": "Gestione Anomalie",
         "username": display_name,
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
         "attachments_dir": _anomalie_attachments_dir_value(),
+        "escalation_cfg": get_escalation_config(),
         "tab": tab,
         "permessi_sub": permessi_sub,
         "tabella_ok": tabella_ok,
@@ -2540,18 +2547,42 @@ def api_anomalie_config_liste(request):
         logger.exception("[anomalie] salvataggio liste fallito")
         return JsonResponse({"success": False, "error": str(exc)}, status=500)
 
+    # Impostazioni promemoria & escalation (SiteConfig), se presenti nel payload.
+    escalation_saved = None
+    esc_payload = payload.get("escalation")
+    if isinstance(esc_payload, dict):
+        try:
+            from anomalie.escalation_config import get_escalation_config, save_escalation_config
+            save_escalation_config(
+                attivo=bool(esc_payload.get("attivo")),
+                soglia_ore=esc_payload.get("soglia_ore"),
+                ora_invio=esc_payload.get("ora_invio"),
+            )
+            escalation_saved = get_escalation_config()
+        except Exception:
+            logger.exception("[anomalie] salvataggio escalation fallito")
+
     try:
         log_action(
             request,
             "anomalie_config_liste_update",
             "anomalie",
-            {"keys": list(updated.keys()), "attachments_dir": saved_attachments_dir},
+            {
+                "keys": list(updated.keys()),
+                "attachments_dir": saved_attachments_dir,
+                "escalation": escalation_saved,
+            },
         )
     except Exception:
         pass
 
     _apply_derived_anomalie_lists(updated)
-    return JsonResponse({"success": True, "lists": updated, "attachments_dir": saved_attachments_dir})
+    return JsonResponse({
+        "success": True,
+        "lists": updated,
+        "attachments_dir": saved_attachments_dir,
+        "escalation": escalation_saved,
+    })
 
 
 @login_required
