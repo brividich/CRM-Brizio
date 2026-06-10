@@ -212,6 +212,16 @@
         <small>Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.</small>
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
       </div>
+      <div class="field">
+        <label for="conferma_aggiornamenti">Email conferma aggiornamenti</label>
+        <small>Una <strong>email per riga</strong>. Riceve <em>sempre</em> il riepilogo delle modifiche registrate sulle anomalie, oltre all'operatore segnalante e a capocommessa/CAR dell'OP.</small>
+        <textarea id="conferma_aggiornamenti" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field">
+        <label for="rdc_segnalazione">Email RDC / segnalazione cliente</label>
+        <small>Una <strong>email per riga</strong>. Riceve il riepilogo <em>solo quando</em> almeno un'anomalia &egrave; da <strong>aprire RDC</strong> o da <strong>segnalare a cliente</strong>, con quelle anomalie in risalto.</small>
+        <textarea id="rdc_segnalazione" class="input" spellcheck="false"></textarea>
+      </div>
       <div class="field" style="grid-column:1/-1;">
         <label for="attachments_dir">Percorso cartella allegati</label>
         <small>Percorso relativo (es. <code>media\anomalie_allegati</code>) o assoluto/di rete (es. <code>\\SERVER\Condivisa\Anomalie</code>). Deve essere una cartella gi&agrave; esistente e scrivibile dal servizio Django.</small>
@@ -596,6 +606,8 @@
         "Simone Smarrella",
         "Sara Gentile",
       ],
+      conferma_aggiornamenti: [],
+      rdc_segnalazione: [],
       attachments_dir: "media\\anomalie_allegati",
     };
 
@@ -604,6 +616,8 @@
       "stati_superficie",
       "avanzamenti",
       "autorizzati_modifica",
+      "conferma_aggiornamenti",
+      "rdc_segnalazione",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
     // Liste derivate dall'anagrafica: sola lettura, renderizzate come elenco.

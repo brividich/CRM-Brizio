@@ -67,6 +67,16 @@
     }
     .anomalia-row.st-verde .decisione-badge { display: inline-block; background: #d1fae5; color: #065f46; }
 
+    /* Badge RDC / segnalazione sulla riga (compaiono quando i toggle sono attivi) */
+    .flag-badge {
+      flex-shrink: 0; display: none; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 800; border-radius: 6px; padding: 3px 9px;
+      text-transform: uppercase; letter-spacing: .03em;
+    }
+    .flag-badge.show { display: inline-flex; }
+    .flag-badge.rdc { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .flag-badge.seg { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+
     .anomalia-row-info {
       flex: 1; padding: 12px 12px 12px 10px;
       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
@@ -78,10 +88,32 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
     }
     .stato-pill {
-      flex-shrink: 0; display: inline-block; font-size: 10px; font-weight: 600;
-      border-radius: 5px; padding: 2px 8px;
-      background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+      background: #eef2f7; color: #475569; border: 1px solid #dbe3ec;
+      text-transform: uppercase; letter-spacing: .03em;
     }
+    .stato-pill::before {
+      content: ""; width: 6px; height: 6px; border-radius: 50%; background: #94a3b8;
+    }
+    /* Colori per stato avanzamento */
+    .stato-pill.s-attesa  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .stato-pill.s-attesa::before  { background: #f97316; }
+    .stato-pill.s-accetto { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .stato-pill.s-accetto::before { background: #3b82f6; }
+    .stato-pill.s-finito  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+    .stato-pill.s-finito::before  { background: #22c55e; }
+    .stato-pill.s-recupero, .stato-pill.s-apertura { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+    .stato-pill.s-recupero::before, .stato-pill.s-apertura::before { background: #a855f7; }
+
+    /* Badge "Stato superficie" in risalto */
+    .superficie-badge {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 800; border-radius: 6px; padding: 3px 9px;
+      background: linear-gradient(135deg, #fff1e6, #ffe4d1); color: #9a3412;
+      border: 1px solid #fdba74; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .superficie-badge svg { width: 12px; height: 12px; }
     .chevron { flex-shrink: 0; padding: 0 12px 0 4px; color: #94a3b8; transition: transform .2s; }
     .anomalia-row.open .chevron { transform: rotate(180deg); }
 
@@ -282,14 +314,20 @@
           <span class="anomalia-num">#{{ a.id }}</span>
           {% if a.seriale %}<span class="anomalia-sn">{{ a.seriale }}</span>{% endif %}
           <span class="anomalia-desc-compact">{{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:80 }}</span>
+          <span class="superficie-badge" id="sup-{{ a.id }}" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M2 7h20"/><path d="M2 17h20"/></svg>
+            <span class="superficie-badge-text"></span>
+          </span>
+          <span class="flag-badge rdc" id="flag-rdc-{{ a.id }}">RDC</span>
+          <span class="flag-badge seg" id="flag-seg-{{ a.id }}">Cliente</span>
           <span class="decisione-badge" id="badge-{{ a.id }}"></span>
-          {% if a.avanzamento %}<span class="stato-pill">Stato: {{ a.avanzamento }}</span>{% endif %}
+          {% if a.avanzamento %}<span class="stato-pill" id="stato-{{ a.id }}" data-stato="{{ a.avanzamento|escapejs }}">{{ a.avanzamento }}</span>{% endif %}
         </div>
         <div class="chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
       </div>
       <div class="anomalia-body">
         <div class="body-inner">
-          <div class="body-desc-full">{{ a.descrizione|default:"(nessuna descrizione)" }}</div>
+          <div class="body-desc-full" id="bodydesc-{{ a.id }}">{{ a.descrizione|default:"(nessuna descrizione)" }}</div>
           {% if a.note_capocommessa %}
           <div class="body-note-existing">Note: {{ a.note_capocommessa }}</div>
           {% endif %}
@@ -477,10 +515,70 @@
       av.style.cursor = disabled ? 'not-allowed' : 'pointer';
     }
     if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
+
+    // Badge di risalto sulla riga
+    var fr = document.getElementById('flag-rdc-' + id);
+    var fs = document.getElementById('flag-seg-' + id);
+    if (fr) fr.classList.toggle('show', !!(rdc && rdc.checked));
+    if (fs) fs.classList.toggle('show', !!(seg && seg.checked));
+  }
+
+  // ── Stato superficie: estratto dal prefisso "Stato superficie: ..." della descrizione ──
+  // (la pagina di apertura lo antepone come "Stato superficie: X, Y\n\n" + nota utente)
+  var SUP_RE = /^\s*Stato superficie:\s*([^\n]+)\n*/i;
+
+  function splitSuperficie(raw) {
+    var s = String(raw || '');
+    var m = s.match(SUP_RE);
+    if (!m) return { superficie: '', resto: s.trim() };
+    return { superficie: m[1].trim(), resto: s.slice(m[0].length).trim() };
+  }
+
+  // Mappa avanzamento → classe colore della pill.
+  function statoClass(stato) {
+    var s = String(stato || '').trim().toLowerCase();
+    if (s.indexOf('attesa') >= 0) return 's-attesa';
+    if (s.indexOf('accetto') >= 0) return 's-accetto';
+    if (s.indexOf('finito') >= 0) return 's-finito';
+    if (s.indexOf('recupero') >= 0) return 's-recupero';
+    if (s.indexOf('apertura') >= 0) return 's-apertura';
+    return '';
   }
 
   // Inizializza tutte le righe al load.
   document.addEventListener('DOMContentLoaded', function() {
+    // 1) Estrai stato superficie + ripulisci descrizioni
+    document.querySelectorAll('.anomalia-row').forEach(function(row){
+      var id = row.dataset.id;
+      var parsed = splitSuperficie(row.dataset.desc || '');
+      // Badge stato superficie
+      if (parsed.superficie) {
+        var sup = document.getElementById('sup-' + id);
+        if (sup) {
+          var t = sup.querySelector('.superficie-badge-text');
+          if (t) t.textContent = parsed.superficie;
+          sup.style.display = 'inline-flex';
+          sup.title = 'Stato superficie: ' + parsed.superficie;
+        }
+      }
+      // Descrizione compatta (testo senza il prefisso)
+      var compact = row.querySelector('.anomalia-desc-compact');
+      if (compact) {
+        var resto = parsed.resto || '(nessuna descrizione)';
+        compact.textContent = resto.length > 80 ? resto.slice(0, 80) + '…' : resto;
+      }
+      // Descrizione completa nel corpo
+      var full = document.getElementById('bodydesc-' + id);
+      if (full) full.textContent = parsed.resto || '(nessuna descrizione)';
+    });
+
+    // 2) Colora le pill di stato
+    document.querySelectorAll('.stato-pill[data-stato]').forEach(function(pill){
+      var cls = statoClass(pill.dataset.stato);
+      if (cls) pill.classList.add(cls);
+    });
+
+    // 3) Inizializza i pannelli decisione
     document.querySelectorAll('[id^="panel-"]').forEach(function(p){
       var id = p.id.replace('panel-', '');
       onToggleChange(id);

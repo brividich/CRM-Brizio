@@ -295,17 +295,29 @@ def _resolve_segnalante_email(op_id: str, anomalie_ids: list) -> tuple[str, str]
     return "", ""
 
 
-def _resolve_lista_fissa_conferma() -> list[str]:
-    """Lista email fisse di conferma dalla config liste anomalie (chiave 'conferma_aggiornamenti')."""
+def _resolve_lista_config(key: str) -> list[str]:
+    """Lista email da una chiave della config liste anomalie."""
     try:
         from anomalie.views import _load_anomalie_lists
         cfg = _load_anomalie_lists() or {}
-        raw = cfg.get("conferma_aggiornamenti") or []
+        raw = cfg.get(key) or []
         if isinstance(raw, str):
             raw = [x.strip() for x in raw.replace(";", ",").split(",")]
         return [e.strip() for e in raw if e and "@" in str(e)]
     except Exception:
         return []
+
+
+def _resolve_lista_fissa_conferma() -> list[str]:
+    """Lista email fisse di conferma (chiave 'conferma_aggiornamenti')."""
+    return _resolve_lista_config("conferma_aggiornamenti")
+
+
+def _resolve_lista_rdc_segnalazione() -> list[str]:
+    """Lista email dedicata alle anomalie da aprire RDC / segnalare a cliente
+    (chiave 'rdc_segnalazione'). Riceve la mail solo quando l'aggiornamento
+    contiene almeno un'anomalia con flag aprire_rdc o segnalare."""
+    return _resolve_lista_config("rdc_segnalazione")
 
 
 def send_anomalie_update_confirmation(
@@ -330,6 +342,12 @@ def send_anomalie_update_confirmation(
 
     anomalie_ids = [r.get("id") for r in anomalie_rows if r.get("id") is not None]
 
+    # Anomalie con risalto: da aprire RDC e/o da segnalare a cliente.
+    # Vanno in cima alla mail e attivano l'invio alla lista dedicata.
+    rdc_rows = [u for u in updates_summary if u.get("aprire_rdc") or u.get("segnalare")]
+    altre_rows = [u for u in updates_summary if not (u.get("aprire_rdc") or u.get("segnalare"))]
+    has_rdc = bool(rdc_rows)
+
     destinatari: list[str] = []
 
     # 1) Operatore segnalante
@@ -344,6 +362,11 @@ def send_anomalie_update_confirmation(
 
     # 3) Lista fissa configurabile + extra
     destinatari.extend(_resolve_lista_fissa_conferma())
+
+    # 4) Lista dedicata RDC/segnalazione: solo se ci sono anomalie con quei flag
+    if has_rdc:
+        destinatari.extend(_resolve_lista_rdc_segnalazione())
+
     if extra_emails:
         destinatari.extend(extra_emails)
 
@@ -361,16 +384,19 @@ def send_anomalie_update_confirmation(
         return False
 
     n = len(updates_summary)
-    subject = f"[Novicrom Hub] Aggiornamento anomalie OP {op_id} — {n} modific{'a' if n == 1 else 'he'} registrat{'a' if n == 1 else 'e'}"
+    n_rdc = len(rdc_rows)
+    if has_rdc:
+        subject = (
+            f"[Novicrom Hub] OP {op_id} — {n_rdc} da APRIRE RDC / SEGNALARE A CLIENTE"
+            f" ({n} modific{'a' if n == 1 else 'he'} totali)"
+        )
+    else:
+        subject = (
+            f"[Novicrom Hub] Aggiornamento anomalie OP {op_id} — "
+            f"{n} modific{'a' if n == 1 else 'he'} registrat{'a' if n == 1 else 'e'}"
+        )
 
-    # Corpo testo
-    lines = [
-        f"Sono state registrate modifiche sulle anomalie dell'OP {op_id}"
-        f"{(' — ' + op_nominativo) if op_nominativo else ''}.",
-        "",
-        "RIEPILOGO MODIFICHE:",
-    ]
-    for u in updates_summary:
+    def _fmt_row(u, prefix="  • "):
         flags = []
         if u.get("aprire_rdc"):
             flags.append("Aprire RDC")
@@ -381,14 +407,30 @@ def send_anomalie_update_confirmation(
         flag_str = (" [" + ", ".join(flags) + "]") if flags else ""
         av = u.get("avanzamento") or "(invariato)"
         sn = u.get("seriale") or ""
-        line = f"  • #{u.get('id', '?')}" + (f" S/N {sn}" if sn else "") + f" → {av}{flag_str}"
-        lines.append(line)
+        out = [prefix + f"#{u.get('id', '?')}" + (f" S/N {sn}" if sn else "") + f" → {av}{flag_str}"]
         if u.get("note"):
-            lines.append(f"      Note: {str(u['note'])[:200]}")
-    if source_label:
-        lines += ["", f"Origine: {source_label}"]
-    lines += [
+            out.append(f"      Note: {str(u['note'])[:200]}")
+        return out
+
+    # Corpo testo
+    lines = [
+        f"Sono state registrate modifiche sulle anomalie dell'OP {op_id}"
+        f"{(' — ' + op_nominativo) if op_nominativo else ''}.",
         "",
+    ]
+    if rdc_rows:
+        lines += ["⚠ DA APRIRE RDC / SEGNALARE A CLIENTE:"]
+        for u in rdc_rows:
+            lines += _fmt_row(u, "  ► ")
+        lines.append("")
+    if altre_rows:
+        lines += ["ALTRE MODIFICHE:"]
+        for u in altre_rows:
+            lines += _fmt_row(u)
+        lines.append("")
+    if source_label:
+        lines += [f"Origine: {source_label}", ""]
+    lines += [
         "—",
         "NOVICROM HUB · Portale interno · Email automatica",
         "Non rispondere a questa email.",
@@ -401,8 +443,12 @@ def send_anomalie_update_confirmation(
             "op_id": op_id,
             "op_nominativo": op_nominativo,
             "updates_summary": updates_summary,
+            "rdc_rows": rdc_rows,
+            "altre_rows": altre_rows,
+            "has_rdc": has_rdc,
             "source_label": source_label,
             "n": n,
+            "n_rdc": n_rdc,
         },
     )
 

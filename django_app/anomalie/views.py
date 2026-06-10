@@ -60,6 +60,8 @@ ANOMALIE_LIST_KEYS = (
     "stati_superficie",
     "avanzamenti",
     "autorizzati_modifica",
+    "conferma_aggiornamenti",
+    "rdc_segnalazione",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -74,6 +76,11 @@ ANOMALIE_LIST_DEFAULTS = {
         "Simone Smarrella",
         "Sara Gentile",
     ],
+    # Email destinatarie fisse della mail di conferma aggiornamenti anomalie.
+    "conferma_aggiornamenti": [],
+    # Email dedicata alle anomalie da aprire RDC / segnalare a cliente
+    # (riceve la mail solo quando l'aggiornamento contiene quei flag).
+    "rdc_segnalazione": [],
 }
 ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
