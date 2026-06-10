@@ -683,6 +683,48 @@ class AutomationActionForm(forms.ModelForm):
         help_text="CSV opzionale di status code ammessi, es. `200,201,204`.",
     )
 
+    # ── SEND_ANOMALIE_MAIL_ACTION ─────────────────────────────────────────
+    anomalie_mail_to = forms.CharField(required=False, label="Destinatario (email o template)")
+    anomalie_mail_recipient_display = forms.CharField(required=False, label="Nome destinatario (template)")
+    anomalie_mail_action = forms.ChoiceField(
+        required=False,
+        label="Azione mail-action",
+        choices=[
+            ("visualizza", "Visualizza"),
+            ("prendi_in_carico", "Prendi in carico"),
+            ("approva", "Approva"),
+            ("respingi", "Respingi"),
+            ("richiedi_modifica", "Richiedi modifica"),
+            ("chiudi", "Chiudi"),
+        ],
+    )
+    anomalie_mail_expires_hours = forms.IntegerField(
+        required=False, label="Scadenza link (ore)", initial=48,
+        widget=forms.NumberInput(attrs={"min": 1}),
+    )
+    anomalie_mail_source_automation = forms.CharField(required=False, label="Label audit (source_automation)")
+
+    # ── SEND_ANOMALIE_MAIL_ACTION_BY_OP ───────────────────────────────────
+    anomalie_op_benestare_field = forms.CharField(
+        required=False, label="Campo benestare nel payload",
+        widget=forms.TextInput(attrs={"placeholder": "es. benestare"}),
+    )
+    anomalie_op_action = forms.ChoiceField(
+        required=False,
+        label="Azione mail-action",
+        choices=[
+            ("prendi_in_carico", "Prendi in carico"),
+            ("conferma", "Conferma"),
+            ("rifiuta", "Rifiuta"),
+            ("richiedi_info", "Richiedi informazioni"),
+        ],
+    )
+    anomalie_op_expires_hours = forms.IntegerField(
+        required=False, label="Scadenza link (ore)", initial=48,
+        widget=forms.NumberInput(attrs={"min": 1}),
+    )
+    anomalie_op_source_automation = forms.CharField(required=False, label="Label audit (source_automation)")
+
     teams_webhook_url = forms.CharField(required=False, label="Teams webhook URL")
     teams_title_template = forms.CharField(required=False, label="Titolo card")
     teams_summary_template = forms.CharField(required=False, label="Summary")
@@ -1101,6 +1143,15 @@ class AutomationActionForm(forms.ModelForm):
                     "http_expected_status_csv",
                     ",".join(str(status) for status in expected_statuses if str(status).strip()),
                 )
+            self.initial.setdefault("anomalie_mail_to", config.get("to", ""))
+            self.initial.setdefault("anomalie_mail_recipient_display", config.get("recipient_display", ""))
+            self.initial.setdefault("anomalie_mail_action", config.get("action", "prendi_in_carico"))
+            self.initial.setdefault("anomalie_mail_expires_hours", config.get("expires_hours", 48))
+            self.initial.setdefault("anomalie_mail_source_automation", config.get("source_automation", ""))
+            self.initial.setdefault("anomalie_op_benestare_field", config.get("benestare_field", ""))
+            self.initial.setdefault("anomalie_op_action", config.get("action", "prendi_in_carico"))
+            self.initial.setdefault("anomalie_op_expires_hours", config.get("expires_hours", 48))
+            self.initial.setdefault("anomalie_op_source_automation", config.get("source_automation", ""))
             self.initial.setdefault("teams_webhook_url", config.get("webhook_url", ""))
             self.initial.setdefault("teams_title_template", config.get("title_template", ""))
             self.initial.setdefault("teams_summary_template", config.get("summary_template", ""))
@@ -1400,6 +1451,26 @@ class AutomationActionForm(forms.ModelForm):
                 self.add_error("http_method", "Il metodo HTTP e' obbligatorio.")
             if not str(config_json["url_template"]).strip():
                 self.add_error("http_url_template", "L'URL template e' obbligatorio.")
+
+        elif action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION:
+            to_val = str(cleaned_data.get("anomalie_mail_to") or "").strip()
+            if not to_val:
+                self.add_error("anomalie_mail_to", "Il destinatario è obbligatorio.")
+            config_json = {
+                "to": to_val,
+                "recipient_display": str(cleaned_data.get("anomalie_mail_recipient_display") or "").strip(),
+                "action": str(cleaned_data.get("anomalie_mail_action") or "prendi_in_carico").strip(),
+                "expires_hours": int(cleaned_data.get("anomalie_mail_expires_hours") or 48),
+                "source_automation": str(cleaned_data.get("anomalie_mail_source_automation") or "").strip(),
+            }
+
+        elif action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION_BY_OP:
+            config_json = {
+                "benestare_field": str(cleaned_data.get("anomalie_op_benestare_field") or "").strip(),
+                "action": str(cleaned_data.get("anomalie_op_action") or "prendi_in_carico").strip(),
+                "expires_hours": int(cleaned_data.get("anomalie_op_expires_hours") or 48),
+                "source_automation": str(cleaned_data.get("anomalie_op_source_automation") or "").strip(),
+            }
 
         elif action_type == AutomationActionType.TEAMS_WEBHOOK:
             config_json = {

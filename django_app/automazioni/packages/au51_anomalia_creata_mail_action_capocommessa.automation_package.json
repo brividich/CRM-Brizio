@@ -1,7 +1,7 @@
 {
   "package_version": "2026.06",
   "input": {
-    "flow_name": "AU51 - Anomalia creata: mail-action con link guidato al capocommessa"
+    "flow_name": "AU51 - Anomalia creata: mail-action con link guidato a CC/CAR dell'OP (risolti automaticamente)"
   },
   "source_candidate": {
     "source_code": "anomalie",
@@ -18,9 +18,9 @@
   },
   "proposed_rules": [
     {
-      "code": "au51-anomalia-creata-mail-action-cc",
-      "name": "AU51 - Anomalia creata: mail-action link guidato capocommessa",
-      "description": "Alla creazione di una nuova anomalia, invia un'email al capocommessa con il riepilogo e un link sicuro alla pagina 'Azione da mail' del portale. Il click apre il form guidato (richiede login), dove il capocommessa può prendere in carico, inserire note e registrare l'azione — senza accedere al modulo anomalie completo. CONFIGURARE: (1) impostare 'to' con l'email reale del capocommessa o usare il campo {ex_op_nominativo} se il destinatario è derivabile dalla regola; (2) verificare che SITE_URL sia impostato nel .env di produzione; (3) attivare is_active=true dopo il test.",
+      "code": "au51-anomalia-creata-mail-action-op",
+      "name": "AU51 - Anomalia creata: mail-action link guidato a CC/CAR dell'OP",
+      "description": "Alla creazione di una nuova anomalia, risolve automaticamente il capocommessa (CC) e l'incaricato (CAR) dell'OP tramite le tabelle legacy ordini_produzione + anagrafica_dipendenti, e invia un'email con token sicuro monouso contenente il link guidato 'Azione da mail'. Il routing destinatario/cc dipende dal campo benestare nel payload (benestare=true → to=CAR, cc=CC; altrimenti to=CC, cc=CAR). Il click sul link apre il form guidato sul portale senza accedere al modulo completo. Non richiede configurazione di email fissa: tutto viene risolto in fase di esecuzione dall'OP.",
       "source_code": "anomalie",
       "operation_type": "insert",
       "trigger_scope": "all_inserts",
@@ -40,21 +40,19 @@
           "operator": "cooldown_group",
           "value": "mail_anomalie_op:5",
           "value_type": "string",
-          "description": "Debounce: al massimo 1 mail ogni 5 minuti per OP (namespace mail_anomalie_op). Il motore registra l'invio solo a esecuzione riuscita; il namespace e' condivisibile con altre regole anomalie (es. au42 su update) per un cooldown unico per OP."
+          "description": "Debounce: al massimo 1 mail ogni 5 minuti per OP (namespace condivisibile con altre regole anomalie su insert/update)"
         }
       ],
       "actions": [
         {
-          "action_type": "send_email",
-          "description": "Email mail-action con link guidato al capocommessa",
-          "to": "CAPOCOMMESSA_DA_CONFIGURARE@costruzioninovicrom.it",
-          "cc": "",
-          "subject_template": "[Anomalie] Nuova anomalia #{id} su OP {ex_op_nominativo} — risposta richiesta",
-          "body_text_template": "Gentile Capocommessa,\n\ne' stata registrata una nuova anomalia sull'OP {ex_op_nominativo} che richiede la tua attenzione.\n\nDettaglio anomalia\nRiferimento: #{id}\nOP: {ex_op_nominativo}\nPN / Seriale: {seriale}\nStato: {avanzamento}\n\nPuoi rispondere direttamente dal portale cliccando il link nell'email HTML, oppure accedere al modulo Gestione Anomalie.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
-          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile Capocommessa,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">e' stata registrata una nuova anomalia sull'OP <strong>{ex_op_nominativo}</strong> che richiede la tua attenzione.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #1f5c91;border-radius:10px;margin:0 0 18px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">OP</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{ex_op_nominativo}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">PN / Seriale</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{seriale}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Stato</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{avanzamento}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 6px;color:#475569;font-size:14px;\">Clicca il pulsante per aprire la pagina guidata sul portale e registrare la tua risposta:</p>",
-          "email_type": "Anomalie",
-          "section_label": "Gestione Anomalie",
-          "title_template": "Nuova anomalia #{id} — OP {ex_op_nominativo}"
+          "action_type": "send_anomalie_mail_action_by_op",
+          "description": "Invia mail-action con link guidato a CC/CAR risolti dall'OP",
+          "config": {
+            "benestare_field": "",
+            "action": "aggiorna_avanzamento",
+            "expires_hours": 48,
+            "source_automation": "AU51"
+          }
         }
       ]
     }

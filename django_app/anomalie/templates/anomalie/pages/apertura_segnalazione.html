@@ -118,6 +118,7 @@
       db_ordini: "{% url 'api_anomalie_db_ordini' %}",
       db_ordini_crea: "{% url 'api_anomalie_db_ordini_crea' %}",
       salva: "{% url 'api_anomalie_salva' %}",
+      notifica_op: "{% url 'api_anomalie_notifica_op' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
     };
   </script>
@@ -128,6 +129,7 @@
     db_ordini: '/api/anomalie/db/ordini',
     db_ordini_crea: '/api/anomalie/db/ordini/crea',
     salva: '/api/anomalie/salva',
+    notifica_op: '/api/anomalie/notifica-op',
     allegati_upload: '/api/anomalie/allegati/upload',
   };
 
@@ -662,6 +664,21 @@
         const localIds = await doSave(snList);
         if (!isRange && pendingFiles.length && localIds.length) {
           await uploadPendingAttachments(localIds[0]);
+        }
+        // Al 'Salva ed esci': invia la mail-action aggregata a CC/CAR dell'OP.
+        // Non blocca l'uscita se l'invio fallisce o non ci sono destinatari.
+        if (action === 'exit') {
+          try {
+            await fetch(API.notifica_op, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+              body: JSON.stringify({ op_id: op.id }),
+              credentials: 'same-origin',
+            });
+          } catch (e) {
+            // invio mail best-effort: l'anomalia è comunque salvata
+            console.warn('notifica_op fallita:', e);
+          }
         }
         onSaved(action, isRange ? null : sn.trim());
       } catch (e) {

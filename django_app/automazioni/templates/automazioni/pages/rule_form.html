@@ -310,6 +310,27 @@
                 </div>
               </div>
 
+              <div class="auto-config-group" data-action-config="send_anomalie_mail_action">
+                <div class="auto-inline-title">Configurazione send_anomalie_mail_action</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ form.anomalie_mail_to.label_tag }}{{ form.anomalie_mail_to }}{% if form.anomalie_mail_to.errors %}<ul class="auto-errors">{% for error in form.anomalie_mail_to.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.anomalie_mail_recipient_display.label_tag }}{{ form.anomalie_mail_recipient_display }}{% if form.anomalie_mail_recipient_display.errors %}<ul class="auto-errors">{% for error in form.anomalie_mail_recipient_display.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.anomalie_mail_action.label_tag }}{{ form.anomalie_mail_action }}{% if form.anomalie_mail_action.errors %}<ul class="auto-errors">{% for error in form.anomalie_mail_action.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.anomalie_mail_expires_hours.label_tag }}{{ form.anomalie_mail_expires_hours }}{% if form.anomalie_mail_expires_hours.errors %}<ul class="auto-errors">{% for error in form.anomalie_mail_expires_hours.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.anomalie_mail_source_automation.label_tag }}{{ form.anomalie_mail_source_automation }}{% if form.anomalie_mail_source_automation.errors %}<ul class="auto-errors">{% for error in form.anomalie_mail_source_automation.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_anomalie_mail_action_by_op">
+                <div class="auto-inline-title">Configurazione send_anomalie_mail_action_by_op</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.anomalie_op_benestare_field.label_tag }}{{ form.anomalie_op_benestare_field }}{% if form.anomalie_op_benestare_field.errors %}<ul class="auto-errors">{% for error in form.anomalie_op_benestare_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.anomalie_op_action.label_tag }}{{ form.anomalie_op_action }}{% if form.anomalie_op_action.errors %}<ul class="auto-errors">{% for error in form.anomalie_op_action.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.anomalie_op_expires_hours.label_tag }}{{ form.anomalie_op_expires_hours }}{% if form.anomalie_op_expires_hours.errors %}<ul class="auto-errors">{% for error in form.anomalie_op_expires_hours.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.anomalie_op_source_automation.label_tag }}{{ form.anomalie_op_source_automation }}{% if form.anomalie_op_source_automation.errors %}<ul class="auto-errors">{% for error in form.anomalie_op_source_automation.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                </div>
+              </div>
+
               <div class="auto-config-group" data-action-config="teams_webhook">
                 <div class="auto-inline-title">Configurazione teams_webhook</div>
                 <div class="auto-form-grid">
@@ -472,6 +493,27 @@
                   <div class="auto-field">{{ ef.http_expected_status_csv.label_tag }}{{ ef.http_expected_status_csv }}{% if ef.http_expected_status_csv.help_text %}<div class="auto-help">{{ ef.http_expected_status_csv.help_text }}</div>{% endif %}</div>
                   <div class="auto-field auto-wide">{{ ef.http_headers_text.label_tag }}{{ ef.http_headers_text }}{% if ef.http_headers_text.help_text %}<div class="auto-help">{{ ef.http_headers_text.help_text }}</div>{% endif %}</div>
                   <div class="auto-field auto-wide">{{ ef.http_body_template.label_tag }}{{ ef.http_body_template }}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_anomalie_mail_action">
+                <div class="auto-inline-title">Configurazione send_anomalie_mail_action</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ ef.anomalie_mail_to.label_tag }}{{ ef.anomalie_mail_to }}</div>
+                  <div class="auto-field auto-wide">{{ ef.anomalie_mail_recipient_display.label_tag }}{{ ef.anomalie_mail_recipient_display }}</div>
+                  <div class="auto-field">{{ ef.anomalie_mail_action.label_tag }}{{ ef.anomalie_mail_action }}</div>
+                  <div class="auto-field">{{ ef.anomalie_mail_expires_hours.label_tag }}{{ ef.anomalie_mail_expires_hours }}</div>
+                  <div class="auto-field auto-wide">{{ ef.anomalie_mail_source_automation.label_tag }}{{ ef.anomalie_mail_source_automation }}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_anomalie_mail_action_by_op">
+                <div class="auto-inline-title">Configurazione send_anomalie_mail_action_by_op</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.anomalie_op_benestare_field.label_tag }}{{ ef.anomalie_op_benestare_field }}</div>
+                  <div class="auto-field">{{ ef.anomalie_op_action.label_tag }}{{ ef.anomalie_op_action }}</div>
+                  <div class="auto-field">{{ ef.anomalie_op_expires_hours.label_tag }}{{ ef.anomalie_op_expires_hours }}</div>
+                  <div class="auto-field auto-wide">{{ ef.anomalie_op_source_automation.label_tag }}{{ ef.anomalie_op_source_automation }}</div>
                 </div>
               </div>
 

@@ -1074,6 +1074,140 @@ def safe_get_payload_value(payload: Any, field_name: str | None) -> Any:
     return current
 
 
+def _fetch_anomalie_by_op(op_title: Any) -> list[dict]:
+    """Carica dal DB le anomalie non chiuse dell'OP identificata da ex_op_nominativo.
+
+    Ritorna lista di dict con i campi utili per la mail (id, descrizione, seriale,
+    avanzamento, note_capocommessa). Lista vuota in caso di errore o nessun risultato.
+    """
+    op_str = str(op_title or "").strip()
+    if not op_str:
+        return []
+    try:
+        if connection.vendor == "sqlite":
+            sql = (
+                "SELECT id, descrizione, seriale, avanzamento, note_capocommessa "
+                "FROM anomalie WHERE LOWER(ex_op_nominativo) = LOWER(%s) "
+                "AND (chiudere IS NULL OR chiudere = 0) ORDER BY id"
+            )
+        else:
+            sql = (
+                "SELECT id, descrizione, seriale, avanzamento, note_capocommessa "
+                "FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s) "
+                "AND (chiudere IS NULL OR chiudere = 0) ORDER BY id"
+            )
+        with connection.cursor() as cur:
+            cur.execute(sql, [op_str])
+            cols = [c[0] for c in cur.description]
+            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+        return rows
+    except Exception:
+        logger.warning("_fetch_anomalie_by_op: errore lettura anomalie per op=%s", op_str, exc_info=True)
+        return []
+
+
+def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
+    """Risolve CC e CAR di un'OP tramite il titolo (ex_op_nominativo).
+
+    Esegue due query sul DB legacy:
+    1. ordini_produzione → capocomessa (cognome), incaricato (nome cognome), cercando per LOWER(title)
+    2. anagrafica_dipendenti → email via match su cognome / nome+cognome
+
+    Ritorna una lista di dict {email, display, role} (CC prima, CAR dopo).
+    Lista vuota se l'OP non esiste o non ha capocomessa/incaricato.
+    """
+    op_title_str = str(op_title or "").strip()
+    if not op_title_str:
+        return []
+
+    try:
+        if connection.vendor == "sqlite":
+            op_sql = "SELECT capocomessa, incaricato FROM ordini_produzione WHERE LOWER(title) = LOWER(%s) LIMIT 1"
+        else:
+            op_sql = "SELECT TOP 1 capocomessa, incaricato FROM ordini_produzione WHERE LOWER(title) = LOWER(%s)"
+        with connection.cursor() as cur:
+            cur.execute(op_sql, [op_title_str])
+            row = cur.fetchone()
+    except Exception:
+        logger.warning("_resolve_op_recipients: impossibile leggere ordini_produzione title=%s", op_title_str, exc_info=True)
+        return []
+
+    if not row:
+        logger.warning("_resolve_op_recipients: title=%r non trovato in ordini_produzione", op_title_str)
+        return []
+
+    capocomessa_raw = str(row[0] or "").strip()
+    incaricato_raw = str(row[1] or "").strip()
+    recipients = []
+
+    def _email_by_cognome(cognome: str) -> tuple[str, str]:
+        if not cognome:
+            return "", ""
+        try:
+            if connection.vendor == "sqlite":
+                sql = "SELECT email, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1 LIMIT 1"
+            else:
+                sql = "SELECT TOP 1 email, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1"
+            with connection.cursor() as cur:
+                cur.execute(sql, [cognome])
+                r = cur.fetchone()
+            if r:
+                email = str(r[0] or "").strip()
+                display = f"{str(r[1] or '').strip()} {str(r[2] or '').strip()}".strip().title()
+                return email, display
+        except Exception:
+            logger.warning("_resolve_op_recipients: impossibile risolvere cognome=%s", cognome, exc_info=True)
+        return "", cognome
+
+    def _email_by_fullname(fullname: str) -> tuple[str, str]:
+        if not fullname:
+            return "", ""
+        parts = fullname.strip().split()
+        if len(parts) < 2:
+            return _email_by_cognome(fullname)
+        try:
+            if connection.vendor == "sqlite":
+                sql = (
+                    "SELECT email, nome, cognome FROM anagrafica_dipendenti "
+                    "WHERE (LOWER(nome || ' ' || cognome) = LOWER(%s) OR LOWER(cognome || ' ' || nome) = LOWER(%s)) "
+                    "AND attivo = 1 LIMIT 1"
+                )
+            else:
+                sql = (
+                    "SELECT TOP 1 email, nome, cognome FROM anagrafica_dipendenti "
+                    "WHERE (LOWER(CONCAT(nome, ' ', cognome)) = LOWER(%s) OR LOWER(CONCAT(cognome, ' ', nome)) = LOWER(%s)) "
+                    "AND attivo = 1"
+                )
+            with connection.cursor() as cur:
+                cur.execute(sql, [fullname, fullname])
+                r = cur.fetchone()
+            if r:
+                email = str(r[0] or "").strip()
+                display = f"{str(r[1] or '').strip()} {str(r[2] or '').strip()}".strip().title()
+                return email, display
+        except Exception:
+            logger.warning("_resolve_op_recipients: impossibile risolvere incaricato=%s", fullname, exc_info=True)
+        return "", fullname
+
+    if capocomessa_raw:
+        email, display = _email_by_cognome(capocomessa_raw)
+        if email:
+            recipients.append({"email": email, "display": display or capocomessa_raw, "role": "CC"})
+        else:
+            logger.info("_resolve_op_recipients: nessuna email per capocomessa=%s op=%s", capocomessa_raw, op_title_str)
+
+    if incaricato_raw:
+        email, display = _email_by_fullname(incaricato_raw)
+        if email:
+            # evita duplicato se CC e CAR sono la stessa persona
+            if not any(r["email"].lower() == email.lower() for r in recipients):
+                recipients.append({"email": email, "display": display or incaricato_raw, "role": "CAR"})
+        else:
+            logger.info("_resolve_op_recipients: nessuna email per incaricato=%s op=%s", incaricato_raw, op_title_str)
+
+    return recipients
+
+
 def render_template_string(template_str: str | None, context: Any) -> str:
     if template_str is None:
         return ""
@@ -4047,7 +4181,8 @@ def execute_action(
             if not url:
                 raise ValueError("http_request richiede url_template.")
             if _PLACEHOLDER_PATTERN.search(url):
-                raise ValueError("url_template non produce un URL valido.")
+                unresolved = _PLACEHOLDER_PATTERN.findall(url)
+                raise ValueError(f"url_template non produce un URL valido. Placeholder non risolti: {unresolved}. URL parziale: {url!r}")
 
             response = _perform_http_request(
                 method=method,
@@ -4069,6 +4204,161 @@ def execute_action(
             result_message = f"HTTP {method} {url} -> {response.status_code}."
             if body_preview:
                 result_message = f"{result_message} Body: {body_preview}"
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION:
+            from anomalie.mail_action_service import send_anomalie_action_email
+
+            to_raw = str(_render_action_value(config.get("to"), payload_context) or "").strip()
+            if not to_raw:
+                raise ValueError("send_anomalie_mail_action richiede 'to' (email destinatario).")
+            recipient_email = to_raw
+
+            recipient_display = str(_render_action_value(config.get("recipient_display"), payload_context) or "").strip()
+            if not recipient_display:
+                recipient_display = recipient_email
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            anomalia_id = payload_context.get(pk_field)
+            if anomalia_id is None:
+                raise ValueError("send_anomalie_mail_action: ID anomalia non trovato nel payload.")
+
+            op_id = str(payload_context.get("ex_op_nominativo") or "").strip()
+            op_nominativo = op_id
+
+            mail_action = str(_render_action_value(config.get("action"), payload_context) or "visualizza").strip()
+            expires_hours = max(1, int(config.get("expires_hours") or 48))
+            source_automation_label = str(config.get("source_automation") or "").strip()
+
+            legacy_user_id_raw = payload_context.get("created_by")
+            recipient_legacy_user_id = int(legacy_user_id_raw) if legacy_user_id_raw is not None else None
+
+            anomalie_rows = [dict(payload_context, id=anomalia_id)]
+
+            token_obj = send_anomalie_action_email(
+                recipient_email=recipient_email,
+                recipient_display=recipient_display,
+                recipient_legacy_user_id=recipient_legacy_user_id,
+                op_id=op_id,
+                op_nominativo=op_nominativo,
+                anomalie_rows=anomalie_rows,
+                action=mail_action,
+                expires_hours=expires_hours,
+                source_automation=source_automation_label,
+            )
+
+            result_message = (
+                f"Mail-action anomalie inviata a {recipient_email} "
+                f"(token={str(token_obj.token)[:8]}…, op={op_id}, action={mail_action})."
+            )
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SEND_ANOMALIE_MAIL_ACTION_BY_OP:
+            from anomalie.mail_action_service import send_anomalie_action_email
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            anomalia_id = payload_context.get(pk_field)
+            if anomalia_id is None:
+                raise ValueError("send_anomalie_mail_action_by_op: ID anomalia non trovato nel payload.")
+
+            op_title = str(payload_context.get("ex_op_nominativo") or "").strip()
+            if not op_title:
+                raise ValueError("send_anomalie_mail_action_by_op: ex_op_nominativo non presente nel payload.")
+
+            recipients = _resolve_op_recipients(op_title)
+            if not recipients:
+                raise ValueError(
+                    f"send_anomalie_mail_action_by_op: impossibile risolvere CC/CAR per OP='{op_title}'."
+                )
+
+            # Routing: benestare_field indica un campo bool del payload
+            # true → to=CAR, cc=CC; false/assente → to=CC, cc=CAR
+            benestare_field = str(config.get("benestare_field") or "").strip()
+            benestare = False
+            if benestare_field:
+                raw_val = payload_context.get(benestare_field)
+                benestare = bool(raw_val) if raw_val is not None else False
+
+            cc_rec = next((r for r in recipients if r["role"] == "CC"), None)
+            car_rec = next((r for r in recipients if r["role"] == "CAR"), None)
+
+            if benestare:
+                primary = car_rec or cc_rec
+                secondary = cc_rec if primary is car_rec else None
+            else:
+                primary = cc_rec or car_rec
+                secondary = car_rec if primary is cc_rec else None
+
+            if not primary:
+                raise ValueError("send_anomalie_mail_action_by_op: nessun destinatario principale risolto.")
+
+            mail_action = str(_render_action_value(config.get("action"), payload_context) or "prendi_in_carico").strip()
+            expires_hours = max(1, int(config.get("expires_hours") or 48))
+            source_automation_label = str(config.get("source_automation") or "").strip()
+            op_id = str(payload_context.get("ex_op_nominativo") or "").strip()
+
+            # Carica tutte le anomalie aperte dell'OP dal DB per popolare la mail
+            anomalie_rows = _fetch_anomalie_by_op(op_id) or [dict(payload_context, id=anomalia_id)]
+
+            cc_emails = [secondary["email"]] if secondary else []
+
+            token_obj = send_anomalie_action_email(
+                recipient_email=primary["email"],
+                recipient_display=primary["display"],
+                op_id=op_id,
+                op_nominativo=op_id,
+                anomalie_rows=anomalie_rows,
+                action=mail_action,
+                expires_hours=expires_hours,
+                source_automation=source_automation_label,
+            )
+
+            # Invia copia CC se presente
+            if cc_emails:
+                from django.core.mail import EmailMultiAlternatives
+                from anomalie.mail_action_service import build_anomalie_action_email
+                from django.utils import timezone
+                from datetime import timedelta
+                expires_at = timezone.now() + timedelta(hours=expires_hours)
+                subj, body_text, body_html = build_anomalie_action_email(
+                    recipient_email=primary["email"],
+                    recipient_display=primary["display"],
+                    op_id=op_id,
+                    op_nominativo=op_id,
+                    anomalie_rows=anomalie_rows,
+                    action=mail_action,
+                    token_str=token_obj.token,
+                    expires_at=token_obj.expires_at,
+                )
+                msg = EmailMultiAlternatives(
+                    subject=subj,
+                    body=body_text,
+                    from_email=None,
+                    to=[primary["email"]],
+                    cc=cc_emails,
+                )
+                msg.attach_alternative(body_html, "text/html")
+                msg.send(fail_silently=True)
+
+            role_label = "CAR" if benestare else "CC"
+            cc_label = secondary["email"] if secondary else "nessuno"
+            result_message = (
+                f"Mail-action OP inviata a {primary['email']} ({role_label}), "
+                f"cc={cc_label}, op={op_id}, action={mail_action}, "
+                f"token={str(token_obj.token)[:8]}…"
+            )
             action_log = _create_action_log(
                 run_log=run_log,
                 action=action,

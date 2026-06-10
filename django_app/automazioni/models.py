@@ -80,6 +80,8 @@ class AutomationActionType(models.TextChoices):
     DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule"
     HTTP_REQUEST = "http_request", "HTTP request"
     TEAMS_WEBHOOK = "teams_webhook", "Teams webhook"
+    SEND_ANOMALIE_MAIL_ACTION = "send_anomalie_mail_action", "Invia mail-action anomalie (token sicuro)"
+    SEND_ANOMALIE_MAIL_ACTION_BY_OP = "send_anomalie_mail_action_by_op", "Invia mail-action anomalie a CC/CAR dell'OP (risolti automaticamente)"
     # Controllo flusso
     SEND_APPROVAL = "send_approval", "Richiedi Approvazione"
     DO_UNTIL = "do_until", "Do Until (Ripeti fino a condizione)"

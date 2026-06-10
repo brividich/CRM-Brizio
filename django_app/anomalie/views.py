@@ -1970,18 +1970,22 @@ def api_salva(request):
                         insert_placeholders.append("%s")
                         insert_params.append(val)
                 # sharepoint_item_id rimane NULL per record locali non ancora sincronizzati
+                # OUTPUT INSERTED non è compatibile con trigger su SQL Server (err 334);
+                # si usa SCOPE_IDENTITY() + SELECT separato.
                 quoted_insert_cols = _quoted_columns(insert_cols)
                 cursor.execute(
-                    f"""
-                    INSERT INTO anomalie ({quoted_insert_cols})
-                    OUTPUT INSERTED.id, INSERTED.sharepoint_item_id
-                    VALUES ({', '.join(insert_placeholders)})
-                    """,
+                    f"INSERT INTO anomalie ({quoted_insert_cols}) VALUES ({', '.join(insert_placeholders)})",
                     insert_params,
                 )
-                row = cursor.fetchone()
-                local_id = int(row[0]) if row and row[0] is not None else None
-                sp_id = str(row[1] or "").strip() if row else ""
+                cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
+                id_row = cursor.fetchone()
+                local_id = int(id_row[0]) if id_row and id_row[0] is not None else None
+                if local_id is not None:
+                    cursor.execute("SELECT sharepoint_item_id FROM anomalie WHERE id = %s", [local_id])
+                    sp_row = cursor.fetchone()
+                    sp_id = str(sp_row[0] or "").strip() if sp_row else ""
+                else:
+                    sp_id = ""
             else:
                 if where_clause == "id = %s":
                     cursor.execute("SELECT id, sharepoint_item_id FROM anomalie WHERE id = %s", [where_params[0]])
@@ -2022,6 +2026,140 @@ def api_salva(request):
         )
     except DatabaseError as exc:
         return JsonResponse({"success": False, "error": str(exc)}, status=500)
+
+
+def _op_is_benestare(op_title: str) -> bool:
+    """True se l'OP è un collaudo di benestare (ordini_produzione.stato = 'Benestare')."""
+    op_str = str(op_title or "").strip()
+    if not op_str:
+        return False
+    try:
+        with connections["default"].cursor() as cur:
+            cur.execute(
+                "SELECT TOP 1 stato FROM ordini_produzione WHERE LOWER(title) = LOWER(%s)"
+                if connections["default"].vendor != "sqlite"
+                else "SELECT stato FROM ordini_produzione WHERE LOWER(title) = LOWER(%s) LIMIT 1",
+                [op_str],
+            )
+            row = cur.fetchone()
+        if row:
+            return "benestare" in str(row[0] or "").strip().lower()
+    except DatabaseError:
+        logger.warning("_op_is_benestare: lettura stato fallita op=%s", op_str, exc_info=True)
+    return False
+
+
+@login_required
+@require_POST
+def api_notifica_op(request):
+    """Invia la mail-action aggregata a CC/CAR dell'OP con tutte le anomalie aperte.
+
+    Chiamato dal frontend al 'Salva ed esci': una sola mail per OP con il link
+    guidato 'Aggiorna avanzamento'. Routing: benestare=true → to=CAR cc=CC;
+    altrimenti to=CC cc=CAR. Idempotente lato chiamante (no cooldown server-side).
+    """
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return _json_error("Body JSON non valido", status=400)
+    if not isinstance(data, dict):
+        return _json_error("Body JSON non valido", status=400)
+
+    op_id = _safe_text(data.get("op_id"), 100)
+    if not op_id:
+        return _json_error("op_id obbligatorio", status=400)
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato: non autorizzato su questo OP", status=403)
+
+    # Routing benestare: risolto lato server da ordini_produzione.stato (= "Benestare"
+    # quando l'OP è un collaudo di benestare). Non dipende dal frontend.
+    benestare = _op_is_benestare(op_id)
+
+    # Riusa gli helper del motore automazioni per risoluzione CC/CAR e lettura anomalie.
+    from automazioni.services import _resolve_op_recipients, _fetch_anomalie_by_op
+    from anomalie.mail_action_service import build_anomalie_action_email, send_anomalie_action_email
+
+    recipients = _resolve_op_recipients(op_id)
+    if not recipients:
+        # Nessun destinatario risolto: non blocca il salvataggio, segnala soft.
+        return JsonResponse({"success": False, "sent": False, "reason": "no_recipients"})
+
+    cc_rec = next((r for r in recipients if r.get("role") == "CC"), None)
+    car_rec = next((r for r in recipients if r.get("role") == "CAR"), None)
+
+    if benestare:
+        primary = car_rec or cc_rec
+        secondary = cc_rec if primary is car_rec else None
+    else:
+        primary = cc_rec or car_rec
+        secondary = car_rec if primary is cc_rec else None
+
+    if not primary:
+        return JsonResponse({"success": False, "sent": False, "reason": "no_primary"})
+
+    anomalie_rows = _fetch_anomalie_by_op(op_id)
+    if not anomalie_rows:
+        return JsonResponse({"success": False, "sent": False, "reason": "no_open_anomalie"})
+
+    mail_action = "aggiorna_avanzamento"
+    expires_hours = 48
+
+    try:
+        token_obj = send_anomalie_action_email(
+            recipient_email=primary["email"],
+            recipient_display=primary["display"],
+            op_id=op_id,
+            op_nominativo=op_id,
+            anomalie_rows=anomalie_rows,
+            action=mail_action,
+            expires_hours=expires_hours,
+            source_automation="anomalie_notifica_op",
+        )
+
+        if secondary:
+            from django.core.mail import EmailMultiAlternatives
+            subj, body_text, body_html = build_anomalie_action_email(
+                recipient_email=primary["email"],
+                recipient_display=primary["display"],
+                op_id=op_id,
+                op_nominativo=op_id,
+                anomalie_rows=anomalie_rows,
+                action=mail_action,
+                token_str=token_obj.token,
+                expires_at=token_obj.expires_at,
+            )
+            msg = EmailMultiAlternatives(
+                subject=subj,
+                body=body_text,
+                from_email=None,
+                to=[primary["email"]],
+                cc=[secondary["email"]],
+            )
+            msg.attach_alternative(body_html, "text/html")
+            msg.send(fail_silently=True)
+    except Exception as exc:
+        logger.warning("api_notifica_op: invio mail fallito op=%s: %s", op_id, exc, exc_info=True)
+        return JsonResponse({"success": False, "sent": False, "reason": "send_error", "error": str(exc)}, status=500)
+
+    try:
+        log_action(request, "anomalia_notifica_op", "anomalie", {
+            "op_id": op_id,
+            "to": primary["email"],
+            "cc": secondary["email"] if secondary else None,
+            "benestare": benestare,
+            "n_anomalie": len(anomalie_rows),
+            "token": token_obj.token[:8],
+        })
+    except Exception:
+        pass
+
+    return JsonResponse({
+        "success": True,
+        "sent": True,
+        "to": primary["display"],
+        "cc": secondary["display"] if secondary else None,
+        "n_anomalie": len(anomalie_rows),
+    })
 
 
 @login_required
