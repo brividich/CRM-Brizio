@@ -1,8 +1,11 @@
 import json
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
@@ -608,3 +611,66 @@ class AnomalieStatisticheRicercaTests(TestCase):
         self.assertEqual(d["pages"], 1)
         self.assertEqual(len(d["righe"]), 1)
         self.assertEqual(d["righe"][0]["seriale"], "SN-7")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieAllegatiCicloTests(TestCase):
+    """Regressione: upload allegato → meta sync → list (gli helper sync-meta
+    erano stati persi in un refactor, l'upload andava in 500 e gli allegati
+    non comparivano in gestione anomalie)."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-all-user", password="pass12345")
+        self.factory = RequestFactory()
+
+    def _post_upload(self, local_id, files):
+        request = self.factory.post(reverse("api_anomalie_allegati_upload"), {"local_id": str(local_id)})
+        request.user = self.user
+        request.legacy_user = None
+        request.FILES.setlist("files", files)
+        request.POST = request.POST.copy()
+        request.POST["local_id"] = str(local_id)
+        return request
+
+    def test_upload_then_list_includes_file_and_creates_meta(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            local_id = 4242
+            up = SimpleUploadedFile("foto.png", b"\x89PNG\r\n\x1a\nDATA", content_type="image/png")
+            with (
+                patch("anomalie.views._anomalie_attachments_root", return_value=root),
+                patch("anomalie.views._anomaly_local_row", return_value={"id": local_id, "ex_op_nominativo": "OP/A"}),
+                patch("anomalie.views._can_edit_anomalie_for_op", return_value=True),
+                patch("anomalie.views.log_action"),
+            ):
+                resp = anomalie_views.api_anomalie_allegati_upload.__wrapped__(self._post_upload(local_id, [up]))
+            self.assertEqual(resp.status_code, 200)
+            body = json.loads(resp.content)
+            self.assertTrue(body["success"])
+            self.assertEqual(body["saved"], 1)
+            # 1) il file fisico è stato scritto nella cartella dell'anomalia
+            folder = root / str(local_id)
+            saved_files = [p.name for p in folder.iterdir() if p.is_file()]
+            self.assertIn("__sync_meta__.json", saved_files)  # meta creato (no più NameError)
+            attach_files = [n for n in saved_files if n != "__sync_meta__.json"]
+            self.assertEqual(len(attach_files), 1)
+            # 2) il meta marca il file come 'pending'
+            meta = json.loads((folder / "__sync_meta__.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["files"][attach_files[0]]["status"], "pending")
+            # 3) la list ritorna l'allegato ed ESCLUDE il file meta
+            with (
+                patch("anomalie.views._anomalie_attachments_root", return_value=root),
+                patch("anomalie.views._anomaly_local_row", return_value={"id": local_id, "ex_op_nominativo": "OP/A"}),
+                patch("anomalie.views._can_view_anomalie_for_op", return_value=True),
+                patch("anomalie.views._can_edit_anomalie_for_op", return_value=True),
+            ):
+                req = self.factory.get(reverse("api_anomalie_allegati"), {"local_id": str(local_id)})
+                req.user = self.user
+                req.legacy_user = None
+                list_resp = anomalie_views.api_anomalie_allegati.__wrapped__(req)
+            self.assertEqual(list_resp.status_code, 200)
+            listed = json.loads(list_resp.content)
+            names = [a["name"] for a in listed["attachments"]]
+            self.assertEqual(listed["attachments"][0]["name"], "foto.png")
+            self.assertNotIn("__sync_meta__.json", names)

@@ -107,6 +107,10 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
 }
 ALLEGATI_MAX_FILE_SIZE = 20 * 1024 * 1024
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
+ALLEGATI_SYNC_PENDING = "pending"
+ALLEGATI_SYNC_SYNCED = "synced"
+ALLEGATI_SYNC_ERROR = "error"
 ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "permessi", "record", "log")
 # Alias retrocompatibili: le vecchie URL ?tab=ruoli|accessi restano valide e
 # vengono normalizzate nella view al nuovo tab "permessi" con sub corrispondente.
@@ -557,6 +561,132 @@ def _attachment_file_path(local_id: int, file_id: str) -> Path | None:
     return resolved_path
 
 
+def _attachment_sync_meta_path(local_id: int) -> Path:
+    folder = _attachment_dir_for_local(local_id, create=False)
+    return folder / ALLEGATI_SYNC_META_FILENAME
+
+
+def _default_attachment_sync_state() -> dict:
+    return {
+        "status": ALLEGATI_SYNC_PENDING,
+        "retry_count": 0,
+        "last_error": "",
+        "queued_at": _utcnow_iso(),
+        "last_attempt_at": None,
+        "last_synced_at": None,
+    }
+
+
+def _normalize_attachment_sync_state(raw_state) -> dict:
+    base = _default_attachment_sync_state()
+    if isinstance(raw_state, dict):
+        status = str(raw_state.get("status") or "").strip().lower()
+        if status in {ALLEGATI_SYNC_PENDING, ALLEGATI_SYNC_SYNCED, ALLEGATI_SYNC_ERROR}:
+            base["status"] = status
+        try:
+            retry = int(raw_state.get("retry_count") or 0)
+        except Exception:
+            retry = 0
+        base["retry_count"] = max(0, retry)
+        base["last_error"] = str(raw_state.get("last_error") or "").strip()[:500]
+        queued = str(raw_state.get("queued_at") or "").strip()
+        if queued:
+            base["queued_at"] = queued
+        attempted = str(raw_state.get("last_attempt_at") or "").strip()
+        if attempted:
+            base["last_attempt_at"] = attempted
+        synced = str(raw_state.get("last_synced_at") or "").strip()
+        if synced:
+            base["last_synced_at"] = synced
+    return base
+
+
+def _load_attachment_sync_meta(local_id: int) -> dict:
+    path = _attachment_sync_meta_path(local_id)
+    if not path.exists():
+        return {"files": {}}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("[anomalie] impossibile leggere meta allegati local_id=%s", local_id)
+        return {"files": {}}
+    if not isinstance(payload, dict):
+        return {"files": {}}
+    files_raw = payload.get("files")
+    if not isinstance(files_raw, dict):
+        return {"files": {}}
+    files_clean: dict[str, dict] = {}
+    for file_id, state in files_raw.items():
+        token = str(file_id or "").strip()
+        if token == ALLEGATI_SYNC_META_FILENAME:
+            continue
+        if not token or not _ALLEGATI_FILE_ID_RE.match(token):
+            continue
+        files_clean[token] = _normalize_attachment_sync_state(state)
+    return {"files": files_clean}
+
+
+def _save_attachment_sync_meta(local_id: int, meta_payload: dict) -> None:
+    folder = _attachment_dir_for_local(local_id, create=True)
+    path = folder / ALLEGATI_SYNC_META_FILENAME
+    files_raw = meta_payload.get("files") if isinstance(meta_payload, dict) else {}
+    files_clean: dict[str, dict] = {}
+    if isinstance(files_raw, dict):
+        for file_id, state in files_raw.items():
+            token = str(file_id or "").strip()
+            if token == ALLEGATI_SYNC_META_FILENAME:
+                continue
+            if not token or not _ALLEGATI_FILE_ID_RE.match(token):
+                continue
+            files_clean[token] = _normalize_attachment_sync_state(state)
+    payload = {"files": files_clean}
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _mark_attachment_pending(local_id: int, file_ids: list[str]) -> None:
+    tokens = []
+    for file_id in file_ids:
+        token = str(file_id or "").strip()
+        if token and _ALLEGATI_FILE_ID_RE.match(token) and token != ALLEGATI_SYNC_META_FILENAME:
+            tokens.append(token)
+    if not tokens:
+        return
+    meta = _load_attachment_sync_meta(local_id)
+    files_meta = meta.setdefault("files", {})
+    now_iso = _utcnow_iso()
+    for token in tokens:
+        rec = _normalize_attachment_sync_state(files_meta.get(token))
+        rec["status"] = ALLEGATI_SYNC_PENDING
+        rec["retry_count"] = 0
+        rec["last_error"] = ""
+        rec["queued_at"] = now_iso
+        rec["last_attempt_at"] = None
+        rec["last_synced_at"] = None
+        files_meta[token] = rec
+    _save_attachment_sync_meta(local_id, meta)
+
+
+def _remove_attachment_sync_meta_entry(local_id: int, file_id: str) -> None:
+    token = str(file_id or "").strip()
+    if not token or not _ALLEGATI_FILE_ID_RE.match(token):
+        return
+    meta = _load_attachment_sync_meta(local_id)
+    files_meta = meta.get("files", {})
+    if token in files_meta:
+        files_meta.pop(token, None)
+        if files_meta:
+            _save_attachment_sync_meta(local_id, meta)
+        else:
+            meta_path = _attachment_sync_meta_path(local_id)
+            try:
+                if meta_path.exists():
+                    meta_path.unlink()
+            except OSError:
+                pass
+
+
 def _list_attachments_for_local(local_id: int) -> list[dict]:
     folder = _attachment_dir_for_local(local_id, create=False)
     if not folder.exists():
@@ -567,6 +697,8 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
         if not path.is_file():
             continue
         file_id = path.name
+        if file_id == ALLEGATI_SYNC_META_FILENAME:
+            continue
         if not _ALLEGATI_FILE_ID_RE.match(file_id):
             continue
         paths.append(path)
