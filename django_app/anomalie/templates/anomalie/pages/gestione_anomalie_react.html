@@ -396,6 +396,11 @@
       const op = filteredOrdini[selectedOp] || {};
       const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
 
+      // URL "Nuova anomalia" → pagina Apertura Segnalazione, preselezionando l'OP corrente se presente.
+      const nuovaAnomaliaUrl = (op.id && op.id !== '—')
+        ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}`
+        : "/gestione-anomalie/nuova-segnalazione";
+
       const filteredSeriali = useMemo(() => {
         const search = searchSn.toLowerCase();
         return anomalie.filter((a) => {
@@ -568,18 +573,6 @@
         }
         setSaving(false);
         setTimeout(() => setSaveMsg(null), 5000);
-      };
-
-      // â"€â"€ Nuova anomalia per l'OP selezionato â"€â"€
-      const handleNewAnomalia = () => {
-        if (!canEditCurrentOp) {
-          setSaveMsg({ ok: false, text: "Permesso negato: non puoi creare anomalie su questo OP" });
-          setTimeout(() => setSaveMsg(null), 3000);
-          return;
-        }
-        clearForm();
-        setSaveMsg({ ok: true, text: "Form pronto per nuova anomalia - compila e salva" });
-        setTimeout(() => setSaveMsg(null), 4000);
       };
 
       const openAttachmentPicker = () => {
@@ -758,6 +751,28 @@
                   fontSize: 16,
                 }}>&#9881;</a>
               )}
+              {/* Nuova anomalia / segnalazione (apre il form completo di apertura segnalazione, preselezionando l'OP se presente) */}
+              {!isMobile && (
+                <a className="text-base font-semibold" href={nuovaAnomaliaUrl} title="Inserisci una nuova anomalia / segnalazione" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
+                  fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+                }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
+                  Nuova anomalia
+                </a>
+              )}
+              {isMobile && (
+                <a href={nuovaAnomaliaUrl} title="Nuova anomalia / segnalazione" style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, borderRadius: 8,
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  color: "#e2e8f0", textDecoration: "none",
+                }}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
+                </a>
+              )}
               {/* Messaggio di salvataggio / sync */}
               {saveMsg && !isMobile && (
                 <span className="text-base font-medium" style={{
@@ -805,7 +820,11 @@
                   Report OP
                 </button>
               )}
-              <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={() => handleSave(false)} disabled={saving || !canEditCurrentOp} style={{
+              {/* Pulsante unico "Salva": salva e accoda SEMPRE la notifica (debounce
+                  ~5 min, 1 mail riepilogativa per OP). Niente più "Salva e notifica":
+                  la mail parte da sola a ogni salvataggio. */}
+              <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={() => handleSave(false)} disabled={saving || !canEditCurrentOp}
+                title="Salva l'anomalia: la mail di conferma a segnalante, CC e CAR parte automaticamente" style={{
                 background: saving ? "var(--primary-mid)" : "var(--accent)", border: "none", borderRadius: 8,
                 padding: isMobile ? "8px 16px" : "7px 18px", color: "#fff",
                 fontWeight: 600,
@@ -828,26 +847,10 @@
                     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                       <path d="M5 13l4 4L19 7"/>
                     </svg>
-                    {isMobile ? "Salva" : "Salva modifiche"}
+                    Salva
                   </>
                 )}
               </button>
-              {!isMobile && (
-                <button className="text-base font-semibold" onClick={() => handleSave(true)} disabled={saving || !canEditCurrentOp}
-                  title="Salva le modifiche e invia subito la mail di conferma a segnalante, CC e CAR"
-                  style={{
-                    background: "var(--primary)", border: "none", borderRadius: 8,
-                    padding: "7px 18px", color: "#fff", fontWeight: 600,
-                    cursor: saving || !canEditCurrentOp ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", gap: 6,
-                    opacity: saving || !canEditCurrentOp ? 0.8 : 1,
-                  }}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                  </svg>
-                  Salva e notifica
-                </button>
-              )}
             </div>
           </header>
 
@@ -964,18 +967,13 @@
                       </div>
                       {selectedOp === i && (
                         <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
-                          <IconBtn accent title="Aggiungi anomalia" onClick={handleNewAnomalia}>
+                          <IconBtn accent title="Inserisci una nuova anomalia su questo OP" onClick={() => {
+                            window.location.href = o.id
+                              ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(o.id)}`
+                              : "/gestione-anomalie/nuova-segnalazione";
+                          }}>
                             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
                             Anomalia
-                          </IconBtn>
-                          <IconBtn title="Segnalazione" disabled={!canEditCurrentOp} onClick={() => {
-                            if (!canEditCurrentOp) return;
-                            setSegnalare(true);
-                            setSaveMsg({ ok: true, text: "Segnalazione attivata - salva per confermare" });
-                            setTimeout(() => setSaveMsg(null), 4000);
-                          }}>
-                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-                            Segnalazione
                           </IconBtn>
                           <IconBtn title="Duplica - copia i dati nel form come nuovo record" onClick={() => { setCurrentItemId(null); setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" }); setTimeout(() => setSaveMsg(null), 4000); }}>
                             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>

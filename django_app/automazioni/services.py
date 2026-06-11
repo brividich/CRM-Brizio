@@ -1190,7 +1190,16 @@ def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
         return "", fullname
 
     if capocomessa_raw:
-        email, display = _email_by_cognome(capocomessa_raw)
+        # Il campo `capocomessa` storicamente conteneva solo il COGNOME, ma in pratica
+        # può contenere "Nome Cognome" completo (es. "LORENZO CAPONE"). In quel caso il
+        # match per solo-cognome fallisce. Proviamo quindi prima il fullname (se ci sono
+        # ≥2 token) e poi il fallback su cognome, come già fa l'incaricato.
+        if len(capocomessa_raw.split()) >= 2:
+            email, display = _email_by_fullname(capocomessa_raw)
+            if not email:
+                email, display = _email_by_cognome(capocomessa_raw)
+        else:
+            email, display = _email_by_cognome(capocomessa_raw)
         if email:
             recipients.append({"email": email, "display": display or capocomessa_raw, "role": "CC"})
         else:

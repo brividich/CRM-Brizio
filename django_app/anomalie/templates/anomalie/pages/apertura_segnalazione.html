@@ -753,21 +753,10 @@
         if (!isMultiplo && pendingFiles.length && localIds.length) {
           await uploadPendingAttachments(localIds[0]);
         }
-        // Al 'Salva ed esci': invia la mail-action aggregata a CC/CAR dell'OP.
-        // Non blocca l'uscita se l'invio fallisce o non ci sono destinatari.
-        if (action === 'exit') {
-          try {
-            await fetch(API.notifica_op, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
-              body: JSON.stringify({ op_id: op.id }),
-              credentials: 'same-origin',
-            });
-          } catch (e) {
-            // invio mail best-effort: l'anomalia è comunque salvata
-            console.warn('notifica_op fallita:', e);
-          }
-        }
+        // La notifica mail parte SEMPRE e da sola: `api/anomalie/salva` accoda l'OP nella
+        // coda di debounce a ogni salvataggio (qualsiasi pulsante), e il task periodico
+        // invia 1 mail riepilogativa quando l'OP è fermo da ~5 min. Niente più chiamata
+        // diretta a notifica_op qui, che avrebbe prodotto una seconda mail (doppione).
         // Per "stesso S/N" rilancia solo se è un singolo seriale, non range/lista
         const singleSn = (!isRange && tokensFromInput().length === 1) ? sn.trim() : null;
         onSaved(action, singleSn);
@@ -1037,6 +1026,23 @@
     const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); };
 
     const handleBack = () => { setStep(1); setSelectedOp(null); setInitialSn(''); };
+
+    // Preselezione OP da query string (?op_id=...): salta direttamente allo Step 2.
+    useEffect(() => {
+      const preId = new URLSearchParams(window.location.search).get('op_id');
+      if (!preId) return;
+      let alive = true;
+      fetch(API.db_ordini, { credentials: 'same-origin' })
+        .then(r => r.ok ? r.json() : [])
+        .then(list => {
+          if (!alive) return;
+          const arr = Array.isArray(list) ? list : [];
+          const found = arr.find(o => String(o.id) === String(preId));
+          if (found) { setSelectedOp(found); setStep(2); }
+        })
+        .catch(() => {});
+      return () => { alive = false; };
+    }, []);
 
     const handleSaved = (action, lastSn) => {
       if (action === 'exit') {

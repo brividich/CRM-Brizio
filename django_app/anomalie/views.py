@@ -1843,6 +1843,35 @@ def api_anomalie_allegati_upload(request):
             return _json_error("Nessun file caricato", status=400)
 
         folder = _attachment_dir_for_local(local_id, create=True)
+        # Diagnostica upload (prod): traccia destinazione e scrivibilità reale.
+        try:
+            probe = folder / f".write_test_{uuid4().hex}.tmp"
+            with probe.open("wb") as _fh:
+                _fh.write(b"ok")
+            probe.unlink()
+            writable_ok = True
+            writable_err = ""
+        except OSError as _wexc:
+            writable_ok = False
+            writable_err = str(_wexc)
+        logger.info(
+            "[anomalie] allegati_upload start local_id=%s op=%s dir=%s scrivibile=%s%s file_count=%s",
+            local_id, op_id, folder, writable_ok,
+            f" err={writable_err}" if writable_err else "", len(files),
+        )
+        # Fail-fast esplicito: se la cartella destinazione non è scrivibile (es.
+        # ANOMALIE_ATTACHMENTS_DIR errato o senza permessi IIS_IUSRS in prod), NON
+        # restituire un falso successo. Errore chiaro + log, così il problema non
+        # resta silenzioso ("messaggio verde" ma file mai salvato).
+        if not writable_ok:
+            logger.error(
+                "[anomalie] allegati_upload cartella non scrivibile local_id=%s op=%s dir=%s err=%s",
+                local_id, op_id, folder, writable_err,
+            )
+            return _json_error(
+                f"Cartella allegati non scrivibile sul server ({folder}): {writable_err}",
+                status=500,
+            )
         saved = 0
         saved_file_ids: list[str] = []
         saved_names: list[str] = []
@@ -1865,12 +1894,27 @@ def api_anomalie_allegati_upload(request):
                 continue
             file_id = f"{uuid4().hex}__{safe_name}"
             target = folder / file_id
-            with target.open("wb") as dest:
-                for chunk in f.chunks():
-                    dest.write(chunk)
+            try:
+                with target.open("wb") as dest:
+                    for chunk in f.chunks():
+                        dest.write(chunk)
+            except OSError as wexc:
+                # Es. cartella non scrivibile da IIS_IUSRS in prod: non abbattere
+                # l'intero upload, registra l'errore per-file e prosegui.
+                logger.error(
+                    "[anomalie] allegati_upload scrittura fallita local_id=%s file=%s target=%s: %s",
+                    local_id, safe_name, target, wexc,
+                )
+                errors.append(f"{original}: scrittura fallita ({wexc})")
+                continue
             saved += 1
             saved_file_ids.append(file_id)
             saved_names.append(safe_name)
+
+        logger.info(
+            "[anomalie] allegati_upload done local_id=%s op=%s saved=%s errors=%s",
+            local_id, op_id, saved, len(errors),
+        )
 
         if saved_file_ids:
             _mark_attachment_pending(local_id, saved_file_ids)
@@ -2160,10 +2204,14 @@ def api_salva(request):
         if chiudere_val:
             _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
 
-        # Mail di conferma post-aggiornamento, solo su UPDATE (non su creazione):
-        # - notify_update=true (tasto "Salva e notifica"): invio immediato + chiude il pending
-        # - altrimenti: registra nella coda di debounce (mail dopo ~5 min di inattività)
-        if updated > 0:
+        # Mail di conferma post-salvataggio: parte SEMPRE, su qualsiasi salvataggio
+        # (INSERT di nuova anomalia o UPDATE), da qualsiasi pulsante. Per evitare di
+        # inondare CC/CAR quando si salva più volte di fila sullo stesso OP, l'invio è
+        # gestito dalla coda di DEBOUNCE: `register_pending_update` accumula gli update e
+        # il task periodico `anomalie_pending_notifications` invia UNA mail riepilogativa
+        # quando l'OP è fermo da più della soglia (~5 min). Niente più ramo "immediato"
+        # legato a un bottone dedicato: la notifica è implicita in ogni "Salva".
+        if local_id is not None:
             try:
                 identity = _current_user_identity(request)
                 modified_by = identity.get("name") or request.user.username
@@ -2171,33 +2219,23 @@ def api_salva(request):
                     "id": local_id,
                     "seriale": sn_val,
                     "avanzamento": payload_map.get("avanzamento") or "",
+                    "descrizione": _safe_text(data.get("desc")) or "",
+                    "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
+                    "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
                     "note": _safe_text(data.get("note")) or "",
                     "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                     "segnalare": bool(segnalare_val),
                     "chiudere": bool(chiudere_val),
                 }
-                if bool(data.get("notify_update")):
-                    from anomalie.mail_action_service import send_anomalie_update_confirmation
-                    from anomalie.mail_action_models import AnomaliaPendingNotification
-                    send_anomalie_update_confirmation(
-                        op_id=op_id,
-                        op_nominativo=op_id,
-                        anomalie_rows=[{"id": local_id, "seriale": sn_val}],
-                        updates_summary=[update_row],
-                        source_label=f"Modifica da portale ({modified_by})",
-                    )
-                    # Chiudi eventuale pending in coda per questo OP
-                    AnomaliaPendingNotification.objects.filter(op_id=op_id, notified=False).update(notified=True)
-                else:
-                    from anomalie.mail_action_service import register_pending_update
-                    register_pending_update(
-                        op_id=op_id,
-                        op_nominativo=op_id,
-                        update_row=update_row,
-                        modified_by=modified_by,
-                    )
+                from anomalie.mail_action_service import register_pending_update
+                register_pending_update(
+                    op_id=op_id,
+                    op_nominativo=op_id,
+                    update_row=update_row,
+                    modified_by=modified_by,
+                )
             except Exception:
-                logger.warning("api_salva: gestione conferma aggiornamento fallita op=%s", op_id, exc_info=True)
+                logger.warning("api_salva: gestione conferma salvataggio fallita op=%s", op_id, exc_info=True)
 
         return JsonResponse(
             {
