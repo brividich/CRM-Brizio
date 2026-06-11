@@ -288,7 +288,7 @@
         </div>
         <div class="plx-card-body">
           <div class="plx-machine-toolbar">
-            <input class="input" id="plx-machine-search" type="search" placeholder="Filtra per tag, nome o reparto">
+            <input class="input" id="plx-machine-search" type="search" placeholder="Filtra per tag, n. interno, nome, reparto o modello">
           </div>
           <div class="plx-list" id="plx-machine-list"></div>
         </div>
@@ -688,7 +688,7 @@
     machineListNode.innerHTML = "";
     const rows = state.machines.filter(function (machine) {
       if (!filter) return true;
-      return [machine.asset_tag, machine.name, machine.reparto, machine.model]
+      return [machine.asset_tag, machine.internal_number, machine.name, machine.reparto, machine.model]
         .join(" ")
         .toLowerCase()
         .indexOf(filter) !== -1;
@@ -708,7 +708,7 @@
       button.innerHTML =
         '<div class="plx-item-title">' + (machine.asset_tag || machine.name) + '</div>' +
         '<div class="plx-item-sub">' +
-        [machine.name, machine.reparto || "senza reparto", existingMarker ? "gia posizionata" : "clicca per posizionare"]
+        [machine.name, machine.internal_number ? "Int. " + machine.internal_number : "", machine.reparto || "senza reparto", existingMarker ? "gia posizionata" : "clicca per posizionare"]
           .filter(Boolean)
           .join(" - ") +
         '</div>';

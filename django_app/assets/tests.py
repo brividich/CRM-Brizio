@@ -928,10 +928,17 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "TVCC")
         self.assertNotContains(response, "Officina principale")
 
-    def test_non_admin_cannot_open_plant_layout_editor(self):
+    def test_plant_layout_editor_is_governed_by_acl_not_admin_only(self):
+        # Regressione: l'editor non deve piu' essere hard-gated con
+        # @legacy_admin_required. La view e' protetta da @login_required e
+        # l'autorizzazione fine passa dal binding canonico ACL v2
+        # (assets:plant_layout_editor -> assets.wm_map.edit). La logica
+        # allow/deny del resolver e' coperta da core.test_acl_v2; qui basta
+        # verificare che un utente loggato non venga piu' bloccato dal solo
+        # decoratore admin-only della view.
         self.client.force_login(self.user)
         response = self.client.get(reverse("assets:plant_layout_editor"))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_admin_can_save_plant_layout_with_areas_and_markers(self):
         admin = User.objects.create_superuser(
@@ -999,6 +1006,55 @@ class AssetsRoutingTests(TestCase):
         marker = PlantLayoutMarker.objects.get(layout=layout, asset=asset)
         self.assertEqual(area.reparto_code, "CN5")
         self.assertEqual(marker.label, "ML-CN5")
+
+    def test_save_layout_marker_for_existing_asset_does_not_violate_unique(self):
+        # Regressione (prod IntegrityError uniq_plant_layout_marker_layout_asset):
+        # ri-salvando un layout con una riga marker NUOVA (senza id) per un asset
+        # che ha gia' un marker non deve generare un INSERT duplicato (layout, asset).
+        from assets.forms import PlantLayoutForm
+
+        self._dedup_tmpdir = _make_workspace_tempdir("assets-dedup-")
+        self.addCleanup(shutil.rmtree, self._dedup_tmpdir, ignore_errors=True)
+        media_override = override_settings(MEDIA_ROOT=Path(self._dedup_tmpdir))
+        media_override.enable()
+        self.addCleanup(media_override.disable)
+
+        layout = PlantLayout.objects.create(
+            category="Officina", name="Layout dedup", image=_valid_png_upload("dedup.png"), is_active=True
+        )
+        asset = Asset.objects.create(
+            name="Macchina gia' posizionata",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            source_key="manual-wm-dedup",
+        )
+        existing = PlantLayoutMarker.objects.create(
+            layout=layout, asset=asset, label="vecchio", x_percent=10, y_percent=10
+        )
+
+        form = PlantLayoutForm(
+            data={
+                "category": layout.category,
+                "name": layout.name,
+                "description": "",
+                "is_active": "on",
+                "areas_payload": json.dumps([]),
+                # nessun "id": simula la riga nuova inviata dal frontend per lo
+                # stesso asset gia' presente sul layout.
+                "markers_payload": json.dumps(
+                    [{"asset_id": asset.id, "label": "nuovo", "x_percent": 40, "y_percent": 55, "sort_order": 10}]
+                ),
+            },
+            instance=layout,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+
+        markers = PlantLayoutMarker.objects.filter(layout=layout, asset=asset)
+        self.assertEqual(markers.count(), 1)
+        marker = markers.get()
+        self.assertEqual(marker.label, "nuovo")
+        self.assertEqual(marker.id, existing.id)
 
     def test_work_machine_create_form_creates_asset_and_profile(self):
         self.client.force_login(self.user)

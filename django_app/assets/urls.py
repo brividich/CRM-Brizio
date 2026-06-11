@@ -92,6 +92,7 @@ urlpatterns = [
     path("assets/workorders/view/<int:id>/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/close/", views.workorder_close, name="wo_close"),
     path("assets/workorders/close/<int:id>/", views.workorder_close, name="wo_close"),
+    path("assets/workorders/<int:id>/claim/", views.workorder_claim, name="wo_claim"),
     path("assets/workorders/<int:id>/checklist/add/", views.workorder_checklist_add, name="wo_checklist_add"),
     path("assets/workorders/<int:id>/checklist/<int:item_id>/toggle/", views.workorder_checklist_toggle, name="wo_checklist_toggle"),
     path("assets/workorders/<int:id>/checklist/<int:item_id>/delete/", views.workorder_checklist_delete, name="wo_checklist_delete"),

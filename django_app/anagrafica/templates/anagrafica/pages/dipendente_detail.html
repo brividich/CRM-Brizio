@@ -573,7 +573,7 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
           <div class="dp-info-label">Reparto
             {% if is_admin %}<button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>{% endif %}
           </div>
-          <div class="dp-info-value">{{ dip.reparto|default:aziendale.area|default:"—" }}</div>
+          <div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div>
           {% if is_admin %}
           <div class="dp-mansione-form" id="reparto-form">
             <form method="post" action="{% url 'anagrafica:dipendente_reparto_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">

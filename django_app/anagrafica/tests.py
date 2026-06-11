@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from datetime import date
 from io import BytesIO
@@ -745,7 +746,9 @@ class AnagraficaDipendentiViewTests(TestCase):
                 ["b.beta", "Bruno", "Beta", "Produzione", 1],
             )
 
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with tempfile.TemporaryDirectory() as private_root, override_settings(
+            ANAGRAFICA_PRIVATE_ROOT=private_root
+        ):
             civile = DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=photo_legacy_id)
             civile.foto.save("profilo.gif", ContentFile(VALID_GIF_1X1), save=True)
 
@@ -754,7 +757,13 @@ class AnagraficaDipendentiViewTests(TestCase):
 
             html = response.content.decode()
             self.assertEqual(response.status_code, 200)
-            self.assertIn(f"/media/anagrafica/dipendenti/{photo_legacy_id}/foto/", html)
+            # La foto è un dato personale: NON più su /media/ pubblico, ma servita
+            # dalla view protetta anagrafica:foto_dipendente.
+            self.assertIn(
+                reverse("anagrafica:foto_dipendente", args=[photo_legacy_id]),
+                html,
+            )
+            self.assertNotIn(f"/media/anagrafica/dipendenti/{photo_legacy_id}/foto/", html)
             self.assertIn("ana-avatar-img", html)
             self.assertIn("ana-avatar-fallback", html)
 
@@ -772,7 +781,9 @@ class AnagraficaDipendentiViewTests(TestCase):
             cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["a.alfa"])
             legacy_id = int(cursor.fetchone()[0])
 
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with tempfile.TemporaryDirectory() as private_root, override_settings(
+            ANAGRAFICA_PRIVATE_ROOT=private_root
+        ):
             self.client.force_login(self.user)
             response = self.client.post(
                 reverse("anagrafica:dipendente_civile_save", args=[legacy_id]),
@@ -788,6 +799,11 @@ class AnagraficaDipendentiViewTests(TestCase):
             self.assertEqual(response.status_code, 302)
             civile = DipendenteAnagraficaCivile.objects.get(legacy_anagrafica_id=legacy_id)
             self.assertTrue(civile.foto.name.startswith(f"anagrafica/dipendenti/{legacy_id}/foto/"))
+            # Il file deve essere salvato nello storage privato (fuori webroot),
+            # non più sotto MEDIA_ROOT pubblico.
+            self.assertTrue(
+                os.path.exists(os.path.join(private_root, civile.foto.name.replace("/", os.sep)))
+            )
 
     def test_cleanup_duplicate_rows_merges_and_deletes_duplicates(self):
         with connection.cursor() as cursor:

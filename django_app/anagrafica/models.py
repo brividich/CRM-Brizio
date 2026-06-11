@@ -621,9 +621,14 @@ class DipendenteAnagraficaCivile(models.Model):
     legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
     foto = models.ImageField(
         upload_to=_dipendente_foto_upload_to,
+        storage=PrivateAnagraficaStorage(),
         blank=True,
         default="",
         verbose_name="Foto dipendente",
+        help_text=(
+            "Dato personale: salvata in ANAGRAFICA_PRIVATE_ROOT (fuori webroot). "
+            "Servita solo dalla view protetta anagrafica:foto_dipendente."
+        ),
     )
 
     data_nascita = models.DateField(null=True, blank=True)

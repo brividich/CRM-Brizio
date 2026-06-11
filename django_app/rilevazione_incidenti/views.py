@@ -1143,11 +1143,13 @@ def export_csv(request):
 def export_pdf(request, sp_id):
     from django.http import Http404, HttpResponse
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import (
-        HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+
+    from core.pdf import (
+        PdfTheme, build_styles, data_table, header_footer_callback,
+        make_document, section_heading,
     )
 
     # SEC-PREPROD-02 (H1): l'export PDF contiene PII e dati sicurezza della
@@ -1180,48 +1182,18 @@ def export_pdf(request, sp_id):
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="rilevazione_{sp_id}.pdf"'
 
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=A4,
-        leftMargin=20 * mm,
-        rightMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
-    )
+    theme = PdfTheme.from_branding()
+    doc = make_document(response, title=f"Rilevazione {sp_id}")
 
-    styles = getSampleStyleSheet()
-    GREEN = colors.HexColor("#065f46")
-    LIGHT_GREEN = colors.HexColor("#d1fae5")
-    GREY_BG = colors.HexColor("#f8fafc")
-    BORDER = colors.HexColor("#e2e8f0")
+    styles = build_styles(theme)
+    PRIMARY = theme.c_primary()
+    PRIMARY_LIGHT = colors.HexColor(theme.accent_light)
+    GREY_BG = theme.c_row_alt()
+    BORDER = theme.c_border()
 
-    style_title = ParagraphStyle(
-        "title", parent=styles["Heading1"],
-        fontSize=18, textColor=colors.white, leading=22, spaceAfter=2,
-    )
-    style_sub = ParagraphStyle(
-        "sub", parent=styles["Normal"],
-        fontSize=10, textColor=colors.HexColor("#bbf7d0"), spaceAfter=0,
-    )
-    style_section = ParagraphStyle(
-        "section", parent=styles["Normal"],
-        fontSize=9, textColor=colors.HexColor("#64748b"),
-        fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6,
-        textTransform="uppercase", letterSpacing=0.8,
-    )
-    style_label = ParagraphStyle(
-        "label", parent=styles["Normal"],
-        fontSize=8, textColor=colors.HexColor("#94a3b8"),
-        fontName="Helvetica-Bold", spaceAfter=1,
-    )
-    style_value = ParagraphStyle(
-        "value", parent=styles["Normal"],
-        fontSize=10, textColor=colors.HexColor("#1e293b"), spaceAfter=6,
-    )
-    style_body = ParagraphStyle(
-        "body", parent=styles["Normal"],
-        fontSize=9, textColor=colors.HexColor("#374151"), leading=13,
-    )
+    style_label = styles["label"]
+    style_value = styles["value"]
+    style_body = styles["body"]
 
     def val(key, default="—"):
         v = f.get(key) or ""
@@ -1235,26 +1207,12 @@ def export_pdf(request, sp_id):
 
     story = []
 
-    # --- Header banner ---
-    header_data = [[
-        Paragraph(f"Rilevazione Sicurezza &nbsp;&nbsp;—&nbsp;&nbsp; {TIPO}", style_title),
-        Paragraph(f"ID: {sp_id} &nbsp;|&nbsp; Stato: {STATO}", style_sub),
-    ]]
-    header_table = Table(header_data, colWidths=[doc.width])
-    header_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), GREEN),
-        ("TOPPADDING", (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
-        ("LEFTPADDING", (0, 0), (-1, -1), 16),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
-        ("ROUNDEDCORNERS", (0, 0), (-1, -1), [8, 8, 8, 8]),
-    ]))
-    story.append(header_table)
-    story.append(Spacer(1, 10 * mm))
+    # Titolo/stato (prima nel banner del corpo) ora nell'header del template.
+    pdf_title = "RILEVAZIONE SICUREZZA" + (f" — {TIPO}" if TIPO and TIPO != "—" else "")
+    pdf_subtitle = f"ID: {sp_id}  |  Stato: {STATO}"
 
     # --- Sezione 1: Dati evento ---
-    story.append(Paragraph("1. Dati dell'evento", style_section))
-    story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+    story.extend(section_heading("1. Dati dell'evento", theme, styles))
 
     row1 = [
         [Paragraph("Nominativo", style_label), Paragraph(val("Nominativo"), style_value)],
@@ -1317,8 +1275,7 @@ def export_pdf(request, sp_id):
 
     # --- Sezione 2: 5WHY ---
     story.append(Spacer(1, 4 * mm))
-    story.append(Paragraph("2. Modello 5WHY", style_section))
-    story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+    story.extend(section_heading("2. Modello 5WHY", theme, styles))
 
     if f.get("Partecipanti"):
         story.append(Paragraph("Partecipanti", style_label))
@@ -1331,10 +1288,13 @@ def export_pdf(request, sp_id):
         ("x34__x0020_WHY", "4° WHY"),
         ("x35__x0020_WHY", "5° WHY"),
     ]
+    why_label_style = ParagraphStyle(
+        "wl", parent=style_body, fontName="Helvetica-Bold", textColor=PRIMARY,
+    )
     why_data = []
     for key, lbl in why_keys:
         why_data.append([
-            Paragraph(lbl, ParagraphStyle("wl", parent=styles["Normal"], fontSize=9, fontName="Helvetica-Bold", textColor=GREEN)),
+            Paragraph(lbl, why_label_style),
             Paragraph((f.get(key) or "—"), style_body),
         ])
     why_table = Table(why_data, colWidths=[20 * mm, doc.width - 20 * mm])
@@ -1359,8 +1319,7 @@ def export_pdf(request, sp_id):
     has_approv = bool(f.get("Approvazione_RLS") or f.get("Chiusura_RSPP") or f.get("Note_RSPP_x0020__x002F__x0020_ASPP"))
     if has_approv:
         story.append(Spacer(1, 4 * mm))
-        story.append(Paragraph("3. Approvazione & Chiusura", style_section))
-        story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+        story.extend(section_heading("3. Approvazione & Chiusura", theme, styles))
         approv_data = [
             [Paragraph("Approvazione RLS", style_label), Paragraph(val("Approvazione_RLS"), style_value)],
             [Paragraph("Data approvazione RLS", style_label), Paragraph((val("Data_approvazione_RLS") or "")[:10] or "—", style_value)],
@@ -1370,7 +1329,7 @@ def export_pdf(request, sp_id):
         ]
         approv_table = Table(approv_data, colWidths=[50 * mm, doc.width - 50 * mm])
         approv_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (0, -1), LIGHT_GREEN),
+            ("BACKGROUND", (0, 0), (0, -1), PRIMARY_LIGHT),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("LEFTPADDING", (0, 0), (-1, -1), 8),
@@ -1380,6 +1339,7 @@ def export_pdf(request, sp_id):
         ]))
         story.append(approv_table)
 
-    doc.build(story)
+    draw = header_footer_callback(theme, title=pdf_title, subtitle=pdf_subtitle)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
     log_action(request, "export_pdf", "rilevazione_incidenti", f"Export PDF rilevazione id={sp_id}")
     return response

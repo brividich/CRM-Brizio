@@ -6,9 +6,12 @@ from __future__ import annotations
 
 import logging
 
+from automazioni.system_runlog import system_job_run
+
 logger = logging.getLogger("anomalie.tasks")
 
 
+@system_job_run("anomalie_pending_notifications")
 def run_anomalie_pending_notifications(threshold_minutes: int = 5) -> dict:
     """Invia le mail di conferma per gli OP con modifiche ferme da > threshold_minutes.
 
@@ -31,6 +34,7 @@ def run_anomalie_pending_notifications(threshold_minutes: int = 5) -> dict:
         raise
 
 
+@system_job_run("anomalie_escalation")
 def run_anomalie_escalation(*, force_email: bool = False) -> dict:
     """Promemoria + escalation per gli OP con anomalie 'In attesa' (da controllare).
 

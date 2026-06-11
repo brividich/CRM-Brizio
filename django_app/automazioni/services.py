@@ -1140,14 +1140,26 @@ def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
     incaricato_raw = str(row[1] or "").strip()
     recipients = []
 
+    # NB: in anagrafica_dipendenti la colonna `email` e' il LOGIN_ID legacy (username),
+    # NON un indirizzo valido per le notifiche; l'email reale e' `email_notifica`. Tutto
+    # il resto del progetto (assenze, admin_portale) usa email_notifica: allineiamo qui.
+    # Se email_notifica e' vuota il destinatario viene saltato (niente fallback su login_id).
+    # Difensivo: su ambienti legacy senza la colonna si ricade su `email`.
+    try:
+        from core.legacy_utils import legacy_table_columns
+        _anag_cols = legacy_table_columns("anagrafica_dipendenti") or set()
+    except Exception:
+        _anag_cols = set()
+    email_col = "email_notifica" if "email_notifica" in _anag_cols else "email"
+
     def _email_by_cognome(cognome: str) -> tuple[str, str]:
         if not cognome:
             return "", ""
         try:
             if connection.vendor == "sqlite":
-                sql = "SELECT email, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1 LIMIT 1"
+                sql = f"SELECT {email_col}, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1 LIMIT 1"
             else:
-                sql = "SELECT TOP 1 email, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1"
+                sql = f"SELECT TOP 1 {email_col}, nome, cognome FROM anagrafica_dipendenti WHERE LOWER(cognome) = LOWER(%s) AND attivo = 1"
             with connection.cursor() as cur:
                 cur.execute(sql, [cognome])
                 r = cur.fetchone()
@@ -1168,13 +1180,13 @@ def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
         try:
             if connection.vendor == "sqlite":
                 sql = (
-                    "SELECT email, nome, cognome FROM anagrafica_dipendenti "
+                    f"SELECT {email_col}, nome, cognome FROM anagrafica_dipendenti "
                     "WHERE (LOWER(nome || ' ' || cognome) = LOWER(%s) OR LOWER(cognome || ' ' || nome) = LOWER(%s)) "
                     "AND attivo = 1 LIMIT 1"
                 )
             else:
                 sql = (
-                    "SELECT TOP 1 email, nome, cognome FROM anagrafica_dipendenti "
+                    f"SELECT TOP 1 {email_col}, nome, cognome FROM anagrafica_dipendenti "
                     "WHERE (LOWER(CONCAT(nome, ' ', cognome)) = LOWER(%s) OR LOWER(CONCAT(cognome, ' ', nome)) = LOWER(%s)) "
                     "AND attivo = 1"
                 )

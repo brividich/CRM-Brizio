@@ -383,16 +383,20 @@ def send_anomalie_update_confirmation(
         logger.info("send_anomalie_update_confirmation: nessun destinatario op=%s", op_id)
         return False
 
+    # P/N dell'OP (per intestazione + dettaglio anomalie)
+    op_pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
+
     n = len(updates_summary)
     n_rdc = len(rdc_rows)
+    pn_subj = f" (P/N {op_pn})" if op_pn else ""
     if has_rdc:
         subject = (
-            f"[Novicrom Hub] OP {op_id} — {n_rdc} da APRIRE RDC / SEGNALARE A CLIENTE"
+            f"[Novicrom Hub] {op_id}{pn_subj} — {n_rdc} da APRIRE RDC / SEGNALARE A CLIENTE"
             f" ({n} modific{'a' if n == 1 else 'he'} totali)"
         )
     else:
         subject = (
-            f"[Novicrom Hub] Aggiornamento anomalie OP {op_id} — "
+            f"[Novicrom Hub] Aggiornamento anomalie {op_id}{pn_subj} — "
             f"{n} modific{'a' if n == 1 else 'he'} registrat{'a' if n == 1 else 'e'}"
         )
 
@@ -408,6 +412,17 @@ def send_anomalie_update_confirmation(
         av = u.get("avanzamento") or "(invariato)"
         sn = u.get("seriale") or ""
         out = [prefix + f"#{u.get('id', '?')}" + (f" S/N {sn}" if sn else "") + f" → {av}{flag_str}"]
+        out += _detail_lines(u)
+        return out
+
+    def _detail_lines(u):
+        out = []
+        if u.get("descrizione"):
+            out.append(f"      Descrizione: {str(u['descrizione'])[:300]}")
+        if u.get("numero_rdc"):
+            out.append(f"      N° RDC: {u['numero_rdc']}")
+        if u.get("pezzi_recuperato"):
+            out.append("      Pezzo recuperato: sì")
         if u.get("note"):
             out.append(f"      Note: {str(u['note'])[:200]}")
         return out
@@ -415,6 +430,7 @@ def send_anomalie_update_confirmation(
     # Corpo testo
     lines = [
         f"Sono state registrate modifiche sulle anomalie dell'OP {op_id}"
+        f"{(' · P/N ' + op_pn) if op_pn else ''}"
         f"{(' — ' + op_nominativo) if op_nominativo else ''}.",
         "",
     ]
@@ -441,6 +457,7 @@ def send_anomalie_update_confirmation(
         "anomalie/email/anomalie_update_confirmation.html",
         {
             "op_id": op_id,
+            "op_pn": op_pn,
             "op_nominativo": op_nominativo,
             "updates_summary": updates_summary,
             "rdc_rows": rdc_rows,

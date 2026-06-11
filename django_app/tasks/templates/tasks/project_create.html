@@ -3,12 +3,12 @@
 {% block tasks_shell_head %}
 <style>
   .kc-wizard-steps {
-    display: flex; gap: 10px; margin-bottom: 18px;
-    padding: 10px 14px; background: #fff; border: 1px solid #e2e8f0;
+    display: flex; gap: 8px; margin-bottom: 12px;
+    padding: 8px 12px; background: #fff; border: 1px solid #e2e8f0;
     border-radius: 10px;
   }
   .kc-step {
-    flex: 1; padding: 10px 14px; border-radius: 6px;
+    flex: 1; padding: 7px 12px; border-radius: 6px;
     background: #f8fafc; border: 1px solid #e2e8f0;
     text-align: center; font-weight: 600; color: #64748b; font-size: 12px;
   }
@@ -17,22 +17,23 @@
   .kc-step-num { display: block; font-size: 10px; opacity: .8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
 
   .kc-form-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   }
   .kc-form-grid .field { display: flex; flex-direction: column; }
   .kc-form-grid .field.span-2 { grid-column: span 2; }
   .kc-form-grid .field.span-3 { grid-column: span 3; }
   .kc-form-grid label {
     font-size: 11px; font-weight: 700; color: #64748b;
-    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px;
   }
   .kc-form-grid .field .input,
   .kc-form-grid .field input,
   .kc-form-grid .field select,
   .kc-form-grid .field textarea {
-    padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 6px 9px; border: 1px solid #e2e8f0; border-radius: 6px;
     font-size: 13px; font-family: inherit; background: #fff;
   }
+  .kc-form-grid .field textarea { min-height: 64px; }
   .kc-form-grid .field input:focus,
   .kc-form-grid .field select:focus,
   .kc-form-grid .field textarea:focus {
@@ -43,18 +44,18 @@
 
   .kc-section-title {
     font-size: 14px; font-weight: 700; color: #0f172a;
-    margin: 18px 0 8px 0; padding-bottom: 6px;
+    margin: 12px 0 6px 0; padding-bottom: 5px;
     border-bottom: 2px solid #e2e8f0;
   }
 
   .kc-actions {
     display: flex; justify-content: space-between; gap: 10px;
-    margin-top: 22px; flex-wrap: wrap;
+    margin-top: 14px; flex-wrap: wrap;
   }
   .kc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .kc-note {
-    margin-bottom: 12px; padding: 10px 14px;
+    margin-bottom: 10px; padding: 8px 12px;
     background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;
     color: #9a3412; font-size: 12px;
   }

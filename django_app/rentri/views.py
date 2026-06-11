@@ -838,10 +838,13 @@ def export_pdf(request):
 
     from django.http import HttpResponse
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import cm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
+
+    from core.pdf import (
+        FOOTER_HEIGHT, HEADER_HEIGHT, PdfTheme,
+        header_footer_callback, make_document,
+    )
 
     # ── filtri ────────────────────────────────────────────────────────────────
     q_tipo = request.GET.get("tipo", "").strip()
@@ -860,14 +863,13 @@ def export_pdf(request):
             pass
 
     records = list(qs.order_by("data", "id"))
-    now_str = datetime.now().strftime("%d-%m-%Y %H:%M")
 
-    # ── palette colori ────────────────────────────────────────────────────────
-    COL_DARK  = colors.HexColor("#1e3a5f")
-    COL_MID   = colors.HexColor("#2d5a9b")
-    COL_ALT   = colors.HexColor("#f0f4fb")
-    COL_GRID  = colors.HexColor("#d1d9e6")
+    # ── tema condiviso + palette dominio ──────────────────────────────────────
+    theme = PdfTheme.from_branding()
+    COL_GRID = theme.c_border()
 
+    # Colori semantici per tipo di registrazione: NON sono branding, ma
+    # codifica di dominio del registro → restano locali.
     TIPO_BG = {
         "C": "#dbeafe",
         "O": "#fed7aa",
@@ -887,11 +889,9 @@ def export_pdf(request):
         "R": "Rettifica",
     }
 
-    # ── dimensioni pagina ─────────────────────────────────────────────────────
-    PAGE_W, PAGE_H = landscape(A4)
-    MARGIN   = 1.5 * cm
-    HDR_H    = 2.1 * cm
-    FTR_H    = 0.9 * cm
+    MARGIN = 1.5 * cm
+    # Spazio extra sotto l'header standard per ospitare la legenda dei tipi.
+    LEGEND_BAND = 1.4 * cm
 
     # ── filtri stringa per footer ─────────────────────────────────────────────
     filter_parts = []
@@ -904,34 +904,20 @@ def export_pdf(request):
     filters_str = " | ".join(filter_parts) if filter_parts else "Tutte le registrazioni"
     n_records = len(records)
 
-    # ── callback decorazione pagina ───────────────────────────────────────────
+    # ── callback: header/footer standard + legenda/filtri di dominio ──────────
+    _base_draw = header_footer_callback(
+        theme,
+        title="RENTRI",
+        subtitle=f"Registro Elettronico Nazionale Tracciabilità Rifiuti  ·  {n_records} registrazioni",
+    )
+
     def _draw_page(canv, doc):
+        _base_draw(canv, doc)
         canv.saveState()
+        page_w, page_h = doc.pagesize
+        right = page_w - MARGIN
 
-        # banner superiore
-        canv.setFillColor(COL_DARK)
-        canv.rect(0, PAGE_H - HDR_H, PAGE_W, HDR_H, fill=1, stroke=0)
-
-        # linea accent
-        canv.setFillColor(COL_MID)
-        canv.rect(0, PAGE_H - HDR_H - 2, PAGE_W, 2, fill=1, stroke=0)
-
-        # titolo sinistro
-        canv.setFillColor(colors.white)
-        canv.setFont("Helvetica-Bold", 15)
-        canv.drawString(MARGIN, PAGE_H - HDR_H + 0.75 * cm, "RENTRI")
-        canv.setFont("Helvetica", 8)
-        canv.drawString(MARGIN, PAGE_H - HDR_H + 0.30 * cm,
-                        "Registro Elettronico Nazionale Tracciabilità Rifiuti")
-
-        # info destra
-        canv.setFont("Helvetica-Bold", 8)
-        canv.drawRightString(PAGE_W - MARGIN, PAGE_H - HDR_H + 0.75 * cm,
-                             f"{n_records} registrazioni")
-        canv.setFont("Helvetica", 7.5)
-        canv.drawRightString(PAGE_W - MARGIN, PAGE_H - HDR_H + 0.30 * cm, now_str)
-
-        # riga separazione colori tipo (legenda)
+        # legenda colori tipo, appena sotto l'header standard
         legend_items = [
             ("C", "Carico"),
             ("O", "Scarico originario"),
@@ -939,7 +925,7 @@ def export_pdf(request):
             ("R", "Rettifica"),
         ]
         lx = MARGIN
-        ly = PAGE_H - HDR_H - 1.05 * cm
+        ly = page_h - HEADER_HEIGHT - 0.2 * cm
         dot_r = 3
         canv.setFont("Helvetica", 6.5)
         for tipo, label in legend_items:
@@ -949,33 +935,31 @@ def export_pdf(request):
             canv.drawString(lx + dot_r * 2 + 3, ly + 1, f"{tipo} – {label}")
             lx += 4.8 * cm
 
-        # linea separazione legenda
         canv.setStrokeColor(COL_GRID)
         canv.setLineWidth(0.3)
-        canv.line(MARGIN, PAGE_H - HDR_H - 1.5 * cm, PAGE_W - MARGIN, PAGE_H - HDR_H - 1.5 * cm)
+        canv.line(MARGIN, ly - 0.45 * cm, right, ly - 0.45 * cm)
 
-        # footer
-        canv.setStrokeColor(COL_GRID)
-        canv.line(MARGIN, FTR_H + 0.1 * cm, PAGE_W - MARGIN, FTR_H + 0.1 * cm)
-        canv.setFillColor(colors.HexColor("#6b7280"))
+        # filtri applicati nel footer (sopra la riga standard)
+        canv.setFillColor(theme.c_muted())
         canv.setFont("Helvetica", 6.5)
-        canv.drawString(MARGIN, FTR_H * 0.35, filters_str)
-        canv.drawRightString(PAGE_W - MARGIN, FTR_H * 0.35, f"Pagina {doc.page}")
+        canv.drawString(MARGIN, FOOTER_HEIGHT - 1.5 * mm, filters_str)
 
         canv.restoreState()
 
     # ── documento ─────────────────────────────────────────────────────────────
     buffer = BytesIO()
-    doc = SimpleDocTemplate(
+    doc = make_document(
         buffer,
-        pagesize=landscape(A4),
-        leftMargin=MARGIN,
-        rightMargin=MARGIN,
-        topMargin=HDR_H + 1.7 * cm,   # spazio per banner + legenda
-        bottomMargin=FTR_H + 0.5 * cm,
+        title="Registro RENTRI",
+        landscape=True,
+        left_margin=MARGIN,
+        right_margin=MARGIN,
+        top_margin=HEADER_HEIGHT + LEGEND_BAND,
     )
 
     # ── stili ─────────────────────────────────────────────────────────────────
+    # Font ridotti rispetto allo stylesheet condiviso: il registro è una tabella
+    # densa in landscape e necessita di celle compatte.
     cell_s = ParagraphStyle("cell", fontName="Helvetica", fontSize=7, leading=9, wordWrap="CJK")
     cell_r = ParagraphStyle("cell_r", parent=cell_s, alignment=2)  # right-align numeri
     hdr_s  = ParagraphStyle(
@@ -1021,9 +1005,9 @@ def export_pdf(request):
 
     table = Table(table_data, colWidths=COL_W, repeatRows=1)
     ts = TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, 0),  COL_DARK),
-        ("LINEBELOW",     (0, 0), (-1, 0),  1.5,  COL_MID),
-        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, COL_ALT]),
+        ("BACKGROUND",    (0, 0), (-1, 0),  theme.c_primary()),
+        ("LINEBELOW",     (0, 0), (-1, 0),  1.5,  theme.c_primary_mid()),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, theme.c_row_alt()]),
         ("GRID",          (0, 0), (-1, -1), 0.25, COL_GRID),
         ("LINEBEFORE",    (0, 0), (-1, -1), 0,    colors.white),   # annulla bordo sinistro
         ("LINEAFTER",     (-1, 0),(-1, -1), 0,    colors.white),   # annulla bordo destro

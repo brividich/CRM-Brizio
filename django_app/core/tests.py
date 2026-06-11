@@ -2418,3 +2418,68 @@ class AclFallbackReportCommandTests(TestCase):
         admin_total = json.loads(admin_out.getvalue())["summary"]["total_routes"]
 
         self.assertGreater(admin_total, default_total)
+
+
+class PdfTemplateTests(TestCase):
+    """Template PDF unico del portale (core.pdf)."""
+
+    def test_resolve_logo_path_rejects_non_raster_and_external(self):
+        import os
+        import tempfile
+
+        from django.test import override_settings
+
+        from core.pdf import _resolve_logo_path
+
+        # SVG: non gestito da reportlab -> None
+        self.assertIsNone(_resolve_logo_path("/media/site/logo.svg"))
+        # URL esterno / non-media -> None
+        self.assertIsNone(_resolve_logo_path("https://example.org/logo.png"))
+        self.assertIsNone(_resolve_logo_path(""))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "site"), exist_ok=True)
+            png_path = os.path.join(tmp, "site", "logo.png")
+            with open(png_path, "wb") as fh:
+                fh.write(b"\x89PNG\r\n\x1a\n")  # header PNG fittizio
+            with override_settings(MEDIA_ROOT=tmp):
+                # PNG esistente -> path su disco
+                self.assertEqual(
+                    _resolve_logo_path("/media/site/logo.png?v=123"), png_path
+                )
+                # PNG inesistente -> None
+                self.assertIsNone(_resolve_logo_path("/media/site/missing.png"))
+
+    def test_theme_from_branding_exposes_valid_palette(self):
+        import re
+
+        from core.pdf import PdfTheme
+
+        theme = PdfTheme.from_branding()
+        hex_re = re.compile(r"^#[0-9a-fA-F]{6}$")
+        for value in (theme.primary, theme.primary_mid, theme.accent, theme.text, theme.border):
+            self.assertRegex(value, hex_re)
+        self.assertTrue(theme.portal_name)
+        self.assertTrue(theme.monogram)
+
+    def test_build_document_produces_pdf_bytes(self):
+        from io import BytesIO
+
+        from reportlab.platypus import Paragraph
+
+        from core.pdf import (
+            PdfTheme, build_styles, header_footer_callback, make_document,
+            section_heading,
+        )
+
+        theme = PdfTheme.from_branding()
+        styles = build_styles(theme)
+        buf = BytesIO()
+        doc = make_document(buf, title="Smoke test")
+        story = section_heading("Sezione", theme, styles)
+        story.append(Paragraph("Contenuto di prova", styles["body"]))
+        draw = header_footer_callback(theme, title="SMOKE TEST", subtitle="sottotitolo")
+        doc.build(story, onFirstPage=draw, onLaterPages=draw)
+        data = buf.getvalue()
+        self.assertTrue(data.startswith(b"%PDF"))
+        self.assertGreater(len(data), 500)

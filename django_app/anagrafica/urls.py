@@ -85,6 +85,9 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/visite/<int:v_id>/edit", views.dipendente_visita_edit, name="dipendente_visita_edit"),
     path("dipendenti/<int:legacy_id>/visite/<int:v_id>/delete", views.dipendente_visita_delete, name="dipendente_visita_delete"),
 
+    # Foto profilo dipendente (storage privato, servita da view protetta)
+    path("dipendenti/<int:legacy_id>/foto", views.foto_dipendente, name="foto_dipendente"),
+
     # Documenti dipendente (storage privato)
     path("documenti/", views.documenti_list, name="documenti_list"),
     path("documenti/<int:doc_id>/download", views.documento_dipendente_download, name="documento_download"),

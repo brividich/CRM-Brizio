@@ -2,17 +2,32 @@
 
 {% block tasks_shell_head %}
 <style>
+  /* Barra step wizard — allineata a project_create.html (.kc-*) */
+  .kc-wizard-steps {
+    display: flex; gap: 8px; margin-bottom: 12px;
+    padding: 8px 12px; background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+  .kc-step {
+    flex: 1; padding: 7px 12px; border-radius: 6px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    text-align: center; font-weight: 600; color: #64748b; font-size: 12px;
+  }
+  .kc-step.active { background: #ea580c; color: #fff; border-color: #c2410c; }
+  .kc-step.done { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+  .kc-step-num { display: block; font-size: 10px; opacity: .8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
   .vrfc-header-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   }
   .vrfc-header-grid .row { display: flex; flex-direction: column; }
   .vrfc-header-grid label {
     font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;
-    font-weight: 700; margin-bottom: 4px;
+    font-weight: 700; margin-bottom: 3px;
   }
   .vrfc-header-grid .val {
-    padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px;
-    background: #f8fafc; color: #1e293b; font-weight: 600; font-size: 13px; min-height: 34px;
+    padding: 6px 9px; border: 1px solid #e2e8f0; border-radius: 6px;
+    background: #f8fafc; color: #1e293b; font-weight: 600; font-size: 13px; min-height: 32px;
   }
   .vrfc-header-grid .val.empty { color: #94a3b8; font-weight: 400; font-style: italic; }
   .vrfc-hint {
@@ -137,6 +152,9 @@
   }
   .vrfc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  body.theme-dark .kc-wizard-steps { background:var(--surface); border-color:var(--border); }
+  body.theme-dark .kc-step { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+  body.theme-dark .kc-step.done { background:rgba(6,95,70,.2); border-color:rgba(167,243,208,.2); color:#6ee7b7; }
   body.theme-dark .vrfc-header-grid label { color:var(--text-light); }
   body.theme-dark .vrfc-header-grid .val { background:var(--surface); border-color:var(--border); color:var(--text); }
   body.theme-dark .vrfc-hint { background:var(--surface-alt); color:var(--text-light); }
@@ -183,10 +201,10 @@
     </div>
   {% endif %}
 
-  <div style="display:flex; gap:10px; margin-bottom:4px; padding:10px 14px; background:#fff; border:1px solid #e2e8f0; border-radius:10px;">
-    <div style="flex:1; padding:10px 14px; border-radius:6px; background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; text-align:center; font-weight:600; font-size:12px;"><span style="display:block; font-size:10px; opacity:.8; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.05em;">Step 1/3</span>Anagrafica kickoff</div>
-    <div style="flex:1; padding:10px 14px; border-radius:6px; background:#ea580c; color:#fff; border:1px solid #c2410c; text-align:center; font-weight:600; font-size:12px;"><span style="display:block; font-size:10px; opacity:.8; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.05em;">Step 2/3</span>Compila scheda VRF</div>
-    <div style="flex:1; padding:10px 14px; border-radius:6px; background:#f8fafc; color:#64748b; border:1px solid #e2e8f0; text-align:center; font-weight:600; font-size:12px;"><span style="display:block; font-size:10px; opacity:.8; margin-bottom:2px; text-transform:uppercase; letter-spacing:0.05em;">Step 3/3</span>Attivita' di lavorazione</div>
+  <div class="kc-wizard-steps">
+    <div class="kc-step done"><span class="kc-step-num">Step 1/3</span>Anagrafica kickoff</div>
+    <div class="kc-step active"><span class="kc-step-num">Step 2/3</span>Compila scheda VRF</div>
+    <div class="kc-step"><span class="kc-step-num">Step 3/3</span>Attivita' di lavorazione</div>
   </div>
 
   <section class="ts-panel">

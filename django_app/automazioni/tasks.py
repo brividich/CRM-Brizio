@@ -105,3 +105,19 @@ def run_approval_mailbox(
     except Exception:
         logger.exception("run_approval_mailbox: eccezione inattesa")
         raise
+
+
+def run_cleanup_run_logs() -> dict:
+    """Retention giornaliera dei RunLog automazioni (GDPR - limitazione conservazione).
+
+    Elimina i RunLog oltre la finestra configurata (SiteConfig, default 90 giorni).
+    Wrappa il management command cleanup_run_logs in modalita' --apply.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("cleanup_run_logs", apply=True, verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_cleanup_run_logs: eccezione inattesa")
+        raise

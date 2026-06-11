@@ -249,6 +249,49 @@
         <section class="ms-card">
           <div class="ms-card-head">
             <div class="ms-card-title-wrap">
+              <h2 class="ms-card-title">Conservazione log esecuzioni (Run-log)</h2>
+              <p class="ms-card-subtitle">
+                I log delle esecuzioni automazioni possono contenere dati personali presi dal record
+                che ha innescato la regola. Per il principio di <strong>limitazione della conservazione</strong>
+                (GDPR art. 5.1.e) vengono cancellati automaticamente oltre la finestra impostata.
+                Pulizia automatica: <strong>ogni notte alle 03:30</strong>.
+                {% if runlog_total_count is not None %}<br>Log attualmente in archivio: <strong>{{ runlog_total_count }}</strong>.{% endif %}
+              </p>
+            </div>
+          </div>
+          <div class="ms-card-body">
+            <form method="post" class="ms-field-grid">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_runlog_retention">
+
+              <div class="ms-field">
+                <label for="runlog_retention_days">Giorni di conservazione</label>
+                <input id="runlog_retention_days" type="number"
+                       min="{{ runlog_retention_min }}" max="{{ runlog_retention_max }}"
+                       name="runlog_retention_days" value="{{ runlog_retention_days }}">
+                <span class="ms-field-help">
+                  I log piu' vecchi di questo numero di giorni vengono eliminati (default {{ runlog_retention_default }},
+                  consentito {{ runlog_retention_min }}–{{ runlog_retention_max }}). Imposta il valore secondo la policy
+                  di conservazione aziendale. Non riguarda l'audit trail legale del portale.
+                </span>
+              </div>
+
+              <div class="ms-form-actions">
+                <button type="submit" class="btn btn-primary">Salva retention</button>
+                <button type="submit" class="btn btn-secondary"
+                        name="action" value="run_runlog_cleanup"
+                        formnovalidate
+                        onclick="return confirm('Eseguire ora la pulizia dei log oltre la finestra impostata?');">
+                  Esegui pulizia ora
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="ms-card">
+          <div class="ms-card-head">
+            <div class="ms-card-title-wrap">
               <h2 class="ms-card-title">Aree collegate</h2>
               <p class="ms-card-subtitle">Le impostazioni operative restano distribuite nelle superfici specializzate del modulo.</p>
             </div>

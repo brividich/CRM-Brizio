@@ -162,7 +162,7 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
 {% block content %}
 <section class="as-shell">
   <aside class="as-side">
-    <a class="as-brand-link" href="{% url 'assets:asset_list' %}">
+    <a class="as-brand-link" href="{% url 'assets:asset_dashboard' %}">
       <span class="as-logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo {{ assets_brand_label|default:'Assets' }}">{% else %}{{ assets_brand_label|default:'Assets'|first|upper }}{% endif %}</span>
       <div class="as-name">{{ assets_brand_label|default:"Asset" }}</div>
     </a>

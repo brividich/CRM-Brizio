@@ -1,0 +1,19 @@
+{% comment %}Riga azioni inline per un intervento aperto nel Centro Manutenzione.
+Richiede: wo (WorkOrder con attributo assigned_to_me).{% endcomment %}
+<div class="mh-wo-actions">
+  {% if wo.assigned_to_me %}
+    <span class="mh-wo-assignee is-mine">Preso in carico da te</span>
+  {% elif wo.assigned_to_id %}
+    <span class="mh-wo-assignee">Assegnato a {{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</span>
+  {% else %}
+    <span class="mh-wo-assignee">Non assegnato</span>
+  {% endif %}
+  {% if not wo.assigned_to_me %}
+    <form method="post" action="{% url 'assets:wo_claim' wo.id %}" class="mh-wo-claim-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="mh-wo-btn claim">Prendi in carico</button>
+    </form>
+  {% endif %}
+  <a href="{% url 'assets:wo_close' wo.id %}" class="mh-wo-btn close">Chiudi ›</a>
+</div>

@@ -3953,6 +3953,14 @@ def _build_teams_delivery_context(
     }
 
 
+def _safe_runlog_count() -> int | None:
+    """Numero totale di RunLog in tabella (per contesto in UI). None se non leggibile."""
+    try:
+        return AutomationRunLog.objects.count()
+    except Exception:
+        return None
+
+
 def _build_automation_settings_context(
     *,
     poll_result=None,
@@ -3961,11 +3969,23 @@ def _build_automation_settings_context(
 ) -> dict[str, object]:
     from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
     from .scadenze_config import get_scadenze_config
+    from .runlog_retention import (
+        get_retention_days,
+        DEFAULT_RETENTION_DAYS,
+        RETENTION_MIN,
+        RETENTION_MAX,
+    )
 
     mailbox_details = get_default_approval_mailbox_details()
     active_backend = get_approval_mailbox_backend()
     return {
         **_base_context(),
+        # ── Retention RunLog (GDPR) ────────────────────────────────────────
+        "runlog_retention_days": get_retention_days(),
+        "runlog_retention_default": DEFAULT_RETENTION_DAYS,
+        "runlog_retention_min": RETENTION_MIN,
+        "runlog_retention_max": RETENTION_MAX,
+        "runlog_total_count": _safe_runlog_count(),
         # ── Report scadenze (visite mediche / contratti) ──────────────────
         "scadenze_config": get_scadenze_config(),
         # ── Graph (nuovo backend) ──────────────────────────────────────────
@@ -5636,10 +5656,32 @@ def run_log_list_page(request):
             "recent": recent,
         },
         "status_choices": AutomationRunLogStatus.values,
-        "source_choices": [(source["code"], source["label"]) for source in get_registered_sources()],
+        "source_choices": _run_log_source_choices(),
         "rules": list(AutomationRule.objects.filter(run_logs__isnull=False).values("id", "name").distinct().order_by("name")),
     }
     return render(request, "automazioni/pages/run_log_list.html", context)
+
+
+def _run_log_source_choices() -> list[tuple[str, str]]:
+    """Opzioni del filtro 'Sorgente' del Run-log: sorgenti registrate + job di sistema.
+
+    I job di sistema (task django-q tracciati con source_code 'system:<job>') non
+    sono nel source registry; vengono aggiunti dinamicamente in base ai run effettivi
+    cosi' restano filtrabili dalla UI.
+    """
+    choices = [(source["code"], source["label"]) for source in get_registered_sources()]
+    known = {c[0] for c in choices}
+    system_codes = (
+        AutomationRunLog.objects.filter(source_code__startswith="system:")
+        .values_list("source_code", flat=True)
+        .distinct()
+    )
+    for code in sorted(set(system_codes)):
+        if code in known:
+            continue
+        label = "Sistema: " + code.split(":", 1)[1].replace("_", " ")
+        choices.append((code, label))
+    return choices
 
 
 @legacy_admin_required
@@ -6137,6 +6179,31 @@ def settings_page(request):
                 messages.success(request, "Configurazione report scadenze salvata.")
             else:
                 messages.error(request, "Impossibile salvare la configurazione report scadenze.")
+            return redirect("admin_portale:automazioni_settings")
+
+        if action == "save_runlog_retention":
+            from .runlog_retention import set_retention_days
+
+            try:
+                saved_days = set_retention_days(_string_value(request.POST.get("runlog_retention_days")))
+                messages.success(
+                    request,
+                    f"Retention RunLog impostata a {saved_days} giorni.",
+                )
+            except Exception:
+                messages.error(request, "Impossibile salvare la retention RunLog.")
+            return redirect("admin_portale:automazioni_settings")
+
+        if action == "run_runlog_cleanup":
+            from django.core.management import call_command
+            from io import StringIO
+
+            try:
+                buf = StringIO()
+                call_command("cleanup_run_logs", apply=True, stdout=buf, verbosity=1)
+                messages.success(request, "Pulizia RunLog eseguita. " + buf.getvalue().strip().splitlines()[-1])
+            except Exception as exc:
+                messages.error(request, f"Pulizia RunLog fallita: {exc}")
             return redirect("admin_portale:automazioni_settings")
 
         if action == "save_default_approval_mailbox":

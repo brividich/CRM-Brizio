@@ -648,6 +648,8 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Converter integrato** con selettore target table dal catalogo del portale
 - **Test inline**: esegui regola con record reale (ultimi 20) o dati campione, output per azione
 - **Pulsante "Ripeti" nel run log** (`/automazioni/run-log/<id>/`): apre la pagina test della regola con `payload_json` e `old_payload_json` del log originale già precompilati — analogo al "Resubmit" di Power Automate. Caricamento via `?from_log=<id>`, validato server-side
+- **Job di sistema nel run log**: i task periodici django-q (es. invio mail conferma anomalie differite, escalation) compaiono nel run-log con `source_code` `system:<job>` (filtro "Sorgente" → "Sistema: …"), esito SUCCESS/SKIPPED/ERROR e durata. Helper `automazioni/system_runlog.py` (`@system_job_run`), nessuna regola associata. I run senza attività (no-op) non vengono loggati, per non intasare la tabella sui job al minuto. I poller queue/mailbox restano fuori (già tracciati da `monitoring`)
+- **Retention RunLog (GDPR)**: i RunLog possono contenere dati personali nel payload → cleanup giornaliero (`cleanup_run_logs`, schedule `30 3 * * *`) che elimina i log oltre la finestra configurabile (SiteConfig `automazioni_runlog_retention_days`, default 90 giorni). Command con dry-run di default, `--apply`/`--days N`, cancellazione a batch. Non tocca l'audit trail legale (`core.log_action`)
 - **Picker valori smart** per condizioni: `allowed_values` registry + valori distinti DB
 - **Queue admin** con azioni `Stoppa` / `Elimina`, card salute poller, timezone-aware
 - **Schema drift difensivo**: UI resta funzionante anche se migration non ancora applicate (warning leggibili)

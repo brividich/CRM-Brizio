@@ -48,9 +48,9 @@ class Command(BaseCommand):
                 else:
                     deleted, _ = Schedule.objects.filter(name=name).delete()
                     if deleted:
-                        self.stdout.write(self.style.WARNING(f"  ✗ eliminato: {name}"))
+                        self.stdout.write(self.style.WARNING(f"  [x] eliminato: {name}"))
                     else:
-                        self.stdout.write(f"  – non trovato: {name}")
+                        self.stdout.write(f"  [-] non trovato: {name}")
                 continue
 
             kwargs_repr = json.dumps(spec.get("kwargs") or {})
@@ -60,12 +60,19 @@ class Command(BaseCommand):
                 "repeats": spec.get("repeats", -1),
                 "kwargs": kwargs_repr,
             }
-            # Schedule a intervallo (S/I/...) usa 'minutes'; schedule CRON usa 'cron'.
+            # Schedule a intervallo (I = MINUTES) usa 'minutes'; schedule CRON usa 'cron'.
+            # NB: django-q2 non implementa il tipo SECONDS ('S') in calculate_next_run
+            # (UnboundLocalError 'add'): usare sempre 'I' per le cadenze al minuto.
             if spec.get("schedule_type") == "C":
                 defaults["cron"] = spec["cron"]
                 defaults["minutes"] = None
             else:
                 defaults["minutes"] = spec["minutes"]
+                # Riallinea il prossimo run a "ora" così, dopo un (re)deploy, lo
+                # schedule riparte subito invece di restare appeso a un next_run
+                # passato (es. cluster rimasto fermo tra due release).
+                from django.utils import timezone
+                defaults["next_run"] = timezone.now()
 
             if dry_run:
                 cadence = (
@@ -80,7 +87,7 @@ class Command(BaseCommand):
             else:
                 _obj, created = Schedule.objects.update_or_create(name=name, defaults=defaults)
                 verb = "creato" if created else "aggiornato"
-                self.stdout.write(self.style.SUCCESS(f"  ✓ {verb}: {name} → {spec['func']}"))
+                self.stdout.write(self.style.SUCCESS(f"  [ok] {verb}: {name} -> {spec['func']}"))
 
         if not delete and not dry_run:
             count = Schedule.objects.filter(

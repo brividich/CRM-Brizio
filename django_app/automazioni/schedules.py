@@ -10,16 +10,16 @@ SCHEDULES: list[dict] = [
     {
         "name": "automation_queue",
         "func": "automazioni.tasks.run_automation_queue",
-        "schedule_type": "S",   # Schedule.SECONDS
-        "minutes": 60,          # ogni 60 secondi
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 1,           # ogni minuto
         "repeats": -1,
         "kwargs": {"limit": 50},
     },
     {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
-        "schedule_type": "S",   # Schedule.SECONDS
-        "minutes": 120,         # ogni 120 secondi
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 2,           # ogni 2 minuti
         "repeats": -1,
         "kwargs": {"limit": 25},
     },
@@ -38,8 +38,8 @@ SCHEDULES: list[dict] = [
         # invia il riepilogo per gli OP modificati e fermi da > 5 minuti.
         "name": "anomalie_pending_notifications",
         "func": "anomalie.tasks.run_anomalie_pending_notifications",
-        "schedule_type": "S",   # Schedule.SECONDS
-        "minutes": 60,          # controllo ogni 60 secondi
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 1,           # controllo ogni minuto
         "repeats": -1,
         "kwargs": {"threshold_minutes": 5},
     },
@@ -52,6 +52,16 @@ SCHEDULES: list[dict] = [
         "func": "anomalie.tasks.run_anomalie_escalation",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "0 * * * *",        # ogni ora in punto
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
+        # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
+        "name": "cleanup_run_logs",
+        "func": "automazioni.tasks.run_cleanup_run_logs",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 3 * * *",       # ogni notte alle 03:30
         "repeats": -1,
         "kwargs": {},
     },

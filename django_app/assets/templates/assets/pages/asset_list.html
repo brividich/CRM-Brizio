@@ -20,6 +20,18 @@
 .ma:hover, .ms:hover { background: #edf3fc; }
 .ma.active, .ms.active { background: #dce8fb; color: #1f64d8; }
 .ms { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
+/* Gruppi sidebar espandibili (allineati a base_shell.html) */
+.li-nav-group { display: flex; flex-direction: column; }
+.li-nav-parent { display: flex; align-items: center; gap: 2px; }
+.li-nav-parent .ma { flex: 1; min-width: 0; }
+.li-nav-toggle { background: none; border: 0; cursor: pointer; padding: 4px 6px; color: #8ea2bf; display: inline-flex; align-items: center; border-radius: 6px; }
+.li-nav-toggle:hover { background: #edf3fc; color: #1f64d8; }
+.li-nav-arrow { display: inline-block; transition: transform .15s; font-weight: 700; line-height: 1; }
+.li-nav-group.open .li-nav-arrow { transform: rotate(90deg); }
+.li-nav-children { display: none; padding-left: 8px; flex-direction: column; gap: 2px; }
+.li-nav-group.open .li-nav-children { display: flex; }
+body.theme-dark .li-nav-toggle { color: var(--text-mid); }
+body.theme-dark .li-nav-toggle:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
 .user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
 .av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
 .main { min-width: 0; padding: 12px; display: grid; gap: 10px; align-content: start; }
@@ -341,7 +353,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
 {% block content %}
 <section class="dash">
   <aside class="side">
-    <a class="brand-link" href="{% url 'assets:asset_list' %}">
+    <a class="brand-link" href="{% url 'assets:asset_dashboard' %}">
       <span class="logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo">{% else %}A{% endif %}</span>
       <div class="name">Inven<span>tario</span></div>
     </a>
@@ -349,7 +361,23 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
       {% for group in assets_sidebar_groups %}
         <div class="mh">{{ group.label }}</div>
         {% for item in group.items %}
-          <a class="{% if item.is_subitem %}ms{% else %}ma{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+          {% if item.has_children %}
+            <div class="li-nav-group{% if item.expanded %} open{% endif %}" data-li-nav-group>
+              <div class="li-nav-parent">
+                <a class="ma{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                <button class="li-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-li-nav-toggle>
+                  <span class="li-nav-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+              </div>
+              <div class="li-nav-children">
+                {% for child in item.children %}
+                  <a class="ms{% if child.active %} active{% endif %}" href="{{ child.url }}">{{ child.label }}</a>
+                {% endfor %}
+              </div>
+            </div>
+          {% else %}
+            <a class="{% if item.is_subitem %}ms{% else %}ma{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+          {% endif %}
         {% endfor %}
       {% endfor %}
     </nav>
@@ -1626,6 +1654,41 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+/* Toggle sottomenu sidebar inventario (allineato a base_shell.html) */
+(function () {
+  var storageKey = "assets_sidebar_open_groups_v1";
+  function readOpen() {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); } catch (e) { return []; }
+  }
+  function writeOpen(list) {
+    try { localStorage.setItem(storageKey, JSON.stringify(list)); } catch (e) {}
+  }
+  function keyFor(group) {
+    var link = group.querySelector(".li-nav-parent .ma");
+    return (link ? link.textContent : "").trim().toLowerCase();
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    var open = readOpen();
+    document.querySelectorAll("[data-li-nav-group]").forEach(function (group) {
+      var k = keyFor(group);
+      if (open.indexOf(k) !== -1) group.classList.add("open");
+      var btn = group.querySelector("[data-li-nav-toggle]");
+      if (!btn) return;
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        var isOpen = group.classList.toggle("open");
+        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        var list = readOpen();
+        var idx = list.indexOf(k);
+        if (isOpen && idx === -1) list.push(k);
+        if (!isOpen && idx !== -1) list.splice(idx, 1);
+        writeOpen(list);
+      });
+    });
+  });
+})();
+</script>
 <script>
 (function () {
   function debounce(fn, wait) {

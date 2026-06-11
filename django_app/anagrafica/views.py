@@ -122,6 +122,19 @@ def _file_field_url(file_field) -> str:
         return ""
 
 
+def _foto_dipendente_url(civile, legacy_id) -> str:
+    """URL della view protetta che serve la foto profilo (storage privato).
+
+    La foto NON ha più un URL pubblico /media/: ``ImageField.url`` solleva
+    ``NotImplementedError`` su ``PrivateAnagraficaStorage``. Restituisce l'URL
+    della view solo se il dipendente ha effettivamente una foto, altrimenti ""
+    (così i template applicano il fallback iniziali).
+    """
+    if not civile or not getattr(civile, "foto", None):
+        return ""
+    return reverse("anagrafica:foto_dipendente", args=[int(legacy_id)])
+
+
 def _cessati_legacy_ids() -> set[int]:
     """Insieme dei ``legacy_anagrafica_id`` con rapporto cessato (ex dipendenti).
 
@@ -570,7 +583,11 @@ def dipendenti_list(request):
         row["timbri_count"] = 0
         row["timbri_legacy_id"] = int(row.get("id") or 0) or None
 
-    paginator = Paginator(rows, 30)
+    # Pagina unica: la tabella usa ricerca/ordina/filtra per colonna lato client
+    # (fm-table-enhanced.js), che opera sulle righe nel DOM. Con il volume reale
+    # dell'anagrafica (~150 dipendenti) carichiamo tutto in un blocco così filtro
+    # e ordinamento coprono l'intero elenco e non solo la pagina corrente.
+    paginator = Paginator(rows, 500)
     page = paginator.get_page(request.GET.get("page"))
 
     civile_map = {
@@ -581,7 +598,7 @@ def dipendenti_list(request):
     }
     for dip in list(page.object_list):
         civile = civile_map.get(int(dip.get("id") or 0))
-        dip["foto_url"] = _file_field_url(civile.foto) if civile else ""
+        dip["foto_url"] = _foto_dipendente_url(civile, dip.get("id") or 0)
 
     try:
         from timbri.models import OperatoreTimbri, RegistroTimbro
@@ -687,7 +704,7 @@ def ex_dipendenti_list(request):
         civile = civile_map.get(legacy_id)
         row["legacy_id"] = legacy_id
         row["matricola_legacy"] = str(row.get("matricola") or "").strip()
-        row["foto_url"] = _file_field_url(civile.foto) if civile else ""
+        row["foto_url"] = _foto_dipendente_url(civile, legacy_id)
         row["data_cessazione"] = getattr(az, "data_cessazione", None)
         row["data_assunzione"] = (
             getattr(az, "data_assunzione_ultima", None)
@@ -703,7 +720,8 @@ def ex_dipendenti_list(request):
         str(row.get("nome") or "").strip().casefold(),
     ), reverse=True)
 
-    paginator = Paginator(rows, 40)
+    # Pagina unica per filtro/ordinamento client-side completo (vedi dipendenti_list).
+    paginator = Paginator(rows, 500)
     page = paginator.get_page(request.GET.get("page"))
 
     return render(request, "anagrafica/pages/ex_dipendenti_list.html", {
@@ -1305,7 +1323,7 @@ def dipendente_detail(request, legacy_id: int):
     # Anagrafica civile e aziendale estese
     civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
     aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
-    civile_foto_url = _file_field_url(civile.foto) if civile else ""
+    civile_foto_url = _foto_dipendente_url(civile, legacy_id)
     form_civile = AnagraficaCivileForm(instance=civile) if is_admin else None
     form_aziendale = AnagraficaAziendaleForm(instance=aziendale) if is_admin else None
     formset_figli = FiglioACaricoFormSet(instance=civile, prefix="figli") if is_admin else None
@@ -1857,7 +1875,7 @@ def dipendente_print(request, legacy_id: int):
 
     civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
     aziendale = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=legacy_id).first()
-    civile_foto_url = _file_field_url(civile.foto) if civile else ""
+    civile_foto_url = _foto_dipendente_url(civile, legacy_id)
 
     can_hr = _check_hr_permission(request)
 
@@ -6739,6 +6757,35 @@ def documento_dipendente_download(request, doc_id: int):
     response = FileResponse(fh, as_attachment=True, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
     if doc.tipo_mime:
         response["Content-Type"] = doc.tipo_mime
+    return response
+
+
+@login_required
+def foto_dipendente(request, legacy_id: int):
+    """Serve la foto profilo del dipendente da storage privato (fuori webroot).
+
+    La foto è un dato personale e NON è esposta su URL pubblico /media/: passa
+    da questa view, che richiede autenticazione. Compare nelle liste/rubriche
+    interne, quindi è visibile a ogni utente loggato (no ACL HR specifica).
+    Lo storage decifra in automatico i file cifrati at-rest.
+    """
+    civile = DipendenteAnagraficaCivile.objects.filter(
+        legacy_anagrafica_id=legacy_id
+    ).only("legacy_anagrafica_id", "foto").first()
+    if not civile or not civile.foto:
+        return HttpResponse(status=404)
+
+    from django.http import FileResponse
+    try:
+        fh = civile.foto.open("rb")
+    except FileNotFoundError:
+        return HttpResponse(status=404)
+
+    import mimetypes
+    content_type = mimetypes.guess_type(civile.foto.name)[0] or "application/octet-stream"
+    response = FileResponse(fh, content_type=content_type)
+    # Cache breve lato browser: la foto cambia di rado, ma resta dietro auth.
+    response["Cache-Control"] = "private, max-age=3600"
     return response
 
 

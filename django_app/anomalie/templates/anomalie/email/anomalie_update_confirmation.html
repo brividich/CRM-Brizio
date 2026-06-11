@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Aggiornamento anomalie OP {{ op_id }}</title>
+  <title>Aggiornamento anomalie {{ op_id }}</title>
   <style>
     @media (max-width:640px) {
       .ew { width:100% !important; }
@@ -14,7 +14,7 @@
 <body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
 
 <div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">
-  Aggiornamento anomalie OP {{ op_id }} — {{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}
+  Aggiornamento anomalie {{ op_id }}{% if op_pn %} · P/N {{ op_pn }}{% endif %} — {{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
@@ -41,8 +41,9 @@
                       <td valign="middle" align="right" style="padding-left:12px;">
                         <div style="color:#c7d6e8;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;margin-bottom:6px;">Gestione Anomalie</div>
                         <span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 11px;color:#ffffff;font-size:11px;font-weight:700;background:rgba(255,255,255,.08);">
-                          OP {{ op_id }}
+                          {{ op_id }}
                         </span>
+                        {% if op_pn %}<div style="color:#c7d6e8;font-size:11px;font-weight:600;margin-top:6px;">P/N {{ op_pn }}</div>{% endif %}
                       </td>
                     </tr>
                   </table>
@@ -60,9 +61,11 @@
           <td class="ep" style="padding:28px 34px 6px;background:#ffffff;">
             <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Modifiche registrate</div>
             <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">
-              {{ n }} aggiornament{% if n == 1 %}o registrato{% else %}i registrati{% endif %} sull'OP {{ op_id }}
+              {{ n }} aggiornament{% if n == 1 %}o registrato{% else %}i registrati{% endif %} su {{ op_id }}
             </h2>
-            {% if op_nominativo %}<p style="margin:8px 0 0;color:#64748b;font-size:14px;">{{ op_nominativo }}</p>{% endif %}
+            {% if op_pn or op_nominativo %}
+            <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{% if op_pn %}P/N {{ op_pn }}{% endif %}{% if op_pn and op_nominativo %} · {% endif %}{% if op_nominativo and op_nominativo != op_id %}{{ op_nominativo }}{% endif %}</p>
+            {% endif %}
           </td>
         </tr>
 
@@ -96,6 +99,12 @@
                         <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                           Avanzamento: {{ u.avanzamento|default:"(invariato)" }}
                         </div>
+                        {% if u.descrizione %}<div style="margin-top:8px;font-size:13px;color:#334155;line-height:1.5;"><strong style="color:#64748b;">Descrizione:</strong> {{ u.descrizione }}</div>{% endif %}
+                        {% if u.numero_rdc or u.pezzi_recuperato %}
+                        <div style="margin-top:6px;font-size:12px;color:#475569;">
+                          {% if u.numero_rdc %}<strong style="color:#64748b;">N° RDC:</strong> {{ u.numero_rdc }}{% endif %}{% if u.numero_rdc and u.pezzi_recuperato %} &nbsp;·&nbsp; {% endif %}{% if u.pezzi_recuperato %}<strong style="color:#64748b;">Pezzo recuperato:</strong> sì{% endif %}
+                        </div>
+                        {% endif %}
                         <div style="margin-top:6px;">
                           {% if u.aprire_rdc %}<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Aprire RDC</span>{% endif %}
                           {% if u.segnalare %}<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>{% endif %}
@@ -130,6 +139,12 @@
                   <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                     Avanzamento: {{ u.avanzamento|default:"(invariato)" }}
                   </div>
+                  {% if u.descrizione %}<div style="margin-top:8px;font-size:13px;color:#334155;line-height:1.5;"><strong style="color:#94a3b8;">Descrizione:</strong> {{ u.descrizione }}</div>{% endif %}
+                  {% if u.numero_rdc or u.pezzi_recuperato %}
+                  <div style="margin-top:6px;font-size:12px;color:#475569;">
+                    {% if u.numero_rdc %}<strong style="color:#94a3b8;">N° RDC:</strong> {{ u.numero_rdc }}{% endif %}{% if u.numero_rdc and u.pezzi_recuperato %} &nbsp;·&nbsp; {% endif %}{% if u.pezzi_recuperato %}<strong style="color:#94a3b8;">Pezzo recuperato:</strong> sì{% endif %}
+                  </div>
+                  {% endif %}
                   <div style="margin-top:6px;">
                     {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                   </div>

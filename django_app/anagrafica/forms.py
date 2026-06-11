@@ -35,6 +35,31 @@ from .models_formazione import (
 # insieme alle view dei fornitori. Vedere `fornitori/forms.py`.
 
 
+class PrivateClearableFileInput(forms.ClearableFileInput):
+    """ClearableFileInput per file su storage privato (senza URL pubblico).
+
+    Il widget standard, in rendering, chiama ``value.url`` per costruire il link
+    "Attualmente: ...". Con ``PrivateAnagraficaStorage`` quell'accesso solleva
+    ``NotImplementedError`` (i file non sono esposti su /media/). Qui sopprimiamo
+    il link: mostriamo solo lo stato "file presente" + checkbox di rimozione,
+    senza mai accedere a ``.url``.
+    """
+
+    template_name = "anagrafica/widgets/private_clearable_file_input.html"
+
+    def is_initial(self, value):
+        # Lo standard fa `bool(value and getattr(value, "url", False))`, che
+        # innesca l'accesso a .url. Qui basta che esista un file salvato.
+        return bool(value and getattr(value, "name", None))
+
+    def format_value(self, value):
+        # Non restituiamo un oggetto con .url: evita che il template provi a
+        # leggerlo. Il nome file basta per mostrare "file presente".
+        if self.is_initial(value):
+            return getattr(value, "name", "")
+        return None
+
+
 class DipendenteLegacyForm(forms.Form):
     nome = forms.CharField(max_length=200, widget=forms.TextInput(attrs={"class": "ana-input", "placeholder": "Nome"}))
     cognome = forms.CharField(max_length=200, required=False, widget=forms.TextInput(attrs={"class": "ana-input", "placeholder": "Cognome"}))
@@ -53,7 +78,7 @@ class AnagraficaCivileForm(forms.ModelForm):
         model = DipendenteAnagraficaCivile
         exclude = ["legacy_anagrafica_id", "updated_by", "updated_at"]
         widgets = {
-            "foto": forms.ClearableFileInput(attrs={"class": "dp-input", "accept": "image/*"}),
+            "foto": PrivateClearableFileInput(attrs={"class": "dp-input", "accept": "image/*"}),
             "data_nascita": forms.DateInput(attrs={"class": "dp-input", "type": "date"}),
             "luogo_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Comune di nascita"}),
             "provincia_nascita": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Es. PI oppure PISA", "style": "text-transform:uppercase"}),

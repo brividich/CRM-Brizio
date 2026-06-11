@@ -44,6 +44,24 @@ ASSIGNMENT_MODE_CHOICES = [
 ]
 
 
+def _parse_legacy_date(value) -> date | None:
+    """Converte un valore (date/datetime/stringa ISO o gg/mm/aaaa) in date, o None."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        row = value.strip()
+        if not row:
+            return None
+        for parser in ("%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(row, parser).date()
+            except ValueError:
+                continue
+    return None
+
+
 def _attach_input_css(form: forms.Form | forms.ModelForm) -> None:
     for field in form.fields.values():
         widget = field.widget
@@ -343,6 +361,8 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "model",
             "serial_number",
             "status",
+            "purchase_date",
+            "production_date",
             "sharepoint_folder_url",
             "sharepoint_folder_path",
             "assignment_to",
@@ -360,6 +380,8 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "model": "Modello",
             "serial_number": "Numero seriale",
             "status": "Stato",
+            "purchase_date": "Data acquisto",
+            "production_date": "Data produzione",
             "sharepoint_folder_url": "URL cartella SharePoint",
             "sharepoint_folder_path": "Percorso cartella SharePoint",
             "assignment_to": "Assegnato a",
@@ -369,6 +391,8 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
+            "purchase_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "production_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
     def clean_asset_tag(self):
@@ -397,20 +421,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         return bool(value)
 
     def _custom_date(self, value) -> date | None:
-        if isinstance(value, datetime):
-            return value.date()
-        if isinstance(value, date):
-            return value
-        if isinstance(value, str):
-            row = value.strip()
-            if not row:
-                return None
-            for parser in ("%Y-%m-%d", "%d/%m/%Y"):
-                try:
-                    return datetime.strptime(row, parser).date()
-                except ValueError:
-                    continue
-        return None
+        return _parse_legacy_date(value)
 
     def _custom_value_from_extra(self, field_def: AssetCustomField):
         raw = self._original_extra_columns.get(field_def.code, None)
@@ -464,6 +475,11 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
                 next_extra[field_def.code] = value
 
         next_extra = self._apply_category_values(next_extra, self.cleaned_data)
+        # Le date acquisto/produzione sono ora campi nativi: se valorizzate, scarta
+        # l'eventuale copia storica in extra_columns per evitare un doppione divergente.
+        for native_field in ("purchase_date", "production_date"):
+            if getattr(instance, native_field, None):
+                next_extra.pop(native_field, None)
         instance.extra_columns = next_extra
         self._apply_assignment_chooser(instance)
         if commit:
@@ -508,6 +524,16 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             elif self.instance.assignment_reparto and self.instance.assignment_to.startswith("Reparto "):
                 self.initial.setdefault("assignment_mode", ASSIGNMENT_MODE_DEPARTMENT)
                 self.initial.setdefault("assignment_department_value", self.instance.assignment_reparto)
+
+            # Migrazione "soft": se la data nativa è vuota ma esiste un valore storico
+            # importato in extra_columns, pre-popola il campo così la modifica parte dal
+            # valore già mostrato nel dettaglio invece che da vuoto.
+            for native_field in ("purchase_date", "production_date"):
+                if getattr(self.instance, native_field, None):
+                    continue
+                legacy_value = self._custom_date(self._original_extra_columns.get(native_field))
+                if legacy_value:
+                    self.initial.setdefault(native_field, legacy_value)
 
         for field_def in self.custom_fields:
             field_name = self._custom_field_form_name(field_def.code)
@@ -1255,6 +1281,8 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "model",
             "serial_number",
             "status",
+            "purchase_date",
+            "production_date",
             "sharepoint_folder_url",
             "sharepoint_folder_path",
             "assignment_to",
@@ -1270,6 +1298,8 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
             "model": "Modello",
             "serial_number": "Numero seriale",
             "status": "Stato",
+            "purchase_date": "Data acquisto",
+            "production_date": "Data produzione",
             "sharepoint_folder_url": "URL cartella SharePoint",
             "sharepoint_folder_path": "Percorso cartella SharePoint",
             "assignment_to": "Responsabile",
@@ -1279,6 +1309,8 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         }
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
+            "purchase_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "production_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
     asset_field_names = [
@@ -1290,6 +1322,8 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         "model",
         "serial_number",
         "status",
+        "production_date",
+        "purchase_date",
     ]
     sharepoint_field_names = [
         "sharepoint_auto_folder",
@@ -1464,6 +1498,15 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
                 self.initial.setdefault("assignment_mode", ASSIGNMENT_MODE_DEPARTMENT)
                 self.initial.setdefault("assignment_department_value", self.instance.assignment_reparto)
 
+            # Pre-popola le date native dal valore storico in extra_columns quando il
+            # campo nativo è ancora vuoto (vedi AssetForm).
+            for native_field in ("purchase_date", "production_date"):
+                if getattr(self.instance, native_field, None):
+                    continue
+                legacy_value = _parse_legacy_date(self._original_extra_columns.get(native_field))
+                if legacy_value:
+                    self.initial.setdefault(native_field, legacy_value)
+
         self._setup_assignment_chooser_fields()
         _attach_input_css(self)
         for field_name in ["tcr_enabled", "cnc_controlled", "five_axes"]:
@@ -1512,6 +1555,11 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         else:
             next_extra.pop("documents", None)
         next_extra = self._apply_category_values(next_extra, self.cleaned_data)
+        # Date acquisto/produzione ora native: scarta la copia storica in extra_columns
+        # se il campo nativo è valorizzato (vedi AssetForm.save).
+        for native_field in ("purchase_date", "production_date"):
+            if getattr(asset, native_field, None):
+                next_extra.pop(native_field, None)
         asset.extra_columns = next_extra
         self._apply_assignment_chooser(asset)
 
@@ -2144,22 +2192,44 @@ class PlantLayoutForm(forms.ModelForm):
             area_qs.delete()
 
         existing_markers = {row.id: row for row in PlantLayoutMarker.objects.filter(layout=layout)}
-        keep_marker_ids: list[int] = []
+        existing_by_asset = {row.asset_id: row for row in existing_markers.values()}
+        # Un asset puo' avere un solo marker per layout (UniqueConstraint
+        # layout+asset): deduplichiamo il payload tenendo l'ultima riga per
+        # asset, cosi due righe sullo stesso asset non causano un INSERT
+        # duplicato.
+        deduped_rows: dict[int, dict] = {}
         for index, row in enumerate(self.cleaned_data.get("marker_rows", []), start=1):
-            marker = existing_markers.get(row["id"]) if row.get("id") else PlantLayoutMarker(layout=layout)
-            marker.asset_id = row["asset_id"]
-            marker.label = row["label"]
-            marker.x_percent = row["x_percent"]
-            marker.y_percent = row["y_percent"]
-            marker.sort_order = row["sort_order"] or index * 10
-            marker.is_visible = True
-            marker.save()
-            keep_marker_ids.append(marker.id)
+            row = {**row, "_order": index}
+            deduped_rows[row["asset_id"]] = row
+
+        # Cancelliamo prima gli orfani: senza questo, un asset spostato da un
+        # marker a un altro (o un id riga non riconosciuto) genererebbe un
+        # INSERT (layout, asset) che collide col vincolo UNIQUE prima della
+        # rimozione del vecchio marker.
+        keep_marker_ids: list[int] = []
+        for row in deduped_rows.values():
+            existing = existing_markers.get(row["id"]) if row.get("id") else existing_by_asset.get(row["asset_id"])
+            if existing is not None:
+                keep_marker_ids.append(existing.id)
         marker_qs = PlantLayoutMarker.objects.filter(layout=layout)
         if keep_marker_ids:
             marker_qs.exclude(id__in=keep_marker_ids).delete()
         else:
             marker_qs.delete()
+
+        for row in deduped_rows.values():
+            # Riconciliamo per id riga se valido, altrimenti per asset (cosi un
+            # marker gia' esistente sull'asset viene aggiornato, non duplicato).
+            marker = existing_markers.get(row["id"]) if row.get("id") else None
+            if marker is None:
+                marker = existing_by_asset.get(row["asset_id"]) or PlantLayoutMarker(layout=layout)
+            marker.asset_id = row["asset_id"]
+            marker.label = row["label"]
+            marker.x_percent = row["x_percent"]
+            marker.y_percent = row["y_percent"]
+            marker.sort_order = row["sort_order"] or row["_order"] * 10
+            marker.is_visible = True
+            marker.save()
 
         return layout
 

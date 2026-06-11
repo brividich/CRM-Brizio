@@ -12,21 +12,11 @@ import io
 import logging
 from typing import Iterable, Sequence
 
-from django.conf import settings
-from django.utils import timezone
-
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import (
-    Image,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
+from reportlab.platypus import Image, Paragraph, Spacer
+
+from core.pdf import PdfTheme, build_styles, data_table, header_footer_callback, make_document
 
 from .models import ConsegnaDPI
 
@@ -56,33 +46,6 @@ def _decode_firma_data_uri(data_uri: str) -> bytes | None:
         return None
 
 
-def _styles():
-    styles = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "TitleNH",
-        parent=styles["Title"],
-        fontSize=16,
-        leading=20,
-        spaceAfter=4 * mm,
-    )
-    subtitle = ParagraphStyle(
-        "SubtitleNH",
-        parent=styles["Heading3"],
-        fontSize=11,
-        textColor=colors.HexColor("#475569"),
-        spaceAfter=4 * mm,
-    )
-    h2 = ParagraphStyle(
-        "Section",
-        parent=styles["Heading2"],
-        fontSize=12,
-        spaceBefore=4 * mm,
-        spaceAfter=2 * mm,
-    )
-    body = ParagraphStyle("Body", parent=styles["BodyText"], fontSize=10, leading=13)
-    return title, subtitle, h2, body
-
-
 def _articoli_row(consegna: ConsegnaDPI) -> list[str]:
     r = consegna.richiesta
     categoria = r.categoria.nome if r.categoria_id else "—"
@@ -96,7 +59,7 @@ def _articoli_row(consegna: ConsegnaDPI) -> list[str]:
     return [categoria, tipo, modello, taglia, str(r.quantita or 0), scadenza]
 
 
-def _articoli_table(consegne: Sequence[ConsegnaDPI]) -> Table:
+def _articoli_table(consegne: Sequence[ConsegnaDPI], theme: PdfTheme) -> Table:
     header = [
         "Categoria",
         "Tipo",
@@ -106,26 +69,12 @@ def _articoli_table(consegne: Sequence[ConsegnaDPI]) -> Table:
         "Scadenza stimata",
     ]
     rows = [header] + [_articoli_row(c) for c in consegne]
-    table = Table(rows, colWidths=[36 * mm, 32 * mm, 38 * mm, 18 * mm, 14 * mm, 32 * mm])
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (4, 1), (4, -1), "CENTER"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
+    return data_table(
+        rows,
+        theme,
+        col_widths=[36 * mm, 32 * mm, 38 * mm, 18 * mm, 14 * mm, 32 * mm],
+        extra_style=[("ALIGN", (4, 1), (4, -1), "CENTER")],
     )
-    return table
 
 
 def _info_dipendente_paragraphs(
@@ -198,31 +147,20 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
     if not consegne_list:
         raise ValueError("render_modulo_consegna_dpi_multipla: lista consegne vuota")
 
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    section_style = styles["section"]
+    body_style = styles["body"]
+
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf,
-        pagesize=A4,
-        leftMargin=18 * mm,
-        rightMargin=18 * mm,
-        topMargin=18 * mm,
-        bottomMargin=18 * mm,
-        title="Modulo consegna DPI",
-        author=getattr(settings, "INSTANCE_NAME", "NOVICROM HUB"),
-    )
-
-    title_style, subtitle_style, section_style, body_style = _styles()
+    doc = make_document(buf, title="Modulo consegna DPI")
     flow: list = []
-
-    flow.append(Paragraph("MODULO DI CONSEGNA DPI", title_style))
-    instance_name = getattr(settings, "INSTANCE_NAME", "NOVICROM HUB")
-    now = timezone.localtime().strftime("%d-%m-%Y %H:%M")
-    flow.append(Paragraph(f"{instance_name} — generato il {now}", subtitle_style))
 
     flow.append(Paragraph("Dipendente", section_style))
     flow.extend(_info_dipendente_paragraphs(consegne_list[0], body_style))
 
     flow.append(Paragraph("Articoli consegnati", section_style))
-    flow.append(_articoli_table(consegne_list))
+    flow.append(_articoli_table(consegne_list, theme))
 
     flow.append(Paragraph("Dettagli consegna", section_style))
     if len(consegne_list) == 1:
@@ -243,5 +181,6 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
     # (consegne iniziali) la firma è normalmente differita e quindi vuota.
     flow.extend(_firma_flowables(consegne_list[0].firma_immagine or "", body_style))
 
-    doc.build(flow)
+    draw = header_footer_callback(theme, title="MODULO DI CONSEGNA DPI")
+    doc.build(flow, onFirstPage=draw, onLaterPages=draw)
     return buf.getvalue()

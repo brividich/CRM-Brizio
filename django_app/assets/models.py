@@ -73,6 +73,8 @@ class Asset(models.Model):
     model = models.CharField(max_length=120, null=True, blank=True)
     serial_number = models.CharField(max_length=120, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_IN_USE)
+    purchase_date = models.DateField(null=True, blank=True)
+    production_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default="")
     sharepoint_folder_url = models.CharField(max_length=1000, blank=True, default="")
     sharepoint_folder_path = models.CharField(max_length=500, blank=True, default="")
