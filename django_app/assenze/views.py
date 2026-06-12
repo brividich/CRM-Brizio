@@ -2025,8 +2025,11 @@ def _load_events(
     if not _table_exists("assenze"):
         return []
 
-    has_dip = _table_exists("dipendenti")
-    has_capi = _table_exists("capi_reparto")
+    # Il JOIN richiede sia la tabella di destinazione sia la colonna FK lato `assenze`:
+    # in alcuni ambienti legacy (es. prod) `assenze.dipendente_id` puo' non esistere e
+    # referenziarla manda in errore l'intera query (42S22). Vedi guard analogo nel pull.
+    has_dip = _table_exists("dipendenti") and _has_assenze_column("dipendente_id")
+    has_capi = _table_exists("capi_reparto") and _has_assenze_column("capo_reparto_id")
     joins = ""
     dip_expr = "a.copia_nome"
     capo_expr = "''"
@@ -2606,7 +2609,10 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
 
 
 def _legacy_capi_table_exists() -> bool:
-    return _table_exists("capi_reparto")
+    # Il valore guida il JOIN `cr.id = a.capo_reparto_id`: serve sia la tabella
+    # `capi_reparto` sia la colonna FK `assenze.capo_reparto_id`, che in alcuni
+    # ambienti legacy puo' mancare e farebbe fallire la query con 42S22.
+    return _table_exists("capi_reparto") and _has_assenze_column("capo_reparto_id")
 
 
 def _resolve_effective_reparto_for_legacy_user(legacy_user_id: int | None) -> str:

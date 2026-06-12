@@ -3838,6 +3838,51 @@ class AutomationEmailExecutorTests(TestCase):
         self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
         self.assertIn("Indirizzo email non valido", result["result_message"])
 
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_email_unresolved_cc_placeholder_does_not_block_send(self, mock_email_class):
+        # cc accessorio: {capo_email} non derivabile dal payload deve essere scartato
+        # (warning) senza far fallire l'invio ai `to`. Regressione bug prod 2026-06-12.
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.SEND_EMAIL,
+            config_json={
+                "from_email": "sender@test.local",
+                "to": "capo@test.local",
+                "cc": "{capo_email}",
+                "subject_template": "Test {id}",
+                "body_text_template": "Body {id}",
+            },
+        )
+
+        result = execute_action(action, self.payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        kwargs = mock_email_class.call_args.kwargs
+        self.assertEqual(kwargs["to"], ["capo@test.local"])
+        self.assertEqual(kwargs["cc"], [])
+
+    def test_send_email_unresolved_to_placeholder_still_fails_closed(self):
+        # to obbligatorio: un placeholder non risolto deve far fallire l'azione.
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.SEND_EMAIL,
+            config_json={
+                "to": "{capo_email}",
+                "subject_template": "Test",
+                "body_text_template": "Body",
+            },
+        )
+
+        result = execute_action(action, self.payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
+        self.assertIn("Placeholder non risolto in to", result["result_message"])
+
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@test.local", SITE_URL="https://hub.test.local")
 class AutomationApprovalExecutorTests(TestCase):

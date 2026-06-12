@@ -159,6 +159,10 @@ ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "
 ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", True)
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")
 ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", "#")
+# Reparto (DipendenteAnagraficaAziendale.area) i cui dipendenti sono, di fatto,
+# i capicommessa del modulo anomalie. L'appartenenza al reparto conferisce
+# automaticamente il ruolo. Configurabile per non vincolare al codice "IN1".
+ANOMALIE_CAPOCOMMESSA_REPARTO = env("ANOMALIE_CAPOCOMMESSA_REPARTO", "IN1").strip()
 SQL_LOG_ENABLED = env_bool("SQL_LOG_ENABLED", False)
 SQL_LOG_LEVEL = env("SQL_LOG_LEVEL", "DEBUG").strip().upper() or "DEBUG"
 SQL_LOG_FORCE_DEBUG_CURSOR = env_bool("SQL_LOG_FORCE_DEBUG_CURSOR", SQL_LOG_ENABLED)

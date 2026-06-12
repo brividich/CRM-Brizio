@@ -53,6 +53,15 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+# Nome fisico della colonna chiave dell'ordine di produzione in `ordini_produzione`.
+# Storicamente "sharepoint_item_id" (id dell'item SharePoint durante il porting),
+# oggi e' semplicemente l'id univoco dell'OP — SharePoint non c'entra piu'. Il
+# nome fisico resta invariato in DB (la tabella e' ricreata da un processo
+# esterno), ma nel codice ci si riferisce ad esso tramite questo alias neutro,
+# cosi' il nome "storico" compare in un solo punto.
+OP_ITEM_ID_COL = "sharepoint_item_id"
+
+
 ANOMALIE_LIST_KEYS = (
     "capi_reparto",
     "capi_commessa",
@@ -798,20 +807,24 @@ def _capireparto_from_anagrafica() -> list[str]:
 
 
 def _capicommessa_from_anagrafica() -> list[str]:
-    """Nomi distinti dei dipendenti con ruolo aziendale "capocommessa".
+    """Nomi distinti dei dipendenti che fanno parte del reparto capocommessa.
 
-    Il ruolo è memorizzato come testo libero in
-    ``DipendenteAnagraficaAziendale.ruolo_aziendale``; il match è
-    case-insensitive su "capocommessa" per tollerare varianti
-    (es. "Capo commessa", "Capocommessa OP").
+    I capicommessa NON sono identificati da un ruolo aziendale testuale: sono i
+    dipendenti appartenenti a uno specifico reparto (default "IN1"), il cui
+    nome è in ``DipendenteAnagraficaAziendale.area``. L'appartenenza al reparto
+    conferisce automaticamente il ruolo di capocommessa. Il reparto sorgente è
+    configurabile via ``settings.ANOMALIE_CAPOCOMMESSA_REPARTO``.
     """
+    reparto = str(getattr(settings, "ANOMALIE_CAPOCOMMESSA_REPARTO", "IN1") or "").strip()
+    if not reparto:
+        return []
     try:
         from anagrafica.models import DipendenteAnagraficaAziendale
         from core.legacy_anagrafica import fetch_anagrafica_rows
         ids = sorted({
             int(v)
             for v in DipendenteAnagraficaAziendale.objects.filter(
-                ruolo_aziendale__icontains="capocommessa"
+                area__iexact=reparto
             ).values_list("legacy_anagrafica_id", flat=True)
             if int(v or 0) > 0
         })
@@ -939,9 +952,10 @@ def _safe_text(value, max_len: int | None = None) -> str | None:
 
 
 def _display_item_id(row: dict) -> str:
-    sp = str(row.get("sharepoint_item_id") or "").strip()
-    if sp:
-        return sp
+    # La chiave d'identita' dell'anomalia e' sempre la PK locale `id`.
+    # `sharepoint_item_id` non e' piu' usata come chiave (residuo del porting
+    # da SharePoint, NULL su tutti i record nuovi): resta in tabella solo per
+    # i record legacy importati, ma non indirizza piu' il salvataggio.
     local_id = row.get("id")
     return f"local:{int(local_id)}" if local_id is not None else ""
 
@@ -963,8 +977,8 @@ def _resolve_op_lookup_id(op_item_id, op_title) -> int | None:
         return None
     try:
         rows = _fetch_all_dict(
-            """
-            SELECT TOP 1 sharepoint_item_id
+            f"""
+            SELECT TOP 1 {OP_ITEM_ID_COL}
             FROM ordini_produzione
             WHERE title = %s
             ORDER BY id DESC
@@ -973,7 +987,7 @@ def _resolve_op_lookup_id(op_item_id, op_title) -> int | None:
         )
         if not rows:
             return None
-        sp_id = str(rows[0].get("sharepoint_item_id") or "").strip()
+        sp_id = str(rows[0].get(OP_ITEM_ID_COL) or "").strip()
         return int(sp_id) if sp_id.isdigit() else None
     except Exception:
         return None
@@ -1490,7 +1504,7 @@ def api_db_ordini(request):
                 scope_where = (
                     "WHERE EXISTS ("
                     "SELECT 1 FROM anomalie a "
-                    "WHERE a.op_lookup_id = TRY_CAST(op.sharepoint_item_id AS INT) "
+                    f"WHERE a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT) "
                     "AND a.created_by_user_id = %s)"
                 )
                 scope_params = [legacy_user.id]
@@ -1507,7 +1521,7 @@ def api_db_ordini(request):
 
         sql = f"""
             SELECT
-                op.sharepoint_item_id AS item_id,
+                op.{OP_ITEM_ID_COL} AS item_id,
                 op.title AS op_title,
                 op.part_number,
                 op.incaricato,
@@ -1517,10 +1531,10 @@ def api_db_ordini(request):
                 SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count
             FROM ordini_produzione op
             LEFT JOIN anomalie a
-                ON a.op_lookup_id = TRY_CAST(op.sharepoint_item_id AS INT)
+                ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
             {scope_where}
             GROUP BY
-                op.sharepoint_item_id, op.title, op.part_number,
+                op.{OP_ITEM_ID_COL}, op.title, op.part_number,
                 op.incaricato, op.capocomessa, op.stato
             ORDER BY op.title
         """
@@ -1579,7 +1593,7 @@ def api_db_ordini_crea(request):
         return _json_error("CAR obbligatorio", status=400)
 
     cols = legacy_table_columns("ordini_produzione")
-    if "sharepoint_item_id" not in cols:
+    if OP_ITEM_ID_COL not in cols:
         return _json_error("Schema ordini_produzione non compatibile", status=500)
 
     op_title = _safe_text(f"{causale_doc}/{anno}/{numero}", 100)
@@ -1621,15 +1635,15 @@ def api_db_ordini_crea(request):
             with connections["default"].cursor() as cursor:
                 # Gli OP locali usano item_id negativi per evitare collisioni future con SharePoint.
                 cursor.execute(
-                    """
-                    SELECT COALESCE(MIN(TRY_CAST(sharepoint_item_id AS INT)), 0)
+                    f"""
+                    SELECT COALESCE(MIN(TRY_CAST({OP_ITEM_ID_COL} AS INT)), 0)
                     FROM ordini_produzione WITH (UPDLOCK, HOLDLOCK)
                     """
                 )
                 row_min = cursor.fetchone()
                 min_numeric = int(row_min[0] or 0) if row_min else 0
                 next_local_item_id = -1 if min_numeric >= 0 else (min_numeric - 1)
-                insert_writable["sharepoint_item_id"] = str(next_local_item_id)
+                insert_writable[OP_ITEM_ID_COL] = str(next_local_item_id)
 
                 insert_cols: list[str] = []
                 insert_placeholders: list[str] = []
@@ -1648,7 +1662,7 @@ def api_db_ordini_crea(request):
                     INSERT INTO ordini_produzione ({quoted_insert_cols})
                     OUTPUT
                         INSERTED.id,
-                        INSERTED.sharepoint_item_id,
+                        INSERTED.{OP_ITEM_ID_COL},
                         INSERTED.title,
                         INSERTED.part_number,
                         INSERTED.capocomessa,
@@ -1778,7 +1792,7 @@ def api_anomalie(request):
     if not op_title and sp_item_id_int is not None:
         try:
             op_rows = _fetch_all_dict(
-                "SELECT TOP 1 title FROM ordini_produzione WHERE sharepoint_item_id = %s",
+                f"SELECT TOP 1 title FROM ordini_produzione WHERE {OP_ITEM_ID_COL} = %s",
                 [sp_item_id_int],
             )
             if op_rows:
@@ -2150,23 +2164,19 @@ def api_salva(request):
 
     where_clause = None
     where_params: list = []
-    use_sharepoint_key = False
     local_pk_id = None
 
-    if item_id:
-        if item_id.lower().startswith("local:"):
-            try:
-                local_pk_id = int(item_id.split(":", 1)[1])
-                if "id" in cols:
-                    where_clause = "id = %s"
-                    where_params = [local_pk_id]
-            except ValueError:
-                pass
-        else:
-            use_sharepoint_key = "sharepoint_item_id" in cols
-            if use_sharepoint_key:
-                where_clause = "sharepoint_item_id = %s"
-                where_params = [item_id]
+    # La chiave d'identita' e' sempre la PK locale `id`. `item_id` arriva come
+    # "local:<id>"; per retro-compatibilita' si accetta anche un id numerico
+    # nudo (vecchi link). `sharepoint_item_id` non e' piu' usata come chiave.
+    if item_id and "id" in cols:
+        raw = item_id.split(":", 1)[1] if item_id.lower().startswith("local:") else item_id
+        try:
+            local_pk_id = int(raw)
+            where_clause = "id = %s"
+            where_params = [local_pk_id]
+        except ValueError:
+            pass
 
     try:
         with connections["default"].cursor() as cursor:
@@ -2210,24 +2220,15 @@ def api_salva(request):
                 cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
                 id_row = cursor.fetchone()
                 local_id = int(id_row[0]) if id_row and id_row[0] is not None else None
-                if local_id is not None:
-                    cursor.execute("SELECT sharepoint_item_id FROM anomalie WHERE id = %s", [local_id])
-                    sp_row = cursor.fetchone()
-                    sp_id = str(sp_row[0] or "").strip() if sp_row else ""
-                else:
-                    sp_id = ""
             else:
                 if where_clause == "id = %s":
-                    cursor.execute("SELECT id, sharepoint_item_id FROM anomalie WHERE id = %s", [where_params[0]])
-                elif use_sharepoint_key:
-                    cursor.execute("SELECT id, sharepoint_item_id FROM anomalie WHERE sharepoint_item_id = %s", [where_params[0]])
+                    cursor.execute("SELECT id FROM anomalie WHERE id = %s", [where_params[0]])
                 else:
-                    cursor.execute("SELECT TOP 1 id, sharepoint_item_id FROM anomalie ORDER BY id DESC")
+                    cursor.execute("SELECT TOP 1 id FROM anomalie ORDER BY id DESC")
                 row = cursor.fetchone()
                 local_id = int(row[0]) if row and row[0] is not None else None
-                sp_id = str(row[1] or "").strip() if row else ""
 
-        returned_item_id = sp_id or (f"local:{local_id}" if local_id is not None else None)
+        returned_item_id = f"local:{local_id}" if local_id is not None else None
 
         # Audit log (fire-and-forget)
         try:
@@ -3290,9 +3291,9 @@ def _report_op_row(op_item_id: int | None, op_title: str | None) -> dict | None:
     if not _has_table("ordini_produzione"):
         return None
 
-    sql = """
+    sql = f"""
         SELECT TOP 1
-            sharepoint_item_id,
+            {OP_ITEM_ID_COL},
             title,
             part_number,
             incaricato,
@@ -3302,11 +3303,11 @@ def _report_op_row(op_item_id: int | None, op_title: str | None) -> dict | None:
             created_datetime,
             modified_datetime
         FROM ordini_produzione
-        WHERE {where_clause}
+        WHERE {{where_clause}}
         ORDER BY id DESC
     """
     if op_item_id is not None:
-        rows = _fetch_all_dict(sql.format(where_clause="TRY_CAST(sharepoint_item_id AS INT) = %s"), [int(op_item_id)])
+        rows = _fetch_all_dict(sql.format(where_clause=f"TRY_CAST({OP_ITEM_ID_COL} AS INT) = %s"), [int(op_item_id)])
         if rows:
             return rows[0]
     if op_title:
@@ -3447,7 +3448,7 @@ def report_segnalazione_html(request):
         focus_anomalia = anomalie[0]
 
     op = {
-        "item_id": str((op_row or {}).get("sharepoint_item_id") or (op_item_id if op_item_id is not None else "") or ""),
+        "item_id": str((op_row or {}).get(OP_ITEM_ID_COL) or (op_item_id if op_item_id is not None else "") or ""),
         "id": str((op_row or {}).get("title") or op_title or ""),
         "pn": str((op_row or {}).get("part_number") or ""),
         "capo": str(_row_capocommessa(op_row or {}) or ""),

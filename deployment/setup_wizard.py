@@ -7373,32 +7373,9 @@ if ($t) {{
                 return src
         return dest if dest.exists() else src
 
-    def _q_install_task(self):
-        """Registra il task schedulato \\PortaleNovicrom\\QCluster_<ENV>."""
-        env = self._selected_env.get()
-        task_name = self._q_task_name(env)
-        script_path = self._q_ensure_script(env)
-        if not script_path:
-            messagebox.showerror(
-                "qcluster — Installa task",
-                "start_qcluster.ps1 non trovato.\n"
-                "Assicurati che la release sia attiva o che lo script esista in "
-                "deployment\\start_qcluster.ps1.",
-            )
-            return
-
-        if not messagebox.askyesno(
-            "Installa task qcluster",
-            f"Registrare il Task Scheduler:\n"
-            f"  Nome: \\PortaleNovicrom\\{task_name}\n"
-            f"  Script: {script_path}\n"
-            f"  Ambiente: {env.upper()}\n\n"
-            f"Il task verrà registrato con trigger 'All'avvio' e livello Highest.\n"
-            f"Procedere?",
-        ):
-            return
-
-        ps = f"""
+    def _q_register_ps(self, env: str, script_path, task_name: str) -> str:
+        """Script PowerShell che (ri)registra il task qcluster. Emette OK / ERR:."""
+        return f"""
 $ErrorActionPreference = 'Stop'
 try {{
     $action = New-ScheduledTaskAction `
@@ -7425,6 +7402,33 @@ try {{
     Write-Output "ERR:$_"
 }}
 """
+
+    def _q_install_task(self):
+        """Registra il task schedulato \\PortaleNovicrom\\QCluster_<ENV>."""
+        env = self._selected_env.get()
+        task_name = self._q_task_name(env)
+        script_path = self._q_ensure_script(env)
+        if not script_path:
+            messagebox.showerror(
+                "qcluster — Installa task",
+                "start_qcluster.ps1 non trovato.\n"
+                "Assicurati che la release sia attiva o che lo script esista in "
+                "deployment\\start_qcluster.ps1.",
+            )
+            return
+
+        if not messagebox.askyesno(
+            "Installa task qcluster",
+            f"Registrare il Task Scheduler:\n"
+            f"  Nome: \\PortaleNovicrom\\{task_name}\n"
+            f"  Script: {script_path}\n"
+            f"  Ambiente: {env.upper()}\n\n"
+            f"Il task verrà registrato con trigger 'All'avvio' e livello Highest.\n"
+            f"Procedere?",
+        ):
+            return
+
+        ps = self._q_register_ps(env, script_path, task_name)
 
         def _run():
             try:
@@ -7455,35 +7459,141 @@ try {{
     def _q_start_task(self):
         env = self._selected_env.get()
         task_name = self._q_task_name(env)
-        ps = f"Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'"
+
+        if not self._admin_mode:
+            messagebox.showwarning(
+                "qcluster — Avvia",
+                "Avvio/registrazione del task richiedono privilegi di Administrator.\n"
+                "Riavvia Setup Wizard come amministratore.",
+            )
+            return
+
+        # Avvia il task e verifica che sia davvero in esecuzione. Se non esiste,
+        # restituisce NOTASK per proporre l'auto-install.
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    $t = Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue
+    if (-not $t) {{ Write-Output 'NOTASK'; return }}
+    Start-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+    Start-Sleep -Seconds 3
+    $info = Get-ScheduledTaskInfo -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+    $st = (Get-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\').State
+    if ($st -eq 'Running') {{ Write-Output 'RUNNING' }}
+    else {{ Write-Output ("DEAD:" + $st + "|rc=" + $info.LastTaskResult) }}
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
+
         def _run():
             try:
-                subprocess.run(
+                r = subprocess.run(
                     ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                    capture_output=True, timeout=15,
-                    creationflags=subprocess.CREATE_NO_WINDOW)
-            except Exception:
-                pass
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+                out = (r.stdout or "").strip()
+            except Exception as exc:
+                out = f"ERR:{exc}"
+
+            if out == "RUNNING":
+                self.root.after(0, lambda: messagebox.showinfo(
+                    "qcluster — Avvia",
+                    f"✓ Task \\PortaleNovicrom\\{task_name} avviato e in esecuzione."))
+            elif out == "NOTASK":
+                self.root.after(0, lambda: self._q_offer_install_then_start(env, task_name))
+            elif out.startswith("DEAD:"):
+                detail = out[5:]
+                self.root.after(0, lambda d=detail: messagebox.showerror(
+                    "qcluster — Avvia",
+                    f"Il task è partito ma non è rimasto in esecuzione (stato: {d}).\n\n"
+                    "Causa probabile: start_qcluster.ps1 esce subito (path/venv errati, "
+                    "errore di avvio del cluster). Controlla logs\\qcluster.log."))
+            elif out.startswith("ERR:"):
+                self.root.after(0, lambda e=out[4:]: messagebox.showerror(
+                    "qcluster — Avvia", f"Errore nell'avvio del task:\n{e}"))
+            else:
+                self.root.after(0, lambda o=(out or r.stderr): messagebox.showwarning(
+                    "qcluster — Avvia", f"Output inatteso:\n{o}"))
+
             self.root.after(1500, self._refresh)
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _q_offer_install_then_start(self, env: str, task_name: str):
+        """Il task non esiste: propone di registrarlo al volo e poi riavviare l'azione."""
+        if not messagebox.askyesno(
+            "qcluster — Avvia",
+            f"Il task \\PortaleNovicrom\\{task_name} non è registrato.\n\n"
+            "Vuoi registrarlo adesso e poi avviarlo?",
+        ):
+            return
+        script_path = self._q_ensure_script(env)
+        if not script_path:
+            messagebox.showerror(
+                "qcluster — Avvia",
+                "start_qcluster.ps1 non trovato: impossibile registrare il task.\n"
+                "Assicurati che la release sia attiva o che lo script esista in "
+                "deployment\\start_qcluster.ps1.",
+            )
+            return
+        ps = self._q_register_ps(env, script_path, task_name)
+
+        def _run():
+            try:
+                r = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+                out = (r.stdout or "").strip()
+            except Exception as exc:
+                out = f"ERR:{exc}"
+            if "OK" in out and not out.startswith("ERR:"):
+                # Registrato: rilancia l'avvio (che ora troverà il task).
+                self.root.after(0, self._q_start_task)
+            else:
+                msg = out[4:] if out.startswith("ERR:") else (out or "output inatteso")
+                self.root.after(0, lambda m=msg: messagebox.showerror(
+                    "qcluster — Avvia", f"Registrazione task fallita:\n{m}"))
+
         threading.Thread(target=_run, daemon=True).start()
 
     def _q_stop_task(self):
         env = self._selected_env.get()
         task_name = self._q_task_name(env)
+        if not self._admin_mode:
+            messagebox.showwarning(
+                "qcluster — Ferma",
+                "Fermare il task richiede privilegi di Administrator.\n"
+                "Riavvia Setup Wizard come amministratore.",
+            )
+            return
         if not messagebox.askyesno(
             "Ferma qcluster",
             f"Fermare il task {task_name}?\n\nI job in corso verranno interrotti.",
         ):
             return
-        ps = f"Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\' -ErrorAction SilentlyContinue"
+        ps = f"""
+$ErrorActionPreference = 'Stop'
+try {{
+    Stop-ScheduledTask -TaskName '{task_name}' -TaskPath '\\PortaleNovicrom\\'
+    Write-Output 'OK'
+}} catch {{
+    Write-Output "ERR:$_"
+}}
+"""
         def _run():
             try:
-                subprocess.run(
+                r = subprocess.run(
                     ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                    capture_output=True, timeout=15,
-                    creationflags=subprocess.CREATE_NO_WINDOW)
-            except Exception:
-                pass
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
+                out = (r.stdout or "").strip()
+            except Exception as exc:
+                out = f"ERR:{exc}"
+            if out.startswith("ERR:"):
+                self.root.after(0, lambda e=out[4:]: messagebox.showerror(
+                    "qcluster — Ferma", f"Errore nell'arresto del task:\n{e}"))
             self.root.after(1500, self._refresh)
         threading.Thread(target=_run, daemon=True).start()
 

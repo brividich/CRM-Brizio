@@ -1936,7 +1936,17 @@ def _normalize_teams_theme_color(raw_value: Any) -> str:
     return normalized or "2563EB"
 
 
-def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> list[str]:
+def _parse_email_recipients(
+    raw_value: Any, payload: Any, field_name: str, *, required: bool = True
+) -> list[str]:
+    """Risolve e valida i destinatari di un campo email (CSV o lista).
+
+    Con ``required=True`` (default) un placeholder non risolto o un indirizzo non
+    valido fa fallire l'azione (fail-closed): adatto ai campi obbligatori come ``to``.
+    Con ``required=False`` il singolo destinatario problematico viene **scartato**
+    con un warning, senza abortire l'invio: adatto ai campi accessori (``cc``/``bcc``/
+    ``reply_to``), dove un'email non derivabile non deve impedire la notifica ai ``to``.
+    """
     rendered_value = _render_action_value(raw_value, payload)
 
     if rendered_value is None or rendered_value == "":
@@ -1947,6 +1957,9 @@ def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> li
     elif isinstance(rendered_value, (list, tuple, set)):
         candidates = list(rendered_value)
     else:
+        if not required:
+            logger.warning("Campo email %s ignorato: valore non CSV/lista (%r).", field_name, rendered_value)
+            return []
         raise ValueError(f"{field_name} deve essere una stringa CSV o una lista.")
 
     emails: list[str] = []
@@ -1955,10 +1968,16 @@ def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> li
         if not email:
             continue
         if "{" in email and "}" in email:
+            if not required:
+                logger.warning("Destinatario scartato in %s: placeholder non risolto (%s).", field_name, email)
+                continue
             raise ValueError(f"Placeholder non risolto in {field_name}: {email}.")
         try:
             validate_email(email)
         except ValidationError as exc:
+            if not required:
+                logger.warning("Destinatario scartato in %s: indirizzo non valido (%s).", field_name, email)
+                continue
             raise ValueError(f"Indirizzo email non valido in {field_name}: {email}.") from exc
         emails.append(email)
     return emails
@@ -3698,9 +3717,12 @@ def execute_action(
 
         if action.action_type == AutomationActionType.SEND_EMAIL:
             to = _parse_email_recipients(config.get("to"), payload_context, "to")
-            cc = _parse_email_recipients(config.get("cc"), payload_context, "cc")
-            bcc = _parse_email_recipients(config.get("bcc"), payload_context, "bcc")
-            reply_to = _parse_email_recipients(config.get("reply_to"), payload_context, "reply_to")
+            # cc/bcc/reply_to sono accessori: un placeholder non risolto (es. {capo_email}
+            # non derivabile) o un indirizzo non valido scarta il singolo destinatario con
+            # warning, senza far fallire l'invio ai `to`. Vedi _parse_email_recipients.
+            cc = _parse_email_recipients(config.get("cc"), payload_context, "cc", required=False)
+            bcc = _parse_email_recipients(config.get("bcc"), payload_context, "bcc", required=False)
+            reply_to = _parse_email_recipients(config.get("reply_to"), payload_context, "reply_to", required=False)
 
             # Filtra destinatari che hanno disabilitato questo tipo di notifica.
             # notifica_tipo Ã¨ opzionale: se assente, nessun filtro viene applicato.
@@ -4348,10 +4370,11 @@ def execute_action(
 
             # Invia copia CC se presente
             if cc_emails:
-                from django.core.mail import EmailMultiAlternatives
+                # NB: EmailMultiAlternatives/timezone/timedelta sono gia' importati a
+                # livello di modulo. Re-importarli localmente qui li renderebbe variabili
+                # locali per TUTTA execute_action, mandando in UnboundLocalError i path che
+                # li usano prima di questo punto (send_email a ~3782, delay/schedule a ~4165).
                 from anomalie.mail_action_service import build_anomalie_action_email
-                from django.utils import timezone
-                from datetime import timedelta
                 expires_at = timezone.now() + timedelta(hours=expires_hours)
                 subj, body_text, body_html = build_anomalie_action_email(
                     recipient_email=primary["email"],
