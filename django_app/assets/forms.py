@@ -2092,9 +2092,23 @@ class PlantLayoutForm(forms.ModelForm):
 
         existing_area_ids = set()
         existing_marker_ids = set()
+        # Allinea l'insieme accettato a quello che l'editor offre nel selettore
+        # (_plant_layout_machine_queryset): non solo WORK_MACHINE ma tutti gli
+        # asset non-IT, escludendo le categorie IT / physical-security. Senza
+        # questo allineamento i marker su CNC/carroponte/altri asset di
+        # produzione fallivano con "macchina non valida".
+        excluded_category_ids = list(
+            AssetCategory.objects.filter(
+                Q(code__in=("information-technology", "physical-security"))
+                | Q(code__startswith="information-technology")
+                | Q(code__startswith="physical-security")
+            ).values_list("id", flat=True)
+        )
         machine_assets = {
             asset.id: asset
-            for asset in Asset.objects.filter(asset_type=Asset.TYPE_WORK_MACHINE).only(
+            for asset in Asset.objects.exclude(asset_type__in=IT_DEVICE_TYPES)
+            .exclude(asset_category_id__in=excluded_category_ids)
+            .only(
                 "id",
                 "name",
                 "asset_tag",

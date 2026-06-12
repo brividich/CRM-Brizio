@@ -14,7 +14,7 @@
 <body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
 
 <div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">
-  Aggiornamento anomalie {{ op_id }}{% if op_pn %} · P/N {{ op_pn }}{% endif %} — {{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}
+  {% if op_pn %}P/N {{ op_pn }} · {% endif %}{{ op_id }} — {% if has_rdc %}{% if n_aprire %}{{ n_aprire }} da APRIRE RDC{% endif %}{% if n_aprire and n_segnalare %} / {% endif %}{% if n_segnalare %}{{ n_segnalare }} da SEGNALARE A CLIENTE{% endif %}{% else %}{{ n }} modific{% if n == 1 %}a registrata{% else %}he registrate{% endif %}{% endif %}
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
@@ -69,31 +69,31 @@
           </td>
         </tr>
 
-        {% if has_rdc %}
-        <!-- SEZIONE IN RISALTO: DA APRIRE RDC / SEGNALARE A CLIENTE -->
+        {% if aprire_rdc_rows %}
+        <!-- SEZIONE IN RISALTO: DA APRIRE RDC -->
         <tr>
           <td class="ep" style="padding:18px 34px 4px;background:#ffffff;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                   style="border-collapse:separate;border-spacing:0;background:#fff7ed;border:2px solid #fb923c;border-radius:12px;overflow:hidden;">
+                   style="border-collapse:separate;border-spacing:0;background:#fef2f2;border:2px solid #f87171;border-radius:12px;overflow:hidden;">
               <tr>
                 <td style="padding:14px 18px 6px;">
-                  <div style="font-size:13px;color:#9a3412;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
-                    &#9888; Da aprire RDC / segnalare a cliente
+                  <div style="font-size:13px;color:#991b1b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
+                    &#9888; Da aprire RDC
                   </div>
-                  <div style="font-size:12px;color:#c2410c;margin-top:3px;">
-                    {{ n_rdc }} anomali{% if n_rdc == 1 %}a richiede{% else %}e richiedono{% endif %} azione prioritaria.
+                  <div style="font-size:12px;color:#b91c1c;margin-top:3px;">
+                    {{ n_aprire }} anomali{% if n_aprire == 1 %}a richiede{% else %}e richiedono{% endif %} apertura RDC.
                   </div>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 14px 14px;">
-                  {% for u in rdc_rows %}
+                  {% for u in aprire_rdc_rows %}
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                         style="border-collapse:collapse;background:#ffffff;border:1px solid #fed7aa;border-radius:10px;overflow:hidden;margin-bottom:8px;">
+                         style="border-collapse:collapse;background:#ffffff;border:1px solid #fecaca;border-radius:10px;overflow:hidden;margin-bottom:8px;">
                     <tr>
-                      <td style="width:6px;background:#ea580c;">&nbsp;</td>
+                      <td style="width:6px;background:#dc2626;">&nbsp;</td>
                       <td style="padding:12px 15px;">
-                        <div style="font-size:11px;color:#9a3412;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
+                        <div style="font-size:11px;color:#991b1b;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
                           Anomalia #{{ u.id }}{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
                         </div>
                         <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
@@ -106,8 +106,60 @@
                         </div>
                         {% endif %}
                         <div style="margin-top:6px;">
-                          {% if u.aprire_rdc %}<span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Aprire RDC</span>{% endif %}
+                          <span style="display:inline-block;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Aprire RDC</span>
                           {% if u.segnalare %}<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>{% endif %}
+                          {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
+                        </div>
+                        {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
+                      </td>
+                    </tr>
+                  </table>
+                  {% endfor %}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if segnalare_rows %}
+        <!-- SEZIONE IN RISALTO: DA SEGNALARE A CLIENTE -->
+        <tr>
+          <td class="ep" style="padding:18px 34px 4px;background:#ffffff;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:separate;border-spacing:0;background:#eff6ff;border:2px solid #60a5fa;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td style="padding:14px 18px 6px;">
+                  <div style="font-size:13px;color:#1e40af;font-weight:800;text-transform:uppercase;letter-spacing:.05em;">
+                    &#9888; Da segnalare a cliente
+                  </div>
+                  <div style="font-size:12px;color:#1d4ed8;margin-top:3px;">
+                    {{ n_segnalare }} anomali{% if n_segnalare == 1 %}a richiede{% else %}e richiedono{% endif %} segnalazione al cliente.
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:6px 14px 14px;">
+                  {% for u in segnalare_rows %}
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                         style="border-collapse:collapse;background:#ffffff;border:1px solid #bfdbfe;border-radius:10px;overflow:hidden;margin-bottom:8px;">
+                    <tr>
+                      <td style="width:6px;background:#2563eb;">&nbsp;</td>
+                      <td style="padding:12px 15px;">
+                        <div style="font-size:11px;color:#1e40af;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
+                          Anomalia #{{ u.id }}{% if u.seriale %} &middot; S/N {{ u.seriale }}{% endif %}
+                        </div>
+                        <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
+                          Avanzamento: {{ u.avanzamento|default:"(invariato)" }}
+                        </div>
+                        {% if u.descrizione %}<div style="margin-top:8px;font-size:13px;color:#334155;line-height:1.5;"><strong style="color:#64748b;">Descrizione:</strong> {{ u.descrizione }}</div>{% endif %}
+                        {% if u.numero_rdc or u.pezzi_recuperato %}
+                        <div style="margin-top:6px;font-size:12px;color:#475569;">
+                          {% if u.numero_rdc %}<strong style="color:#64748b;">N° RDC:</strong> {{ u.numero_rdc }}{% endif %}{% if u.numero_rdc and u.pezzi_recuperato %} &nbsp;·&nbsp; {% endif %}{% if u.pezzi_recuperato %}<strong style="color:#64748b;">Pezzo recuperato:</strong> sì{% endif %}
+                        </div>
+                        {% endif %}
+                        <div style="margin-top:6px;">
+                          <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>
                           {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                         </div>
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}

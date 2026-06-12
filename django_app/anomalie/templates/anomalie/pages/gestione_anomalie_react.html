@@ -291,6 +291,7 @@
       const [searchOp,    setSearchOp]    = useState("");
       const [searchSn,    setSearchSn]    = useState("");
       const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
+      const [closedCollapsed, setClosedCollapsed] = useState(true);
 
       // ── Mobile / tablet navigation ──
       const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -375,12 +376,10 @@
         return true;
       };
 
-      const anomalyMatchesPageFilter = (anomalia) => {
-        if (pageFilter === "aperte" || pageFilter === "in_carico") {
-          return !Boolean(anomalia?.chiudere);
-        }
-        return true;
-      };
+      // NB: nel filtro "aperte"/"in_carico" le anomalie chiuse NON vengono piu'
+      // escluse: restano consultabili in una sezione collassata "Chiuse (N)" in
+      // fondo alla lista (vedi rendering). Qui si filtra solo per la ricerca S/N.
+      const anomalyMatchesPageFilter = () => true;
 
       const filteredOrdini = useMemo(() => {
         const search = searchOp.toLowerCase();
@@ -409,7 +408,25 @@
         });
       }, [anomalie, searchSn, pageFilter]);
 
+      // Separa le anomalie in aperte e chiuse conservando l'indice originale in
+      // filteredSeriali (selectedSn indicizza quell'array): le chiuse vanno in
+      // fondo, in una sezione collassata e in sola lettura.
+      const openSeriali = useMemo(
+        () => filteredSeriali.map((a, i) => ({ a, i })).filter((x) => !Boolean(x.a.chiudere)),
+        [filteredSeriali]
+      );
+      const closedSeriali = useMemo(
+        () => filteredSeriali.map((a, i) => ({ a, i })).filter((x) => Boolean(x.a.chiudere)),
+        [filteredSeriali]
+      );
+
       const sn = filteredSeriali[selectedSn] || {};
+      // Anomalia selezionata chiusa => form in sola lettura (congelata):
+      // consultabile ma non modificabile, anche se l'utente avrebbe i permessi sull'OP.
+      const isSelectedClosed = Boolean(sn.chiudere);
+      // Editabilita' effettiva dei campi del dettaglio: serve il permesso sull'OP
+      // E che l'anomalia selezionata non sia chiusa.
+      const canEditSelected = canEditCurrentOp && !isSelectedClosed;
 
       useEffect(() => {
         if (selectedOp < filteredOrdini.length) return;
@@ -430,7 +447,7 @@
           return;
         }
         setLoadingAnom(true);
-        fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}`, { credentials: "same-origin" })
+        fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, { credentials: "same-origin" })
           .then(r => readJsonOrThrow(r, "Caricamento anomalie"))
           .then(data => {
             setAnomalie(Array.isArray(data) ? data : []);
@@ -506,6 +523,11 @@
         }
         if (!canEditCurrentOp) {
           setSaveMsg({ ok: false, text: "Permesso negato: non puoi modificare questo OP" });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        if (isSelectedClosed) {
+          setSaveMsg({ ok: false, text: "Anomalia chiusa: in sola lettura, non modificabile" });
           setTimeout(() => setSaveMsg(null), 3000);
           return;
         }
@@ -823,15 +845,15 @@
               {/* Pulsante unico "Salva": salva e accoda SEMPRE la notifica (debounce
                   ~5 min, 1 mail riepilogativa per OP). Niente più "Salva e notifica":
                   la mail parte da sola a ogni salvataggio. */}
-              <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={() => handleSave(false)} disabled={saving || !canEditCurrentOp}
-                title="Salva l'anomalia: la mail di conferma a segnalante, CC e CAR parte automaticamente" style={{
+              <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={() => handleSave(false)} disabled={saving || !canEditSelected}
+                title={isSelectedClosed ? "Anomalia chiusa: sola lettura" : "Salva l'anomalia: la mail di conferma a segnalante, CC e CAR parte automaticamente"} style={{
                 background: saving ? "var(--primary-mid)" : "var(--accent)", border: "none", borderRadius: 8,
                 padding: isMobile ? "8px 16px" : "7px 18px", color: "#fff",
                 fontWeight: 600,
-                cursor: saving || !canEditCurrentOp ? "not-allowed" : "pointer",
+                cursor: saving || !canEditSelected ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", gap: 6,
                 boxShadow: "0 2px 8px rgba(249,115,22,.3)",
-                opacity: saving || !canEditCurrentOp ? 0.8 : 1,
+                opacity: saving || !canEditSelected ? 0.8 : 1,
               }}>
                 {saving ? (
                   <>
@@ -1051,55 +1073,82 @@
                       : "Seleziona un ordine"}
                   </div>
                 ) : (
-                  filteredSeriali.map((a, i) => {
-                    const col = snColor(a.avanzamento);
+                  (() => {
+                    const renderSnCard = ({ a, i }) => {
+                      const col = snColor(a.avanzamento);
+                      const closed = Boolean(a.chiudere);
+                      return (
+                        <div key={a.item_id || i} onClick={() => { setSelectedSn(i); if (isMobile) setMobilePanel("dettaglio"); }} style={{
+                          padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
+                          background: selectedSn === i ? "var(--surface)" : "transparent",
+                          border: selectedSn === i ? "1px solid var(--border)" : "1px solid transparent",
+                          boxShadow: selectedSn === i ? "0 1px 4px rgba(0,0,0,.06)" : "none",
+                          opacity: closed ? 0.7 : 1,
+                          transition: "all 0.15s",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
+                            <span className="text-base font-semibold" style={{ fontWeight: 600, color: "var(--text)", fontFamily: "ui-monospace,monospace" }}>
+                              S/N: {a.sn || '\u2014'}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
+                            <span className="text-sm" style={{ color: "var(--text-mid)" }}>{a.avanzamento || "Aperto"}</span>
+                            {a.modified && (
+                              <span className="text-2xs" style={{ color: "#94a3b8" }}>
+                                {new Date(a.modified).toLocaleDateString("it-IT", { day:"2-digit", month:"2-digit", year:"2-digit" })}
+                              </span>
+                            )}
+                            {a.pezzi_prec && (
+                              <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--bg)", color: "var(--primary-mid)", border: "1px solid var(--border)", fontWeight: 500 }}>
+                                prec. benestare
+                              </span>
+                            )}
+                            {closed && (
+                              <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--success-bg)", color: "var(--success)", border: "1px solid #c6f6d5", fontWeight: 500 }}>
+                                chiusa
+                              </span>
+                            )}
+                          </div>
+                          {selectedSn === i && !closed && (
+                            <div style={{ marginTop: 8, paddingLeft: 18, display: "flex", gap: 6 }}>
+                              <IconBtn title="Duplica - copia i dati nel form come nuovo record" onClick={() => {
+                                setCurrentItemId(null);
+                                setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" });
+                                setTimeout(() => setSaveMsg(null), 4000);
+                              }}>
+                                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                Duplica
+                              </IconBtn>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    };
                     return (
-                      <div key={a.item_id || i} onClick={() => { setSelectedSn(i); if (isMobile) setMobilePanel("dettaglio"); }} style={{
-                        padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
-                        background: selectedSn === i ? "var(--surface)" : "transparent",
-                        border: selectedSn === i ? "1px solid var(--border)" : "1px solid transparent",
-                        boxShadow: selectedSn === i ? "0 1px 4px rgba(0,0,0,.06)" : "none",
-                        transition: "all 0.15s",
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
-                          <span className="text-base font-semibold" style={{ fontWeight: 600, color: "var(--text)", fontFamily: "ui-monospace,monospace" }}>
-                            S/N: {a.sn || '\u2014'}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
-                          <span className="text-sm" style={{ color: "var(--text-mid)" }}>{a.avanzamento || "Aperto"}</span>
-                          {a.modified && (
-                            <span className="text-2xs" style={{ color: "#94a3b8" }}>
-                              {new Date(a.modified).toLocaleDateString("it-IT", { day:"2-digit", month:"2-digit", year:"2-digit" })}
-                            </span>
-                          )}
-                          {a.pezzi_prec && (
-                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--bg)", color: "var(--primary-mid)", border: "1px solid var(--border)", fontWeight: 500 }}>
-                              prec. benestare
-                            </span>
-                          )}
-                          {a.chiudere && (
-                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "var(--success-bg)", color: "var(--success)", border: "1px solid #c6f6d5", fontWeight: 500 }}>
-                              da chiudere
-                            </span>
-                          )}
-                        </div>
-                        {selectedSn === i && (
-                          <div style={{ marginTop: 8, paddingLeft: 18, display: "flex", gap: 6 }}>
-                            <IconBtn title="Duplica - copia i dati nel form come nuovo record" onClick={() => {
-                              setCurrentItemId(null);
-                              setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" });
-                              setTimeout(() => setSaveMsg(null), 4000);
+                      <React.Fragment>
+                        {openSeriali.map(renderSnCard)}
+                        {closedSeriali.length > 0 && (
+                          <div style={{ marginTop: openSeriali.length ? 10 : 0 }}>
+                            <button type="button" onClick={() => setClosedCollapsed((v) => !v)} style={{
+                              display: "flex", alignItems: "center", gap: 6, width: "100%",
+                              padding: "8px 12px", background: "var(--bg)", border: "1px solid var(--border)",
+                              borderRadius: 8, cursor: "pointer", color: "var(--text-mid)", marginBottom: 4,
                             }}>
-                              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                              Duplica
-                            </IconBtn>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+                                   style={{ transform: closedCollapsed ? "rotate(-90deg)" : "none", transition: "transform .15s" }}>
+                                <path d="M6 9l6 6 6-6"/>
+                              </svg>
+                              <span className="text-sm font-semibold" style={{ fontWeight: 600 }}>
+                                Chiuse ({closedSeriali.length})
+                              </span>
+                            </button>
+                            {!closedCollapsed && closedSeriali.map(renderSnCard)}
                           </div>
                         )}
-                      </div>
+                      </React.Fragment>
                     );
-                  })
+                  })()
                 )}
               </div>
             </div>
@@ -1174,6 +1223,19 @@
                     Modalità sola lettura: puoi visualizzare i dati ma non modificare questo OP.
                   </div>
                 )}
+                {canEditCurrentOp && isSelectedClosed && (
+                  <div className="text-sm font-semibold" style={{
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #c6f6d5",
+                    background: "var(--success-bg)",
+                    color: "var(--success)",
+                    fontWeight: 600,
+                  }}>
+                    Anomalia chiusa: in sola lettura. I dati restano consultabili ma non modificabili.
+                  </div>
+                )}
               </div>
 
               {/* Body form */}
@@ -1183,12 +1245,12 @@
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     <div>
                       <FieldLabel required>Descrizione anomalia</FieldLabel>
-                      <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} disabled={!canEditCurrentOp}
+                      <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} disabled={!canEditSelected}
                         style={{
                           width: "100%", padding: "10px 14px",
                           border: "1px solid var(--border)", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
-                          lineHeight: 1.5, color: "var(--text)", background: canEditCurrentOp ? "var(--bg)" : "var(--border)",
+                          lineHeight: 1.5, color: "var(--text)", background: canEditSelected ? "var(--bg)" : "var(--border)",
                         }}
                         onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                         onBlur={e  => e.target.style.borderColor="var(--border)"}
@@ -1196,24 +1258,24 @@
                     </div>
 
                     <div style={{ background: "var(--bg)", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, border: "1px solid var(--border)" }}>
-                      <Toggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditCurrentOp} onChange={() => setPezziPrec(!pezziPrec)} />
+                      <Toggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
                       <div style={{ height: 1, background: "var(--border)" }} />
-                      <Toggle label="Aprire RDC?" checked={aprireRdc} disabled={!canEditCurrentOp} onChange={() => setAprireRdc(!aprireRdc)} />
+                      <Toggle label="Aprire RDC?" checked={aprireRdc} disabled={!canEditSelected} onChange={() => setAprireRdc(!aprireRdc)} />
                       <div style={{ height: 1, background: "var(--border)" }} />
-                      <Toggle label="Segnalare a cliente?" checked={segnalare} disabled={!canEditCurrentOp} onChange={() => setSegnalare(!segnalare)} />
+                      <Toggle label="Segnalare a cliente?" checked={segnalare} disabled={!canEditSelected} onChange={() => setSegnalare(!segnalare)} />
                       <div style={{ height: 1, background: "var(--border)" }} />
                       <Toggle label="Chiudere? (automatico)" checked={chiudereAuto} disabled={true} />
                     </div>
 
                     <div>
                       <FieldLabel>Avanzamento</FieldLabel>
-                      <select value={avanzamento} onChange={e => setAvanzamento(e.target.value)} disabled={segnalare || !canEditCurrentOp}
+                      <select value={avanzamento} onChange={e => setAvanzamento(e.target.value)} disabled={segnalare || !canEditSelected}
                         style={{
                           width: "100%", padding: "9px 14px", border: "1px solid var(--border)",
                           borderRadius: 8, color: "var(--text)",
-                          background: segnalare || !canEditCurrentOp ? "var(--bg)" : "var(--surface)", outline: "none",
-                          cursor: segnalare || !canEditCurrentOp ? "not-allowed" : "pointer",
-                          opacity: segnalare || !canEditCurrentOp ? 0.75 : 1,
+                          background: segnalare || !canEditSelected ? "var(--bg)" : "var(--surface)", outline: "none",
+                          cursor: segnalare || !canEditSelected ? "not-allowed" : "pointer",
+                          opacity: segnalare || !canEditSelected ? 0.75 : 1,
                         }}>
                         {avanzamentoOptions.map((opt) => (
                           <option key={opt}>{opt}</option>
@@ -1226,12 +1288,12 @@
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     <div>
                       <FieldLabel required>Note capocommessa</FieldLabel>
-                      <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} disabled={!canEditCurrentOp}
+                      <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} disabled={!canEditSelected}
                         style={{
                           width: "100%", padding: "10px 14px",
                           border: "1px solid var(--border)", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
-                          lineHeight: 1.5, color: "var(--text)", background: canEditCurrentOp ? "var(--bg)" : "var(--border)",
+                          lineHeight: 1.5, color: "var(--text)", background: canEditSelected ? "var(--bg)" : "var(--border)",
                         }}
                         onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                         onBlur={e  => e.target.style.borderColor="var(--border)"}

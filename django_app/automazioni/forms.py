@@ -690,6 +690,7 @@ class AutomationActionForm(forms.ModelForm):
         required=False,
         label="Azione mail-action",
         choices=[
+            ("aggiorna_avanzamento", "Aggiorna avanzamento (toggle RDC/Segnalare + avanzamento per anomalia)"),
             ("visualizza", "Visualizza"),
             ("prendi_in_carico", "Prendi in carico"),
             ("approva", "Approva"),

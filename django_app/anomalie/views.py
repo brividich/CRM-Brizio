@@ -1466,7 +1466,7 @@ def legacy_apertura_anomalie_redirect(request):
 @login_required
 def api_db_ordini(request):
     if not _has_table("ordini_produzione"):
-        return JsonResponse([])
+        return JsonResponse([], safe=False)
     try:
         list_scope = _request_anomalie_list_scope(request)
         identity = _current_user_identity(request)
@@ -1749,22 +1749,56 @@ def api_ordini(request):
 def api_anomalie(request):
     # Compatibilita frontend legacy: accetta op_item_id o sp_item_id e usa il DB locale.
     sp_item_id = request.GET.get("sp_item_id") or request.GET.get("op_item_id")
+    # Titolo OP (ex_op_nominativo): usato come fallback quando op_lookup_id e' NULL.
+    # Molti OP non hanno sharepoint_item_id (sistema in migrazione da SharePoint),
+    # quindi le anomalie salvate restano con op_lookup_id NULL e sparirebbero
+    # dall'elenco filtrato per solo op_lookup_id. Il match per titolo le recupera.
+    op_title = _safe_text(request.GET.get("op_id"), 100)
     if not sp_item_id:
-        op_title = request.GET.get("op_id")
-        resolved = _resolve_op_lookup_id(None, op_title)
+        resolved = _resolve_op_lookup_id(None, request.GET.get("op_id"))
         if resolved is not None:
             sp_item_id = str(resolved)
-    if not sp_item_id:
+    if not sp_item_id and not op_title:
         return JsonResponse([], safe=False)
-    try:
-        sp_item_id_int = int(sp_item_id)
-    except (TypeError, ValueError):
-        return _json_error("sp_item_id non valido", status=400)
+
+    sp_item_id_int = None
+    if sp_item_id:
+        try:
+            sp_item_id_int = int(sp_item_id)
+        except (TypeError, ValueError):
+            return _json_error("sp_item_id non valido", status=400)
     if not _has_table("anomalie"):
         return JsonResponse([], safe=False)
 
     cols = legacy_table_columns("anomalie")
     rdc_col = ", numero_rdc" if "numero_rdc" in cols else ""
+
+    # Se non ho il titolo OP ma ho il lookup id, lo derivo per estendere il match
+    # anche ai record con op_lookup_id NULL ma stesso ex_op_nominativo.
+    if not op_title and sp_item_id_int is not None:
+        try:
+            op_rows = _fetch_all_dict(
+                "SELECT TOP 1 title FROM ordini_produzione WHERE sharepoint_item_id = %s",
+                [sp_item_id_int],
+            )
+            if op_rows:
+                op_title = _safe_text(op_rows[0].get("title"), 100)
+        except Exception:
+            op_title = ""
+
+    # Costruisce la WHERE: per lookup id (se presente) E/O per titolo OP.
+    where_parts: list[str] = []
+    params: list = []
+    if sp_item_id_int is not None:
+        where_parts.append("op_lookup_id = %s")
+        params.append(sp_item_id_int)
+    if op_title:
+        if connections["default"].vendor == "sqlite":
+            where_parts.append("LOWER(ex_op_nominativo) = LOWER(%s)")
+        else:
+            where_parts.append("LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s)")
+        params.append(op_title)
+    where_clause = " OR ".join(where_parts)
 
     try:
         rows = _fetch_all_dict(
@@ -1783,12 +1817,21 @@ def api_anomalie(request):
                 avanzamento,
                 modified_datetime
             FROM anomalie
-            WHERE op_lookup_id = %s
+            WHERE {where_clause}
             ORDER BY seriale
             """,
-            [sp_item_id_int],
+            params,
         )
-        return JsonResponse(_serialize_anomalie_rows(rows), safe=False)
+        # Dedup difensivo: con WHERE in OR un record puo' matchare entrambi i rami.
+        seen_ids = set()
+        unique_rows = []
+        for r in rows:
+            rid = r.get("id")
+            if rid in seen_ids:
+                continue
+            seen_ids.add(rid)
+            unique_rows.append(r)
+        return JsonResponse(_serialize_anomalie_rows(unique_rows), safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
 

@@ -342,11 +342,17 @@ def send_anomalie_update_confirmation(
 
     anomalie_ids = [r.get("id") for r in anomalie_rows if r.get("id") is not None]
 
-    # Anomalie con risalto: da aprire RDC e/o da segnalare a cliente.
+    # Anomalie con risalto, divise per tipo di azione richiesta.
     # Vanno in cima alla mail e attivano l'invio alla lista dedicata.
-    rdc_rows = [u for u in updates_summary if u.get("aprire_rdc") or u.get("segnalare")]
-    altre_rows = [u for u in updates_summary if not (u.get("aprire_rdc") or u.get("segnalare"))]
-    has_rdc = bool(rdc_rows)
+    # Un'anomalia "aprire_rdc" prevale: se ha anche "segnalare" resta tra le RDC.
+    aprire_rdc_rows = [u for u in updates_summary if u.get("aprire_rdc")]
+    segnalare_rows = [
+        u for u in updates_summary if u.get("segnalare") and not u.get("aprire_rdc")
+    ]
+    altre_rows = [
+        u for u in updates_summary if not (u.get("aprire_rdc") or u.get("segnalare"))
+    ]
+    has_rdc = bool(aprire_rdc_rows) or bool(segnalare_rows)
 
     destinatari: list[str] = []
 
@@ -387,16 +393,20 @@ def send_anomalie_update_confirmation(
     op_pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
 
     n = len(updates_summary)
-    n_rdc = len(rdc_rows)
-    pn_subj = f" (P/N {op_pn})" if op_pn else ""
+    n_aprire = len(aprire_rdc_rows)
+    n_segnalare = len(segnalare_rows)
+    # P/N davanti all'OP nell'oggetto
+    pn_subj = f"P/N {op_pn} · " if op_pn else ""
     if has_rdc:
-        subject = (
-            f"[Novicrom Hub] {op_id}{pn_subj} — {n_rdc} da APRIRE RDC / SEGNALARE A CLIENTE"
-            f" ({n} modific{'a' if n == 1 else 'he'} totali)"
-        )
+        parti = []
+        if n_aprire:
+            parti.append(f"{n_aprire} da APRIRE RDC")
+        if n_segnalare:
+            parti.append(f"{n_segnalare} da SEGNALARE A CLIENTE")
+        subject = f"[Novicrom Hub] {pn_subj}{op_id} — " + " / ".join(parti)
     else:
         subject = (
-            f"[Novicrom Hub] Aggiornamento anomalie {op_id}{pn_subj} — "
+            f"[Novicrom Hub] {pn_subj}Aggiornamento anomalie {op_id} — "
             f"{n} modific{'a' if n == 1 else 'he'} registrat{'a' if n == 1 else 'e'}"
         )
 
@@ -434,9 +444,14 @@ def send_anomalie_update_confirmation(
         f"{(' — ' + op_nominativo) if op_nominativo else ''}.",
         "",
     ]
-    if rdc_rows:
-        lines += ["⚠ DA APRIRE RDC / SEGNALARE A CLIENTE:"]
-        for u in rdc_rows:
+    if aprire_rdc_rows:
+        lines += ["⚠ DA APRIRE RDC:"]
+        for u in aprire_rdc_rows:
+            lines += _fmt_row(u, "  ► ")
+        lines.append("")
+    if segnalare_rows:
+        lines += ["⚠ DA SEGNALARE A CLIENTE:"]
+        for u in segnalare_rows:
             lines += _fmt_row(u, "  ► ")
         lines.append("")
     if altre_rows:
@@ -460,12 +475,14 @@ def send_anomalie_update_confirmation(
             "op_pn": op_pn,
             "op_nominativo": op_nominativo,
             "updates_summary": updates_summary,
-            "rdc_rows": rdc_rows,
+            "aprire_rdc_rows": aprire_rdc_rows,
+            "segnalare_rows": segnalare_rows,
             "altre_rows": altre_rows,
             "has_rdc": has_rdc,
             "source_label": source_label,
             "n": n,
-            "n_rdc": n_rdc,
+            "n_aprire": n_aprire,
+            "n_segnalare": n_segnalare,
         },
     )
 

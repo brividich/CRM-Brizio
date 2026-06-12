@@ -442,6 +442,7 @@ Write-Log "[5b/9] Riallineo ACL static\ e media\ per IIS..." "STEP"
 # concediamo entrambi per essere robusti rispetto a come e' configurata
 # l'autenticazione del sito (Anonymous attiva, AppPool identity, ecc.).
 $iisPrincipals = @("IIS_IUSRS", "IUSR")
+# static\ e media\: sola lettura (RX) - servono solo a IIS per servire i file.
 foreach ($aclPath in @($paths.Static, $paths.Media)) {
     if (-not (Test-Path $aclPath)) {
         Write-Log "  Path inesistente, salto: $aclPath" "WARN"
@@ -455,6 +456,22 @@ foreach ($aclPath in @($paths.Static, $paths.Media)) {
             Write-Log "  icacls ${principal} exit code $LASTEXITCODE su $aclPath - verificare" "WARN"
         }
     }
+}
+# media_private\: l'app SCRIVE qui (allegati anomalie, documenti). Serve Modify (M),
+# non solo RX, altrimenti l'upload allegati fallisce con 500 (cartella non scrivibile).
+# media_private NON e' servita da IIS (fuori webroot, GDPR): i permessi servono
+# all'identity dell'app pool per leggere/scrivere/cancellare i file caricati.
+if ($paths.MediaPrivate -and (Test-Path $paths.MediaPrivate)) {
+    foreach ($principal in $iisPrincipals) {
+        & icacls "$($paths.MediaPrivate)" /grant "${principal}:(OI)(CI)M" /T /Q | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "  ACL ${principal}:M applicata su $($paths.MediaPrivate)" "INFO"
+        } else {
+            Write-Log "  icacls ${principal} exit code $LASTEXITCODE su $($paths.MediaPrivate) - verificare" "WARN"
+        }
+    }
+} else {
+    Write-Log "  media_private inesistente, salto ACL scrittura: $($paths.MediaPrivate)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
