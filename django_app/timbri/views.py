@@ -310,6 +310,37 @@ def _ensure_legacy_operatore(row: dict) -> OperatoreTimbri:
     return obj
 
 
+def _tipo_from_text(raw_value: str) -> str:
+    text = _field_to_text(raw_value).lower()
+    if not text:
+        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
+    if "fisico" in text and "digit" in text:
+        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
+    if "digit" in text:
+        return RegistroTimbro.TIPO_DIGITALE
+    if "fisico" in text:
+        return RegistroTimbro.TIPO_FISICO
+    return RegistroTimbro.TIPO_ALTRO
+
+
+def _resolve_operatore(lookup_value, label_value, matricola_value, reparto_value, ruolo_value) -> OperatoreTimbri:
+    row = _find_legacy_employee(
+        lookup_value=lookup_value,
+        label_value=label_value,
+        matricola_value=matricola_value,
+    )
+    if row is None:
+        reparto = _field_to_text(reparto_value)
+        ruolo = _field_to_text(ruolo_value)
+        raise LookupError(
+            "Operatore non trovato nell'anagrafica centrale"
+            + (f" (matricola {matricola_value})" if _field_to_text(matricola_value) else "")
+            + (f" [reparto {reparto}]" if reparto else "")
+            + (f" [ruolo {ruolo}]" if ruolo else "")
+        )
+    return _ensure_legacy_operatore(row)
+
+
 def cleanup_orphan_operatori() -> dict[str, int]:
     summary = {
         "orphans": 0,
