@@ -53,3 +53,9 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
     <a class="hrnav-tab active" href="{% url 'anagrafica:index' %}">Anagrafica HR</a>
   {% endfor %}
 </div>
+{% comment %}
+Modulo Anagrafica HR: nasconde la barra controlli (Cerca/Colonne/Reset/contatore)
+sopra le tabelle, mantenendo le icone di ordina/filtro per colonna negli header.
+Marca <body> prima che fm-table-enhanced.js (defer) inizializzi le tabelle.
+{% endcomment %}
+<script>document.body && document.body.setAttribute("data-fm-hide-controls", "1");</script>

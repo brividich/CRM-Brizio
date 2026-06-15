@@ -236,10 +236,11 @@ class Command(BaseCommand):
                             image=saved_name,
                             original_filename=filepath.name,
                         )
-                        self.stdout.write(" ✓")
-                        totale_salvate += 1
                     except Exception as exc:
                         self.stdout.write(f" ERRORE: {exc}")
+                    else:
+                        totale_salvate += 1
+                        self.stdout.write(" OK")
                 else:
                     self.stdout.write(" [dry-run]")
                     totale_salvate += 1

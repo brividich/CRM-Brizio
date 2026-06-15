@@ -24,6 +24,10 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
     # Stampa scheda dipendente completa (anagrafica civile + aziendale + dati bancari)
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
+    # Libretto formativo stampabile (storico corsi + obblighi correnti)
+    path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
+    # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
+    path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     path("dipendenti/<int:legacy_id>/ruoli/assegna", views.dipendente_ruolo_assegna, name="dipendente_ruolo_assegna"),
     path("dipendenti/<int:legacy_id>/ruoli/<int:assegnazione_id>/rimuovi", views.dipendente_ruolo_rimuovi, name="dipendente_ruolo_rimuovi"),
 
@@ -168,8 +172,22 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/edit", views.dipendente_contratto_edit, name="dipendente_contratto_edit"),
     path("dipendenti/<int:legacy_id>/contratti/<int:contratto_id>/delete", views.dipendente_contratto_delete, name="dipendente_contratto_delete"),
 
-    # Scadenzario unificato qualifiche + visite mediche
+    # Scadenzario unificato qualifiche + visite + formazione + contratti
     path("scadenzario/", views.scadenzario, name="scadenzario"),
+
+    # Organigramma visuale (aree → reparti → capi → dipendenti)
+    path("organigramma/", views.organigramma, name="organigramma"),
+
+    # Report conformità "idoneità alla mansione" (semaforo per dominio)
+    path("conformita/", views.conformita_report, name="conformita_report"),
+
+    # Onboarding strutturato (pratica + checklist, speculare a offboarding)
+    path("onboarding/", views.onboarding_list, name="onboarding_list"),
+    path("onboarding/<int:pratica_id>/", views.onboarding_detail, name="onboarding_detail"),
+    path("dipendenti/<int:legacy_id>/onboarding/avvia", views.onboarding_avvia, name="onboarding_avvia"),
+    path("onboarding/<int:pratica_id>/task/<int:task_id>/update", views.onboarding_task_update, name="onboarding_task_update"),
+    path("onboarding/<int:pratica_id>/chiudi", views.onboarding_chiudi, name="onboarding_chiudi"),
+    path("onboarding/<int:pratica_id>/annulla", views.onboarding_annulla, name="onboarding_annulla"),
 
     # ── Formazione HR — Dashboard ──────────────────────────────────────────
     path("formazione/", views.formazione_dashboard, name="formazione_dashboard"),

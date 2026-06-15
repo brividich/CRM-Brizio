@@ -1,0 +1,53 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU2 - Incidente senza DPI: notifica sicurezza"
+  },
+  "source_candidate": {
+    "source_code": "rilevazione_incidenti",
+    "label": "Incidenti / Sicurezza"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rilevazione_incidenti"
+  },
+  "proposed_rules": [
+    {
+      "code": "au2-incidente-senza-dpi-notifica",
+      "name": "AU2 - Incidente senza DPI: notifica sicurezza",
+      "description": "Quando viene registrata una rilevazione in cui i DPI NON erano indossati (utilizzo_dpi=false) invia SOLO una notifica email alle persone scelte (nessun ticket, nessun blocco - da feedback utente). Sostituire SICUREZZA_DA_CONFIGURARE prima di attivare.",
+      "source_code": "rilevazione_incidenti",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "utilizzo_dpi",
+          "operator": "is_false",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica sicurezza evento senza DPI",
+          "to": "SICUREZZA_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[Sicurezza] Evento senza DPI #{id} ({reparto})",
+          "body_text_template": "Gentili,\n\ne' stata registrata una rilevazione in cui i DPI previsti NON risultavano indossati.\n\nDettaglio rilevazione\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData segnalazione: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nAzione richiesta: verificare la dotazione e l'uso dei DPI nel reparto e richiamare le procedure.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentili,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">e' stata registrata una rilevazione in cui i DPI previsti NON risultavano indossati.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipologia</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipologia_scheda}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Nominativo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{nominativo}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Reparto</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{reparto}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 6px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;\">Descrizione dell'avvenimento</p>\n<p style=\"margin:0 0 16px;color:#182232;font-size:14px;line-height:1.6;background:#f6f9fc;border:1px solid #d8e1ec;border-radius:10px;padding:12px 16px;\">{descrizione_avvenimento}</p>\n<p style=\"margin:0 0 12px;color:#475569;font-size:15px;line-height:1.65;\">Azione richiesta: verificare la dotazione e l'uso dei DPI nel reparto e richiamare le procedure.</p>",
+          "email_type": "Automazioni",
+          "section_label": "Sicurezza",
+          "title_template": "Evento senza DPI #{id}"
+        }
+      ]
+    }
+  ]
+}

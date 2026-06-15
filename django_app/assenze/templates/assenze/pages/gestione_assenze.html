@@ -55,6 +55,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       min-height: 42px;
       padding: 0 14px;
       border-radius: 10px;
@@ -124,7 +125,7 @@
       background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
     }
     .abs-panel-title-wrap { display: grid; gap: 7px; }
-    .abs-panel-title { margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -.02em; }
+    .abs-panel-title { display:flex; align-items:center; gap:8px; margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -.02em; }
     .abs-panel-subtitle { margin: 0; font-size: 14px; color: #64748b; line-height: 1.55; }
     .abs-panel-meta {
       display: flex;
@@ -522,32 +523,53 @@
         </div>
       </div>
       <div class="abs-hero-actions">
-        <a href="{% url 'assenze_richiesta' %}" class="abs-hero-action abs-hero-action-primary">+ Nuova richiesta</a>
+        <a href="{% url 'assenze_richiesta' %}" class="abs-hero-action abs-hero-action-primary">
+          <svg aria-hidden="true"><use href="#abs-i-plus-file"></use></svg>
+          Nuova richiesta
+        </a>
         {% if assenze_can_view_calendar %}
-          <a href="{% url 'assenze_calendario' %}" class="abs-hero-action">Calendario</a>
+          <a href="{% url 'assenze_calendario' %}" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>
+            Calendario
+          </a>
         {% endif %}
-        <a href="{% url 'assenze_export_csv' %}" class="abs-hero-action">Esporta CSV</a>
+        <a href="{% url 'assenze_export_csv' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-download"></use></svg>
+          Esporta CSV
+        </a>
       </div>
     </section>
 
     <section class="abs-kpis">
       <article class="abs-kpi teal">
-        <div class="abs-kpi-label">Le mie richieste</div>
+        <div class="abs-kpi-top">
+          <div class="abs-kpi-label">Le mie richieste</div>
+          <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
+        </div>
         <div class="abs-kpi-value" id="kpi-my-total">{{ summary_personali.total }}</div>
         <div class="abs-kpi-note">Storico personale disponibile in questa vista.</div>
       </article>
       <article class="abs-kpi amber">
-        <div class="abs-kpi-label">In attesa</div>
+        <div class="abs-kpi-top">
+          <div class="abs-kpi-label">In attesa</div>
+          <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span>
+        </div>
         <div class="abs-kpi-value" id="kpi-my-waiting">{{ summary_personali.waiting }}</div>
         <div class="abs-kpi-note">{{ summary_personali.editable }} modificabil{{ summary_personali.editable|pluralize:"e,i" }} prima della gestione.</div>
       </article>
       <article class="abs-kpi green">
-        <div class="abs-kpi-label">Approvate</div>
+        <div class="abs-kpi-top">
+          <div class="abs-kpi-label">Approvate</div>
+          <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span>
+        </div>
         <div class="abs-kpi-value" id="kpi-my-approved">{{ summary_personali.approved }}</div>
         <div class="abs-kpi-note">Richieste confermate e gia processate.</div>
       </article>
       <article class="abs-kpi red">
-        <div class="abs-kpi-label">Da approvare</div>
+        <div class="abs-kpi-top">
+          <div class="abs-kpi-label">Da approvare</div>
+          <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
+        </div>
         <div class="abs-kpi-value">{{ summary_da_approvare.total }}</div>
         <div class="abs-kpi-note">{{ summary_personali.rejected }} rifiutat{{ summary_personali.rejected|pluralize:"a,e" }} nel tuo storico.</div>
       </article>
@@ -583,7 +605,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Richieste da approvare</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste da approvare</h2>
           <p class="abs-panel-subtitle">Coda operativa delle richieste che attendono ancora una decisione di reparto o amministrazione.</p>
         </div>
         <div class="abs-panel-meta">
@@ -673,7 +695,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Le tue richieste di assenza</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Le tue richieste di assenza</h2>
           <p class="abs-panel-subtitle">Filtra rapidamente per stato e testo, poi modifica o elimina le richieste ancora in attesa.</p>
         </div>
         <div class="abs-panel-meta">
@@ -692,7 +714,7 @@
             </div>
             <div class="abs-filter-grid">
               <label class="abs-search" for="filterSearch">
-                <span class="abs-search-icon">&#128269;</span>
+                <span class="abs-search-icon"><svg aria-hidden="true"><use href="#abs-i-search"></use></svg></span>
                 <input id="filterSearch" type="text" placeholder="Cerca tipo, motivazione, note o certificato">
               </label>
               <div class="abs-filter-pills" role="tablist" aria-label="Filtra richieste per stato">

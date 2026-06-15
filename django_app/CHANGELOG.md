@@ -2,6 +2,85 @@
 
 ## [Unreleased]
 
+### Assets - stile cockpit esteso al modulo
+
+- **[ux] `assets/templates/assets/base_shell.html`, `assets/templates/assets/pages/asset_dashboard.html`, `asset_list.html`, `maintenance_hub.html`, `work_machine_list.html`, `work_machine_dashboard.html`, `device_list.html`**: esteso alle pagine principali del modulo Assets lo stile cockpit gia applicato alla scheda singolo asset. La shell comune aggiorna sidebar, ricerca, header pagina, pulsanti, campi e tabelle; dashboard, inventario, hub manutenzione, elenco macchine, dashboard officina e dispositivi IT ricevono KPI/card con accenti laterali, ombre leggere, radius piu compatti e header meno pesanti. Solo template/CSS, nessuna modifica a view, dati, ACL, permessi, URL o routing.
+
+### Assets - scheda asset piu compatta
+
+- **[ux/test] `assets/templates/assets/pages/asset_detail.html`, `assets/tests.py`**: `/assets/view/<id>/` sostituisce il titolo shell "Dettaglio asset" con il link "Torna indietro" (fallback alla lista asset, `history.back()` per referrer interno). La scheda e' centrata con larghezza massima e usa una testata "cockpit" piu accattivante: accento laterale, tile tipo asset, nome e codice separati, chip informativi e pannello Azioni rapide a destra. La status band Copertura/Scadenze e le card hanno accenti visivi piu leggibili; le card restano organizzate in due colonne responsive per evitare l'effetto blocchi larghi su monitor grandi. Aggiornato il test smoke del dettaglio asset per verificare il nuovo link e l'assenza del vecchio titolo. Solo template/CSS/JS e test, nessuna modifica a view, dati, ACL, permessi o routing.
+
+- **[ux] `assets/templates/assets/pages/asset_detail.html`**: `/assets/view/<id>/` non mostra piu il sottotitolo/breadcrumb superiore che duplicava nome e tag della macchina sopra il titolo principale. La status band Copertura/Scadenze e' piu bassa, la toolbar del Registro manutenzione usa pulsanti compatti in griglia a massimo due righe e le card del dettaglio hanno spaziature/titoli leggermente piu densi. Solo template/CSS, nessuna modifica a view, dati, ACL, permessi o routing.
+
+### Anagrafica HR - fix 500 scheda dipendente (cronologia assenze)
+
+- **[fix] `anagrafica/views.py`**: `/anagrafica/dipendenti/<id>/` andava in **500** (`KeyError` sul numero mese) aprendo una scheda con assenze. Causa: collisione di nome a livello di modulo tra la tupla `_MESI_IT` (nomi mese indicizzati 1-12, usata da `_assenze_cronologia`) e un secondo globale `_MESI_IT` dict (nome→numero, import cedolini) definito più sotto che la sovrascriveva. La tupla è stata rinominata `_MESI_IT_NOMI` (con nota esplicativa) ed è aggiornato il suo unico uso; il dict cedolini resta invariato.
+
+### Anagrafica HR - scheda dipendente: header su una riga e tab Timbri inline
+
+- **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: nella hero della scheda dipendente i pulsanti di azione ora stanno tutti sulla stessa riga (`.dp-hero-actions` allineata `center`; la form offboarding `select/data/Avvia uscita/Restituzioni` resta inline come blocco unico, con wrap ripristinato solo sotto 600px). Il **Timbri** è stato spostato dalla hero alla tab bar interna della scheda (`#dp-tabbar`), accanto alle altre voci del dipendente.
+- **[feat] tab Timbri incorporata nella scheda**: il tab Timbri ora **mostra i record timbri/firme/sigle direttamente nella scheda** (record attivi con sub-tab + storico, immagini, copia, link al report) invece di rimandare alla pagina del modulo. Il contenuto è caricato in **lazy via HTMX** al primo click sul tab (la query timbri parte solo se il tab viene aperto); resta disponibile il link «Apri scheda completa» verso `timbri:operatore_detail_by_legacy`. La logica JS delle tab ignora le voci prive di `data-tab-target`; aggiunto `text-decoration:none` a `.dp-tab`.
+- **[feat] `timbri/views.py`, `timbri/urls.py`**: nuovo endpoint `timbri:operatore_embed` (`/timbri/anagrafica/<legacy_id>/embed/`) che rende un frammento HTML dei record timbri del dipendente, riusando gli helper esistenti (`_ensure_legacy_operatore`, `_categorize_records`, `_attach_image_maps`) e l'ACL `_can_view_timbri` (autoritativa lato server: nessun dato senza permesso).
+- **[ux] `timbri/templates/timbri/partials/operatore_embed.html`** (nuovo): frammento incorporabile con barra azioni/KPI, sub-tab timbri/firme/sigle e storico, riusando il componente `components/detail_record.html`; CSS e JS scoped al frammento.
+- **[test] `timbri/tests.py`**: aggiunte regressioni per il tab Timbri nella scheda (presenza endpoint `operatore_embed` + `data-tab-target="timbri"`), per il render dei record nel frammento e per il caso negato (nessun dato senza permesso).
+
+### Anagrafica HR - rimossa la barra controlli sopra le tabelle
+
+- **[ux] `core/static/core/js/fm-table-enhanced.js`**: nuovo opt-out `data-fm-hide-controls="1"` (sul `<table>` o su un antenato, es. `<body>`) che nasconde l'intera barra controlli sopra la tabella (ricerca globale, menu Colonne, Reset, contatore) mantenendo attive le icone di ordina/filtro per colonna negli header.
+- **[ux] `anagrafica/templates/anagrafica/components/subnav.html`**: la subnav del modulo marca `<body data-fm-hide-controls="1">`, così tutte le tabelle dell'area Anagrafica HR (es. `/anagrafica/dipendenti/`) non mostrano più la barra Cerca/Colonne/Reset sopra l'intestazione. Nessuna modifica a view, dati, ACL, permessi o routing.
+
+### Notizie - impostazioni a card e collegamenti rapidi
+
+- **[ux] `notizie/templates/notizie/pages/gestione_admin.html`**: `/notizie/impostazioni/` ora usa una workspace full page coerente con lista e dashboard: hero con KPI, tab compatte, riepilogo a card, permessi/log rifiniti e tab Record trasformata da tabella scrollabile a card responsive con stato, metadati, metriche letture/conformi e azioni.
+- **[ux] `notizie/templates/notizie/pages/lista.html`, `notizie/templates/notizie/pages/dashboard.html`**: aggiunto il collegamento a **Impostazioni** dalla lista Notizie per gli utenti abilitati e un accesso stabile nel rail laterale della dashboard, oltre al link gia presente nella hero.
+- **[ux] `notizie/views.py`**: introdotto `_can_manage_notizie_settings`, riusato dalla dashboard ed esposto alla lista come `can_gestione_admin`; aggiunto `tasso_conformita_int` come derivato visuale per la barra conformita.
+- **[test] `notizie/tests.py`**: aggiunte regressioni per link Impostazioni da lista/dashboard e render della pagina impostazioni a card senza la vecchia tabella `tbl`.
+
+### Notizie - dashboard gestione full page senza tabella scrollabile
+
+- **[ux] `notizie/templates/notizie/pages/dashboard.html`**: `/notizie/dashboard/` ora usa una workspace full page coerente con la lista `/notizie/`: hero con KPI, tab stato, card gestionali per notizia e rail laterale per filtri/riepilogo/permessi. Rimossa la tabella larga, quindi il componente globale `fm-table-enhanced` non viene piu agganciato e non compare lo scroll orizzontale.
+- **[ux] `notizie/views.py`**: `_dashboard_rows` aggiunge `completion_rate_int`, derivato solo dalla copertura esistente, per pilotare la barra visuale senza cambiare dati o query.
+- **[test] `notizie/tests.py`**: aggiunta regressione sul render della dashboard a card e assenza della vecchia classe `news-table`.
+
+### Anagrafica HR - scheda dipendente, tab Assenze piu leggibile
+
+- **[ux] `anagrafica/templates/anagrafica/pages/dipendente_detail.html`**: la tab Assenze passa da tabella piatta + box riepilogo a una UI coerente col portale (classi `dp-abs-*`, niente stili inline, dark mode). Riepilogo anno come card con icona/accento colore per tipo (ferie/malattia/permesso/congedo/altro) e totale giorni approvati in testata; storico ultimi 2 anni reso come **cronologia a blocchi compatti raggruppata per Anno → Mese** (intestazioni anno/mese a tutta larghezza, item in **griglia responsive** `dp-abs-grid` per evitare righe quasi vuote): blocco con barra colorata + icona per tipo, header tipo + stato (`dp-pill`) e riga meta periodo `inizio → fine` · durata (giorni); hover elevato, stati vuoti come banner.
+- **[ux] `anagrafica/views.py`**: in `dipendente_detail` ogni riga assenza espone `giorni` (durata) + `icona`/`accent` (nuovo helper `_assenza_tipo_meta`); il riepilogo diventa lista ordinata per giorni con `assenze_tot_anno` e la cronologia annidata Anno→Mese e costruita da `_assenze_cronologia` (+ costante `_MESI_IT_NOMI`), esposta come `assenze_cronologia`. Solo campi derivati di sola lettura, nessuna modifica a query sorgente, ACL, permessi o routing.
+
+### Timbri - UI piu curata e coerente
+
+- **[ux] `timbri/templates/timbri/pages/index.html`, `timbri/templates/timbri/pages/operatore_detail.html`, `timbri/templates/timbri/pages/record_form.html`**: il modulo Timbri passa a una resa piu vicina agli altri moduli: elenco full-width con hero operativa e KPI/card rifiniti, scheda dipendente con hero visuale e meta/KPI piu ordinati, form record con header piu curato e anteprime immagini piu pulite. Solo template/CSS, nessuna modifica a view, dati, ACL, permessi o routing.
+
+### Assenze - richiesta assenza cockpit dinamico
+
+- **[ux] `assenze/templates/assenze/pages/richiesta_assenze.html`**: la pagina richiesta passa a una UI piu dinamica: hero dedicata, stepper di compilazione, card cliccabili per tipo assenza, select fallback, misuratore live della durata, riepilogo sticky con periodo/percorso approvativo e suggerimenti dinamici legati a ferie, permesso, malattia, flessibilita e certifica presenza. Solo template/CSS/JS client-side, nessuna modifica a view, dati, ACL, permessi o routing.
+
+### Notizie - lista full page e UI piu curata
+
+- **[ux] `notizie/templates/notizie/pages/lista.html`**: `/notizie/` passa da wrapper centrale stretto a workspace full page con hero, KPI di lettura, filtri a tab, card comunicazione a tutta larghezza e rail laterale con riepilogo/stati rapidi.
+- **[ux] `notizie/views.py`**: la lista espone conteggi derivati dalle notizie gia visibili all'utente (`news_stats`) per alimentare KPI e riepiloghi, senza cambiare ACL, dati o routing.
+- **[test] `notizie/tests.py`**: aggiunta regressione sul render della nuova shell full page e completato l'onboarding degli utenti test Notizie per non fermarsi al middleware globale prima della view.
+
+### Procedure Refresh - lista personale full page
+
+- **[ux] `procedure_refresh/templates/procedure_refresh/pages/my_assignments.html`**: `/procedure-refresh/` passa da tabella centrale a workspace full page con hero operativa, KPI personali, filtri a tab, card assegnazione a tutta larghezza, empty state e rail laterale con stato personale/vista rapida.
+- **[ux] `procedure_refresh/views.py`**: la lista personale espone `pr_stats` calcolato sulle sole assegnazioni dell'utente corrente per alimentare KPI e riepiloghi, senza cambiare ACL, dati o routing.
+- **[test] `procedure_refresh/tests.py`**: aggiunta regressione sul render della nuova shell full page della lista personale.
+
+### Assenze - linguaggio visuale esteso alle pagine operative
+
+- **[ux] `assenze/templates/assenze/base_shell.html`, `assenze/templates/assenze/pages/richiesta_assenze.html`, `assenze/templates/assenze/pages/gestione_assenze.html`, `assenze/templates/assenze/pages/calendario.html`, `assenze/templates/assenze/pages/certificazione_presenza.html`, `assenze/templates/assenze/pages/car_dashboard.html`, `assenze/templates/assenze/pages/gestione_admin.html`, `assenze/templates/assenze/pages/menu.html`**: aggiunto sprite SVG condiviso nella shell Assenze e portato il nuovo linguaggio visuale del menu sulle altre viste operative: icone nei pulsanti hero, KPI con pittogrammi, tab admin, titoli pannello, banner presenza, filtro ricerca e blocchi diagnostici. Solo template/CSS, nessuna modifica a view, dati, ACL, permessi o routing.
+
+### Assenze - menu modulo piu compatto e visuale
+
+- **[ux] `assenze/templates/assenze/base_shell.html`, `assenze/templates/assenze/pages/menu.html`**: il menu `/assenze/` usa una classe shell dedicata per evitare lo stretching verticale della griglia e presenta hero a cockpit, micro-statistiche, card operative con accenti colore e icone SVG inline, lista ultime richieste con icone di stato, spaziature piu compatte e testi piu asciutti. Solo template/CSS, nessuna modifica a view, dati, ACL o routing.
+
+### Dashboard - home portale mostra solo moduli visibili
+
+- **[fix/ux] `dashboard/views_home_portale.py`**: `_module_groups()` esclude i moduli non accessibili gia' lato server; eventuali sessioni precedenti con `hp_show_locked=True` non riattivano piu' la visualizzazione dei moduli bloccati.
+- **[ux] `dashboard/templates/dashboard/pages/home_portale.html`**: rimosso il flag "Mostra moduli non accessibili"; la griglia e il footer parlano solo dei moduli disponibili.
+- **[test] `dashboard/tests.py`**: aggiunte regressioni su filtro moduli visibili e sessione stale.
+
 ### Automazioni — debounce per gruppo (cooldown_group) per le notifiche anomalie
 
 - **[feat] `automazioni/models.py`, migration `0018_automationcooldowngroup.py`**: nuovo operatore condizione `cooldown_group` (lettura pura) + modello `AutomationCooldownGroup` (chiave `(group_key, group_value)` indipendente dalla regola, namespace condivisibile fra regole).
@@ -21,6 +100,10 @@
 - **[package] `automazioni/packages/pa_rentri_modifica_elemento_promemoria.automation_package.json`** — nuovo package importabile da `rentri_20260604152402.zip` per il flow Power Automate `RENTRI - MODIFICA ELEMENTO`: notifica nuovo carico, promemoria carico non marcato RENTRI dopo 5 giorni e promemoria FIR dopo 30 giorni. Riferisce i package gia' presenti `au31_scarico_senza_fir_notifica` e `docs/automation_packages/rentri_movimenti_da_trasmettere` per evitare sovrapposizioni operative.
 
 ### Fix
+
+- **[fix] `timbri/views.py`**: la scheda timbri da anagrafica (`/timbri/anagrafica/<legacy_id>/`) non accede piu' a `civile.foto.url`, non supportato dallo storage privato Anagrafica. Quando il dipendente ha una foto, il template riceve la route protetta `anagrafica:foto_dipendente`, evitando il 500 `NotImplementedError`.
+
+- **[fix] `timbri/management/commands/import_timbri_da_share.py`**: il comando `import_timbri_da_share --apply` usa ora un output di successo ASCII (`OK`) invece del simbolo Unicode di spunta. Su console Windows prod con encoding `charmap`/CP1252 quel carattere generava `UnicodeEncodeError` dopo il salvataggio, facendo apparire le immagini come errore anche se file e record erano gia' stati creati.
 
 - **[fix] `assenze/views.py`** — URL notifica accettazione/rifiuto assenza corretta da `/assenze/gestione/` (inesistente) a `/assenze/richiesta_assenze` (riepilogo richieste del dipendente).
 

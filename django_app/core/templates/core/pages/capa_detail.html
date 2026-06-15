@@ -1,0 +1,115 @@
+{% extends "core/base.html" %}
+
+{# capa_detail.html — Dettaglio + workflow di un'azione CAPA.
+   Context (vedi core/views_capa.py::capa_detail): a, can_manage, can_close, giorni. #}
+
+{% block title %}CAPA #{{ a.pk }} · {{ block.super }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cd-wrap { max-width: 880px; margin: 0 auto; padding: 4px 0 32px; }
+  .cd-back { color:#64748b; text-decoration:none; font-size:.9rem; }
+  .cd-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; margin-top:14px; }
+  .cd-title { font-size:1.4rem; font-weight:800; color:#0f172a; margin:6px 0 10px; }
+  .cd-meta { display:flex; gap:18px; flex-wrap:wrap; color:#475569; font-size:.9rem; margin-bottom:12px; }
+  .cd-meta b { color:#0f172a; }
+  .cd-badge { display:inline-block; font-size:.74rem; font-weight:700; border-radius:999px; padding:3px 10px; }
+  .st-APERTA { background:#eef2ff; color:#3730a3; }
+  .st-IN_CORSO { background:#fef9c3; color:#854d0e; }
+  .st-CHIUSA { background:#e0f2fe; color:#075985; }
+  .st-VERIFICATA { background:#dcfce7; color:#166534; }
+  .st-ANNULLATA { background:#f1f5f9; color:#64748b; }
+  .cd-desc { white-space:pre-wrap; color:#334155; line-height:1.5; }
+  .cd-section-h { font-size:.78rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b; margin:18px 0 6px; font-weight:700; }
+  .cd-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+  .cd-btn { border:none; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:.9rem; text-decoration:none; display:inline-block; }
+  .cd-btn.primary { background:#1d4ed8; color:#fff; }
+  .cd-btn.success { background:#16a34a; color:#fff; }
+  .cd-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; }
+  .cd-btn.danger { background:#fff; color:#b91c1c; border:1px solid #fecaca; }
+  .cd-form textarea { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:.92rem; box-sizing:border-box; }
+  .cd-evidence { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; white-space:pre-wrap; color:#334155; }
+  .cd-msg { background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;margin-bottom:14px; }
+  .cd-scaduta { color:#b91c1c; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cd-wrap">
+  {% if messages %}{% for msg in messages %}<div class="cd-msg">{{ msg }}</div>{% endfor %}{% endif %}
+
+  <a class="cd-back" href="{% url 'capa_list' %}">← Tutte le azioni</a>
+
+  <div class="cd-card">
+    <span class="cd-badge st-{{ a.stato }}">{{ a.get_stato_display }}</span>
+    <span class="cd-badge" style="background:#f1f5f9;color:#475569;">{{ a.get_tipo_display }}</span>
+    <h1 class="cd-title">{{ a.titolo }}</h1>
+
+    <div class="cd-meta">
+      <span>Origine: <b>{{ a.origine_label }}</b>{% if a.source_label %} · {{ a.source_label }}{% endif %}
+        {% if a.source_url %}<a href="{{ a.source_url }}" style="margin-left:6px;">apri ↗</a>{% endif %}</span>
+      {% if a.responsabile %}<span>Responsabile: <b>{{ a.responsabile.get_full_name|default:a.responsabile.username }}</b></span>{% endif %}
+      {% if a.reparto %}<span>Reparto: <b>{{ a.reparto }}</b></span>{% endif %}
+      {% if a.data_scadenza %}<span>Scadenza: <b>{{ a.data_scadenza|date:"d/m/Y" }}</b>
+        {% if not a.is_conclusa and giorni is not None and giorni < 0 %}<span class="cd-scaduta">(scaduta)</span>{% endif %}</span>{% endif %}
+    </div>
+
+    {% if a.descrizione %}
+      <div class="cd-section-h">Descrizione</div>
+      <div class="cd-desc">{{ a.descrizione }}</div>
+    {% endif %}
+
+    {# ---- Azioni di stato ---- #}
+    <div class="cd-actions">
+      {% if can_manage %}<a class="cd-btn ghost" href="{% url 'capa_edit' a.pk %}">Modifica</a>{% endif %}
+      {% if a.stato == "APERTA" %}
+        <form method="post" action="{% url 'capa_take' a.pk %}">{% csrf_token %}
+          <button type="submit" class="cd-btn ghost">Prendi in carico</button>
+        </form>
+      {% endif %}
+      {% if can_manage and not a.is_conclusa %}
+        <form method="post" action="{% url 'capa_cancel' a.pk %}" onsubmit="return confirm('Annullare questa azione?');">{% csrf_token %}
+          <button type="submit" class="cd-btn danger">Annulla azione</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {# ---- Chiusura (esecuzione) ---- #}
+    {% if can_close %}
+      <div class="cd-section-h">Chiudi l'azione (registra l'evidenza)</div>
+      <form method="post" action="{% url 'capa_close' a.pk %}" class="cd-form">{% csrf_token %}
+        <textarea name="evidenza_chiusura" rows="3" placeholder="Descrivi cosa è stato fatto per risolvere (obbligatorio)…" required></textarea>
+        <div class="cd-actions"><button type="submit" class="cd-btn primary">Chiudi azione</button></div>
+      </form>
+    {% endif %}
+
+    {% if a.evidenza_chiusura %}
+      <div class="cd-section-h">Evidenza di chiusura</div>
+      <div class="cd-evidence">{{ a.evidenza_chiusura }}</div>
+      <p style="color:#64748b;font-size:.85rem;margin:6px 0 0;">
+        Chiusa da {% if a.chiusa_da %}<b>{{ a.chiusa_da.get_full_name|default:a.chiusa_da.username }}</b>{% else %}—{% endif %}
+        {% if a.data_chiusura %}il {{ a.data_chiusura|date:"d/m/Y H:i" }}{% endif %}
+      </p>
+    {% endif %}
+
+    {# ---- Verifica di efficacia (passo separato, persona diversa) ---- #}
+    {% if a.stato == "CHIUSA" and can_manage %}
+      <div class="cd-section-h">Verifica di efficacia</div>
+      <form method="post" action="{% url 'capa_verify' a.pk %}" class="cd-form">{% csrf_token %}
+        <textarea name="note_verifica" rows="2" placeholder="Note di verifica (facoltative)…"></textarea>
+        <div class="cd-actions"><button type="submit" class="cd-btn success">Verifica e chiudi definitivamente</button></div>
+        <p style="color:#94a3b8;font-size:.82rem;margin:6px 0 0;">La verifica deve essere fatta da una persona diversa da chi ha chiuso l'azione.</p>
+      </form>
+    {% endif %}
+
+    {% if a.stato == "VERIFICATA" %}
+      <div class="cd-section-h">Verifica</div>
+      <p style="color:#166534;">
+        ✔ Verificata da {% if a.verificata_da %}<b>{{ a.verificata_da.get_full_name|default:a.verificata_da.username }}</b>{% endif %}
+        {% if a.data_verifica %}il {{ a.data_verifica|date:"d/m/Y H:i" }}{% endif %}
+      </p>
+      {% if a.note_verifica %}<div class="cd-evidence">{{ a.note_verifica }}</div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

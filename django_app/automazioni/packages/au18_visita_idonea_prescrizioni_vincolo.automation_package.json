@@ -1,0 +1,53 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU18 - Visita idonea CON prescrizioni/limitazioni: vincolo tracciato"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_visite_mediche",
+    "label": "Anagrafica - Visite mediche"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_visite_mediche"
+  },
+  "proposed_rules": [
+    {
+      "code": "au18-visita-idonea-prescrizioni-vincolo",
+      "name": "AU18 - Visita idonea CON prescrizioni/limitazioni: vincolo tracciato",
+      "description": "Quando viene registrata una visita medica con esito di idoneita' CON prescrizioni o limitazioni (IDONEO_PRESCR, IDONEO_LIM, IDONEO_LIM_PRESCR) notifica il caporeparto del vincolo operativo da rispettare, riportando le prescrizioni. ATTENZIONE PRIVACY: esito e prescrizioni sono dati personali sensibili (salute) - il destinatario va limitato al SOLO caporeparto/HR con necessita' operativa di gestire l'idoneita' alla mansione; NON inoltrare ne' allargare la distribuzione. NOTE/LIMITI: (1) il backlog prevedeva anche un insert_record di notifica persistente nel centro notifiche: NON implementabile perche' il payload non espone il legacy_user_id del caporeparto/HR (core_notifica richiede legacy_user_id); il vincolo e' tracciato via email. (2) Sostituire CAPOREPARTO_DA_CONFIGURARE prima di attivare.",
+      "source_code": "anagrafica_visite_mediche",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "esito",
+          "operator": "in_csv",
+          "value": "IDONEO_PRESCR,IDONEO_LIM,IDONEO_LIM_PRESCR",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica caporeparto vincolo idoneita' con prescrizioni",
+          "to": "CAPOREPARTO_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[Sorveglianza sanitaria] Vincolo idoneita' - dipendente {legacy_anagrafica_id}",
+          "body_text_template": "Riservato e confidenziale.\n\nE' stata registrata una visita medica con esito di idoneita' soggetta a prescrizioni/limitazioni. Il vincolo deve essere rispettato nell'assegnazione delle mansioni.\n\nDettaglio\nVisita (ID): {id}\nDipendente (ID): {legacy_anagrafica_id}\nEsito: {esito}\nData scadenza idoneita': {data_scadenza}\n\nPrescrizioni / limitazioni:\n{prescrizioni}\n\nLa presente contiene dati personali relativi alla salute: trattare con riservatezza e non inoltrare.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 8px;color:#b45309;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;\">Riservato e confidenziale</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">E' stata registrata una visita medica con esito di idoneita' soggetta a prescrizioni/limitazioni. Il vincolo deve essere rispettato nell'assegnazione delle mansioni.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Visita (ID)</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dipendente (ID)</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{legacy_anagrafica_id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Esito</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{esito}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Scadenza idoneita'</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_scadenza}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 6px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;\">Prescrizioni / limitazioni</p>\n<p style=\"margin:0 0 16px;color:#182232;font-size:14px;line-height:1.6;background:#f6f9fc;border:1px solid #d8e1ec;border-radius:10px;padding:12px 16px;\">{prescrizioni}</p>\n<p style=\"margin:0 0 12px;color:#475569;font-size:13px;line-height:1.6;font-style:italic;\">La presente contiene dati personali relativi alla salute: trattare con riservatezza e non inoltrare.</p>",
+          "email_type": "Automazioni",
+          "section_label": "Sorveglianza sanitaria",
+          "title_template": "Vincolo idoneita' - dipendente {legacy_anagrafica_id}"
+        }
+      ]
+    }
+  ]
+}

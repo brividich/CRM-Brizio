@@ -1,0 +1,55 @@
+{% comment %}
+Pannello semaforo conformità "idoneità alla mansione" (HTMX lazy-load).
+Context: stato (complessivo + 4 domini), can_view_visite, legacy_id.
+Privacy: per le visite si mostra solo l'esito (valido/scaduto); i nomi
+tipologia sono nel dettaglio solo se can_view_visite. Mai esiti/prescrizioni.
+{% endcomment %}
+<div class="cf-panel" id="conformita-panel">
+<style>
+.cf-panel { font-size:13px; }
+.cf-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+.cf-led { width:14px; height:14px; border-radius:50%; flex:none; }
+.cf-led-ok { background:#22c55e; }
+.cf-led-warn { background:#f59e0b; }
+.cf-led-ko { background:#ef4444; }
+.cf-led-na { background:#cbd5e1; }
+.cf-head-label { font-weight:800; font-size:15px; }
+.cf-domini { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.cf-dom { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; background:#fff; }
+.cf-dom-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.cf-badge { padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+.cf-badge-ok { background:#dcfce7; color:#166534; }
+.cf-badge-warn { background:#fef9c3; color:#854d0e; }
+.cf-badge-ko { background:#fee2e2; color:#991b1b; }
+.cf-badge-na { background:#f1f5f9; color:#64748b; }
+.cf-dom-title { font-weight:700; color:#334155; }
+.cf-dettagli { margin:6px 0 0; padding-left:16px; color:#64748b; font-size:12px; }
+.cf-dettagli li { margin:2px 0; }
+body.theme-dark .cf-dom { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .cf-dom-title { color:var(--text); }
+body.theme-dark .cf-dettagli { color:var(--text-light); }
+body.theme-dark .cf-badge-ok { background:rgba(22,101,52,.25); color:#86efac; }
+body.theme-dark .cf-badge-warn { background:rgba(133,77,14,.25); color:#fde68a; }
+body.theme-dark .cf-badge-ko { background:rgba(153,27,27,.3); color:#fca5a5; }
+body.theme-dark .cf-badge-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
+</style>
+
+{% with c=stato.complessivo %}
+<div class="cf-head">
+  <span class="cf-led {% if c == 'ok' %}cf-led-ok{% elif c == 'warn' %}cf-led-warn{% elif c == 'ko' %}cf-led-ko{% else %}cf-led-na{% endif %}"></span>
+  <span class="cf-head-label">
+    {% if c == 'ok' %}In regola con la mansione
+    {% elif c == 'warn' %}Adempimenti in scadenza
+    {% elif c == 'ko' %}Non conforme — verificare
+    {% else %}Nessun requisito applicabile{% endif %}
+  </span>
+</div>
+{% endwith %}
+
+<div class="cf-domini">
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.formazione titolo="Formazione" icon="📚" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.visite titolo="Visite mediche" icon="🏥" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.qualifiche titolo="Qualifiche" icon="🎓" %}
+  {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.dpi titolo="DPI" icon="🦺" %}
+</div>
+</div>

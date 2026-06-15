@@ -8,46 +8,18 @@ e produce un digest email per i responsabili + notifica al dipendente.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import SiteConfig
 from core.notifiche import invia_notifica
 
 from anagrafica.models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
+from anagrafica.services.reminders import get_reminder_recipients
 from anagrafica.services.visite import STATO_IN_SCADENZA, STATO_SCADUTA, stato_visite
 
 
-def _split_emails(raw: str) -> list[str]:
-    cleaned = (raw or "").replace("\r", "\n").replace(",", "\n").replace(";", "\n")
-    return [email.strip() for email in cleaned.split("\n") if email.strip()]
-
-
 def _get_recipients(override: list[str] | None) -> list[str]:
-    if override:
-        return [email.strip() for email in override if email.strip()]
-
-    recipients: list[str] = []
-    recipients.extend(_split_emails(SiteConfig.get("visite_reminder_emails", "")))
-
-    if not recipients:
-        admins = getattr(settings, "ADMINS", ()) or ()
-        recipients.extend(str(email).strip() for _name, email in admins if str(email).strip())
-
-    if not recipients:
-        User = get_user_model()
-        recipients.extend(
-            User.objects.filter(is_active=True, is_superuser=True)
-            .exclude(email="")
-            .values_list("email", flat=True)
-            .distinct()
-        )
-    return sorted(set(recipients))
+    return get_reminder_recipients("visite_reminder_emails", override)
 
 
 def _dipendenti_attivi_legacy_ids() -> list[int]:

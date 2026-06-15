@@ -1,0 +1,59 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU19 - Corso con scadenza: pre-pianificazione rinnovo"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_formazione_record",
+    "label": "Anagrafica - Record completamento formazione"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_formazione_record"
+  },
+  "proposed_rules": [
+    {
+      "code": "au19-corso-scadenza-prepianificazione-rinnovo",
+      "name": "AU19 - Corso con scadenza: pre-pianificazione rinnovo",
+      "description": "Alla registrazione di un completamento corso con scadenza entro 60 giorni notifica HR per pianificare il rinnovo dell'abilitazione. NOTE/LIMITI: (1) il backlog prevedeva un delay_schedule su 'data_scadenza - 60gg'; il motore NON supporta un offset negativo sul delay 'until' (solo until=data assoluta oppure relative da adesso). Si adotta quindi lo stesso pattern di AU12 (condizione days_from_now_lte 60 alla creazione del record). (2) CONSEGUENZA: questa regola intercetta solo i record creati gia' con scadenza entro 60gg; per le scadenze 'lontane' che maturano nel tempo serve il job schedulato del digest formazione (AU47) o un job dedicato che rivaluti periodicamente i record. (3) Sostituire HR_DA_CONFIGURARE prima di attivare.",
+      "source_code": "anagrafica_formazione_record",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "data_scadenza",
+          "operator": "is_not_empty",
+          "value": "",
+          "value_type": "date"
+        },
+        {
+          "field": "data_scadenza",
+          "operator": "days_from_now_lte",
+          "value": "60",
+          "value_type": "date"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_email",
+          "description": "Notifica HR pre-pianificazione rinnovo corso",
+          "to": "HR_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[Formazione] Rinnovo da pianificare - {course_title_snapshot}",
+          "body_text_template": "Buongiorno,\n\nun'abilitazione formativa risulta in prossima scadenza ed e' opportuno pianificarne il rinnovo.\n\nDettaglio\nCorso: {course_title_snapshot}\nCodice corso: {course_code_snapshot}\nDipendente (ID): {legacy_anagrafica_id}\nData scadenza: {data_scadenza}\n\nAzione richiesta: pianificare per tempo la nuova sessione/iscrizione di rinnovo per il dipendente.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Buongiorno,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">un'abilitazione formativa risulta in prossima scadenza ed e' opportuno pianificarne il rinnovo.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Corso</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{course_title_snapshot}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Codice corso</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{course_code_snapshot}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Dipendente (ID)</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{legacy_anagrafica_id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Data scadenza</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_scadenza}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 12px;color:#475569;font-size:15px;line-height:1.65;\">Azione richiesta: pianificare per tempo la nuova sessione/iscrizione di rinnovo per il dipendente.</p>",
+          "email_type": "Automazioni",
+          "section_label": "Formazione",
+          "title_template": "Rinnovo da pianificare - {course_title_snapshot}"
+        }
+      ]
+    }
+  ]
+}

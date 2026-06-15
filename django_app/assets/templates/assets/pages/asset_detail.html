@@ -5,12 +5,54 @@
 
 {% block assets_shell_head %}
 <style>
-.af-page { display: grid; gap: 12px; }
-.af-breadcrumb { color: #64748b; font-size: var(--fs-base); }
-.af-breadcrumb a { color: #64748b; text-decoration: none; }
-.af-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.af-title { margin: 0; font-size: var(--fs-display-2xl); line-height: 1.05; letter-spacing: -.02em; color: #0f172a; }
-.af-sub { margin-top: 6px; display: flex; align-items: center; gap: 8px; color: #64748b; font-size: var(--fs-md); flex-wrap: wrap; }
+.as-page-head h1 .af-shell-back {
+  display:inline-flex; align-items:center; gap:7px; width:max-content;
+  border:1px solid #dbe3ef; border-radius:10px; background:#fff; color:#1d4ed8;
+  padding:7px 10px; font-size:var(--fs-sm); font-weight:700; line-height:1.2;
+  text-decoration:none; box-shadow:0 8px 18px rgba(15,23,42,.04);
+}
+.as-page-head h1 .af-shell-back:hover { background:#eff6ff; border-color:#bfdbfe; }
+.af-page { display: grid; gap: 12px; width: 100%; max-width: 1480px; margin: 0 auto; }
+.af-header {
+  position:relative; overflow:hidden;
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); align-items:stretch; gap:0;
+  border:1px solid #d9e2ef; border-radius:10px;
+  background:linear-gradient(135deg,#ffffff 0%,#f8fafc 58%,#ecfdf5 100%);
+  box-shadow:0 16px 34px rgba(15,23,42,.06);
+}
+.af-header:before {
+  content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
+  background:linear-gradient(180deg,#2563eb 0%,#14b8a6 55%,#f59e0b 100%);
+}
+.af-hero-main { padding:16px 18px 16px 24px; display:grid; gap:10px; min-width:0; }
+.af-title-row { display:flex; gap:12px; align-items:flex-start; min-width:0; }
+.af-asset-mark {
+  width:48px; height:48px; border-radius:10px; flex:0 0 auto;
+  display:grid; place-items:center;
+  background:#0f172a; color:#fff; font-size:var(--fs-title-lg); font-weight:800;
+  box-shadow:0 12px 24px rgba(15,23,42,.18);
+}
+.af-title-copy { display:grid; gap:4px; min-width:0; }
+.af-hero-kicker { color:#64748b; font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+.af-title { margin: 0; font-size: var(--fs-display-lg); line-height: 1.12; letter-spacing: 0; color: #0f172a; }
+.af-title-code-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.af-title-code {
+  display:inline-flex; align-items:center; border:1px solid #bfdbfe; background:#eff6ff;
+  color:#1d4ed8; border-radius:999px; padding:3px 9px; font-size:var(--fs-sm); font-weight:800;
+}
+.af-sub { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: var(--fs-md); flex-wrap: wrap; }
+.af-hero-tags { display:flex; gap:8px; flex-wrap:wrap; }
+.af-hero-tag {
+  display:inline-flex; align-items:center; gap:6px; min-height:30px;
+  border:1px solid #e2e8f0; border-radius:8px; background:rgba(255,255,255,.72);
+  padding:5px 9px; color:#334155; font-size:var(--fs-sm); font-weight:700;
+}
+.af-hero-tag span { color:#64748b; font-weight:700; }
+.af-action-panel {
+  border-left:1px solid #dbe3ef; background:rgba(255,255,255,.76);
+  padding:14px; display:grid; align-content:center; gap:9px;
+}
+.af-action-title { color:#64748b; font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
 .af-pill {
   border-radius: 999px; padding: 4px 9px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em;
   text-transform: uppercase; display: inline-flex; align-items: center;
@@ -18,10 +60,12 @@
 .af-pill--ok { background: #d1fae5; color: #047857; }
 .af-pill--warn { background: #fef3c7; color: #92400e; }
 .af-pill--danger { background: #fee2e2; color: #b91c1c; }
-.af-header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.af-header-actions { display: grid; gap: 8px; grid-template-columns:repeat(2,minmax(0,1fr)); align-items: stretch; }
+.af-header-actions > .af-btn-primary:first-child { grid-column:1 / -1; }
+.af-header-actions .af-btn, .af-header-actions .af-export-menu > summary { width:100%; }
 .af-btn {
   border: 1px solid #cbd5e1; background: #fff; color: #0f172a; border-radius: 10px;
-  padding: 9px 12px; font-weight: 600; text-decoration: none; cursor: pointer;
+  padding: 8px 11px; min-height: 36px; font-weight: 600; text-decoration: none; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .af-btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
@@ -35,14 +79,16 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .af-sections {
-  display: grid; gap: 12px; grid-template-columns: repeat(12, minmax(0, 1fr));
+  display:block;
+  column-count:2;
+  column-gap:12px;
 }
 .af-span-third { grid-column: span 4; }
 .af-span-half { grid-column: span 6; }
 .af-span-wide { grid-column: span 8; }
 .af-span-full { grid-column: 1 / -1; }
 .af-metric {
-  border: 1px solid #dbe1ea; border-radius: 14px; background: #fff; padding: 14px;
+  border: 1px solid #dbe1ea; border-radius: 10px; background: #fff; padding: 12px;
   display: grid; gap: 4px; min-height: 118px; align-content: start;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.03);
 }
@@ -53,18 +99,32 @@
 }
 .af-metric-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
 .af-metric-label { font-size: var(--fs-xs); color: #64748b; text-transform: uppercase; font-weight: 700; letter-spacing: .05em; }
-.af-metric-value { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; letter-spacing: -.01em; word-break: break-word; }
+.af-metric-value { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; letter-spacing: 0; word-break: break-word; }
 .af-metric-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.45; }
 .af-metric-link { margin-top:auto; }
 .af-card {
-  border: 1px solid #dbe1ea; border-radius: 16px; background: #fff; overflow: hidden;
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.04);
+  border: 1px solid #dbe1ea; border-radius: 10px; background: #fff; overflow: hidden;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+}
+.af-sections > .af-card {
+  display:inline-block;
+  width:100%;
+  margin:0 0 12px;
+  vertical-align:top;
+  break-inside:avoid;
 }
 .af-card-head {
-  padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background:linear-gradient(90deg,#f8fafc 0%,#ffffff 100%);
 }
-.af-card-title { margin: 0; font-size: var(--fs-title-lg); color: #111827; letter-spacing: -.01em; }
-.af-card-body { padding: 14px 16px; }
+.af-card-title { margin: 0; font-size: var(--fs-title-md); color: #111827; letter-spacing: 0; display:flex; align-items:center; gap:8px; }
+.af-card-title:before {
+  content:""; width:8px; height:18px; border-radius:4px; background:#2563eb; flex:0 0 auto;
+}
+.af-card[data-card-code="maintenance"] .af-card-title:before { background:#14b8a6; }
+.af-card[data-card-code="documents"] .af-card-title:before { background:#f59e0b; }
+.af-card[data-card-code="profile"] .af-card-title:before { background:#2563eb; }
+.af-card-body { padding: 12px 14px; }
 .af-specs { display: grid; gap: 10px 18px; grid-template-columns: 1fr 1fr; }
 .af-spec-item { display: grid; gap: 4px; }
 .af-spec-k { font-size: var(--fs-base); color: #64748b; }
@@ -155,8 +215,124 @@
 .af-hint-label { font-size:var(--fs-base); font-weight:700; color:#0f172a; }
 .af-hint-desc { color:#64748b; font-size:var(--fs-base); line-height:1.45; }
 
+/* ── kicker / copy ────────────────────────────────────────── */
+.af-card-kicker { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#94a3b8; }
+.af-card-copy { color:#64748b; font-size:var(--fs-sm); }
+
+/* ── sub-section headers (riusabili in MAINTENANCE/TICKETS) ── */
+.af-subhead { border-top:1px solid #f1f5f9; padding:12px 16px 0; }
+.af-subhead--flush { border-top:none; }
+.af-subhead-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.af-subhead-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+
+/* ── KPI tiles unificati (ticket + costi) ─────────────────── */
+.af-kpi-row { display:flex; flex-wrap:wrap; gap:10px; padding:14px 16px 6px; }
+.af-kpi-tile { flex:1; min-width:100px; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; text-align:center; background:#f8fafc; }
+.af-kpi-tile-value { font-size:var(--fs-display-md); font-weight:800; color:#0f172a; line-height:1.1; }
+.af-kpi-tile-label { font-size:var(--fs-xs); color:#64748b; font-weight:600; text-transform:uppercase; }
+.af-kpi-tile--warn { background:#fef3c7; border-color:#fcd34d; }
+.af-kpi-tile--warn .af-kpi-tile-value, .af-kpi-tile--warn .af-kpi-tile-label { color:#92400e; }
+.af-kpi-tile--ok { background:#d1fae5; border-color:#6ee7b7; }
+.af-kpi-tile--ok .af-kpi-tile-value, .af-kpi-tile--ok .af-kpi-tile-label { color:#065f46; }
+.af-kpi-tile--info { background:#eff6ff; border-color:#bfdbfe; }
+.af-kpi-tile--info .af-kpi-tile-value, .af-kpi-tile--info .af-kpi-tile-label { color:#1e40af; }
+.af-kpi-tile--danger { background:#fef2f2; border-color:#fca5a5; }
+.af-kpi-tile--danger .af-kpi-tile-value, .af-kpi-tile--danger .af-kpi-tile-label { color:#dc2626; }
+.af-kpi-tile--green { background:#f0fdf4; border-color:#86efac; }
+.af-kpi-tile--green .af-kpi-tile-value, .af-kpi-tile--green .af-kpi-tile-label { color:#15803d; }
+
+/* ── mini analytic cards + bars ───────────────────────────── */
+.af-mini-grid { padding:10px 16px 14px; display:grid; gap:10px; }
+.af-mini-cols-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.af-mini { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fcfdff; }
+.af-mini-label { font-size:var(--fs-xs); color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.af-mini-value { font-size:var(--fs-title-lg); font-weight:800; color:#0f172a; margin-top:4px; }
+.af-mini-meta { font-size:var(--fs-xs); color:#64748b; margin-top:2px; }
+.af-bar { background:#f1f5f9; border-radius:4px; height:8px; overflow:hidden; }
+.af-bar--sm { height:6px; }
+.af-bar-fill { height:100%; border-radius:4px; background:#3b82f6; }
+.af-bar-row { display:flex; align-items:center; gap:8px; }
+.af-tco { background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:10px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+/* ── quick action chips (ticket) ──────────────────────────── */
+.af-qa-bar { display:flex; flex-wrap:wrap; gap:8px; padding:12px 16px; border-bottom:1px solid #f1f5f9; align-items:center; }
+.af-qa-link { display:inline-flex; align-items:center; gap:5px; padding:7px 14px; border-radius:8px; font-size:var(--fs-sm); font-weight:700; text-decoration:none; border:1px solid transparent; }
+.af-qa-link--it { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.af-qa-link--man { background:#f0fdf4; color:#15803d; border-color:#86efac; }
+.af-qa-link--ext { background:#fff7ed; color:#c2410c; border-color:#fed7aa; }
+.af-qa-count { margin-left:auto; font-size:var(--fs-sm); color:#92400e; font-weight:700; background:#fef3c7; padding:4px 10px; border-radius:6px; }
+
+/* ── chip inline ──────────────────────────────────────────── */
+.af-chip { font-size:var(--fs-xs); font-weight:700; padding:2px 6px; border-radius:4px; }
+.af-chip--ticket { background:#f0fdf4; color:#15803d; }
+
+/* ── accordion (analitiche secondarie manutenzione) ───────── */
+.af-acc { border-top:1px solid #f1f5f9; }
+.af-acc > summary { list-style:none; cursor:pointer; padding:12px 16px; display:flex; align-items:center; gap:8px; }
+.af-acc > summary::-webkit-details-marker { display:none; }
+.af-acc > summary::after { content:"\25BE"; margin-left:auto; color:#94a3b8; transition:transform .15s; }
+.af-acc[open] > summary::after { transform:rotate(180deg); }
+.af-acc-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+
+/* ── status band (copertura + scadenze unite) ─────────────── */
+.af-statusband {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:12px; align-items: stretch;
+}
+.af-statusband-col {
+  position:relative; overflow:hidden;
+  border: 1px solid #dbe1ea; border-radius: 10px; background: #fff;
+  padding: 12px 14px 12px 18px; display: grid; gap: 2px; align-content: start;
+  box-shadow:0 10px 22px rgba(15,23,42,.035);
+}
+.af-statusband-col:before {
+  content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:#14b8a6;
+}
+.af-statusband-col + .af-statusband-sep + .af-statusband-col:before { background:#f59e0b; }
+.af-statusband-sep { display:none; }
+.af-statusband .af-metric-label { font-size: var(--fs-2xs); }
+.af-statusband .af-metric-value { font-size: var(--fs-title-lg); line-height: 1.18; }
+.af-statusband .af-metric-meta { font-size: var(--fs-xs); line-height: 1.35; }
+.af-statusband .af-metric-link { margin-top: 2px; }
+@media (max-width: 760px) {
+  .af-statusband { grid-template-columns: 1fr; }
+}
+
+/* ── timeline dentro card anagrafica ──────────────────────── */
+.af-profile-timeline { margin-top: 6px; }
+
+/* ── merge profilo + assegnazione ─────────────────────────── */
+.af-profile-group + .af-profile-group { margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9; }
+.af-profile-group-title { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+.af-export-menu { position:relative; }
+.af-export-menu > summary { list-style:none; cursor:pointer; }
+.af-export-menu > summary::-webkit-details-marker { display:none; }
+.af-export-pop {
+  position:absolute; right:0; top:calc(100% + 6px); z-index:20; min-width:200px;
+  background:#fff; border:1px solid #dbe1ea; border-radius:12px; padding:6px;
+  box-shadow:0 14px 32px rgba(15,23,42,.12); display:grid; gap:2px;
+}
+.af-export-pop a { display:block; padding:8px 10px; border-radius:8px; color:#1d4ed8; text-decoration:none; font-weight:600; font-size:var(--fs-sm); }
+.af-export-pop a:hover { background:#eff6ff; }
+.af-card-head--maintenance { align-items:flex-start; }
+.af-card-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.af-card-actions--maintenance {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+  width:min(100%, 360px);
+}
+.af-card-actions--maintenance .af-btn {
+  min-height:34px;
+  padding:7px 9px;
+  border-radius:8px;
+  font-size:var(--fs-sm);
+  line-height:1.15;
+  text-align:center;
+  white-space:normal;
+}
+
 @media (max-width: 1200px) {
-  .af-title { font-size: var(--fs-display-xl); }
+  .af-title { font-size: var(--fs-display-lg); }
   .af-card-title { font-size: var(--fs-heading); }
   .af-tl-title { font-size: var(--fs-heading); }
   .af-tl-desc { font-size: var(--fs-md); }
@@ -164,14 +340,23 @@
   .af-metrics--primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .af-metrics--primary > .af-metric { grid-column: span 1 !important; }
 }
+@media (max-width: 1180px) {
+  .af-page { max-width: 980px; }
+  .af-sections { column-count: 1; }
+  .af-header { grid-template-columns:1fr; }
+  .af-action-panel { border-left:none; border-top:1px solid #dbe3ef; }
+}
 @media (max-width: 980px) {
   .af-span-third, .af-span-half, .af-span-wide { grid-column: span 6; }
 }
 @media (max-width: 760px) {
-  .af-title { font-size: var(--fs-display-md); }
-  .af-header { flex-direction: column; align-items: flex-start; }
-  .af-header-actions { width: 100%; }
-  .af-header-actions .af-btn { flex: 1; text-align: center; }
+  .af-title { font-size: var(--fs-heading); }
+  .af-hero-main { padding:14px 14px 14px 20px; }
+  .af-title-row { align-items:flex-start; }
+  .af-asset-mark { width:42px; height:42px; font-size:var(--fs-title-md); }
+  .af-action-panel { width: 100%; }
+  .af-header-actions { grid-template-columns: 1fr; }
+  .af-header-actions .af-btn { text-align: center; }
   .af-span-third, .af-span-half, .af-span-wide, .af-span-full { grid-column: 1 / -1; }
   .af-card-title { font-size: var(--fs-title-lg); }
   .af-specs { grid-template-columns: 1fr; }
@@ -182,8 +367,16 @@
   .af-metrics--primary { grid-template-columns: 1fr; }
 }
 
-body.theme-dark .af-breadcrumb, body.theme-dark .af-breadcrumb a { color:var(--text-light); }
 body.theme-dark .af-title { color:var(--text); }
+body.theme-dark .as-page-head h1 .af-shell-back { background:var(--surface); border-color:var(--border); color:#93c5fd; }
+body.theme-dark .as-page-head h1 .af-shell-back:hover { background:rgba(37,99,235,.12); border-color:rgba(147,197,253,.35); }
+body.theme-dark .af-header { background:linear-gradient(135deg,var(--surface) 0%,var(--surface) 58%,rgba(20,184,166,.10) 100%); border-color:var(--border); }
+body.theme-dark .af-action-panel { background:rgba(15,23,42,.52); border-color:var(--border); }
+body.theme-dark .af-asset-mark { background:#020617; box-shadow:none; }
+body.theme-dark .af-hero-kicker, body.theme-dark .af-action-title { color:var(--text-light); }
+body.theme-dark .af-title-code { background:rgba(37,99,235,.14); border-color:rgba(147,197,253,.28); color:#bfdbfe; }
+body.theme-dark .af-hero-tag { background:rgba(255,255,255,.05); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .af-hero-tag span { color:var(--text-light); }
 body.theme-dark .af-sub { color:var(--text-light); }
 body.theme-dark .af-pill--ok { background:rgba(4,120,87,.2); color:#6ee7b7; }
 body.theme-dark .af-pill--warn { background:rgba(146,64,14,.2); color:#fde68a; }
@@ -197,7 +390,7 @@ body.theme-dark .af-metric-label { color:var(--text-light); }
 body.theme-dark .af-metric-value { color:var(--text); }
 body.theme-dark .af-metric-meta { color:var(--text-light); }
 body.theme-dark .af-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .af-card-head { border-color:var(--border); }
+body.theme-dark .af-card-head { border-color:var(--border); background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%); }
 body.theme-dark .af-card-title { color:var(--text); }
 body.theme-dark .af-spec-k { color:var(--text-light); }
 body.theme-dark .af-spec-v { color:var(--text); }
@@ -230,6 +423,21 @@ body.theme-dark .af-link-value { color:var(--text); }
 body.theme-dark .af-hint { border-color:var(--border); }
 body.theme-dark .af-hint-label { color:var(--text); }
 body.theme-dark .af-hint-desc { color:var(--text-light); }
+body.theme-dark .af-card-copy, body.theme-dark .af-card-kicker { color:var(--text-light); }
+body.theme-dark .af-subhead, body.theme-dark .af-acc, body.theme-dark .af-qa-bar,
+body.theme-dark .af-profile-group + .af-profile-group { border-color:var(--border); }
+body.theme-dark .af-subhead-label, body.theme-dark .af-mini-label, body.theme-dark .af-acc-label,
+body.theme-dark .af-profile-group-title { color:var(--text-light); }
+body.theme-dark .af-kpi-tile { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .af-kpi-tile-value { color:var(--text); }
+body.theme-dark .af-kpi-tile-label { color:var(--text-light); }
+body.theme-dark .af-mini { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .af-mini-value { color:var(--text); }
+body.theme-dark .af-mini-meta { color:var(--text-light); }
+body.theme-dark .af-bar { background:rgba(255,255,255,.08); }
+body.theme-dark .af-export-pop { background:var(--surface); border-color:var(--border); }
+body.theme-dark .af-export-pop a:hover { background:rgba(37,99,235,.12); }
+body.theme-dark .af-statusband-col { background:var(--surface); border-color:var(--border); }
 </style>
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css">
@@ -292,58 +500,106 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 {% endif %}
 {% endblock %}
 
-{% block assets_shell_title %}Dettaglio asset{% endblock %}
-{% block assets_shell_subtitle %}
-<p>{{ asset.asset_tag }} - {{ asset.name }}</p>
+{% block assets_shell_title %}
+<a class="af-shell-back" href="{{ collection_url }}" data-af-back-link>&larr; Torna indietro</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <section class="af-page">
-  <div class="af-breadcrumb">
-    <a href="{{ collection_url }}">{{ collection_label }}</a>
-    {% if asset.asset_category_id %}
-      <span> > </span>
-      <span>{{ asset.category_label }}</span>
-    {% endif %}
-    <span> > </span>
-    <span>{{ asset.asset_tag }}</span>
-  </div>
-
   <div class="af-header">
-    <div>
-      <h1 class="af-title">{{ asset.name }} - #{{ asset.asset_tag }}{% if asset.internal_number %} &nbsp;<span style="font-size:.7em;font-weight:500;color:#64748b;">(N.{{ asset.internal_number }})</span>{% endif %}</h1>
+    <div class="af-hero-main">
+      <div class="af-title-row">
+        <div class="af-asset-mark">{{ asset.asset_type|default:"AST"|slice:":3"|upper }}</div>
+        <div class="af-title-copy">
+          <div class="af-hero-kicker">{{ collection_label }}{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
+          <h1 class="af-title">{{ asset.name }}</h1>
+          <div class="af-title-code-row">
+            <span class="af-title-code">#{{ asset.asset_tag }}</span>
+            {% if asset.internal_number %}<span class="af-title-code">N.{{ asset.internal_number }}</span>{% endif %}
+          </div>
+        </div>
+      </div>
       <div class="af-sub">
         <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
+        {% if asset_completeness %}
+          <span class="af-pill {% if asset_completeness.pct >= 90 %}af-pill--ok{% elif asset_completeness.pct >= 60 %}af-pill--warn{% else %}af-pill--danger{% endif %}"
+                {% if asset_completeness.missing %}title="Dati mancanti: {{ asset_completeness.missing|join:', ' }}"{% endif %}>
+            Scheda {{ asset_completeness.pct }}%
+          </span>
+        {% endif %}
         <span>{{ sync_text }}</span>
       </div>
+      <div class="af-hero-tags">
+        <span class="af-hero-tag"><span>Tipo</span>{{ asset.get_asset_type_display }}</span>
+        {% if asset.reparto %}<span class="af-hero-tag"><span>Reparto</span>{{ asset.reparto }}</span>{% endif %}
+        {% if asset.manufacturer %}<span class="af-hero-tag"><span>Produttore</span>{{ asset.manufacturer }}</span>{% endif %}
+        {% if asset.model %}<span class="af-hero-tag"><span>Modello</span>{{ asset.model }}</span>{% endif %}
+        {% if asset.serial_number %}<span class="af-hero-tag"><span>Seriale</span>{{ asset.serial_number }}</span>{% endif %}
+      </div>
     </div>
-    <div class="af-header-actions">
-      <a class="af-btn af-btn-primary" href="{{ asset_create_workorder_url }}">Crea intervento</a>
-      {% for button in header_action_buttons %}
-        {% if button.href %}
-          <a
-            class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
-            href="{{ button.href }}"
-            {% if button.new_tab %}target="_blank" rel="noopener"{% endif %}
-            data-ui-action="{{ button.data_action|default:'' }}"
-          >{{ button.label }}</a>
-        {% else %}
-          <button
-            class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
-            type="button"
-            data-ui-action="{{ button.data_action|default:'' }}"
-          >{{ button.label }}</button>
-        {% endif %}
-      {% endfor %}
-      {% if asset_report_pdf_url %}
-        <a class="af-btn af-btn-secondary" href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; PDF</a>
-      {% endif %}
-      <a class="af-btn af-btn-secondary" href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; XLSX</a>
-      {% if layout_manage_url %}
-        <a class="af-btn af-btn-ghost" href="{{ layout_manage_url }}">Configura layout</a>
-      {% endif %}
+    <div class="af-action-panel">
+      <div class="af-action-title">Azioni rapide</div>
+      <div class="af-header-actions">
+        <a class="af-btn af-btn-primary" href="{{ asset_create_workorder_url }}">Crea intervento</a>
+        {% for button in header_action_buttons %}
+          {% if button.href %}
+            <a
+              class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
+              href="{{ button.href }}"
+              {% if button.new_tab %}target="_blank" rel="noopener"{% endif %}
+              data-ui-action="{{ button.data_action|default:'' }}"
+            >{{ button.label }}</a>
+          {% else %}
+            <button
+              class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
+              type="button"
+              data-ui-action="{{ button.data_action|default:'' }}"
+            >{{ button.label }}</button>
+          {% endif %}
+        {% endfor %}
+        <details class="af-export-menu">
+          <summary class="af-btn af-btn-secondary">Esporta / Altro &#9662;</summary>
+          <div class="af-export-pop">
+            {% if asset_report_pdf_url %}
+              <a href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; Report PDF</a>
+            {% endif %}
+            <a href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; Scarica XLSX</a>
+            {% if layout_manage_url %}
+              <a href="{{ layout_manage_url }}">Configura layout</a>
+            {% endif %}
+          </div>
+        </details>
+      </div>
     </div>
   </div>
+
+  {% if asset_status_band %}
+    <section class="af-statusband">
+      {% with c=asset_status_band.coverage %}
+        <div class="af-statusband-col">
+          <div class="af-metric-head">
+            <span class="af-metric-label">{{ c.label }}</span>
+            {% if c.badge_label %}<span class="as-badge as-badge--{{ c.badge_class }}">{{ c.badge_label }}</span>{% endif %}
+          </div>
+          <span class="af-metric-value">{{ c.value }}</span>
+          {% if c.meta %}<span class="af-metric-meta">{{ c.meta }}</span>{% endif %}
+          {% if c.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ c.link_url }}">{{ c.link_label }}</a></div>{% endif %}
+        </div>
+      {% endwith %}
+      <div class="af-statusband-sep"></div>
+      {% with d=asset_status_band.deadline %}
+        <div class="af-statusband-col">
+          <div class="af-metric-head">
+            <span class="af-metric-label">{{ d.label }}</span>
+            {% if d.badge_label %}<span class="as-badge as-badge--{{ d.badge_class }}">{{ d.badge_label }}</span>{% endif %}
+          </div>
+          <span class="af-metric-value">{{ d.value }}</span>
+          {% if d.meta %}<span class="af-metric-meta">{{ d.meta }}</span>{% endif %}
+          {% if d.link_url %}<div class="af-metric-link"><a class="as-link-subtle" href="{{ d.link_url }}">{{ d.link_label }}</a></div>{% endif %}
+        </div>
+      {% endwith %}
+    </section>
+  {% endif %}
 
   {% if asset_primary_kpis %}
     <section class="af-metrics af-metrics--primary">
@@ -369,43 +625,20 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </section>
   {% endif %}
 
-  {% if maintenance_suggestions %}
-    <article class="af-card">
-      <div class="af-card-head">
-        <h2 class="af-card-title">Suggerimenti operativi</h2>
-      </div>
-      <div class="af-card-body">
-        <div class="af-hints">
-          {% for suggestion in maintenance_suggestions %}
-            <div class="af-hint">
-              <div class="af-hint-copy">
-                <div class="af-hint-label">{{ suggestion.label }}</div>
-                <div class="af-hint-desc">{{ suggestion.description }}</div>
-              </div>
-              <a class="af-btn {% if suggestion.style == 'primary' %}af-btn-primary{% elif suggestion.style == 'secondary' %}af-btn-secondary{% endif %}" href="{{ suggestion.href }}">{{ suggestion.label }}</a>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-  {% endif %}
-
   <section class="af-sections">
     {% for card in detail_section_cards %}
       <article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">
-          <div class="af-card-head">
+          <div class="af-card-head{% if card.code == 'MAINTENANCE' %} af-card-head--maintenance{% endif %}">
             <h2 class="af-card-title">{{ card.title }}</h2>
             {% if card.code == "MAINTENANCE" %}
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div class="af-card-actions af-card-actions--maintenance">
                 {% if can_manage_asset_maintenance_rules %}
-                  <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Regole manutenzione</a>
+                  <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}" title="Regole manutenzione">Regole</a>
                 {% endif %}
-                <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_schedule_url }}">Scadenzario</a>
-                <a class="af-btn af-btn-ghost" href="{{ periodic_verification_manage_url }}">Manutenzione periodica</a>
-                <a class="af-btn af-btn-primary" href="{% url 'assets:wo_create' asset.id %}?kind=CORRECTIVE&source=asset_detail">+ Nuova manutenzione straordinaria</a>
+                <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_schedule_url }}" title="Scadenzario manutenzioni">Scadenzario</a>
+                <a class="af-btn af-btn-ghost" href="{{ periodic_verification_manage_url }}" title="Manutenzione periodica">Periodica</a>
+                <a class="af-btn af-btn-primary" href="{% url 'assets:wo_create' asset.id %}?kind=CORRECTIVE&source=asset_detail" title="Nuova manutenzione straordinaria">+ Straordinaria</a>
               </div>
-            {% elif card.code == "PERIODIC" %}
-              <a class="af-btn" href="{{ periodic_verification_manage_url }}">Gestisci manutenzione periodica</a>
             {% elif card.code == "LICENSES" %}
               {% if can_manage_licenses %}
                 <a class="af-btn" href="{{ asset_license_manage_url }}">Gestisci licenze</a>
@@ -413,42 +646,26 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% endif %}
           </div>
 
-        {% if card.code == "SPECS" %}
-          <div class="af-card-body">
-            <div class="af-specs">
-              {% for key, value in spec_pairs %}
-                <div class="af-spec-item">
-                  <span class="af-spec-k">{{ key }}</span>
-                  <span class="af-spec-v">{{ value }}</span>
-                </div>
-              {% endfor %}
+        {% if card.code == "MAINTENANCE" %}
+          {% if asset_next_maintenance_row %}
+          <div class="af-subhead af-subhead--flush">
+            <div class="af-subhead-label">Prossima manutenzione</div>
+          </div>
+          <div style="padding:6px 16px 0;">
+            <div class="af-tco" style="background:#f8fafc;border-color:#e2e8f0;">
+              <div style="font-size:var(--fs-title-lg);font-weight:800;color:#0f172a;">
+                {% if asset_next_maintenance_row.due_date %}{{ asset_next_maintenance_row.due_date|date:"d-m-Y" }}{% else %}Da pianificare{% endif %}
+              </div>
+              <span class="as-badge as-badge--{{ asset_next_maintenance_row.schedule_badge_class|default:'muted' }}">{{ asset_next_maintenance_row.schedule_label|default:'Da pianificare' }}</span>
+              {% if asset_next_maintenance_row.effective_intervention_template %}
+              <div style="margin-left:auto;font-size:var(--fs-sm);color:#64748b;">{{ asset_next_maintenance_row.effective_intervention_template.label }}</div>
+              {% endif %}
             </div>
           </div>
-        {% elif card.code == "TIMELINE" %}
-          <div class="af-card-body">
-            <ol class="af-timeline">
-              {% for event in timeline_events %}
-                <li class="af-tl-item">
-                  <span class="af-dot {% if event.color == 'green' %}af-dot--green{% elif event.color == 'amber' %}af-dot--amber{% else %}af-dot--blue{% endif %}"></span>
-                  <div class="af-tl-title">
-                    {{ event.title }}
-                    {% if event.tag %}<span class="af-tag">{{ event.tag }}</span>{% endif %}
-                  </div>
-                  {% if event.description %}<div class="af-tl-desc">{{ event.description }}</div>{% endif %}
-                  <div class="af-tl-meta">
-                    {% if event.date %}{{ event.date|date:"d-m-Y" }}{% endif %}
-                    {% if event.meta %} | {{ event.meta }}{% endif %}
-                  </div>
-                </li>
-              {% empty %}
-                <li class="af-doc-empty">Nessun evento timeline disponibile.</li>
-              {% endfor %}
-            </ol>
-          </div>
-        {% elif card.code == "MAINTENANCE" %}
+          {% endif %}
           <!-- Manutenzione pianificata (regole periodiche per questo asset) -->
-          <div style="padding:12px 16px 0;display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Manutenzione pianificata</div>
+          <div class="af-subhead{% if not asset_next_maintenance_row %} af-subhead--flush{% endif %}">
+            <div class="af-subhead-label">Manutenzione pianificata</div>
           </div>
           {% if asset_schedule_rows %}
             <div class="af-table-wrap">
@@ -494,11 +711,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               </table>
             </div>
           {% else %}
-            <div style="padding:4px 16px 12px;font-size:13px;color:#94a3b8;">Nessuna regola manutenzione pianificata per questo asset.</div>
+            <div class="af-doc-empty" style="padding:4px 16px 12px;">Nessuna regola manutenzione pianificata per questo asset.</div>
           {% endif %}
           <!-- Storico interventi -->
-          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Storico interventi</div>
+          <div class="af-subhead">
+            <div class="af-subhead-label">Storico interventi</div>
           </div>
           <div class="af-table-wrap">
             <table class="af-table">
@@ -517,7 +734,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     <td>{% if row.executed_at %}{{ row.executed_at|date:"d-m-Y" }}{% else %}{{ row.created_at|date:"d-m-Y" }}{% endif %}</td>
                     <td>
                       {% if row.source == "TICKET" %}
-                        <span style="font-size:11px;font-weight:700;background:#f0fdf4;color:#15803d;padding:2px 6px;border-radius:4px;">Ticket</span>
+                        <span class="af-chip af-chip--ticket">Ticket</span>
                       {% else %}
                         {{ row.get_kind_display|default:"Manuale" }}
                       {% endif %}
@@ -570,10 +787,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 
           {# ── Scadenze eseguite (completamenti amministrativi) ──────── #}
           {% if deadline_completion_history %}
-          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Scadenze amministrative eseguite</div>
-          </div>
-          <div class="af-table-wrap">
+          <details class="af-acc">
+            <summary><span class="af-acc-label">Scadenze amministrative eseguite ({{ deadline_completion_history|length }})</span></summary>
+            <div class="af-table-wrap">
             <table class="af-table">
               <thead>
                 <tr>
@@ -609,54 +825,54 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 {% endfor %}
               </tbody>
             </table>
-          </div>
+            </div>
+          </details>
           {% endif %}
 
           {# ── Analisi costi manutenzione (P3.4) ─────────────────────── #}
           {% if asset_maintenance_costs.has_data %}
-          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Analisi costi manutenzione</div>
-          </div>
-          <div style="padding:10px 16px 14px;display:grid;gap:10px;">
+          <details class="af-acc">
+            <summary><span class="af-acc-label">Analisi costi manutenzione</span></summary>
+          <div class="af-mini-grid">
 
             {# KPI per periodo #}
-            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
-              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
-                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Mese</div>
-                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+            <div class="af-mini-cols-3">
+              <div class="af-mini">
+                <div class="af-mini-label">Mese</div>
+                <div class="af-mini-value">
                   {% if asset_maintenance_costs.cost_month %}&euro;&nbsp;{{ asset_maintenance_costs.cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}
                 </div>
-                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_month }} intervento/i</div>
+                <div class="af-mini-meta">{{ asset_maintenance_costs.count_month }} intervento/i</div>
               </div>
-              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
-                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">{{ asset_maintenance_costs.quarter_label }}</div>
-                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+              <div class="af-mini">
+                <div class="af-mini-label">{{ asset_maintenance_costs.quarter_label }}</div>
+                <div class="af-mini-value">
                   {% if asset_maintenance_costs.cost_quarter %}&euro;&nbsp;{{ asset_maintenance_costs.cost_quarter|floatformat:0 }}{% else %}&mdash;{% endif %}
                 </div>
-                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_quarter }} intervento/i</div>
+                <div class="af-mini-meta">{{ asset_maintenance_costs.count_quarter }} intervento/i</div>
               </div>
-              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#fcfdff;">
-                <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Anno {{ asset_maintenance_costs.year }}</div>
-                <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-top:4px;">
+              <div class="af-mini">
+                <div class="af-mini-label">Anno {{ asset_maintenance_costs.year }}</div>
+                <div class="af-mini-value">
                   {% if asset_maintenance_costs.cost_year %}&euro;&nbsp;{{ asset_maintenance_costs.cost_year|floatformat:0 }}{% else %}&mdash;{% endif %}
                 </div>
-                <div style="font-size:11px;color:#64748b;margin-top:2px;">{{ asset_maintenance_costs.count_year }} intervento/i</div>
+                <div class="af-mini-meta">{{ asset_maintenance_costs.count_year }} intervento/i</div>
               </div>
             </div>
 
             {# TCO cumulato (tutti gli anni) #}
             {% if asset_maintenance_costs.tco_cumulative %}
-            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;">
-              <div style="font-size:12px;color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">TCO cumulato</div>
-              <div style="font-size:1.2rem;font-weight:800;color:#1d4ed8;margin-left:4px;">&euro;&nbsp;{{ asset_maintenance_costs.tco_cumulative|floatformat:0 }}</div>
-              <div style="font-size:11px;color:#3b82f6;margin-left:auto;">Totale manutenzioni + scadenze registrate</div>
+            <div class="af-tco">
+              <div style="color:#1e40af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:var(--fs-sm);">TCO cumulato</div>
+              <div style="font-size:var(--fs-title-lg);font-weight:800;color:#1d4ed8;margin-left:4px;">&euro;&nbsp;{{ asset_maintenance_costs.tco_cumulative|floatformat:0 }}</div>
+              <div style="font-size:var(--fs-xs);color:#3b82f6;margin-left:auto;">Totale manutenzioni + scadenze registrate</div>
             </div>
             {% endif %}
 
             {# Costi scadenze amministrative + confronto YoY #}
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
               {% if asset_maintenance_costs.deadline_cost_year %}
-              <div style="font-size:12px;color:#475569;">
+              <div style="font-size:var(--fs-sm);color:#475569;">
                 Scadenze amm. {{ asset_maintenance_costs.year }}: <strong>&euro;&nbsp;{{ asset_maintenance_costs.deadline_cost_year|floatformat:0 }}</strong>
                 &nbsp;&middot;&nbsp; Totale: <strong>&euro;&nbsp;{{ asset_maintenance_costs.total_cost_year|floatformat:0 }}</strong>
               </div>
@@ -664,17 +880,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
               {% if asset_maintenance_costs.yoy_pct is not None %}
               <div style="margin-left:auto;">
                 {% if asset_maintenance_costs.yoy_delta > 0 %}
-                  <span style="background:#fee2e2;color:#991b1b;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
-                    +{{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}
-                  </span>
+                  <span class="af-chip" style="background:#fee2e2;color:#991b1b;padding:3px 9px;">+{{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}</span>
                 {% elif asset_maintenance_costs.yoy_delta < 0 %}
-                  <span style="background:#dcfce7;color:#166534;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
-                    {{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}
-                  </span>
+                  <span class="af-chip" style="background:#dcfce7;color:#166534;padding:3px 9px;">{{ asset_maintenance_costs.yoy_pct }}% vs {{ asset_maintenance_costs.prev_year }}</span>
                 {% else %}
-                  <span style="background:#f1f5f9;color:#475569;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">
-                    Invariato vs {{ asset_maintenance_costs.prev_year }}
-                  </span>
+                  <span class="af-chip" style="background:#f1f5f9;color:#475569;padding:3px 9px;">Invariato vs {{ asset_maintenance_costs.prev_year }}</span>
                 {% endif %}
               </div>
               {% endif %}
@@ -684,57 +894,57 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% if asset_maintenance_costs.kind_breakdown %}
             <div style="display:grid;gap:4px;">
               {% for row in asset_maintenance_costs.kind_breakdown %}
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div style="font-size:12px;color:#475569;min-width:90px;">{{ row.label }}</div>
-                <div style="flex:1;background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden;">
-                  <div style="height:100%;background:#3b82f6;border-radius:4px;width:{{ row.percent }}%;"></div>
+              <div class="af-bar-row">
+                <div style="font-size:var(--fs-sm);color:#475569;min-width:90px;">{{ row.label }}</div>
+                <div class="af-bar af-bar--sm" style="flex:1;">
+                  <div class="af-bar-fill" style="width:{{ row.percent }}%;"></div>
                 </div>
-                <div style="font-size:12px;color:#0f172a;font-weight:700;min-width:70px;text-align:right;">
+                <div style="font-size:var(--fs-sm);color:#0f172a;font-weight:700;min-width:70px;text-align:right;">
                   {% if row.cost %}&euro;&nbsp;{{ row.cost|floatformat:0 }}{% else %}&mdash;{% endif %}
                 </div>
-                <div style="font-size:11px;color:#94a3b8;min-width:32px;text-align:right;">{{ row.percent }}%</div>
+                <div style="font-size:var(--fs-xs);color:#94a3b8;min-width:32px;text-align:right;">{{ row.percent }}%</div>
               </div>
               {% endfor %}
             </div>
             {% endif %}
 
           </div>
+          </details>
           {% endif %}
 
           {# ── Budget manutenzione per categoria (AS3) ─────────────────── #}
           {% if asset_budget_rows %}
-          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Budget manutenzione categoria</div>
-          </div>
-          <div style="padding:8px 16px 14px;display:grid;gap:8px;">
+          <details class="af-acc">
+            <summary><span class="af-acc-label">Budget manutenzione categoria</span></summary>
+          <div class="af-mini-grid">
             {% for row in asset_budget_rows %}
-            <div style="border:1px solid {% if row.over_budget %}#fecaca{% else %}#e2e8f0{% endif %};border-radius:10px;padding:10px 14px;background:{% if row.over_budget %}#fff5f5{% else %}#fcfdff{% endif %};">
+            <div class="af-mini" {% if row.over_budget %}style="border-color:#fecaca;background:#fff5f5;"{% endif %}>
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                <div style="font-size:12px;font-weight:700;color:#374151;">{{ row.year }}</div>
-                <div style="font-size:12px;color:#64748b;margin-left:4px;">Budget: <strong>&euro;&nbsp;{{ row.budget|floatformat:0 }}</strong></div>
+                <div style="font-size:var(--fs-sm);font-weight:700;color:#374151;">{{ row.year }}</div>
+                <div style="font-size:var(--fs-sm);color:#64748b;margin-left:4px;">Budget: <strong>&euro;&nbsp;{{ row.budget|floatformat:0 }}</strong></div>
                 {% if row.over_budget %}
-                <div style="margin-left:auto;font-size:11px;background:#fef2f2;color:#b91c1c;padding:2px 8px;border-radius:5px;font-weight:700;">Sforato</div>
+                <span class="af-chip" style="margin-left:auto;background:#fef2f2;color:#b91c1c;">Sforato</span>
                 {% else %}
-                <div style="margin-left:auto;font-size:11px;color:#16a34a;font-weight:700;">Residuo: &euro;&nbsp;{{ row.residual|floatformat:0 }}</div>
+                <div style="margin-left:auto;font-size:var(--fs-xs);color:#16a34a;font-weight:700;">Residuo: &euro;&nbsp;{{ row.residual|floatformat:0 }}</div>
                 {% endif %}
               </div>
-              <div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;">
-                <div style="height:100%;border-radius:4px;background:{% if row.over_budget %}#ef4444{% elif row.pct > 80 %}#f59e0b{% else %}#22c55e{% endif %};width:{{ row.pct }}%;"></div>
+              <div class="af-bar">
+                <div class="af-bar-fill" style="background:{% if row.over_budget %}#ef4444{% elif row.pct > 80 %}#f59e0b{% else %}#22c55e{% endif %};width:{{ row.pct }}%;"></div>
               </div>
               <div style="display:flex;justify-content:space-between;margin-top:4px;">
-                <div style="font-size:11px;color:#64748b;">Speso: &euro;&nbsp;{{ row.spent|floatformat:0 }}</div>
-                <div style="font-size:11px;color:#64748b;">{{ row.pct }}%</div>
+                <div style="font-size:var(--fs-xs);color:#64748b;">Speso: &euro;&nbsp;{{ row.spent|floatformat:0 }}</div>
+                <div style="font-size:var(--fs-xs);color:#64748b;">{{ row.pct }}%</div>
               </div>
             </div>
             {% endfor %}
           </div>
+          </details>
           {% endif %}
 
           {# ── Timeline storico tecnico asset (AS4) ────────────────────── #}
           {% if timeline_tech_rows %}
-          <div style="border-top:1px solid #f1f5f9;padding:12px 16px 0;">
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Storico tecnico</div>
-          </div>
+          <details class="af-acc">
+            <summary><span class="af-acc-label">Storico tecnico</span></summary>
           <div style="padding:8px 16px 14px;">
             <div style="display:grid;gap:0;position:relative;">
               {% for row in timeline_tech_rows %}
@@ -750,24 +960,67 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 </div>
                 <div style="flex:1;min-width:0;">
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                    <span style="font-size:11px;font-weight:700;
-                      {% if row.tipo == 'incidente' %}color:#b91c1c;background:#fee2e2;
-                      {% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;
-                      {% else %}color:#5b21b6;background:#ede9fe;{% endif %}
-                      padding:1px 6px;border-radius:4px;">{{ row.tipo_label }}</span>
-                    {% if row.data %}<span style="font-size:11px;color:#94a3b8;">{{ row.data|date:"d-m-Y" }}</span>{% endif %}
+                    <span class="af-chip"
+                      style="{% if row.tipo == 'incidente' %}color:#b91c1c;background:#fee2e2;{% elif row.tipo == 'workorder' %}color:#1e40af;background:#dbeafe;{% else %}color:#5b21b6;background:#ede9fe;{% endif %}">{{ row.tipo_label }}</span>
+                    {% if row.data %}<span style="font-size:var(--fs-xs);color:#94a3b8;">{{ row.data|date:"d-m-Y" }}</span>{% endif %}
                   </div>
-                  <div style="font-size:12px;color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{{ row.titolo }}</div>
-                  {% if row.dettaglio %}<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.dettaglio }}">{{ row.dettaglio }}</div>{% endif %}
+                  <div style="font-size:var(--fs-sm);color:#374151;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.titolo }}">{{ row.titolo }}</div>
+                  {% if row.dettaglio %}<div style="font-size:var(--fs-xs);color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ row.dettaglio }}">{{ row.dettaglio }}</div>{% endif %}
                 </div>
               </div>
               {% endfor %}
             </div>
           </div>
+          </details>
+          {% endif %}
+
+          {# ── Manutenzione periodica (fusa nel registro manutenzione) ──── #}
+          {% if periodic_verification_rows %}
+          <details class="af-acc">
+            <summary><span class="af-acc-label">Manutenzione periodica</span></summary>
+            <div class="af-card-body">
+              <div class="af-cust-grid">
+                {% for row in periodic_verification_rows %}
+                  <div class="af-cust-row" style="display:grid;gap:6px;">
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                      <div>
+                        <div class="af-cust-name text-lg">{{ row.verification.name }}</div>
+                        <div class="af-cust-sub">
+                          {% if row.verification.supplier %}{{ row.verification.supplier }}{% else %}Fornitore non impostato{% endif %}
+                        </div>
+                      </div>
+                      <span class="as-badge as-badge--info">{{ row.verification.frequency_months }} mesi</span>
+                    </div>
+                    <div class="af-cust-sub">
+                      <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
+                      {% if row.verification.next_verification_date %} | prossima {{ row.verification.next_verification_date|date:"d-m-Y" }}{% endif %}
+                    </div>
+                    {% if row.execution_rows %}
+                      <details class="af-pv-history">
+                        <summary class="af-cust-sub">Esecuzioni registrate (ultimi 12 mesi): {{ row.execution_count }}</summary>
+                        <ul style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px;">
+                          {% for execution in row.execution_rows %}
+                            <li>
+                              <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
+                              {% if execution.resolution %} - {{ execution.resolution|truncatechars:120 }}{% endif %}
+                              {% if execution.cost_eur is not None %} ({{ execution.cost_eur }} EUR){% endif %}
+                              {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                      </details>
+                    {% else %}
+                      <div class="af-cust-sub" style="font-style:italic;">Nessuna esecuzione registrata negli ultimi 12 mesi.</div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </details>
           {% endif %}
 
           {# ── Contatori asset (P2.2) — ore/km/cicli ────────────────────── #}
-          <div style="border-top:1px solid #f1f5f9;padding:4px 16px 4px;">
+          <div class="af-subhead" style="padding-bottom:4px;">
             <div id="asset-meter-panel"
                  hx-get="{% url 'assets:asset_meter_update' asset.pk %}"
                  hx-trigger="load"
@@ -776,186 +1029,74 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
           </div>
 
-        {% elif card.code == "TICKETS" %}
-          <!-- Azioni rapide ticket / intervento -->
-          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid #f1f5f9;align-items:center;">
-            <a href="{% url 'tickets:nuovo' %}?tipo=IT&asset={{ asset.pk }}"
-               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
-              + Ticket IT
-            </a>
-            <a href="{% url 'tickets:nuovo' %}?tipo=MAN&asset={{ asset.pk }}"
-               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#f0fdf4;color:#15803d;border:1px solid #86efac;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
-              + Ticket MAN
-            </a>
-            <a href="{{ asset_create_workorder_url }}"
-               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
-              + Intervento esterno
-            </a>
-            {% if ticket_kpi.aperti %}
-            <span style="margin-left:auto;font-size:12px;color:#92400e;font-weight:700;background:#fef3c7;padding:4px 10px;border-radius:6px;">
-              {{ ticket_kpi.aperti }} aperti
-            </span>
-            {% endif %}
-          </div>
-          {% if ticket_kpi.has_tickets %}
-          <!-- KPI ticket asset -->
-          <div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px 16px 6px;border-bottom:1px solid #f1f5f9;">
-            <div style="flex:1;min-width:100px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#0f172a;">{{ ticket_kpi.totale }}</div>
-              <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;">Totale</div>
-            </div>
-            <div style="flex:1;min-width:100px;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#92400e;">{{ ticket_kpi.aperti }}</div>
-              <div style="font-size:11px;color:#92400e;font-weight:600;text-transform:uppercase;">Aperti</div>
-            </div>
-            <div style="flex:1;min-width:100px;background:#d1fae5;border:1px solid #6ee7b7;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#065f46;">{{ ticket_kpi.chiusi }}</div>
-              <div style="font-size:11px;color:#065f46;font-weight:600;text-transform:uppercase;">Chiusi</div>
-            </div>
-            {% if ticket_kpi.mttr_ore is not None %}
-            <div style="flex:1;min-width:100px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#1e40af;">{{ ticket_kpi.mttr_ore }}h</div>
-              <div style="font-size:11px;color:#1e40af;font-weight:600;text-transform:uppercase;">MTTR</div>
-            </div>
-            {% endif %}
-            {% if ticket_kpi.ore_fermo_totali %}
-            <div style="flex:1;min-width:100px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#dc2626;">{{ ticket_kpi.ore_fermo_totali }}h</div>
-              <div style="font-size:11px;color:#dc2626;font-weight:600;text-transform:uppercase;">Ore fermo</div>
-            </div>
-            {% endif %}
-            {% if ticket_kpi.ore_intervento_totali %}
-            <div style="flex:1;min-width:100px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;text-align:center;">
-              <div style="font-size:22px;font-weight:800;color:#15803d;">{{ ticket_kpi.ore_intervento_totali }}h</div>
-              <div style="font-size:11px;color:#15803d;font-weight:600;text-transform:uppercase;">Ore intervento</div>
-            </div>
-            {% endif %}
-          </div>
-          {% if ticket_kpi.top_componenti or ticket_kpi.top_tecnici %}
-          <div style="display:flex;flex-wrap:wrap;gap:16px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">
-            {% if ticket_kpi.top_componenti %}
-            <div>
-              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Top componenti</div>
-              {% for comp, cnt in ticket_kpi.top_componenti %}
-              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ comp }}</span><span style="color:#94a3b8;">({{ cnt }})</span></div>
-              {% endfor %}
-            </div>
-            {% endif %}
-            {% if ticket_kpi.top_cause %}
-            <div>
-              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Top cause radice</div>
-              {% for causa, cnt in ticket_kpi.top_cause %}
-              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ causa }}</span><span style="color:#94a3b8;">({{ cnt }})</span></div>
-              {% endfor %}
-            </div>
-            {% endif %}
-            {% if ticket_kpi.top_tecnici %}
-            <div>
-              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Ore per tecnico</div>
-              {% for tec, ore in ticket_kpi.top_tecnici %}
-              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ tec }}</span><span style="color:#94a3b8;">{{ ore }}h</span></div>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </div>
-          {% endif %}
-          {% endif %}
-          <div class="af-table-wrap">
-            <table class="af-table">
-              <thead>
-                <tr>
-                  <th>Ticket</th>
-                  <th>Tipo</th>
-                  <th>Titolo</th>
-                  <th>Stato</th>
-                  <th>Priorita</th>
-                  <th>Componente</th>
-                  <th>Apertura</th>
-                  <th>Chiusura</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for ticket in ticket_rows %}
-                  <tr>
-                    <td>
-                      {% if ticket.detail_url %}
-                        <a href="{{ ticket.detail_url }}" style="color:#1d4ed8;text-decoration:none;">{{ ticket.numero_ticket }}</a>
-                      {% else %}
-                        {{ ticket.numero_ticket }}
-                      {% endif %}
-                    </td>
-                    <td>{{ ticket.tipo_label }}</td>
-                    <td>{{ ticket.titolo }}</td>
-                    <td>{{ ticket.stato_label }}</td>
-                    <td>{{ ticket.priorita_label }}</td>
-                    <td>{{ ticket.componente|default:"—" }}</td>
-                    <td>{{ ticket.created_at|date:"d-m-Y" }}</td>
-                    <td>{% if ticket.closed_at %}{{ ticket.closed_at|date:"d-m-Y" }}{% else %}-{% endif %}</td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="8" class="af-doc-empty">Nessun ticket per questa macchina.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
         {% elif card.code == "PROFILE" %}
           <div class="af-card-body">
-            <div class="af-cust-grid">
-              {% for row in profile_rows %}
-                <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
-              {% endfor %}
+            <div class="af-profile-group">
+              <div class="af-profile-group-title">Anagrafica</div>
+              <div class="af-cust-grid">
+                {% for row in profile_rows %}
+                  <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
+                {% endfor %}
+              </div>
             </div>
-          </div>
-        {% elif card.code == "PERIODIC" %}
-          <div class="af-card-body">
-            <div class="af-cust-grid">
-              {% for row in periodic_verification_rows %}
-                <div class="af-cust-row" style="display:grid;gap:6px;">
-                  <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-                    <div>
-                      <div class="af-cust-name text-lg">{{ row.verification.name }}</div>
-                      <div class="af-cust-sub">
-                        {% if row.verification.supplier %}{{ row.verification.supplier }}{% else %}Fornitore non impostato{% endif %}
-                      </div>
+            {% if spec_pairs %}
+            <div class="af-profile-group">
+              <div class="af-profile-group-title">{{ detail_specs_title|default:"Specifiche tecniche" }}</div>
+              <div class="af-specs">
+                {% for key, value in spec_pairs %}
+                  <div class="af-spec-item">
+                    <span class="af-spec-k">{{ key }}</span>
+                    <span class="af-spec-v">{{ value }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            <div class="af-profile-group">
+              <div class="af-profile-group-title">{{ detail_assignment_title|default:"Assegnazione" }}</div>
+              <p class="af-cust-name">{{ asset.assignment_to|default:"Non assegnato" }}</p>
+              <p class="af-cust-sub">
+                {% if assigned_user_admin_url %}
+                  <a href="{{ assigned_user_admin_url }}" style="color:#2563eb;text-decoration:none;">Apri scheda dipendente</a>
+                {% else %}
+                  Dipendente non collegato
+                {% endif %}
+              </p>
+              <div class="af-cust-grid">
+                {% for row in assignment_rows %}
+                  <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
+                {% endfor %}
+              </div>
+            </div>
+            {% if timeline_events %}
+            <div class="af-profile-group">
+              <div class="af-profile-group-title">{{ detail_timeline_title|default:"Storico ciclo di vita" }}</div>
+              <ol class="af-timeline af-profile-timeline">
+                {% for event in timeline_events %}
+                  <li class="af-tl-item">
+                    <span class="af-dot {% if event.color == 'green' %}af-dot--green{% elif event.color == 'amber' %}af-dot--amber{% else %}af-dot--blue{% endif %}"></span>
+                    <div class="af-tl-title">
+                      {{ event.title }}
+                      {% if event.tag %}<span class="af-tag">{{ event.tag }}</span>{% endif %}
                     </div>
-                    <span class="as-badge as-badge--info">{{ row.verification.frequency_months }} mesi</span>
-                  </div>
-                  <div class="af-cust-sub">
-                    <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
-                    {% if row.verification.next_verification_date %} | prossima {{ row.verification.next_verification_date|date:"d-m-Y" }}{% endif %}
-                  </div>
-                  {% if row.execution_rows %}
-                    <details class="af-pv-history">
-                      <summary class="af-cust-sub">Esecuzioni registrate (ultimi 12 mesi): {{ row.execution_count }}</summary>
-                      <ul style="margin:6px 0 0;padding-left:18px;display:grid;gap:4px;">
-                        {% for execution in row.execution_rows %}
-                          <li>
-                            <strong>{{ execution.executed_at|date:"d-m-Y" }}</strong>
-                            {% if execution.resolution %} - {{ execution.resolution|truncatechars:120 }}{% endif %}
-                            {% if execution.cost_eur is not None %} ({{ execution.cost_eur }} EUR){% endif %}
-                            {% if execution.url %} <a href="{{ execution.url }}">OdL #{{ execution.workorder.id }}</a>{% endif %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    </details>
-                  {% else %}
-                    <div class="af-cust-sub" style="font-style:italic;">Nessuna esecuzione registrata negli ultimi 12 mesi.</div>
-                  {% endif %}
-                </div>
-              {% empty %}
-                <div class="af-doc-empty">Questo asset non e ancora inserito in alcun piano di manutenzione periodica.</div>
-              {% endfor %}
+                    {% if event.description %}<div class="af-tl-desc">{{ event.description }}</div>{% endif %}
+                    <div class="af-tl-meta">
+                      {% if event.date %}{{ event.date|date:"d-m-Y" }}{% endif %}
+                      {% if event.meta %} | {{ event.meta }}{% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ol>
             </div>
+            {% endif %}
           </div>
         {% elif card.code == "QR" %}
-          <div class="af-card-body">
-            <div class="af-action-stack">
-              <a class="af-btn af-btn-secondary" href="{{ asset_qr_url }}" target="_blank" rel="noopener">Apri etichetta QR</a>
-              {% if asset_label_designer_url %}
-                <a class="af-btn" href="{{ asset_label_designer_url }}">Personalizza etichetta</a>
-              {% endif %}
-            </div>
-            <p class="af-note">Il QR punta alla scheda asset.</p>
+          <div class="af-card-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <a class="af-btn af-btn-secondary" href="{{ asset_qr_url }}" target="_blank" rel="noopener">Apri etichetta QR</a>
+            {% if asset_label_designer_url %}
+              <a class="af-btn" href="{{ asset_label_designer_url }}">Personalizza</a>
+            {% endif %}
+            <span class="af-note" style="margin-left:auto;">Il QR punta alla scheda asset.</span>
           </div>
         {% elif card.code == "SHAREPOINT" %}
           <div class="af-card-body">
@@ -997,22 +1138,6 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                     >{{ button.label }}</button>
                   {% endif %}
                 {% endif %}
-              {% endfor %}
-            </div>
-          </div>
-        {% elif card.code == "ASSIGNMENT" %}
-          <div class="af-card-body">
-            <p class="af-cust-name">{{ asset.assignment_to|default:"Non assegnato" }}</p>
-            <p class="af-cust-sub">
-              {% if assigned_user_admin_url %}
-                <a href="{{ assigned_user_admin_url }}" style="color:#2563eb;text-decoration:none;">Apri scheda dipendente</a>
-              {% else %}
-                Dipendente non collegato
-              {% endif %}
-            </p>
-            <div class="af-cust-grid">
-              {% for row in assignment_rows %}
-                <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
               {% endfor %}
             </div>
           </div>
@@ -1410,6 +1535,29 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
         event.preventDefault();
         window.location.reload();
       }
+    });
+  });
+
+  const backLink = document.querySelector("[data-af-back-link]");
+  if (backLink) {
+    backLink.addEventListener("click", function (event) {
+      if (!document.referrer) return;
+      try {
+        const referrerUrl = new URL(document.referrer);
+        if (referrerUrl.origin === window.location.origin && referrerUrl.href !== window.location.href) {
+          event.preventDefault();
+          window.history.back();
+        }
+      } catch (error) {
+        return;
+      }
+    });
+  }
+
+  // Chiudi il menu "Esporta / Altro" al click esterno
+  document.addEventListener("click", function (event) {
+    document.querySelectorAll("details.af-export-menu[open]").forEach(function (menu) {
+      if (!menu.contains(event.target)) menu.removeAttribute("open");
     });
   });
 })();

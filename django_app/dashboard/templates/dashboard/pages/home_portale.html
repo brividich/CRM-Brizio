@@ -20,7 +20,6 @@
      activity_items       list[dict]
      safety_kpis          list[dict]
      system_status        list[dict]
-     show_locked_modules  bool
    =================================================================== #}
 
 {% block title %}Home portale · NOVICROM HUB{% endblock %}
@@ -82,23 +81,60 @@
     {% endfor %}
   </section>
 
+  <section class="hp-cockpit" aria-label="Le mie attività">
+    <div class="hp-card" data-hp-section="card-cose-da-gestire">
+      <header class="hp-card-h hp-collapsible-hdr">
+        <div>
+          <h3 class="hp-card-t">Le mie attività</h3>
+          <p class="hp-card-s">Tutto ciò che richiede una tua azione, dai vari moduli</p>
+        </div>
+        <span class="hp-card-h-r">
+          {% if cose_da_gestire_total %}<span class="hp-counter">{{ cose_da_gestire_total }}</span>{% endif %}
+          <a href="{% url 'mie_attivita' %}" class="hp-card-link">Vedi tutte →</a>
+          <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
+        </span>
+      </header>
+      <div class="hp-collapse-body">
+        {% if cose_da_gestire_total %}
+          <div class="hp-cdg-grid">
+          {% for s in cose_da_gestire %}
+            {% if s.items %}
+              <div class="hp-cdg-group">
+                <div class="hp-cdg-group-h">
+                  <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
+                  <a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>
+                </div>
+                <ul class="hp-list">
+                  {% for it in s.items|slice:":5" %}
+                    <li>
+                      <a href="{{ it.url }}">
+                        {% if it.code %}<span class="hp-list-code">{{ it.code }}</span>{% endif %}
+                        <span class="hp-list-body">
+                          <span class="hp-list-t">{{ it.title }}</span>
+                          <span class="hp-list-m">{{ it.meta }}</span>
+                        </span>
+                        {% if it.status %}<span class="hp-badge hp-tone-{{ s.tone }}">{{ it.status }}</span>{% endif %}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+          {% endfor %}
+          </div>
+        {% else %}
+          <ul class="hp-list"><li class="hp-empty">Nessuna azione in sospeso. Tutto in ordine. ✓</li></ul>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
   <section class="hp-modules" aria-label="Moduli del portale">
     <div class="hp-modules-head">
       <div>
         <h2 class="hp-h2">Moduli del portale</h2>
-        <p class="hp-h2-sub">Tutti i moduli del NOVICROM HUB con stato live.</p>
+        <p class="hp-h2-sub">Moduli disponibili per il tuo profilo.</p>
       </div>
-      <form class="hp-modules-toggle"
-            hx-post="{% url 'home_portale:toggle_locked' %}"
-            hx-trigger="change"
-            hx-swap="none">
-        {% csrf_token %}
-        <label class="hp-toggle">
-          <input type="checkbox" name="show_locked" value="1"
-                 {% if show_locked_modules %}checked{% endif %}>
-          <span>Mostra moduli non accessibili</span>
-        </label>
-      </form>
     </div>
 
     {% for grp in module_groups %}
@@ -113,9 +149,7 @@
         <div class="hp-collapse-body">
           <div class="hp-grid">
             {% for mod in grp.modules %}
-              {% if mod.accessible or show_locked_modules %}
-                {% include "core/components/_home_module_tile.html" with mod=mod %}
-              {% endif %}
+              {% include "core/components/_home_module_tile.html" with mod=mod %}
             {% endfor %}
           </div>
         </div>
@@ -126,71 +160,6 @@
   <section class="hp-board">
 
     <div class="hp-col-l">
-
-      <div class="hp-card" data-hp-section="card-tasks">
-        <header class="hp-card-h hp-collapsible-hdr">
-          <div>
-            <h3 class="hp-card-t">Le mie attività</h3>
-            <p class="hp-card-s">Ticket, task e firme assegnate a te</p>
-          </div>
-          <span class="hp-card-h-r">
-            <a href="{% url 'tickets:dashboard' %}?mine=1" class="hp-card-link">Tutte →</a>
-            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-          </span>
-        </header>
-        <div class="hp-collapse-body">
-          <ul class="hp-list">
-            {% for t in my_tasks %}
-              <li>
-                <a href="{{ t.url }}">
-                  <span class="hp-list-code">{{ t.code }}</span>
-                  <span class="hp-list-body">
-                    <span class="hp-list-t">{{ t.title }}</span>
-                    <span class="hp-list-m">scadenza {{ t.due }}</span>
-                  </span>
-                  <span class="hp-badge hp-tone-{{ t.tone }}">{{ t.priority }}</span>
-                </a>
-              </li>
-            {% empty %}
-              <li class="hp-empty">Nessuna attività assegnata.</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
-
-      <div class="hp-card" data-hp-section="card-anomalie">
-        <header class="hp-card-h hp-collapsible-hdr">
-          <div>
-            <h3 class="hp-card-t">Anomalie aperte</h3>
-            <p class="hp-card-s">Eventi rilevati su linee e impianti</p>
-          </div>
-          <span class="hp-card-h-r">
-            <a href="{% url 'gestione_anomalie_page' %}" class="hp-card-link">Apri modulo →</a>
-            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-          </span>
-        </header>
-        <div class="hp-collapse-body">
-          <ul class="hp-list hp-list-anom">
-            {% for a in anomalie_aperte %}
-              <li>
-                <a href="{{ a.url }}">
-                  <span class="hp-anom-dot hp-tone-{{ a.tone }}"></span>
-                  <span class="hp-list-body">
-                    <span class="hp-list-h">
-                      <span class="hp-list-code">{{ a.code }}</span>
-                      <span class="hp-list-t">{{ a.title }}</span>
-                    </span>
-                    <span class="hp-list-m">{{ a.area }} · {{ a.elapsed }} fa</span>
-                  </span>
-                  <span class="hp-badge hp-tone-{{ a.tone }}">{{ a.status }}</span>
-                </a>
-              </li>
-            {% empty %}
-              <li class="hp-empty">Nessuna anomalia aperta.</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
 
       <div class="hp-card" data-hp-section="card-presenze">
         <header class="hp-card-h hp-collapsible-hdr">
@@ -221,52 +190,6 @@
     </div>
 
     <div class="hp-col-r">
-
-      <div class="hp-card" id="hp-approvals" data-hp-section="card-approvals">
-        <header class="hp-card-h hp-collapsible-hdr">
-          <div>
-            <h3 class="hp-card-t">Da approvare</h3>
-            <p class="hp-card-s">Richieste, automazioni, FIR rifiuti</p>
-          </div>
-          <span class="hp-card-h-r">
-            <span class="hp-counter">{{ pending_approvals|length }}</span>
-            <button type="button" class="hp-chev" aria-expanded="true" aria-label="Comprimi">▾</button>
-          </span>
-        </header>
-        <div class="hp-collapse-body">
-          <ul class="hp-list hp-list-appr">
-            {% for a in pending_approvals %}
-              <li id="hp-appr-{{ a.id }}">
-                <a class="hp-appr-row" href="{{ a.url }}">
-                  <span class="hp-list-code">{{ a.code }}</span>
-                  <span class="hp-list-body">
-                    <span class="hp-list-t">{{ a.title }}</span>
-                    <span class="hp-list-m">{{ a.requester }} · {{ a.category }}</span>
-                  </span>
-                </a>
-                {% if a.approve_url %}
-                <span class="hp-ok">
-                  <button class="hp-ok-y"
-                          title="Approva"
-                          hx-post="{{ a.approve_url }}"
-                          hx-target="#hp-appr-{{ a.id }}"
-                          hx-swap="outerHTML swap:300ms"
-                          hx-confirm="Confermi l'approvazione?">✓</button>
-                  <button class="hp-ok-n"
-                          title="Rifiuta"
-                          hx-post="{{ a.reject_url }}"
-                          hx-target="#hp-appr-{{ a.id }}"
-                          hx-swap="outerHTML swap:300ms"
-                          hx-confirm="Confermi il rifiuto?">×</button>
-                </span>
-                {% endif %}
-              </li>
-            {% empty %}
-              <li class="hp-empty">Nessuna richiesta in approvazione.</li>
-            {% endfor %}
-          </ul>
-        </div>
-      </div>
 
       <div class="hp-card" data-hp-section="card-news">
         <header class="hp-card-h hp-collapsible-hdr">
@@ -367,7 +290,7 @@
   {% endif %}
 
   <footer class="hp-foot">
-    <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli registrati</span>
+    <span>NOVICROM HUB · v {{ app_version }} · {{ module_total }} moduli disponibili</span>
     <span class="hp-foot-r">ACL v2 attivo</span>
   </footer>
 

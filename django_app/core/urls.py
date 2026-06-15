@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import legacy_flask_views
 from . import views
+from . import views_capa
 from .accounts.views import LegacyLoginView, cambia_password, logout_view
 from .accounts.windows_sso import windows_sso_view
 
@@ -64,4 +65,13 @@ urlpatterns = [
     path("api/onboarding/<int:user_id>/reset", views.api_onboarding_reset, name="api_onboarding_reset"),
     path("api/search/", views.api_global_search, name="api_global_search"),
     path("api/table-prefs/<str:table_id>/", views.api_table_prefs, name="api_table_prefs"),
+    # CAPA — Azioni Correttive/Preventive (gating fail-closed nelle view)
+    path("capa/", views_capa.capa_list, name="capa_list"),
+    path("capa/nuova/", views_capa.capa_create, name="capa_create"),
+    path("capa/<int:pk>/", views_capa.capa_detail, name="capa_detail"),
+    path("capa/<int:pk>/modifica/", views_capa.capa_edit, name="capa_edit"),
+    path("capa/<int:pk>/prendi-in-carico/", views_capa.capa_take, name="capa_take"),
+    path("capa/<int:pk>/chiudi/", views_capa.capa_close, name="capa_close"),
+    path("capa/<int:pk>/verifica/", views_capa.capa_verify, name="capa_verify"),
+    path("capa/<int:pk>/annulla/", views_capa.capa_cancel, name="capa_cancel"),
 ]

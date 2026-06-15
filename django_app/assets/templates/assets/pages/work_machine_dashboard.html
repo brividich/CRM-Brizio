@@ -79,6 +79,56 @@ body.theme-dark .wmd-maint-ok-notice { background:rgba(21,128,61,.18); color:#4a
 .wmd-maint-val a { color:inherit; text-decoration:none; }
 .wmd-maint-val a:hover { text-decoration:underline; }
 .wmd-td-empty { color:#64748b; }
+
+/* Cockpit refresh */
+.wmd-kpi,
+.wmd-card,
+.wmd-list-item,
+.wmd-maint-strip {
+  border-radius:10px;
+  box-shadow:0 10px 24px rgba(15,23,42,.045);
+}
+.wmd-kpi {
+  position:relative;
+  overflow:hidden;
+  padding-left:18px;
+  background:linear-gradient(135deg,#fff 0%,#f8fafc 100%);
+}
+.wmd-kpi:before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  background:#14b8a6;
+}
+.wmd-kpi:nth-child(2n):before { background:#2563eb; }
+.wmd-kpi:nth-child(3n):before { background:#f59e0b; }
+.wmd-card-head { background:linear-gradient(90deg,#f8fafc 0%,#fff 100%); }
+.wmd-card-head h2 {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.wmd-card-head h2:before {
+  content:"";
+  width:8px;
+  height:18px;
+  border-radius:4px;
+  background:#14b8a6;
+  flex:0 0 auto;
+}
+.wmd-chip { border-radius:8px; }
+body.theme-dark .wmd-kpi,
+body.theme-dark .wmd-card,
+body.theme-dark .wmd-list-item,
+body.theme-dark .wmd-maint-strip {
+  box-shadow:none;
+}
+body.theme-dark .wmd-card-head {
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
+}
 </style>
 {% endblock %}
 

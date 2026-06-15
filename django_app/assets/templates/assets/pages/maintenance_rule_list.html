@@ -85,6 +85,7 @@
 {% block assets_shell_title %}Regole manutenzione{% endblock %}
 {% block assets_shell_subtitle %}
 <p>Policy standard per categoria asset, con soglia e template intervento riusabile.</p>
+<p><a href="{% url 'assets:maintenance_impostazioni' %}?tab=rules" class="as-backlink">&larr; Impostazioni manutenzione</a></p>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -92,9 +93,9 @@
   <article class="mr-banner">
     <div class="mr-banner-title">Nota dominio</div>
     <div class="mr-banner-note">
-      In questo step le soglie a <strong>giorni</strong> sono quelle pronte all'uso immediato.
-      Le soglie a <strong>ore</strong>, <strong>km</strong> e <strong>cicli</strong> sono gia modellate,
-      ma la valutazione operativa completa arrivera in step successivi.
+      Le soglie a <strong>giorni</strong> partono dalla data dell'ultima esecuzione. Le soglie a
+      <strong>ore</strong>, <strong>km</strong> e <strong>cicli</strong> sono valutate sul contatore
+      (<code>AssetMeter</code>) dell'asset: lo scadenzario e il generatore di OdL le usano allo stesso modo.
     </div>
   </article>
 

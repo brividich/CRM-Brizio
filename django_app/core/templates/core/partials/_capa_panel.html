@@ -1,0 +1,41 @@
+{% comment %}
+_capa_panel.html — Pannello "Azioni CAPA collegate" embeddabile nei detail dei moduli.
+Context atteso (passato dalla view ospite):
+  capa_items     iterable[ActionItem]  azioni collegate al record di origine
+  capa_new_url   str                   URL "nuova azione" con origine + torna precompilati ("" per nascondere il bottone)
+Stili scoped con prefisso .capa-panel-* per non collidere col template ospite.
+{% endcomment %}
+<div class="capa-panel">
+  <style>
+    .capa-panel { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; margin-top:18px; }
+    .capa-panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+    .capa-panel-head h3 { font-size:1.05rem; font-weight:800; color:#0f172a; margin:0; }
+    .capa-panel-new { background:#1d4ed8; color:#fff; border-radius:8px; padding:6px 12px; font-weight:700; font-size:.85rem; text-decoration:none; }
+    .capa-panel-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid #f1f5f9; font-size:.9rem; }
+    .capa-panel-row a { color:#0f172a; text-decoration:none; font-weight:600; }
+    .capa-panel-badge { font-size:.7rem; font-weight:700; border-radius:999px; padding:2px 8px; white-space:nowrap; }
+    .capa-panel .st-APERTA { background:#eef2ff; color:#3730a3; }
+    .capa-panel .st-IN_CORSO { background:#fef9c3; color:#854d0e; }
+    .capa-panel .st-CHIUSA { background:#e0f2fe; color:#075985; }
+    .capa-panel .st-VERIFICATA { background:#dcfce7; color:#166534; }
+    .capa-panel .st-ANNULLATA { background:#f1f5f9; color:#64748b; }
+    .capa-panel-meta { color:#94a3b8; margin-left:auto; font-size:.82rem; }
+    .capa-panel-empty { color:#94a3b8; font-size:.9rem; padding:6px 0; }
+  </style>
+  <div class="capa-panel-head">
+    <h3>✅ Azioni correttive/preventive</h3>
+    {% if capa_new_url %}<a class="capa-panel-new" href="{{ capa_new_url }}">+ Nuova azione</a>{% endif %}
+  </div>
+  {% for it in capa_items %}
+    <div class="capa-panel-row">
+      <span class="capa-panel-badge st-{{ it.stato }}">{{ it.get_stato_display }}</span>
+      <a href="{% url 'capa_detail' it.pk %}">{{ it.titolo }}</a>
+      <span class="capa-panel-meta">
+        {% if it.responsabile %}{{ it.responsabile.get_full_name|default:it.responsabile.username }}{% endif %}
+        {% if it.data_scadenza %} · scad. {{ it.data_scadenza|date:"d/m/Y" }}{% endif %}
+      </span>
+    </div>
+  {% empty %}
+    <div class="capa-panel-empty">Nessuna azione collegata.</div>
+  {% endfor %}
+</div>

@@ -23,6 +23,7 @@ from .models import (
     AssetCustomField,
     AssetLabelTemplate,
     AssistanceContract,
+    MaintenanceChecklistStep,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -980,6 +981,40 @@ class MaintenanceInterventionTemplateForm(forms.ModelForm):
         return (self.cleaned_data.get("description") or "").strip()
 
 
+class MaintenanceChecklistStepForm(forms.ModelForm):
+    class Meta:
+        model = MaintenanceChecklistStep
+        fields = ["step_number", "description"]
+        labels = {
+            "step_number": "N.",
+            "description": "Step checklist",
+        }
+        widgets = {
+            "description": forms.TextInput(attrs={"placeholder": "Es. Verifica livello olio e perdite"}),
+            "step_number": forms.NumberInput(attrs={"min": 0, "step": 10}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Il numero step è opzionale: se vuoto viene auto-assegnato in fase di salvataggio.
+        self.fields["step_number"].required = False
+        _attach_input_css(self)
+
+    def clean_description(self):
+        return (self.cleaned_data.get("description") or "").strip()
+
+
+# Formset inline: gli step di checklist appartengono a un MaintenanceInterventionTemplate
+# e vengono copiati negli OdL alla creazione (vedi copy_template_checklist_to_workorder).
+MaintenanceChecklistStepFormSet = forms.inlineformset_factory(
+    MaintenanceInterventionTemplate,
+    MaintenanceChecklistStep,
+    form=MaintenanceChecklistStepForm,
+    extra=2,
+    can_delete=True,
+)
+
+
 class MaintenanceRuleForm(forms.ModelForm):
     class Meta:
         model = MaintenanceRule
@@ -1043,7 +1078,8 @@ class MaintenanceRuleForm(forms.ModelForm):
             "Sono disponibili i template generali e quelli della categoria selezionata."
         )
         self.fields["threshold_value"].help_text = (
-            "Giorni pronti subito; ore, km e cicli sono modellati ora per usi successivi."
+            "Giorni: dalla data dell'ultima esecuzione. Ore/km/cicli: valutati sul contatore "
+            "(AssetMeter) dell'asset; serve un contatore del tipo corrispondente."
         )
         self.fields["warning_days"].help_text = "Giorni di preallerta prima della scadenza operativa."
         self.fields["notes"].help_text = "Note operative o eccezioni della policy standard."

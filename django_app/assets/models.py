@@ -168,6 +168,77 @@ class Asset(models.Model):
                 self.asset_tag = ""
         return super().save(*args, **kwargs)
 
+    # ── Completezza scheda ───────────────────────────────────────────────────
+    # Campi anagrafici "core" sempre rilevanti per la completezza, con etichetta
+    # leggibile. L'assegnatario è valutato a parte (più sorgenti possibili).
+    _COMPLETENESS_CORE_FIELDS = (
+        ("name", "Nome"),
+        ("serial_number", "Numero di serie"),
+        ("manufacturer", "Produttore"),
+        ("model", "Modello"),
+        ("reparto", "Reparto"),
+        ("purchase_date", "Data acquisto"),
+    )
+
+    def _has_assignment(self) -> bool:
+        return bool((self.assignment_to or "").strip()) or bool(self.assigned_legacy_user_id)
+
+    def completeness(self, category_fields=None) -> dict:
+        """Valuta la completezza della scheda: campi core + category field richiesti.
+
+        Ritorna {"total", "filled", "pct", "missing": [label, ...]}. I campi
+        BOOL dei category field sono esclusi (un Sì/No non è un "dato mancante").
+        ``category_fields`` può essere passato già caricato (per liste/report) per
+        evitare una query per asset; se omesso viene letto al volo (0 se nessuna
+        categoria).
+        """
+        missing: list[str] = []
+        total = 0
+        filled = 0
+
+        for attr, label in self._COMPLETENESS_CORE_FIELDS:
+            total += 1
+            value = getattr(self, attr, None)
+            if value not in (None, ""):
+                filled += 1
+            else:
+                missing.append(label)
+
+        total += 1
+        if self._has_assignment():
+            filled += 1
+        else:
+            missing.append("Assegnatario")
+
+        if category_fields is None:
+            if self.asset_category_id:
+                category_fields = [
+                    f for f in self.asset_category.category_fields.all()
+                    if f.is_active and f.is_required
+                ]
+            else:
+                category_fields = []
+
+        extra = self.extra_columns if isinstance(self.extra_columns, dict) else {}
+        for field_def in category_fields:
+            if not getattr(field_def, "is_required", False) or not getattr(field_def, "is_active", True):
+                continue
+            if field_def.field_type == AssetCategoryField.TYPE_BOOL:
+                continue
+            total += 1
+            raw = extra.get(field_def.code)
+            if str(raw or "").strip():
+                filled += 1
+            else:
+                missing.append(field_def.label)
+
+        pct = int(round(100 * filled / total)) if total else 100
+        return {"total": total, "filled": filled, "pct": pct, "missing": missing}
+
+    @property
+    def completeness_pct(self) -> int:
+        return self.completeness()["pct"]
+
 
 class AssetCustomField(models.Model):
     TYPE_TEXT = "TEXT"

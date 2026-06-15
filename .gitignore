@@ -63,6 +63,9 @@ temp/
 .tmp_tests/
 django_app/.tmp_tests/
 .tmp_powerautomate/
+.tmp_export/
+.tmp_timbri_commit/
+/prod
 
 # Packaging / installers
 *.manifest

@@ -22,6 +22,8 @@
 .sc-pill-60      { background:#fef9c3; color:#854d0e; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
 .sc-badge-q { background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
 .sc-badge-v { background:#f3e8ff; color:#6b21a8; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-badge-f { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
+.sc-badge-c { background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .sc-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .sc-field label { color:var(--text-light); }
@@ -30,6 +32,8 @@ body.theme-dark .sc-pill-30      { background:rgba(154,52,18,.25); color:#fdba74
 body.theme-dark .sc-pill-60      { background:rgba(133,77,14,.25); color:#fde68a; }
 body.theme-dark .sc-badge-q { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
+body.theme-dark .sc-badge-f { background:rgba(22,101,52,.25); color:#86efac; }
+body.theme-dark .sc-badge-c { background:rgba(146,64,14,.25); color:#fcd34d; }
 </style>
 {% endblock %}
 
@@ -45,9 +49,10 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
       <h1 class="hr-pagehead-title">Scadenzario</h1>
-      <p class="hr-pagehead-desc">Qualifiche e visite mediche scadute o in scadenza nei prossimi 60 giorni.</p>
+      <p class="hr-pagehead-desc">Qualifiche, visite mediche, formazione obbligatoria e contratti scaduti o in scadenza nei prossimi 60 giorni.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      {% if can_view_contratti %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità mansione</a>{% endif %}
       <a class="hr-btn hr-btn-outline" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv">⬇ Esporta CSV</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>
@@ -96,6 +101,12 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
             <option value="qualifica" {% if filtro_tipo == "qualifica" %}selected{% endif %}>Solo qualifiche</option>
             {% if can_view_visite %}
             <option value="visita" {% if filtro_tipo == "visita" %}selected{% endif %}>Solo visite mediche</option>
+            {% endif %}
+            {% if can_view_formazione %}
+            <option value="formazione" {% if filtro_tipo == "formazione" %}selected{% endif %}>Solo formazione obbligatoria</option>
+            {% endif %}
+            {% if can_view_contratti %}
+            <option value="contratto" {% if filtro_tipo == "contratto" %}selected{% endif %}>Solo contratti / prova</option>
             {% endif %}
           </select>
         </div>
@@ -166,6 +177,10 @@ body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
             <td>
               {% if v.kind == "qualifica" %}
                 <span class="sc-badge-q">🎓 Qualifica</span>
+              {% elif v.kind == "formazione" %}
+                <span class="sc-badge-f">📚 Formazione</span>
+              {% elif v.kind == "contratto" %}
+                <span class="sc-badge-c">📄 Contratto</span>
               {% else %}
                 <span class="sc-badge-v">🏥 Visita</span>
               {% endif %}

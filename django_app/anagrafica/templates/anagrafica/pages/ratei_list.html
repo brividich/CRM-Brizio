@@ -52,6 +52,19 @@
 .rl-page-btn:hover { background:#e2e8f0; }
 .rl-page-btn.active { background:#12395f; color:#fff; border-color:#12395f; cursor:default; }
 .rl-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
+
+/* AB1-D — semaforo allerta ferie */
+.rl-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.rl-dot-rosso { background:#dc2626; }
+.rl-dot-giallo { background:#f59e0b; }
+.rl-res-rosso { color:#b91c1c !important; background:#fee2e2 !important; }
+.rl-res-giallo { color:#b45309 !important; background:#fff7ed !important; }
+.rl-kpi-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.rl-kpi { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc; color:#475569; }
+.rl-kpi b { font-size:12px; }
+.rl-kpi.red { background:#fee2e2; border-color:#fecaca; color:#b91c1c; }
+.rl-kpi.amber { background:#ffedd5; border-color:#fed7aa; color:#9a3412; }
+.rl-allerta-toggle { display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; padding-top:6px; }
 </style>
 {% endblock %}
 
@@ -66,6 +79,11 @@
       <div class="hr-pagehead-eyebrow">Presenze e assenze</div>
       <h2 class="hr-pagehead-title">📅 Ratei Ferie / Permessi</h2>
       <p class="hr-pagehead-desc">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
+      <div class="rl-kpi-row">
+        <span class="rl-kpi {% if n_negativi %}red{% endif %}">Ferie negative <b>{{ n_negativi }}</b></span>
+        <span class="rl-kpi {% if n_accumulo %}amber{% endif %}">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <b>{{ n_accumulo }}</b></span>
+        <span class="rl-kpi">In allerta <b>{{ n_allerta }}</b></span>
+      </div>
     </div>
     <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti</a>
   </div>
@@ -108,10 +126,21 @@
       <div class="rl-dip-hint">Ctrl+clic per più reparti</div>
     </div>
 
+    <!-- Allerta ferie -->
+    <div>
+      <label class="rl-filter-label">Allerta ferie</label>
+      <label class="rl-allerta-toggle">
+        <input type="checkbox" name="allerta" value="1" {% if filtro_allerta %}checked{% endif %}
+               onchange="document.getElementById('rl-filter-form').submit()">
+        Solo in allerta
+      </label>
+      <div class="rl-dip-hint">negativo o ≥ {{ soglie.ore_warn|floatformat:0 }}h</div>
+    </div>
+
     <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
       <button type="submit" class="rl-btn rl-btn-primary">Filtra</button>
       <button type="button" class="rl-btn rl-btn-ghost" onclick="rlExport()" title="Scarica Excel con i filtri attivi">⬇ Excel</button>
-      {% if filtro_periodo or filtro_dipendenti or filtro_reparti %}
+      {% if filtro_periodo or filtro_dipendenti or filtro_reparti or filtro_allerta %}
       <a href="{% url 'anagrafica:ratei_list' %}" class="rl-btn rl-btn-ghost">✕ Reset</a>
       {% endif %}
     </div>
@@ -149,6 +178,7 @@
           {% for s in page_obj.object_list %}
           <tr class="rl-tr">
             <td class="rl-td-pin">
+              {% if s.semaforo.tono != 'verde' %}<span class="rl-dot rl-dot-{{ s.semaforo.tono }}" title="{{ s.semaforo.motivo }}"></span>{% endif %}
               {% if s.legacy_anagrafica_id %}
                 <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;font-size:13px;font-weight:600;">
                   {{ s.nome_display }}
@@ -164,7 +194,7 @@
             <td class="rl-td rl-ferie">{{ s.ferie_anni_prec }}</td>
             <td class="rl-td rl-ferie">{{ s.ferie_maturati }}</td>
             <td class="rl-td rl-ferie">{{ s.ferie_goduti }}</td>
-            <td class="rl-td rl-ferie rl-bold">{{ s.ferie_residui }}</td>
+            <td class="rl-td rl-ferie rl-bold {% if s.semaforo.tono == 'rosso' %}rl-res-rosso{% elif s.semaforo.tono == 'giallo' %}rl-res-giallo{% endif %}">{{ s.ferie_residui }}</td>
             <td class="rl-td rl-rol">{{ s.rol_anni_prec }}</td>
             <td class="rl-td rl-rol">{{ s.rol_maturati }}</td>
             <td class="rl-td rl-rol">{{ s.rol_goduti }}</td>

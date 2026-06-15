@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% block title %}{{ employee.full_name }} | Timbri{% endblock %}
+{% block body_class %}{{ block.super }} timbri-detail-page{% endblock %}
 {% block extra_head %}
 <style>
 /* ── Layout ─────────────────────────────────────────────────────────────── */
@@ -13,7 +14,7 @@
 .tim-avatar-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
 .tim-avatar-fallback::before { content:""; position:absolute; top:14px; left:23px; width:18px; height:18px; border-radius:50%; background:#94a3b8; }
 .tim-avatar-fallback::after  { content:""; position:absolute; left:17px; bottom:12px; width:30px; height:18px; border-radius:18px 18px 10px 10px; background:#94a3b8; }
-.tim-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.025em; line-height:1.2; }
+.tim-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:0; line-height:1.2; }
 .tim-sub { color:#64748b; font-size:13px; margin-top:4px; }
 .tim-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
@@ -34,7 +35,7 @@
 /* ── KPI ─────────────────────────────────────────────────────────────────── */
 .tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
-.tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; letter-spacing:-.03em; }
+.tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; letter-spacing:0; }
 .tim-k-label { font-size:11px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:.07em; margin-top:7px; }
 
 /* ── Meta grid ───────────────────────────────────────────────────────────── */
@@ -132,6 +133,39 @@ body.theme-dark .tim-pill-amber  { background:rgba(146,64,14,.2); color:#fde68a;
 body.theme-dark .tim-image { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .tim-img-label { color:var(--text-light); }
 body.theme-dark .tim-empty { color:var(--text-light); border-color:var(--border); }
+
+/* 2026 UI refresh */
+.timbri-detail-page .content { width:100%; max-width:none; }
+.timbri-detail-page .tim-page { gap:16px; }
+.timbri-detail-page .tim-card { border-radius:8px; box-shadow:0 14px 34px rgba(15,23,42,.04); }
+.tim-hero-card {
+  position:relative;
+  overflow:hidden;
+  border-color:rgba(15,118,110,.22);
+  color:#fff;
+  background:
+    linear-gradient(135deg, rgba(8,38,52,.97) 0%, rgba(15,118,110,.94) 58%, rgba(2,132,199,.78) 128%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
+}
+.tim-hero-card::after { content:""; position:absolute; right:24px; bottom:0; width:220px; height:88px; border:1px solid rgba(255,255,255,.12); border-bottom:0; opacity:.34; transform:skewX(-12deg); pointer-events:none; }
+.tim-hero-card .tim-hero { position:relative; z-index:1; }
+.tim-hero-card .tim-title { color:#fff; font-size:30px; line-height:1.08; font-weight:900; }
+.tim-hero-card .tim-sub { color:rgba(255,255,255,.78); }
+.tim-hero-card .tim-btn { min-height:38px; border-color:rgba(255,255,255,.24); color:#fff; background:rgba(255,255,255,.10); }
+.tim-hero-card .tim-btn:hover { background:rgba(255,255,255,.18); }
+.tim-hero-card .tim-btn-main { background:#fff; border-color:#fff; color:#0f766e; }
+.tim-hero-card .tim-btn-main:hover { background:#ecfeff; }
+.tim-hero-card .tim-avatar-wrap { border-color:rgba(255,255,255,.26); background:rgba(255,255,255,.16); }
+.tim-sep { color:rgba(255,255,255,.42); padding:0 6px; }
+.timbri-detail-page .tim-k { position:relative; overflow:hidden; border-radius:8px; border-color:#dbe7e5; box-shadow:0 10px 28px rgba(15,23,42,.05); }
+.timbri-detail-page .tim-k::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:#0f766e; }
+.timbri-detail-page .tim-k:nth-child(2)::before { background:#16a34a; }
+.timbri-detail-page .tim-k:nth-child(3)::before { background:#64748b; }
+.timbri-detail-page .tim-meta-item { border-radius:8px; background:linear-gradient(180deg,#fff 0%,#f8fbff 100%); }
+.timbri-detail-page .tim-section-head { padding:2px 0; }
+body.theme-dark.timbri-detail-page .tim-card,
+body.theme-dark.timbri-detail-page .tim-k { box-shadow:none; }
+body.theme-dark .tim-hero-card { border-color:var(--border); }
 </style>
 {% endblock %}
 
@@ -142,7 +176,7 @@ body.theme-dark .tim-empty { color:var(--text-light); border-color:var(--border)
   {% include "anagrafica/components/flash_messages.html" %}
 
   <!-- Hero -->
-  <div class="tim-card">
+  <div class="tim-card tim-hero-card">
     <div class="tim-hero">
       <div class="tim-hero-left">
         <div class="tim-avatar-wrap{% if not employee.foto_url %} tim-avatar-fallback{% endif %}" aria-hidden="true">

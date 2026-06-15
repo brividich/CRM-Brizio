@@ -183,6 +183,38 @@ MONITORING_EMAIL_RATE_LIMIT_SECONDS = int(env("MONITORING_EMAIL_RATE_LIMIT_SECON
 MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
     env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
 )
+# ── Content-Security-Policy ───────────────────────────────────────────────────
+# Applicata da core.middleware.ContentSecurityPolicyMiddleware a tutte le
+# risposte. La allowlist riflette l'inventario reale dei template:
+#   - cdn.jsdelivr.net      → FullCalendar, frappe-gantt, Chart.js, SortableJS
+#   - cdnjs.cloudflare.com  → html2canvas (rule designer)
+#   - fonts.googleapis.com / fonts.gstatic.com → font Outfit (base.html, print)
+# 'unsafe-inline' su script/style e' richiesto dagli script e dagli stili
+# inline dei template SSR (niente nonce per ora). Niente 'unsafe-eval':
+# nessun template usa hx-on/hx-vals js:.
+# CSP_REPORT_ONLY=1 emette Content-Security-Policy-Report-Only (solo log
+# browser, nessun blocco): usarlo al primo rollout in prod per osservare.
+CSP_ENABLED = env_bool("CSP_ENABLED", True)
+CSP_REPORT_ONLY = env_bool("CSP_REPORT_ONLY", False)
+CSP_POLICY = env(
+    "CSP_POLICY",
+    "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            "img-src 'self' data: blob:",
+            "connect-src 'self'",
+            "frame-src 'self'",
+            "frame-ancestors 'self'",
+            "form-action 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+        ]
+    ),
+)
+
 # Liveness/readiness endpoints (monitoring/health.py).
 # HEALTHZ_ALLOWED_IPS: client IP autorizzati a chiamare /healthz e /readyz.
 # Default: solo loopback. Aggiungere l'IP del proxy IIS / load balancer.
@@ -282,6 +314,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.ContentSecurityPolicyMiddleware",
     "core.middleware.AdaptiveSecureCookieMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django_htmx.middleware.HtmxMiddleware",

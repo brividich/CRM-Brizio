@@ -935,6 +935,7 @@ def _template_perm_context(request) -> dict:
         "assenze_can_skip_approval": perms["can_skip_approval"],
         "assenze_can_edit_events": perms["can_edit_events"],
         "assenze_can_delete_events": perms["can_delete_any"],
+        "assenze_can_reconcile": perms.get("can_update_any", False),
         "assenze_is_admin": user_can_modulo_action(request, "assenze", "admin_assenze"),
     }
 
@@ -1342,6 +1343,8 @@ def _get_assenza(item_id: int) -> dict | None:
         "capo_reparto_lookup_id",
         "copia_nome",
         "email_esterna",
+        "utente_id",
+        "aliasusername",
         "tipo_assenza",
         "data_inizio",
         "data_fine",
@@ -3549,6 +3552,75 @@ def gestione_assenze(request):
     )
 
 
+def _riconciliazione_csv(items, da, a):
+    import csv
+
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="riconciliazione_presenze_{da:%Y%m%d}_{a:%Y%m%d}.csv"'
+    )
+    response.write("﻿")  # BOM per Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow([
+        "Dipendente", "Data presenza", "Ore presenza",
+        "Tipo assenza approvata", "ID assenza", "ID presenza",
+    ])
+    for c in items:
+        writer.writerow([
+            c.nome,
+            c.data.strftime("%d/%m/%Y"),
+            c.ore_presenza if c.ore_presenza is not None else "",
+            c.tipo_label,
+            c.assenza_id if c.assenza_id is not None else "",
+            c.presenza_id if c.presenza_id is not None else "",
+        ])
+    return response
+
+
+@login_required
+def riconciliazione(request):
+    """RA1 — incongruenze presenza certificata vs assenza approvata (sola lettura).
+
+    Riservata all'Amministrazione assenze (dato globale, le presenze certificate
+    non hanno reparto). Export CSV con ?export=csv. Periodo filtrabile (default:
+    dal 1° gennaio dell'anno corrente a oggi).
+    """
+    perms = _assenze_permissions(request)
+    if not (perms.get("can_update_any") or getattr(request.user, "is_superuser", False)):
+        return HttpResponseForbidden(
+            "Accesso riservato all'Amministrazione assenze."
+        )
+
+    from .riconciliazione import conflitti as _conflitti, parse_periodo
+
+    today = timezone.localdate()
+    da, a = parse_periodo(
+        request.GET.get("da"),
+        request.GET.get("a"),
+        default_da=today.replace(month=1, day=1),
+        default_a=today,
+    )
+    items = _conflitti(da, a)
+
+    if request.GET.get("export") == "csv":
+        return _riconciliazione_csv(items, da, a)
+
+    return render(
+        request,
+        "assenze/pages/riconciliazione.html",
+        {
+            "items": items,
+            "totale": len(items),
+            "da": da,
+            "a": a,
+            **get_module_branding_context("assenze", fallback_label="Assenze"),
+            **_template_perm_context(request),
+        },
+    )
+
+
 @login_required
 @ensure_csrf_cookie
 def car_dashboard(request):
@@ -3958,12 +4030,25 @@ def api_evento_delete(request, item_id: int | None = None):
         # Utenti non-admin possono eliminare solo le proprie richieste.
         if not perms.get("can_insert"):
             return _json_error("Permessi insufficienti: eliminazione record non consentita.", status=403)
-        name, email, _ = _legacy_identity(request)
-        rec_nome = str(current.get("copia_nome") or "").strip().upper()
-        rec_email = str(current.get("email_esterna") or "").strip().upper()
-        user_nome = str(name or "").strip().upper()
-        user_email = str(email or "").strip().upper()
-        is_own = (user_nome and rec_nome == user_nome) or (user_email and rec_email == user_email)
+        name, email, legacy_user_id = _legacy_identity(request)
+        username = str(request.user.get_username() or "").strip()
+        rec_utente_id = _as_int(current.get("utente_id"))
+        rec_username = str(current.get("aliasusername") or "").strip()
+        rec_email = str(current.get("email_esterna") or "").strip()
+        rec_nome = str(current.get("copia_nome") or "").strip()
+        # Proprieta' del record: si privilegiano gli identificatori UNIVOCI
+        # (utente_id legacy, poi username, poi email). Il confronto sul nome
+        # visualizzato e' solo fallback per i record legacy privi di id/username:
+        # da solo non e' affidabile (omonimie) e non deve abilitare la delete
+        # quando esiste un identificatore univoco che invece non combacia.
+        if legacy_user_id is not None and rec_utente_id is not None:
+            is_own = rec_utente_id == legacy_user_id
+        elif username and rec_username:
+            is_own = rec_username.casefold() == username.casefold()
+        elif email and rec_email:
+            is_own = rec_email.casefold() == email.casefold()
+        else:
+            is_own = bool(name) and rec_nome.casefold() == str(name).strip().casefold()
         if not is_own:
             return _json_error("Permessi insufficienti: puoi eliminare solo le tue richieste.", status=403)
 
@@ -3975,7 +4060,48 @@ def api_evento_delete(request, item_id: int | None = None):
 
     if not _delete_assenza(target_id):
         return _json_error("Eliminazione non riuscita", status=500)
+
+    # Notifica mail SOLO per richieste gia' approvate (moderation_status == 0;
+    # default 2 = in attesa). Best-effort: un errore mail non deve ribaltare
+    # l'eliminazione gia' avvenuta.
+    if _as_int(current.get("moderation_status")) == 0:
+        try:
+            _notify_assenza_deleted(request, current)
+        except Exception:
+            logger.warning(
+                "api_evento_delete: notifica eliminazione fallita per id=%s",
+                target_id,
+                exc_info=True,
+            )
+
     return JsonResponse({"ok": True, "item_id": target_id})
+
+
+def _notify_assenza_deleted(request, record: dict) -> None:
+    """Costruisce destinatari/contesto e invia l'avviso di eliminazione.
+
+    Risolve l'email del capo reparto dai lookup del record e l'identita' di chi
+    esegue l'eliminazione; delega l'invio a mail_delete_service (fail-open).
+    """
+    from .mail_delete_service import send_assenza_deleted_notification
+
+    capi = _load_capi_options()
+    capo_email = _resolve_capo_option_value_from_ids(
+        local_id=_as_int(record.get("capo_reparto_id")),
+        lookup_id=_as_int(record.get("capo_reparto_lookup_id")),
+        capi=capi,
+    )
+    deleted_by_name, deleted_by_email, _ = _legacy_identity(request)
+    tipo_display = _tipo_for_display(
+        record.get("tipo_assenza"), record.get("motivazione_richiesta")
+    )
+    send_assenza_deleted_notification(
+        record,
+        tipo_display=tipo_display,
+        capo_email=capo_email,
+        deleted_by_name=deleted_by_name,
+        deleted_by_email=deleted_by_email,
+    )
 
 
 @login_required

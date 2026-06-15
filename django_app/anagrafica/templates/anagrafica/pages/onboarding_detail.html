@@ -1,0 +1,122 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Onboarding {{ pratica.dipendente_nome }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.ob-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; padding:14px 16px; }
+.ob-summary .k { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ob-summary .v { font-size:14px; color:#0f172a; font-weight:600; margin-top:2px; }
+.ob-task { display:grid; grid-template-columns:minmax(220px,1.3fr) minmax(260px,1fr); gap:14px; align-items:start; padding:12px 16px; border-top:1px solid #f1f5f9; }
+.ob-task:first-child { border-top:none; }
+.ob-task-titolo { font-weight:700; color:#1e293b; }
+.ob-task-desc { font-size:12px; color:#64748b; margin-top:3px; }
+.ob-cat { display:inline-block; margin-top:6px; background:#eef2ff; color:#3730a3; padding:1px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+.ob-task-form { display:flex; flex-direction:column; gap:6px; }
+.ob-task-form select, .ob-task-form input { border:1px solid #e2e8f0; border-radius:8px; padding:6px 9px; font-size:12px; font-family:inherit; background:#fff; color:#0f172a; }
+.ob-st-pill { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; }
+.ob-st-da_fare { background:#f1f5f9; color:#64748b; }
+.ob-st-completato { background:#dcfce7; color:#166534; }
+.ob-st-eccezione { background:#fef9c3; color:#854d0e; }
+.ob-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 11px; border-radius:999px; font-size:12px; font-weight:700; }
+.ob-st-corso { background:#dbeafe; color:#1e40af; }
+.ob-st-chiusa { background:#dcfce7; color:#166534; }
+.ob-st-ecc { background:#fef9c3; color:#854d0e; }
+.ob-st-ann { background:#f1f5f9; color:#64748b; }
+body.theme-dark .ob-summary .v { color:var(--text); }
+body.theme-dark .ob-summary .k { color:var(--text-light); }
+body.theme-dark .ob-task { border-color:var(--border); }
+body.theme-dark .ob-task-titolo { color:var(--text); }
+body.theme-dark .ob-task-form select, body.theme-dark .ob-task-form input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR · Onboarding</div>
+      <h1 class="hr-pagehead-title">{{ pratica.dipendente_nome|default:pratica.legacy_anagrafica_id }}</h1>
+      <p class="hr-pagehead-desc">
+        {% if pratica.stato == "IN_CORSO" %}<span class="ob-badge ob-st-corso">In corso</span>
+        {% elif pratica.stato == "CHIUSA" %}<span class="ob-badge ob-st-chiusa">Chiusa</span>
+        {% elif pratica.stato == "CHIUSA_CON_ECCEZIONI" %}<span class="ob-badge ob-st-ecc">Chiusa con eccezioni</span>
+        {% else %}<span class="ob-badge ob-st-ann">Annullata</span>{% endif %}
+        &nbsp; {{ counts.completati }}/{{ counts.totale }} task completati{% if counts.eccezioni %} · {{ counts.eccezioni }} eccezioni{% endif %}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendente_detail' pratica.legacy_anagrafica_id %}">Scheda dipendente</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:onboarding_list' %}">← Elenco</a>
+    </div>
+  </div>
+
+  <div class="hr-card">
+    <div class="ob-summary">
+      <div><div class="k">Reparto</div><div class="v">{{ pratica.reparto|default:"—" }}</div></div>
+      <div><div class="k">Mansione</div><div class="v">{{ pratica.mansione|default:"—" }}</div></div>
+      <div><div class="k">Data assunzione</div><div class="v">{{ pratica.data_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
+      <div><div class="k">Aperta il</div><div class="v">{{ pratica.created_at|date:"d-m-Y" }}</div></div>
+      {% if pratica.closed_at %}<div><div class="k">Chiusa il</div><div class="v">{{ pratica.closed_at|date:"d-m-Y" }}</div></div>{% endif %}
+    </div>
+    {% if pratica.note_hr %}
+    <div style="padding:0 16px 14px;font-size:13px;color:#475569;"><strong>Note HR:</strong> {{ pratica.note_hr }}</div>
+    {% endif %}
+  </div>
+
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">Checklist di inserimento</div>
+      {% if pratica.is_aperta %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <form method="post" action="{% url 'anagrafica:onboarding_chiudi' pratica.id %}" onsubmit="return confirm('Chiudere la pratica onboarding? I task non completati la marcheranno come chiusa con eccezioni.');">
+          {% csrf_token %}
+          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">✓ Chiudi pratica</button>
+        </form>
+        <form method="post" action="{% url 'anagrafica:onboarding_annulla' pratica.id %}" onsubmit="return confirm('Annullare la pratica onboarding?');">
+          {% csrf_token %}
+          <button type="submit" class="hr-btn hr-btn-outline hr-btn-sm">Annulla</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% for task in tasks %}
+    <div class="ob-task">
+      <div>
+        <div class="ob-task-titolo">{{ task.titolo }}</div>
+        {% if task.descrizione %}<div class="ob-task-desc">{{ task.descrizione }}</div>{% endif %}
+        <span class="ob-cat">{{ task.get_categoria_display }}</span>
+        {% if task.note %}<div class="ob-task-desc" style="margin-top:6px;">📝 {{ task.note }}</div>{% endif %}
+      </div>
+      <div>
+        {% if pratica.is_aperta %}
+        <form method="post" action="{% url 'anagrafica:onboarding_task_update' pratica.id task.id %}" class="ob-task-form">
+          {% csrf_token %}
+          <select name="stato">
+            {% for value, label in task_stato_choices %}
+            <option value="{{ value }}" {% if task.stato == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="note" value="{{ task.note }}" placeholder="Nota (opzionale)" maxlength="1000">
+          <button type="submit" class="hr-btn hr-btn-outline hr-btn-sm" style="align-self:flex-start;">Salva</button>
+        </form>
+        {% else %}
+          <span class="ob-st-pill ob-st-{{ task.stato|lower }}">{{ task.get_stato_display }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="hr-empty">Nessun task nella pratica.</div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

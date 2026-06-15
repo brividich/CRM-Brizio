@@ -855,3 +855,50 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
     except Exception:
         logger.exception("anomalie escalation resoconto FALLITO")
         return False
+
+
+# ── Timeline / log azioni portale ───────────────────────────────────────────
+
+def log_anomalia_portal_action(
+    *,
+    anomalia_id: int | None,
+    op_id: str,
+    action: str,
+    user=None,
+    legacy_user_id: int | None = None,
+    user_display: str = "",
+    previous_status: str = "",
+    new_status: str = "",
+    note: str = "",
+    ip_address: str | None = None,
+    user_agent: str = "",
+) -> None:
+    """Registra un'azione su anomalia eseguita dal portale (source=PORTAL).
+
+    Fire-and-forget: ogni errore viene assorbito e loggato, non deve mai far
+    fallire il salvataggio dell'anomalia. Speculare a _write_action_log del
+    flusso mail-action, così la timeline (AnomaliaActionLog) copre entrambi i
+    canali. Senza anomalia_id il log e' inutile (non agganciabile all'OP) e si
+    salta.
+    """
+    if not anomalia_id:
+        return
+    try:
+        from anomalie.mail_action_models import AnomaliaActionLog
+
+        AnomaliaActionLog.objects.create(
+            anomalia_id=int(anomalia_id),
+            op_id=str(op_id or "")[:100],
+            user=user if (user is not None and getattr(user, "is_authenticated", False)) else None,
+            legacy_user_id=legacy_user_id,
+            user_display=str(user_display or "")[:200],
+            action=str(action or "")[:32],
+            previous_status=str(previous_status or "")[:100],
+            new_status=str(new_status or "")[:100],
+            note=str(note or ""),
+            source=AnomaliaActionLog.Source.PORTAL,
+            ip_address=ip_address,
+            user_agent=str(user_agent or "")[:500],
+        )
+    except Exception:
+        logger.warning("log_anomalia_portal_action: scrittura log fallita op=%s id=%s", op_id, anomalia_id, exc_info=True)

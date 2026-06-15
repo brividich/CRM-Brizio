@@ -1,0 +1,148 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{# ===================================================================
+   scadenze_globali.html — Scadenzario Globale Unificato.
+   Context (vedi dashboard/views_scadenze.py):
+     page_obj        Page[ScadenzaItem]
+     totale          int
+     n_scadute/n_30gg/n_60gg  int
+     reparti         list[str]
+     sorgenti        list[(code,label)]
+     filtro_sorgente/filtro_stato/filtro_reparto  str
+   =================================================================== #}
+
+{% block title %}Scadenzario globale · {{ block.super }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sg-wrap { max-width: 1180px; margin: 0 auto; padding: 4px 0 32px; }
+  .sg-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .sg-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
+  .sg-sub { color:#64748b; font-size:.95rem; margin:4px 0 0; }
+  .sg-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .sg-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
+  .sg-kpi b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
+  .sg-kpi span { color:#64748b; font-size:.82rem; }
+  .sg-kpi.danger b { color:#b91c1c; }
+  .sg-kpi.warn b { color:#9a3412; }
+  .sg-kpi.info b { color:#1e40af; }
+  .sg-filters { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; margin-bottom:16px;
+                display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  .sg-filters label { display:flex; flex-direction:column; font-size:.78rem; color:#475569; gap:4px; font-weight:600; }
+  .sg-filters select, .sg-filters input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:.9rem; min-width:150px; }
+  .sg-btn { background:#0f172a; color:#fff; border:none; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:.9rem; }
+  .sg-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; text-decoration:none; }
+  .sg-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+  .sg-table th { text-align:left; font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b;
+                 background:#f8fafc; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
+  .sg-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; font-size:.9rem; color:#0f172a; vertical-align:middle; }
+  .sg-table tr:last-child td { border-bottom:none; }
+  .sg-src { display:inline-block; font-size:.72rem; font-weight:700; border-radius:999px; padding:2px 8px; background:#eef2ff; color:#3730a3; }
+  .sg-src.asset { background:#ecfeff; color:#155e75; }
+  .sg-src.dpi { background:#f0fdf4; color:#166534; }
+  .sg-src.rentri { background:#fef3c7; color:#92400e; }
+  .sg-when { font-weight:700; }
+  .sg-when.scaduta { color:#b91c1c; }
+  .sg-when.soon { color:#9a3412; }
+  .sg-empty { text-align:center; color:#94a3b8; padding:40px 0; }
+  .sg-pager { display:flex; gap:8px; justify-content:center; margin-top:16px; align-items:center; color:#64748b; font-size:.85rem; }
+  .sg-pager a { text-decoration:none; border:1px solid #cbd5e1; border-radius:8px; padding:5px 12px; color:#0f172a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sg-wrap">
+  <div class="sg-head">
+    <div>
+      <h1 class="sg-title">📅 Scadenzario globale</h1>
+      <p class="sg-sub">Tutte le scadenze del portale (personale, asset, DPI, RENTRI) nei prossimi 60 giorni, in un'unica vista.</p>
+    </div>
+  </div>
+
+  <div class="sg-kpis">
+    <div class="sg-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
+    <div class="sg-kpi warn"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></div>
+    <div class="sg-kpi info"><b>{{ n_60gg }}</b><span>31–60 giorni</span></div>
+    <div class="sg-kpi"><b>{{ totale }}</b><span>Totale</span></div>
+  </div>
+
+  <form method="get" class="sg-filters">
+    <label>Sorgente
+      <select name="sorgente">
+        <option value="">Tutte</option>
+        {% for code, label in sorgenti %}
+          <option value="{{ code }}" {% if filtro_sorgente == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Stato
+      <select name="stato">
+        <option value="">Tutti</option>
+        <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Scadute</option>
+        <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
+        <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+      </select>
+    </label>
+    <label>Reparto
+      <select name="reparto">
+        <option value="">Tutti</option>
+        {% for r in reparti %}
+          <option value="{{ r }}" {% if filtro_reparto == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="sg-btn">Filtra</button>
+    <a class="sg-btn ghost" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=csv">⬇ CSV</a>
+  </form>
+
+  <table class="sg-table">
+    <thead>
+      <tr>
+        <th>Sorgente</th>
+        <th>Tipo</th>
+        <th>Soggetto</th>
+        <th>Reparto</th>
+        <th>Descrizione</th>
+        <th>Scadenza</th>
+        <th>Stato</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in page_obj %}
+        <tr>
+          <td><span class="sg-src {{ v.source }}">{{ v.source|upper }}</span></td>
+          <td>{{ v.kind_label }}</td>
+          <td>
+            {% if v.url %}<a href="{{ v.url }}">{{ v.soggetto }}</a>{% else %}{{ v.soggetto }}{% endif %}
+          </td>
+          <td>{{ v.reparto|default:"—" }}</td>
+          <td>{{ v.titolo }}</td>
+          <td>{{ v.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
+          <td>
+            {% if v.scaduta %}
+              <span class="sg-when scaduta">Scaduta</span>
+            {% elif v.giorni is not None %}
+              <span class="sg-when {% if v.giorni <= 30 %}soon{% endif %}">tra {{ v.giorni }} gg</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sg-empty">Nessuna scadenza nei criteri selezionati. 🎉</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="sg-pager">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if filtro_sorgente %}&sorgente={{ filtro_sorgente }}{% endif %}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_reparto %}&reparto={{ filtro_reparto }}{% endif %}">← Prec</a>
+      {% endif %}
+      <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if filtro_sorgente %}&sorgente={{ filtro_sorgente }}{% endif %}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_reparto %}&reparto={{ filtro_reparto }}{% endif %}">Succ →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

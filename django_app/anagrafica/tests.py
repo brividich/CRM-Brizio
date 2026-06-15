@@ -4,7 +4,7 @@ import os
 import tempfile
 from datetime import date
 from io import BytesIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
@@ -1350,3 +1350,875 @@ class DPIIngressoServiceTests(TestCase):
             consegna.data_scadenza_stimata,
             timezone.localdate() + timedelta(days=180),
         )
+
+
+# ---------------------------------------------------------------------------
+# H3 — send_contratti_expiry_reminders
+# ---------------------------------------------------------------------------
+
+class ContrattiExpiryRemindersCommandTests(TestCase):
+    """Digest contratti a termine / periodi di prova (management command)."""
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("send_contratti_expiry_reminders", *args, stdout=out)
+        return out.getvalue()
+
+    def _make_attivo(self, legacy_id: int, **kwargs) -> DipendenteAnagraficaAziendale:
+        return DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=legacy_id, **kwargs
+        )
+
+    def test_contratto_determinato_in_scadenza_incluso(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        self._make_attivo(101)
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=101,
+            data_inizio=oggi - timedelta(days=300),
+            data_fine=oggi + timedelta(days=30),
+            tipologia_contratto="DETERMINATO",
+        )
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertIn("CONTRATTI IN SCADENZA", out)
+        self.assertIn("#101", out)
+
+    def test_dipendente_cessato_escluso(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        self._make_attivo(102, data_cessazione=oggi - timedelta(days=10))
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=102,
+            data_inizio=oggi - timedelta(days=300),
+            data_fine=oggi + timedelta(days=20),
+            tipologia_contratto="DETERMINATO",
+        )
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertNotIn("#102", out)
+
+    def test_solo_ultimo_contratto_considerato(self):
+        """Un contratto vecchio chiuso non genera alert se l'ultimo è indeterminato."""
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        self._make_attivo(103)
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=103,
+            data_inizio=oggi - timedelta(days=700),
+            data_fine=oggi - timedelta(days=400),
+            tipologia_contratto="DETERMINATO",
+        )
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=103,
+            data_inizio=oggi - timedelta(days=399),
+            data_fine=None,
+            tipologia_contratto="INDETERMINATO",
+        )
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertNotIn("#103", out)
+
+    def test_periodo_prova_in_sezione_separata(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        oggi = timezone.localdate()
+        self._make_attivo(104, prova_data_fine=oggi + timedelta(days=7))
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertIn("PERIODI DI PROVA", out)
+        self.assertIn("#104", out)
+
+    def test_fallback_a_termine_senza_storico(self):
+        self._make_attivo(105, tipologia_contratto="DETERMINATO")
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertIn("SENZA STORICO IMPORTATO", out)
+        self.assertIn("#105", out)
+
+    def test_dry_run_non_invia_email(self):
+        from datetime import timedelta
+        from django.core import mail
+        from django.utils import timezone
+        oggi = timezone.localdate()
+        self._make_attivo(106, prova_data_fine=oggi + timedelta(days=3))
+        self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_invio_reale_con_recipients(self):
+        from datetime import timedelta
+        from django.core import mail
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        self._make_attivo(107)
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=107,
+            data_inizio=oggi - timedelta(days=100),
+            data_fine=oggi + timedelta(days=10),
+            tipologia_contratto="DETERMINATO",
+        )
+        self._run("--recipients", "hr@example.local")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("[CONTRATTI]", mail.outbox[0].subject)
+
+    def test_nessuna_voce_output_pulito(self):
+        out = self._run("--dry-run", "--recipients", "hr@example.local")
+        self.assertIn("Nessun contratto", out)
+
+
+# ---------------------------------------------------------------------------
+# H4 — scadenzario unificato esteso (formazione + contratti/prova)
+# ---------------------------------------------------------------------------
+
+class ScadenzarioEstesoTests(TestCase):
+    """Le nuove sorgenti (formazione obbligatoria, contratti, prova) entrano
+    nello scadenzario unificato e rispettano i gate permessi."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="sc_admin", email="sc_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_deadline(self, legacy_id: int, giorni: int, titolo: str = "Corso Sicurezza Base"):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models_formazione import TrainingCourse, TrainingDeadline, TrainingPlan
+        piano = TrainingPlan.objects.create(codice=f"P{legacy_id}", nome="Piano test")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice=f"C{legacy_id}", titolo=titolo,
+            durata_ore_teorica=4,
+        )
+        return TrainingDeadline.objects.create(
+            corso=corso,
+            legacy_anagrafica_id=legacy_id,
+            data_scadenza=timezone.localdate() + timedelta(days=giorni),
+            stato_scadenza="IN_SCADENZA_30" if giorni >= 0 else "SCADUTO",
+            giorni_alla_scadenza=giorni,
+            is_required=True,
+        )
+
+    def test_formazione_obbligatoria_in_scadenzario(self):
+        self._make_deadline(201, 10, titolo="Antincendio rischio alto")
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Antincendio rischio alto")
+        self.assertContains(resp, "Formazione")
+
+    def test_formazione_non_obbligatoria_esclusa(self):
+        deadline = self._make_deadline(202, 10, titolo="Corso facoltativo X")
+        deadline.is_required = False
+        deadline.save(update_fields=["is_required"])
+        resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertNotContains(resp, "Corso facoltativo X")
+
+    def test_contratto_in_scadenza_in_scadenzario(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=203)
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=203,
+            data_inizio=oggi - timedelta(days=100),
+            data_fine=oggi + timedelta(days=20),
+            tipologia_contratto="DETERMINATO",
+        )
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "contratto"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Contratto DETERMINATO")
+
+    def test_prova_futura_inclusa_prova_passata_esclusa(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        oggi = timezone.localdate()
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=204, prova_data_fine=oggi + timedelta(days=5)
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=205, prova_data_fine=oggi - timedelta(days=30)
+        )
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "contratto"})
+        content = resp.content.decode()
+        self.assertIn("Fine periodo di prova", content)
+        self.assertEqual(content.count("Fine periodo di prova"), 1)
+
+    def test_contratti_nascosti_senza_permesso_hr(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import StoricoContratto
+        oggi = timezone.localdate()
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=206)
+        StoricoContratto.objects.create(
+            legacy_anagrafica_id=206,
+            data_inizio=oggi - timedelta(days=100),
+            data_fine=oggi + timedelta(days=20),
+            tipologia_contratto="DETERMINATO",
+        )
+        with patch("anagrafica.views._check_hr_permission", return_value=False):
+            resp = self.client.get(reverse("anagrafica:scadenzario"))
+        self.assertNotContains(resp, "Contratto DETERMINATO")
+
+    def test_csv_include_nuove_voci(self):
+        self._make_deadline(207, 10, titolo="Primo soccorso aggiornamento")
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"format": "csv"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Primo soccorso aggiornamento", resp.content.decode("utf-8-sig"))
+
+
+# ---------------------------------------------------------------------------
+# H5 — libretto formativo dipendente
+# ---------------------------------------------------------------------------
+
+class LibrettoFormativoTests(TestCase):
+    """Pagina stampa libretto formativo: snapshot storici, gate permessi, audit."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="lb_admin", email="lb_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) "
+                "VALUES (301, 'Mario', 'Rossi', 'Operatore', 'PROD', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_record(self, titolo_snapshot: str):
+        from django.utils import timezone
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
+        piano = TrainingPlan.objects.create(codice="PLB1", nome="Piano sicurezza")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CLB1", titolo="Titolo attuale corso",
+            durata_ore_teorica=8,
+        )
+        return TrainingEmployeeRecord.objects.create(
+            corso=corso,
+            legacy_anagrafica_id=301,
+            data_completamento=timezone.localdate(),
+            ore_frequentate=8,
+            idoneo=True,
+            course_title_snapshot=titolo_snapshot,
+            course_code_snapshot="CLB1-v1",
+        )
+
+    def test_libretto_mostra_snapshot_non_titolo_attuale(self):
+        self._make_record("Titolo storico al completamento")
+        resp = self.client.get(
+            reverse("anagrafica:dipendente_libretto_formativo", args=[301])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Titolo storico al completamento")
+        self.assertNotContains(resp, "Titolo attuale corso")
+
+    def test_libretto_dipendente_senza_record(self):
+        resp = self.client.get(
+            reverse("anagrafica:dipendente_libretto_formativo", args=[301])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Nessun corso completato registrato")
+
+    def test_libretto_negato_senza_permesso_formazione(self):
+        with patch("anagrafica.views._can_view_formazione", return_value=False):
+            resp = self.client.get(
+                reverse("anagrafica:dipendente_libretto_formativo", args=[301])
+            )
+        self.assertEqual(resp.status_code, 302)
+
+    def test_generazione_tracciata_in_export_log(self):
+        from .models_formazione import TrainingExportLog
+        self._make_record("Corso X")
+        self.client.get(reverse("anagrafica:dipendente_libretto_formativo", args=[301]))
+        log = TrainingExportLog.objects.filter(tipo="STORICO_DIP").last()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.righe_esportate, 1)
+        self.assertEqual(log.filtri_json.get("legacy_anagrafica_id"), 301)
+
+
+# ---------------------------------------------------------------------------
+# H6 — organigramma visuale
+# ---------------------------------------------------------------------------
+
+class OrganigrammaTests(TestCase):
+    """Albero area → reparto → capo → membri, con bucket disallineamenti."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import AreaAziendale, Reparto
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="org_admin", email="org_admin@x.local", password="x"
+        )
+        cls.area = AreaAziendale.objects.create(nome="Produzione", colore="#1d4ed8")
+        cls.rep_prod = Reparto.objects.create(
+            nome="PROD", area_aziendale=cls.area, caporeparto_legacy_id=401
+        )
+        cls.rep_orfano = Reparto.objects.create(nome="MAG")  # senza area, senza capo
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) VALUES "
+                "(401, 'Capo', 'Reparto', 'Caporeparto', 'PROD', 1), "
+                "(402, 'Mario', 'Verdi', 'Operatore', 'PROD', 1), "
+                "(403, 'Luigi', 'Bianchi', 'Operatore', 'INESISTENTE', 1), "
+                "(404, 'Anna', 'Cessata', 'Operatore', 'PROD', 0)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_albero_aree_reparti_capo(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("Produzione", content)
+        self.assertIn("PROD", content)
+        self.assertIn("Reparto Capo", content)          # capo evidenziato
+        self.assertIn("Verdi Mario", content)            # membro (capo escluso dai membri)
+        self.assertIn("Senza area", content)              # reparto MAG senza area
+        self.assertIn("Caporeparto non assegnato", content)
+
+    def test_non_mappati_visibili(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        content = resp.content.decode()
+        self.assertIn("Bianchi Luigi", content)
+        self.assertIn("non a catalogo", content)
+
+    def test_cessati_esclusi(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"))
+        self.assertNotContains(resp, "Cessata")
+
+    def test_filtro_area(self):
+        resp = self.client.get(reverse("anagrafica:organigramma"), {"area": "Produzione"})
+        content = resp.content.decode()
+        self.assertIn("PROD", content)
+        # il gruppo "Senza area" sparisce col filtro
+        self.assertNotIn("Senza area</span>", content)
+
+
+# ---------------------------------------------------------------------------
+# H2 — fascicolo conformità "idoneità alla mansione"
+# ---------------------------------------------------------------------------
+
+class ConformitaServiceTests(TestCase):
+    """Semaforo aggregato: esiti per dominio e privacy dettaglio visite."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import TipoQualifica
+        _ensure_anagrafica_table()
+        cls.tipo_q = TipoQualifica.objects.create(nome="Patentino muletto", categoria="PROFESSIONALE")
+
+    def _qualifica(self, legacy_id: int, giorni):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import DipendenteQualifica
+        scad = None if giorni is None else timezone.localdate() + timedelta(days=giorni)
+        return DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=legacy_id, tipo=self.tipo_q, data_scadenza=scad
+        )
+
+    def test_qualifica_valida_ok(self):
+        from .services import conformita
+        self._qualifica(601, 365)
+        stato = conformita.stato_conformita(601)
+        self.assertEqual(stato["qualifiche"]["esito"], conformita.ESITO_OK)
+        self.assertEqual(stato["complessivo"], conformita.ESITO_OK)
+
+    def test_qualifica_scaduta_ko(self):
+        from .services import conformita
+        self._qualifica(602, -5)
+        stato = conformita.stato_conformita(602)
+        self.assertEqual(stato["qualifiche"]["esito"], conformita.ESITO_KO)
+        self.assertEqual(stato["complessivo"], conformita.ESITO_KO)
+
+    def test_qualifica_in_scadenza_warn(self):
+        from .services import conformita
+        self._qualifica(603, 30)
+        stato = conformita.stato_conformita(603)
+        self.assertEqual(stato["qualifiche"]["esito"], conformita.ESITO_WARN)
+
+    def test_nessun_requisito_na(self):
+        from .services import conformita
+        stato = conformita.stato_conformita(699)
+        self.assertEqual(stato["complessivo"], conformita.ESITO_NA)
+
+    def test_complessivo_e_il_peggiore(self):
+        from .services import conformita
+        # qualifica valida (OK) ma visita obbligatoria realmente scaduta (KO) →
+        # complessivo KO (il peggiore fra i domini applicabili).
+        self._qualifica(604, 365)
+        self._visita_obbligatoria_scaduta(604)
+        stato = conformita.stato_conformita(604)
+        self.assertEqual(stato["qualifiche"]["esito"], conformita.ESITO_OK)
+        self.assertEqual(stato["visite"]["esito"], conformita.ESITO_KO)
+        self.assertEqual(stato["complessivo"], conformita.ESITO_KO)
+
+    def test_visita_mancante_e_neutra(self):
+        from .services import conformita
+        # Dipendente già in forza: visita obbligatoria mai registrata = dato
+        # mancante → neutro (NA), NON "scaduto"/KO; non trascina il complessivo.
+        self._visita_obbligatoria_mancante(606)
+        stato = conformita.stato_conformita(606)
+        self.assertEqual(stato["visite"]["esito"], conformita.ESITO_NA)
+        self.assertEqual(stato["complessivo"], conformita.ESITO_NA)
+
+    def _visita_obbligatoria_mancante(self, legacy_id: int):
+        from .models import (
+            DipendenteRuoloOperativo, RuoloOperativo, TipoVisitaMedica,
+        )
+        ruolo = RuoloOperativo.objects.create(nome=f"Saldatore {legacy_id}")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=legacy_id, ruolo=ruolo)
+        tipo = TipoVisitaMedica.objects.create(
+            nome=f"Sorveglianza fumi saldatura {legacy_id}", obbligatoria=True, is_active=True
+        )
+        tipo.ruoli_operativi.add(ruolo)
+
+    def _visita_obbligatoria_scaduta(self, legacy_id: int):
+        """Come ``_visita_obbligatoria_mancante`` ma con una visita registrata e
+        scaduta (data_svolgimento ~2 anni fa, durata 12 mesi → scaduta)."""
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import (
+            DipendenteRuoloOperativo, RuoloOperativo, TipoVisitaMedica, VisitaMedica,
+        )
+        ruolo = RuoloOperativo.objects.create(nome=f"Saldatore {legacy_id}")
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=legacy_id, ruolo=ruolo)
+        tipo = TipoVisitaMedica.objects.create(
+            nome=f"Sorveglianza fumi saldatura {legacy_id}", obbligatoria=True,
+            is_active=True, durata_mesi=12,
+        )
+        tipo.ruoli_operativi.add(ruolo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=legacy_id, tipo=tipo,
+            data_svolgimento=timezone.localdate() - timedelta(days=730),
+        )
+
+    def test_dettaglio_visite_gated_da_privacy(self):
+        from .services import conformita
+        self._visita_obbligatoria_scaduta(605)
+        # con dettaglio: appare il nome della tipologia
+        con = conformita.stato_conformita(605, include_visite_dettaglio=True)
+        self.assertTrue(any("Sorveglianza fumi" in d for d in con["visite"]["dettagli"]))
+        # senza dettaglio: etichetta generica, nessun nome tipologia
+        senza = conformita.stato_conformita(605, include_visite_dettaglio=False)
+        self.assertEqual(senza["visite"]["esito"], conformita.ESITO_KO)
+        self.assertFalse(any("Sorveglianza fumi" in d for d in senza["visite"]["dettagli"]))
+        self.assertTrue(any("Visita richiesta" in d for d in senza["visite"]["dettagli"]))
+
+
+class ConformitaPanelTests(TestCase):
+    """Pannello HTMX nella scheda dipendente: semaforo + gate dettaglio visite."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import TipoQualifica
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="cf_admin", email="cf_admin@x.local", password="x"
+        )
+        cls.tipo_q = TipoQualifica.objects.create(nome="Abilitazione PLE", categoria="PROFESSIONALE")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_panel_mostra_ko_per_qualifica_scaduta(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import DipendenteQualifica
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=611, tipo=self.tipo_q,
+            data_scadenza=timezone.localdate() - timedelta(days=3),
+        )
+        resp = self.client.get(reverse("anagrafica:dipendente_conformita_panel", args=[611]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Non conforme")
+        self.assertContains(resp, "Abilitazione PLE")
+
+    def test_panel_richiede_login(self):
+        self.client.logout()
+        resp = self.client.get(reverse("anagrafica:dipendente_conformita_panel", args=[611]))
+        self.assertEqual(resp.status_code, 302)
+
+
+class ConformitaReportTests(TestCase):
+    """Elenco conformità: gate HR, filtri, esclusione cessati, export CSV."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import DipendenteQualifica, TipoQualifica
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="cr_admin", email="cr_admin@x.local", password="x"
+        )
+        tipo = TipoQualifica.objects.create(nome="Carrellista", categoria="PROFESSIONALE")
+        oggi = timezone.localdate()
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) VALUES "
+                "(701, 'Mario', 'Rossi', 'Operatore', 'PROD', 1), "
+                "(702, 'Luigi', 'Verdi', 'Operatore', 'PROD', 1), "
+                "(703, 'Anna', 'Cessata', 'Operatore', 'PROD', 0)"
+            )
+        # 701 non conforme (scaduta), 702 in regola (valida)
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=701, tipo=tipo, data_scadenza=oggi - timedelta(days=2)
+        )
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=702, tipo=tipo, data_scadenza=oggi + timedelta(days=365)
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_report_richiede_permesso_hr(self):
+        with patch("anagrafica.views._check_hr_permission", return_value=False):
+            resp = self.client.get(reverse("anagrafica:conformita_report"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_report_elenca_attivi_ed_esclude_cessati(self):
+        resp = self.client.get(reverse("anagrafica:conformita_report"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Rossi Mario")
+        self.assertContains(resp, "Verdi Luigi")
+        self.assertNotContains(resp, "Cessata")
+
+    def test_report_filtro_esito_ko(self):
+        resp = self.client.get(reverse("anagrafica:conformita_report"), {"esito": "ko"})
+        content = resp.content.decode()
+        self.assertIn("Rossi Mario", content)       # non conforme
+        self.assertNotIn("Verdi Luigi", content)    # in regola: escluso dal filtro KO
+
+    def test_report_csv_export(self):
+        resp = self.client.get(reverse("anagrafica:conformita_report"), {"format": "csv"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "text/csv; charset=utf-8-sig")
+        body = resp.content.decode("utf-8-sig")
+        self.assertIn("Conformità", body)
+        self.assertIn("Rossi Mario", body)
+        self.assertIn("Non conforme", body)
+
+
+# ---------------------------------------------------------------------------
+# H1 — onboarding strutturato (pratica + checklist)
+# ---------------------------------------------------------------------------
+
+class OnboardingServiceTests(TestCase):
+    """Generazione checklist (base + config + corsi obbligatori) e chiusura."""
+
+    def test_avvia_genera_task_base(self):
+        from .models import OnboardingTask
+        from .services import onboarding
+        pratica = onboarding.avvia_onboarding(
+            legacy_id=801, dipendente_nome="Rossi Mario", reparto="PROD", mansione="Operatore"
+        )
+        codici = set(pratica.tasks.values_list("codice", flat=True))
+        for atteso in (
+            "it_account_ad", "hr_badge_accessi", "dpi_consegna_iniziale",
+            "formazione_corsi_obbligatori", "visita_preassuntiva",
+        ):
+            self.assertIn(atteso, codici)
+        self.assertTrue(
+            all(t.stato == OnboardingTask.STATO_DA_FARE for t in pratica.tasks.all())
+        )
+
+    def test_task_da_configurazione_workflow(self):
+        from .models import OnboardingOffboardingCampo
+        from .services import onboarding
+        OnboardingOffboardingCampo.objects.create(
+            fase=OnboardingOffboardingCampo.FASE_ONBOARDING,
+            campo_key="consegna_portatile",
+            campo_label="Consegna portatile aziendale",
+            categoria=OnboardingOffboardingCampo.CATEGORIA_IT,
+            is_active=True,
+        )
+        pratica = onboarding.avvia_onboarding(legacy_id=802, dipendente_nome="Verdi Anna")
+        titoli = list(pratica.tasks.values_list("titolo", flat=True))
+        self.assertIn("Verificare Consegna portatile aziendale", titoli)
+
+    def test_corso_obbligatorio_in_descrizione(self):
+        from .models import Mansione
+        from .models_formazione import TrainingCourse, TrainingPlan, TrainingRequirementRule
+        from .services import onboarding
+        mans = Mansione.objects.create(nome="Saldatore")
+        piano = TrainingPlan.objects.create(codice="PSAL", nome="Piano saldatori")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CSAL", titolo="Sicurezza saldatura", durata_ore_teorica=8
+        )
+        TrainingRequirementRule.objects.create(
+            corso=corso, mansione=mans, is_active=True, is_mandatory=True
+        )
+        pratica = onboarding.avvia_onboarding(
+            legacy_id=803, dipendente_nome="Bianchi Luca", mansione="Saldatore"
+        )
+        task_form = pratica.tasks.get(codice="formazione_corsi_obbligatori")
+        self.assertIn("Sicurezza saldatura", task_form.descrizione)
+
+    def test_chiusura_tutti_completati(self):
+        from .models import OnboardingPratica, OnboardingTask
+        from .services import onboarding
+        pratica = onboarding.avvia_onboarding(legacy_id=804, dipendente_nome="X")
+        pratica.tasks.update(stato=OnboardingTask.STATO_COMPLETATO)
+        stato = onboarding.chiudi_pratica(pratica)
+        self.assertEqual(stato, OnboardingPratica.STATO_CHIUSA)
+
+    def test_chiusura_con_task_aperti_da_eccezioni(self):
+        from .models import OnboardingPratica, OnboardingTask
+        from .services import onboarding
+        pratica = onboarding.avvia_onboarding(legacy_id=805, dipendente_nome="Y")
+        # lascia tutti i task DA_FARE
+        stato = onboarding.chiudi_pratica(pratica)
+        self.assertEqual(stato, OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI)
+
+
+class OnboardingViewTests(TestCase):
+    """View lista/dettaglio/avvio/aggiornamento/chiusura + gate HR."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="onb_admin", email="onb_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) "
+                "VALUES (811, 'Mario', 'Rossi', 'Operatore', 'PROD', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_list_richiede_permesso_hr(self):
+        with patch("anagrafica.views._check_hr_permission", return_value=False):
+            resp = self.client.get(reverse("anagrafica:onboarding_list"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_avvia_crea_pratica_con_task(self):
+        from .models import OnboardingPratica
+        resp = self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        self.assertEqual(resp.status_code, 302)
+        pratica = OnboardingPratica.objects.get(legacy_anagrafica_id=811)
+        self.assertEqual(pratica.stato, OnboardingPratica.STATO_IN_CORSO)
+        self.assertGreater(pratica.tasks.count(), 0)
+        self.assertIn(f"/onboarding/{pratica.id}/", resp["Location"])
+
+    def test_avvia_blocca_doppia_pratica(self):
+        from .models import OnboardingPratica
+        self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        self.assertEqual(
+            OnboardingPratica.objects.filter(legacy_anagrafica_id=811).count(), 1
+        )
+
+    def test_task_update_completa(self):
+        from .models import OnboardingPratica, OnboardingTask
+        self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        pratica = OnboardingPratica.objects.get(legacy_anagrafica_id=811)
+        task = pratica.tasks.first()
+        self.client.post(
+            reverse("anagrafica:onboarding_task_update", args=[pratica.id, task.id]),
+            {"stato": OnboardingTask.STATO_COMPLETATO, "note": "fatto"},
+        )
+        task.refresh_from_db()
+        self.assertEqual(task.stato, OnboardingTask.STATO_COMPLETATO)
+        self.assertIsNotNone(task.completed_at)
+
+    def test_chiudi_pratica_con_eccezioni(self):
+        from .models import OnboardingPratica
+        self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        pratica = OnboardingPratica.objects.get(legacy_anagrafica_id=811)
+        self.client.post(reverse("anagrafica:onboarding_chiudi", args=[pratica.id]))
+        pratica.refresh_from_db()
+        self.assertEqual(pratica.stato, OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI)
+
+    def test_detail_render(self):
+        from .models import OnboardingPratica
+        self.client.post(reverse("anagrafica:onboarding_avvia", args=[811]))
+        pratica = OnboardingPratica.objects.get(legacy_anagrafica_id=811)
+        resp = self.client.get(reverse("anagrafica:onboarding_detail", args=[pratica.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Checklist di inserimento")
+
+
+class QueryAssenzeDipendenteTests(TestCase):
+    """Match assenze nel tab scheda dipendente: deve restare allineato al widget
+    conteggio (copia_nome) e non dipendere dalla sola colonna `dipendente_id`,
+    che può mancare in prod."""
+
+    def _fake_cursor(self, rows, description):
+        cur = MagicMock()
+        cur.fetchall.return_value = rows
+        cur.description = description
+        cm = MagicMock()
+        cm.__enter__.return_value = cur
+        cm.__exit__.return_value = False
+        return cur, cm
+
+    _DESC = [("data_inizio",), ("data_fine",), ("tipo_assenza",), ("moderation_status",)]
+
+    @patch("anagrafica.views.legacy_table_columns")
+    @patch("anagrafica.views.connections")
+    def test_match_per_copia_nome_senza_dipendente_id(self, mock_conn, mock_cols):
+        """Scenario prod: `assenze` ha copia_nome ma non dipendente_id."""
+        from anagrafica import views
+
+        mock_cols.side_effect = lambda table: (
+            {"id", "copia_nome", "data_inizio", "data_fine", "tipo_assenza", "moderation_status"}
+            if table == "assenze"
+            else set()
+        )
+        cur, cm = self._fake_cursor(
+            rows=[(date(2026, 1, 10), date(2026, 1, 12), "Ferie", 0)],
+            description=self._DESC,
+        )
+        mock_conn.__getitem__.return_value.cursor.return_value = cm
+
+        lista, no_link = views._query_assenze_dipendente(
+            {"id": 1, "nome": "Mario", "cognome": "Rossi", "utente_id": 77}
+        )
+
+        self.assertFalse(no_link)
+        self.assertEqual(len(lista), 1)
+        sql, params = cur.execute.call_args.args
+        self.assertIn("copia_nome", sql)
+        self.assertNotIn("dipendente_id", sql)
+        self.assertNotIn("JOIN", sql.upper())
+        # match in entrambi gli ordini del nome
+        self.assertIn("%Mario Rossi%", params)
+        self.assertIn("%Rossi Mario%", params)
+
+    @patch("anagrafica.views.legacy_table_columns")
+    @patch("anagrafica.views.connections")
+    def test_join_dipendenti_quando_colonna_presente(self, mock_conn, mock_cols):
+        from anagrafica import views
+
+        def cols(table):
+            if table == "assenze":
+                return {"id", "copia_nome", "dipendente_id", "utente_id",
+                        "data_inizio", "data_fine", "tipo_assenza", "moderation_status"}
+            if table == "dipendenti":
+                return {"id", "utente_id"}
+            return set()
+
+        mock_cols.side_effect = cols
+        cur, cm = self._fake_cursor(rows=[], description=self._DESC)
+        mock_conn.__getitem__.return_value.cursor.return_value = cm
+
+        lista, no_link = views._query_assenze_dipendente(
+            {"id": 1, "nome": "Mario", "cognome": "Rossi", "utente_id": 77}
+        )
+
+        self.assertFalse(no_link)
+        self.assertEqual(lista, [])
+        sql, _params = cur.execute.call_args.args
+        self.assertIn("LEFT JOIN dipendenti", sql)
+        self.assertIn("a.utente_id = %s", sql)
+        self.assertIn("d.utente_id = %s", sql)
+
+    @patch("anagrafica.views.legacy_table_columns")
+    def test_no_link_senza_identita(self, mock_cols):
+        from anagrafica import views
+
+        lista, no_link = views._query_assenze_dipendente(
+            {"id": 1, "nome": "", "cognome": "", "utente_id": None}
+        )
+        self.assertTrue(no_link)
+        self.assertEqual(lista, [])
+        mock_cols.assert_not_called()
+
+    @patch("anagrafica.views.legacy_table_columns", return_value=set())
+    def test_tabella_assente_non_e_no_link(self, _mock_cols):
+        """Senza tabella legacy (dev) non è un problema di linking: lista vuota,
+        no_link False (mostra 'Nessuna assenza' anziché 'non collegato')."""
+        from anagrafica import views
+
+        lista, no_link = views._query_assenze_dipendente(
+            {"id": 1, "nome": "Mario", "cognome": "Rossi", "utente_id": 77}
+        )
+        self.assertFalse(no_link)
+        self.assertEqual(lista, [])
+
+
+class RateiAlertLogicTests(TestCase):
+    """AB1-D — logica semaforo residuo ferie (SaldoCedolino)."""
+
+    def test_valuta_residuo_ferie_toni(self):
+        from anagrafica.ratei_alert import valuta_residuo_ferie
+        soglie = {"ore_max": 200.0, "ore_warn": 160.0}
+        self.assertEqual(valuta_residuo_ferie(-3, soglie)["tono"], "rosso")
+        self.assertEqual(valuta_residuo_ferie(210, soglie)["tono"], "rosso")
+        self.assertEqual(valuta_residuo_ferie(170, soglie)["tono"], "giallo")
+        self.assertEqual(valuta_residuo_ferie(50, soglie)["tono"], "verde")
+        self.assertEqual(valuta_residuo_ferie(None, soglie)["tono"], "verde")
+
+    def test_soglie_ratei_da_siteconfig(self):
+        from core.models import SiteConfig
+        from anagrafica.ratei_alert import soglie_ratei
+        SiteConfig.set("ratei_ferie_alert_ore_max", "120")
+        SiteConfig.set("ratei_ferie_alert_ore_warn", "100")
+        soglie = soglie_ratei()
+        self.assertEqual(soglie["ore_max"], 120.0)
+        self.assertEqual(soglie["ore_warn"], 100.0)
+
+    def test_soglie_warn_clamped_a_max(self):
+        from core.models import SiteConfig
+        from anagrafica.ratei_alert import soglie_ratei
+        SiteConfig.set("ratei_ferie_alert_ore_max", "100")
+        SiteConfig.set("ratei_ferie_alert_ore_warn", "250")
+        self.assertEqual(soglie_ratei()["ore_warn"], 100.0)
+
+    def test_filtro_allerta_q(self):
+        from anagrafica.ratei_alert import filtro_allerta_q
+        q = filtro_allerta_q({"ore_max": 200.0, "ore_warn": 160.0})
+        for tax, residui in [("AAA", -5), ("BBB", 210), ("CCC", 170), ("DDD", 50)]:
+            SaldoCedolino.objects.create(
+                tax_code=tax, data_competenza=date(2026, 5, 31), ferie_residui=residui,
+            )
+        codici = set(SaldoCedolino.objects.filter(q).values_list("tax_code", flat=True))
+        self.assertEqual(codici, {"AAA", "BBB", "CCC"})
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RateiAlertViewTests(TestCase):
+    """AB1-D — vista ratei_list con semaforo e filtro allerta (HR)."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="ratei-alert", email="ratei-alert@example.com", password="pass12345",
+        )
+        for tax, residui in [("AAA", -5), ("BBB", 210), ("CCC", 170), ("DDD", 50)]:
+            SaldoCedolino.objects.create(
+                tax_code=tax, legacy_anagrafica_id=None,
+                data_competenza=date(2026, 5, 31), ferie_residui=residui,
+            )
+
+    def test_list_renders_with_kpi(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("anagrafica:ratei_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["n_negativi"], 1)
+        self.assertEqual(response.context["n_accumulo"], 1)
+        self.assertEqual(response.context["n_allerta"], 3)
+        self.assertEqual(response.context["totale"], 4)
+
+    def test_filtro_solo_allerta(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("anagrafica:ratei_list"), {"allerta": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["totale"], 3)
+        codici = {s.tax_code for s in response.context["page_obj"].object_list}
+        self.assertEqual(codici, {"AAA", "BBB", "CCC"})

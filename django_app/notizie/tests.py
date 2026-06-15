@@ -6,13 +6,14 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import Profile
+from core.models import Profile, UserOnboarding
 
 from .models import (
     COMPLIANCE_APERTO,
     COMPLIANCE_CONFORME,
     COMPLIANCE_NON_CONFORME,
     COMPLIANCE_NON_LETTO,
+    STATO_ARCHIVIATA,
     STATO_BOZZA,
     STATO_PUBBLICATA,
     Notizia,
@@ -40,12 +41,20 @@ def _make_notizia(titolo="Test", obbligatoria=False, stato=STATO_PUBBLICATA) -> 
     )
 
 
+def _complete_onboarding(user) -> None:
+    UserOnboarding.objects.update_or_create(
+        user=user,
+        defaults={"completed": True, "completed_at": timezone.now()},
+    )
+
+
 def _make_user_with_legacy(username: str, legacy_user_id: int, ruolo_id: int = 1, ruolo: str = "utente"):
     """Crea un Django user con Profile associato a un legacy_user_id fittizio."""
     from core.legacy_models import UtenteLegacy
 
     user = User.objects.create_user(username=username, password="pass12345")
     Profile.objects.create(user=user, legacy_user_id=legacy_user_id, legacy_ruolo_id=ruolo_id, legacy_ruolo=ruolo)
+    _complete_onboarding(user)
     return user
 
 
@@ -161,7 +170,14 @@ class ComplianceTests(TestCase):
 class NotizieACLTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="acl-user", password="pass12345")
+        _complete_onboarding(self.user)
         self.hr_user = _make_user_with_legacy("acl-hr", legacy_user_id=901, ruolo="hr")
+        self.admin_user = User.objects.create_superuser(
+            username="acl-admin",
+            email="acl-admin@example.com",
+            password="pass12345",
+        )
+        _complete_onboarding(self.admin_user)
 
     def test_lista_richiede_login(self):
         resp = self.client.get(reverse("notizie_lista"))
@@ -171,6 +187,24 @@ class NotizieACLTests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(reverse("notizie_lista"))
         self.assertEqual(resp.status_code, 200)
+
+    def test_lista_renderizza_workspace_fullpage(self):
+        _make_notizia(titolo="Comunicazione generale")
+        _make_notizia(titolo="Comunicazione obbligatoria", obbligatoria=True)
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("notizie_lista"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "notizie-list-page")
+        self.assertContains(resp, "news-shell")
+        self.assertContains(resp, "news-workspace")
+        self.assertContains(resp, "Obbligatorie pendenti")
+        self.assertContains(resp, "2 risultati")
+
+    def test_lista_mostra_link_impostazioni_per_admin(self):
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_lista"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, reverse("notizie_gestione_admin"))
 
     def test_dettaglio_404_notizia_non_pubblicata(self):
         notizia = Notizia.objects.create(titolo="Bozza", corpo="x", stato="bozza", versione=1)
@@ -206,6 +240,28 @@ class NotizieACLTests(TestCase):
         resp = self.client.get(reverse("notizie_dashboard"))
         self.assertEqual(resp.status_code, 200)
 
+    def test_dashboard_renderizza_workspace_a_card_senza_tabella(self):
+        _make_notizia(titolo="Comunicazione pubblicata")
+        Notizia.objects.create(titolo="Bozza interna", corpo="x", stato=STATO_BOZZA, versione=1)
+        Notizia.objects.create(titolo="Archivio storico", corpo="x", stato=STATO_ARCHIVIATA, versione=1)
+
+        self.client.force_login(self.hr_user)
+        resp = self.client.get(reverse("notizie_dashboard"))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "notizie-dashboard-page")
+        self.assertContains(resp, "news-admin-shell")
+        self.assertContains(resp, "news-admin-workspace")
+        self.assertContains(resp, "news-admin-card")
+        self.assertContains(resp, "Centro gestione comunicazioni")
+        self.assertNotContains(resp, "news-table")
+
+    def test_dashboard_mostra_link_impostazioni_per_admin(self):
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, reverse("notizie_gestione_admin"))
+
     def test_bottone_dashboard_visibile_solo_abilitati(self):
         self.client.force_login(self.user)
         resp_user = self.client.get(reverse("notizie_lista"))
@@ -221,7 +277,21 @@ class NotizieACLTests(TestCase):
         self.client.force_login(self.hr_user)
         resp = self.client.get(reverse("notizie_dashboard"))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Visibilita pulsante Dashboard Notizie")
+        self.assertContains(resp, "Permessi dashboard")
+
+    def test_impostazioni_renderizza_workspace_a_card_senza_tabella(self):
+        _make_notizia(titolo="Comunicazione pubblicata")
+        Notizia.objects.create(titolo="Bozza interna", corpo="x", stato=STATO_BOZZA, versione=1)
+
+        self.client.force_login(self.admin_user)
+        resp = self.client.get(reverse("notizie_gestione_admin"), {"tab": "record"})
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "notizie-settings-page")
+        self.assertContains(resp, "news-settings-shell")
+        self.assertContains(resp, "news-settings-record-card")
+        self.assertContains(resp, "Centro impostazioni comunicazioni")
+        self.assertNotContains(resp, '<table class="tbl"')
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

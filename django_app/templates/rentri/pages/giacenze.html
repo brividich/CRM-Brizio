@@ -1,0 +1,132 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | Giacenze per CER{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gi-wrap { max-width: 1180px; margin: 0 auto; padding: 8px 0 32px; }
+  .gi-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+  .gi-title { font-size:1.5rem; font-weight:800; color:#1e3a5f; margin:0; }
+  .gi-sub { color:#64748b; font-size:.9rem; margin:4px 0 0; }
+  .gi-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .gi-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:.85rem; font-weight:700; text-decoration:none; border:1px solid #e2e8f0; background:#f1f5f9; color:#334155; cursor:pointer; }
+  .gi-btn:hover { background:#e2e8f0; }
+  /* filtri */
+  .gi-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .gi-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-size:.8rem; font-weight:700; text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#475569; }
+  .gi-chip.active { background:#1e3a5f; color:#fff; border-color:#1e3a5f; }
+  .gi-search { padding:7px 12px; border-radius:9px; border:1px solid #e2e8f0; font-size:.85rem; min-width:160px; }
+  /* sintesi */
+  .gi-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .gi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 16px; min-width:120px; }
+  .gi-kpi-n { font-size:1.4rem; font-weight:800; color:#0f172a; }
+  .gi-kpi-l { font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; color:#94a3b8; font-weight:700; }
+  .gi-kpi.bad .gi-kpi-n { color:#b91c1c; }
+  .gi-kpi.warn .gi-kpi-n { color:#b45309; }
+  /* tabella */
+  .gi-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+  table.gi-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  .gi-table th { text-align:left; padding:9px 12px; background:#f8fafc; color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid #eef2f7; white-space:nowrap; }
+  .gi-table td { padding:9px 12px; border-bottom:1px solid #f1f5f9; color:#182232; }
+  .gi-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .gi-table tr:hover td { background:#f8fafc; }
+  .gi-cer { font-family: ui-monospace, monospace; font-weight:700; color:#1e3a5f; }
+  .gi-peric { display:inline-block; padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800; background:#fee2e2; color:#b91c1c; }
+  .gi-giac { font-weight:800; }
+  .gi-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
+  .gi-badge.rosso { background:#fee2e2; color:#b91c1c; }
+  .gi-badge.giallo { background:#ffedd5; color:#9a3412; }
+  .gi-badge.verde { background:#dcfce7; color:#166534; }
+  .gi-badge.chiuso { background:#f1f5f9; color:#64748b; }
+  .gi-age.bad { color:#b91c1c; font-weight:800; }
+  .gi-age.warn { color:#b45309; font-weight:700; }
+  .gi-empty { text-align:center; padding:40px 16px; color:#16a34a; font-weight:700; }
+  .gi-note { margin-top:14px; font-size:.78rem; color:#94a3b8; line-height:1.5; }
+  @media print { .subnav, .gi-actions, .gi-filters { display:none !important; } .gi-card { border-color:#cbd5e1; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="gi-wrap">
+  <div class="gi-head">
+    <div>
+      <h1 class="gi-title">Giacenze per CER</h1>
+      <p class="gi-sub">{{ totale }} codic{{ totale|pluralize:"e,i" }} EER · soglia deposito {{ soglie.giorni_max }}gg · aggiornato al {{ today|date:"d/m/Y" }}</p>
+    </div>
+    <div class="gi-actions">
+      <a class="gi-btn" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}export=csv">⬇ Esporta CSV</a>
+      <button type="button" class="gi-btn" onclick="window.print()">🖨 Stampa</button>
+      <a class="gi-btn" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
+    </div>
+  </div>
+
+  <div class="gi-kpis">
+    <div class="gi-kpi"><div class="gi-kpi-n">{{ totale }}</div><div class="gi-kpi-l">CER mostrati</div></div>
+    <div class="gi-kpi warn"><div class="gi-kpi-n">{{ n_allerta }}</div><div class="gi-kpi-l">In allerta</div></div>
+    <div class="gi-kpi bad"><div class="gi-kpi-n">{{ n_oltre }}</div><div class="gi-kpi-l">Oltre soglia</div></div>
+  </div>
+
+  <form class="gi-filters" method="get" action="">
+    <a class="gi-chip {% if q_aperte %}active{% endif %}" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}aperte={% if q_aperte %}0{% else %}1{% endif %}">Solo giacenze aperte</a>
+    <a class="gi-chip {% if q_allerta %}active{% endif %}" href="?{% if q_pericolosi %}pericolosi=1&amp;{% endif %}{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}allerta={% if q_allerta %}0{% else %}1{% endif %}">⚠ Solo in allerta</a>
+    <a class="gi-chip {% if q_pericolosi %}active{% endif %}" href="?{% if q_allerta %}allerta=1&amp;{% endif %}{% if q_search %}q={{ q_search|urlencode }}&amp;{% endif %}{% if not q_aperte %}aperte=0&amp;{% endif %}pericolosi={% if q_pericolosi %}0{% else %}1{% endif %}">☣ Solo pericolosi</a>
+    <input type="search" name="q" class="gi-search" placeholder="Cerca CER…" value="{{ q_search }}">
+    {% if q_allerta %}<input type="hidden" name="allerta" value="1">{% endif %}
+    {% if q_pericolosi %}<input type="hidden" name="pericolosi" value="1">{% endif %}
+    {% if not q_aperte %}<input type="hidden" name="aperte" value="0">{% endif %}
+    <button type="submit" class="gi-btn">Cerca</button>
+  </form>
+
+  <div class="gi-card">
+    {% if rows %}
+    <table class="gi-table">
+      <thead>
+        <tr>
+          <th>Codice EER</th><th></th>
+          <th class="num">Carichi</th><th class="num">Scarichi</th>
+          <th class="num">Entrate</th><th class="num">Uscite</th>
+          <th class="num">Giacenza</th>
+          <th>Primo carico</th><th class="num">Giorni dep.</th><th>Stato</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for g, tono in rows %}
+        <tr>
+          <td class="gi-cer">{{ g.codice|truncatechars:44 }}</td>
+          <td>{% if g.pericoloso %}<span class="gi-peric">PERIC.</span>{% endif %}</td>
+          <td class="num">{{ g.n_carichi }}</td>
+          <td class="num">{{ g.n_scarichi }}</td>
+          <td class="num">{{ g.entrate }}</td>
+          <td class="num">{{ g.uscite }}</td>
+          <td class="num gi-giac">{{ g.giacenza }}</td>
+          <td style="white-space:nowrap;">{{ g.primo_carico|date:"d/m/Y"|default:"—" }}</td>
+          <td class="num">
+            {% if g.giorni_giacenza is not None %}
+              <span class="gi-age {% if tono == 'rosso' %}bad{% elif tono == 'giallo' %}warn{% endif %}">{{ g.giorni_giacenza }}g</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if tono == 'rosso' %}<span class="gi-badge rosso">Oltre soglia</span>
+            {% elif tono == 'giallo' %}<span class="gi-badge giallo">In avvicinamento</span>
+            {% elif tono == 'verde' %}<span class="gi-badge verde">Regolare</span>
+            {% else %}<span class="gi-badge chiuso">Azzerata</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="gi-empty">✓ Nessuna giacenza da mostrare con i filtri correnti.</div>
+    {% endif %}
+  </div>
+
+  <p class="gi-note">
+    Giacenza = somma carichi (C) − scarichi effettivi (M) − rettifiche (R) per ogni codice EER;
+    lo scarico originale (O) non muove la giacenza. I «giorni in deposito» misurano l'età del carico
+    più vecchio finché la giacenza resta aperta. Soglie deposito temporaneo indicative
+    ({{ soglie.giorni_warn }}gg avviso · {{ soglie.giorni_max }}gg limite): verificare con il responsabile ambientale.
+  </p>
+</div>
+{% endblock %}

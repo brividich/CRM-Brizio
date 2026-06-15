@@ -36,7 +36,7 @@ from core.branding import get_portal_branding
 from core.contact_people import coalesce_contact_people, parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
-from core.middleware import ACLMiddleware, AdaptiveSecureCookieMiddleware
+from core.middleware import ACLMiddleware, AdaptiveSecureCookieMiddleware, ContentSecurityPolicyMiddleware
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_utils import ALLOWED_LEGACY_TABLES, legacy_table_columns, sync_django_user_from_legacy
 from core.models import (

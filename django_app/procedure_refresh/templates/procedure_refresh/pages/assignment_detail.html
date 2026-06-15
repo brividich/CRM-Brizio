@@ -2,6 +2,8 @@
 
 {% block title %}Presa visione — {{ document.code }} | Portale{% endblock %}
 
+{% block body_class %}{{ block.super }} pr-workspace-page pr-reading-page{% endblock %}
+
 {% block extra_head %}
 <style>
 #pr-root { display:flex; flex-direction:column; gap:20px; max-width:800px; }
@@ -84,6 +86,7 @@ body.theme-dark .pr-badge-assigned { background:rgba(29,78,216,.2); color:#93c5f
 body.theme-dark .pr-badge-opened { background:rgba(180,83,9,.2); color:#fcd34d; }
 body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86efac; }
 </style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
 
 {% block content %}
@@ -113,8 +116,9 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
     </div>
   </div>
 
-  <div class="pr-card">
-    <div class="pr-card-title">Informazioni documento</div>
+  <div class="pr-detail-grid">
+    <div class="pr-card">
+      <div class="pr-card-title">Informazioni documento</div>
     <dl class="pr-dl">
       <dt>Codice</dt><dd>{{ document.code }}</dd>
       <dt>Tipo</dt><dd>{{ document.document_type }}</dd>
@@ -131,8 +135,8 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
     {% endif %}
   </div>
 
-  <div class="pr-card">
-    <div class="pr-card-title">Accedi al documento</div>
+    <div class="pr-card">
+      <div class="pr-card-title">Accedi al documento</div>
     {% if revision.source_type == 'sharepoint' and revision.source_url %}
       <a href="{{ revision.source_url }}" target="_blank" rel="noopener" class="pr-source-btn">
         ↗ Apri documento SharePoint
@@ -144,6 +148,7 @@ body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86ef
     {% else %}
       <p style="color:#64748b;font-size:13px;">Sorgente documento non configurata. Contatta l'amministratore.</p>
     {% endif %}
+    </div>
   </div>
 
   {% if assignment.status == 'read_confirmed' %}

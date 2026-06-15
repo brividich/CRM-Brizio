@@ -11,6 +11,9 @@
     <a class="sub-a{% if current == 'assenze_car_dashboard' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">Segnalazioni{% if car_pending_count %}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:0 4px;margin-left:5px;vertical-align:middle;">{{ car_pending_count }}</span>{% endif %}</a>
   {% endif %}
   <a class="sub-a{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">Certifica presenza</a>
+  {% if assenze_can_reconcile %}
+    <a class="sub-a{% if current == 'assenze_riconciliazione' %} active{% endif %}" href="{% url 'assenze_riconciliazione' %}">Riconciliazione</a>
+  {% endif %}
   <a class="sub-a" href="{% url 'dashboard_home' %}">Dashboard</a>
 </div>
 {% endwith %}

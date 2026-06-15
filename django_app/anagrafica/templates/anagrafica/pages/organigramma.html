@@ -1,0 +1,215 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Organigramma | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+/* ── Layout organigramma ────────────────────────────────────────────────── */
+.org-area { margin-bottom: 24px; }
+.org-area-head {
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  padding-bottom:8px; border-bottom:2px solid var(--org-color, #64748b);
+}
+.org-area-dot { width:12px; height:12px; border-radius:50%; background:var(--org-color, #64748b); flex-shrink:0; }
+.org-area-title { font-size:15px; font-weight:800; color:#0f172a; }
+.org-area-count { font-size:12px; color:#64748b; font-weight:600; }
+
+.org-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px; }
+.org-rep {
+  border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+  border-top:3px solid var(--org-color, #64748b);
+  overflow:hidden;
+}
+.org-rep-head { padding:12px 14px 8px; }
+.org-rep-name { font-size:14px; font-weight:800; color:#12395f; }
+.org-rep-count { font-size:11.5px; color:#94a3b8; font-weight:600; }
+.org-capo {
+  display:flex; align-items:center; gap:8px;
+  margin:6px 14px 10px; padding:7px 10px;
+  background:#eff6ff; border:1px solid #dbeafe; border-radius:9px;
+}
+.org-capo-badge { font-size:10px; font-weight:800; color:#1d4ed8; text-transform:uppercase; letter-spacing:.05em; }
+.org-capo a { font-size:13px; font-weight:700; color:#12395f; text-decoration:none; }
+.org-capo a:hover { text-decoration:underline; }
+.org-capo-missing {
+  margin:6px 14px 10px; padding:7px 10px; border-radius:9px;
+  background:#fef9c3; border:1px dashed #fde047;
+  font-size:11.5px; color:#854d0e; font-weight:600;
+}
+.org-membri { border-top:1px solid #f1f5f9; }
+.org-membri summary {
+  cursor:pointer; padding:8px 14px; font-size:12px; font-weight:700; color:#475569;
+  list-style:none; display:flex; align-items:center; gap:6px; user-select:none;
+}
+.org-membri summary::-webkit-details-marker { display:none; }
+.org-membri summary::before { content:"▸"; transition:transform .15s; }
+.org-membri[open] summary::before { transform:rotate(90deg); }
+.org-membri ul { list-style:none; margin:0; padding:0 14px 12px; }
+.org-membri li { padding:4px 0; border-bottom:1px solid #f8fafc; font-size:13px; }
+.org-membri li a { color:#334155; text-decoration:none; }
+.org-membri li a:hover { color:#1f5c91; text-decoration:underline; }
+.org-membri .org-mansione { font-size:11px; color:#94a3b8; }
+
+.org-empty-rep { padding:8px 14px 12px; font-size:12px; color:#94a3b8; font-style:italic; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .org-rep { background:var(--surface); border-color:var(--border); }
+body.theme-dark .org-area-title { color:var(--text); }
+body.theme-dark .org-rep-name { color:var(--text); }
+body.theme-dark .org-capo { background:rgba(29,78,216,.12); border-color:rgba(29,78,216,.3); }
+body.theme-dark .org-capo a { color:var(--text); }
+body.theme-dark .org-membri summary { color:var(--text-light); }
+body.theme-dark .org-membri li { border-color:var(--border); }
+body.theme-dark .org-membri li a { color:var(--text-light); }
+body.theme-dark .org-membri { border-color:var(--border); }
+body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color:rgba(253,224,71,.4); color:#fde68a; }
+
+/* ── Stampa ─────────────────────────────────────────────────────────────── */
+@media print {
+  .hr-pagehead a, .org-filters, .core-topnav, .core-sidebar { display:none !important; }
+  .org-membri { display:block; }
+  .org-membri summary { display:none; }
+  .org-membri ul { padding-top:4px; }
+  details:not([open]) ul { display:block !important; }
+  .org-rep { break-inside:avoid; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h1 class="hr-pagehead-title">Organigramma</h1>
+      <p class="hr-pagehead-desc">Aree aziendali, reparti, capireparto e dipendenti in forza.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa</button>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="hr-metric-grid">
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">👥</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Dipendenti attivi</span><span class="hr-metric-val">{{ n_dipendenti }}</span></div>
+        <div class="hr-metric-sub">In forza</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">🏭</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Reparti</span><span class="hr-metric-val">{{ n_reparti }}</span></div>
+        <div class="hr-metric-sub">Attivi a catalogo</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico {% if n_non_mappati %}amber{% else %}blue{% endif %}">🧩</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Non mappati</span><span class="hr-metric-val">{{ n_non_mappati }}</span></div>
+        <div class="hr-metric-sub">Reparto legacy non a catalogo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtro area -->
+  {% if nomi_aree %}
+  <div class="hr-card org-filters">
+    <form method="get" action="" style="display:flex;gap:12px;align-items:flex-end;padding:14px 16px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:200px;">
+        <label for="org-area" style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Area aziendale</label>
+        <select id="org-area" name="area" class="sc-select" onchange="this.form.submit()"
+                style="border:1px solid #e2e8f0;border-radius:9px;padding:8px 12px;font-size:13px;background:#f8fafc;font-family:inherit;">
+          <option value="" {% if not filtro_area %}selected{% endif %}>Tutte</option>
+          {% for nome in nomi_aree %}
+          <option value="{{ nome }}" {% if nome == filtro_area %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <a href="{% url 'anagrafica:organigramma' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Albero organigramma -->
+  <div class="hr-card" style="padding:18px 20px;">
+    {% for g in gruppi %}
+    <section class="org-area" {% if g.area %}style="--org-color:{{ g.area.colore }};"{% endif %}>
+      <div class="org-area-head">
+        <span class="org-area-dot"></span>
+        <span class="org-area-title">{% if g.area %}{{ g.area.nome }}{% else %}Senza area{% endif %}</span>
+        <span class="org-area-count">{{ g.blocchi|length }} repart{{ g.blocchi|length|pluralize:"o,i" }}</span>
+      </div>
+      <div class="org-grid">
+        {% for b in g.blocchi %}
+        <div class="org-rep">
+          <div class="org-rep-head">
+            <div class="org-rep-name">{{ b.reparto.nome }}</div>
+            <div class="org-rep-count">{{ b.n_totale }} person{{ b.n_totale|pluralize:"a,e" }}</div>
+          </div>
+          {% if b.capo %}
+          <div class="org-capo">
+            <span class="org-capo-badge">Capo</span>
+            <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{{ b.capo.cognome }} {{ b.capo.nome }}</a>
+          </div>
+          {% else %}
+          <div class="org-capo-missing">⚠ Caporeparto non assegnato</div>
+          {% endif %}
+          {% if b.membri %}
+          <details class="org-membri">
+            <summary>{{ b.membri|length }} collaborator{{ b.membri|length|pluralize:"e,i" }}</summary>
+            <ul>
+              {% for m in b.membri %}
+              <li>
+                <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{{ m.cognome }} {{ m.nome }}</a>
+                {% if m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% elif not b.capo %}
+          <div class="org-empty-rep">Nessun dipendente assegnato.</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% empty %}
+    <div class="hr-empty">
+      <div style="font-size:32px;margin-bottom:8px;">🏢</div>
+      Nessun reparto a catalogo. Configura aree e reparti dalle <a href="{% url 'anagrafica:impostazioni' %}">impostazioni</a>.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Bucket non mappati: visibile di proposito, fa emergere i disallineamenti -->
+  {% if non_mappati and not filtro_area %}
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div class="hr-card-title">🧩 Dipendenti con reparto non a catalogo</div>
+      <div style="font-size:12px;color:#94a3b8;">Il reparto legacy non corrisponde a nessun reparto censito nelle impostazioni.</div>
+    </div>
+    <ul style="list-style:none;margin:0;padding:8px 16px 14px;columns:3;column-gap:24px;">
+      {% for m in non_mappati %}
+      <li style="padding:3px 0;font-size:13px;break-inside:avoid;">
+        <a href="{% url 'anagrafica:dipendente_detail' m.id %}" style="color:#334155;text-decoration:none;">{{ m.cognome }} {{ m.nome }}</a>
+        {% if m.reparto %}<span style="font-size:11px;color:#b45309;"> · «{{ m.reparto }}»</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

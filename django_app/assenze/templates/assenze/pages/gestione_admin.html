@@ -45,8 +45,14 @@
       </div>
     </div>
     <div class="abs-hero-actions">
-      <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action">Export gestionale</a>
-      <a href="{% url 'assenze_menu' %}" class="abs-hero-action abs-hero-action-primary">Menu modulo</a>
+      <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action">
+        <svg aria-hidden="true"><use href="#abs-i-download"></use></svg>
+        Export gestionale
+      </a>
+      <a href="{% url 'assenze_menu' %}" class="abs-hero-action abs-hero-action-primary">
+        <svg aria-hidden="true"><use href="#abs-i-grid"></use></svg>
+        Menu modulo
+      </a>
     </div>
   </section>
 
@@ -57,26 +63,38 @@
   <section class="abs-panel">
     <div class="abs-panel-body" style="padding-top:16px;padding-bottom:16px;">
       <div class="abs-tabs">
-        <a href="?tab=riepilogo" class="abs-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
-        <a href="?tab=record" class="abs-tab {% if tab == 'record' %}active{% endif %}">Record</a>
-        <a href="?tab=log" class="abs-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
+        <a href="?tab=riepilogo" class="abs-tab {% if tab == 'riepilogo' %}active{% endif %}"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg>Riepilogo</a>
+        <a href="?tab=record" class="abs-tab {% if tab == 'record' %}active{% endif %}"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg>Record</a>
+        <a href="?tab=log" class="abs-tab {% if tab == 'log' %}active{% endif %}"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Log attivita</a>
       </div>
     </div>
   </section>
 
   {% if tab == 'riepilogo' %}
     <section class="abs-kpis">
-      <article class="abs-kpi teal"><div class="abs-kpi-label">Assenze totali</div><div class="abs-kpi-value">{{ stats.total }}</div><div class="abs-kpi-note">Storico complessivo locale.</div></article>
-      <article class="abs-kpi amber"><div class="abs-kpi-label">In attesa</div><div class="abs-kpi-value">{{ stats.in_attesa }}</div><div class="abs-kpi-note">Record da processare.</div></article>
-      <article class="abs-kpi green"><div class="abs-kpi-label">Approvate</div><div class="abs-kpi-value">{{ stats.approvate }}</div><div class="abs-kpi-note">Richieste confermate.</div></article>
-      <article class="abs-kpi red"><div class="abs-kpi-label">Rifiutate</div><div class="abs-kpi-value">{{ stats.rifiutate }}</div><div class="abs-kpi-note">Richieste chiuse negativamente.</div></article>
+      <article class="abs-kpi teal">
+        <div class="abs-kpi-top"><div class="abs-kpi-label">Assenze totali</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg></span></div>
+        <div class="abs-kpi-value">{{ stats.total }}</div><div class="abs-kpi-note">Storico complessivo locale.</div>
+      </article>
+      <article class="abs-kpi amber">
+        <div class="abs-kpi-top"><div class="abs-kpi-label">In attesa</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span></div>
+        <div class="abs-kpi-value">{{ stats.in_attesa }}</div><div class="abs-kpi-note">Record da processare.</div>
+      </article>
+      <article class="abs-kpi green">
+        <div class="abs-kpi-top"><div class="abs-kpi-label">Approvate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span></div>
+        <div class="abs-kpi-value">{{ stats.approvate }}</div><div class="abs-kpi-note">Richieste confermate.</div>
+      </article>
+      <article class="abs-kpi red">
+        <div class="abs-kpi-top"><div class="abs-kpi-label">Rifiutate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-x"></use></svg></span></div>
+        <div class="abs-kpi-value">{{ stats.rifiutate }}</div><div class="abs-kpi-note">Richieste chiuse negativamente.</div>
+      </article>
     </section>
 
     <div class="abs-grid-2">
       <section class="abs-panel">
         <div class="abs-panel-head">
           <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title">Distribuzione per tipo</h2>
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg>Distribuzione per tipo</h2>
             <p class="abs-panel-subtitle">Tipologie di assenza piu frequenti nel dataset locale.</p>
           </div>
         </div>
@@ -102,7 +120,7 @@
       <section class="abs-panel">
         <div class="abs-panel-head">
           <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title">Sincronizzazione SharePoint</h2>
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Sincronizzazione SharePoint</h2>
             <p class="abs-panel-subtitle">Stato dell'ultima sincronizzazione pull registrata dal modulo.</p>
           </div>
         </div>
@@ -128,7 +146,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Tutte le assenze</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg>Tutte le assenze</h2>
           <p class="abs-panel-subtitle">Ultimi 100 record, con ricerca per dipendente o tipo.</p>
         </div>
         <div class="ga-record-actions">
@@ -181,7 +199,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Log attivita assenze</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Log attivita assenze</h2>
           <p class="abs-panel-subtitle">Ultime 100 azioni registrate sull'ambito assenze.</p>
         </div>
       </div>

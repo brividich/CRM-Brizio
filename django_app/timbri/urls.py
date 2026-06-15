@@ -12,6 +12,7 @@ urlpatterns = [
     path("timbri/operatori/<int:operatore_id>/elimina/", views.operatore_delete, name="operatore_delete"),
     path("timbri/operatori/<int:operatore_id>/", views.operatore_detail, name="operatore_detail"),
     path("timbri/anagrafica/<int:legacy_id>/", views.operatore_detail_by_legacy, name="operatore_detail_by_legacy"),
+    path("timbri/anagrafica/<int:legacy_id>/embed/", views.operatore_embed, name="operatore_embed"),
     path("timbri/anagrafica/<int:legacy_id>/preview/", views.operatore_preview, name="operatore_preview"),
     path("timbri/anagrafica/<int:legacy_id>/report/", views.operatore_report, name="operatore_report"),
     path("timbri/operatori/<int:operatore_id>/nuovo/", views.registro_create, name="registro_create"),

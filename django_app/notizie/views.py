@@ -118,6 +118,15 @@ def _can_manage_notizie_dashboard(request) -> bool:
     return _is_admin_or_hr(request)
 
 
+def _can_manage_notizie_settings(request) -> bool:
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return bool(
+        getattr(request.user, "is_superuser", False)
+        or (legacy_user and is_legacy_admin(legacy_user))
+        or user_can_modulo_action(request, "notizie", "admin_notizie")
+    )
+
+
 def _build_conferma_token(notizia: Notizia, legacy_user_id: int | None) -> str:
     if legacy_user_id is None:
         return ""
@@ -424,6 +433,7 @@ def _dashboard_rows(notizie: list[Notizia]) -> list[dict]:
         target_count = len(target_user_ids)
         pending_count = target_count - stats[COMPLIANCE_CONFORME]
         completion_rate = round((stats[COMPLIANCE_CONFORME] / target_count) * 100, 1) if target_count else 0.0
+        completion_rate_int = max(0, min(100, int(round(completion_rate))))
         audience_ids = [int(a.legacy_role_id) for a in notizia.audience.all()]
         audience_labels = [f"{role_id} - {roles_index.get(role_id, 'Ruolo')}" for role_id in audience_ids]
 
@@ -434,6 +444,7 @@ def _dashboard_rows(notizie: list[Notizia]) -> list[dict]:
                 "target_count": target_count,
                 "pending_count": pending_count,
                 "completion_rate": completion_rate,
+                "completion_rate_int": completion_rate_int,
                 "audience_ids": audience_ids,
                 "audience_labels": audience_labels,
             }
@@ -556,19 +567,41 @@ def lista(request):
     if solo_obbligatorie:
         notizie_visibili = [n for n in notizie_visibili if n.obbligatoria]
 
-    items = []
+    all_items = []
     for n in notizie_visibili:
         compliance = get_compliance_status(n, legacy_user_id) if legacy_user_id else COMPLIANCE_NON_LETTO
-        if filtro_stato and compliance != filtro_stato:
+        all_items.append({"notizia": n, "compliance": compliance})
+
+    news_stats = {
+        "total": len(all_items),
+        "filtered": 0,
+        "obbligatorie": sum(1 for item in all_items if item["notizia"].obbligatoria),
+        "obbligatorie_pendenti": sum(
+            1
+            for item in all_items
+            if item["notizia"].obbligatoria and item["compliance"] != COMPLIANCE_CONFORME
+        ),
+        "non_lette": sum(1 for item in all_items if item["compliance"] == COMPLIANCE_NON_LETTO),
+        "aperte": sum(1 for item in all_items if item["compliance"] == COMPLIANCE_APERTO),
+        "non_conformi": sum(1 for item in all_items if item["compliance"] == COMPLIANCE_NON_CONFORME),
+        "confermate": sum(1 for item in all_items if item["compliance"] == COMPLIANCE_CONFORME),
+    }
+
+    items = []
+    for item in all_items:
+        if filtro_stato and item["compliance"] != filtro_stato:
             continue
-        items.append({"notizia": n, "compliance": compliance})
+        items.append(item)
+    news_stats["filtered"] = len(items)
 
     return render(request, "notizie/pages/lista.html", {
         "page_title": "Notizie",
         "items": items,
+        "news_stats": news_stats,
         "solo_obbligatorie": solo_obbligatorie,
         "filtro_stato": filtro_stato,
         "can_manage_notizie": _can_manage_notizie_dashboard(request),
+        "can_gestione_admin": _can_manage_notizie_settings(request),
     })
 
 
@@ -577,13 +610,8 @@ def dashboard(request):
     if not _can_manage_notizie_dashboard(request):
         return _forbidden_response(request)
 
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     can_edit_dashboard_acl = _is_admin_or_hr(request)
-    can_manage_settings = bool(
-        getattr(request.user, "is_superuser", False)
-        or (legacy_user and is_legacy_admin(legacy_user))
-        or user_can_modulo_action(request, "notizie", "admin_notizie")
-    )
+    can_manage_settings = _can_manage_notizie_settings(request)
     if request.method == "POST" and request.POST.get("action") == "save_dashboard_acl":
         if not can_edit_dashboard_acl:
             return _forbidden_response(request)
@@ -982,6 +1010,7 @@ def gestione_admin(request):
     totale_letture = NotiziaLettura.objects.count()
     totale_conformi = NotiziaLettura.objects.filter(ack_at__isnull=False).count()
     tasso_conformita = round(totale_conformi * 100 / totale_letture, 1) if totale_letture else 0
+    tasso_conformita_int = max(0, min(100, int(round(tasso_conformita))))
 
     # --- Record: notizie con conteggio letture ---
     q = request.GET.get("q", "").strip()
@@ -1020,6 +1049,7 @@ def gestione_admin(request):
             "totale_letture": totale_letture,
             "totale_conformi": totale_conformi,
             "tasso_conformita": tasso_conformita,
+            "tasso_conformita_int": tasso_conformita_int,
             # records
             "notizie_page": notizie_page,
             "q": q,

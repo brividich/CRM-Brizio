@@ -1,0 +1,92 @@
+{% extends "assenze/base_shell.html" %}
+
+{% block title %}Riconciliazione presenze · Assenze{% endblock %}
+
+{% block assenze_shell_content %}
+<section class="abs-hero">
+  <div class="abs-hero-copy">
+    <span class="abs-eyebrow"><svg><use href="#abs-i-list-check"/></svg> Controllo incongruenze</span>
+    <h1>Riconciliazione presenze ↔ assenze</h1>
+    <p>Presenze certificate in un giorno coperto da un'assenza a giornata intera approvata (ferie/malattia). I permessi orari e la flessibilità non generano conflitto.</p>
+    <div class="abs-hero-meta">
+      <span class="abs-hero-pill"><svg><use href="#abs-i-calendar"/></svg> {{ da|date:"d/m/Y" }} → {{ a|date:"d/m/Y" }}</span>
+      <span class="abs-hero-pill"><svg><use href="#abs-i-bell"/></svg> {{ totale }} conflitt{{ totale|pluralize:"o,i" }}</span>
+    </div>
+  </div>
+  <div class="abs-hero-actions">
+    <a class="abs-hero-action" href="?da={{ da|date:'Y-m-d' }}&amp;a={{ a|date:'Y-m-d' }}&amp;export=csv"><svg><use href="#abs-i-download"/></svg> Esporta CSV</a>
+    <button type="button" class="abs-hero-action" onclick="window.print()"><svg><use href="#abs-i-file-text"/></svg> Stampa</button>
+  </div>
+</section>
+
+<form class="abs-filter-card" method="get" action="">
+  <div class="abs-filter-top">
+    <p class="abs-filter-title">Periodo</p>
+    <span class="abs-filter-count">{{ totale }} conflitt{{ totale|pluralize:"o,i" }}</span>
+  </div>
+  <div class="abs-filter-row">
+    <div class="abs-field">
+      <label for="ric-da">Dal</label>
+      <input type="date" id="ric-da" name="da" class="abs-input" value="{{ da|date:'Y-m-d' }}">
+    </div>
+    <div class="abs-field">
+      <label for="ric-a">Al</label>
+      <input type="date" id="ric-a" name="a" class="abs-input" value="{{ a|date:'Y-m-d' }}">
+    </div>
+    <button type="submit" class="abs-hero-action abs-hero-action-primary" style="color:#0f766e;"><svg><use href="#abs-i-search"/></svg> Applica</button>
+  </div>
+</form>
+
+<section class="abs-panel">
+  <div class="abs-panel-head">
+    <div class="abs-panel-title-wrap">
+      <h2 class="abs-panel-title"><svg><use href="#abs-i-user-check"/></svg> Conflitti rilevati</h2>
+      <p class="abs-panel-subtitle">Presenza certificata + assenza a giornata intera approvata, stesso giorno e stesso dipendente.</p>
+    </div>
+  </div>
+  <div class="abs-panel-body no-pad">
+    {% if items %}
+    <div class="abs-table-wrap">
+      <table class="abs-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Data presenza</th>
+            <th>Ore presenza</th>
+            <th>Assenza approvata</th>
+            <th>Riferimenti</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in items %}
+          <tr>
+            <td class="abs-cell-primary" data-label="Dipendente"><strong>{{ c.nome }}</strong></td>
+            <td data-label="Data presenza">{{ c.data|date:"d/m/Y" }}</td>
+            <td data-label="Ore presenza">{% if c.ore_presenza is not None %}{{ c.ore_presenza }} h{% else %}—{% endif %}</td>
+            <td data-label="Assenza approvata"><span class="abs-status abs-status-rejected">{{ c.tipo_label }}</span></td>
+            <td data-label="Riferimenti">
+              <span class="abs-chip soft">Assenza #{{ c.assenza_id|default:"—" }}</span>
+              <span class="abs-chip soft">Presenza #{{ c.presenza_id|default:"—" }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="abs-panel-body">
+      <div class="abs-empty-state">
+        <p class="abs-empty-title">Nessun conflitto nel periodo</p>
+        <p class="abs-empty-text">Nessuna presenza certificata si sovrappone a un'assenza a giornata intera approvata tra {{ da|date:"d/m/Y" }} e {{ a|date:"d/m/Y" }}.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="abs-note-box">
+  Il confronto usa il match per <strong>nome</strong> (presenza ↔ richiesta assenza) e considera solo le assenze
+  <strong>approvate a giornata intera</strong> (ferie/malattia). Una presenza esplicitamente collegata alla stessa
+  assenza non è segnalata. Verificare i casi dubbi prima di azioni sui dati: possibili omonimie o varianti del nome.
+</div>
+{% endblock %}

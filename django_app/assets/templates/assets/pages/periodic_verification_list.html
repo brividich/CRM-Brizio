@@ -797,6 +797,7 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                   </div>
                 </div>
                 <div class="pv-item-top-right">
+                  {% if row.is_legacy %}<span class="pv-pill muted" title="Trigger temporale gestito da una regola di manutenzione">Gestita da regola</span>{% endif %}
                   <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
                   <button class="pv-item-toggle" type="button" data-pv-item-toggle="{{ row.verification.id }}" aria-expanded="false" aria-label="Espandi piano">&#9660;</button>
                 </div>
@@ -822,6 +823,18 @@ body.theme-dark .pv-kpi.pv-kpi--blue { background:#0d1f3c; border-color:#1e3a5f;
                 {% if can_manage_periodic_verifications %}
                   <div class="pv-inline-actions">
                     <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
+                    {% if row.can_convert_to_rule %}
+                    <form class="pv-convert-form" method="post" onsubmit="return confirm('Convertire questo piano in una regola di manutenzione? Il trigger temporale passera alle regole e il piano resta come riferimento fornitore.');">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="convert_periodic_to_rule">
+                      <input type="hidden" name="scope" value="{{ periodic_scope }}">
+                      <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                      <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                      <button class="btn" type="submit" title="Crea template + regola a giorni e marca il piano come gestito da regola">Converti in regola</button>
+                    </form>
+                    {% elif row.convert_block_reason %}
+                    <span class="pv-inline-note" title="{{ row.convert_block_reason }}">Conversione non disponibile</span>
+                    {% endif %}
                     <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="delete_periodic_verification">

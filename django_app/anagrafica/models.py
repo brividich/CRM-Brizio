@@ -426,6 +426,20 @@ class Mansione(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── Profilo "mansione di rischio" (requisiti diretti) ─────────────────
+    # Requisiti DPI / visite richiesti esplicitamente da questa mansione. Si
+    # uniscono a quelli ereditati dai FattoreRischio collegati via
+    # EsposizioneRischio. La formazione obbligatoria resta su
+    # TrainingRequirementRule(mansione=...). Vedi services/mansionario.py.
+    dpi_richiesti = models.ManyToManyField(
+        "dpi.CategoriaDPI", blank=True, related_name="mansioni_richiedenti",
+        help_text="Categorie DPI obbligatorie per questa mansione.",
+    )
+    visite_richieste = models.ManyToManyField(
+        "anagrafica.TipoVisitaMedica", blank=True, related_name="mansioni_richiedenti",
+        help_text="Tipologie di visita medica obbligatorie per questa mansione.",
+    )
+
     class Meta:
         ordering = ["nome"]
         verbose_name = "Mansione"
@@ -990,6 +1004,133 @@ class OffboardingTask(models.Model):
         ]
         verbose_name = "Task offboarding"
         verbose_name_plural = "Task offboarding"
+
+    def __str__(self) -> str:
+        return f"{self.titolo} ({self.get_stato_display()})"
+
+
+class OnboardingPratica(models.Model):
+    """Pratica operativa di inserimento dipendente (onboarding).
+
+    Speculare a ``OffboardingPratica``: raccoglie la checklist di attivazione
+    (account, badge, DPI da mansionario, corsi obbligatori, visita preassuntiva)
+    generata da ``services.onboarding``. A differenza dell'offboarding la
+    chiusura NON ha effetti sul record legacy/aziendale: serve solo a tracciare
+    il completamento della presa in carico del nuovo assunto.
+    """
+    STATO_IN_CORSO = "IN_CORSO"
+    STATO_CHIUSA = "CHIUSA"
+    STATO_CHIUSA_CON_ECCEZIONI = "CHIUSA_CON_ECCEZIONI"
+    STATO_ANNULLATA = "ANNULLATA"
+    STATO_CHOICES = [
+        (STATO_IN_CORSO, "In corso"),
+        (STATO_CHIUSA, "Chiusa"),
+        (STATO_CHIUSA_CON_ECCEZIONI, "Chiusa con eccezioni"),
+        (STATO_ANNULLATA, "Annullata"),
+    ]
+    STATI_APERTI = (STATO_IN_CORSO,)
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    dipendente_nome = models.CharField(max_length=250, blank=True, default="")
+    reparto = models.CharField(max_length=200, blank=True, default="")
+    mansione = models.CharField(max_length=200, blank=True, default="")
+    data_assunzione = models.DateField(null=True, blank=True)
+    note_hr = models.TextField(blank=True, default="")
+    stato = models.CharField(max_length=30, choices=STATO_CHOICES, default=STATO_IN_CORSO, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="onboarding_pratiche_create",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="onboarding_pratiche_aggiornate",
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="onboarding_pratiche_chiuse",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "stato", "-created_at"]),
+        ]
+        verbose_name = "Pratica onboarding"
+        verbose_name_plural = "Pratiche onboarding"
+
+    def __str__(self) -> str:
+        nome = self.dipendente_nome or f"#{self.legacy_anagrafica_id}"
+        return f"Onboarding {nome} - {self.get_stato_display()}"
+
+    @property
+    def is_aperta(self) -> bool:
+        return self.stato in self.STATI_APERTI
+
+
+class OnboardingTask(models.Model):
+    CATEGORIA_HR = "HR"
+    CATEGORIA_IT = "IT"
+    CATEGORIA_RESPONSABILE = "RESPONSABILE"
+    CATEGORIA_DPI = "DPI"
+    CATEGORIA_AMMINISTRAZIONE = "AMMINISTRAZIONE"
+    CATEGORIA_ALTRO = "ALTRO"
+    CATEGORIA_CHOICES = [
+        (CATEGORIA_HR, "HR"),
+        (CATEGORIA_IT, "IT / Sistemi informatici"),
+        (CATEGORIA_RESPONSABILE, "Responsabile reparto"),
+        (CATEGORIA_DPI, "DPI / Sicurezza"),
+        (CATEGORIA_AMMINISTRAZIONE, "Amministrazione"),
+        (CATEGORIA_ALTRO, "Altro"),
+    ]
+
+    STATO_DA_FARE = "DA_FARE"
+    STATO_COMPLETATO = "COMPLETATO"
+    STATO_ECCEZIONE = "ECCEZIONE"
+    STATO_CHOICES = [
+        (STATO_DA_FARE, "Da fare"),
+        (STATO_COMPLETATO, "Completato"),
+        (STATO_ECCEZIONE, "Eccezione"),
+    ]
+
+    pratica = models.ForeignKey(OnboardingPratica, on_delete=models.CASCADE, related_name="tasks")
+    codice = models.CharField(max_length=60)
+    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES, default=CATEGORIA_HR, db_index=True)
+    titolo = models.CharField(max_length=200)
+    descrizione = models.TextField(blank=True, default="")
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_DA_FARE, db_index=True)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="onboarding_task_completati",
+    )
+
+    class Meta:
+        ordering = ["categoria", "id"]
+        unique_together = [("pratica", "codice")]
+        indexes = [
+            models.Index(fields=["pratica", "stato"]),
+            models.Index(fields=["categoria", "stato"]),
+        ]
+        verbose_name = "Task onboarding"
+        verbose_name_plural = "Task onboarding"
 
     def __str__(self) -> str:
         return f"{self.titolo} ({self.get_stato_display()})"

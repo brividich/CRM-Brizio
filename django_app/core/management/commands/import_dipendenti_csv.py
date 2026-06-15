@@ -23,6 +23,44 @@ def _normalize_alias(raw: str) -> str:
     return txt.strip()
 
 
+# Account di sistema / servizio (mailbox Exchange, account AD interni, account di
+# prova) che NON sono dipendenti reali e che venivano importati per errore da una
+# sorgente AD/CSV grezza. Vengono saltati a monte dall'import.
+# Confronto su alias normalizzato (minuscolo, senza dominio) e su login_id/email.
+_SERVICE_ALIAS_PREFIXES = (
+    "healthmailbox",
+    "systemmailbox",
+    "federatedemail",
+    "migration.",
+    "discoverysearchmailbox",
+    "exchange_online-applicationaccount",
+)
+_SERVICE_ALIAS_EXACT = {
+    "krbtgt",
+    "administrator",
+    "guest",
+    "time",
+    "info",
+    "vmwarevdpbackupuser",
+    "cntest",
+}
+# Domini tecnici interni: un login_id su questi domini non è un dipendente reale.
+_SERVICE_EMAIL_DOMAINS = ("@cnovicrom.local",)
+
+
+def _is_service_account(alias: str, email_value: str) -> bool:
+    """True se la riga è un account di sistema/servizio/test, non un dipendente."""
+    a = (alias or "").strip().lower()
+    if a in _SERVICE_ALIAS_EXACT:
+        return True
+    if any(a.startswith(p) for p in _SERVICE_ALIAS_PREFIXES):
+        return True
+    em = (email_value or "").strip().lower()
+    if any(em.endswith(dom) for dom in _SERVICE_EMAIL_DOMAINS):
+        return True
+    return False
+
+
 def _pretty_text(raw: str) -> str:
     txt = " ".join((raw or "").strip().split())
     if not txt:
@@ -131,6 +169,7 @@ class Command(BaseCommand):
         stats = {
             "rows": 0,
             "skipped": 0,
+            "skipped_service": 0,
             "inserted": 0,
             "updated": 0,
             "unchanged": 0,
@@ -184,6 +223,13 @@ class Command(BaseCommand):
                     email=email_value,
                     email_notifica=email_notifica,
                 )
+
+                # Salta gli account di sistema / servizio / test (mailbox Exchange,
+                # krbtgt, administrator, dominio tecnico @cnovicrom.local, ecc.):
+                # non sono dipendenti reali e non devono finire in anagrafica.
+                if _is_service_account(alias, email_value or email_notifica):
+                    stats["skipped_service"] += 1
+                    continue
 
                 utente_id: int | None = None
                 if sync_legacy_users and email_value:
@@ -256,7 +302,8 @@ class Command(BaseCommand):
         dry_note = " [DRY-RUN]" if dry_run else ""
         self.stdout.write(
             self.style.SUCCESS(
-                "Import completato%s rows=%s inserted=%s updated=%s unchanged=%s skipped=%s"
+                "Import completato%s rows=%s inserted=%s updated=%s unchanged=%s "
+                "skipped=%s skipped_service=%s"
                 % (
                     dry_note,
                     stats["rows"],
@@ -264,6 +311,7 @@ class Command(BaseCommand):
                     stats["updated"],
                     stats["unchanged"],
                     stats["skipped"],
+                    stats["skipped_service"],
                 )
             )
         )

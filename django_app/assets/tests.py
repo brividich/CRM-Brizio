@@ -40,7 +40,12 @@ from .forms import (
     MaintenanceRuleAssetOverrideForm,
     MaintenanceRuleForm,
 )
-from .maintenance import build_day_based_maintenance_schedule_rows, resolve_asset_maintenance_rules
+from .maintenance import (
+    build_day_based_maintenance_schedule_rows,
+    build_maintenance_schedule_rows,
+    meter_schedule_payload,
+    resolve_asset_maintenance_rules,
+)
 from .services.asset_catalog_import import AssetCatalogImporter
 from .models import (
     Asset,
@@ -62,7 +67,9 @@ from .models import (
     AssetListLayout,
     AssetListOption,
     AssetMaintenanceRuleState,
+    AssetMeter,
     AssetCalendarEvent,
+    MaintenanceChecklistStep,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -78,6 +85,7 @@ from .models import (
     WorkMachine,
     WorkOrder,
     WorkOrderAttachment,
+    WorkOrderChecklist,
 )
 
 User = get_user_model()
@@ -4896,6 +4904,8 @@ class AssetAdministrativeStepOneTests(TestCase):
 
         detail_page = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
         self.assertEqual(detail_page.status_code, 200)
+        self.assertContains(detail_page, "Torna indietro")
+        self.assertNotContains(detail_page, "Dettaglio asset")
         self.assertContains(detail_page, "Crea intervento")
         self.assertContains(detail_page, "Apri scadenze")
 
@@ -4933,6 +4943,13 @@ class AssetMaintenanceStepTwoTests(TestCase):
                 "asset_category": str(self.category.id),
                 "sort_order": "15",
                 "is_active": "on",
+                # Formset checklist (un vero POST dal form lo include sempre)
+                "checklist-TOTAL_FORMS": "1",
+                "checklist-INITIAL_FORMS": "0",
+                "checklist-MIN_NUM_FORMS": "0",
+                "checklist-MAX_NUM_FORMS": "1000",
+                "checklist-0-step_number": "",
+                "checklist-0-description": "Verifica livello olio",
             },
         )
 
@@ -4941,6 +4958,11 @@ class AssetMaintenanceStepTwoTests(TestCase):
         self.assertEqual(template.asset_category, self.category)
         self.assertEqual(template.label, "Cambio olio")
         self.assertTrue(template.is_active)
+        # La checklist viene salvata e il numero step assente è auto-assegnato (10)
+        steps = list(template.checklist_steps.order_by("step_number"))
+        self.assertEqual(len(steps), 1)
+        self.assertEqual(steps[0].description, "Verifica livello olio")
+        self.assertEqual(steps[0].step_number, 10)
 
     def test_maintenance_rule_create_view_creates_category_rule(self):
         template = MaintenanceInterventionTemplate.objects.create(
@@ -5071,6 +5093,226 @@ class AssetMaintenanceStepTwoTests(TestCase):
         )
 
         self.assertTrue(form.is_valid(), form.errors.as_json())
+
+    def test_generate_scheduled_workorders_copies_template_checklist(self):
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="check-gen-step-two",
+            label="Controllo generale",
+            asset_category=self.category,
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=template, step_number=10, description="Controlla cinghie"
+        )
+        MaintenanceChecklistStep.objects.create(
+            intervention_template=template, step_number=20, description="Lubrifica guide"
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=30,
+        )
+        asset = Asset.objects.create(
+            asset_tag="ML-CHK-001",
+            name="Macchina checklist",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+
+        workorder = WorkOrder.objects.get(asset=asset, maintenance_rule=rule)
+        self.assertEqual(workorder.origin, WorkOrder.ORIGIN_PERIODIC)
+        steps = list(WorkOrderChecklist.objects.filter(work_order=workorder).order_by("step_number"))
+        self.assertEqual([s.description for s in steps], ["Controlla cinghie", "Lubrifica guide"])
+
+    def test_maintenance_impostazioni_piano_tab_renders(self):
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="piano-step-two",
+            label="Intervento piano",
+            asset_category=self.category,
+        )
+        MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=60,
+        )
+        Asset.objects.create(
+            asset_tag="ML-PIANO-001",
+            name="Macchina piano",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_impostazioni") + "?tab=piano")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Piano di manutenzione per categoria")
+        self.assertContains(response, self.category.label)
+
+
+class AssetMeterScheduleTests(TestCase):
+    """Fase 2.1 — scadenzario e generatore per regole a contatore (ore/km/cicli)."""
+
+    def setUp(self):
+        self.category = AssetCategory.objects.create(
+            code="cnc-meter", label="CNC contatore", base_asset_type=Asset.TYPE_CNC, sort_order=10,
+        )
+        self.template = MaintenanceInterventionTemplate.objects.create(
+            code="tagliando-ore", label="Tagliando ore", asset_category=self.category,
+        )
+        self.rule = MaintenanceRule.objects.create(
+            intervention_template=self.template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_HOURS,
+            threshold_value=500,
+            warning_days=50,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CNC-MTR-001",
+            name="Tornio contatore",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=self.category,
+            status=Asset.STATUS_IN_USE,
+        )
+
+    def _set_meter(self, value):
+        return AssetMeter.objects.create(
+            asset=self.asset, meter_type=AssetMeter.METER_HOURS, current_value=value, unit_label="h",
+        )
+
+    def _rows(self):
+        return build_maintenance_schedule_rows(
+            asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category")
+        )
+
+    def test_meter_payload_status_thresholds(self):
+        upcoming = meter_schedule_payload(current_value=100, base_value=0, threshold_value=500, warning_units=50)
+        warning = meter_schedule_payload(current_value=470, base_value=0, threshold_value=500, warning_units=50)
+        overdue = meter_schedule_payload(current_value=520, base_value=0, threshold_value=500, warning_units=50)
+        missing = meter_schedule_payload(current_value=None, base_value=0, threshold_value=500, warning_units=50)
+        self.assertEqual(upcoming["status"], "upcoming")
+        self.assertFalse(upcoming["due"])
+        self.assertEqual(warning["status"], "warning")
+        self.assertTrue(warning["due"])
+        self.assertEqual(overdue["status"], "overdue")
+        self.assertTrue(overdue["due"])
+        self.assertEqual(missing["status"], "missing")
+
+    def test_schedule_meter_rule_upcoming(self):
+        self._set_meter(100)
+        rows = self._rows()
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["is_meter_based"])
+        self.assertEqual(rows[0]["schedule_status"], "upcoming")
+        self.assertIsNone(rows[0]["due_date"])
+
+    def test_schedule_meter_rule_warning_and_overdue(self):
+        self._set_meter(470)
+        self.assertEqual(self._rows()[0]["schedule_status"], "warning")
+        AssetMeter.objects.filter(asset=self.asset, meter_type=AssetMeter.METER_HOURS).update(current_value=520)
+        self.assertEqual(self._rows()[0]["schedule_status"], "overdue")
+
+    def test_schedule_meter_rule_missing_without_meter(self):
+        rows = self._rows()
+        self.assertEqual(rows[0]["schedule_status"], "missing")
+        self.assertIn("Contatore", rows[0]["schedule_label"])
+
+    def test_generator_creates_meter_workorder_when_due(self):
+        self._set_meter(480)
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+        self.assertTrue(
+            WorkOrder.objects.filter(
+                asset=self.asset, maintenance_rule=self.rule, origin=WorkOrder.ORIGIN_PERIODIC
+            ).exists()
+        )
+
+    def test_generator_skips_meter_workorder_when_not_due(self):
+        self._set_meter(100)
+        call_command("generate_scheduled_workorders", stdout=io.StringIO())
+        self.assertFalse(WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).exists())
+
+
+class PeriodicVerificationConvergenceTests(TestCase):
+    """Fase 2.3 — convergenza PeriodicVerification → MaintenanceRule."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="pv-conv-admin", email="pv-conv@test.local", password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="pv-conv-cat", label="Carroponti conv", base_asset_type=Asset.TYPE_CARROPONTE, sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            asset_tag="CP-CONV-001", name="Carroponte conv", asset_type=Asset.TYPE_CARROPONTE,
+            asset_category=self.category, status=Asset.STATUS_IN_USE,
+        )
+        self.pv = PeriodicVerification.objects.create(
+            name="Verifica fune annuale", frequency_months=12, is_active=True,
+        )
+        self.pv.assets.add(self.asset)
+
+    def test_service_migrates_single_category_plan(self):
+        from assets.services.periodic_migration import migrate_periodic_verification_to_rule
+
+        result = migrate_periodic_verification_to_rule(self.pv)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["created_template"])
+        self.assertTrue(result["created_rule"])
+        self.assertEqual(result["rule"].threshold_type, MaintenanceRule.THRESHOLD_DAYS)
+        self.assertEqual(result["rule"].threshold_value, 360)  # 12 mesi × 30
+        self.pv.refresh_from_db()
+        self.assertTrue(self.pv.is_legacy)
+
+    def test_service_blocks_multi_category(self):
+        from assets.services.periodic_migration import migrate_periodic_verification_to_rule
+
+        other_cat = AssetCategory.objects.create(
+            code="pv-conv-other", label="Altro conv", base_asset_type=Asset.TYPE_CNC, sort_order=20,
+        )
+        other_asset = Asset.objects.create(
+            asset_tag="CNC-CONV-001", name="CNC conv", asset_type=Asset.TYPE_CNC,
+            asset_category=other_cat, status=Asset.STATUS_IN_USE,
+        )
+        self.pv.assets.add(other_asset)
+        result = migrate_periodic_verification_to_rule(self.pv)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["reason"], "multi_category")
+        self.pv.refresh_from_db()
+        self.assertFalse(self.pv.is_legacy)
+
+    def test_ui_convert_action_creates_rule_and_marks_legacy(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("assets:periodic_verifications") + "?scope=production",
+            {
+                "action": "convert_periodic_to_rule",
+                "scope": "production",
+                "verification_id": str(self.pv.id),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.pv.refresh_from_db()
+        self.assertTrue(self.pv.is_legacy)
+        self.assertTrue(
+            MaintenanceRule.objects.filter(
+                asset_category=self.category, threshold_type=MaintenanceRule.THRESHOLD_DAYS
+            ).exists()
+        )
+
+    def test_second_convert_is_idempotent(self):
+        from assets.services.periodic_migration import migrate_periodic_verification_to_rule
+
+        migrate_periodic_verification_to_rule(self.pv)
+        rules_after_first = MaintenanceRule.objects.count()
+        result2 = migrate_periodic_verification_to_rule(self.pv)
+        self.assertTrue(result2["ok"])
+        self.assertFalse(result2["created_rule"])
+        self.assertEqual(MaintenanceRule.objects.count(), rules_after_first)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -5746,11 +5988,11 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(schedule_response, "Verifica copertura")
         self.assertContains(schedule_response, "Prima esecuzione da pianificare")
 
+        # La card "Suggerimenti operativi" è stata rimossa dal dettaglio asset
+        # (ripulita UI): i suggerimenti contestuali restano sulla pagina scadenzario.
         detail_response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
         self.assertEqual(detail_response.status_code, 200)
-        self.assertContains(detail_response, "Suggerimenti operativi")
-        self.assertContains(detail_response, "Imposta prima esecuzione")
-        self.assertContains(detail_response, "Verifica copertura")
+        self.assertNotContains(detail_response, "Suggerimenti operativi")
 
     def test_reports_dashboard_links_all_open_workorders_and_missing_baseline_action(self):
         WorkOrder.objects.create(
@@ -6967,3 +7209,96 @@ class CategorySidebarTests(TestCase):
         self.assertNotIn("IT-000002", body)
 
 
+
+
+class AssetCompletenessTests(TestCase):
+    """#5 — completezza scheda asset (% + campi mancanti)."""
+
+    def test_core_fields_missing_lower_pct(self):
+        # Solo name valorizzato (asset_tag autogenerato): molti core mancanti.
+        asset = Asset.objects.create(name="PC Ufficio")
+        c = asset.completeness()
+        self.assertEqual(c["total"], 7)  # 6 core + assegnatario
+        self.assertEqual(c["filled"], 1)  # solo name
+        self.assertLess(c["pct"], 50)
+        self.assertIn("Numero di serie", c["missing"])
+        self.assertIn("Assegnatario", c["missing"])
+
+    def test_full_core_is_100(self):
+        asset = Asset.objects.create(
+            name="PC", serial_number="SN1", manufacturer="Dell", model="X1",
+            reparto="IT", purchase_date=date(2025, 1, 1), assignment_to="Mario Rossi",
+        )
+        c = asset.completeness()
+        self.assertEqual(c["pct"], 100)
+        self.assertEqual(c["missing"], [])
+
+    def test_assignment_via_legacy_user_id_counts(self):
+        asset = Asset.objects.create(name="PC", assigned_legacy_user_id=42)
+        c = asset.completeness()
+        self.assertNotIn("Assegnatario", c["missing"])
+
+    def test_required_category_field_counts_and_bool_excluded(self):
+        from assets.models import AssetCategory, AssetCategoryField
+
+        cat = AssetCategory.objects.create(code="cnc", label="CNC")
+        AssetCategoryField.objects.create(
+            category=cat, code="potenza", label="Potenza kW",
+            field_type=AssetCategoryField.TYPE_NUMBER, is_required=True,
+        )
+        AssetCategoryField.objects.create(
+            category=cat, code="ha_aspiratore", label="Ha aspiratore",
+            field_type=AssetCategoryField.TYPE_BOOL, is_required=True,
+        )
+        # Non required: non deve contare.
+        AssetCategoryField.objects.create(
+            category=cat, code="note_extra", label="Note extra",
+            field_type=AssetCategoryField.TYPE_TEXT, is_required=False,
+        )
+        asset = Asset.objects.create(name="Tornio", asset_category=cat, extra_columns={})
+        c = asset.completeness()
+        # 7 core + 1 category required non-bool (potenza). Il BOOL e il non-required esclusi.
+        self.assertEqual(c["total"], 8)
+        self.assertIn("Potenza kW", c["missing"])
+        self.assertNotIn("Ha aspiratore", c["missing"])
+        self.assertNotIn("Note extra", c["missing"])
+
+        asset.extra_columns = {"potenza": "15"}
+        asset.save()
+        c2 = asset.completeness()
+        self.assertNotIn("Potenza kW", c2["missing"])
+
+    def test_completeness_pct_property(self):
+        asset = Asset.objects.create(
+            name="PC", serial_number="SN1", manufacturer="Dell", model="X1",
+            reparto="IT", purchase_date=date(2025, 1, 1), assignment_to="Tizio",
+        )
+        self.assertEqual(asset.completeness_pct, 100)
+
+
+class PlantLayoutOpenTicketsTests(TestCase):
+    """#5 — overlay ticket aperti sulla mappa officina."""
+
+    def test_open_tickets_by_asset_groups_and_filters(self):
+        from assets.views import _open_tickets_by_asset
+
+        asset_a = Asset.objects.create(name="Tornio A", asset_type=Asset.TYPE_WORK_MACHINE)
+        asset_b = Asset.objects.create(name="Fresa B", asset_type=Asset.TYPE_WORK_MACHINE)
+
+        t_open = Ticket.objects.create(titolo="Guasto A", stato=StatoTicket.APERTA, asset=asset_a)
+        Ticket.objects.create(titolo="In carico A", stato=StatoTicket.IN_CARICO, asset=asset_a)
+        Ticket.objects.create(titolo="Chiuso A", stato=StatoTicket.CHIUSO, asset=asset_a)
+
+        result = _open_tickets_by_asset([asset_a.id, asset_b.id])
+
+        self.assertEqual(len(result[asset_a.id]), 2)  # aperta + in carico, non il chiuso
+        self.assertNotIn(asset_b.id, result)  # nessun ticket → assente
+        numeri = {row["titolo"] for row in result[asset_a.id]}
+        self.assertIn("Guasto A", numeri)
+        self.assertNotIn("Chiuso A", numeri)
+        self.assertTrue(any(row["id"] == t_open.id for row in result[asset_a.id]))
+
+    def test_open_tickets_by_asset_empty_input(self):
+        from assets.views import _open_tickets_by_asset
+
+        self.assertEqual(_open_tickets_by_asset([]), {})

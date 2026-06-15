@@ -1,250 +1,944 @@
 {% extends "core/base.html" %}
 
 {% block title %}{{ page_title }}{% endblock %}
+{% block body_class %}{{ block.super }} notizie-settings-page{% endblock %}
 
 {% block extra_head %}
   {% include "core/components/module_settings_styles.html" %}
   <style>
-    .ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; display:grid; gap:18px; }
-    .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; }
-    .ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
-    .ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
-    .ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-    .kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
-    .kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-    .kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
-    .kpi-sub { font-size: 12px; color: #8fa5c0; margin-top: 2px; }
-    .bar-wrap { background: #e5ecf6; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px; }
-    .bar-fill { height: 100%; background: #1f64d8; border-radius: 999px; }
-    .card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; }
-    .card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    .card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
-    .card-body { padding: 14px; }
-    .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
-    .tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
-    .tbl tr:last-child td { border-bottom: none; }
-    .tbl tr:hover td { background: #f8fbff; }
-    .badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
-    .badge-bozza { background: #f1f5f9; color: #64748b; }
-    .badge-pubblicata { background: #dcfce7; color: #166534; }
-    .badge-archiviata { background: #f1f5f9; color: #64748b; opacity:.7; }
-    .badge-obbligatoria { background: #fee2e2; color: #991b1b; }
-    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
-    .btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
-    .btn-primary:hover { background: #1750b8; }
-    .btn-sm { padding: 4px 9px; font-size: 12px; }
-    .search-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap:wrap; }
-    .search-row input, .search-row select { border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
-    .search-row input { flex: 1; min-width: 220px; }
-    .pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: #6b7280; }
-    .pager a { padding: 4px 9px; border: 1px solid #dbe3f0; border-radius: 6px; text-decoration: none; color: #1f64d8; font-weight: 600; }
-    .log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
-    .log-row:last-child { border-bottom: none; }
-    .log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
-    .acl-roles { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
-    .acl-role-item { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; font-size:13px; color:#334155; }
-    @media (max-width: 640px) {
-      .log-row, .log-row.log-head { grid-template-columns: 1fr; gap: 2px; }
-      .log-head { display: none; }
+    .notizie-settings-page .content {
+      width: 100%;
+      max-width: none;
     }
 
-    body.theme-dark .ga-tab { color:var(--text-mid); }
-    body.theme-dark .ga-tab:hover { background:rgba(29,78,216,.1); color:#93c5fd; }
-    body.theme-dark .ga-tab.active { background:var(--surface); border-color:var(--border); color:#93c5fd; }
-    body.theme-dark .kpi { background:var(--surface); border-color:var(--border); }
-    body.theme-dark .kpi-val { color:var(--text); }
-    body.theme-dark .kpi-label, body.theme-dark .kpi-sub { color:var(--text-light); }
-    body.theme-dark .bar-wrap { background:var(--border); }
-    body.theme-dark .card { background:var(--surface); border-color:var(--border); }
-    body.theme-dark .card-head { border-color:var(--border); }
-    body.theme-dark .card-title { color:var(--text); }
-    body.theme-dark .tbl th { background:var(--thead-bg); border-color:var(--border); color:var(--text-light); }
-    body.theme-dark .tbl td { border-color:var(--border); color:var(--text); }
-    body.theme-dark .tbl tr:hover td { background:var(--tbody-hover); }
-    body.theme-dark .badge-bozza, body.theme-dark .badge-archiviata { background:var(--surface-alt); color:var(--text-light); }
-    body.theme-dark .badge-pubblicata { background:rgba(22,101,52,.2); color:#86efac; }
-    body.theme-dark .badge-obbligatoria { background:rgba(153,27,27,.2); color:#fca5a5; }
-    body.theme-dark .search-row input, body.theme-dark .search-row select { background:var(--surface); border-color:var(--border); color:var(--text); }
-    body.theme-dark .log-row { border-color:var(--border); color:var(--text); }
-    body.theme-dark .log-head { color:var(--text-light); }
-    body.theme-dark .acl-role-item { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-    body.theme-dark .pager { color:var(--text-light); }
-    body.theme-dark .pager a { border-color:var(--border); color:#93c5fd; }
+    .news-settings-shell {
+      width: 100%;
+      min-height: calc(100vh - 150px);
+      display: grid;
+      gap: 16px;
+    }
+
+    .news-settings-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      gap: 22px;
+      align-items: end;
+      overflow: hidden;
+      border: 1px solid rgba(15, 118, 110, .22);
+      border-radius: 8px;
+      padding: 22px;
+      color: #fff;
+      background:
+        linear-gradient(135deg, rgba(7, 35, 57, .96) 0%, rgba(15, 118, 110, .92) 58%, rgba(234, 88, 12, .82) 128%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
+    }
+
+    .news-settings-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 26px;
+      padding: 0 10px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 999px;
+      color: rgba(255,255,255,.82);
+      background: rgba(255,255,255,.08);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .news-settings-kicker::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #fb923c;
+      box-shadow: 0 0 0 4px rgba(251,146,60,.14);
+    }
+
+    .news-settings-hero h1 {
+      margin: 12px 0 7px;
+      color: #fff;
+      font-size: 28px;
+      line-height: 1.12;
+      font-weight: 800;
+    }
+
+    .news-settings-copy {
+      margin: 0;
+      max-width: 780px;
+      color: rgba(255,255,255,.78);
+      font-size: var(--fs-md);
+    }
+
+    .news-settings-actions,
+    .news-settings-row-actions,
+    .news-settings-panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .news-settings-actions {
+      margin-top: 16px;
+    }
+
+    .news-settings-form-actions {
+      margin-top: 12px;
+    }
+
+    .news-settings-btn,
+    .news-settings-action,
+    .news-settings-panel-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border, #cbd5e1);
+      color: var(--text, #0f172a);
+      background: var(--surface, #fff);
+      text-decoration: none;
+      font-size: var(--fs-sm);
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .news-settings-btn {
+      min-height: 38px;
+      border-color: rgba(255,255,255,.26);
+      color: #fff;
+      background: rgba(255,255,255,.1);
+    }
+
+    .news-settings-btn.is-primary {
+      border-color: #fff;
+      color: #0f766e;
+      background: #fff;
+    }
+
+    .news-settings-action:hover,
+    .news-settings-panel-btn:hover {
+      border-color: rgba(15, 118, 110, .32);
+      color: #0f766e;
+      background: rgba(15, 118, 110, .08);
+    }
+
+    .news-settings-panel-btn.is-primary {
+      border-color: #0f766e;
+      color: #fff;
+      background: #0f766e;
+    }
+
+    .news-settings-hero-metrics,
+    .news-settings-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+    }
+
+    .news-settings-hero-metrics {
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,.16);
+    }
+
+    .news-settings-hero-metric {
+      min-height: 76px;
+      padding: 13px;
+      background: rgba(7, 24, 39, .34);
+    }
+
+    .news-settings-hero-metric strong,
+    .news-settings-kpi strong,
+    .news-settings-mini-metric strong,
+    .news-settings-summary-row strong {
+      display: block;
+      color: var(--text, #1a202c);
+      font-weight: 800;
+    }
+
+    .news-settings-hero-metric strong {
+      color: #fff;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .news-settings-hero-metric span {
+      display: block;
+      margin-top: 6px;
+      color: rgba(255,255,255,.72);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
+
+    .news-settings-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: var(--surface, #fff);
+    }
+
+    .news-settings-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 11px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      color: var(--text-mid, #4a5568);
+      background: var(--bg, #f2f5f8);
+      text-decoration: none;
+      font-size: var(--fs-sm);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .news-settings-tab.active,
+    .news-settings-tab:hover {
+      border-color: rgba(15, 118, 110, .32);
+      color: #0f766e;
+      background: rgba(15, 118, 110, .1);
+    }
+
+    .news-settings-kpis {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .news-settings-kpi,
+    .news-settings-panel,
+    .news-settings-record-card,
+    .news-settings-message {
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: var(--surface, #fff);
+      box-shadow: 0 1px 4px rgba(15,23,42,.05);
+    }
+
+    .news-settings-kpi {
+      min-height: 104px;
+      padding: 14px;
+      display: grid;
+      align-content: center;
+      gap: 5px;
+    }
+
+    .news-settings-kpi span,
+    .news-settings-mini-metric span,
+    .news-settings-summary-row span,
+    .news-settings-muted {
+      color: var(--text-light, #64748b);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
+
+    .news-settings-kpi span {
+      text-transform: uppercase;
+    }
+
+    .news-settings-kpi strong {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .news-settings-kpi small {
+      color: var(--text-light, #94a3b8);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
+
+    .news-settings-bar {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .news-settings-bar-fill {
+      display: block;
+      width: var(--coverage, 0%);
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #0f766e, #fb923c);
+    }
+
+    .news-settings-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, .72fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .news-settings-panel {
+      min-width: 0;
+      padding: 14px;
+    }
+
+    .news-settings-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .news-settings-panel h2,
+    .news-settings-panel h3 {
+      margin: 0;
+      color: var(--text, #1a202c);
+      font-size: var(--fs-lg);
+      line-height: 1.2;
+      font-weight: 800;
+    }
+
+    .news-settings-panel p {
+      margin: 5px 0 0;
+      color: var(--text-mid, #4a5568);
+      font-size: var(--fs-sm);
+      line-height: 1.45;
+    }
+
+    .news-settings-filter {
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) minmax(180px, 240px) auto auto;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 12px;
+    }
+
+    .news-settings-field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .news-settings-field label {
+      color: var(--text-light, #64748b);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+    }
+
+    .news-settings-field input,
+    .news-settings-field select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--border, #cbd5e1);
+      border-radius: 8px;
+      padding: 0 10px;
+      color: var(--text, #0f172a);
+      background: var(--surface, #fff);
+      font: inherit;
+      font-size: var(--fs-sm);
+    }
+
+    .news-settings-record-list,
+    .news-settings-log-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .news-settings-record-card {
+      display: grid;
+      grid-template-columns: 7px minmax(260px, 1.15fr) minmax(240px, .85fr) auto;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .news-settings-record-card:hover {
+      border-color: rgba(15, 118, 110, .32);
+      box-shadow: 0 10px 22px rgba(15,23,42,.08);
+    }
+
+    .news-settings-record-rail {
+      background: #64748b;
+    }
+
+    .news-settings-record-card.is-pubblicata .news-settings-record-rail { background: #16a34a; }
+    .news-settings-record-card.is-bozza .news-settings-record-rail { background: #64748b; }
+    .news-settings-record-card.is-archiviata .news-settings-record-rail { background: #dc2626; }
+
+    .news-settings-record-main,
+    .news-settings-record-actions {
+      display: grid;
+      align-content: center;
+    }
+
+    .news-settings-record-main {
+      min-width: 0;
+      gap: 8px;
+      padding: 15px 0;
+    }
+
+    .news-settings-record-title {
+      margin: 0;
+      color: var(--text, #1a202c);
+      font-size: var(--fs-lg);
+      line-height: 1.2;
+      font-weight: 800;
+    }
+
+    .news-settings-record-meta,
+    .news-settings-record-top {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .news-settings-record-meta {
+      color: var(--text-light, #94a3b8);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
+
+    .news-settings-status,
+    .news-settings-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .news-settings-status.stato-bozza { color: #475569; background: #f1f5f9; }
+    .news-settings-status.stato-pubblicata { color: #166534; background: #dcfce7; }
+    .news-settings-status.stato-archiviata { color: #b91c1c; background: #fee2e2; }
+
+    .news-settings-chip {
+      color: var(--text-mid, #4a5568);
+      background: var(--bg, #f2f5f8);
+    }
+
+    .news-settings-chip.is-required {
+      color: #b91c1c;
+      background: #fee2e2;
+    }
+
+    .news-settings-record-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-content: center;
+      padding: 14px 0;
+    }
+
+    .news-settings-mini-metric {
+      min-width: 0;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      padding: 9px;
+      background: color-mix(in srgb, var(--surface, #fff) 88%, var(--bg, #f2f5f8));
+    }
+
+    .news-settings-mini-metric strong {
+      font-size: var(--fs-lg);
+      line-height: 1;
+    }
+
+    .news-settings-mini-metric span {
+      display: block;
+      margin-top: 5px;
+    }
+
+    .news-settings-record-actions {
+      justify-items: end;
+      padding: 14px 14px 14px 0;
+    }
+
+    .news-settings-pager {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--text-light, #64748b);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+
+    .news-settings-summary {
+      display: grid;
+      gap: 2px;
+    }
+
+    .news-settings-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+
+    .news-settings-summary-row:first-child {
+      border-top: 0;
+    }
+
+    .news-settings-roles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+    }
+
+    .news-settings-role {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 11px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      color: var(--text, #1a202c);
+      background: var(--bg, #f2f5f8);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+
+    .news-settings-role input {
+      width: 15px;
+      height: 15px;
+      accent-color: #0f766e;
+    }
+
+    .news-settings-log-row {
+      display: grid;
+      grid-template-columns: 160px 120px 150px minmax(0, 1fr);
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: var(--surface, #fff);
+      color: var(--text, #1a202c);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+
+    .news-settings-log-detail {
+      color: var(--text-light, #64748b);
+      font-size: var(--fs-xs);
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .news-settings-empty {
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--surface, #fff) 74%, transparent);
+      text-align: center;
+      padding: 28px;
+      color: var(--text-light, #94a3b8);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+
+    .news-settings-messages {
+      display: grid;
+      gap: 8px;
+    }
+
+    .news-settings-message {
+      padding: 12px 14px;
+      color: #166534;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+
+    .news-settings-message.is-warning {
+      color: #92400e;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+
+    .news-settings-message.is-error {
+      color: #991b1b;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    body.theme-dark .news-settings-hero {
+      border-color: rgba(255,255,255,.1);
+    }
+
+    body.theme-dark .news-settings-tabs,
+    body.theme-dark .news-settings-kpi,
+    body.theme-dark .news-settings-panel,
+    body.theme-dark .news-settings-record-card,
+    body.theme-dark .news-settings-log-row {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+
+    body.theme-dark .news-settings-record-card:hover {
+      box-shadow: 0 10px 26px rgba(0,0,0,.28);
+    }
+
+    body.theme-dark .news-settings-tab,
+    body.theme-dark .news-settings-mini-metric,
+    body.theme-dark .news-settings-chip,
+    body.theme-dark .news-settings-role {
+      background: var(--surface-alt);
+      border-color: var(--border);
+      color: var(--text-mid);
+    }
+
+    body.theme-dark .news-settings-tab.active,
+    body.theme-dark .news-settings-tab:hover {
+      background: rgba(20, 184, 166, .14);
+      color: #5eead4;
+    }
+
+    body.theme-dark .news-settings-panel h2,
+    body.theme-dark .news-settings-panel h3,
+    body.theme-dark .news-settings-record-title,
+    body.theme-dark .news-settings-kpi strong,
+    body.theme-dark .news-settings-mini-metric strong,
+    body.theme-dark .news-settings-summary-row strong,
+    body.theme-dark .news-settings-role,
+    body.theme-dark .news-settings-log-row {
+      color: var(--text);
+    }
+
+    body.theme-dark .news-settings-panel p,
+    body.theme-dark .news-settings-record-meta,
+    body.theme-dark .news-settings-log-detail,
+    body.theme-dark .news-settings-muted {
+      color: var(--text-light);
+    }
+
+    body.theme-dark .news-settings-field input,
+    body.theme-dark .news-settings-field select,
+    body.theme-dark .news-settings-action,
+    body.theme-dark .news-settings-panel-btn {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    body.theme-dark .news-settings-status.stato-bozza { color: var(--text-light); background: var(--surface-alt); }
+    body.theme-dark .news-settings-status.stato-pubblicata { color: #86efac; background: rgba(22, 163, 74, .16); }
+    body.theme-dark .news-settings-status.stato-archiviata { color: #fca5a5; background: rgba(220, 38, 38, .16); }
+    body.theme-dark .news-settings-chip.is-required { color: #fca5a5; background: rgba(220, 38, 38, .16); }
+
+    @media (max-width: 1180px) {
+      .news-settings-hero,
+      .news-settings-split {
+        grid-template-columns: 1fr;
+      }
+
+      .news-settings-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .news-settings-record-card {
+        grid-template-columns: 7px minmax(0, 1fr);
+      }
+
+      .news-settings-record-metrics,
+      .news-settings-record-actions {
+        grid-column: 2;
+        padding: 0 14px 14px 0;
+      }
+
+      .news-settings-record-actions {
+        justify-items: start;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .notizie-settings-page .content {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      .news-settings-hero {
+        padding: 16px;
+      }
+
+      .news-settings-hero h1 {
+        font-size: 24px;
+      }
+
+      .news-settings-hero-metrics,
+      .news-settings-kpis,
+      .news-settings-record-metrics,
+      .news-settings-filter,
+      .news-settings-log-row {
+        grid-template-columns: 1fr;
+      }
+
+      .news-settings-panel-head {
+        display: grid;
+      }
+    }
   </style>
 {% endblock %}
 
 {% block content %}
-  <div class="ga-wrap">
+  <div class="news-settings-shell">
     {% if messages %}
-      <div style="display:grid;gap:8px;">
+      <div class="news-settings-messages">
         {% for message in messages %}
-          <div class="card" style="border-color:{% if 'error' in message.tags or 'danger' in message.tags %}#fecaca{% elif 'warning' in message.tags %}#fde68a{% else %}#bbf7d0{% endif %};background:{% if 'error' in message.tags or 'danger' in message.tags %}#fef2f2{% elif 'warning' in message.tags %}#fffbeb{% else %}#f0fdf4{% endif %};">
-            <div class="card-body" style="padding:10px 14px;color:{% if 'error' in message.tags or 'danger' in message.tags %}#991b1b{% elif 'warning' in message.tags %}#92400e{% else %}#166534{% endif %};">{{ message }}</div>
+          <div class="news-settings-message{% if 'error' in message.tags or 'danger' in message.tags %} is-error{% elif 'warning' in message.tags %} is-warning{% endif %}">
+            {{ message }}
           </div>
         {% endfor %}
       </div>
     {% endif %}
 
-    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Metriche, configurazione dashboard, record editoriali e branding del modulo in una sola vista amministrativa." %}
-
-    <div class="ga-tabs">
-      <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
-      <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
-      <a href="?tab=permessi" class="ga-tab {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
-      <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
-    </div>
-
-    {% if tab == 'riepilogo' %}
-      <div class="kpi-row">
-        <div class="kpi"><div class="kpi-label">Notizie totali</div><div class="kpi-val">{{ total }}</div></div>
-        <div class="kpi"><div class="kpi-label">Bozze</div><div class="kpi-val">{{ bozze }}</div></div>
-        <div class="kpi"><div class="kpi-label">Pubblicate</div><div class="kpi-val">{{ pubblicate }}</div></div>
-        <div class="kpi"><div class="kpi-label">Archiviate</div><div class="kpi-val">{{ archiviate }}</div></div>
-        <div class="kpi"><div class="kpi-label">Obbligatorie attive</div><div class="kpi-val">{{ obbligatorie_attive }}</div></div>
-        <div class="kpi">
-          <div class="kpi-label">Conformita letture</div>
-          <div class="kpi-val">{{ tasso_conformita }}%</div>
-          <div class="kpi-sub">{{ totale_conformi }} / {{ totale_letture }} letture</div>
-          <div class="bar-wrap"><div class="bar-fill" style="width:{{ tasso_conformita }}%;"></div></div>
+    <section class="news-settings-hero" aria-labelledby="news-settings-title">
+      <div>
+        <div class="news-settings-kicker">Impostazioni Notizie</div>
+        <h1 id="news-settings-title">Centro impostazioni comunicazioni</h1>
+        <p class="news-settings-copy">Metriche, record editoriali, visibilita dashboard e branding del modulo nello stesso spazio operativo.</p>
+        <div class="news-settings-actions">
+          <a href="{% url 'notizie_dashboard' %}" class="news-settings-btn is-primary">Dashboard</a>
+          <a href="{% url 'notizie_dashboard_create' %}" class="news-settings-btn">Nuova notizia</a>
+          <a href="{% url 'notizie_report' %}" class="news-settings-btn">Report letture</a>
+          <a href="{% url 'notizie_lista' %}" class="news-settings-btn">Notizie</a>
         </div>
       </div>
+      <div class="news-settings-hero-metrics" aria-label="Riepilogo impostazioni notizie">
+        <div class="news-settings-hero-metric">
+          <strong>{{ total }}</strong>
+          <span>Notizie totali</span>
+        </div>
+        <div class="news-settings-hero-metric">
+          <strong>{{ pubblicate }}</strong>
+          <span>Pubblicate</span>
+        </div>
+        <div class="news-settings-hero-metric">
+          <strong>{{ obbligatorie_attive }}</strong>
+          <span>Obbligatorie attive</span>
+        </div>
+        <div class="news-settings-hero-metric">
+          <strong>{{ tasso_conformita }}%</strong>
+          <span>Conformita letture</span>
+        </div>
+      </div>
+    </section>
 
-      <div class="ms-grid-2">
-        <section class="ms-card">
-          <div class="ms-card-head">
-            <div class="ms-card-title-wrap">
-              <h2 class="ms-card-title">Azioni rapide</h2>
-              <p class="ms-card-subtitle">Punti di ingresso principali per la gestione editoriale e il monitoraggio letture.</p>
+    <nav class="news-settings-tabs" aria-label="Sezioni impostazioni notizie">
+      <a href="?tab=riepilogo" class="news-settings-tab{% if tab == 'riepilogo' %} active{% endif %}">Riepilogo</a>
+      <a href="?tab=record" class="news-settings-tab{% if tab == 'record' %} active{% endif %}">Record</a>
+      <a href="?tab=permessi" class="news-settings-tab{% if tab == 'permessi' %} active{% endif %}">Permessi</a>
+      <a href="?tab=log" class="news-settings-tab{% if tab == 'log' %} active{% endif %}">Log attivita</a>
+    </nav>
+
+    {% if tab == 'riepilogo' %}
+      <section class="news-settings-kpis" aria-label="Metriche notizie">
+        <div class="news-settings-kpi">
+          <span>Totali</span>
+          <strong>{{ total }}</strong>
+          <small>Record notizie</small>
+        </div>
+        <div class="news-settings-kpi">
+          <span>Bozze</span>
+          <strong>{{ bozze }}</strong>
+          <small>In lavorazione</small>
+        </div>
+        <div class="news-settings-kpi">
+          <span>Pubblicate</span>
+          <strong>{{ pubblicate }}</strong>
+          <small>Visibili agli utenti</small>
+        </div>
+        <div class="news-settings-kpi">
+          <span>Archiviate</span>
+          <strong>{{ archiviate }}</strong>
+          <small>Storico</small>
+        </div>
+        <div class="news-settings-kpi">
+          <span>Obbligatorie</span>
+          <strong>{{ obbligatorie_attive }}</strong>
+          <small>Attive</small>
+        </div>
+        <div class="news-settings-kpi">
+          <span>Conformita</span>
+          <strong>{{ tasso_conformita }}%</strong>
+          <small>{{ totale_conformi }} / {{ totale_letture }} letture</small>
+          <div class="news-settings-bar" aria-hidden="true">
+            <span class="news-settings-bar-fill" style="--coverage: {{ tasso_conformita_int }}%;"></span>
+          </div>
+        </div>
+      </section>
+
+      <div class="news-settings-split">
+        <section class="news-settings-panel">
+          <div class="news-settings-panel-head">
+            <div>
+              <h2>Azioni rapide</h2>
+              <p>Punti di ingresso principali per gestione editoriale, letture e vista utenti.</p>
             </div>
           </div>
-          <div class="ms-card-body">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              <a href="{% url 'notizie_dashboard' %}" class="btn btn-secondary">Dashboard</a>
-              <a href="{% url 'notizie_dashboard_create' %}" class="btn btn-primary">Nuova notizia</a>
-              <a href="{% url 'notizie_report' %}" class="btn btn-secondary">Report letture</a>
-            </div>
-            <p class="ms-field-help">La dashboard resta la vista operativa, mentre qui centralizzi branding, metriche e controlli amministrativi.</p>
+          <div class="news-settings-panel-actions">
+            <a href="{% url 'notizie_dashboard' %}" class="news-settings-panel-btn">Dashboard</a>
+            <a href="{% url 'notizie_dashboard_create' %}" class="news-settings-panel-btn is-primary">Nuova notizia</a>
+            <a href="{% url 'notizie_report' %}" class="news-settings-panel-btn">Report letture</a>
+            <a href="{% url 'notizie_lista' %}" class="news-settings-panel-btn">Notizie</a>
           </div>
         </section>
         {% include "core/components/module_branding_card.html" %}
       </div>
-    {% endif %}
-
-    {% if tab == 'record' %}
-      <div class="card">
-        <div class="card-head">
-          <h3 class="card-title">Notizie ({{ notizie_page.paginator.count }})</h3>
-          <a href="{% url 'notizie_dashboard_create' %}" class="btn btn-primary btn-sm">Nuova notizia</a>
+    {% elif tab == 'record' %}
+      <section class="news-settings-panel">
+        <div class="news-settings-panel-head">
+          <div>
+            <h2>Record notizie</h2>
+            <p>{{ notizie_page.paginator.count }} comunicazioni amministrabili.</p>
+          </div>
+          <a href="{% url 'notizie_dashboard_create' %}" class="news-settings-panel-btn is-primary">Nuova notizia</a>
         </div>
-        <div class="card-body">
-          <form method="get" class="search-row">
-            <input type="hidden" name="tab" value="record">
-            <input type="text" name="q" value="{{ q }}" placeholder="Cerca per titolo...">
-            <select name="filter_stato">
+
+        <form method="get" class="news-settings-filter">
+          <input type="hidden" name="tab" value="record">
+          <div class="news-settings-field">
+            <label for="news-settings-q">Ricerca</label>
+            <input id="news-settings-q" type="text" name="q" value="{{ q }}" placeholder="Cerca per titolo">
+          </div>
+          <div class="news-settings-field">
+            <label for="news-settings-stato">Stato</label>
+            <select id="news-settings-stato" name="filter_stato">
               <option value="">Tutti gli stati</option>
               {% for val, lbl in stati %}
                 <option value="{{ val }}" {% if filter_stato == val %}selected{% endif %}>{{ lbl }}</option>
               {% endfor %}
             </select>
-            <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
-            {% if q or filter_stato %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">Reset</a>{% endif %}
-          </form>
-          <div style="overflow-x:auto;">
-            <table class="tbl">
-              <thead><tr><th>Titolo</th><th>Stato</th><th>Obbligatoria</th><th>Pubblicata il</th><th>Letture</th><th>Conformi</th><th></th></tr></thead>
-              <tbody>
-                {% for n in notizie_page %}
-                  <tr>
-                    <td>{{ n.titolo }}</td>
-                    <td><span class="badge badge-{{ n.stato }}">{{ n.get_stato_display }}</span></td>
-                    <td>{% if n.obbligatoria %}<span class="badge badge-obbligatoria">Si</span>{% else %}No{% endif %}</td>
-                    <td>{% if n.pubblicato_il %}{{ n.pubblicato_il|date:"d-m-Y" }}{% else %}-{% endif %}</td>
-                    <td>{{ n.n_letture }}</td>
-                    <td>{{ n.n_conformi }}</td>
-                    <td>
-                      <a href="{% url 'notizie_dashboard_edit' n.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Modifica</a>
-                      <a href="{% url 'notizie_dettaglio' n.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a>
-                    </td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessuna notizia trovata</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
           </div>
-          {% if notizie_page.has_other_pages %}
-            <div class="pager">
-              Pagina {{ notizie_page.number }} di {{ notizie_page.paginator.num_pages }}
-              {% if notizie_page.has_previous %}<a href="?tab=record&q={{ q }}&filter_stato={{ filter_stato }}&page={{ notizie_page.previous_page_number }}">Prec</a>{% endif %}
-              {% if notizie_page.has_next %}<a href="?tab=record&q={{ q }}&filter_stato={{ filter_stato }}&page={{ notizie_page.next_page_number }}">Succ</a>{% endif %}
-            </div>
+          <button type="submit" class="news-settings-panel-btn is-primary">Cerca</button>
+          {% if q or filter_stato %}
+            <a href="?tab=record" class="news-settings-panel-btn">Reset</a>
           {% endif %}
-        </div>
-      </div>
-    {% endif %}
+        </form>
 
-    {% if tab == 'permessi' %}
-      <div class="ms-grid-2">
-        <section class="ms-card">
-          <div class="ms-card-head">
-            <div class="ms-card-title-wrap">
-              <h2 class="ms-card-title">Visibilita dashboard</h2>
-              <p class="ms-card-subtitle">Seleziona i ruoli legacy che devono vedere e usare la dashboard amministrativa notizie.</p>
-            </div>
-          </div>
-          <div class="ms-card-body">
-            {% if can_edit_dashboard_acl %}
-              {% if dashboard_acl_roles %}
-                <form method="post" class="ms-field-grid">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="save_dashboard_acl">
-                  <div class="acl-roles">
-                    {% for role in dashboard_acl_roles %}
-                      <label class="acl-role-item">
-                        <input type="checkbox" name="role_ids" value="{{ role.role_id }}" {% if role.enabled %}checked{% endif %}>
-                        <span>{{ role.role_name }} ({{ role.role_id }})</span>
-                      </label>
-                    {% endfor %}
-                  </div>
-                  <div class="ms-form-actions">
-                    <button class="btn btn-primary" type="submit">Salva permessi dashboard</button>
-                  </div>
-                </form>
-              {% else %}
-                <div class="ms-field-help">Ruoli legacy non disponibili in questa connessione.</div>
-              {% endif %}
-            {% else %}
-              <div class="ms-field-help">Permessi insufficienti per modificare la visibilita dashboard.</div>
+        <div class="news-settings-record-list">
+          {% for n in notizie_page %}
+            <article class="news-settings-record-card is-{{ n.stato }}">
+              <div class="news-settings-record-rail" aria-hidden="true"></div>
+              <div class="news-settings-record-main">
+                <div class="news-settings-record-top">
+                  <span class="news-settings-status stato-{{ n.stato }}">{{ n.get_stato_display }}</span>
+                  {% if n.obbligatoria %}
+                    <span class="news-settings-chip is-required">Obbligatoria</span>
+                  {% else %}
+                    <span class="news-settings-chip">Informativa</span>
+                  {% endif %}
+                </div>
+                <h3 class="news-settings-record-title">{{ n.titolo }}</h3>
+                <div class="news-settings-record-meta">
+                  <span>Versione {{ n.versione }}</span>
+                  <span>{% if n.pubblicato_il %}{{ n.pubblicato_il|date:"d-m-Y" }}{% else %}Non pubblicata{% endif %}</span>
+                </div>
+              </div>
+
+              <div class="news-settings-record-metrics" aria-label="Statistiche record">
+                <div class="news-settings-mini-metric">
+                  <strong>{{ n.n_letture }}</strong>
+                  <span>Letture</span>
+                </div>
+                <div class="news-settings-mini-metric">
+                  <strong>{{ n.n_conformi }}</strong>
+                  <span>Conformi</span>
+                </div>
+              </div>
+
+              <div class="news-settings-record-actions">
+                <div class="news-settings-row-actions">
+                  <a href="{% url 'notizie_dashboard_edit' n.id %}" class="news-settings-action">Modifica</a>
+                  <a href="{% url 'notizie_dettaglio' n.id %}" class="news-settings-action">Apri</a>
+                </div>
+              </div>
+            </article>
+          {% empty %}
+            <div class="news-settings-empty">Nessuna notizia trovata per i filtri correnti.</div>
+          {% endfor %}
+        </div>
+
+        {% if notizie_page.has_other_pages %}
+          <div class="news-settings-pager">
+            <span>Pagina {{ notizie_page.number }} di {{ notizie_page.paginator.num_pages }}</span>
+            {% if notizie_page.has_previous %}
+              <a href="?tab=record&q={{ q|urlencode }}&filter_stato={{ filter_stato|urlencode }}&page={{ notizie_page.previous_page_number }}" class="news-settings-panel-btn">Prec</a>
+            {% endif %}
+            {% if notizie_page.has_next %}
+              <a href="?tab=record&q={{ q|urlencode }}&filter_stato={{ filter_stato|urlencode }}&page={{ notizie_page.next_page_number }}" class="news-settings-panel-btn">Succ</a>
             {% endif %}
           </div>
+        {% endif %}
+      </section>
+    {% elif tab == 'permessi' %}
+      <div class="news-settings-split">
+        <section class="news-settings-panel">
+          <div class="news-settings-panel-head">
+            <div>
+              <h2>Visibilita dashboard</h2>
+              <p>Ruoli legacy abilitati a vedere ed entrare nella dashboard amministrativa notizie.</p>
+            </div>
+          </div>
+          {% if can_edit_dashboard_acl %}
+            {% if dashboard_acl_roles %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_dashboard_acl">
+                <div class="news-settings-roles">
+                  {% for role in dashboard_acl_roles %}
+                    <label class="news-settings-role">
+                      <input type="checkbox" name="role_ids" value="{{ role.role_id }}" {% if role.enabled %}checked{% endif %}>
+                      <span>{{ role.role_name }} ({{ role.role_id }})</span>
+                    </label>
+                  {% endfor %}
+                </div>
+                <div class="news-settings-panel-actions news-settings-form-actions">
+                  <button class="news-settings-panel-btn is-primary" type="submit">Salva permessi dashboard</button>
+                </div>
+              </form>
+            {% else %}
+              <div class="news-settings-empty">Ruoli legacy non disponibili in questa connessione.</div>
+            {% endif %}
+          {% else %}
+            <div class="news-settings-empty">Permessi insufficienti per modificare la visibilita dashboard.</div>
+          {% endif %}
         </section>
         {% include "core/components/module_branding_card.html" %}
       </div>
-    {% endif %}
-
-    {% if tab == 'log' %}
-      <div class="card">
-        <div class="card-head"><h3 class="card-title">Log attivita Notizie (ultime 100)</h3></div>
-        <div class="card-body">
-          {% if audit_entries %}
-            <div class="log-row log-head">
-              <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
-            </div>
+    {% elif tab == 'log' %}
+      <section class="news-settings-panel">
+        <div class="news-settings-panel-head">
+          <div>
+            <h2>Log attivita Notizie</h2>
+            <p>Ultime 100 operazioni registrate per il modulo.</p>
+          </div>
+        </div>
+        {% if audit_entries %}
+          <div class="news-settings-log-list">
             {% for entry in audit_entries %}
-              <div class="log-row">
+              <div class="news-settings-log-row">
                 <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
                 <span>{{ entry.utente_display|default:"-" }}</span>
                 <span>{{ entry.azione }}</span>
-                <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+                <span class="news-settings-log-detail">{{ entry.dettaglio }}</span>
               </div>
             {% endfor %}
-          {% else %}
-            <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
-          {% endif %}
-        </div>
-      </div>
+          </div>
+        {% else %}
+          <div class="news-settings-empty">Nessuna voce di log per questo modulo.</div>
+        {% endif %}
+      </section>
     {% endif %}
   </div>
 {% endblock %}

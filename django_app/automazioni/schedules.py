@@ -56,6 +56,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Promemoria dashboard (sempre) + resoconto email "ticket urgenti non
+        # assegnati". Cadenza oraria: il task aggiorna i promemoria a ogni run e
+        # invia il resoconto solo nei giorni lavorativi all'ora configurata
+        # (default 08:00), se l'escalation è attivata da Impostazioni ticket.
+        "name": "tickets_escalation",
+        "func": "tickets.tasks.run_tickets_escalation",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 * * * *",        # ogni ora in punto
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
         # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
         "name": "cleanup_run_logs",

@@ -1,0 +1,307 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libretto formativo — {{ dip.cognome }} {{ dip.nome }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --ink: #0f172a;
+      --ink-soft: #334155;
+      --muted: #64748b;
+      --muted-soft: #94a3b8;
+      --line: #e2e8f0;
+      --line-soft: #f1f5f9;
+      --primary: #1f5c91;
+      --primary-deep: #1d4ed8;
+      --accent: #b45309;
+      --accent-soft: #fef3c7;
+      --bg: #f8fafc;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    /* ── Action bar (non stampata) ─────────────────────────────── */
+    .pb-actions {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 22px;
+      background: #0f172a; color: #fff;
+      box-shadow: 0 2px 12px rgba(15,23,42,.22);
+    }
+    .pb-actions-title { flex: 1; font-size: 13.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .pb-actions a, .pb-actions button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08);
+      color: #fff; font-size: 12.5px; font-weight: 700; font-family: inherit;
+      cursor: pointer; text-decoration: none;
+    }
+    .pb-actions a:hover, .pb-actions button:hover { background: rgba(255,255,255,.18); }
+    .pb-actions .pb-btn-print { background: #1d4ed8; border-color: #1d4ed8; }
+    .pb-actions .pb-btn-print:hover { background: #1e40af; }
+
+    /* ── Foglio A4 ────────────────────────────────────────────── */
+    .pb-sheet {
+      max-width: 900px;
+      margin: 22px auto;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px -10px rgba(15,23,42,.18);
+      padding: 36px 42px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    .pb-head {
+      display: flex; align-items: flex-start; gap: 18px;
+      padding-bottom: 18px; margin-bottom: 22px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .pb-head-body { flex: 1; min-width: 0; }
+    .pb-head-eyebrow {
+      font-size: 10.5px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .08em;
+    }
+    .pb-head-title { margin: 4px 0 6px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+    .pb-head-sub { color: var(--muted); font-size: 12.5px; }
+    .pb-head-right { text-align: right; flex-shrink: 0; }
+    .pb-head-id { font-family: "Courier New", monospace; font-size: 11px; color: var(--muted); }
+    .pb-head-date { font-size: 11px; color: var(--muted-soft); margin-top: 3px; }
+
+    /* ── KPI riassuntivi ──────────────────────────────────────── */
+    .lb-kpis { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+    .lb-kpi {
+      flex: 1; min-width: 130px;
+      border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px 14px; background: var(--line-soft);
+    }
+    .lb-kpi-val { font-size: 20px; font-weight: 800; color: var(--primary); }
+    .lb-kpi-lbl { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── Sezioni e tabelle ────────────────────────────────────── */
+    .pb-section { margin-top: 22px; page-break-inside: avoid; }
+    .pb-section-title {
+      font-size: 10.5px; font-weight: 800; color: var(--primary);
+      text-transform: uppercase; letter-spacing: .08em;
+      padding-bottom: 5px; margin: 0 0 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .lb-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .lb-table th {
+      text-align: left; font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+      padding: 6px 8px; border-bottom: 1.5px solid var(--line);
+      white-space: nowrap;
+    }
+    .lb-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    .lb-table td.mono { font-family: "Courier New", monospace; font-size: 11px; white-space: nowrap; }
+    .lb-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .lb-muted { color: var(--muted-soft); font-style: italic; }
+
+    .lb-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; white-space: nowrap;
+    }
+    .lb-pill-ok      { background: #dcfce7; color: #166534; }
+    .lb-pill-warn    { background: #ffedd5; color: #9a3412; }
+    .lb-pill-expired { background: #fee2e2; color: #b91c1c; }
+    .lb-pill-info    { background: #dbeafe; color: #1e40af; }
+    .lb-pill-na      { background: var(--line-soft); color: var(--muted); }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    .pb-footer {
+      margin-top: 28px; padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10.5px; color: var(--muted);
+    }
+    .pb-footer-sig {
+      margin-top: 32px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
+    }
+    .pb-footer-sig div {
+      border-top: 1px solid var(--ink-soft);
+      padding-top: 4px;
+      font-size: 10.5px; color: var(--muted);
+      text-align: center;
+    }
+
+    /* ── Print ───────────────────────────────────────────────── */
+    @page { size: A4; margin: 12mm 14mm; }
+    @media print {
+      body { background: #fff; font-size: 11px; }
+      .pb-actions { display: none !important; }
+      .pb-sheet {
+        max-width: none; margin: 0; padding: 0;
+        border: none; box-shadow: none; border-radius: 0;
+      }
+      .pb-section { page-break-inside: avoid; }
+      .lb-table tr { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Action bar (non stampata) -->
+  <div class="pb-actions">
+    <span class="pb-actions-title">Libretto formativo — {{ dip.cognome }} {{ dip.nome }}</span>
+    <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" title="Apri scheda completa">← Scheda</a>
+    <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
+  </div>
+
+  <article class="pb-sheet">
+
+    <!-- Header dipendente -->
+    <header class="pb-head">
+      <div class="pb-head-body">
+        <div class="pb-head-eyebrow">Libretto formativo · NOVICROM HUB</div>
+        <h1 class="pb-head-title">{{ dip.cognome }} {{ dip.nome }}</h1>
+        <div class="pb-head-sub">
+          {% if dip.mansione %}{{ dip.mansione }}{% else %}<span style="color:var(--muted-soft);">Mansione non specificata</span>{% endif %}
+          {% if dip.reparto %} · <b>{{ dip.reparto }}</b>{% endif %}
+          {% if dip.matricola %} · Matricola <b>{{ dip.matricola }}</b>{% endif %}
+        </div>
+      </div>
+      <div class="pb-head-right">
+        <div class="pb-head-id">ID legacy #{{ legacy_id }}</div>
+        <div class="pb-head-date">Generato il {% now "d-m-Y H:i" %}</div>
+      </div>
+    </header>
+
+    <!-- KPI -->
+    <div class="lb-kpis">
+      <div class="lb-kpi">
+        <div class="lb-kpi-val">{{ record_storici|length }}</div>
+        <div class="lb-kpi-lbl">Corsi completati</div>
+      </div>
+      <div class="lb-kpi">
+        <div class="lb-kpi-val">{{ ore_totali|floatformat:"-2" }}</div>
+        <div class="lb-kpi-lbl">Ore di formazione</div>
+      </div>
+      <div class="lb-kpi">
+        <div class="lb-kpi-val">{{ obblighi|length }}</div>
+        <div class="lb-kpi-lbl">Obblighi formativi attivi</div>
+      </div>
+    </div>
+
+    <!-- ── Obblighi correnti ─────────────────────────────────── -->
+    <section class="pb-section">
+      <h2 class="pb-section-title">📌 Obblighi formativi correnti</h2>
+      {% if obblighi %}
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>Corso</th>
+            <th>Ultimo completamento</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in obblighi %}
+          <tr>
+            <td style="font-weight:600;">{{ o.corso.titolo }}</td>
+            <td class="mono">{% if o.data_ultimo_completamento %}{{ o.data_ultimo_completamento|date:"d-m-Y" }}{% else %}<span class="lb-muted">mai</span>{% endif %}</td>
+            <td class="mono">{% if o.data_scadenza %}{{ o.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+            <td>
+              {% if o.stato_scadenza == "SCADUTO" %}
+                <span class="lb-pill lb-pill-expired">Scaduto</span>
+              {% elif o.stato_scadenza == "IN_SCADENZA_30" %}
+                <span class="lb-pill lb-pill-warn">In scadenza ≤30gg</span>
+              {% elif o.stato_scadenza == "IN_SCADENZA_90" %}
+                <span class="lb-pill lb-pill-warn">In scadenza ≤90gg</span>
+              {% elif o.stato_scadenza == "MAI_FREQUENTATO" %}
+                <span class="lb-pill lb-pill-expired">Mai frequentato</span>
+              {% elif o.stato_scadenza == "UNA_TANTUM" %}
+                <span class="lb-pill lb-pill-info">Completato (una tantum)</span>
+              {% else %}
+                <span class="lb-pill lb-pill-ok">Valido</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="lb-muted" style="margin:0;">Nessun obbligo formativo attivo per questo dipendente.</p>
+      {% endif %}
+    </section>
+
+    <!-- ── Storico completamenti ─────────────────────────────── -->
+    <section class="pb-section">
+      <h2 class="pb-section-title">🎓 Storico corsi completati</h2>
+      {% if record_storici %}
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Corso</th>
+            <th>Ore</th>
+            <th>Esito</th>
+            <th>Valido fino al</th>
+            <th>Attestato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in record_storici %}
+          <tr>
+            <td class="mono">{{ r.data_completamento|date:"d-m-Y" }}</td>
+            <td>
+              <span style="font-weight:600;">{{ r.course_title_snapshot|default:r.corso.titolo }}</span>
+              {% if r.course_code_snapshot %}<span class="lb-muted" style="font-size:10.5px;"> · {{ r.course_code_snapshot }}</span>{% endif %}
+              {% if r.plan_name_snapshot %}<div class="lb-muted" style="font-size:10.5px;">{{ r.plan_name_snapshot }}</div>{% endif %}
+            </td>
+            <td class="num">{{ r.ore_frequentate|floatformat:"-2" }}</td>
+            <td>
+              {% if r.idoneo %}<span class="lb-pill lb-pill-ok">Idoneo</span>{% else %}<span class="lb-pill lb-pill-expired">Non idoneo</span>{% endif %}
+            </td>
+            <td class="mono">
+              {% if r.data_scadenza %}
+                {% if r.data_scadenza < oggi %}<span class="lb-pill lb-pill-expired">{{ r.data_scadenza|date:"d-m-Y" }}</span>
+                {% else %}{{ r.data_scadenza|date:"d-m-Y" }}{% endif %}
+              {% else %}<span class="lb-muted">una tantum</span>{% endif %}
+            </td>
+            <td>
+              {% if r.attestato %}
+                <span class="lb-pill lb-pill-info">{% if r.attestato.numero_attestato %}n° {{ r.attestato.numero_attestato }}{% else %}rilasciato{% endif %}</span>
+                {% if r.attestato.rilasciato_da %}<div class="lb-muted" style="font-size:10.5px;">{{ r.attestato.rilasciato_da }}</div>{% endif %}
+              {% else %}
+                <span class="lb-pill lb-pill-na">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="lb-muted" style="margin:0;">Nessun corso completato registrato.</p>
+      {% endif %}
+    </section>
+
+    <!-- Footer -->
+    <div class="pb-footer">
+      <span>NOVICROM HUB — Libretto formativo dipendente</span>
+      <span>Documento generato il {% now "d-m-Y H:i" %}</span>
+    </div>
+    <div class="pb-footer-sig">
+      <div>Firma del dipendente</div>
+      <div>Firma del responsabile formazione</div>
+    </div>
+
+  </article>
+
+</body>
+</html>

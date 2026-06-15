@@ -1,0 +1,5 @@
+{% comment %}Badge semaforo per un esito conformità. Context: esito (ok/warn/ko/na), grande (opzionale).{% endcomment %}
+<span class="cr-badge {% if esito == 'ok' %}cr-ok{% elif esito == 'warn' %}cr-warn{% elif esito == 'ko' %}cr-ko{% else %}cr-na{% endif %}"
+      data-sort-value="{% if esito == 'ko' %}0{% elif esito == 'warn' %}1{% elif esito == 'ok' %}2{% else %}3{% endif %}">
+  <span class="cr-dot"></span>{% if grande %}{% if esito == 'ok' %}In regola{% elif esito == 'warn' %}In scadenza{% elif esito == 'ko' %}Non conforme{% else %}Nessun requisito{% endif %}{% else %}{% if esito == 'ok' %}OK{% elif esito == 'warn' %}Scad.{% elif esito == 'ko' %}KO{% else %}—{% endif %}{% endif %}
+</span>

@@ -1,9 +1,30 @@
 {% extends "assets/base_shell.html" %}
 
 {% block title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mtf-checklist { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:16px; display:grid; gap:10px; }
+.mtf-checklist legend { font-size:var(--fs-md); font-weight:800; color:#0f172a; padding:0 6px; }
+.mtf-cl-table { width:100%; border-collapse:collapse; }
+.mtf-cl-table th { text-align:left; padding:6px 8px; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:800; border-bottom:1px solid #e5e7eb; }
+.mtf-cl-table td { padding:6px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.mtf-cl-del { text-align:center; color:#94a3b8; }
+.mtf-cta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 14px; border:1px dashed #bfdbfe; background:#eff6ff; border-radius:10px; }
+.mtf-cta a { color:#1d4ed8; font-weight:700; text-decoration:none; }
+.mtf-cta a:hover { text-decoration:underline; }
+body.theme-dark .mtf-checklist { background:#1e293b; border-color:#334155; }
+body.theme-dark .mtf-checklist legend { color:var(--text); }
+body.theme-dark .mtf-cl-table th { color:#94a3b8; border-color:#334155; }
+body.theme-dark .mtf-cl-table td { border-color:#253347; }
+body.theme-dark .mtf-cta { background:#0d1f3c; border-color:#1e3a5f; }
+body.theme-dark .mtf-cta a { color:#60a5fa; }
+</style>
+{% endblock %}
+
 {% block assets_shell_title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Definisci il tipo standard di intervento da riusare nelle regole manutentive.</p>
+<p>Definisci il tipo standard di intervento e la sua checklist, da riusare nelle regole manutentive.</p>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -12,7 +33,7 @@
     <a href="{{ back_url }}" class="as-backlink">&larr; Indietro</a>
   </header>
 
-  <form method="post" style="display:grid;gap:12px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+  <form method="post" style="display:grid;gap:14px;">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
@@ -21,7 +42,7 @@
       </div>
     {% endif %}
 
-    <div class="as-form-grid-3">
+    <div class="as-form-grid-3" style="border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
       {% for field in form %}
         <div style="{% if field.name == 'description' %}grid-column:1/-1;{% endif %}">
           {% if field.field.widget.input_type == 'checkbox' %}
@@ -42,10 +63,76 @@
       {% endfor %}
     </div>
 
+    <fieldset class="mtf-checklist">
+      <legend>Checklist intervento</legend>
+      <div class="as-help">Gli step vengono copiati automaticamente in ogni ordine di lavoro generato da questo template (lascia vuoto il numero per assegnarlo in automatico).</div>
+      {{ checklist_formset.management_form }}
+      {% if checklist_formset.non_form_errors %}
+        <div class="as-error">{{ checklist_formset.non_form_errors }}</div>
+      {% endif %}
+      <table class="mtf-cl-table" id="checklist-rows">
+        <thead><tr><th style="width:80px;">N.</th><th>Step</th><th style="width:70px;">Elimina</th></tr></thead>
+        <tbody>
+          {% for cf in checklist_formset %}
+          <tr class="mtf-cl-row">
+            {% for hidden in cf.hidden_fields %}{{ hidden }}{% endfor %}
+            <td>{{ cf.step_number }}</td>
+            <td>
+              {{ cf.description }}
+              {% if cf.description.errors %}<div class="as-error">{{ cf.description.errors }}</div>{% endif %}
+            </td>
+            <td class="mtf-cl-del">{% if cf.instance.pk %}{{ cf.DELETE }}{% else %}&mdash;{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div>
+        <button type="button" class="btn" id="add-checklist-row">+ Aggiungi step</button>
+      </div>
+      <template id="checklist-empty-form">
+        <tr class="mtf-cl-row">
+          {% for hidden in checklist_formset.empty_form.hidden_fields %}{{ hidden }}{% endfor %}
+          <td>{{ checklist_formset.empty_form.step_number }}</td>
+          <td>{{ checklist_formset.empty_form.description }}</td>
+          <td class="mtf-cl-del">{{ checklist_formset.empty_form.DELETE }}</td>
+        </tr>
+      </template>
+    </fieldset>
+
+    {% if is_edit and rule_create_url %}
+    <div class="mtf-cta">
+      <span>Prossimo passo:</span>
+      <a href="{{ rule_create_url }}">Crea una regola che applica questo template a una categoria &rsaquo;</a>
+    </div>
+    {% endif %}
+
     <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
       <a class="btn" href="{{ back_url }}">Annulla</a>
       <button type="submit" class="btn btn-primary">Salva</button>
     </div>
   </form>
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var addBtn = document.getElementById("add-checklist-row");
+  var tmpl = document.getElementById("checklist-empty-form");
+  var totalForms = document.getElementById("id_checklist-TOTAL_FORMS");
+  var tbody = document.querySelector("#checklist-rows tbody");
+  if (!addBtn || !tmpl || !totalForms || !tbody) return;
+  addBtn.addEventListener("click", function () {
+    var idx = parseInt(totalForms.value, 10) || 0;
+    var html = tmpl.innerHTML.replace(/__prefix__/g, idx);
+    var holder = document.createElement("tbody");
+    holder.innerHTML = html.trim();
+    var row = holder.firstElementChild;
+    if (row) {
+      tbody.appendChild(row);
+      totalForms.value = idx + 1;
+    }
+  });
+})();
+</script>
 {% endblock %}

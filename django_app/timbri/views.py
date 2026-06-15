@@ -310,6 +310,37 @@ def _ensure_legacy_operatore(row: dict) -> OperatoreTimbri:
     return obj
 
 
+def _tipo_from_text(raw_value: str) -> str:
+    text = _field_to_text(raw_value).lower()
+    if not text:
+        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
+    if "fisico" in text and "digit" in text:
+        return RegistroTimbro.TIPO_FISICO_E_DIGITALE
+    if "digit" in text:
+        return RegistroTimbro.TIPO_DIGITALE
+    if "fisico" in text:
+        return RegistroTimbro.TIPO_FISICO
+    return RegistroTimbro.TIPO_ALTRO
+
+
+def _resolve_operatore(lookup_value, label_value, matricola_value, reparto_value, ruolo_value) -> OperatoreTimbri:
+    row = _find_legacy_employee(
+        lookup_value=lookup_value,
+        label_value=label_value,
+        matricola_value=matricola_value,
+    )
+    if row is None:
+        reparto = _field_to_text(reparto_value)
+        ruolo = _field_to_text(ruolo_value)
+        raise LookupError(
+            "Operatore non trovato nell'anagrafica centrale"
+            + (f" (matricola {matricola_value})" if _field_to_text(matricola_value) else "")
+            + (f" [reparto {reparto}]" if reparto else "")
+            + (f" [ruolo {ruolo}]" if ruolo else "")
+        )
+    return _ensure_legacy_operatore(row)
+
+
 def cleanup_orphan_operatori() -> dict[str, int]:
     summary = {
         "orphans": 0,
@@ -784,10 +815,7 @@ def operatore_detail_by_legacy(request, legacy_id: int):
     civile = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id_int).first()
     foto_url = ""
     if civile and civile.foto:
-        try:
-            foto_url = civile.foto.url
-        except (OSError, ValueError):
-            foto_url = ""
+        foto_url = reverse("anagrafica:foto_dipendente", args=[legacy_id_int])
 
     return render(
         request,
@@ -825,6 +853,53 @@ def operatore_detail_by_legacy(request, legacy_id: int):
             },
         ),
     )
+
+
+@login_required
+def operatore_embed(request, legacy_id: int):
+    """Frammento (HTMX) con i record timbri/firme/sigle di un dipendente,
+    pensato per essere incorporato nella scheda anagrafica (tab Timbri) senza
+    uscire dalla pagina. La logica resta nel modulo timbri; l'ACL e' autoritativa
+    lato server tramite ``_can_view_timbri``."""
+    template = "timbri/partials/operatore_embed.html"
+    if not _can_view_timbri(request):
+        # Frammento inline (no redirect/JSON): la navigazione non e' un confine
+        # di sicurezza, ma nessun dato timbri viene incluso senza permesso.
+        return render(request, template, {"forbidden": True})
+    schema_issue = _timbri_schema_issue()
+    if schema_issue:
+        return render(request, template, {"schema_issue": schema_issue})
+
+    row = _load_legacy_employee(legacy_id)
+    if row is None:
+        return render(request, template, {"not_found": True})
+
+    operatore = _ensure_legacy_operatore(row)
+    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).prefetch_related(
+        Prefetch("immagini", queryset=RegistroTimbroImmagine.objects.order_by("variante"))
+    )
+    active_records = list(registri_qs.filter(is_attivo=True, is_archived=False))
+    historical_records = list(registri_qs.exclude(is_attivo=True, is_archived=False))
+    _attach_image_maps(active_records)
+    _attach_image_maps(historical_records)
+    active_timbri, active_firme, active_sigle = _categorize_records(active_records)
+    legacy_id_int = int(row.get("id") or 0)
+
+    return render(request, template, {
+        "employee": {"legacy_id": legacy_id_int, "full_name": _legacy_full_name(row)},
+        "active_timbri": active_timbri,
+        "active_firme": active_firme,
+        "active_sigle": active_sigle,
+        "historical_records": historical_records,
+        "report_url": reverse("timbri:operatore_report", args=[legacy_id_int]) if legacy_id_int else None,
+        "can_edit_timbri": _can_edit_timbri(request),
+        "can_copy_timbri": _can_copy_timbri(request),
+        "stats": {
+            "totale": registri_qs.count(),
+            "attivi": len(active_records),
+            "storico": len(historical_records),
+        },
+    })
 
 
 def _save_record_from_form(request, form: RegistroTimbroForm, *, operatore: OperatoreTimbri) -> RegistroTimbro:

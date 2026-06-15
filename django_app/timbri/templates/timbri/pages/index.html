@@ -1,13 +1,14 @@
 {% extends "core/base.html" %}
 
 {% block title %}Registro timbri{% endblock %}
+{% block body_class %}{{ block.super }} timbri-index-page{% endblock %}
 
 {% block extra_head %}
 <style>
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 .tim-page { display:flex; flex-direction:column; gap:24px; }
 .tim-topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-.tim-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.025em; line-height:1.2; }
+.tim-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:0; line-height:1.2; }
 .tim-sub { font-size:13px; color:#64748b; margin-top:5px; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
@@ -25,7 +26,7 @@
 .tim-kpi { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
 .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px 22px; position:relative; overflow:hidden; }
 .tim-k::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,#0f766e,#14b8a6); border-radius:16px 16px 0 0; }
-.tim-k-val { font-size:32px; font-weight:800; color:#0f172a; line-height:1; letter-spacing:-.03em; }
+.tim-k-val { font-size:32px; font-weight:800; color:#0f172a; line-height:1; letter-spacing:0; }
 .tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.07em; margin-top:8px; }
 .tim-k-icon { position:absolute; bottom:14px; right:16px; font-size:26px; opacity:.12; line-height:1; }
 
@@ -154,6 +155,53 @@ body.theme-dark .tim-issues-sub { color:var(--text-light); }
 body.theme-dark .tim-issues th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .tim-issues td { border-color:var(--surface-alt); }
 body.theme-dark .tim-issue-reason { background:rgba(146,64,14,.18); border-color:rgba(253,230,138,.25); color:#fde68a; }
+
+/* 2026 UI refresh: workspace piu piena, coerente con Notizie/Assenze */
+.timbri-index-page .content { width:100%; max-width:none; }
+.timbri-index-page .tim-page { gap:16px; min-height:calc(100vh - 150px); }
+.timbri-index-page .tim-topbar {
+  position:relative;
+  overflow:hidden;
+  align-items:flex-end;
+  min-height:154px;
+  padding:24px;
+  border:1px solid rgba(15,118,110,.22);
+  border-radius:8px;
+  color:#fff;
+  background:
+    linear-gradient(135deg, rgba(8,38,52,.97) 0%, rgba(15,118,110,.94) 58%, rgba(2,132,199,.78) 128%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
+  box-shadow:0 18px 40px rgba(15,118,110,.16);
+}
+.timbri-index-page .tim-topbar::after { content:""; position:absolute; right:24px; bottom:0; width:260px; height:96px; border:1px solid rgba(255,255,255,.12); border-bottom:0; opacity:.34; transform:skewX(-12deg); pointer-events:none; }
+.timbri-index-page .tim-topbar > * { position:relative; z-index:1; }
+.timbri-index-page .tim-title { color:#fff; font-size:30px; line-height:1.08; font-weight:900; letter-spacing:0; }
+.timbri-index-page .tim-sub { max-width:680px; color:rgba(255,255,255,.78); font-size:14px; line-height:1.55; }
+.tim-eyebrow { display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; padding:6px 10px; border:1px solid rgba(255,255,255,.22); border-radius:999px; color:rgba(255,255,255,.82); background:rgba(255,255,255,.09); font-size:11px; font-weight:800; letter-spacing:0; text-transform:uppercase; }
+.tim-eyebrow::before { content:""; width:7px; height:7px; border-radius:999px; background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.16); }
+.timbri-index-page .tim-topbar .tim-btn { min-height:40px; border-color:rgba(255,255,255,.24); color:#fff; background:rgba(255,255,255,.10); }
+.timbri-index-page .tim-topbar .tim-btn:hover { background:rgba(255,255,255,.18); }
+.timbri-index-page .tim-kpi { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.timbri-index-page .tim-k { border-radius:8px; padding:16px 18px; border-color:#dbe7e5; box-shadow:0 10px 28px rgba(15,23,42,.05); }
+.timbri-index-page .tim-k::before { inset:0 auto 0 0; width:4px; height:auto; border-radius:0; background:#0f766e; }
+.timbri-index-page .tim-k:nth-child(3)::before { background:#16a34a; }
+.timbri-index-page .tim-k:nth-child(4)::before { background:#d97706; }
+.tim-k-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.tim-k-ico { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 34px; border-radius:10px; color:#0f766e; background:#ecfeff; border:1px solid #99f6e4; }
+.tim-k-ico svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.timbri-index-page .tim-k-val { margin-top:10px; font-size:31px; font-weight:900; }
+.timbri-index-page .tim-k-icon { display:none; }
+.timbri-index-page .tim-card { border-radius:8px; box-shadow:0 14px 34px rgba(15,23,42,.04); }
+.timbri-index-page .tim-filters { border-color:#dbe7e5; background:linear-gradient(180deg,#fff 0%,#f8fbff 100%); }
+.timbri-index-page .tim-table th { background:#f8fbff; }
+.timbri-index-page .tim-row:hover td,
+.timbri-index-page .tim-row.is-open td { background:#ecfdf5; }
+body.theme-dark.timbri-index-page .tim-topbar { box-shadow:none; }
+body.theme-dark.timbri-index-page .tim-k { box-shadow:none; }
+
+@media (max-width: 960px) {
+  .timbri-index-page .tim-kpi { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 </style>
 {% endblock %}
 
@@ -163,6 +211,7 @@ body.theme-dark .tim-issue-reason { background:rgba(146,64,14,.18); border-color
 <div class="tim-page">
   <div class="tim-topbar">
     <div>
+      <div class="tim-eyebrow">Archivio operativo</div>
       <div class="tim-title">Registro timbri</div>
       <div class="tim-sub">Archivio timbri agganciato all'anagrafica centrale dei dipendenti.</div>
     </div>

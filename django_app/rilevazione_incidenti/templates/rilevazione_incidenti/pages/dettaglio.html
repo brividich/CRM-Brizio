@@ -325,6 +325,9 @@ body.theme-dark .sic-btn-rspp { background:rgba(29,78,216,.2); color:#93c5fd; }
   </div>
   {% endif %}
 
+  {# Azioni correttive/preventive (CAPA) collegate — modulo trasversale core #}
+  {% include "core/partials/_capa_panel.html" %}
+
   {% if can_edit_rspp %}
   <div style="display:flex;gap:10px;justify-content:flex-end;">
     <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}"

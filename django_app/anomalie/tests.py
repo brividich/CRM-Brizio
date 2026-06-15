@@ -674,3 +674,112 @@ class AnomalieAllegatiCicloTests(TestCase):
             names = [a["name"] for a in listed["attachments"]]
             self.assertEqual(listed["attachments"][0]["name"], "foto.png")
             self.assertNotIn("__sync_meta__.json", names)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieTimelineTests(TestCase):
+    """Copertura logging portale (AnomaliaActionLog) + endpoint timeline per OP."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="anom-timeline-user", password="pass12345"
+        )
+        self.factory = RequestFactory()
+
+    def test_log_anomalia_portal_action_crea_record(self):
+        from anomalie.mail_action_models import AnomaliaActionLog
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        log_anomalia_portal_action(
+            anomalia_id=101,
+            op_id="OP/2026/777",
+            action="aggiorna",
+            user=self.user,
+            legacy_user_id=42,
+            user_display="Mario Rossi",
+            previous_status="In attesa",
+            new_status="Finito trattato",
+        )
+
+        log = AnomaliaActionLog.objects.get(anomalia_id=101)
+        self.assertEqual(log.action, "aggiorna")
+        self.assertEqual(log.source, AnomaliaActionLog.Source.PORTAL)
+        self.assertEqual(log.previous_status, "In attesa")
+        self.assertEqual(log.new_status, "Finito trattato")
+        self.assertEqual(log.op_id, "OP/2026/777")
+
+    def test_log_anomalia_portal_action_senza_id_non_scrive(self):
+        from anomalie.mail_action_models import AnomaliaActionLog
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        log_anomalia_portal_action(anomalia_id=None, op_id="OP/X", action="crea")
+        self.assertEqual(AnomaliaActionLog.objects.count(), 0)
+
+    def test_gestione_page_includes_stepper_and_timeline(self):
+        """#2/#4: la pagina React include i componenti e l'URL timeline cablato."""
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.update_or_create(
+            user=self.user,
+            defaults={"completed": True, "skipped": False},
+        )
+        self.client.force_login(self.user)
+        with (
+            patch("anomalie.views.user_can_modulo_action", return_value=True),
+            patch("anomalie.views.get_legacy_user", return_value=None),
+            patch("anomalie.views._has_table", return_value=True),
+            patch("anomalie.views._load_anomalie_lists", return_value={}),
+            patch("anomalie.views._current_user_identity",
+                  return_value={"name": "", "email": "", "name_norm": "", "email_norm": ""}),
+        ):
+            response = self.client.get(reverse("gestione_anomalie_page"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/api/anomalie/timeline", html=False)
+        self.assertContains(response, "StatoStepper", html=False)
+        self.assertContains(response, "TimelineOp", html=False)
+
+    def test_api_timeline_aggrega_per_op(self):
+        from anomalie.mail_action_models import AnomaliaActionLog
+
+        # Due anomalie sullo stesso OP + una su OP diverso (esclusa).
+        AnomaliaActionLog.objects.create(
+            anomalia_id=11, op_id="OP/2026/777", action="crea",
+            new_status="In attesa", source=AnomaliaActionLog.Source.PORTAL,
+            user_display="Tizio",
+        )
+        AnomaliaActionLog.objects.create(
+            anomalia_id=12, op_id="OP/2026/777", action="chiudi",
+            previous_status="In attesa", new_status="Chiusa",
+            source=AnomaliaActionLog.Source.MAIL_ACTION, user_display="Caio",
+        )
+        AnomaliaActionLog.objects.create(
+            anomalia_id=99, op_id="OP/2026/OTHER", action="crea",
+            source=AnomaliaActionLog.Source.PORTAL, user_display="Estraneo",
+        )
+
+        request = self.factory.get(
+            reverse("api_anomalie_timeline"), {"op_id": "OP/2026/777"}
+        )
+        request.user = self.user
+        request.legacy_user = None
+
+        with patch("anomalie.views._has_table", return_value=False):
+            # _has_table False: niente match per id legacy, ma match per op_id resta.
+            response = anomalie_views.api_anomalie_timeline.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        ids = {item["anomalia_id"] for item in data["items"]}
+        self.assertEqual(ids, {11, 12})
+        labels = {item["action_label"] for item in data["items"]}
+        self.assertIn("Anomalia creata", labels)
+        self.assertIn("Anomalia chiusa", labels)
+
+    def test_api_timeline_richiede_op(self):
+        request = self.factory.get(reverse("api_anomalie_timeline"))
+        request.user = self.user
+        request.legacy_user = None
+        response = anomalie_views.api_anomalie_timeline.__wrapped__(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.content), {"items": []})

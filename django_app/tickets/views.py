@@ -1377,6 +1377,21 @@ def ticket_impostazioni(request):
             messages.success(request, f"Categoria '{cat_label}' eliminata.")
             return redirect_target
 
+        if action == "save_escalation_config":
+            from tickets.escalation_config import save_escalation_config
+            attivo = (request.POST.get("esc_attivo") or "").strip().lower() in {"1", "on", "true", "si"}
+            soglia = _int_or_none(request.POST.get("esc_soglia_ore")) or 0
+            ora = _int_or_none(request.POST.get("esc_ora_invio"))
+            ora = ora if ora is not None else 8
+            ok = save_escalation_config(attivo=attivo, soglia_ore=soglia, ora_invio=ora)
+            log_action(request, "save_ticket_escalation_config", "tickets",
+                       {"attivo": attivo, "soglia_ore": soglia, "ora_invio": ora})
+            if ok:
+                messages.success(request, "Configurazione escalation ticket salvata.")
+            else:
+                messages.error(request, "Salvataggio escalation parzialmente fallito.")
+            return redirect_target
+
     cfg_it  = TicketImpostazioni.get_or_create_for(TipoTicket.IT)
     cfg_man = TicketImpostazioni.get_or_create_for(TipoTicket.MAN)
 
@@ -1389,9 +1404,12 @@ def ticket_impostazioni(request):
         .order_by("-n")[:5]
     )
 
+    from tickets.escalation_config import get_escalation_config
+
     ctx = {
         "cfg_it":  cfg_it,
         "cfg_man": cfg_man,
+        "escalation_cfg": get_escalation_config(),
         "tipi":    TipoTicket.choices,
         "categorie_it":  get_categorie(TipoTicket.IT),
         "categorie_man": get_categorie(TipoTicket.MAN),

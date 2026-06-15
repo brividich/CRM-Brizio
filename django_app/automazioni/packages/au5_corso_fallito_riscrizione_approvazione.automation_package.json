@@ -1,0 +1,72 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU5 - Corso fallito: re-iscrizione via approvazione"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_formazione_enrollment",
+    "label": "Anagrafica - Iscrizioni corsi formazione"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_formazione_enrollment"
+  },
+  "proposed_rules": [
+    {
+      "code": "au5-corso-fallito-riscrizione-approvazione",
+      "name": "AU5 - Corso fallito: re-iscrizione via approvazione",
+      "description": "Quando un'iscrizione cambia stato in NON_IDONEO o ASSENTE, chiede al responsabile formazione di approvare la re-iscrizione del dipendente. In approvazione: notifica di pianificare la nuova iscrizione; in rifiuto: log. NOTE/LIMITI: (1) la re-iscrizione automatica (insert nella tabella iscrizioni) NON e' eseguibile via insert_record (whitelist limitata a core_notifica/tasks_task): il ramo approvato notifica chi deve ri-pianificare. (2) ATTIVABILITA' PER-CORSO: il backlog la prevede attivabile in fase di creazione corso (flag per-corso); il motore non ha un filtro 'per corso' nel payload enrollment, quindi questa regola e' globale - per limitarla a un corso aggiungere in designer una condizione su sessione_id/assignment_id. (3) Sostituire RESP_FORMAZIONE_DA_CONFIGURARE.",
+      "source_code": "anagrafica_formazione_enrollment",
+      "operation_type": "update",
+      "trigger_scope": "specific_field",
+      "watched_field": "stato",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "stato",
+          "operator": "in_csv",
+          "value": "NON_IDONEO,ASSENTE",
+          "value_type": "string"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "send_approval",
+          "description": "Approvazione re-iscrizione responsabile formazione",
+          "delivery_mode": "email",
+          "to_template": "RESP_FORMAZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[Formazione] Re-iscrizione da approvare - dipendente {legacy_anagrafica_id}",
+          "message_template": "Gentile Responsabile Formazione,\n\nun'iscrizione si e' conclusa con esito {stato} e si richiede la Sua approvazione per procedere con la re-iscrizione del dipendente.\n\nDettaglio iscrizione\nIscrizione (ID): {id}\nSessione (ID): {sessione_id}\nDipendente (ID): {legacy_anagrafica_id}\nStato: {stato}\n\nApprovando, la re-iscrizione andra' pianificata; rifiutando, l'iter si chiude.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "expiry_days": 7,
+          "approved_actions": [
+            {
+              "action_type": "send_email",
+              "description": "Notifica pianificazione re-iscrizione",
+              "to": "RESP_FORMAZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
+              "subject_template": "[Formazione] Re-iscrizione approvata - dipendente {legacy_anagrafica_id}",
+              "body_text_template": "La re-iscrizione del dipendente {legacy_anagrafica_id} (iscrizione #{id}, esito precedente {stato}) e' stata approvata.\n\nAzione richiesta: pianificare la nuova sessione/iscrizione per il dipendente.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+              "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">La re-iscrizione del dipendente <strong>{legacy_anagrafica_id}</strong> (iscrizione #{id}, esito precedente {stato}) e' stata approvata.</p>\n<p style=\"margin:0 0 12px;color:#475569;font-size:15px;line-height:1.65;\">Azione richiesta: pianificare la nuova sessione/iscrizione per il dipendente.</p>",
+              "email_type": "Automazioni",
+              "section_label": "Formazione",
+              "title_template": "Re-iscrizione approvata - dipendente {legacy_anagrafica_id}"
+            }
+          ],
+          "rejected_actions": [
+            {
+              "action_type": "write_log",
+              "description": "Log rifiuto re-iscrizione",
+              "message_template": "Re-iscrizione del dipendente {legacy_anagrafica_id} (iscrizione #{id}, esito {stato}) NON approvata dal responsabile formazione."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

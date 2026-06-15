@@ -433,3 +433,18 @@
   .hp-board{ grid-template-columns:1fr }
   .hp-bottom{ grid-template-columns:1fr }
 }
+
+/* ── "Cose da gestire": gruppi cross-modulo nella home (#6) ─────────────── */
+.hp-cdg-group{ margin:0 0 14px }
+.hp-cdg-group:last-child{ margin-bottom:0 }
+.hp-cdg-group-h{ display:flex; align-items:center; justify-content:space-between;
+                 gap:8px; margin:0 0 6px }
+.hp-cdg-group .hp-list{ margin:0 }
+
+/* ── Cockpit "Le mie attività" in cima alla home (sopra i moduli) ───────── */
+.hp-cockpit{ margin-bottom:14px }
+/* A piena larghezza i gruppi si dispongono in colonne; dentro la card restano
+   uniformi alle altre (stessa .hp-card / .hp-cdg-group della dashboard). */
+.hp-cdg-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+              gap:4px 18px; align-items:start }
+.hp-cdg-grid .hp-cdg-group{ margin:0 0 10px }

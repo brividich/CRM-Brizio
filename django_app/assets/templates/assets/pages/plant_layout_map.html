@@ -5,7 +5,7 @@
 {% block assets_shell_head %}
 <style>
 .pl-page { display:grid; gap:16px; }
-.pl-summary { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.pl-summary { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); }
 .pl-summary-card { border:1px solid #dbe1ea; border-radius:16px; background:#fff; padding:16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
 .pl-summary-label { font-size: var(--fs-xs); text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:800; }
 .pl-summary-value { margin-top:8px; font-size: var(--fs-display-lg); line-height:1; color:#0f172a; font-weight:800; }
@@ -25,10 +25,13 @@
 .pl-area-label { position:absolute; left:10px; top:10px; right:10px; display:flex; justify-content:space-between; gap:8px; align-items:flex-start; pointer-events:none; }
 .pl-area-name { background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:6px 10px; font-size: var(--fs-sm); font-weight:800; max-width:calc(100% - 48px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pl-area-count { background:#fff; color:#0f172a; border-radius:999px; padding:6px 9px; font-size: var(--fs-xs); font-weight:800; box-shadow:0 4px 12px rgba(15, 23, 42, .12); }
-.pl-pin { position:absolute; width:18px; height:18px; border-radius:999px; border:none; transform:translate(-50%, -50%); background:#dc2626; box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 8px 16px rgba(15,23,42,.18); cursor:pointer; }
+.pl-pin { position:absolute; width:18px; height:18px; border-radius:999px; border:none; transform:translate(-50%, -50%); background:#475569; box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 8px 16px rgba(15,23,42,.18); cursor:pointer; }
 .pl-pin::after { content:""; position:absolute; width:6px; height:6px; inset:6px; border-radius:999px; background:#fff; }
-.pl-pin.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 9px rgba(220,38,38,.25), 0 10px 22px rgba(15,23,42,.2); }
+.pl-pin.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 9px rgba(71,85,105,.30), 0 10px 22px rgba(15,23,42,.2); }
 .pl-pin.is-focused { background:#2563eb; box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 10px rgba(37,99,235,.35), 0 10px 22px rgba(15,23,42,.2); animation:pl-pulse 1.4s ease-in-out 3; }
+.pl-pin.has-tickets { background:#dc2626; box-shadow:0 0 0 4px rgba(255,255,255,.92), 0 0 0 9px rgba(220,38,38,.30), 0 8px 16px rgba(15,23,42,.18); animation:pl-pulse 1.8s ease-in-out infinite; }
+.pl-pin.has-tickets.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 10px rgba(220,38,38,.45), 0 10px 22px rgba(15,23,42,.2); }
+.pl-pin-badge { position:absolute; top:-9px; right:-9px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#b91c1c; color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; box-shadow:0 0 0 2px #fff; z-index:2; }
 @keyframes pl-pulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.5)} }
 .pl-sidebar { padding:16px; display:grid; gap:14px; }
 .pl-detail-title { margin:0; font-size: var(--fs-display-sm); color:#0f172a; }
@@ -43,6 +46,13 @@
 .pl-machine-tag { color:#475569; font-size: var(--fs-sm); font-weight:700; }
 .pl-machine-meta { color:#64748b; font-size: var(--fs-sm); display:flex; flex-wrap:wrap; gap:10px; }
 .pl-machine-link { color:#1d4ed8; text-decoration:none; font-size: var(--fs-sm); font-weight:800; }
+.pl-ticket-box { border:1px solid #fecaca; background:#fef2f2; border-radius:14px; padding:12px 13px; display:grid; gap:8px; }
+.pl-ticket-box-title { font-size: var(--fs-sm); font-weight:800; color:#b91c1c; text-transform:uppercase; letter-spacing:.03em; }
+.pl-ticket-row { display:flex; align-items:center; gap:8px; text-decoration:none; padding:6px 8px; border-radius:9px; background:#fff; border:1px solid #fee2e2; }
+.pl-ticket-row:hover { background:#fff1f1; }
+.pl-ticket-num { font-family: ui-monospace, monospace; font-size:11px; font-weight:700; color:#b91c1c; white-space:nowrap; }
+.pl-ticket-title { flex:1; min-width:0; color:#182232; font-size: var(--fs-sm); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pl-ticket-stato { font-size:10px; font-weight:700; color:#9a3412; background:#ffedd5; border-radius:999px; padding:2px 8px; white-space:nowrap; }
 .pl-empty { padding:28px; text-align:center; color:#64748b; }
 .pl-empty strong { display:block; color:#0f172a; font-size: var(--fs-xl); margin-bottom:6px; }
 .pl-layout-list { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 18px; }
@@ -87,6 +97,11 @@
       <div class="pl-summary-value">{{ plant_layout_payload.markers|length }}</div>
       <div class="pl-summary-meta">Marker manuali sulla mappa</div>
     </article>
+    <article class="pl-summary-card">
+      <div class="pl-summary-label">Macchine con ticket aperti</div>
+      <div class="pl-summary-value" style="{% if plant_layout_payload.markers_with_tickets %}color:#dc2626;{% endif %}">{{ plant_layout_payload.markers_with_tickets }}</div>
+      <div class="pl-summary-meta">Marker evidenziati in rosso sulla mappa</div>
+    </article>
   </section>
 
   <section class="pl-grid">
@@ -125,11 +140,11 @@
             {% for marker in plant_layout_payload.markers %}
             <button
               type="button"
-              class="pl-pin"
+              class="pl-pin{% if marker.open_tickets %} has-tickets{% endif %}"
               data-marker-id="{{ marker.id }}"
               style="left:{{ marker.x_percent|stringformat:'g' }}%;top:{{ marker.y_percent|stringformat:'g' }}%;"
-              title="{{ marker.label }}"
-            ></button>
+              title="{{ marker.label }}{% if marker.open_tickets %} — {{ marker.open_tickets }} ticket apert{{ marker.open_tickets|pluralize:'o,i' }}{% endif %}"
+            >{% if marker.open_tickets %}<span class="pl-pin-badge">{{ marker.open_tickets }}</span>{% endif %}</button>
             {% endfor %}
           </div>
         </div>
@@ -265,6 +280,27 @@
     });
   }
 
+  function renderTickets(tickets) {
+    if (!tickets || !tickets.length) return;
+    const box = document.createElement("div");
+    box.className = "pl-ticket-box";
+    const title = document.createElement("div");
+    title.className = "pl-ticket-box-title";
+    title.textContent = "⚠ " + tickets.length + " ticket apert" + (tickets.length === 1 ? "o" : "i");
+    box.appendChild(title);
+    tickets.forEach(function (tk) {
+      const row = document.createElement("a");
+      row.className = "pl-ticket-row";
+      row.href = tk.url || "#";
+      row.innerHTML =
+        '<span class="pl-ticket-num">' + escapeHtml(tk.numero) + '</span>' +
+        '<span class="pl-ticket-title">' + escapeHtml(tk.titolo) + '</span>' +
+        '<span class="pl-ticket-stato">' + escapeHtml(tk.stato) + '</span>';
+      box.appendChild(row);
+    });
+    listNode.appendChild(box);
+  }
+
   function showArea(area) {
     if (!area) return;
     titleNode.textContent = area.name || "Reparto";
@@ -295,6 +331,7 @@
     titleNode.textContent = marker.label || machine.asset_tag || machine.name || "Macchina";
     subNode.textContent = machine.reparto ? "Macchina del reparto " + machine.reparto : "Marker macchina";
     renderPills([
+      marker.open_tickets ? (marker.open_tickets + " ticket apert" + (marker.open_tickets === 1 ? "o" : "i")) : "",
       machine.status || "",
       machine.manufacturer || "",
       machine.model || "",
@@ -309,6 +346,7 @@
       noteNode.textContent = "";
     }
     renderMachines([machine]);
+    renderTickets(marker.tickets || []);
     setActiveMarkerIds([marker.id]);
     setActiveAreaIds(marker.area_ids || []);
   }

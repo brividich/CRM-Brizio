@@ -584,6 +584,39 @@ body.theme-dark .tkt-top-cause-empty { color:var(--text-light); }
   </div>
 </div>
 
+<!-- Escalation ticket urgenti non assegnati -->
+<div class="tkt-card">
+  <div class="tkt-card-header">
+    <div>
+      <div class="tkt-card-title">Escalation ticket urgenti non assegnati</div>
+      <div class="tkt-card-sub">
+        Promemoria in dashboard (sempre) + resoconto email al team gestori per i ticket
+        <strong>urgenti</strong> ancora <strong>aperti e senza assegnatario</strong> oltre la soglia.
+      </div>
+    </div>
+  </div>
+  <form method="post" style="padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save_escalation_config">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+      <input type="checkbox" name="esc_attivo" value="1" {% if escalation_cfg.attivo %}checked{% endif %}>
+      Invio email resoconto attivo
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#64748b;">
+      Soglia (ore)
+      <input type="number" name="esc_soglia_ore" min="1" max="168" value="{{ escalation_cfg.soglia_ore }}"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#64748b;">
+      Ora invio (0–23)
+      <input type="number" name="esc_ora_invio" min="0" max="23" value="{{ escalation_cfg.ora_invio }}"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    </label>
+    <span style="font-size:11px;color:#94a3b8;">Cadenza: {{ escalation_cfg.cadenza_label }}. I promemoria in dashboard restano attivi anche con l'email disattivata.</span>
+    <button type="submit" class="tkt-save-btn">Salva escalation</button>
+  </form>
+</div>
+
 <!-- Analisi / KPI: Top 5 cause ricorrenti -->
 <div class="tkt-card tkt-top-cause-card">
   <div class="tkt-card-header">

@@ -24,12 +24,8 @@ Strategia:
 """
 from __future__ import annotations
 
-import re
-
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
 from django.utils import timezone
-from django.utils.text import slugify
 
 from assets.models import (
     AssetCategory,
@@ -37,16 +33,11 @@ from assets.models import (
     MaintenanceRule,
     PeriodicVerification,
 )
+from assets.services.periodic_migration import migrate_periodic_verification_to_rule
 
 
 def _months_to_days(months: int) -> int:
     return max(1, round(months * 30))
-
-
-def _make_code(label: str) -> str:
-    base = slugify(label)[:70] or "manutenzione"
-    base = re.sub(r"-+", "-", base).strip("-")
-    return base
 
 
 class Command(BaseCommand):
@@ -225,40 +216,16 @@ class Command(BaseCommand):
             self.stdout.write(f"         regola:   {rule_action}")
 
             if apply:
-                with transaction.atomic():
-                    # Crea o recupera template
-                    if not existing_template:
-                        code = _make_code(template_label)
-                        # Gestisci collisioni di slug
-                        if MaintenanceInterventionTemplate.objects.filter(code=code).exists():
-                            code = f"{code}-pv{pv.id}"
-                        existing_template = MaintenanceInterventionTemplate.objects.create(
-                            code=code,
-                            label=template_label,
-                            description=pv.notes or "",
-                            asset_category_id=category_id,
-                            is_active=True,
-                        )
-
-                    # Crea o recupera regola
-                    if not existing_rule:
-                        MaintenanceRule.objects.create(
-                            intervention_template=existing_template,
-                            asset_category_id=category_id,
-                            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
-                            threshold_value=threshold_days,
-                            warning_days=max(7, threshold_days // 10),
-                            is_active=True,
-                        )
-
-                    # Marca come legacy
-                    pv.is_legacy = True
-                    pv.save(update_fields=["is_legacy", "updated_at"])
-
-                results["migrated"] += 1
-                self.stdout.write(
-                    self.style.SUCCESS(f"         -> Migrato.")
-                )
+                # La mutazione effettiva vive nel servizio condiviso (stessa logica usata
+                # dall'azione UI "Converti in regola").
+                result = migrate_periodic_verification_to_rule(pv)
+                if result.get("ok"):
+                    results["migrated"] += 1
+                    self.stdout.write(self.style.SUCCESS("         -> Migrato."))
+                else:
+                    self.stdout.write(
+                        self.style.WARNING(f"         -> Saltato: {result.get('message')}")
+                    )
 
         self.stdout.write("")
         self.stdout.write("=== Riepilogo ===")

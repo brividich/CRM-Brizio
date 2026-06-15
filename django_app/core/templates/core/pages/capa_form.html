@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+
+{# capa_form.html — Crea/Modifica azione CAPA.
+   Context: form, is_edit, torna, source_code/source_pk/source_label/source_url (solo create). #}
+
+{% block title %}{% if is_edit %}Modifica CAPA #{{ a.pk }}{% else %}Nuova azione CAPA{% endif %} · {{ block.super }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cf-wrap { max-width: 720px; margin: 0 auto; padding: 4px 0 32px; }
+  .cf-back { color:#64748b; text-decoration:none; font-size:.9rem; }
+  .cf-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; margin-top:14px; }
+  .cf-title { font-size:1.4rem; font-weight:800; color:#0f172a; margin:0 0 18px; }
+  .cf-field { margin-bottom:16px; }
+  .cf-field label { display:block; font-size:.82rem; font-weight:600; color:#475569; margin-bottom:4px; }
+  .cf-field input, .cf-field select, .cf-field textarea {
+    width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font-size:.92rem; box-sizing:border-box; }
+  .cf-field .errorlist { color:#b91c1c; font-size:.82rem; list-style:none; padding:0; margin:4px 0 0; }
+  .cf-origin { background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;color:#475569;font-size:.88rem;margin-bottom:16px; }
+  .cf-actions { display:flex; gap:10px; margin-top:8px; }
+  .cf-btn { border:none; border-radius:8px; padding:9px 18px; font-weight:700; cursor:pointer; font-size:.92rem; text-decoration:none; display:inline-block; }
+  .cf-btn.primary { background:#1d4ed8; color:#fff; }
+  .cf-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cf-wrap">
+  <a class="cf-back" href="{% if is_edit %}{% url 'capa_detail' a.pk %}{% else %}{% url 'capa_list' %}{% endif %}">← Indietro</a>
+
+  <div class="cf-card">
+    <h1 class="cf-title">{% if is_edit %}Modifica azione CAPA{% else %}Nuova azione correttiva/preventiva{% endif %}</h1>
+
+    {% if not is_edit and source_label %}
+      <div class="cf-origin">Collegata a: <b>{{ source_label }}</b></div>
+    {% endif %}
+
+    <form method="post">{% csrf_token %}
+      {% if not is_edit %}
+        <input type="hidden" name="source_code" value="{{ source_code }}">
+        <input type="hidden" name="source_pk" value="{{ source_pk }}">
+        <input type="hidden" name="source_label" value="{{ source_label }}">
+        <input type="hidden" name="source_url" value="{{ source_url }}">
+      {% endif %}
+      {% if torna %}<input type="hidden" name="torna" value="{{ torna }}">{% endif %}
+
+      {% for field in form %}
+        <div class="cf-field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {{ field.errors }}
+          {% if field.help_text %}<p style="color:#94a3b8;font-size:.8rem;margin:4px 0 0;">{{ field.help_text }}</p>{% endif %}
+        </div>
+      {% endfor %}
+
+      <div class="cf-actions">
+        <button type="submit" class="cf-btn primary">{% if is_edit %}Salva modifiche{% else %}Crea azione{% endif %}</button>
+        <a class="cf-btn ghost" href="{% if is_edit %}{% url 'capa_detail' a.pk %}{% else %}{% url 'capa_list' %}{% endif %}">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

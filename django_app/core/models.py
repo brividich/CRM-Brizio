@@ -862,6 +862,133 @@ class UserOnboarding(models.Model):
         stato = "completato" if self.completed else ("esentato" if self.skipped else "pending")
         return f"UserOnboarding(user={self.user_id}, stato={stato})"
 
+
+class ActionItem(models.Model):
+    """Azione Correttiva/Preventiva (CAPA) trasversale ai moduli.
+
+    Collega un'azione di rimedio a un evento di origine (incidente, near-miss,
+    segnalazione preposto, anomalia, ticket, ispezione, ...) tramite la coppia
+    ``(source_code, source_pk)`` — lo stesso schema usato da
+    ``automation_event_queue``. Vive in ``core`` per evitare dipendenze cicliche
+    tra i moduli di dominio che la generano e la consultano.
+
+    Workflow: APERTA → IN_CORSO → CHIUSA (con evidenza) → VERIFICATA.
+    La chiusura (chi esegue) è volutamente separata dalla verifica (chi controlla):
+    sono due passi e due persone diverse (principio dei quattro occhi).
+    """
+
+    TIPO_CORRETTIVA = "CORRETTIVA"
+    TIPO_PREVENTIVA = "PREVENTIVA"
+    TIPO_CHOICES = [
+        (TIPO_CORRETTIVA, "Correttiva"),
+        (TIPO_PREVENTIVA, "Preventiva"),
+    ]
+
+    STATO_APERTA = "APERTA"
+    STATO_IN_CORSO = "IN_CORSO"
+    STATO_CHIUSA = "CHIUSA"
+    STATO_VERIFICATA = "VERIFICATA"
+    STATO_ANNULLATA = "ANNULLATA"
+    STATO_CHOICES = [
+        (STATO_APERTA, "Aperta"),
+        (STATO_IN_CORSO, "In corso"),
+        (STATO_CHIUSA, "Chiusa (da verificare)"),
+        (STATO_VERIFICATA, "Verificata"),
+        (STATO_ANNULLATA, "Annullata"),
+    ]
+    # Stati che NON contano più come "azione aperta" (no scadenza, no reminder).
+    STATI_CONCLUSI = (STATO_VERIFICATA, STATO_ANNULLATA)
+
+    # Etichette leggibili per le origini note. Il valore = `source_code`
+    # coerente con automazioni/source_registry; "manuale" per gli inserimenti
+    # diretti dalla lista CAPA.
+    ORIGINE_MANUALE = "manuale"
+    ORIGINE_LABELS = {
+        "rilevazione_incidenti": "Incidente / Near-miss",
+        "diario_preposto": "Segnalazione preposto",
+        "anomalie": "Anomalia",
+        "tickets": "Ticket",
+        "audit": "Audit / Ispezione",
+        ORIGINE_MANUALE: "Inserimento manuale",
+    }
+
+    titolo = models.CharField(max_length=255)
+    descrizione = models.TextField(blank=True, default="")
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_CORRETTIVA)
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_APERTA, db_index=True)
+
+    # Origine: coppia (source_code, source_pk) come automation_event_queue.
+    # source_pk è testuale per accogliere sia pk interi sia id SharePoint stringa.
+    source_code = models.CharField(max_length=64, blank=True, default=ORIGINE_MANUALE, db_index=True)
+    source_pk = models.CharField(max_length=64, blank=True, default="")
+    source_label = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Descrizione leggibile dell'origine (snapshot al momento della creazione).",
+    )
+    source_url = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Link al record di origine nel modulo sorgente.",
+    )
+
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="capa_assegnate",
+    )
+    reparto = models.CharField(max_length=200, blank=True, default="")
+    data_scadenza = models.DateField(null=True, blank=True, db_index=True)
+
+    # Chiusura (esecuzione del rimedio) — richiede evidenza.
+    evidenza_chiusura = models.TextField(
+        blank=True, default="",
+        help_text="Descrizione di cosa è stato fatto per risolvere (obbligatoria alla chiusura).",
+    )
+    chiusa_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="capa_chiuse",
+    )
+    data_chiusura = models.DateTimeField(null=True, blank=True)
+
+    # Verifica di efficacia — passo separato, persona diversa.
+    verificata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="capa_verificate",
+    )
+    data_verifica = models.DateTimeField(null=True, blank=True)
+    note_verifica = models.TextField(blank=True, default="")
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="capa_create",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_actionitem"
+        ordering = ["-created_at"]
+        verbose_name = "Azione correttiva/preventiva (CAPA)"
+        verbose_name_plural = "Azioni correttive/preventive (CAPA)"
+        indexes = [
+            models.Index(fields=["source_code", "source_pk"]),
+            models.Index(fields=["stato", "data_scadenza"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"CAPA#{self.pk} [{self.stato}] {self.titolo}"
+
+    @property
+    def is_conclusa(self) -> bool:
+        return self.stato in self.STATI_CONCLUSI
+
+    @property
+    def is_aperta(self) -> bool:
+        """True se l'azione è ancora da lavorare (concorre a scadenze/reminder)."""
+        return self.stato in (self.STATO_APERTA, self.STATO_IN_CORSO, self.STATO_CHIUSA)
+
+    @property
+    def origine_label(self) -> str:
+        return self.ORIGINE_LABELS.get(self.source_code, self.source_code or "—")
+
     @classmethod
     def get_or_create_for(cls, user):
         obj, _ = cls.objects.get_or_create(user=user)

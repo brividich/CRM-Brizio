@@ -2,9 +2,327 @@
 
 {% block title %}Richiesta Assenza | Portale Applicativo{% endblock %}
 
+{% block assenze_shell_class %}abs-request-page{% endblock %}
+
 {% block assenze_shell_head %}
   <style>
-    .abs-form-shell { max-width: 1080px; margin: 0 auto; }
+    .abs-form-shell { max-width: 1280px; margin: 0 auto; width: 100%; }
+    .abs-request-page { gap: 16px; }
+    .abs-request-hero {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        linear-gradient(135deg, rgba(8, 47, 53, .98) 0%, rgba(15, 118, 110, .96) 58%, rgba(14, 165, 164, .92) 100%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,.08) 0 1px, transparent 1px 18px);
+    }
+    .abs-request-hero::after {
+      content: "";
+      position: absolute;
+      inset: auto 28px -46px auto;
+      width: 280px;
+      height: 160px;
+      border-radius: 28px;
+      rotate: -8deg;
+      background: rgba(255,255,255,.12);
+      pointer-events: none;
+      z-index: -1;
+    }
+    .abs-request-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 14px;
+      align-items: start;
+    }
+    .abs-request-main {
+      min-width: 0;
+    }
+    .abs-request-side {
+      position: sticky;
+      top: 78px;
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+    }
+    .abs-live-panel {
+      border: 1px solid #dbe5ef;
+      border-radius: 18px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f8fffd 100%);
+      box-shadow: 0 14px 36px rgba(15, 23, 42, .055);
+    }
+    .abs-live-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #e5edf5;
+      background: linear-gradient(90deg, #ecfeff 0%, #f7fffc 54%, #fffaf1 100%);
+    }
+    .abs-live-title {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .abs-live-title svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: #0f766e;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .abs-live-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 1px solid #99f6e4;
+      background: #ecfeff;
+      color: #0f766e;
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .abs-live-body {
+      display: grid;
+      gap: 12px;
+      padding: 14px 16px 16px;
+    }
+    .abs-live-hero {
+      display: grid;
+      gap: 6px;
+      padding: 14px;
+      border-radius: 15px;
+      color: #fff;
+      background: linear-gradient(135deg, #0f3f46 0%, #0f766e 100%);
+    }
+    .abs-live-kicker {
+      color: rgba(255,255,255,.74);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .abs-live-value {
+      font-size: 23px;
+      line-height: 1;
+      font-weight: 950;
+    }
+    .abs-live-muted {
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .abs-live-row {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border-radius: 13px;
+      border: 1px solid #e5edf5;
+      background: #fff;
+    }
+    .abs-live-row-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 11px;
+      color: #0f766e;
+      background: #ecfeff;
+    }
+    .abs-live-row-icon svg {
+      width: 17px;
+      height: 17px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .abs-live-row-copy {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .abs-live-label {
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .abs-live-text {
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .abs-live-hints {
+      display: grid;
+      gap: 7px;
+    }
+    .abs-live-hint {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 12px;
+      line-height: 1.45;
+      border: 1px solid #e2e8f0;
+    }
+    .abs-live-hint::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      margin-top: 5px;
+      border-radius: 999px;
+      background: #14b8a6;
+      flex: 0 0 7px;
+    }
+    .abs-flow-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .abs-flow-step {
+      display: grid;
+      gap: 5px;
+      min-height: 72px;
+      padding: 11px;
+      border-radius: 14px;
+      border: 1px solid #dbe5ef;
+      background: #fff;
+      color: #64748b;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, .035);
+      transition: border-color .16s ease, transform .16s ease, background .16s ease;
+    }
+    .abs-flow-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 9px;
+      background: #f1f5f9;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .abs-flow-step strong {
+      color: #0f172a;
+      font-size: 13px;
+      line-height: 1.15;
+    }
+    .abs-flow-step span:last-child {
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .abs-flow-step.is-current {
+      transform: translateY(-1px);
+      border-color: #14b8a6;
+      background: #f0fdfa;
+    }
+    .abs-flow-step.is-current .abs-flow-index,
+    .abs-flow-step.is-done .abs-flow-index {
+      background: #0f766e;
+      color: #fff;
+    }
+    .abs-flow-step.is-done {
+      border-color: #99f6e4;
+      background: #fbfffd;
+    }
+    .abs-type-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 9px;
+      margin-bottom: 10px;
+    }
+    .abs-type-card {
+      display: grid;
+      gap: 8px;
+      min-height: 112px;
+      padding: 12px;
+      border-radius: 15px;
+      border: 1px solid #dbe5ef;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      color: #0f172a;
+      cursor: pointer;
+      text-align: left;
+      font-family: "Outfit", sans-serif;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, .035);
+      transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+    .abs-type-card:hover {
+      transform: translateY(-1px);
+      border-color: #7dd3fc;
+      box-shadow: 0 12px 26px rgba(15, 23, 42, .07);
+    }
+    .abs-type-card.is-active {
+      border-color: var(--type-accent, #0f766e);
+      background:
+        linear-gradient(180deg, #ffffff 0%, #fbfdff 100%),
+        linear-gradient(135deg, var(--type-soft, #ecfeff), transparent 72%);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, .08);
+    }
+    .abs-type-card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      color: var(--type-ink, #0f766e);
+      background: var(--type-soft, #ecfeff);
+      border: 1px solid color-mix(in srgb, var(--type-accent, #0f766e) 22%, transparent);
+    }
+    .abs-type-card-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .abs-type-card-title {
+      font-size: 13px;
+      font-weight: 950;
+      line-height: 1.15;
+    }
+    .abs-type-card-text {
+      color: #64748b;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .abs-type-ferie { --type-accent:#0f766e; --type-soft:#dffcf7; --type-ink:#0f766e; }
+    .abs-type-permesso { --type-accent:#2563eb; --type-soft:#e8f0ff; --type-ink:#1d4ed8; }
+    .abs-type-malattia { --type-accent:#dc2626; --type-soft:#fee2e2; --type-ink:#b91c1c; }
+    .abs-type-flessibilita { --type-accent:#7c3aed; --type-soft:#f1eaff; --type-ink:#6d28d9; }
+    .abs-type-presenza { --type-accent:#d97706; --type-soft:#fff4d6; --type-ink:#b45309; }
+    .abs-type-native {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+    .abs-type-field { grid-column: 1 / -1; }
     .abs-shortcut-group {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -22,8 +340,66 @@
       color: #0f172a;
       font-size: 13px;
       font-weight: 700;
+      transition: border-color .16s ease, background .16s ease, transform .16s ease;
     }
     .abs-shortcut-item:hover { background: #f8fbff; border-color: #99f6e4; }
+    .abs-shortcut-item input { accent-color: #0f766e; }
+    .abs-shortcut-item.is-active {
+      transform: translateY(-1px);
+      border-color: #14b8a6;
+      background: #ecfeff;
+      box-shadow: 0 10px 22px rgba(15, 118, 110, .08);
+    }
+    .abs-duration-card {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 15px;
+      border: 1px solid #dbe5ef;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fffd 100%);
+    }
+    .abs-duration-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .abs-duration-copy {
+      display: grid;
+      gap: 2px;
+    }
+    .abs-duration-label {
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .abs-duration-value {
+      color: #0f172a;
+      font-size: 24px;
+      font-weight: 950;
+      line-height: 1;
+    }
+    .abs-duration-hint {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .abs-duration-track {
+      height: 9px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: #e2e8f0;
+    }
+    .abs-duration-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #14b8a6, #2563eb);
+      transition: width .2s ease;
+    }
     .abs-toggle-row {
       display: flex;
       align-items: center;
@@ -86,6 +462,16 @@
       font-size: 20px;
       flex-shrink: 0;
     }
+    .abs-presenza-icon svg,
+    .abs-corsi-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
     .abs-presenza-copy { display: grid; gap: 4px; }
     .abs-presenza-copy strong { font-size: 15px; }
     .abs-presenza-copy span { font-size: 12px; color: rgba(255,255,255,.82); line-height: 1.55; }
@@ -115,10 +501,43 @@
       flex-wrap: wrap;
     }
 
+    @media (max-width: 1180px) {
+      .abs-request-layout { grid-template-columns: 1fr; }
+      .abs-request-side { position: static; }
+      .abs-type-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
     @media (max-width: 860px) {
       .abs-shortcut-group { grid-template-columns: 1fr; }
+      .abs-flow-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .abs-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .abs-flow-strip,
+      .abs-type-grid { grid-template-columns: 1fr; }
+      .abs-type-card { min-height: 88px; }
     }
     /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .abs-live-panel,
+    body.theme-dark .abs-live-row,
+    body.theme-dark .abs-flow-step,
+    body.theme-dark .abs-type-card,
+    body.theme-dark .abs-duration-card { background:var(--surface); border-color:var(--border); box-shadow:none; }
+    body.theme-dark .abs-live-head { background:var(--bg); border-color:var(--border); }
+    body.theme-dark .abs-live-title,
+    body.theme-dark .abs-live-text,
+    body.theme-dark .abs-flow-step strong,
+    body.theme-dark .abs-type-card-title,
+    body.theme-dark .abs-duration-value { color:var(--text); }
+    body.theme-dark .abs-live-label,
+    body.theme-dark .abs-type-card-text,
+    body.theme-dark .abs-duration-label,
+    body.theme-dark .abs-duration-hint { color:var(--text-light); }
+    body.theme-dark .abs-live-hint { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+    body.theme-dark .abs-flow-step.is-current,
+    body.theme-dark .abs-flow-step.is-done,
+    body.theme-dark .abs-shortcut-item.is-active { background:rgba(15,118,110,.16); border-color:#2dd4bf; }
+    body.theme-dark .abs-type-card.is-active { background:var(--surface-alt); }
+    body.theme-dark .abs-duration-track { background:var(--surface-alt); }
     body.theme-dark .abs-shortcut-item { background:var(--surface); border-color:var(--border); color:var(--text); }
     body.theme-dark .abs-shortcut-item:hover { background:var(--surface-alt); border-color:#2dd4bf; }
     body.theme-dark .abs-toggle-row { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); }
@@ -134,7 +553,7 @@
       background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
       font-size:13px;color:#78350f;position:relative;
     }
-    .abs-corsi-icon{font-size:20px;line-height:1;flex-shrink:0;margin-top:2px}
+    .abs-corsi-icon{display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;flex-shrink:0;margin-top:2px}
     .abs-corsi-body{flex:1;min-width:0}
     .abs-corsi-body strong{display:block;margin-bottom:4px;font-size:13px;color:#7c2d12}
     .abs-corsi-list{list-style:none;margin:6px 0;padding:0}
@@ -162,13 +581,15 @@
 
 {% block assenze_shell_content %}
   <div class="abs-form-shell abs-stack">
-    <section class="abs-hero">
+    <section class="abs-hero abs-request-hero">
       <div class="abs-hero-copy">
         <span class="abs-eyebrow">Nuova richiesta</span>
         <h1>Richiesta assenza</h1>
         <p>Un solo form per ferie, permessi, malattia, flessibilita e certificazione presenza, con la stessa esperienza visuale usata in tutto il modulo.</p>
         <div class="abs-hero-meta">
           <span class="abs-hero-pill" id="hero-pill-dipendente">Dipendente {{ nome }}</span>
+          <span class="abs-hero-pill" id="hero-pill-tipo">Tipo da scegliere</span>
+          <span class="abs-hero-pill" id="hero-pill-periodo">Periodo da definire</span>
           {% if assenze_can_skip_approval %}
             <span class="abs-hero-pill">Puoi saltare approvazione</span>
           {% endif %}
@@ -178,8 +599,14 @@
         </div>
       </div>
       <div class="abs-hero-actions">
-        <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">Le mie richieste</a>
-        <a href="{% url 'assenze_menu' %}" class="abs-hero-action">Menu modulo</a>
+        <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
+          Le mie richieste
+        </a>
+        <a href="{% url 'assenze_menu' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-grid"></use></svg>
+          Menu modulo
+        </a>
       </div>
     </section>
 
@@ -193,10 +620,35 @@
       <div class="abs-note-box">Form precompilato da richiesta duplicata (`copy_from={{ copy_from }}`). Verifica capo reparto, date e motivazione prima dell'invio.</div>
     {% endif %}
 
+    <div class="abs-request-layout">
+      <div class="abs-request-main">
+        <div class="abs-flow-strip" aria-label="Avanzamento compilazione richiesta">
+          <div class="abs-flow-step is-current" data-flow-step="tipo">
+            <span class="abs-flow-index">1</span>
+            <strong>Tipo</strong>
+            <span>Scegli il flusso giusto</span>
+          </div>
+          <div class="abs-flow-step" data-flow-step="approvazione">
+            <span class="abs-flow-index">2</span>
+            <strong>Approvatore</strong>
+            <span>Controlla capo reparto</span>
+          </div>
+          <div class="abs-flow-step" data-flow-step="periodo">
+            <span class="abs-flow-index">3</span>
+            <strong>Periodo</strong>
+            <span>Data, ora e durata</span>
+          </div>
+          <div class="abs-flow-step" data-flow-step="invio">
+            <span class="abs-flow-index">4</span>
+            <strong>Invio</strong>
+            <span>Riepilogo pronto</span>
+          </div>
+        </div>
+
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Compilazione richiesta</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-plus-file"></use></svg>Compilazione richiesta</h2>
           <p class="abs-panel-subtitle">Completa i dati essenziali e scegli se usare il flusso standard oppure la modalita certifica presenza.</p>
         </div>
       </div>
@@ -208,13 +660,13 @@
           <section class="abs-panel" style="box-shadow:none;">
             <div class="abs-panel-head">
               <div class="abs-panel-title-wrap">
-                <h3 class="abs-panel-title" style="font-size:18px;">Anagrafica e approvazione</h3>
+                <h3 class="abs-panel-title" style="font-size:18px;"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Anagrafica e approvazione</h3>
                 <p class="abs-panel-subtitle">Identita richiedente, capo reparto e categoria della richiesta.</p>
               </div>
             </div>
             <div class="abs-panel-body">
               <div class="abs-fields-2">
-                <div class="abs-field">
+                <div class="abs-field abs-type-field">
                   {% if assenze_can_insert_for_others %}
                     <label for="dipendente_id">Dipendente</label>
                     <select id="dipendente_id" name="dipendente_id" class="abs-select">
@@ -247,12 +699,42 @@
               <div class="abs-fields-2">
                 <div class="abs-field">
                   <label for="tipoassenza">Tipo assenza</label>
-                  <select id="tipoassenza" name="tipoassenza" class="abs-select" required>
-                    <option value="">-- Seleziona --</option>
-                    {% for t in tipi %}
-                      <option value="{{ t }}"{% if form_data.tipoassenza == t %} selected{% endif %}>{{ t }}</option>
-                    {% endfor %}
-                  </select>
+                  <div class="abs-type-grid" aria-label="Scelta rapida tipo assenza">
+                    <button type="button" class="abs-type-card abs-type-ferie" data-type-card="Ferie">
+                      <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
+                      <span class="abs-type-card-title">Ferie</span>
+                      <span class="abs-type-card-text">Giornata intera o periodo continuativo.</span>
+                    </button>
+                    <button type="button" class="abs-type-card abs-type-permesso" data-type-card="Permesso">
+                      <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg></span>
+                      <span class="abs-type-card-title">Permesso</span>
+                      <span class="abs-type-card-text">Ore nello stesso giorno, rapido e preciso.</span>
+                    </button>
+                    <button type="button" class="abs-type-card abs-type-malattia" data-type-card="Malattia">
+                      <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg></span>
+                      <span class="abs-type-card-title">Malattia</span>
+                      <span class="abs-type-card-text">Con campo certificato quando serve.</span>
+                    </button>
+                    <button type="button" class="abs-type-card abs-type-flessibilita" data-type-card="Flessibilita">
+                      <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg></span>
+                      <span class="abs-type-card-title">Flessibilita</span>
+                      <span class="abs-type-card-text">Turno esteso con controlli automatici.</span>
+                    </button>
+                    <button type="button" class="abs-type-card abs-type-presenza" data-type-card="Certifica presenza">
+                      <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg></span>
+                      <span class="abs-type-card-title">Certifica presenza</span>
+                      <span class="abs-type-card-text">Ingresso e uscita in modalita dedicata.</span>
+                    </button>
+                  </div>
+                  <div class="abs-type-native">
+                    <select id="tipoassenza" name="tipoassenza" class="abs-select" required>
+                      <option value="">-- Seleziona --</option>
+                      {% for t in tipi %}
+                        <option value="{{ t }}"{% if form_data.tipoassenza == t %} selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="abs-field-hint">Puoi usare le card oppure il menu: il valore salvato resta lo stesso.</div>
+                  </div>
                 </div>
                 <div class="abs-field">
                   <label for="motivazione">Motivazione richiesta</label>
@@ -292,7 +774,7 @@
           <section class="abs-panel" style="box-shadow:none;">
             <div class="abs-panel-head">
               <div class="abs-panel-title-wrap">
-                <h3 class="abs-panel-title" style="font-size:18px;">Dettaglio orario</h3>
+                <h3 class="abs-panel-title" style="font-size:18px;"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg>Dettaglio orario</h3>
                 <p class="abs-panel-subtitle">Scegli un preset rapido oppure compila data e ora manualmente.</p>
               </div>
             </div>
@@ -333,8 +815,22 @@
                   </div>
 
                   {# ── Avviso non bloccante: corsi formativi nei giorni richiesti ── #}
+                  <div class="abs-duration-card" aria-live="polite">
+                    <div class="abs-duration-top">
+                      <div class="abs-duration-copy">
+                        <span class="abs-duration-label">Durata stimata</span>
+                        <span class="abs-duration-value" id="abs-duration-value">--</span>
+                      </div>
+                      <span class="abs-live-badge" id="abs-duration-mode">Bozza</span>
+                    </div>
+                    <div class="abs-duration-track" aria-hidden="true">
+                      <div class="abs-duration-bar" id="abs-duration-bar"></div>
+                    </div>
+                    <div class="abs-duration-hint" id="abs-duration-hint">Scegli tipo, date e orari per vedere la stima prima dell'invio.</div>
+                  </div>
+
                   <div id="corsi-conflict-banner" class="abs-corsi-banner" hidden>
-                    <span class="abs-corsi-icon">📚</span>
+                    <span class="abs-corsi-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
                     <div class="abs-corsi-body">
                       <strong id="corsi-conflict-title"></strong>
                       <ul id="corsi-conflict-list" class="abs-corsi-list"></ul>
@@ -348,7 +844,7 @@
 
               <div id="presenza-section" class="abs-stack">
                 <div class="abs-presenza-banner">
-                  <span class="abs-presenza-icon">&#128203;</span>
+                  <span class="abs-presenza-icon"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg></span>
                   <div class="abs-presenza-copy">
                     <strong>Certifica presenza</strong>
                     <span>Indica data e orari di ingresso/uscita. Il capo reparto dovra approvare la certificazione.</span>
@@ -439,6 +935,48 @@
         </form>
       </div>
     </section>
+      </div>
+
+      <aside class="abs-request-side" aria-label="Riepilogo richiesta in tempo reale">
+        <section class="abs-live-panel">
+          <div class="abs-live-head">
+            <h2 class="abs-live-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Bozza live</h2>
+            <span class="abs-live-badge" id="abs-live-ready">Da completare</span>
+          </div>
+          <div class="abs-live-body">
+            <div class="abs-live-hero">
+              <span class="abs-live-kicker">Tipo richiesta</span>
+              <span class="abs-live-value" id="abs-live-type">Seleziona</span>
+              <span class="abs-live-muted" id="abs-live-type-note">Le card aggiornano il form e la preview.</span>
+            </div>
+            <div class="abs-live-row">
+              <span class="abs-live-row-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
+              <span class="abs-live-row-copy">
+                <span class="abs-live-label">Periodo</span>
+                <span class="abs-live-text" id="abs-live-period">Date non impostate</span>
+              </span>
+            </div>
+            <div class="abs-live-row">
+              <span class="abs-live-row-icon"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg></span>
+              <span class="abs-live-row-copy">
+                <span class="abs-live-label">Durata</span>
+                <span class="abs-live-text" id="abs-live-duration">--</span>
+              </span>
+            </div>
+            <div class="abs-live-row">
+              <span class="abs-live-row-icon"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg></span>
+              <span class="abs-live-row-copy">
+                <span class="abs-live-label">Percorso</span>
+                <span class="abs-live-text" id="abs-live-approval">Capo reparto da selezionare</span>
+              </span>
+            </div>
+            <div class="abs-live-hints" id="abs-live-hints">
+              <div class="abs-live-hint">Scegli un tipo di assenza per attivare regole e suggerimenti.</div>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
   </div>
 {% endblock %}
 
@@ -458,10 +996,36 @@
     var presenzaSec = document.getElementById("presenza-section");
     var certificatoWrap = document.getElementById("certificato-wrap");
     var certificatoInput = document.getElementById("certificato_medico");
+    var capoSelect = document.getElementById("caporeparto");
+    var skipApprovalInput = document.getElementById("salta_approvazione");
+    var typeCards = Array.prototype.slice.call(document.querySelectorAll("[data-type-card]"));
+    var flowSteps = Array.prototype.slice.call(document.querySelectorAll("[data-flow-step]"));
+    var liveType = document.getElementById("abs-live-type");
+    var liveTypeNote = document.getElementById("abs-live-type-note");
+    var livePeriod = document.getElementById("abs-live-period");
+    var liveDuration = document.getElementById("abs-live-duration");
+    var liveApproval = document.getElementById("abs-live-approval");
+    var liveHints = document.getElementById("abs-live-hints");
+    var liveReady = document.getElementById("abs-live-ready");
+    var durationValue = document.getElementById("abs-duration-value");
+    var durationMode = document.getElementById("abs-duration-mode");
+    var durationHint = document.getElementById("abs-duration-hint");
+    var durationBar = document.getElementById("abs-duration-bar");
+    var heroTipo = document.getElementById("hero-pill-tipo");
+    var heroPeriodo = document.getElementById("hero-pill-periodo");
+
+    function normalizeText(value) {
+      return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
 
     function normalizedType() {
       if (!tipoSel) return "";
-      return tipoSel.value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return normalizeText(tipoSel.value);
+    }
+
+    function selectedText(selectEl) {
+      if (!selectEl || selectEl.selectedIndex < 0) return "";
+      return selectEl.options[selectEl.selectedIndex].text.replace(/\s+/g, " ").trim();
     }
 
     function isPresenza() {
@@ -485,6 +1049,25 @@
     var dateStartInput = document.getElementById("date_start");
     var dateEndInput = document.getElementById("date_end");
 
+    function setTypeValue(value) {
+      if (!tipoSel) return;
+      var target = normalizeText(value);
+      for (var i = 0; i < tipoSel.options.length; i++) {
+        var option = tipoSel.options[i];
+        if (normalizeText(option.value) === target || normalizeText(option.text) === target) {
+          tipoSel.selectedIndex = i;
+          tipoSel.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
+      }
+    }
+
+    typeCards.forEach(function(card) {
+      card.addEventListener("click", function() {
+        setTypeValue(card.getAttribute("data-type-card"));
+      });
+    });
+
     function applyTypeDefaults() {
       if (isFerie()) {
         if (startInput) {
@@ -507,6 +1090,226 @@
       }
     }
 
+    function formatDateLabel(value) {
+      if (!value) return "";
+      var parts = String(value).split("-");
+      if (parts.length !== 3) return value;
+      return parts[2] + "/" + parts[1] + "/" + parts[0];
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+      var d = new Date(value + "T00:00:00");
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function parseDateTime(dateValue, timeValue) {
+      if (!dateValue) return null;
+      var t = timeValue || "00:00";
+      var d = new Date(dateValue + "T" + t);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function minutesBetween(start, end) {
+      if (!start || !end || end <= start) return null;
+      return Math.round((end - start) / 60000);
+    }
+
+    function timeToMinutes(value) {
+      var parts = String(value || "00:00").split(":");
+      var h = parseInt(parts[0] || "0", 10);
+      var m = parseInt(parts[1] || "0", 10);
+      if (isNaN(h) || isNaN(m)) return 0;
+      return h * 60 + m;
+    }
+
+    function readPresenceTime(prefix) {
+      var h = (document.getElementById(prefix + "_h") || {}).value || "00";
+      var m = (document.getElementById(prefix + "_m") || {}).value || "00";
+      return h + ":" + m;
+    }
+
+    function formatMinutes(minutes) {
+      if (minutes === null || typeof minutes === "undefined") return "--";
+      if (minutes < 60) return minutes + " min";
+      var h = Math.floor(minutes / 60);
+      var m = minutes % 60;
+      return m ? (h + "h " + m + "m") : (h + "h");
+    }
+
+    function inclusiveDays(startDate, endDate) {
+      var s = parseDate(startDate);
+      var e = parseDate(endDate || startDate);
+      if (!s || !e || e < s) return null;
+      return Math.floor((e - s) / 86400000) + 1;
+    }
+
+    function currentDuration() {
+      if (isPresenza()) {
+        var data = (document.getElementById("presenza_data") || {}).value || "";
+        if (!data) {
+          return { label: "--", minutes: null, period: "Data presenza non impostata", hint: "Inserisci la data della certificazione presenza.", ready: false };
+        }
+        var em = timeToMinutes(readPresenceTime("pres_em"));
+        var um = timeToMinutes(readPresenceTime("pres_um"));
+        var minutes = Math.max(0, um - em);
+        var hasPm = document.getElementById("pres_toggle_pm") && document.getElementById("pres_toggle_pm").checked;
+        if (hasPm) {
+          var ep = timeToMinutes(readPresenceTime("pres_ep"));
+          var up = timeToMinutes(readPresenceTime("pres_up"));
+          minutes += Math.max(0, up - ep);
+        }
+        return {
+          label: formatMinutes(minutes),
+          minutes: minutes,
+          period: formatDateLabel(data) + " - presenza certificata",
+          hint: hasPm ? "Mattina e pomeriggio saranno inviati come certificazione presenza." : "Solo turno mattina attivo.",
+          ready: minutes > 0
+        };
+      }
+
+      var ds = dateStartInput ? dateStartInput.value : "";
+      var de = dateEndInput ? (dateEndInput.value || ds) : ds;
+      var ts = startInput ? (startInput.value || "00:00") : "00:00";
+      var te = endInput ? (endInput.value || "23:59") : "23:59";
+      if (!ds) {
+        return { label: "--", minutes: null, period: "Date non impostate", hint: "Inserisci data inizio e fine per calcolare la durata.", ready: false };
+      }
+
+      if (isFerie()) {
+        var days = inclusiveDays(ds, de);
+        if (!days) {
+          return { label: "--", minutes: null, period: "Periodo ferie non valido", hint: "La data fine deve essere successiva o uguale alla data inizio.", ready: false };
+        }
+        return {
+          label: days + (days === 1 ? " giornata" : " giornate"),
+          minutes: days * 480,
+          period: formatDateLabel(ds) + (de && de !== ds ? " - " + formatDateLabel(de) : ""),
+          hint: "Le ferie vengono normalizzate a giornata intera.",
+          ready: true
+        };
+      }
+
+      var start = parseDateTime(ds, ts);
+      var end = parseDateTime(de, te);
+      var minutes = minutesBetween(start, end);
+      if (minutes === null) {
+        return { label: "--", minutes: null, period: "Periodo non valido", hint: "La fine deve essere successiva all'inizio.", ready: false };
+      }
+      return {
+        label: formatMinutes(minutes),
+        minutes: minutes,
+        period: formatDateLabel(ds) + " " + ts + " - " + formatDateLabel(de) + " " + te,
+        hint: "Stima calcolata dai campi data e ora.",
+        ready: true
+      };
+    }
+
+    function setText(el, text) {
+      if (el) el.textContent = text;
+    }
+
+    function setFlowState(doneMap) {
+      var order = ["tipo", "approvazione", "periodo", "invio"];
+      var current = "invio";
+      for (var i = 0; i < order.length; i++) {
+        if (!doneMap[order[i]]) {
+          current = order[i];
+          break;
+        }
+      }
+      flowSteps.forEach(function(step) {
+        var key = step.getAttribute("data-flow-step");
+        step.classList.toggle("is-done", !!doneMap[key]);
+        step.classList.toggle("is-current", key === current);
+      });
+    }
+
+    function renderHints(durationInfo, approvalReady) {
+      if (!liveHints) return;
+      var hints = [];
+      if (!normalizedType()) hints.push("Scegli un tipo di assenza per attivare regole e suggerimenti.");
+      if (isFerie()) hints.push("Ferie: orario bloccato su giornata intera.");
+      if (isPermesso()) hints.push("Permesso: inizio e fine devono restare nello stesso giorno.");
+      if (isMalattia()) hints.push("Malattia: il campo certificato e disponibile sotto al tipo richiesta.");
+      if (normalizedType() === "flessibilita") {
+        if (durationInfo.minutes !== null) {
+          var hours = durationInfo.minutes / 60;
+          if (hours < 9) hints.push("Flessibilita sotto le 9 ore: valuta Permesso.");
+          else if (hours > 10) hints.push("Flessibilita oltre 10 ore: riduci l'intervallo.");
+          else hints.push("Flessibilita nel range atteso.");
+        } else {
+          hints.push("Flessibilita: il controllo si attiva appena inserisci gli orari.");
+        }
+      }
+      if (isPresenza()) hints.push("Certifica presenza: il form inviera gli orari dei turni selezionati.");
+      if (!approvalReady) hints.push("Seleziona il capo reparto o abilita il salto approvazione se consentito.");
+      if (durationInfo.hint) hints.push(durationInfo.hint);
+      liveHints.innerHTML = "";
+      hints.slice(0, 4).forEach(function(text) {
+        var item = document.createElement("div");
+        item.className = "abs-live-hint";
+        item.textContent = text;
+        liveHints.appendChild(item);
+      });
+    }
+
+    function updateShortcutActive() {
+      document.querySelectorAll(".abs-shortcut-item").forEach(function(label) {
+        var input = label.querySelector('input[name="shortcut"]');
+        label.classList.toggle("is-active", !!input && input.checked);
+      });
+    }
+
+    function updateTypeCards() {
+      var current = normalizedType();
+      typeCards.forEach(function(card) {
+        card.classList.toggle("is-active", normalizeText(card.getAttribute("data-type-card")) === current);
+      });
+    }
+
+    function updateDynamicPreview() {
+      var typeLabel = selectedText(tipoSel);
+      var cleanType = normalizedType();
+      var durationInfo = currentDuration();
+      var approvalLabel = "Capo reparto da selezionare";
+      var approvalReady = false;
+      if (skipApprovalInput && skipApprovalInput.checked) {
+        approvalLabel = "Invio diretto senza approvazione";
+        approvalReady = true;
+      } else if (capoSelect && capoSelect.value) {
+        approvalLabel = selectedText(capoSelect);
+        approvalReady = true;
+      }
+
+      updateTypeCards();
+      updateShortcutActive();
+      setText(liveType, typeLabel && cleanType ? typeLabel : "Seleziona");
+      setText(liveTypeNote, cleanType ? "Flusso " + typeLabel + " attivo." : "Le card aggiornano il form e la preview.");
+      setText(livePeriod, durationInfo.period);
+      setText(liveDuration, durationInfo.label);
+      setText(liveApproval, approvalLabel);
+      setText(durationValue, durationInfo.label);
+      setText(durationMode, cleanType ? typeLabel : "Bozza");
+      setText(durationHint, durationInfo.hint);
+      setText(heroTipo, cleanType ? "Tipo " + typeLabel : "Tipo da scegliere");
+      setText(heroPeriodo, durationInfo.ready ? durationInfo.label : "Periodo da definire");
+      if (durationBar) {
+        var pct = durationInfo.minutes === null ? 0 : Math.max(8, Math.min(100, Math.round(durationInfo.minutes / 480 * 100)));
+        durationBar.style.width = pct + "%";
+      }
+
+      var ready = !!cleanType && approvalReady && durationInfo.ready;
+      setText(liveReady, ready ? "Pronta" : "Da completare");
+      setFlowState({
+        tipo: !!cleanType,
+        approvazione: approvalReady,
+        periodo: durationInfo.ready,
+        invio: ready
+      });
+      renderHints(durationInfo, approvalReady);
+    }
+
     function switchForm() {
       if (isPresenza()) {
         standardSec.classList.add("hidden");
@@ -519,6 +1322,7 @@
         certificatoWrap.classList.toggle("visible", isMalattia());
       }
       applyTypeDefaults();
+      updateDynamicPreview();
     }
 
     if (tipoSel) {
@@ -531,6 +1335,7 @@
         if ((isPermesso() || isFerie()) && dateEndInput) {
           dateEndInput.value = dateStartInput.value;
         }
+        updateDynamicPreview();
       });
     }
 
@@ -538,14 +1343,40 @@
       radio.addEventListener("change", function() {
         if (isFerie()) {
           applyTypeDefaults();
+          updateDynamicPreview();
           return;
         }
         var p = presets[this.value];
         if (!p || !startInput || !endInput) return;
         startInput.value = p[0];
         endInput.value = p[1];
+        updateDynamicPreview();
       });
     });
+
+    [
+      dateEndInput,
+      startInput,
+      endInput,
+      capoSelect,
+      skipApprovalInput,
+      document.getElementById("presenza_data"),
+      document.getElementById("pres_em_h"),
+      document.getElementById("pres_em_m"),
+      document.getElementById("pres_um_h"),
+      document.getElementById("pres_um_m"),
+      document.getElementById("pres_toggle_pm"),
+      document.getElementById("pres_ep_h"),
+      document.getElementById("pres_ep_m"),
+      document.getElementById("pres_up_h"),
+      document.getElementById("pres_up_m")
+    ].forEach(function(el) {
+      if (!el) return;
+      el.addEventListener("input", updateDynamicPreview);
+      el.addEventListener("change", updateDynamicPreview);
+    });
+
+    updateDynamicPreview();
 
     if (!form) return;
 
@@ -678,6 +1509,7 @@
           for (var i = 0; i < capoSel.options.length; i++) {
             if (capoSel.options[i].value === data.capo_value) {
               capoSel.selectedIndex = i;
+              capoSel.dispatchEvent(new Event("change", { bubbles: true }));
               return;
             }
           }

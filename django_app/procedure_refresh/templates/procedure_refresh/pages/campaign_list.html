@@ -2,6 +2,8 @@
 
 {% block title %}Campagne Presa Visione | Portale{% endblock %}
 
+{% block body_class %}{{ block.super }} pr-workspace-page pr-campaign-list-page{% endblock %}
+
 {% block extra_head %}
 <style>
 #pr-root { display:flex; flex-direction:column; gap:20px; }
@@ -48,6 +50,7 @@ body.theme-dark .pr-badge-closed { background:rgba(21,128,61,.2); color:#86efac;
 body.theme-dark .pr-badge-archived { background:var(--surface); color:var(--text-light); }
 body.theme-dark .pr-empty { color:var(--text-light); }
 </style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
 
 {% block content %}

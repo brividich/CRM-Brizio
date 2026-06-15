@@ -1,3 +1,4 @@
+from datetime import date
 from io import StringIO
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
@@ -37,6 +38,8 @@ from .views import (
     _tipo_for_display,
     _tipo_for_storage,
 )
+
+User = get_user_model()
 
 
 class SharePointStatusParsingTests(SimpleTestCase):
@@ -936,7 +939,11 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class GestioneAssenzeDeleteUrlTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="assenze-gestione-user", password="pass12345")
+        # Superuser per bypassare ACLMiddleware: questi test verificano il
+        # rendering della pagina/URL, non il gating ACL (pilotato via mock).
+        self.user = get_user_model().objects.create_superuser(
+            username="assenze-gestione-user", email="assenze-gestione@example.com", password="pass12345"
+        )
 
     @patch("assenze.views._template_perm_context", return_value={})
     @patch("assenze.views._load_personal")
@@ -1031,6 +1038,13 @@ class GestioneAssenzeDeleteApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="assenze-delete-user", password="pass12345")
 
+    def _superuser(self, username: str):
+        # I superuser bypassano ACLMiddleware: serve per i test che colpiscono
+        # la view protetta `api_evento_delete` pilotando i permessi via mock.
+        return get_user_model().objects.create_superuser(
+            username=username, email=f"{username}@example.com", password="pass12345"
+        )
+
     @patch("assenze.views._delete_assenza", return_value=True)
     @patch("assenze.views._graph_delete", return_value=(True, ""))
     @patch("assenze.views._graph_configured", return_value=True)
@@ -1052,7 +1066,7 @@ class GestioneAssenzeDeleteApiTests(TestCase):
             "copia_nome": "Luca Bova",
             "email_esterna": "luca@example.com",
         }
-        self.client.force_login(self.user)
+        self.client.force_login(self._superuser("su-delete-cleanup"))
 
         response = self.client.post(
             reverse("assenze_api_evento_delete", args=[42]),
@@ -1064,6 +1078,109 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         self.assertJSONEqual(response.content, {"ok": True, "item_id": 42})
         mock_graph_delete.assert_called_once_with("4018")
         mock_delete_assenza.assert_called_once_with(42)
+
+    @patch("assenze.views._notify_assenza_deleted")
+    @patch("assenze.views._delete_assenza", return_value=True)
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    def test_delete_approved_request_triggers_notification(
+        self,
+        _mock_perms,
+        mock_get_assenza,
+        _mock_identity,
+        _mock_graph_configured,
+        _mock_delete_assenza,
+        mock_notify,
+    ):
+        # moderation_status == 0 => richiesta approvata => notifica.
+        mock_get_assenza.return_value = {
+            "id": 7,
+            "sharepoint_item_id": "",
+            "copia_nome": "Luca Bova",
+            "email_esterna": "luca@example.com",
+            "moderation_status": 0,
+        }
+        self.client.force_login(self._superuser("su-delete-notify"))
+
+        response = self.client.post(
+            reverse("assenze_api_evento_delete", args=[7]),
+            content_type="application/json",
+            data="{}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_notify.assert_called_once()
+        # Il record passato alla notifica e' quello eliminato.
+        self.assertEqual(mock_notify.call_args.args[1].get("id"), 7)
+
+    @patch("assenze.views._notify_assenza_deleted")
+    @patch("assenze.views._delete_assenza", return_value=True)
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    def test_delete_pending_request_does_not_notify(
+        self,
+        _mock_perms,
+        mock_get_assenza,
+        _mock_identity,
+        _mock_graph_configured,
+        _mock_delete_assenza,
+        mock_notify,
+    ):
+        # moderation_status == 2 (in attesa) => nessuna notifica.
+        mock_get_assenza.return_value = {
+            "id": 8,
+            "sharepoint_item_id": "",
+            "copia_nome": "Luca Bova",
+            "email_esterna": "luca@example.com",
+            "moderation_status": 2,
+        }
+        self.client.force_login(self._superuser("su-delete-pending"))
+
+        response = self.client.post(
+            reverse("assenze_api_evento_delete", args=[8]),
+            content_type="application/json",
+            data="{}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_notify.assert_not_called()
+
+    @patch("assenze.views._delete_assenza", return_value=True)
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    @patch("assenze.views._get_assenza")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    def test_delete_succeeds_even_if_notification_raises(
+        self,
+        _mock_perms,
+        mock_get_assenza,
+        _mock_identity,
+        _mock_graph_configured,
+        _mock_delete_assenza,
+    ):
+        # La notifica e' fail-open: un suo errore non deve ribaltare la delete.
+        mock_get_assenza.return_value = {
+            "id": 9,
+            "sharepoint_item_id": "",
+            "copia_nome": "Luca Bova",
+            "email_esterna": "luca@example.com",
+            "moderation_status": 0,
+        }
+        self.client.force_login(self._superuser("su-delete-failopen"))
+
+        with patch("assenze.views._notify_assenza_deleted", side_effect=RuntimeError("boom")):
+            response = self.client.post(
+                reverse("assenze_api_evento_delete", args=[9]),
+                content_type="application/json",
+                data="{}",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {"ok": True, "item_id": 9})
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -1116,7 +1233,11 @@ class AssenzeCarConsensoTests(TestCase):
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class MiaAssenzaUpdateTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="assenze-update-user", password="pass12345")
+        # Superuser per bypassare ACLMiddleware; i permessi applicativi e
+        # l'identita' sono pilotati via mock nei singoli test.
+        self.user = get_user_model().objects.create_superuser(
+            username="assenze-update-user", email="assenze-update@example.com", password="pass12345"
+        )
 
     @patch("assenze.views._graph_configured", return_value=False)
     @patch("assenze.views._update_assenza", return_value=True)
@@ -1163,8 +1284,10 @@ class MiaAssenzaUpdateTests(TestCase):
 class AssenzeCsvExportAuditTests(TestCase):
     def setUp(self):
         super().setUp()
-        self.user = get_user_model().objects.create_user(
+        # Superuser per bypassare ACLMiddleware; scope/permessi CAR pilotati via mock.
+        self.user = get_user_model().objects.create_superuser(
             username="assenze-export-user",
+            email="assenze-export@example.com",
             password="pass12345",
         )
         self.client.force_login(self.user)
@@ -1327,3 +1450,105 @@ class AssenzeInsertForOthersScopeTests(TestCase):
 
     def test_returns_empty_when_no_capo_id(self):
         self.assertEqual(_anagrafica_employee_ids_for_capo(None), set())
+
+
+class RiconciliazionePresenzeLogicTests(SimpleTestCase):
+    """RA1 — logica pura di matching presenza ↔ assenza (senza DB)."""
+
+    def _presenza(self, **kw):
+        base = dict(
+            id=1, nome_dipendente="Mario Rossi", data=date(2026, 6, 10),
+            ore_totali=8.0, assenza_id=None,
+        )
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    def _assenza(self, **kw):
+        base = dict(
+            id=100, copia_nome="Mario Rossi", data_inizio=date(2026, 6, 8),
+            data_fine=date(2026, 6, 12), tipo_assenza="ferie",
+        )
+        base.update(kw)
+        return base
+
+    def test_presenza_in_ferie_e_conflitto(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti([self._presenza()], [self._assenza()])
+        self.assertEqual(len(c), 1)
+        self.assertEqual(c[0].tipo_assenza, "ferie")
+        self.assertEqual(c[0].presenza_id, 1)
+        self.assertEqual(c[0].assenza_id, 100)
+
+    def test_permesso_non_e_conflitto(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti([self._presenza()], [self._assenza(tipo_assenza="permesso")])
+        self.assertEqual(c, [])
+
+    def test_link_assenza_id_sopprime_conflitto(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti([self._presenza(assenza_id=100)], [self._assenza(id=100)])
+        self.assertEqual(c, [])
+
+    def test_presenza_fuori_range_nessun_conflitto(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti([self._presenza(data=date(2026, 7, 1))], [self._assenza()])
+        self.assertEqual(c, [])
+
+    def test_nome_diverso_nessun_conflitto(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti([self._presenza(nome_dipendente="Luigi Verdi")], [self._assenza()])
+        self.assertEqual(c, [])
+
+    def test_malattia_match_normalizzato(self):
+        from assenze.riconciliazione import trova_conflitti
+        c = trova_conflitti(
+            [self._presenza(nome_dipendente="  mario   rossi ")],
+            [self._assenza(tipo_assenza="MALATTIA")],
+        )
+        self.assertEqual(len(c), 1)
+        self.assertEqual(c[0].tipo_label, "Malattia")
+
+    def test_parse_periodo_swap_e_default(self):
+        from assenze.riconciliazione import parse_periodo
+        da, a = parse_periodo(
+            "2026-06-30", "2026-06-01",
+            default_da=date(2026, 1, 1), default_a=date(2026, 12, 31),
+        )
+        self.assertEqual((da, a), (date(2026, 6, 1), date(2026, 6, 30)))
+        da2, a2 = parse_periodo(
+            "", None, default_da=date(2026, 1, 1), default_a=date(2026, 12, 31),
+        )
+        self.assertEqual((da2, a2), (date(2026, 1, 1), date(2026, 12, 31)))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RiconciliazioneViewTests(TestCase):
+    """RA1 — gating e rendering della vista riconciliazione."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="ric-admin", email="ric-admin@example.com", password="pwd12345",
+        )
+        UserOnboarding.objects.create(user=self.admin, completed=True, completed_at=timezone.now())
+        self.basic = User.objects.create_user(
+            username="ric-basic", email="ric-basic@example.com", password="pwd12345",
+        )
+        UserOnboarding.objects.create(user=self.basic, completed=True, completed_at=timezone.now())
+
+    def test_basic_user_forbidden(self):
+        self.client.force_login(self.basic)
+        response = self.client.get(reverse("assenze_riconciliazione"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_page_renders(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assenze_riconciliazione"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Riconciliazione presenze")
+
+    def test_csv_export(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assenze_riconciliazione"), {"export": "csv"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/csv", response["Content-Type"])
+        self.assertIn("Dipendente", response.content.decode("utf-8-sig"))

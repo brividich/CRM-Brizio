@@ -90,8 +90,14 @@
         </div>
       </div>
       <div class="abs-hero-actions">
-        <a class="abs-hero-action" href="{% url 'assenze_menu' %}">Menu modulo</a>
-        <a class="abs-hero-action abs-hero-action-primary" href="{% url 'assenze_gestione' %}">Gestione richieste</a>
+        <a class="abs-hero-action" href="{% url 'assenze_menu' %}">
+          <svg aria-hidden="true"><use href="#abs-i-grid"></use></svg>
+          Menu modulo
+        </a>
+        <a class="abs-hero-action abs-hero-action-primary" href="{% url 'assenze_gestione' %}">
+          <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
+          Gestione richieste
+        </a>
       </div>
     </section>
 
@@ -105,7 +111,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">{% if edit_obj %}Modifica certificazione{% else %}Nuova certificazione{% endif %}</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg>{% if edit_obj %}Modifica certificazione{% else %}Nuova certificazione{% endif %}</h2>
           <p class="abs-panel-subtitle">
             {% if edit_obj %}
               Aggiorna il record di {{ edit_obj.nome_dipendente }} del {{ edit_obj.data|date:"d-m-Y" }}.
@@ -140,7 +146,7 @@
           <div class="abs-panel" style="box-shadow:none;">
             <div class="abs-panel-head">
               <div class="abs-panel-title-wrap">
-                <h3 class="abs-panel-title" style="font-size:18px;">Turno mattina</h3>
+                <h3 class="abs-panel-title" style="font-size:18px;"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg>Turno mattina</h3>
                 <p class="abs-panel-subtitle">Orari obbligatori per la certificazione base.</p>
               </div>
             </div>
@@ -190,7 +196,7 @@
           <div id="cp-pomeriggio-section" class="abs-panel{% if edit_obj and edit_obj.turno_pomeriggio %} visible{% endif %}">
             <div class="abs-panel-head">
               <div class="abs-panel-title-wrap">
-                <h3 class="abs-panel-title" style="font-size:18px;">Turno pomeriggio</h3>
+                <h3 class="abs-panel-title" style="font-size:18px;"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg>Turno pomeriggio</h3>
                 <p class="abs-panel-subtitle">Campi opzionali, richiesti solo con toggle attivo.</p>
               </div>
             </div>
@@ -246,7 +252,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Certificazioni registrate</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Certificazioni registrate</h2>
           <p class="abs-panel-subtitle">Storico filtrabile per dipendente e intervallo data.</p>
         </div>
       </div>

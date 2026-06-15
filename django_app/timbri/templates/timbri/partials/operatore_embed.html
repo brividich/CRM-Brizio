@@ -1,0 +1,180 @@
+{% comment %}
+Frammento timbri incorporabile nella scheda anagrafica (tab Timbri).
+Caricato in lazy via HTMX da timbri:operatore_embed. Mostra record attivi
+(timbri/firme/sigle) + storico riusando il componente detail_record.html.
+Stati: forbidden / schema_issue / not_found / contenuto.
+{% endcomment %}
+{% if forbidden %}
+  <div class="tim-embed-msg">Non hai i permessi per consultare i timbri di questo dipendente.</div>
+{% elif schema_issue %}
+  <div class="tim-embed-msg">{{ schema_issue }}</div>
+{% elif not_found %}
+  <div class="tim-embed-msg">Dipendente non trovato nell'anagrafica timbri.</div>
+{% else %}
+<div class="tim-embed" id="tim-embed-{{ employee.legacy_id }}">
+
+  <div class="tim-embed-bar">
+    <div class="tim-embed-kpi">
+      <span><strong>{{ stats.totale }}</strong> totali</span>
+      <span class="tim-embed-kpi-teal"><strong>{{ stats.attivi }}</strong> attivi</span>
+      <span class="tim-embed-kpi-gray"><strong>{{ stats.storico }}</strong> storico</span>
+    </div>
+    <div class="tim-embed-actions">
+      {% if can_edit_timbri and employee.legacy_id %}
+        <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}">+ Nuovo record</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}?tipo=SOLO_FIRMA">+ Firma</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}?tipo=SOLO_SIGLA">+ Sigla</a>
+      {% endif %}
+      {% if report_url %}
+        <a class="tim-btn tim-btn-report" href="{{ report_url }}" target="_blank" rel="noopener">Report</a>
+      {% endif %}
+      {% if employee.legacy_id %}
+        <a class="tim-btn" href="{% url 'timbri:operatore_detail_by_legacy' employee.legacy_id %}">Scheda completa →</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Record attivi ── #}
+  <div class="tim-embed-section">
+    <div class="tim-section-head">
+      <div class="tim-section-title">Record attivi {% if stats.attivi %}<span class="tim-section-badge tim-section-badge-teal">{{ stats.attivi }}</span>{% endif %}</div>
+    </div>
+    {% if active_timbri or active_firme or active_sigle %}
+      <div class="tim-tabs">
+        <div class="tim-tab{% if active_timbri or not active_firme and not active_sigle %} active{% endif %}" data-subtab="timbri">
+          Timbri {% if active_timbri %}<span class="tim-tab-badge">{{ active_timbri|length }}</span>{% endif %}
+        </div>
+        {% if active_firme %}
+          <div class="tim-tab{% if not active_timbri %} active{% endif %}" data-subtab="firme">Firme <span class="tim-tab-badge">{{ active_firme|length }}</span></div>
+        {% endif %}
+        {% if active_sigle %}
+          <div class="tim-tab{% if not active_timbri and not active_firme %} active{% endif %}" data-subtab="sigle">Sigle <span class="tim-tab-badge">{{ active_sigle|length }}</span></div>
+        {% endif %}
+      </div>
+
+      <div class="tim-tab-panel{% if active_timbri or not active_firme and not active_sigle %} active{% endif %}" data-subtab-panel="timbri">
+        <div class="tim-records">
+          {% for record in active_timbri %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% empty %}<div class="tim-empty">Nessun timbro attivo.</div>{% endfor %}
+        </div>
+      </div>
+      {% if active_firme %}
+        <div class="tim-tab-panel{% if not active_timbri %} active{% endif %}" data-subtab-panel="firme">
+          <div class="tim-records">{% for record in active_firme %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% endfor %}</div>
+        </div>
+      {% endif %}
+      {% if active_sigle %}
+        <div class="tim-tab-panel{% if not active_timbri and not active_firme %} active{% endif %}" data-subtab-panel="sigle">
+          <div class="tim-records">{% for record in active_sigle %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% endfor %}</div>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="tim-empty">Nessun record attivo per questo dipendente.</div>
+    {% endif %}
+  </div>
+
+  {# ── Storico ── #}
+  <div class="tim-embed-section">
+    <div class="tim-section-head">
+      <div class="tim-section-title">Storico {% if stats.storico %}<span class="tim-section-badge">{{ stats.storico }}</span>{% endif %}</div>
+    </div>
+    <div class="tim-records">
+      {% for record in historical_records %}{% include "timbri/components/detail_record.html" with record=record active=False %}{% empty %}<div class="tim-empty">Nessun record storico.</div>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<style>
+/* Container del frammento timbri incorporato nella scheda dipendente.
+   I record portano gia' il proprio stile (detail_record.html); qui solo
+   barra azioni, sezioni e sub-tab. */
+.tim-embed { display:flex; flex-direction:column; gap:18px; }
+.tim-embed-msg { color:#94a3b8; font-size:13px; padding:18px 4px; }
+.tim-embed-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.tim-embed-kpi { display:flex; gap:14px; font-size:13px; color:#64748b; }
+.tim-embed-kpi strong { font-size:16px; color:#0f172a; }
+.tim-embed-kpi-teal strong { color:#0f766e; }
+.tim-embed-kpi-gray strong { color:#94a3b8; }
+.tim-embed-actions { display:flex; gap:7px; flex-wrap:wrap; }
+.tim-embed .tim-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#334155; cursor:pointer; white-space:nowrap; transition:background .12s, border-color .12s; }
+.tim-embed .tim-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
+.tim-embed .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-embed .tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
+.tim-embed .tim-btn-report { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+.tim-embed .tim-btn-report:hover { background:#dbeafe; }
+.tim-embed-section { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+.tim-embed-section .tim-section-head { padding:12px 16px; border-bottom:1px solid #f1f5f9; background:#f8fafc; }
+.tim-embed-section .tim-section-title { font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; }
+.tim-embed .tim-section-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:7px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:800; padding:0 5px; }
+.tim-embed .tim-section-badge-teal { background:#f0fdfa; color:#0f766e; }
+.tim-embed .tim-tabs { display:flex; gap:0; border-bottom:2px solid #f1f5f9; margin:0 16px; overflow-x:auto; }
+.tim-embed .tim-tab { padding:9px 16px; font-size:13px; font-weight:700; color:#94a3b8; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; -webkit-user-select:none; user-select:none; white-space:nowrap; display:flex; align-items:center; gap:6px; transition:color .12s, border-color .12s; }
+.tim-embed .tim-tab:hover { color:#475569; }
+.tim-embed .tim-tab.active { color:#0f766e; border-bottom-color:#0f766e; }
+.tim-embed .tim-tab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; border-radius:6px; background:#f1f5f9; color:#475569; font-size:10px; font-weight:800; padding:0 4px; }
+.tim-embed .tim-tab.active .tim-tab-badge { background:#f0fdfa; color:#0f766e; }
+.tim-embed .tim-tab-panel { display:none; }
+.tim-embed .tim-tab-panel.active { display:block; }
+.tim-embed .tim-empty { color:#94a3b8; text-align:center; padding:24px 16px; font-size:13px; }
+body.theme-dark .tim-embed-kpi { color:var(--text-light); }
+body.theme-dark .tim-embed-kpi strong { color:var(--text); }
+body.theme-dark .tim-embed-section { border-color:var(--border); }
+body.theme-dark .tim-embed-section .tim-section-head { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tim-embed-section .tim-section-title { color:var(--text); }
+body.theme-dark .tim-embed .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-embed .tim-btn:hover { background:var(--surface-alt); }
+body.theme-dark .tim-embed .tim-tabs { border-color:var(--border); }
+body.theme-dark .tim-embed .tim-tab.active { color:#2dd4bf; border-bottom-color:#2dd4bf; }
+</style>
+
+<script>
+(function () {
+  var root = document.getElementById('tim-embed-{{ employee.legacy_id }}');
+  if (!root || root.dataset.wired) return;
+  root.dataset.wired = '1';
+
+  // Sub-tab timbri/firme/sigle (scope: solo dentro il frammento)
+  root.querySelectorAll('.tim-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var name = this.getAttribute('data-subtab');
+      root.querySelectorAll('.tim-tab').forEach(function (t) { t.classList.remove('active'); });
+      root.querySelectorAll('.tim-tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      this.classList.add('active');
+      var panel = root.querySelector('.tim-tab-panel[data-subtab-panel="' + name + '"]');
+      if (panel) panel.classList.add('active');
+    });
+  });
+
+  // Toggle immagini sui record storico
+  root.addEventListener('click', function (e) {
+    var btn = e.target.closest('.tim-rec-toggle-btn[data-target]');
+    if (!btn) return;
+    var panel = document.getElementById(btn.dataset.target);
+    if (!panel) return;
+    var open = btn.classList.contains('is-open');
+    panel.classList.toggle('tim-rec-imgs-collapsed', open);
+    btn.classList.toggle('is-open', !open);
+  });
+
+  {% if can_copy_timbri %}
+  async function copyImg(btn, url) {
+    try {
+      btn.textContent = '…';
+      var img = new Image(); img.crossOrigin = 'anonymous';
+      await new Promise(function (res, rej) { img.onload = res; img.onerror = rej; img.src = url; });
+      var c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      var blob = await new Promise(function (res) { c.toBlob(res, 'image/png'); });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      btn.textContent = '✓ Copiato'; btn.classList.add('copied');
+      setTimeout(function () { btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 2000);
+    } catch (err) { btn.textContent = 'Errore'; setTimeout(function () { btn.textContent = 'Copia'; }, 2000); }
+  }
+  root.addEventListener('click', function (e) {
+    var btn = e.target.closest('.tim-btn-copy-sm');
+    if (btn && btn.dataset.url) copyImg(btn, btn.dataset.url);
+  });
+  {% endif %}
+})();
+</script>
+{% endif %}

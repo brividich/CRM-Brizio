@@ -2,6 +2,8 @@
 
 {% block title %}Assenze | Portale Applicativo{% endblock %}
 
+{% block assenze_shell_class %}abs-menu-shell{% endblock %}
+
 {% block assenze_shell_head %}
   <style>
     .abs-recent-list { display: grid; gap: 10px; }
@@ -32,80 +34,445 @@
     body.theme-dark .abs-recent-item { background:var(--surface-alt); border-color:var(--border); }
     body.theme-dark .abs-recent-title { color:var(--text); }
     body.theme-dark .abs-recent-meta  { color:var(--text-light); }
+
+    .abs-menu-shell {
+      gap: 14px;
+      align-content: start;
+      grid-auto-rows: max-content;
+    }
+    .abs-menu-hero {
+      align-items: center;
+      padding: 20px 22px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(9, 54, 61, .96) 0%, rgba(15, 118, 110, .96) 58%, rgba(20, 184, 166, .94) 100%);
+      box-shadow: 0 14px 30px rgba(15, 118, 110, .16);
+    }
+    .abs-menu-hero .abs-hero-copy {
+      gap: 8px;
+      max-width: 720px;
+    }
+    .abs-menu-hero .abs-eyebrow {
+      padding: 5px 10px;
+      font-size: 10px;
+      letter-spacing: .06em;
+    }
+    .abs-menu-hero h1 { font-size: 28px; }
+    .abs-menu-hero p {
+      max-width: 680px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .abs-menu-hero .abs-hero-pill {
+      min-height: 26px;
+      padding: 0 10px;
+      font-size: 11px;
+    }
+    .abs-menu-hero .abs-hero-action {
+      min-height: 38px;
+      padding: 0 13px;
+      border-radius: 9px;
+      font-size: 12px;
+    }
+    .abs-menu-cards {
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+    }
+    .abs-menu-card {
+      min-height: 112px;
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, .035);
+      background: #fff;
+    }
+    .abs-menu-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .07);
+    }
+    .abs-menu-card .abs-card-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      font-size: 15px;
+    }
+    .abs-menu-card .abs-card-content { gap: 5px; }
+    .abs-menu-card .abs-card-title { font-size: 14px; }
+    .abs-menu-card .abs-card-text {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .abs-menu-card .abs-card-count {
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      font-size: 10px;
+    }
+    .abs-menu-recent {
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .035);
+    }
+    .abs-menu-recent .abs-panel-head {
+      align-items: center;
+      padding: 14px 18px;
+    }
+    .abs-menu-recent .abs-panel-title { font-size: 19px; }
+    .abs-menu-recent .abs-panel-subtitle {
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .abs-menu-recent .abs-panel-body {
+      padding: 14px 18px;
+      gap: 10px;
+    }
+    .abs-menu-recent .abs-panel-badge {
+      min-height: 24px;
+      padding: 0 9px;
+      font-size: 11px;
+    }
+    .abs-panel-badge-link { text-decoration: none; }
+    .abs-menu-recent .abs-recent-list { gap: 8px; }
+    .abs-menu-recent .abs-recent-item {
+      gap: 10px;
+      align-items: center;
+      min-height: 48px;
+      padding: 9px 11px;
+      border-radius: 12px;
+    }
+    .abs-menu-recent .abs-recent-dot {
+      width: 9px;
+      height: 9px;
+      margin-top: 0;
+    }
+    .abs-menu-recent .abs-recent-main {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+    .abs-menu-recent .abs-recent-title {
+      min-width: 0;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+    .abs-menu-recent .abs-recent-meta {
+      text-align: right;
+      white-space: nowrap;
+    }
+    @media (min-width: 1320px) {
+      .abs-menu-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    }
+    @media (max-width: 900px) {
+      .abs-menu-hero { padding: 18px; }
+      .abs-menu-hero h1 { font-size: 25px; }
+    }
+    @media (max-width: 640px) {
+      .abs-menu-recent .abs-recent-main { grid-template-columns: 1fr; gap: 3px; }
+      .abs-menu-recent .abs-recent-meta {
+        text-align: left;
+        white-space: normal;
+      }
+    }
+
+    .abs-icon-sprite { display: none; }
+    .abs-menu-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
+      gap: 18px;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      padding: 22px;
+      background:
+        linear-gradient(145deg, rgba(8, 47, 53, .98) 0%, rgba(15, 118, 110, .96) 54%, rgba(34, 197, 194, .9) 100%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,.08) 0 1px, transparent 1px 16px);
+    }
+    .abs-menu-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.13), transparent 36%),
+        linear-gradient(180deg, transparent, rgba(2, 6, 23, .12));
+      pointer-events: none;
+      z-index: -1;
+    }
+    .abs-menu-hero-main {
+      display: grid;
+      gap: 14px;
+      align-content: center;
+    }
+    .abs-menu-hero .abs-hero-copy { max-width: 760px; }
+    .abs-menu-hero .abs-eyebrow {
+      background: rgba(255,255,255,.18);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .abs-menu-hero .abs-hero-actions { gap: 9px; }
+    .abs-menu-hero .abs-hero-action {
+      gap: 8px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+    }
+    .abs-menu-hero .abs-hero-action svg,
+    .abs-hero-stat-icon svg,
+    .abs-card-icon svg,
+    .abs-recent-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .abs-hero-aside {
+      display: grid;
+      gap: 10px;
+      align-content: stretch;
+      min-width: 0;
+    }
+    .abs-hero-stat {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 60px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.13);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+      backdrop-filter: blur(8px);
+    }
+    .abs-hero-stat-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      border-radius: 12px;
+      color: #0f766e;
+      background: rgba(255,255,255,.92);
+    }
+    .abs-hero-stat-copy {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .abs-hero-stat-value {
+      color: #fff;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .abs-hero-stat-label {
+      color: rgba(255,255,255,.78);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .abs-menu-cards { gap: 12px; }
+    .abs-menu-card {
+      --card-accent: #0f766e;
+      --card-soft: #ecfeff;
+      --card-ink: #0f766e;
+      position: relative;
+      overflow: hidden;
+      min-height: 126px;
+      border-color: color-mix(in srgb, var(--card-accent) 18%, #dbe5ef);
+      background:
+        linear-gradient(180deg, #ffffff 0%, #fbfdff 100%),
+        linear-gradient(135deg, var(--card-soft), transparent 70%);
+    }
+    .abs-menu-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      bottom: 12px;
+      width: 4px;
+      border-radius: 0 999px 999px 0;
+      background: var(--card-accent);
+    }
+    .abs-menu-card::after {
+      content: "";
+      position: absolute;
+      right: -38px;
+      top: -42px;
+      width: 110px;
+      height: 110px;
+      border-radius: 24px;
+      rotate: 16deg;
+      background: var(--card-soft);
+      opacity: .95;
+      z-index: 0;
+    }
+    .abs-menu-card > * {
+      position: relative;
+      z-index: 1;
+    }
+    .abs-menu-card .abs-card-icon {
+      color: var(--card-ink);
+      background: var(--card-soft);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-accent) 22%, transparent);
+    }
+    .abs-menu-card:hover { border-color: var(--card-accent); }
+    .abs-card-request { --card-accent: #0f766e; --card-soft: #dffcf7; --card-ink: #0f766e; }
+    .abs-card-manage { --card-accent: #2563eb; --card-soft: #e8f0ff; --card-ink: #1d4ed8; }
+    .abs-card-calendar { --card-accent: #7c3aed; --card-soft: #f1eaff; --card-ink: #6d28d9; }
+    .abs-card-presence { --card-accent: #d97706; --card-soft: #fff4d6; --card-ink: #b45309; }
+    .abs-card-alerts { --card-accent: #e11d48; --card-soft: #ffe7ed; --card-ink: #be123c; }
+    .abs-card-admin { --card-accent: #475569; --card-soft: #eef2f7; --card-ink: #334155; }
+    .abs-menu-recent .abs-panel-head {
+      background:
+        linear-gradient(90deg, #fbfdff 0%, #f7fffc 48%, #fffaf1 100%);
+    }
+    .abs-menu-recent .abs-recent-item {
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+    }
+    .abs-menu-recent .abs-recent-item:hover {
+      transform: translateY(-1px);
+      border-color: #99f6e4;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, .05);
+    }
+    .abs-recent-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      border-radius: 10px;
+      color: #64748b;
+      background: #f1f5f9;
+    }
+    .abs-recent-icon.ok { color: #15803d; background: #dcfce7; }
+    .abs-recent-icon.wait { color: #b45309; background: #fef3c7; }
+    .abs-recent-icon.no { color: #b91c1c; background: #fee2e2; }
+    .abs-menu-recent .abs-recent-dot { display: none; }
+    @media (max-width: 1080px) {
+      .abs-menu-hero { grid-template-columns: 1fr; }
+      .abs-hero-aside { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .abs-hero-aside { grid-template-columns: 1fr; }
+      .abs-hero-stat { min-height: 54px; }
+    }
+    body.theme-dark .abs-menu-card {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+    body.theme-dark .abs-menu-card::after { opacity: .08; }
+    body.theme-dark .abs-menu-recent .abs-panel-head { background: var(--bg); }
+    body.theme-dark .abs-menu-recent .abs-recent-item { background: var(--surface-alt); }
+    body.theme-dark .abs-recent-icon { background: rgba(255,255,255,.08); }
   </style>
 {% endblock %}
 
 {% block assenze_shell_content %}
-  <section class="abs-hero">
-    <div class="abs-hero-copy">
-      <span class="abs-eyebrow">Modulo assenze</span>
-      <h1>Assenze</h1>
-      <p>Accesso unificato a richieste, calendario, segnalazioni e certificazioni presenza. Tutto il modulo ora segue la stessa struttura visuale e la stessa gerarchia informativa.</p>
-      <div class="abs-hero-meta">
-        <span class="abs-hero-pill">{{ recenti|length }} moviment{{ recenti|length|pluralize:"o,i" }} recent{{ recenti|length|pluralize:"e,i" }}</span>
+  <section class="abs-hero abs-menu-hero">
+    <div class="abs-menu-hero-main">
+      <div class="abs-hero-copy">
+        <span class="abs-eyebrow">Modulo assenze</span>
+        <h1>Assenze</h1>
+        <p>Richiedi ferie e permessi, controlla lo stato e apri calendario o certificazioni da un unico punto.</p>
+        <div class="abs-hero-meta">
+          <span class="abs-hero-pill">{{ recenti|length }} moviment{{ recenti|length|pluralize:"o,i" }} recent{{ recenti|length|pluralize:"e,i" }}</span>
+          {% if assenze_can_view_calendar %}
+            <span class="abs-hero-pill">Calendario disponibile</span>
+          {% endif %}
+          {% if assenze_can_edit_events %}
+            <span class="abs-hero-pill">{{ car_pending_count }} in attesa reparto</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="abs-hero-actions">
+        <a href="{% url 'assenze_richiesta' %}" class="abs-hero-action abs-hero-action-primary">
+          <svg aria-hidden="true"><use href="#abs-i-plus-file"></use></svg>
+          Nuova richiesta
+        </a>
+        <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">
+          <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
+          Apri gestione
+        </a>
         {% if assenze_can_view_calendar %}
-          <span class="abs-hero-pill">Calendario disponibile</span>
-        {% endif %}
-        {% if assenze_can_edit_events %}
-          <span class="abs-hero-pill">Gestione reparto attiva</span>
+          <a href="{% url 'assenze_calendario' %}" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>
+            Calendario
+          </a>
         {% endif %}
       </div>
     </div>
-    <div class="abs-hero-actions">
-      <a href="{% url 'assenze_richiesta' %}" class="abs-hero-action abs-hero-action-primary">+ Nuova richiesta</a>
-      <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">Apri gestione</a>
-      {% if assenze_can_view_calendar %}
-        <a href="{% url 'assenze_calendario' %}" class="abs-hero-action">Calendario</a>
-      {% endif %}
+    <div class="abs-hero-aside" aria-label="Riepilogo rapido Assenze">
+      <div class="abs-hero-stat">
+        <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
+        <span class="abs-hero-stat-copy">
+          <span class="abs-hero-stat-value">{{ recenti|length }}</span>
+          <span class="abs-hero-stat-label">recenti</span>
+        </span>
+      </div>
+      <div class="abs-hero-stat">
+        <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
+        <span class="abs-hero-stat-copy">
+          <span class="abs-hero-stat-value">{{ car_pending_count }}</span>
+          <span class="abs-hero-stat-label">in coda</span>
+        </span>
+      </div>
+      <div class="abs-hero-stat">
+        <span class="abs-hero-stat-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
+        <span class="abs-hero-stat-copy">
+          <span class="abs-hero-stat-value">{% if assenze_can_view_calendar %}Si{% else %}--{% endif %}</span>
+          <span class="abs-hero-stat-label">calendario</span>
+        </span>
+      </div>
     </div>
   </section>
 
-  <section class="abs-card-grid">
-    <a class="abs-card-link" href="{% url 'assenze_richiesta' %}">
-      <span class="abs-card-icon">+</span>
+  <section class="abs-card-grid abs-menu-cards">
+    <a class="abs-card-link abs-menu-card abs-card-request" href="{% url 'assenze_richiesta' %}">
+      <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-plus-file"></use></svg></span>
       <div class="abs-card-content">
         <div class="abs-card-top">
           <div class="abs-card-title">Nuova richiesta</div>
         </div>
-        <div class="abs-card-text">Inserisci ferie, permessi, malattia, flessibilita o certifica presenza da un'unica interfaccia.</div>
+        <div class="abs-card-text">Ferie, permessi, malattia e flessibilita.</div>
       </div>
     </a>
 
-    <a class="abs-card-link" href="{% url 'assenze_gestione' %}">
-      <span class="abs-card-icon">G</span>
+    <a class="abs-card-link abs-menu-card abs-card-manage" href="{% url 'assenze_gestione' %}">
+      <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg></span>
       <div class="abs-card-content">
         <div class="abs-card-top">
           <div class="abs-card-title">Gestione richieste</div>
         </div>
-        <div class="abs-card-text">Controlla stato, note, certificati e richieste ancora modificabili con filtri rapidi.</div>
+        <div class="abs-card-text">Stato, note, certificati e modifiche rapide.</div>
       </div>
     </a>
 
     {% if assenze_can_view_calendar %}
-      <a class="abs-card-link" href="{% url 'assenze_calendario' %}">
-        <span class="abs-card-icon">C</span>
+      <a class="abs-card-link abs-menu-card abs-card-calendar" href="{% url 'assenze_calendario' %}">
+        <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
         <div class="abs-card-content">
           <div class="abs-card-top">
             <div class="abs-card-title">Calendario</div>
           </div>
-          <div class="abs-card-text">Vista mensile, settimanale e agenda con dettaglio evento, colori e operazioni rapide.</div>
+          <div class="abs-card-text">Vista mensile, settimanale e agenda.</div>
         </div>
       </a>
     {% endif %}
 
-    <a class="abs-card-link" href="{% url 'assenze_certifica_presenza' %}">
-      <span class="abs-card-icon">&#128203;</span>
+    <a class="abs-card-link abs-menu-card abs-card-presence" href="{% url 'assenze_certifica_presenza' %}">
+      <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-clock"></use></svg></span>
       <div class="abs-card-content">
         <div class="abs-card-top">
           <div class="abs-card-title">Certifica presenza</div>
         </div>
-        <div class="abs-card-text">Registra ingressi e uscite giornaliere con storico, filtri e modifica veloce.</div>
+        <div class="abs-card-text">Ingressi e uscite giornaliere.</div>
       </div>
     </a>
 
     {% if assenze_can_edit_events %}
-      <a class="abs-card-link" href="{% url 'assenze_car_dashboard' %}">
-        <span class="abs-card-icon">S</span>
+      <a class="abs-card-link abs-menu-card abs-card-alerts" href="{% url 'assenze_car_dashboard' %}">
+        <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
         <div class="abs-card-content">
           <div class="abs-card-top">
             <div class="abs-card-title">Segnalazioni</div>
@@ -115,9 +482,9 @@
           </div>
           <div class="abs-card-text">
             {% if assenze_group == "AMMINISTRAZIONE" %}
-              Approva o rifiuta le richieste in attesa, con diagnostica sync e riepiloghi di reparto.
+              Approvazioni, diagnostica e reparto.
             {% else %}
-              Dashboard reparto per gestire richieste in attesa e monitorare oggi e settimana.
+              Coda richieste e presenza reparto.
             {% endif %}
           </div>
         </div>
@@ -125,26 +492,27 @@
     {% endif %}
 
     {% if assenze_is_admin %}
-      <a class="abs-card-link" href="{% url 'assenze_gestione_admin' %}">
-        <span class="abs-card-icon">&#9881;</span>
+      <a class="abs-card-link abs-menu-card abs-card-admin" href="{% url 'assenze_gestione_admin' %}">
+        <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg></span>
         <div class="abs-card-content">
           <div class="abs-card-top">
             <div class="abs-card-title">Gestione admin</div>
           </div>
-          <div class="abs-card-text">Statistiche modulo, record globali, log attivita e strumenti di diagnostica.</div>
+          <div class="abs-card-text">Statistiche, record e diagnostica.</div>
         </div>
       </a>
     {% endif %}
   </section>
 
-  <section class="abs-panel">
+  <section class="abs-panel abs-menu-recent">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
-        <h2 class="abs-panel-title">Ultime richieste personali</h2>
-        <p class="abs-panel-subtitle">Una coda compatta delle richieste piu recenti, utile come punto di ingresso rapido prima di aprire la gestione completa.</p>
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Ultime richieste</h2>
+        <p class="abs-panel-subtitle">Le richieste personali piu recenti.</p>
       </div>
       <div class="abs-panel-meta">
         <span class="abs-panel-badge">{{ recenti|length }} mostrate</span>
+        <a class="abs-panel-badge soft abs-panel-badge-link" href="{% url 'assenze_gestione' %}">Apri gestione</a>
       </div>
     </div>
     <div class="abs-panel-body">
@@ -154,6 +522,11 @@
             {% with consenso=r.consenso|lower %}
               <div class="abs-recent-item">
                 <span class="abs-recent-dot {% if 'approv' in consenso %}ok{% elif 'rifiut' in consenso %}no{% else %}wait{% endif %}"></span>
+                <span class="abs-recent-icon {% if 'approv' in consenso %}ok{% elif 'rifiut' in consenso %}no{% else %}wait{% endif %}">
+                  <svg aria-hidden="true">
+                    <use href="{% if 'approv' in consenso %}#abs-i-check{% elif 'rifiut' in consenso %}#abs-i-x{% else %}#abs-i-hourglass{% endif %}"></use>
+                  </svg>
+                </span>
                 <div class="abs-recent-main">
                   <div class="abs-recent-title">{{ r.tipo }} - {{ r.consenso }}</div>
                   <div class="abs-recent-meta">{{ r.inizio_label }}{% if r.fine_label %} - {{ r.fine_label }}{% endif %}</div>

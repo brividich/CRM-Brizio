@@ -1,0 +1,49 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU26 - Formazione completata: KPI copertura (idonei)"
+  },
+  "source_candidate": {
+    "source_code": "anagrafica_formazione_record",
+    "label": "Anagrafica - Record completamento formazione"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "anagrafica_formazione_record"
+  },
+  "proposed_rules": [
+    {
+      "code": "au26-formazione-completata-kpi-copertura",
+      "name": "AU26 - Formazione completata: KPI copertura (idonei)",
+      "description": "Alla registrazione di un completamento corso con esito idoneo (idoneo=true) incrementa la metrica dashboard di copertura formativa (KPI ISO). Usa update_dashboard_metric (operation increment). NOTE/LIMITI: (1) il backlog prevedeva una metrica 'per reparto'; il payload anagrafica_formazione_record NON espone il reparto del dipendente, quindi si incrementa una metrica unica 'formazione_completati_idonei'; per la suddivisione per reparto servirebbe esporre il reparto nel registry o un job di aggregazione. (2) il codice metrica deve esistere/essere creato nella configurazione dashboard.",
+      "source_code": "anagrafica_formazione_record",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [
+        {
+          "field": "idoneo",
+          "operator": "is_true",
+          "value": "",
+          "value_type": "bool"
+        }
+      ],
+      "actions": [
+        {
+          "action_type": "update_dashboard_metric",
+          "description": "Incrementa contatore completamenti formativi idonei",
+          "metric_code": "formazione_completati_idonei",
+          "operation": "increment",
+          "value_template": "1"
+        }
+      ]
+    }
+  ]
+}

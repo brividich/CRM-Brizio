@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | Scadenzario adempimenti{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sc-wrap { max-width: 1100px; margin: 0 auto; padding: 8px 0 32px; }
+  .sc-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .sc-title { font-size:1.5rem; font-weight:800; color:#1e3a5f; margin:0; }
+  .sc-sub { color:#64748b; font-size:.9rem; margin:4px 0 0; }
+  .sc-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .sc-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:.85rem; font-weight:700; text-decoration:none; border:1px solid #e2e8f0; background:#f1f5f9; color:#334155; cursor:pointer; }
+  .sc-btn:hover { background:#e2e8f0; }
+  .sc-btn-primary { background:#1e3a5f; color:#fff; border-color:#1e3a5f; }
+  .sc-btn-primary:hover { background:#163257; }
+  .sc-section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; margin-bottom:18px; overflow:hidden; }
+  .sc-sec-head { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid #eef2f7; }
+  .sc-dot { width:10px; height:10px; border-radius:50%; }
+  .sc-dot-danger { background:#dc2626; } .sc-dot-warning { background:#f59e0b; } .sc-dot-info { background:#2563eb; }
+  .sc-sec-label { font-weight:800; color:#0f172a; }
+  .sc-sec-desc { color:#64748b; font-size:.8rem; }
+  .sc-count { margin-left:auto; font-weight:800; border-radius:999px; padding:2px 11px; font-size:.8rem; }
+  .sc-count-danger { background:#fee2e2; color:#b91c1c; } .sc-count-warning { background:#ffedd5; color:#9a3412; } .sc-count-info { background:#dbeafe; color:#1e40af; }
+  table.sc-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  .sc-table th { text-align:left; padding:8px 12px; background:#f8fafc; color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid #eef2f7; white-space:nowrap; }
+  .sc-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#182232; }
+  .sc-table tr:hover td { background:#f8fafc; }
+  .sc-id { font-family: ui-monospace, monospace; font-size:.78rem; color:#475569; }
+  .sc-age { font-weight:700; }
+  .sc-age.warn { color:#b45309; } .sc-age.bad { color:#b91c1c; }
+  .sc-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
+  .sc-link:hover { text-decoration:underline; }
+  .sc-empty { padding:16px; color:#94a3b8; font-size:.88rem; }
+  .sc-emptyall { text-align:center; padding:40px 16px; color:#16a34a; font-weight:700; }
+  @media print {
+    .subnav, .sc-actions { display:none !important; }
+    .sc-section { border-color:#cbd5e1; break-inside:avoid; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="sc-wrap">
+  <div class="sc-head">
+    <div>
+      <h1 class="sc-title">Scadenzario adempimenti RENTRI</h1>
+      <p class="sc-sub">{{ total }} adempiment{{ total|pluralize:"o,i" }} aperto/i · aggiornato al {{ today|date:"d/m/Y" }}</p>
+    </div>
+    <div class="sc-actions">
+      <a class="sc-btn" href="?export=csv">⬇ Esporta CSV</a>
+      <button type="button" class="sc-btn" onclick="window.print()">🖨 Stampa</button>
+      <a class="sc-btn sc-btn-primary" href="{% url 'rentri_export_pdf' %}" target="_blank">📄 PDF registro</a>
+    </div>
+  </div>
+
+  {% if total == 0 %}
+    <div class="sc-section"><div class="sc-emptyall">✓ Nessun adempimento aperto. Registro RENTRI in regola.</div></div>
+  {% endif %}
+
+  {% for s in sections %}
+  <section class="sc-section">
+    <div class="sc-sec-head">
+      <span class="sc-dot sc-dot-{{ s.tone }}"></span>
+      <div>
+        <div class="sc-sec-label">{{ s.label }}</div>
+        <div class="sc-sec-desc">{{ s.desc }}</div>
+      </div>
+      <span class="sc-count sc-count-{{ s.tone }}">{{ s.rows|length }}</span>
+    </div>
+    {% if s.rows %}
+    <table class="sc-table">
+      <thead>
+        <tr>
+          <th>Data</th><th>ID Reg.</th><th>Tipo</th><th>Codice EER</th>
+          <th>Qtà</th><th>Giorni</th><th>Note</th>{% if can_manage %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in s.rows %}
+        <tr>
+          <td style="white-space:nowrap;">{{ r.data|date:"d/m/Y"|default:"—" }}</td>
+          <td class="sc-id">{{ r.id_registrazione|default:"—" }}</td>
+          <td>{{ r.tipo_label }}</td>
+          <td>{{ r.codice|default:"—"|truncatechars:42 }}</td>
+          <td>{{ r.quantita|default:"—" }}</td>
+          <td class="sc-age {% if r.giorni >= 30 %}bad{% elif r.giorni >= 10 %}warn{% endif %}">{% if r.giorni is not None %}{{ r.giorni }}g{% else %}—{% endif %}</td>
+          <td>{{ r.note|default:""|truncatechars:50 }}</td>
+          {% if can_manage %}<td><a class="sc-link" href="{% url 'rentri_modifica' r.pk %}">Apri</a></td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="sc-empty">Nessun elemento in questa categoria.</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

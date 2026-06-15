@@ -1,11 +1,13 @@
 from django.urls import path
 
-from . import htmx_views, views
+from . import htmx_views, views, views_mie_attivita, views_scadenze
 
 
 urlpatterns = [
     path("dashboard", views.dashboard_home, name="dashboard_home"),
     path("dashboard", views.dashboard_home, name="dashboard"),
+    path("mie-attivita", views_mie_attivita.mie_attivita, name="mie_attivita"),
+    path("scadenze", views_scadenze.scadenze_globali, name="scadenze_globali"),
     # Compat route: le richieste assenze vivono nel modulo assenze.
     path("richieste", views.richieste, name="richieste"),
     path("anomalie-menu", views.anomalie_menu, name="anomalie_menu"),

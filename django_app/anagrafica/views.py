@@ -13,7 +13,7 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connections, transaction
 from django.db.models import Count, Max, Q, Sum
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -72,6 +72,8 @@ from .models import (
     OffboardingPratica,
     OffboardingTask,
     OnboardingOffboardingCampo,
+    OnboardingPratica,
+    OnboardingTask,
     RuoloAziendale,
     RuoloOperativo,
     ImportazioneCedolini,
@@ -98,6 +100,7 @@ from .models_formazione import (
     TrainingInstructor,
     TrainingLesson,
     TrainingLessonAttendance,
+    TrainingExportLog,
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
@@ -109,6 +112,8 @@ from .services.dpi_ingresso import (
     proposta_righe_iniziali,
 )
 from .services.visite import stato_visite, visite_storico
+from .services import conformita as conformita_service
+from .services import onboarding as onboarding_service
 
 logger = logging.getLogger(__name__)
 
@@ -940,6 +945,35 @@ def dipendente_create(request):
                                 importato_da=request.user,
                             )
 
+                # Onboarding strutturato: avvio opzionale della pratica + checklist
+                if new_id and request.POST.get("avvia_onboarding"):
+                    try:
+                        nome_onb = f"{data.get('cognome', '')} {data.get('nome', '')}".strip()
+                        ruoli_onb = list(
+                            DipendenteRuoloOperativo.objects
+                            .filter(legacy_anagrafica_id=new_id)
+                            .values_list("ruolo_id", flat=True)
+                        )
+                        data_ass = None
+                        _ass_raw = (request.POST.get("contratto_data_inizio") or "").strip()
+                        if _ass_raw:
+                            try:
+                                from datetime import date as _date2
+                                data_ass = _date2.fromisoformat(_ass_raw)
+                            except ValueError:
+                                data_ass = None
+                        onboarding_service.avvia_onboarding(
+                            legacy_id=new_id,
+                            dipendente_nome=nome_onb or f"#{new_id}",
+                            reparto=(data.get("reparto") or "").strip(),
+                            mansione=(data.get("mansione") or "").strip(),
+                            data_assunzione=data_ass,
+                            user=request.user,
+                            ruolo_ids=ruoli_onb,
+                        )
+                    except Exception:
+                        logger.warning("Avvio onboarding automatico fallito per dipendente %s", new_id, exc_info=True)
+
                 nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
@@ -1272,34 +1306,142 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
 # Scheda dettaglio dipendente — helper assenze
 # ---------------------------------------------------------------------------
 
-def _query_assenze_dipendente(utente_id: int | None) -> list[dict]:
-    """Read-only: assenze del dipendente (anno corrente + precedente) via utente_id JOIN.
+def _query_assenze_dipendente(dip: dict) -> tuple[list[dict], bool]:
+    """Read-only: assenze del dipendente (anno corrente + precedente).
 
-    Ritorna lista di dict con chiavi: data_inizio, data_fine, tipo_assenza,
-    moderation_status. Vuota se la tabella non esiste o utente_id è None.
+    Match robusto, allineato al widget conteggio (`_compute_widget_counts`) e al
+    modulo assenze (`assenze.views._load_events`):
+    - `copia_nome` LIKE nome (ordini "Nome Cognome" e "Cognome Nome");
+    - `utente_id` diretto su `assenze`, se la colonna esiste;
+    - JOIN `dipendenti` via `dipendente_id`, solo se la colonna esiste.
+
+    La sola JOIN su `assenze.dipendente_id` era fragile: quella colonna può
+    mancare in prod (referenziarla mandava in errore l'intera query → 42S22 →
+    catch → lista vuota) o restare NULL (INNER JOIN senza match), per cui il tab
+    mostrava sempre "nessuna assenza" mentre il widget conteggio — che filtra per
+    `copia_nome` — ne riportava di presenti.
+
+    Ritorna `(lista, no_link)` dove `no_link` indica che il dipendente non è
+    identificabile (né nome né utente_id). Chiavi dict: data_inizio, data_fine,
+    tipo_assenza, moderation_status.
     """
-    if not utente_id:
-        return []
     import datetime as _dt
     from django.utils import timezone as _tz
+
+    nome = str(dip.get("nome") or "").strip()
+    cognome = str(dip.get("cognome") or "").strip()
+    utente_id = int(dip.get("utente_id") or 0) or None
+    nome_cognome = f"{nome} {cognome}".strip()
+    cognome_nome = f"{cognome} {nome}".strip()
+
+    if not nome_cognome and not utente_id:
+        return [], True
+
+    assenze_cols = legacy_table_columns("assenze")
+    if not assenze_cols:
+        # Tabella legacy non disponibile (es. dev senza SQL Server): non è un
+        # problema di linking, semplicemente non ci sono dati da mostrare.
+        return [], False
+
+    or_clauses: list[str] = []
+    params: list = []
+
+    if "copia_nome" in assenze_cols and nome_cognome:
+        or_clauses.append("UPPER(COALESCE(a.copia_nome,'')) LIKE UPPER(%s)")
+        params.append(f"%{nome_cognome}%")
+        if cognome_nome != nome_cognome:
+            or_clauses.append("UPPER(COALESCE(a.copia_nome,'')) LIKE UPPER(%s)")
+            params.append(f"%{cognome_nome}%")
+
+    if utente_id and "utente_id" in assenze_cols:
+        or_clauses.append("a.utente_id = %s")
+        params.append(utente_id)
+
+    join = ""
+    if utente_id and "dipendente_id" in assenze_cols and legacy_table_columns("dipendenti"):
+        join = " LEFT JOIN dipendenti d ON d.id = a.dipendente_id "
+        or_clauses.append("d.utente_id = %s")
+        params.append(utente_id)
+
+    if not or_clauses:
+        return [], False
+
     data_da = _dt.date(_tz.localdate().year - 1, 1, 1)
+    where = "(" + " OR ".join(or_clauses) + ") AND a.data_inizio >= %s"
+    params.append(data_da)
+    sql = f"""
+        SELECT a.data_inizio, a.data_fine, a.tipo_assenza, a.moderation_status
+        FROM assenze a
+        {join}
+        WHERE {where}
+        ORDER BY a.data_inizio DESC
+    """
     try:
         with connections["default"].cursor() as cur:
-            cur.execute(
-                """
-                SELECT a.data_inizio, a.data_fine, a.tipo_assenza, a.moderation_status
-                FROM assenze a
-                INNER JOIN dipendenti d ON a.dipendente_id = d.id
-                WHERE d.utente_id = %s AND a.data_inizio >= %s
-                ORDER BY a.data_inizio DESC
-                """,
-                [int(utente_id), data_da],
-            )
+            cur.execute(sql, params)
             cols = [str(c[0]) for c in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(zip(cols, row)) for row in cur.fetchall()], False
     except Exception:
-        logger.warning("_query_assenze_dipendente: tabelle legacy non disponibili (utente_id=%s)", utente_id)
-        return []
+        logger.warning("_query_assenze_dipendente: query assenze fallita (dip_id=%s)", dip.get("id"))
+        return [], False
+
+
+def _assenza_tipo_meta(tipo) -> tuple[str, str]:
+    """Ritorna ``(icona, accent)`` per un tipo di assenza, match per keyword.
+
+    ``accent`` ∈ {ferie, malattia, permesso, congedo, altro} → mappa sulle
+    classi CSS ``dp-abs-*`` usate dalla scheda dipendente (card riepilogo e
+    chip della tabella storico). Tollerante a stringhe legacy eterogenee.
+    """
+    t = str(tipo or "").lower()
+    if "feri" in t:
+        return "🏖️", "ferie"
+    if "malatt" in t or "infort" in t or "donaz" in t or "sangue" in t:
+        return "🩺", "malattia"
+    if "matern" in t or "patern" in t or "conged" in t or "allatt" in t or "104" in t:
+        return "👶", "congedo"
+    if "festiv" in t:
+        return "🎉", "permesso"
+    if "rol" in t or "permess" in t or "recuper" in t:
+        return "⏱️", "permesso"
+    if "sciop" in t:
+        return "✊", "altro"
+    return "🗓️", "altro"
+
+
+# Nomi mese indicizzabili per numero (1-12). NB: più sotto nel modulo esiste un
+# altro globale `_MESI_IT` (dict nome→numero, usato dall'import cedolini) che,
+# essendo definito dopo, sovrascriverebbe questa tupla a livello di modulo: per
+# questo qui il nome è distinto (`_MESI_IT_NOMI`) ed evitiamo la collisione.
+_MESI_IT_NOMI = (
+    "", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+)
+
+
+def _assenze_cronologia(assenze_list: list[dict]) -> list[dict]:
+    """Raggruppa le assenze (già ordinate per data_inizio DESC) in Anno → Mese.
+
+    Ritorna ``[{anno, totale, mesi: [{mese_label, items: [...]}]}]``. Si appoggia
+    all'ordinamento decrescente della query (anni e mesi contigui) per costruire
+    i bucket in un solo passaggio, senza riordinare. Nomi mese in italiano via
+    ``_MESI_IT_NOMI`` per non dipendere dal locale dei template.
+    """
+    crono: list[dict] = []
+    for _a in assenze_list:
+        _d_i = _a.get("data_inizio")
+        if not _d_i:
+            continue
+        _y, _m = _d_i.year, _d_i.month
+        if not crono or crono[-1]["anno"] != _y:
+            crono.append({"anno": _y, "totale": 0, "mesi": []})
+        anno = crono[-1]
+        anno["totale"] += 1
+        if not anno["mesi"] or anno["mesi"][-1]["mese_num"] != _m:
+            _label = _MESI_IT_NOMI[_m] if 1 <= _m <= 12 else ""
+            anno["mesi"].append({"mese_num": _m, "mese_label": _label, "items": []})
+        anno["mesi"][-1]["items"].append(_a)
+    return crono
 
 
 # ---------------------------------------------------------------------------
@@ -1600,14 +1742,24 @@ def dipendente_detail(request, legacy_id: int):
             SaldoCedolino.objects.filter(_ratei_q).order_by("-data_competenza")[:1]
         )
 
-    # Assenze (read-only, ultimi 2 anni, via legacy JOIN)
-    _utente_id_ass = int(dip.get("utente_id") or 0) or None
-    assenze_list = _query_assenze_dipendente(_utente_id_ass)
-    assenze_no_link = _utente_id_ass is None
-    assenze_summary_anno: dict[str, int] = {}
+    # Assenze (read-only, ultimi 2 anni) — match per nome/utente_id, vedi helper
+    assenze_list, assenze_no_link = _query_assenze_dipendente(dip)
+    _summary_map: dict[str, int] = {}
     for _a in assenze_list:
         _d_i = _a.get("data_inizio")
         _d_f = _a.get("data_fine") or _d_i
+        # Durata (giorni) + icona/accent per ogni riga, per la tabella storico
+        _giorni_row = None
+        if _d_i:
+            try:
+                _giorni_row = max(1, (_d_f - _d_i).days + 1) if _d_f and _d_f != _d_i else 1
+            except Exception:
+                _giorni_row = None
+        _a["giorni"] = _giorni_row
+        _ic, _acc = _assenza_tipo_meta(_a.get("tipo_assenza"))
+        _a["icona"] = _ic
+        _a["accent"] = _acc
+        # Riepilogo: solo anno corrente e approvate
         if not _d_i:
             continue
         try:
@@ -1616,11 +1768,21 @@ def dipendente_detail(request, legacy_id: int):
                 continue
             if int(_a.get("moderation_status") or -1) != 0:
                 continue
-            _days = max(1, (_d_f - _d_i).days + 1) if _d_f and _d_f != _d_i else 1
             _tipo = str(_a.get("tipo_assenza") or "Altro").strip() or "Altro"
-            assenze_summary_anno[_tipo] = assenze_summary_anno.get(_tipo, 0) + _days
+            _summary_map[_tipo] = _summary_map.get(_tipo, 0) + (_giorni_row or 1)
         except Exception:
             pass
+
+    # Riepilogo come lista ordinata (giorni desc) arricchita con icona/accent + totale
+    assenze_summary_anno: list[dict] = []
+    assenze_tot_anno = 0
+    for _tipo, _giorni in sorted(_summary_map.items(), key=lambda kv: kv[1], reverse=True):
+        _ic, _acc = _assenza_tipo_meta(_tipo)
+        assenze_summary_anno.append({"tipo": _tipo, "giorni": _giorni, "icona": _ic, "accent": _acc})
+        assenze_tot_anno += _giorni
+
+    # Storico come cronologia raggruppata Anno → Mese
+    assenze_cronologia = _assenze_cronologia(assenze_list)
 
     # Storico cambiamenti organizzativi (mansione, reparto, area, ruolo aziendale) — solo admin
     storico_cambiamenti: list = []
@@ -1747,6 +1909,21 @@ def dipendente_detail(request, legacy_id: int):
         except Exception:
             logger.exception("Errore caricamento pratiche offboarding per dipendente %s", legacy_id)
 
+    # Onboarding strutturato (visibile a chi ha accesso HR)
+    onboarding_pratica_attiva = None
+    onboarding_pratiche_recenti = []
+    if can_hr:
+        try:
+            onboarding_pratica_attiva = onboarding_service.pratica_aperta(legacy_id)
+            onboarding_pratiche_recenti = list(
+                OnboardingPratica.objects
+                .filter(legacy_anagrafica_id=legacy_id)
+                .exclude(stato__in=OnboardingPratica.STATI_APERTI)
+                .order_by("-created_at", "-id")[:5]
+            )
+        except Exception:
+            logger.exception("Errore caricamento pratiche onboarding per dipendente %s", legacy_id)
+
     # Catalogo reparti per dropdown + label caporeparto dall'aziendale
     reparti_catalog = list(Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome"))
     reparto_corrente = (dip.get("reparto") or "").strip()
@@ -1762,6 +1939,28 @@ def dipendente_detail(request, legacy_id: int):
         }
         for r in reparti_catalog
     })
+
+    # Anzianità di servizio (KPI scheda sintetica del Riepilogo). Calcolata dalla
+    # prima assunzione (fallback su assunzione corrente) fino a oggi o alla
+    # cessazione se il rapporto è chiuso.
+    anzianita_label = ""
+    _data_assunzione_anz = (aziendale.data_prima_assunzione or aziendale.data_assunzione_ultima) if aziendale else None
+    if _data_assunzione_anz:
+        _fine_anz = aziendale.data_cessazione if (aziendale and aziendale.data_cessazione) else oggi
+        if _fine_anz >= _data_assunzione_anz:
+            _tot_mesi = (_fine_anz.year - _data_assunzione_anz.year) * 12 + (_fine_anz.month - _data_assunzione_anz.month)
+            if _fine_anz.day < _data_assunzione_anz.day:
+                _tot_mesi -= 1
+            _tot_mesi = max(0, _tot_mesi)
+            _anni, _mesi = divmod(_tot_mesi, 12)
+            if _anni and _mesi:
+                anzianita_label = f"{_anni} ann{'o' if _anni == 1 else 'i'} e {_mesi} mes{'e' if _mesi == 1 else 'i'}"
+            elif _anni:
+                anzianita_label = f"{_anni} ann{'o' if _anni == 1 else 'i'}"
+            elif _mesi:
+                anzianita_label = f"{_mesi} mes{'e' if _mesi == 1 else 'i'}"
+            else:
+                anzianita_label = "< 1 mese"
 
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
@@ -1780,6 +1979,7 @@ def dipendente_detail(request, legacy_id: int):
         "reparto_in_catalog": reparto_in_catalog,
         "caporeparto_label": caporeparto_label,
         "reparto_autofill_json": reparto_autofill_json,
+        "anzianita_label": anzianita_label,
         "widgets_visible": widgets_visible,
         "widgets_hidden": widgets_hidden,
         "all_widgets": STAT_WIDGETS,
@@ -1822,6 +2022,8 @@ def dipendente_detail(request, legacy_id: int):
         "ratei_saldi": ratei_saldi,
         "assenze_list": assenze_list,
         "assenze_summary_anno": assenze_summary_anno,
+        "assenze_tot_anno": assenze_tot_anno,
+        "assenze_cronologia": assenze_cronologia,
         "assenze_no_link": assenze_no_link,
         # Formazione
         "can_view_formazione_tab": can_view_formazione_tab,
@@ -1842,6 +2044,9 @@ def dipendente_detail(request, legacy_id: int):
         "offboarding_pratiche_recenti": offboarding_pratiche_recenti,
         "offboarding_motivo_choices": OffboardingPratica.MOTIVO_CHOICES,
         "offboarding_restituzioni_labels": OFFBOARDING_RESTITUZIONI_LABELS,
+        # Onboarding
+        "onboarding_pratica_attiva": onboarding_pratica_attiva,
+        "onboarding_pratiche_recenti": onboarding_pratiche_recenti,
     })
 
 
@@ -1886,6 +2091,70 @@ def dipendente_print(request, legacy_id: int):
         "civile_foto_url": civile_foto_url,
         "can_hr": can_hr,
         "legacy_id": legacy_id,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Libretto formativo dipendente — pagina stampa per audit ISO / uscita
+# ---------------------------------------------------------------------------
+
+@login_required
+def dipendente_libretto_formativo(request, legacy_id: int):
+    """Curriculum formativo completo del dipendente, A4-friendly.
+
+    Aggrega lo storico completamenti (`TrainingEmployeeRecord`, usando i campi
+    snapshot per integrità storica), gli attestati (`TrainingCertificate`) e
+    lo stato corrente degli obblighi (`TrainingDeadline` con is_required).
+    Stesso pattern di `dipendente_print`: action bar non stampata +
+    `window.print()`. La generazione è tracciata in `TrainingExportLog`
+    (tipo STORICO_DIP).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la formazione.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    ensure_anagrafica_schema()
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    record_storici = list(
+        TrainingEmployeeRecord.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .select_related("attestato", "corso")
+        .order_by("-data_completamento", "-created_at")
+    )
+    ore_totali = sum((r.ore_frequentate or 0) for r in record_storici)
+
+    from django.utils import timezone as tz
+    oggi = tz.localdate()
+    obblighi = list(
+        TrainingDeadline.objects
+        .filter(legacy_anagrafica_id=legacy_id, is_required=True)
+        .select_related("corso")
+        .order_by("data_scadenza")
+    )
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="STORICO_DIP",
+            filtri_json={"legacy_anagrafica_id": legacy_id, "formato": "libretto_html"},
+            righe_esportate=len(record_storici),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore registrazione TrainingExportLog per libretto formativo")
+
+    return render(request, "anagrafica/pages/dipendente_libretto.html", {
+        "dip": dip,
+        "legacy_id": legacy_id,
+        "record_storici": record_storici,
+        "ore_totali": ore_totali,
+        "obblighi": obblighi,
+        "oggi": oggi,
     })
 
 
@@ -4869,10 +5138,14 @@ def tipologia_contratto_delete(request, tipologia_id: int):
 
 @login_required
 def scadenzario(request):
-    """Scadenzario unificato: qualifiche professionali e visite mediche in scadenza/scadute.
+    """Scadenzario unificato: qualifiche, visite mediche, formazione obbligatoria
+    e contratti/periodi di prova in scadenza o scaduti.
 
-    Accesso: login obbligatorio. Le qualifiche sono visibili a tutti gli utenti
-    autenticati; le visite mediche (dati sanitari) solo se _can_view_visite_mediche.
+    Accesso: login obbligatorio. Ogni sorgente entra nella lista solo se il
+    rispettivo permesso lo consente: le qualifiche sono visibili a tutti gli
+    utenti autenticati; le visite mediche (dati sanitari) solo se
+    _can_view_visite_mediche; la formazione solo se _can_view_formazione;
+    i contratti (dato HR) solo se _check_hr_permission.
     """
     from django.utils import timezone as tz
     oggi = tz.localdate()
@@ -4880,8 +5153,10 @@ def scadenzario(request):
     soglia_60 = oggi + _timedelta(days=60)
 
     can_view_visite = _can_view_visite_mediche(request)
+    can_view_formazione = _can_view_formazione(request)
+    can_view_contratti = _check_hr_permission(request)
 
-    filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / ""
+    filtro_tipo    = request.GET.get("tipo", "")         # "qualifica" / "visita" / "formazione" / "contratto" / ""
     filtro_stato   = request.GET.get("stato", "")        # "scaduta" / "30" / "60" / ""
     filtro_reparto = request.GET.get("reparto", "").strip()
     export_csv     = request.GET.get("format") == "csv"
@@ -4965,6 +5240,103 @@ def scadenzario(request):
                 "scaduta":      delta < 0,
             })
 
+    # ── Formazione: corsi obbligatori da TrainingDeadline (gated) ───────────
+    if can_view_formazione and filtro_tipo in ("", "formazione"):
+        qs_f = (
+            TrainingDeadline.objects.select_related("corso")
+            .filter(is_required=True, data_scadenza__isnull=False)
+        )
+        if filtro_stato == "scaduta":
+            qs_f = qs_f.filter(data_scadenza__lt=oggi)
+        elif filtro_stato == "30":
+            qs_f = qs_f.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
+        elif filtro_stato == "60":
+            qs_f = qs_f.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+        else:
+            qs_f = qs_f.filter(data_scadenza__lte=soglia_60)
+
+        for d in qs_f:
+            dip = dip_map.get(d.legacy_anagrafica_id, {})
+            reparto = str(dip.get("reparto") or "").strip()
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            delta = (d.data_scadenza - oggi).days
+            voci.append({
+                "kind":         "formazione",
+                "kind_label":   "Formazione",
+                "legacy_id":    d.legacy_anagrafica_id,
+                "cognome":      str(dip.get("cognome") or f"ID {d.legacy_anagrafica_id}").strip(),
+                "nome":         str(dip.get("nome") or "").strip(),
+                "reparto":      reparto,
+                "tipo_nome":    d.corso.titolo,
+                "categoria":    "Corso obbligatorio",
+                "data_scadenza": d.data_scadenza,
+                "giorni":       delta,
+                "scaduta":      delta < 0,
+            })
+
+    # ── Contratti a termine e periodi di prova (gated: dato HR) ─────────────
+    if can_view_contratti and filtro_tipo in ("", "contratto"):
+        cessati = set(
+            DipendenteAnagraficaAziendale.objects
+            .filter(data_cessazione__isnull=False)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+        # Solo l'ultimo contratto per dipendente: i precedenti sono storia chiusa.
+        ultimo_contratto: dict[int, StoricoContratto] = {}
+        for c in (
+            StoricoContratto.objects
+            .filter(legacy_anagrafica_id__isnull=False)
+            .order_by("legacy_anagrafica_id", "-data_inizio", "-created_at")
+        ):
+            ultimo_contratto.setdefault(c.legacy_anagrafica_id, c)
+
+        scadenze_contratti: list[tuple[int, date, str]] = []
+        for legacy_id, c in ultimo_contratto.items():
+            if legacy_id in cessati or c.data_fine is None:
+                continue
+            tip = c.tipologia_contratto or "a termine"
+            scadenze_contratti.append((legacy_id, c.data_fine, f"Contratto {tip}"))
+        # Periodi di prova: solo futuri — una prova già conclusa non è un'azione da fare.
+        prova_rows = DipendenteAnagraficaAziendale.objects.filter(
+            data_cessazione__isnull=True,
+            prova_data_fine__isnull=False,
+            prova_data_fine__gte=oggi,
+        ).values_list("legacy_anagrafica_id", "prova_data_fine")
+        for legacy_id, fine_prova in prova_rows:
+            scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova"))
+
+        for legacy_id, data_fine, descrizione in scadenze_contratti:
+            if filtro_stato == "scaduta":
+                if data_fine >= oggi:
+                    continue
+            elif filtro_stato == "30":
+                if not (oggi <= data_fine <= soglia_30):
+                    continue
+            elif filtro_stato == "60":
+                if not (oggi <= data_fine <= soglia_60):
+                    continue
+            elif data_fine > soglia_60:
+                continue
+            dip = dip_map.get(legacy_id, {})
+            reparto = str(dip.get("reparto") or "").strip()
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            delta = (data_fine - oggi).days
+            voci.append({
+                "kind":         "contratto",
+                "kind_label":   "Contratto",
+                "legacy_id":    legacy_id,
+                "cognome":      str(dip.get("cognome") or f"ID {legacy_id}").strip(),
+                "nome":         str(dip.get("nome") or "").strip(),
+                "reparto":      reparto,
+                "tipo_nome":    descrizione,
+                "categoria":    "Contratto",
+                "data_scadenza": data_fine,
+                "giorni":       delta,
+                "scaduta":      delta < 0,
+            })
+
     # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine
     voci.sort(key=lambda x: x["giorni"])
 
@@ -4998,7 +5370,6 @@ def scadenzario(request):
     page_obj   = paginator.get_page(request.GET.get("page"))
 
     # Formazione: riepilogo scadenze urgenti da mostrare come sezione aggiuntiva
-    can_view_formazione = _can_view_formazione(request)
     fm_n_scaduti = 0
     fm_n_30gg    = 0
     fm_n_90gg    = 0
@@ -5025,6 +5396,7 @@ def scadenzario(request):
         "can_view_visite": can_view_visite,
         "totale":        len(voci),
         "can_view_formazione": can_view_formazione,
+        "can_view_contratti": can_view_contratti,
         "fm_n_scaduti":  fm_n_scaduti,
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
@@ -5316,6 +5688,7 @@ def ratei_list(request):
         if cf_compat:
             filtro_dipendenti = [cf_compat]
     filtro_reparti: list = request.GET.getlist("reparto")
+    filtro_allerta: bool = request.GET.get("allerta", "") == "1"
 
     qs = SaldoCedolino.objects.all().order_by("-data_competenza", "tax_code")
 
@@ -5334,10 +5707,22 @@ def ratei_list(request):
     if filtro_dipendenti:
         qs = qs.filter(tax_code__in=filtro_dipendenti)
 
+    # AB1-D — semaforo/alert residuo ferie (solo HR/amministrazione)
+    from .ratei_alert import filtro_allerta_q, soglie_ratei, valuta_residuo_ferie
+    soglie = soglie_ratei()
+    # KPI sul set filtrato (periodo/dipendente/reparto), prima del toggle allerta
+    n_negativi = qs.filter(ferie_residui__lt=0).count()
+    n_accumulo = qs.filter(ferie_residui__gte=soglie["ore_max"]).count()
+    n_allerta = qs.filter(filtro_allerta_q(soglie)).count()
+    if filtro_allerta:
+        qs = qs.filter(filtro_allerta_q(soglie))
+
+    totale = qs.count()
     paginator = Paginator(qs, 50)
     page_obj = paginator.get_page(request.GET.get("page", 1))
     for s in page_obj.object_list:
         s.nome_display = cf_to_nome.get(s.tax_code.upper(), s.tax_code)
+        s.semaforo = valuta_residuo_ferie(s.ferie_residui, soglie)
 
     return render(request, "anagrafica/pages/ratei_list.html", {
         "page_obj": page_obj,
@@ -5345,11 +5730,16 @@ def ratei_list(request):
         "filtro_periodo": filtro_periodo,
         "filtro_dipendenti": filtro_dipendenti,
         "filtro_reparti": filtro_reparti,
+        "filtro_allerta": filtro_allerta,
         "dipendenti_options": dipendenti_options,
         "reparti_options": reparti_options,
         "can_hr": can_hr,
         "is_admin": is_admin,
-        "totale": qs.count(),
+        "totale": totale,
+        "soglie": soglie,
+        "n_negativi": n_negativi,
+        "n_accumulo": n_accumulo,
+        "n_allerta": n_allerta,
     })
 
 
@@ -5419,6 +5809,7 @@ def ratei_export(request):
         if cf_compat:
             filtro_dipendenti = [cf_compat]
     filtro_reparti: list = request.GET.getlist("reparto")
+    filtro_allerta: bool = request.GET.get("allerta", "") == "1"
 
     qs = SaldoCedolino.objects.all().order_by("-data_competenza", "tax_code")
     if filtro_periodo:
@@ -5432,6 +5823,9 @@ def ratei_export(request):
         qs = qs.filter(legacy_anagrafica_id__in=ids_in_reparto)
     if filtro_dipendenti:
         qs = qs.filter(tax_code__in=filtro_dipendenti)
+    if filtro_allerta:
+        from .ratei_alert import filtro_allerta_q, soglie_ratei
+        qs = qs.filter(filtro_allerta_q(soglie_ratei()))
 
     # --- Workbook ---
     wb = Workbook()
@@ -6047,6 +6441,9 @@ def impostazioni(request):
         ("anagrafica:contratti_import", "Contratti — import CSV"),
         ("anagrafica:ratei_list", "Ratei ferie / permessi"),
         ("anagrafica:scadenzario", "Scadenzario qualifiche e visite"),
+        ("anagrafica:organigramma", "Organigramma"),
+        ("anagrafica:conformita_report", "Conformità alla mansione"),
+        ("anagrafica:onboarding_list", "Onboarding — pratiche"),
         ("anagrafica:visite_mediche_dashboard", "Visite mediche — dashboard"),
         ("anagrafica:visite_mediche_nuova_sessione", "Visite mediche — nuova sessione"),
         ("anagrafica:documenti_list", "Documenti dipendenti"),
@@ -9649,3 +10046,448 @@ def _forbid_json_or_redirect(request, msg: str):
         return JsonResponse({"ok": False, "error": msg}, status=403)
     messages.error(request, msg)
     return redirect("anagrafica:index")
+
+
+# ---------------------------------------------------------------------------
+# Organigramma visuale — Area aziendale → Reparto → caporeparto → dipendenti
+# ---------------------------------------------------------------------------
+
+@login_required
+def organigramma(request):
+    """Organigramma navigabile SSR: aree aziendali, reparti, capi e membri.
+
+    Gli stessi dati (nomi/reparti) sono già visibili in `dipendenti_list`,
+    quindi basta il login. I disallineamenti emergono di proposito: i reparti
+    senza area finiscono in "Senza area", i dipendenti il cui reparto legacy
+    non corrisponde a nessun `Reparto` censito nel bucket "Non mappati".
+    """
+    ensure_anagrafica_schema()
+    filtro_area = (request.GET.get("area") or "").strip()
+
+    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+
+    reparti = list(
+        Reparto.objects.select_related("area_aziendale")
+        .filter(is_active=True)
+        .order_by("nome")
+    )
+    reparto_by_name = {r.nome.strip().casefold(): r for r in reparti}
+
+    membri_per_reparto: dict[int, list[dict]] = {}
+    non_mappati: list[dict] = []
+    for row in dip_rows:
+        nome_rep = str(row.get("reparto") or "").strip()
+        rep = reparto_by_name.get(nome_rep.casefold()) if nome_rep else None
+        if rep is None:
+            non_mappati.append(row)
+        else:
+            membri_per_reparto.setdefault(rep.id, []).append(row)
+
+    def _sort_key(row: dict):
+        return (str(row.get("cognome") or "").casefold(), str(row.get("nome") or "").casefold())
+
+    def _blocco_reparto(rep: Reparto) -> dict:
+        capo = dip_map.get(rep.caporeparto_legacy_id or 0)
+        membri = sorted(membri_per_reparto.get(rep.id, []), key=_sort_key)
+        if capo:
+            membri = [m for m in membri if int(m.get("id") or 0) != int(capo.get("id") or 0)]
+        return {"reparto": rep, "capo": capo, "membri": membri,
+                "n_totale": len(membri) + (1 if capo else 0)}
+
+    gruppi: list[dict] = []
+    aree_attive = list(AreaAziendale.objects.filter(is_active=True).order_by("nome"))
+    for area in aree_attive:
+        blocchi = [_blocco_reparto(r) for r in reparti if r.area_aziendale_id == area.id]
+        if blocchi:
+            gruppi.append({"area": area, "blocchi": blocchi})
+    blocchi_senza_area = [_blocco_reparto(r) for r in reparti if r.area_aziendale_id is None]
+    if blocchi_senza_area:
+        gruppi.append({"area": None, "blocchi": blocchi_senza_area})
+
+    nomi_aree = [a.nome for a in aree_attive] + (["Senza area"] if blocchi_senza_area else [])
+    if filtro_area:
+        gruppi = [
+            g for g in gruppi
+            if (g["area"].nome if g["area"] else "Senza area").casefold() == filtro_area.casefold()
+        ]
+
+    non_mappati.sort(key=_sort_key)
+    n_dipendenti = len(dip_rows)
+
+    return render(request, "anagrafica/pages/organigramma.html", {
+        "gruppi": gruppi,
+        "non_mappati": non_mappati,
+        "nomi_aree": nomi_aree,
+        "filtro_area": filtro_area,
+        "n_dipendenti": n_dipendenti,
+        "n_reparti": len(reparti),
+        "n_non_mappati": len(non_mappati),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Fascicolo conformità — "il dipendente è in regola con la sua mansione?"
+# (H2: semaforo aggregato formazione + visite + qualifiche + DPI)
+# ---------------------------------------------------------------------------
+
+@login_required
+def dipendente_conformita_panel(request, legacy_id: int):
+    """Pannello semaforo conformità per la scheda dipendente (HTMX lazy-load).
+
+    Accesso: login. Il semaforo visite mostra solo l'esito valido/scaduto; il
+    dettaglio (nomi tipologia) è incluso solo se ``_can_view_visite_mediche``.
+    Mai esiti/prescrizioni. La logica privacy è applicata dal service via
+    ``include_visite_dettaglio``.
+    """
+    can_view_visite = _can_view_visite_mediche(request)
+    stato = conformita_service.stato_conformita(
+        legacy_id, include_visite_dettaglio=can_view_visite
+    )
+    return render(request, "anagrafica/partials/conformita_panel.html", {
+        "legacy_id": legacy_id,
+        "stato": stato,
+        "can_view_visite": can_view_visite,
+    })
+
+
+@login_required
+def conformita_report(request):
+    """Elenco conformità di tutti i dipendenti attivi (semaforo per dominio).
+
+    Accesso: ``_check_hr_permission`` (vista trasversale su tutto il personale).
+    Filtri reparto/esito complessivo, ordinamento peggiori-prima, export CSV.
+    Performance: un'unica chiamata batch (numero di query costante).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per il report conformità.")
+        return redirect("anagrafica:index")
+
+    ensure_anagrafica_schema()
+    can_view_visite = _can_view_visite_mediche(request)
+
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_esito = (request.GET.get("esito") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+
+    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    legacy_ids = list(dip_map.keys())
+
+    stati = conformita_service.stato_conformita_batch(
+        legacy_ids, include_visite_dettaglio=can_view_visite
+    )
+
+    _ORDINE_ESITO = {
+        conformita_service.ESITO_KO: 0,
+        conformita_service.ESITO_WARN: 1,
+        conformita_service.ESITO_OK: 2,
+        conformita_service.ESITO_NA: 3,
+    }
+    na = {"esito": conformita_service.ESITO_NA, "dettagli": []}
+
+    righe: list[dict] = []
+    for legacy_id, dip in dip_map.items():
+        reparto = str(dip.get("reparto") or "").strip()
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        stato = stati.get(legacy_id, {"complessivo": conformita_service.ESITO_NA})
+        complessivo = stato.get("complessivo", conformita_service.ESITO_NA)
+        if filtro_esito and complessivo != filtro_esito:
+            continue
+        righe.append({
+            "legacy_id": legacy_id,
+            "cognome": str(dip.get("cognome") or f"ID {legacy_id}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": reparto,
+            "complessivo": complessivo,
+            "formazione": stato.get("formazione", na),
+            "visite": stato.get("visite", na),
+            "qualifiche": stato.get("qualifiche", na),
+            "dpi": stato.get("dpi", na),
+        })
+
+    righe.sort(key=lambda r: (
+        _ORDINE_ESITO.get(r["complessivo"], 9),
+        r["cognome"].casefold(),
+        r["nome"].casefold(),
+    ))
+
+    # KPI
+    n_ko = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_KO)
+    n_warn = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_WARN)
+    n_ok = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_OK)
+    n_na = sum(1 for r in righe if r["complessivo"] == conformita_service.ESITO_NA)
+
+    reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
+
+    if export_csv:
+        _LABEL = {
+            conformita_service.ESITO_OK: "In regola",
+            conformita_service.ESITO_WARN: "In scadenza",
+            conformita_service.ESITO_KO: "Non conforme",
+            conformita_service.ESITO_NA: "Nessun requisito",
+        }
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="conformita_anagrafica.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow([
+            "Dipendente", "Reparto", "Conformità",
+            "Formazione", "Visite mediche", "Qualifiche", "DPI",
+        ])
+        for r in righe:
+            writer.writerow([
+                f"{r['cognome']} {r['nome']}".strip(),
+                r["reparto"],
+                _LABEL.get(r["complessivo"], r["complessivo"]),
+                _LABEL.get(r["formazione"]["esito"], r["formazione"]["esito"]),
+                _LABEL.get(r["visite"]["esito"], r["visite"]["esito"]),
+                _LABEL.get(r["qualifiche"]["esito"], r["qualifiche"]["esito"]),
+                _LABEL.get(r["dpi"]["esito"], r["dpi"]["esito"]),
+            ])
+        return resp
+
+    paginator = Paginator(righe, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/conformita_report.html", {
+        "page_obj": page_obj,
+        "totale": len(righe),
+        "n_ko": n_ko,
+        "n_warn": n_warn,
+        "n_ok": n_ok,
+        "n_na": n_na,
+        "reparti": reparti,
+        "filtro_reparto": filtro_reparto,
+        "filtro_esito": filtro_esito,
+        "can_view_visite": can_view_visite,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Onboarding strutturato — pratica + checklist (H1, speculare a offboarding)
+# ---------------------------------------------------------------------------
+
+def _onboarding_counts(pratica) -> dict[str, int]:
+    tasks = list(pratica.tasks.all())
+    return {
+        "totale": len(tasks),
+        "da_fare": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_DA_FARE),
+        "completati": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_COMPLETATO),
+        "eccezioni": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_ECCEZIONE),
+    }
+
+
+@login_required
+def onboarding_list(request):
+    """Elenco pratiche onboarding con filtro stato e KPI. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per le pratiche di onboarding.")
+        return redirect("anagrafica:index")
+
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    qs = OnboardingPratica.objects.prefetch_related("tasks").all()
+    valid_stati = {choice[0] for choice in OnboardingPratica.STATO_CHOICES}
+    if filtro_stato in valid_stati:
+        qs = qs.filter(stato=filtro_stato)
+
+    pratiche = list(qs)
+    for pratica in pratiche:
+        pratica.counts = _onboarding_counts(pratica)
+
+    n_in_corso = OnboardingPratica.objects.filter(
+        stato__in=OnboardingPratica.STATI_APERTI
+    ).count()
+    n_chiuse = OnboardingPratica.objects.filter(
+        stato=OnboardingPratica.STATO_CHIUSA
+    ).count()
+    n_eccezioni = OnboardingPratica.objects.filter(
+        stato=OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI
+    ).count()
+
+    paginator = Paginator(pratiche, 30)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/onboarding_list.html", {
+        "page_obj": page_obj,
+        "totale": len(pratiche),
+        "filtro_stato": filtro_stato,
+        "stato_choices": OnboardingPratica.STATO_CHOICES,
+        "n_in_corso": n_in_corso,
+        "n_chiuse": n_chiuse,
+        "n_eccezioni": n_eccezioni,
+    })
+
+
+@login_required
+def onboarding_detail(request, pratica_id: int):
+    """Dettaglio pratica onboarding con checklist task. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per le pratiche di onboarding.")
+        return redirect("anagrafica:index")
+
+    pratica = get_object_or_404(
+        OnboardingPratica.objects.prefetch_related("tasks"), pk=pratica_id
+    )
+    tasks = list(pratica.tasks.all())
+    counts = _onboarding_counts(pratica)
+
+    return render(request, "anagrafica/pages/onboarding_detail.html", {
+        "pratica": pratica,
+        "tasks": tasks,
+        "counts": counts,
+        "task_stato_choices": OnboardingTask.STATO_CHOICES,
+        "is_admin": _offboarding_is_admin(request),
+    })
+
+
+@login_required
+@require_POST
+def onboarding_avvia(request, legacy_id: int):
+    """Avvia una pratica onboarding per il dipendente. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per avviare l'onboarding.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    if onboarding_service.pratica_aperta(legacy_id):
+        messages.warning(request, "Esiste gia una pratica onboarding aperta per questo dipendente.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    data_assunzione = None
+    raw_date = (request.POST.get("data_assunzione") or "").strip()
+    if raw_date:
+        try:
+            data_assunzione = date.fromisoformat(raw_date)
+        except ValueError:
+            messages.error(request, "Data assunzione non valida.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    ruolo_ids = list(
+        DipendenteRuoloOperativo.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .values_list("ruolo_id", flat=True)
+    )
+    nome = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    try:
+        pratica = onboarding_service.avvia_onboarding(
+            legacy_id=legacy_id,
+            dipendente_nome=nome or f"#{legacy_id}",
+            reparto=str(dip.get("reparto") or "").strip(),
+            mansione=str(dip.get("mansione") or "").strip(),
+            data_assunzione=data_assunzione,
+            note_hr=(request.POST.get("note_hr") or "").strip()[:1000],
+            user=request.user,
+            ruolo_ids=ruolo_ids,
+        )
+    except Exception:
+        logger.exception("Errore avvio pratica onboarding dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'avvio della pratica onboarding.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    _audit_safe(request, "DIPENDENTE_ONBOARDING_PRATICA_APERTA", "anagrafica", {
+        "pratica_id": pratica.id,
+        "legacy_anagrafica_id": legacy_id,
+        "dipendente_nome": nome,
+    })
+    messages.success(request, "Pratica onboarding avviata. Completa la checklist di inserimento.")
+    return redirect("anagrafica:onboarding_detail", pratica_id=pratica.id)
+
+
+@login_required
+@require_POST
+def onboarding_task_update(request, pratica_id: int, task_id: int):
+    """Aggiorna lo stato/nota di un task onboarding. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per aggiornare la pratica onboarding.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    task = get_object_or_404(
+        OnboardingTask.objects.select_related("pratica"),
+        pk=task_id,
+        pratica_id=pratica_id,
+        pratica__stato__in=OnboardingPratica.STATI_APERTI,
+    )
+    stato = (request.POST.get("stato") or "").strip()
+    valid_stati = {choice[0] for choice in OnboardingTask.STATO_CHOICES}
+    if stato not in valid_stati:
+        messages.error(request, "Stato task onboarding non valido.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    from django.utils import timezone
+
+    before = task.stato
+    task.stato = stato
+    task.note = (request.POST.get("note") or "").strip()[:1000]
+    if stato in (OnboardingTask.STATO_COMPLETATO, OnboardingTask.STATO_ECCEZIONE):
+        task.completed_at = timezone.now()
+        task.completed_by = request.user
+    else:
+        task.completed_at = None
+        task.completed_by = None
+    task.save(update_fields=["stato", "note", "completed_at", "completed_by", "updated_at"])
+
+    task.pratica.updated_by = request.user
+    task.pratica.save(update_fields=["updated_by", "updated_at"])
+    _audit_safe(request, "DIPENDENTE_ONBOARDING_TASK_UPDATE", "anagrafica", {
+        "pratica_id": pratica_id,
+        "task_id": task_id,
+        "task_codice": task.codice,
+        "stato_precedente": before,
+        "stato_nuovo": task.stato,
+    })
+    messages.success(request, f"Task onboarding aggiornato: {task.titolo}.")
+    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+
+@login_required
+@require_POST
+def onboarding_chiudi(request, pratica_id: int):
+    """Chiude la pratica onboarding (CHIUSA o CHIUSA_CON_ECCEZIONI). Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per chiudere la pratica onboarding.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    pratica = get_object_or_404(
+        OnboardingPratica.objects.prefetch_related("tasks"),
+        pk=pratica_id,
+        stato__in=OnboardingPratica.STATI_APERTI,
+    )
+    stato_finale = onboarding_service.chiudi_pratica(pratica, user=request.user)
+    _audit_safe(request, "DIPENDENTE_ONBOARDING_PRATICA_CHIUSA", "anagrafica", {
+        "pratica_id": pratica_id,
+        "legacy_anagrafica_id": pratica.legacy_anagrafica_id,
+        "stato_finale": stato_finale,
+    })
+    if stato_finale == OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI:
+        messages.warning(request, "Pratica onboarding chiusa con eccezioni (task non completati).")
+    else:
+        messages.success(request, "Pratica onboarding chiusa: checklist completata.")
+    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+
+@login_required
+@require_POST
+def onboarding_annulla(request, pratica_id: int):
+    """Annulla una pratica onboarding aperta. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per annullare la pratica onboarding.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    pratica = get_object_or_404(
+        OnboardingPratica,
+        pk=pratica_id,
+        stato__in=OnboardingPratica.STATI_APERTI,
+    )
+    onboarding_service.annulla_pratica(pratica, user=request.user)
+    _audit_safe(request, "DIPENDENTE_ONBOARDING_PRATICA_ANNULLATA", "anagrafica", {
+        "pratica_id": pratica_id,
+        "legacy_anagrafica_id": pratica.legacy_anagrafica_id,
+    })
+    messages.success(request, "Pratica onboarding annullata.")
+    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)

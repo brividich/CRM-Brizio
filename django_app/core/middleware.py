@@ -40,6 +40,8 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "api_global_search",
     "stop_impersonation",
     "employee_board",
+    "mie_attivita",
+    "scadenze_globali",
     "api_employee_board_layout",
     "api_employee_board_widget_config",
     "api_employee_board_reset",
@@ -60,6 +62,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     "/api/employee-board/widget/",
     "/gestione_utenti/modifica/",
     "/diario-preposto/allegato/",
+    # CAPA: gating fail-closed dentro le view (gestore vs responsabile),
+    # la middleware non deve bloccare per no_pulsante_match.
+    "/capa/",
 )
 
 
@@ -164,6 +169,37 @@ class AdaptiveSecureCookieMiddleware:
             morsel = response.cookies.get(cookie_name)
             if morsel is not None:
                 morsel["secure"] = ""
+        return response
+
+
+class ContentSecurityPolicyMiddleware:
+    """Aggiunge l'header Content-Security-Policy a tutte le risposte.
+
+    La policy di default (settings.CSP_POLICY) e' costruita sull'inventario
+    reale delle risorse esterne usate dai template (cdn.jsdelivr.net,
+    cdnjs.cloudflare.com, Google Fonts): non restringerla a 'self' puro
+    senza prima aggiornare quell'inventario. Override per installazione via
+    env CSP_POLICY; kill-switch CSP_ENABLED=0; rollout osservativo con
+    CSP_REPORT_ONLY=1 (header Report-Only, nessun blocco).
+    Una view puo' impostare il proprio header CSP: non viene sovrascritto.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.enabled = bool(getattr(settings, "CSP_ENABLED", True))
+        report_only = bool(getattr(settings, "CSP_REPORT_ONLY", False))
+        self.header_name = (
+            "Content-Security-Policy-Report-Only" if report_only else "Content-Security-Policy"
+        )
+        self.policy = str(getattr(settings, "CSP_POLICY", "") or "").strip()
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if not self.enabled or not self.policy:
+            return response
+        if "Content-Security-Policy" in response or "Content-Security-Policy-Report-Only" in response:
+            return response
+        response[self.header_name] = self.policy
         return response
 
 

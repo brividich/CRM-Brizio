@@ -304,8 +304,14 @@
       </div>
     </div>
     <div class="abs-hero-actions">
-      <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">Le mie richieste</a>
-      <a href="{% url 'assenze_menu' %}" class="abs-hero-action">Menu modulo</a>
+      <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">
+        <svg aria-hidden="true"><use href="#abs-i-clipboard"></use></svg>
+        Le mie richieste
+      </a>
+      <a href="{% url 'assenze_menu' %}" class="abs-hero-action">
+        <svg aria-hidden="true"><use href="#abs-i-grid"></use></svg>
+        Menu modulo
+      </a>
     </div>
   </section>
 
@@ -345,7 +351,7 @@
       <section class="abs-panel day-agenda">
         <div class="abs-panel-head">
           <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title" id="agendaDateLabel">Oggi</h2>
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg><span id="agendaDateLabel">Oggi</span></h2>
             <p class="abs-panel-subtitle">Agenda del giorno selezionato.</p>
           </div>
         </div>
@@ -358,7 +364,7 @@
       <section class="abs-panel">
         <div class="abs-panel-head">
           <div class="abs-panel-title-wrap">
-            <h2 class="abs-panel-title">Colori calendario</h2>
+            <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Colori calendario</h2>
             <p class="abs-panel-subtitle">Personalizza la palette per tipo e stato.</p>
           </div>
         </div>
@@ -443,7 +449,7 @@
     <div class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Preview eventi</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Preview eventi</h2>
           <p class="abs-panel-subtitle">Fallback senza JavaScript, basato sugli ultimi 50 eventi disponibili.</p>
         </div>
       </div>

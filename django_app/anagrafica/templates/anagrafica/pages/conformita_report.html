@@ -1,0 +1,182 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Conformità | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.cr-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
+.cr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
+.cr-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.cr-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; font-family:inherit; }
+.cr-select:focus { border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
+/* Semaforo badge per dominio / complessivo */
+.cr-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+.cr-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+.cr-ok { background:#dcfce7; color:#166534; } .cr-ok .cr-dot { background:#22c55e; }
+.cr-warn { background:#fef9c3; color:#854d0e; } .cr-warn .cr-dot { background:#f59e0b; }
+.cr-ko { background:#fee2e2; color:#991b1b; } .cr-ko .cr-dot { background:#ef4444; }
+.cr-na { background:#f1f5f9; color:#64748b; } .cr-na .cr-dot { background:#cbd5e1; }
+body.theme-dark .cr-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .cr-field label { color:var(--text-light); }
+body.theme-dark .cr-ok { background:rgba(22,101,52,.25); color:#86efac; }
+body.theme-dark .cr-warn { background:rgba(133,77,14,.25); color:#fde68a; }
+body.theme-dark .cr-ko { background:rgba(153,27,27,.3); color:#fca5a5; }
+body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
+      <h1 class="hr-pagehead-title">Conformità alla mansione</h1>
+      <p class="hr-pagehead-desc">Semaforo di idoneità per ogni dipendente attivo: formazione obbligatoria, visite mediche, qualifiche e DPI.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-outline" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv">⬇ Esporta CSV</a>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="hr-metric-grid">
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⛔</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Non conformi</span><span class="hr-metric-val">{{ n_ko }}</span></div>
+        <div class="hr-metric-sub">Almeno un adempimento scaduto/mancante</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">⏰</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza</span><span class="hr-metric-val">{{ n_warn }}</span></div>
+        <div class="hr-metric-sub">Da rinnovare a breve</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">✅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">In regola</span><span class="hr-metric-val">{{ n_ok }}</span></div>
+        <div class="hr-metric-sub">Tutti gli adempimenti validi</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">➖</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Senza requisiti</span><span class="hr-metric-val">{{ n_na }}</span></div>
+        <div class="hr-metric-sub">Nessun obbligo applicabile</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div class="hr-card">
+    <form method="get" action="">
+      <div class="cr-filters">
+        <div class="cr-field">
+          <label for="cr-esito">Conformità</label>
+          <select id="cr-esito" name="esito" class="cr-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_esito %}selected{% endif %}>Tutte</option>
+            <option value="ko" {% if filtro_esito == "ko" %}selected{% endif %}>Solo non conformi</option>
+            <option value="warn" {% if filtro_esito == "warn" %}selected{% endif %}>Solo in scadenza</option>
+            <option value="ok" {% if filtro_esito == "ok" %}selected{% endif %}>Solo in regola</option>
+            <option value="na" {% if filtro_esito == "na" %}selected{% endif %}>Senza requisiti</option>
+          </select>
+        </div>
+        {% if reparti %}
+        <div class="cr-field">
+          <label for="cr-reparto">Reparto</label>
+          <select id="cr-reparto" name="reparto" class="cr-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti</option>
+            {% for r in reparti %}
+            <option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
+          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
+          <a href="{% url 'anagrafica:conformita_report' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabella risultati -->
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div>
+        <span class="hr-card-title">Dipendenti</span>
+        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;">{{ totale }}</span>
+      </div>
+      {% if not can_view_visite %}
+      <div style="font-size:12px;color:#94a3b8;">Il dettaglio delle visite mediche non è visibile con il tuo livello di accesso.</div>
+      {% endif %}
+    </div>
+
+    {% if page_obj.object_list %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table" data-table-id="anagrafica.conformita">
+        <thead>
+          <tr>
+            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+            <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+            <th data-col="conformita" data-col-label="Conformità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Conformità</th>
+            <th data-col="formazione" data-col-label="Formazione" data-col-type="text">Formazione</th>
+            <th data-col="visite" data-col-label="Visite" data-col-type="text">Visite</th>
+            <th data-col="qualifiche" data-col-label="Qualifiche" data-col-type="text">Qualifiche</th>
+            <th data-col="dpi" data-col-label="DPI" data-col-type="text">DPI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in page_obj.object_list %}
+          <tr>
+            <td>
+              <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
+                {{ r.cognome }} {{ r.nome }}
+              </a>
+            </td>
+            <td>{% if r.reparto %}<span class="hr-pill blue">{{ r.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.complessivo grande=1 %}</td>
+            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.formazione.esito %}</td>
+            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.visite.esito %}</td>
+            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.qualifiche.esito %}</td>
+            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.dpi.esito %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
+      {% if page_obj.has_previous %}
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
+      {% endif %}
+      <span style="font-size:13px;color:#64748b;">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="hr-empty">
+      <div style="font-size:32px;margin-bottom:8px;">✅</div>
+      Nessun dipendente trovato con i filtri selezionati.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

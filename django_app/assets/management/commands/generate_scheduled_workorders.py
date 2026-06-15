@@ -23,6 +23,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from assets.maintenance import copy_template_checklist_to_workorder, meter_schedule_payload
 from assets.models import Asset, AssetMeter, MaintenanceRule, MaintenanceRuleAssetOverride, WorkOrder
 
 _METER_TYPE_MAP = {
@@ -181,11 +182,17 @@ class Command(BaseCommand):
                         .first()
                     )
                     base_val = float(last_wo["meter_value_at_close"]) if (last_wo and last_wo.get("meter_value_at_close") is not None) else 0.0
-                    delta = current_val - base_val
-                    warn_threshold = effective_threshold_value * (1 - rule.warning_days / max(effective_threshold_value, 1))
-                    if delta >= warn_threshold:
+                    payload = meter_schedule_payload(
+                        current_value=current_val,
+                        base_value=base_val,
+                        threshold_value=effective_threshold_value,
+                        warning_units=rule.warning_days,
+                        unit_label=meter_type_key,
+                    )
+                    if payload["due"]:
                         due = True
-                        due_reason = f"contatore {meter_type_key}={current_val:.0f} (delta={delta:.0f}/{effective_threshold_value})"
+                        remaining = payload["remaining"] or 0.0
+                        due_reason = f"contatore {meter_type_key}={current_val:.0f} (restano {remaining:.0f}/{effective_threshold_value})"
                     else:
                         skipped_not_due += 1
                         continue
@@ -219,9 +226,13 @@ class Command(BaseCommand):
                         reference_batch=f"auto-{today:%Y%m%d}",
                     )
                     wo.save()
+                    steps_copied = copy_template_checklist_to_workorder(
+                        wo, template_id=getattr(effective_template, "pk", None)
+                    )
                     open_periodic_pairs.add((asset.id, rule.id))
                     created += 1
-                    self.stdout.write(f"  Creato WO #{wo.pk}: {title}")
+                    checklist_suffix = f" (+{steps_copied} step checklist)" if steps_copied else ""
+                    self.stdout.write(f"  Creato WO #{wo.pk}: {title}{checklist_suffix}")
 
             if limit and created >= limit:
                 break

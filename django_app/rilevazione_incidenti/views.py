@@ -660,6 +660,9 @@ def dettaglio(request, sp_id):
     )
     can_edit_rspp = _can_manage_rspp(request)
 
+    # CAPA — Azioni correttive/preventive collegate a questo incidente.
+    capa_items, capa_new_url = _capa_panel_context(request, sp_id, item_fields)
+
     return render(request, "rilevazione_incidenti/pages/dettaglio.html", {
         "f": item_fields,
         "sp_id": sp_id,
@@ -667,7 +670,45 @@ def dettaglio(request, sp_id):
         "can_edit_preposto": can_edit_preposto,
         "can_edit_rspp": can_edit_rspp,
         "b": _bool_field,
+        "capa_items": capa_items,
+        "capa_new_url": capa_new_url,
     })
+
+
+def _capa_panel_context(request, sp_id, item_fields):
+    """Costruisce (azioni_collegate, url_nuova) per il pannello CAPA del detail.
+
+    Il bottone "Nuova azione" appare solo a chi può gestire le CAPA; l'URL di
+    creazione precompila origine (rilevazione_incidenti+sp_id), label, link al
+    record e reparto, oltre al ritorno a questa pagina.
+    """
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    from core.services import capa as capa_service
+
+    capa_items = list(capa_service.azioni_collegate("rilevazione_incidenti", sp_id))
+    capa_new_url = ""
+    # Chi opera sull'incidente (preposti + RSPP/ASPP) può creare azioni correttive.
+    if _can_create(request) or _can_manage_rspp(request):
+        try:
+            detail_path = reverse("rilevazione_incidenti:dettaglio", args=[sp_id])
+        except Exception:
+            detail_path = ""
+        f = item_fields or {}
+        label = " — ".join(
+            p for p in [str(f.get("tipologia_scheda") or "Incidente").strip(), str(f.get("nominativo") or "").strip()] if p
+        )
+        capa_new_url = reverse("capa_create") + "?" + urlencode({
+            "source": "rilevazione_incidenti",
+            "pk": sp_id,
+            "label": label[:255],
+            "url": detail_path,
+            "reparto": str(f.get("reparto") or "").strip(),
+            "torna": detail_path,
+        })
+    return capa_items, capa_new_url
 
 
 # ---------------------------------------------------------------------------

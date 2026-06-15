@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% block title %}{{ form_title }} | Timbri{% endblock %}
+{% block body_class %}{{ block.super }} timbri-form-page{% endblock %}
 {% block extra_head %}
 <style>
 /* ── Layout ─────────────────────────────────────────────────────────────── */
@@ -9,7 +10,7 @@
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .tim-form-header { display:flex; align-items:center; gap:16px; }
 .tim-form-avatar { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#0f766e,#14b8a6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; flex-shrink:0; }
-.tim-form-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.tim-form-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:0; }
 .tim-form-sub { font-size:13px; color:#64748b; margin-top:4px; }
 .tim-form-sub strong { color:#334155; }
 
@@ -71,6 +72,30 @@ body.theme-dark .tim-btn:hover { background:var(--surface-alt); }
 body.theme-dark .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
 body.theme-dark .tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
 body.theme-dark .tim-btn-archive { background:rgba(146,64,14,.2); border-color:rgba(253,230,138,.3); color:#fde68a; }
+
+/* 2026 UI refresh */
+.timbri-form-page .content { width:100%; max-width:none; }
+.timbri-form-page .tim-shell { max-width:1180px; gap:16px; }
+.timbri-form-page .tim-card { border-radius:8px; border-color:#dbe7e5; box-shadow:0 14px 34px rgba(15,23,42,.04); }
+.timbri-form-page .tim-card:first-child {
+  position:relative;
+  overflow:hidden;
+  color:#fff;
+  border-color:rgba(15,118,110,.22);
+  background:
+    linear-gradient(135deg, rgba(8,38,52,.97) 0%, rgba(15,118,110,.94) 58%, rgba(2,132,199,.78) 128%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
+}
+.timbri-form-page .tim-card:first-child::after { content:""; position:absolute; right:22px; bottom:0; width:220px; height:84px; border:1px solid rgba(255,255,255,.12); border-bottom:0; opacity:.34; transform:skewX(-12deg); pointer-events:none; }
+.timbri-form-page .tim-form-header { position:relative; z-index:1; }
+.timbri-form-page .tim-form-title { color:#fff; font-size:26px; font-weight:900; }
+.timbri-form-page .tim-form-sub { color:rgba(255,255,255,.78); }
+.timbri-form-page .tim-form-sub strong { color:#fff; }
+.timbri-form-page .tim-form-avatar { background:#fff; color:#0f766e; border-radius:8px; }
+.timbri-form-page .tim-img-slot { border-radius:8px; border-color:#dbe7e5; }
+.timbri-form-page .tim-img-preview { border-radius:8px; }
+.timbri-form-page .tim-actions { justify-content:flex-end; }
+body.theme-dark.timbri-form-page .tim-card { box-shadow:none; }
 </style>
 {% endblock %}
 {% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}

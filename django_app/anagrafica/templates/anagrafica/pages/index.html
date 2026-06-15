@@ -247,30 +247,6 @@ body.theme-dark .hr-qa-stat-v { color:var(--text); }
     </div>
   </div>
 
-  <!-- ── Widget: Link a Fornitori ── -->
-  <div class="ana-widget" data-wid="fornitori-link">
-    <div class="ana-widget-bar">
-      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
-      <span class="ana-widget-label">Anagrafica fornitori</span>
-      <button class="ana-widget-hide" data-wid="fornitori-link" title="Nascondi">✕</button>
-    </div>
-    <div class="hr-card">
-      <div class="hr-card-head">
-        <div>
-          <div class="hr-card-title">🏭 Anagrafica Fornitori</div>
-          <div class="hr-card-desc">Modulo dedicato, separato dall'anagrafica HR</div>
-        </div>
-        <a class="hr-btn hr-btn-primary" href="{% url 'fornitori:index' %}">Apri modulo →</a>
-      </div>
-      <div class="hr-card-pad" style="color:#64748b;font-size:13px;">
-        La gestione fornitori (anagrafica, documenti, ordini, valutazioni, asset assegnati) è
-        ora separata dal modulo HR. Vai al
-        <a href="{% url 'fornitori:index' %}" style="color:#1f5c91;font-weight:700;">modulo Anagrafica Fornitori</a>
-        per accedervi.
-      </div>
-    </div>
-  </div>
-
   <!-- Restore panel (visibile solo in edit mode se ci sono widget nascosti) -->
   <div id="ana-restore-panel">
     <div class="ana-restore-title">Sezioni nascoste — clicca per ripristinare</div>
@@ -282,7 +258,7 @@ body.theme-dark .hr-qa-stat-v { color:var(--text); }
 <script>
 (function () {
   var STORAGE_KEY = 'ana_dash_prefs_v1';
-  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Impostazioni', 'fornitori-link': 'Link ad Anagrafica Fornitori' };
+  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Impostazioni' };
 
   var root      = document.getElementById('ana-root');
   var editBar   = document.getElementById('ana-edit-bar');

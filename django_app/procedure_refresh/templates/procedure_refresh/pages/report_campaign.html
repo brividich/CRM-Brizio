@@ -2,6 +2,8 @@
 
 {% block title %}Report per campagna | Presa Visione{% endblock %}
 
+{% block body_class %}{{ block.super }} pr-workspace-page pr-report-page pr-report-campaign-page{% endblock %}
+
 {% block extra_head %}
 <style>
 #pr-root { display:flex; flex-direction:column; gap:20px; }
@@ -62,6 +64,7 @@ body.theme-dark .pr-badge-overdue { background:rgba(220,38,38,.2); color:#fca5a5
 body.theme-dark .pr-badge-cancelled { background:var(--surface-alt); color:var(--text-light); }
 body.theme-dark .pr-empty { color:var(--text-light); }
 </style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
 
 {% block content %}
@@ -103,20 +106,26 @@ body.theme-dark .pr-empty { color:var(--text-light); }
   </div>
 
   {% if selected_camp %}
-    {% with n_total=assignments|length %}
-      {% if n_total %}
-        <div class="pr-kpi-row">
-          <div class="pr-kpi">
-            <div class="pr-kpi-val">{{ n_total }}</div>
-            <div class="pr-kpi-lbl">Assegnazioni</div>
-          </div>
-          <div class="pr-kpi pr-kpi-green">
-            <div class="pr-kpi-val">{% for a in assignments %}{% if a.status == 'read_confirmed' %}{% cycle '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' as cnt %}{% endif %}{% endfor %}{{ assignments|dictsort:"status"|length }}</div>
-            <div class="pr-kpi-lbl">Da contare via server</div>
-          </div>
+    {% if report_stats.total %}
+      <div class="pr-kpi-row">
+        <div class="pr-kpi">
+          <div class="pr-kpi-val">{{ report_stats.total }}</div>
+          <div class="pr-kpi-lbl">Assegnazioni</div>
         </div>
-      {% endif %}
-    {% endwith %}
+        <div class="pr-kpi pr-kpi-green">
+          <div class="pr-kpi-val">{{ report_stats.confirmed }}</div>
+          <div class="pr-kpi-lbl">Confermate</div>
+        </div>
+        <div class="pr-kpi pr-kpi-orange">
+          <div class="pr-kpi-val">{{ report_stats.pending }}</div>
+          <div class="pr-kpi-lbl">In attesa</div>
+        </div>
+        <div class="pr-kpi pr-kpi-red">
+          <div class="pr-kpi-val">{{ report_stats.overdue }}</div>
+          <div class="pr-kpi-lbl">Scadute</div>
+        </div>
+      </div>
+    {% endif %}
 
     <div class="pr-table-wrap">
       {% if assignments %}

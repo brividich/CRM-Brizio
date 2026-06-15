@@ -9,10 +9,13 @@ from django.utils import timezone
 from .models import (
     Asset,
     AssetMaintenanceRuleState,
+    AssetMeter,
     AssistanceContract,
+    MaintenanceChecklistStep,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
     WorkOrder,
+    WorkOrderChecklist,
 )
 
 STATUS_INHERITED = "inherited"
@@ -256,7 +259,90 @@ def _schedule_status_payload(*, due_date: date | None, warning_days: int, today:
     }
 
 
-def build_day_based_maintenance_schedule_rows(
+# Mappa soglia regola → tipo contatore AssetMeter e unità di misura leggibile.
+_METER_THRESHOLD_TO_METER_TYPE = {
+    MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
+    MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
+    MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
+}
+_METER_UNIT_LABELS = {
+    MaintenanceRule.THRESHOLD_HOURS: "h",
+    MaintenanceRule.THRESHOLD_KM: "km",
+    MaintenanceRule.THRESHOLD_CYCLES: "cicli",
+}
+
+
+def _fmt_units(value) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "0"
+    if number == int(number):
+        return str(int(number))
+    return f"{number:.1f}"
+
+
+def meter_schedule_payload(
+    *,
+    current_value,
+    base_value,
+    threshold_value,
+    warning_units,
+    unit_label: str = "",
+) -> dict[str, Any]:
+    """Stato manutenzione per regole a contatore (ore/km/cicli), condiviso tra lo scadenzario
+    e il generatore di OdL così che ciò che si vede coincida con ciò che viene generato.
+
+    ``current_value=None`` significa contatore non disponibile per l'asset → stato ``missing``.
+    Ritorna anche ``due`` (= status in overdue/warning) usato dal generatore come trigger.
+    """
+    unit = (unit_label or "u").strip() or "u"
+    if current_value is None:
+        return {
+            "status": SCHEDULE_MISSING,
+            "label": f"Contatore {unit} mancante",
+            "badge_class": "muted",
+            "remaining": None,
+            "consumed": None,
+            "due": False,
+            "days_until_due": None,
+        }
+    threshold = float(threshold_value or 0)
+    consumed = max(0.0, float(current_value) - float(base_value or 0))
+    remaining = threshold - consumed
+    warn = max(0.0, min(float(warning_units or 0), threshold))
+    if remaining <= 0:
+        return {
+            "status": SCHEDULE_OVERDUE,
+            "label": f"Oltre soglia di {_fmt_units(-remaining)} {unit}",
+            "badge_class": "danger",
+            "remaining": remaining,
+            "consumed": consumed,
+            "due": True,
+            "days_until_due": None,
+        }
+    if remaining <= warn:
+        return {
+            "status": SCHEDULE_WARNING,
+            "label": f"Restano {_fmt_units(remaining)} {unit}",
+            "badge_class": "warn",
+            "remaining": remaining,
+            "consumed": consumed,
+            "due": True,
+            "days_until_due": None,
+        }
+    return {
+        "status": SCHEDULE_UPCOMING,
+        "label": f"Restano {_fmt_units(remaining)} {unit}",
+        "badge_class": "ok",
+        "remaining": remaining,
+        "consumed": consumed,
+        "due": False,
+        "days_until_due": None,
+    }
+
+
+def build_maintenance_schedule_rows(
     *,
     asset_queryset=None,
     today: date | None = None,
@@ -296,6 +382,13 @@ def build_day_based_maintenance_schedule_rows(
             base_rule__asset_category_id__in=category_ids,
         )
     }
+    # Contatori (ore/km/cicli) correnti per le regole a soglia non-giorni.
+    meter_by_asset_type: dict[tuple[int, str], dict[str, Any]] = {
+        (m["asset_id"], m["meter_type"]): {"current_value": m["current_value"], "unit_label": m["unit_label"]}
+        for m in AssetMeter.objects.filter(asset_id__in=asset_ids).values(
+            "asset_id", "meter_type", "current_value", "unit_label"
+        )
+    }
     threshold_labels = dict(MaintenanceRule.THRESHOLD_TYPE_CHOICES)
 
     rows: list[dict[str, Any]] = []
@@ -310,40 +403,83 @@ def build_day_based_maintenance_schedule_rows(
             )
             if not base_rule.is_active or resolved_row["is_disabled"]:
                 continue
-            if resolved_row["effective_threshold_type"] != MaintenanceRule.THRESHOLD_DAYS:
-                continue
 
+            effective_type = resolved_row["effective_threshold_type"]
             state = state_by_asset_rule.get((asset.id, base_rule.id))
             last_execution_date = state.last_execution_date if state else None
-            due_date = None
-            if last_execution_date is not None:
-                due_date = last_execution_date + timedelta(days=int(resolved_row["effective_threshold_value"] or 0))
-            schedule = _schedule_status_payload(
-                due_date=due_date,
-                warning_days=int(resolved_row.get("effective_warning_days") or 0),
-                today=current_day,
-            )
-            rows.append(
-                {
-                    **resolved_row,
-                    "state": state,
-                    "last_execution_date": last_execution_date,
-                    "last_execution_notes": (state.notes or "").strip() if state else "",
-                    "last_execution_workorder": state.last_work_order if state else None,
-                    "last_execution_source": (
-                        "workorder"
-                        if state and state.last_work_order_id
-                        else "manual"
-                        if state and state.last_execution_date
-                        else ""
-                    ),
-                    "due_date": due_date,
-                    "schedule_status": schedule["status"],
-                    "schedule_label": schedule["label"],
-                    "schedule_badge_class": schedule["badge_class"],
-                    "days_until_due": schedule["days_until_due"],
-                }
-            )
+            common = {
+                **resolved_row,
+                "state": state,
+                "last_execution_date": last_execution_date,
+                "last_execution_notes": (state.notes or "").strip() if state else "",
+                "last_execution_workorder": state.last_work_order if state else None,
+                "last_execution_source": (
+                    "workorder"
+                    if state and state.last_work_order_id
+                    else "manual"
+                    if state and state.last_execution_date
+                    else ""
+                ),
+                "is_meter_based": False,
+                "meter_unit": "",
+                "meter_current_value": None,
+                "meter_remaining": None,
+            }
+
+            if effective_type == MaintenanceRule.THRESHOLD_DAYS:
+                due_date = None
+                if last_execution_date is not None:
+                    due_date = last_execution_date + timedelta(days=int(resolved_row["effective_threshold_value"] or 0))
+                schedule = _schedule_status_payload(
+                    due_date=due_date,
+                    warning_days=int(resolved_row.get("effective_warning_days") or 0),
+                    today=current_day,
+                )
+                rows.append(
+                    {
+                        **common,
+                        "due_date": due_date,
+                        "schedule_status": schedule["status"],
+                        "schedule_label": schedule["label"],
+                        "schedule_badge_class": schedule["badge_class"],
+                        "days_until_due": schedule["days_until_due"],
+                    }
+                )
+            elif effective_type in _METER_THRESHOLD_TO_METER_TYPE:
+                meter_type_key = _METER_THRESHOLD_TO_METER_TYPE[effective_type]
+                meter_info = meter_by_asset_type.get((asset.id, meter_type_key))
+                current_value = meter_info["current_value"] if meter_info else None
+                unit_label = (
+                    (meter_info["unit_label"].strip() if meter_info and meter_info["unit_label"] else "")
+                    or _METER_UNIT_LABELS.get(effective_type, "")
+                )
+                base_value = 0.0
+                last_wo = state.last_work_order if state else None
+                if last_wo is not None and last_wo.meter_value_at_close is not None:
+                    base_value = float(last_wo.meter_value_at_close)
+                meter = meter_schedule_payload(
+                    current_value=current_value,
+                    base_value=base_value,
+                    threshold_value=resolved_row["effective_threshold_value"],
+                    warning_units=resolved_row.get("effective_warning_days") or 0,
+                    unit_label=unit_label,
+                )
+                rows.append(
+                    {
+                        **common,
+                        "due_date": None,
+                        "is_meter_based": True,
+                        "meter_unit": unit_label,
+                        "meter_current_value": current_value,
+                        "meter_remaining": meter["remaining"],
+                        "schedule_status": meter["status"],
+                        "schedule_label": meter["label"],
+                        "schedule_badge_class": meter["badge_class"],
+                        "days_until_due": None,
+                    }
+                )
+            else:
+                continue
 
     status_order = {
         SCHEDULE_OVERDUE: 0,
@@ -362,6 +498,12 @@ def build_day_based_maintenance_schedule_rows(
         )
     )
     return rows
+
+
+# Compat: il nome storico restituiva solo righe a giorni; ora il motore include anche
+# le regole a contatore (ore/km/cicli). I chiamanti che filtrano per due_date data
+# ignorano automaticamente le righe a contatore.
+build_day_based_maintenance_schedule_rows = build_maintenance_schedule_rows
 
 
 def _clean_sort_value(value) -> str:
@@ -417,3 +559,37 @@ def _contract_specificity(*, contract: AssistanceContract, asset: Asset) -> int:
     if contract.asset_id is None and contract.asset_category_id and contract.asset_category_id == getattr(asset, "asset_category_id", None):
         return 1
     return 2
+
+
+def copy_template_checklist_to_workorder(workorder: WorkOrder | None, *, template_id: int | None = None) -> int:
+    """Copia gli step di checklist del template intervento come ``WorkOrderChecklist``.
+
+    Usata sia dalla creazione manuale dell'OdL (view) sia dalla generazione periodica
+    automatica (``generate_scheduled_workorders``), così il comportamento è unico.
+    Se ``template_id`` è passato (es. template effettivo da override) usa quello,
+    altrimenti deriva dal template della regola collegata al WorkOrder.
+    Idempotente: se l'OdL ha già una checklist non duplica nulla. Ritorna il numero di
+    step creati.
+    """
+    if workorder is None or not workorder.pk:
+        return 0
+    if template_id is None:
+        if not workorder.maintenance_rule_id:
+            return 0
+        template_id = getattr(workorder.maintenance_rule, "intervention_template_id", None)
+    if not template_id:
+        return 0
+    if WorkOrderChecklist.objects.filter(work_order=workorder).exists():
+        return 0
+    steps = list(
+        MaintenanceChecklistStep.objects.filter(intervention_template_id=template_id).order_by("step_number", "id")
+    )
+    if not steps:
+        return 0
+    WorkOrderChecklist.objects.bulk_create(
+        [
+            WorkOrderChecklist(work_order=workorder, step_number=step.step_number, description=step.description)
+            for step in steps
+        ]
+    )
+    return len(steps)

@@ -71,6 +71,19 @@ class FattoreRischio(models.Model):
     richiede_visita_medica = models.BooleanField(default=False)
     richiede_dpi           = models.BooleanField(default=False)
 
+    # PATCH-RISK-03: i requisiti concreti generati dal fattore. Una mansione
+    # esposta a questo fattore (via EsposizioneRischio) eredita queste visite
+    # e categorie DPI; i corsi derivano dalle CategoriaCorso collegate
+    # (reverse ``categorie_corso``). Risolto in services/mansionario.py.
+    tipi_visita = models.ManyToManyField(
+        "anagrafica.TipoVisitaMedica", blank=True, related_name="fattori_rischio",
+        help_text="Visite mediche generate da questo fattore di rischio.",
+    )
+    categorie_dpi = models.ManyToManyField(
+        "dpi.CategoriaDPI", blank=True, related_name="fattori_rischio",
+        help_text="Categorie DPI generate da questo fattore di rischio.",
+    )
+
     is_active  = models.BooleanField(default=True)
     note       = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

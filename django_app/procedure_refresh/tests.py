@@ -184,6 +184,41 @@ class ViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "MT-VIEW-001")
 
+    def test_my_assignments_renderizza_workspace_fullpage(self):
+        self.client.force_login(self.user)
+        resp = self.client.get(reverse("procedure_refresh:my_assignments"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "pr-workspace-page")
+        self.assertContains(resp, "pr-shell")
+        self.assertContains(resp, "pr-workspace")
+        self.assertContains(resp, "Da completare")
+        self.assertContains(resp, "1 risultati")
+
+    def test_subpages_renderizzano_workspace_fullpage(self):
+        self.client.force_login(self.user)
+        urls_and_markers = [
+            (reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk}), "pr-reading-page"),
+            (reverse("procedure_refresh:admin_dashboard"), "pr-admin-dashboard-page"),
+            (reverse("procedure_refresh:document_list"), "pr-document-list-page"),
+            (reverse("procedure_refresh:document_create"), "pr-document-form-page"),
+            (reverse("procedure_refresh:revision_create", kwargs={"doc_pk": self.doc.pk}), "pr-revision-form-page"),
+            (reverse("procedure_refresh:revision_quiz", kwargs={"rev_pk": self.rev.pk}), "pr-quiz-form-page"),
+            (reverse("procedure_refresh:campaign_list"), "pr-campaign-list-page"),
+            (reverse("procedure_refresh:campaign_create"), "pr-campaign-form-page"),
+            (reverse("procedure_refresh:campaign_detail", kwargs={"pk": self.campaign.pk}), "pr-campaign-detail-page"),
+            (reverse("procedure_refresh:report_user"), "pr-report-user-page"),
+            (reverse("procedure_refresh:report_document"), "pr-report-document-page"),
+            (reverse("procedure_refresh:report_campaign") + f"?camp_id={self.campaign.pk}", "pr-report-campaign-page"),
+            (reverse("procedure_refresh:report_matrix"), "pr-report-matrix-page"),
+        ]
+
+        for url, marker in urls_and_markers:
+            with self.subTest(url=url):
+                resp = self.client.get(url)
+                self.assertEqual(resp.status_code, 200)
+                self.assertContains(resp, "pr-workspace-page")
+                self.assertContains(resp, marker)
+
     def test_assignment_detail_get_tracks_open(self):
         self.client.force_login(self.user)
         url = reverse("procedure_refresh:assignment_detail", kwargs={"pk": self.assignment.pk})

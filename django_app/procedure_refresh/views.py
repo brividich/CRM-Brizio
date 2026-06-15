@@ -219,18 +219,45 @@ def _active_quiz_for_revision(revision: ProcedureRevision) -> ProcedureQuiz | No
 @login_required
 def my_assignments(request):
     status_filter = request.GET.get("status", "")
-    qs = (
+    base_qs = (
         ProcedureAssignment.objects.filter(user=request.user)
         .select_related("campaign", "revision__document")
         .order_by("-assigned_at")
     )
+    all_assignments = list(base_qs)
+
+    pending_statuses = {
+        AssignmentStatus.ASSIGNED,
+        AssignmentStatus.OPENED,
+        AssignmentStatus.OVERDUE,
+    }
+    today = timezone.localdate()
+    pr_stats = {
+        "total": len(all_assignments),
+        "filtered": 0,
+        "pending": sum(1 for a in all_assignments if a.status in pending_statuses),
+        "assigned": sum(1 for a in all_assignments if a.status == AssignmentStatus.ASSIGNED),
+        "opened": sum(1 for a in all_assignments if a.status == AssignmentStatus.OPENED),
+        "confirmed": sum(1 for a in all_assignments if a.status == AssignmentStatus.READ_CONFIRMED),
+        "overdue": sum(1 for a in all_assignments if a.status == AssignmentStatus.OVERDUE),
+        "cancelled": sum(1 for a in all_assignments if a.status == AssignmentStatus.CANCELLED),
+        "due_soon": sum(
+            1
+            for a in all_assignments
+            if a.status in pending_statuses and a.due_date and 0 <= (a.due_date - today).days <= 7
+        ),
+    }
+
+    assignments = all_assignments
     if status_filter:
-        qs = qs.filter(status=status_filter)
+        assignments = [a for a in assignments if a.status == status_filter]
+    pr_stats["filtered"] = len(assignments)
 
     is_manager = _is_manager(request)
 
     return render(request, "procedure_refresh/pages/my_assignments.html", {
-        "assignments": qs,
+        "assignments": assignments,
+        "pr_stats": pr_stats,
         "status_filter": status_filter,
         "AssignmentStatus": AssignmentStatus,
         "is_manager": is_manager,
@@ -1120,6 +1147,12 @@ def report_campaign(request):
 
     assignments = []
     selected_camp = None
+    report_stats = {
+        "total": 0,
+        "confirmed": 0,
+        "pending": 0,
+        "overdue": 0,
+    }
     if camp_id:
         try:
             selected_camp = ProcedureCampaign.objects.get(pk=int(camp_id))
@@ -1128,6 +1161,14 @@ def report_campaign(request):
                 .select_related("revision__document", "user")
                 .order_by("user__last_name", "user__first_name")
             )
+            report_stats = {
+                "total": assignments.count(),
+                "confirmed": assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
+                "pending": assignments.filter(
+                    status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
+                ).count(),
+                "overdue": assignments.filter(status=AssignmentStatus.OVERDUE).count(),
+            }
         except (ProcedureCampaign.DoesNotExist, ValueError):
             pass
 
@@ -1135,6 +1176,7 @@ def report_campaign(request):
         "campaigns": campaigns,
         "selected_camp": selected_camp,
         "assignments": assignments,
+        "report_stats": report_stats,
         "AssignmentStatus": AssignmentStatus,
     })
 

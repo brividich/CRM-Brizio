@@ -588,6 +588,204 @@ def elenco(request):
     return render(request, "rentri/pages/elenco.html", ctx)
 
 
+def _scadenzario_rows(qs, today) -> list[dict]:
+    rows = []
+    for r in qs:
+        giorni = (today - r.data).days if r.data else None
+        rows.append({
+            "pk": r.pk,
+            "data": r.data,
+            "tipo": r.tipo,
+            "tipo_label": r.get_tipo_display(),
+            "id_registrazione": r.id_registrazione,
+            "codice": r.codice,
+            "quantita": r.quantita,
+            "giorni": giorni,
+            "note": r.note_rentri,
+        })
+    return rows
+
+
+def _scadenzario_buckets(today) -> list[dict]:
+    """Costruisce gli adempimenti aperti del registro RENTRI.
+
+    - FIR mancante: scarichi (O/M/R) senza riferimento al Formulario (arrivo_fir vuoto).
+    - Da comunicare: movimenti consolidati (salva=True) non ancora marcati come trasmessi.
+    - Bozze: registrazioni non ancora salvate in via definitiva.
+    """
+    fir_qs = RegistroRifiuti.objects.filter(
+        tipo__in=["O", "M", "R"], arrivo_fir=""
+    ).order_by("data", "id")
+    comunicare_qs = RegistroRifiuti.objects.filter(
+        rentri_si_no=False, salva=True
+    ).order_by("data", "id")
+    bozze_qs = RegistroRifiuti.objects.filter(salva=False).order_by("data", "id")
+
+    return [
+        {
+            "key": "fir",
+            "label": "FIR mancante",
+            "desc": "Scarichi (O/M/R) senza riferimento al Formulario di Identificazione Rifiuti.",
+            "tone": "danger",
+            "rows": _scadenzario_rows(fir_qs, today),
+        },
+        {
+            "key": "comunicare",
+            "label": "Da comunicare a RENTRI",
+            "desc": "Movimenti consolidati ma non ancora marcati come trasmessi a RENTRI.",
+            "tone": "warning",
+            "rows": _scadenzario_rows(comunicare_qs, today),
+        },
+        {
+            "key": "bozze",
+            "label": "Bozze da consolidare",
+            "desc": "Registrazioni non ancora salvate in via definitiva.",
+            "tone": "info",
+            "rows": _scadenzario_rows(bozze_qs, today),
+        },
+    ]
+
+
+def _scadenzario_csv(today, sections):
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="rentri_scadenzario_{today.strftime("%Y%m%d")}.csv"'
+    )
+    response.write("﻿")  # BOM per apertura corretta in Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow([
+        "Adempimento", "Data", "ID Registrazione", "Tipo",
+        "Codice EER", "Quantita", "Giorni di giacenza", "Note",
+    ])
+    for section in sections:
+        for r in section["rows"]:
+            writer.writerow([
+                section["label"],
+                r["data"].strftime("%d/%m/%Y") if r["data"] else "",
+                r["id_registrazione"],
+                r["tipo_label"],
+                r["codice"],
+                r["quantita"] if r["quantita"] is not None else "",
+                r["giorni"] if r["giorni"] is not None else "",
+                r["note"],
+            ])
+    return response
+
+
+@login_required
+def scadenzario(request):
+    """Scadenzario adempimenti RENTRI: FIR mancanti, da comunicare, bozze.
+
+    Sola lettura (login). Export CSV con ?export=csv. Il PDF del registro
+    completo resta su `rentri_export_pdf`.
+    """
+    today = timezone.localdate()
+    sections = _scadenzario_buckets(today)
+
+    if request.GET.get("export") == "csv":
+        return _scadenzario_csv(today, sections)
+
+    total = sum(len(s["rows"]) for s in sections)
+    return render(request, "rentri/pages/scadenzario.html", {
+        "sections": sections,
+        "total": total,
+        "today": today,
+        "can_manage": _can_manage_rentri(request),
+    })
+
+
+def _giacenze_csv(rows, today, soglie):
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="rentri_giacenze_{today.strftime("%Y%m%d")}.csv"'
+    )
+    response.write("﻿")  # BOM per apertura corretta in Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow([
+        "Codice EER", "Pericoloso", "Carichi", "Scarichi",
+        "Entrate", "Uscite", "Giacenza", "Primo carico",
+        "Giorni in deposito", "Stato",
+    ])
+    stato_label = {
+        "rosso": "Oltre soglia",
+        "giallo": "In avvicinamento",
+        "verde": "Regolare",
+        "chiuso": "Azzerata",
+    }
+    for g, tono in rows:
+        writer.writerow([
+            g.codice,
+            "Sì" if g.pericoloso else "",
+            g.n_carichi,
+            g.n_scarichi,
+            g.entrate,
+            g.uscite,
+            g.giacenza,
+            g.primo_carico.strftime("%d/%m/%Y") if g.primo_carico else "",
+            g.giorni_giacenza if g.giorni_giacenza is not None else "",
+            stato_label.get(tono, tono),
+        ])
+    return response
+
+
+@login_required
+def giacenze(request):
+    """Giacenze rifiuti per CER + semaforo deposito temporaneo (sola lettura).
+
+    Aggrega carichi/scarichi per codice EER e segnala le giacenze aperte che si
+    avvicinano o superano il limite di deposito temporaneo. Export CSV con
+    ?export=csv. Le soglie sono configurabili (vedi `rentri.giacenze`).
+    """
+    from .giacenze import giacenze_per_cer, soglie_deposito
+
+    today = timezone.localdate()
+    soglie = soglie_deposito()
+
+    q_search = request.GET.get("q", "").strip()
+    q_allerta = request.GET.get("allerta", "") == "1"
+    q_pericolosi = request.GET.get("pericolosi", "") == "1"
+    q_aperte = request.GET.get("aperte", "1") != "0"  # default: solo giacenze aperte
+
+    _TONO_ORDER = {"rosso": 0, "giallo": 1, "verde": 2, "chiuso": 3}
+    rows = []
+    for g in giacenze_per_cer():
+        tono = g.tono(soglie)
+        if q_aperte and not g.aperta:
+            continue
+        if q_allerta and tono not in ("rosso", "giallo"):
+            continue
+        if q_pericolosi and not g.pericoloso:
+            continue
+        if q_search and q_search.lower() not in g.codice.lower():
+            continue
+        rows.append((g, tono))
+
+    rows.sort(key=lambda rt: (_TONO_ORDER.get(rt[1], 9), -(rt[0].giorni_giacenza or 0)))
+
+    if request.GET.get("export") == "csv":
+        return _giacenze_csv(rows, today, soglie)
+
+    n_allerta = sum(1 for _, t in rows if t in ("rosso", "giallo"))
+    n_oltre = sum(1 for _, t in rows if t == "rosso")
+    return render(request, "rentri/pages/giacenze.html", {
+        "rows": rows,
+        "today": today,
+        "soglie": soglie,
+        "totale": len(rows),
+        "n_allerta": n_allerta,
+        "n_oltre": n_oltre,
+        "q_search": q_search,
+        "q_allerta": q_allerta,
+        "q_pericolosi": q_pericolosi,
+        "q_aperte": q_aperte,
+        "can_manage": _can_manage_rentri(request),
+    })
+
+
 @login_required
 def modifica(request, pk: int):
     registro = get_object_or_404(RegistroRifiuti, pk=pk)

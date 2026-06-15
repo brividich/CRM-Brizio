@@ -40,6 +40,12 @@ from .source_registry import get_action_mapping_fields, get_source_definition, g
 _UNCASTABLE = object()
 _PLACEHOLDER_PATTERN = re.compile(r"\{([^{}]+)\}")
 _SAFE_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Datetime ISO 8601 *con* componente orario (es. "2026-06-12T06:00:00" o
+# "2026-06-12 06:00:00", con eventuali millisecondi/offset). Le date pure
+# ("2026-06-12") NON matchano: vanno lasciate invariate.
+_ISO_DATETIME_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?([+-]\d{2}:?\d{2}|Z)?$"
+)
 _TRUTHY_VALUES = {"1", "true", "yes", "on"}
 _FALSY_VALUES = {"0", "false", "no", "off"}
 _QUEUE_ERROR_MESSAGE_LIMIT = 1900
@@ -1229,6 +1235,25 @@ def _resolve_op_recipients(op_title: Any) -> list[dict[str, str]]:
     return recipients
 
 
+def _humanize_iso_datetime(value: str) -> str:
+    """Riformatta una stringa datetime ISO 8601 in formato leggibile italiano.
+
+    Solo per stringhe che matchano _ISO_DATETIME_PATTERN (con componente orario):
+    le date pure restano gestite altrove. Se l'orario e' mezzanotte (00:00[:00])
+    mostra solo la data (caso assenze a giorni interi), altrimenti "dd/mm/YYYY HH:MM".
+    Non applica conversioni di timezone: i valori del payload sono local/naive e
+    spostarli falserebbe l'ora visualizzata. In caso di parsing fallito ritorna il
+    valore originale invariato.
+    """
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    if parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0:
+        return parsed.strftime("%d/%m/%Y")
+    return parsed.strftime("%d/%m/%Y %H:%M")
+
+
 def render_template_string(template_str: str | None, context: Any) -> str:
     if template_str is None:
         return ""
@@ -1241,7 +1266,12 @@ def render_template_string(template_str: str | None, context: Any) -> str:
         value = safe_get_payload_value(context_dict, key)
         if value is None:
             return match.group(0)
-        return str(value)
+        text = str(value)
+        # Auto-format dei datetime ISO grezzi (es. "2026-06-12T06:00:00") in
+        # formato leggibile; le date pure e le altre stringhe restano invariate.
+        if _ISO_DATETIME_PATTERN.match(text):
+            return _humanize_iso_datetime(text)
+        return text
 
     return _PLACEHOLDER_PATTERN.sub(_replace, template)
 

@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
     path("api/anomalie/notifica-op", views.api_notifica_op, name="api_anomalie_notifica_op"),
     path("api/anomalie/seriali-op", views.api_seriali_op, name="api_anomalie_seriali_op"),
+    path("api/anomalie/timeline", views.api_anomalie_timeline, name="api_anomalie_timeline"),
     path("api/anomalie/sync", views.api_sync, name="api_anomalie_sync"),
     path("export-csv", views.export_anomalie_csv, name="anomalie_export_csv"),
     # Statistiche e estrazioni

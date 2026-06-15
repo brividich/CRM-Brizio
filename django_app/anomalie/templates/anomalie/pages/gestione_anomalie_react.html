@@ -51,6 +51,7 @@
       allegati_delete: "{% url 'api_anomalie_allegati_delete' %}",
       allegati_file: "{% url 'api_anomalie_allegati_file' %}",
       report: "{% url 'anomalie_report_segnalazione' %}",
+      timeline: "{% url 'api_anomalie_timeline' %}",
     };
   </script>
 
@@ -247,6 +248,124 @@
         {required && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}
       </label>
     );
+
+    // â"€â"€â"€ Stepper stati anomalia (#4) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // Mostra l'avanzamento dei 3 stati fissi + lo stato "Chiusa". L'indice corrente
+    // deriva da `avanzamento`; se `chiuso` è true tutti gli step risultano completati.
+    const StatoStepper = ({ avanzamento, chiuso }) => {
+      const steps = BASE_AVANZAMENTO_OPTIONS;
+      const norm = String(avanzamento || "").trim().toLowerCase();
+      let currentIdx = steps.findIndex((s) => String(s).trim().toLowerCase() === norm);
+      if (chiuso) currentIdx = steps.length;  // tutti completati
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "wrap" }}>
+          {steps.map((label, i) => {
+            const done = i < currentIdx;
+            const active = i === currentIdx && !chiuso;
+            const col = snColor(label);
+            const dotBg = active ? col : (done ? col : "#e2e8f0");
+            const dotColor = (active || done) ? "#fff" : "#94a3b8";
+            return (
+              <React.Fragment key={label}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 70 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: "50%", background: dotBg, color: dotColor,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700,
+                    boxShadow: active ? `0 0 0 4px ${col}33` : "none",
+                  }}>{done ? "✓" : i + 1}</div>
+                  <span className="text-2xs" style={{
+                    marginTop: 4, textAlign: "center", lineHeight: 1.15,
+                    color: (active || done) ? "var(--text)" : "#94a3b8",
+                    fontWeight: active ? 700 : 500,
+                  }}>{label}</span>
+                </div>
+                {i < steps.length - 1 && (
+                  <div style={{ flex: 1, minWidth: 16, height: 2, background: i < currentIdx ? snColor(steps[i]) : "#e2e8f0", marginTop: -16 }} />
+                )}
+              </React.Fragment>
+            );
+          })}
+          {chiuso && (
+            <span className="text-2xs font-semibold" style={{
+              marginLeft: 10, padding: "2px 8px", borderRadius: 4,
+              background: "var(--success-bg)", color: "var(--success)",
+              border: "1px solid #c6f6d5", fontWeight: 600,
+            }}>CHIUSA</span>
+          )}
+        </div>
+      );
+    };
+
+    // â"€â"€â"€ Pannello timeline azioni OP (#2) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    // Consuma /api/anomalie/timeline (aggregata per OP). Lazy: carica al cambio OP.
+    const TimelineOp = ({ opId, opItemId }) => {
+      const [items, setItems] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [open, setOpen] = useState(false);
+
+      useEffect(() => {
+        if (!open) return;
+        if (!opId && !opItemId) { setItems([]); return; }
+        if (!API.timeline) return;
+        setLoading(true);
+        const qs = new URLSearchParams();
+        if (opId) qs.set("op_id", opId);
+        if (opItemId) qs.set("op_item_id", opItemId);
+        fetch(`${API.timeline}?${qs.toString()}`, { credentials: "same-origin" })
+          .then((r) => r.json())
+          .then((d) => { setItems(Array.isArray(d.items) ? d.items : []); setLoading(false); })
+          .catch(() => { setItems([]); setLoading(false); });
+      }, [open, opId, opItemId]);
+
+      const sourceColor = (s) => s === "mail_action" ? "#6366f1" : (s === "system" ? "#64748b" : "#0ea5e9");
+
+      return (
+        <div style={{ marginTop: 20, border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+          <button type="button" onClick={() => setOpen((v) => !v)} style={{
+            display: "flex", alignItems: "center", gap: 8, width: "100%",
+            padding: "10px 14px", background: "var(--bg)", border: "none",
+            cursor: "pointer", color: "var(--text-mid)",
+          }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+                 style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .15s" }}>
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+            <span className="text-sm font-semibold" style={{ fontWeight: 600 }}>
+              Cronologia azioni{items.length ? ` (${items.length})` : ""}
+            </span>
+          </button>
+          {open && (
+            <div style={{ padding: "8px 14px 12px", maxHeight: 320, overflowY: "auto" }}>
+              {loading ? (
+                <div className="text-sm" style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>Caricamento…</div>
+              ) : items.length === 0 ? (
+                <div className="text-sm" style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>Nessuna azione registrata per questo OP.</div>
+              ) : (
+                items.map((it) => (
+                  <div key={it.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 6, flexShrink: 0, background: sourceColor(it.source) }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                        <span className="text-sm font-semibold" style={{ fontWeight: 600, color: "var(--text)" }}>{it.action_label}</span>
+                        {it.previous_status && it.new_status && it.previous_status !== it.new_status && (
+                          <span className="text-2xs" style={{ color: "var(--text-mid)" }}>{it.previous_status} → {it.new_status}</span>
+                        )}
+                        <span className="text-2xs" style={{ marginLeft: "auto", color: "#94a3b8" }}>{it.created_at}</span>
+                      </div>
+                      <div className="text-2xs" style={{ color: "#94a3b8", marginTop: 2 }}>
+                        {it.user}{it.source_label ? ` · ${it.source_label}` : ""}{it.anomalia_id ? ` · #${it.anomalia_id}` : ""}
+                      </div>
+                      {it.note && <div className="text-2xs" style={{ color: "var(--text-mid)", marginTop: 2 }}>{it.note}</div>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      );
+    };
 
     const Toggle = ({ label, checked, onChange, disabled = false }) => (
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1210,6 +1329,12 @@
                     <StatusBadge text={statoBadge.text} variant={statoBadge.variant} />
                   </div>
                 </div>
+                {sn.sn && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #f1f5f9" }}>
+                    <FieldLabel>Avanzamento</FieldLabel>
+                    <StatoStepper avanzamento={sn.avanzamento} chiuso={Boolean(sn.chiudere)} />
+                  </div>
+                )}
                 {!canEditCurrentOp && op.id && op.id !== '\u2014' && (
                   <div className="text-sm font-semibold" style={{
                     marginTop: 12,
@@ -1500,6 +1625,9 @@
                     )}
                   </div>
                 </div>
+                {op.id && op.id !== '—' && (
+                  <TimelineOp opId={op.id} opItemId={op.item_id} />
+                )}
               </div>
             </div>
 

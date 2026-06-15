@@ -1,0 +1,157 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{# capa_list.html — Lista Azioni Correttive/Preventive (CAPA).
+   Context (vedi core/views_capa.py::capa_list). #}
+
+{% block title %}Azioni CAPA · {{ block.super }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .capa-wrap { max-width: 1200px; margin: 0 auto; padding: 4px 0 32px; }
+  .capa-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .capa-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
+  .capa-sub { color:#64748b; font-size:.95rem; margin:4px 0 0; }
+  .capa-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .capa-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
+  .capa-kpi b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
+  .capa-kpi span { color:#64748b; font-size:.82rem; }
+  .capa-kpi.danger b { color:#b91c1c; }
+  .capa-kpi.warn b { color:#9a3412; }
+  .capa-kpi.info b { color:#1e40af; }
+  .capa-filters { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; margin-bottom:16px;
+                  display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  .capa-filters label { display:flex; flex-direction:column; font-size:.78rem; color:#475569; gap:4px; font-weight:600; }
+  .capa-filters select, .capa-filters input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:.9rem; min-width:140px; }
+  .capa-btn { background:#0f172a; color:#fff; border:none; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:.9rem; text-decoration:none; display:inline-block; }
+  .capa-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; }
+  .capa-btn.primary { background:#1d4ed8; }
+  .capa-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+  .capa-table th { text-align:left; font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b;
+                   background:#f8fafc; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
+  .capa-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; font-size:.9rem; color:#0f172a; vertical-align:middle; }
+  .capa-table tr:last-child td { border-bottom:none; }
+  .capa-badge { display:inline-block; font-size:.72rem; font-weight:700; border-radius:999px; padding:2px 8px; }
+  .st-APERTA { background:#eef2ff; color:#3730a3; }
+  .st-IN_CORSO { background:#fef9c3; color:#854d0e; }
+  .st-CHIUSA { background:#e0f2fe; color:#075985; }
+  .st-VERIFICATA { background:#dcfce7; color:#166534; }
+  .st-ANNULLATA { background:#f1f5f9; color:#64748b; }
+  .capa-when { font-weight:700; }
+  .capa-when.scaduta { color:#b91c1c; }
+  .capa-when.soon { color:#9a3412; }
+  .capa-empty { text-align:center; color:#94a3b8; padding:40px 0; }
+  .capa-pager { display:flex; gap:8px; justify-content:center; margin-top:16px; align-items:center; color:#64748b; font-size:.85rem; }
+  .capa-pager a { text-decoration:none; border:1px solid #cbd5e1; border-radius:8px; padding:5px 12px; color:#0f172a; }
+  .capa-msg { background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;margin-bottom:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="capa-wrap">
+  {% if messages %}{% for msg in messages %}<div class="capa-msg">{{ msg }}</div>{% endfor %}{% endif %}
+
+  <div class="capa-head">
+    <div>
+      <h1 class="capa-title">✅ Azioni CAPA</h1>
+      <p class="capa-sub">
+        {% if can_manage %}Azioni correttive e preventive di tutti i moduli (incidenti, anomalie, audit, ...).{% else %}Le azioni correttive/preventive assegnate a te.{% endif %}
+      </p>
+    </div>
+    {% if can_manage %}<a class="capa-btn primary" href="{% url 'capa_create' %}">+ Nuova azione</a>{% endif %}
+  </div>
+
+  <div class="capa-kpis">
+    <div class="capa-kpi"><b>{{ n_aperte }}</b><span>Aperte</span></div>
+    <div class="capa-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
+    <div class="capa-kpi info"><b>{{ n_da_verificare }}</b><span>Da verificare</span></div>
+  </div>
+
+  <form method="get" class="capa-filters">
+    <label>Cerca
+      <input type="text" name="q" value="{{ q }}" placeholder="Titolo / descrizione…">
+    </label>
+    <label>Stato
+      <select name="stato">
+        <option value="">Tutti</option>
+        {% for code, label in stati %}<option value="{{ code }}" {% if f_stato == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Tipo
+      <select name="tipo">
+        <option value="">Tutti</option>
+        {% for code, label in tipi %}<option value="{{ code }}" {% if f_tipo == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Origine
+      <select name="origine">
+        <option value="">Tutte</option>
+        {% for code, label in origini %}<option value="{{ code }}" {% if f_origine == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Scadenza
+      <select name="scadenza">
+        <option value="">Tutte</option>
+        <option value="scaduta" {% if f_scad == "scaduta" %}selected{% endif %}>Scadute</option>
+        <option value="30" {% if f_scad == "30" %}selected{% endif %}>Entro 30 giorni</option>
+        <option value="60" {% if f_scad == "60" %}selected{% endif %}>Entro 60 giorni</option>
+      </select>
+    </label>
+    {% if reparti %}
+    <label>Reparto
+      <select name="reparto">
+        <option value="">Tutti</option>
+        {% for r in reparti %}<option value="{{ r }}" {% if f_reparto == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <button type="submit" class="capa-btn">Filtra</button>
+    <a class="capa-btn ghost" href="?{% if q %}q={{ q }}&{% endif %}{% if f_stato %}stato={{ f_stato }}&{% endif %}{% if f_tipo %}tipo={{ f_tipo }}&{% endif %}{% if f_origine %}origine={{ f_origine }}&{% endif %}{% if f_scad %}scadenza={{ f_scad }}&{% endif %}{% if f_reparto %}reparto={{ f_reparto }}&{% endif %}export=csv">⬇ CSV</a>
+  </form>
+
+  <table class="capa-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Titolo</th>
+        <th>Tipo</th>
+        <th>Origine</th>
+        <th>Responsabile</th>
+        <th>Scadenza</th>
+        <th>Stato</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <td><a href="{% url 'capa_detail' row.a.pk %}">{{ row.a.pk }}</a></td>
+          <td><a href="{% url 'capa_detail' row.a.pk %}">{{ row.a.titolo }}</a></td>
+          <td>{{ row.a.get_tipo_display }}</td>
+          <td>{{ row.a.origine_label }}{% if row.a.source_label %} · <span style="color:#64748b">{{ row.a.source_label }}</span>{% endif %}</td>
+          <td>{% if row.a.responsabile %}{{ row.a.responsabile.get_full_name|default:row.a.responsabile.username }}{% else %}—{% endif %}</td>
+          <td>
+            {% if row.a.data_scadenza %}
+              {{ row.a.data_scadenza|date:"d/m/Y" }}
+              {% if not row.a.is_conclusa and row.giorni is not None %}
+                {% if row.giorni < 0 %}<span class="capa-when scaduta">(scaduta)</span>
+                {% elif row.giorni <= 30 %}<span class="capa-when soon">({{ row.giorni }} gg)</span>{% endif %}
+              {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td><span class="capa-badge st-{{ row.a.stato }}">{{ row.a.get_stato_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="capa-empty">Nessuna azione nei criteri selezionati. 🎉</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="capa-pager">
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">← Prec</a>{% endif %}
+      <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Succ →</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

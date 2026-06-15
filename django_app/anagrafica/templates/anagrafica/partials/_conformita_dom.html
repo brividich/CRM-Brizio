@@ -1,0 +1,14 @@
+{% comment %}Singolo dominio del semaforo conformità. Context: dom (esito+dettagli), titolo, icon.{% endcomment %}
+<div class="cf-dom">
+  <div class="cf-dom-head">
+    <span class="cf-dom-title">{{ icon }} {{ titolo }}</span>
+    <span class="cf-badge {% if dom.esito == 'ok' %}cf-badge-ok{% elif dom.esito == 'warn' %}cf-badge-warn{% elif dom.esito == 'ko' %}cf-badge-ko{% else %}cf-badge-na{% endif %}">
+      {% if dom.esito == 'ok' %}In regola{% elif dom.esito == 'warn' %}In scadenza{% elif dom.esito == 'ko' %}Non conforme{% else %}N/D{% endif %}
+    </span>
+  </div>
+  {% if dom.dettagli %}
+  <ul class="cf-dettagli">
+    {% for d in dom.dettagli %}<li>{{ d }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>

@@ -1,0 +1,53 @@
+{
+  "package_version": "2026.05",
+  "input": {
+    "flow_name": "AU9 - Movimento RENTRI: promemoria caricamento dopo 5 giorni"
+  },
+  "source_candidate": {
+    "source_code": "rentri",
+    "label": "RENTRI / Rifiuti"
+  },
+  "compatibility": {
+    "compatible": true,
+    "status": "ok"
+  },
+  "issues": [],
+  "target_context": {
+    "module": "automazioni",
+    "source": "rentri"
+  },
+  "proposed_rules": [
+    {
+      "code": "au9-rentri-promemoria-caricamento",
+      "name": "AU9 - Movimento RENTRI: promemoria caricamento dopo 5 giorni",
+      "description": "Alla registrazione di un movimento RENTRI (indipendentemente dal tipo di rifiuto) attende 5 giorni e poi invia un promemoria al responsabile ambientale per verificare/completare il caricamento RENTRI del movimento. NOTE/LIMITI: (1) il backlog prevedeva l'invio SOLO se il codice di caricamento RENTRI non e' ancora stato inserito/modificato: tale stato di follow-up NON e' esprimibile dal payload (come AU34), quindi il promemoria parte sempre e il destinatario verifica manualmente. (2) i 5 giorni sono modificabili in designer. (3) Sostituire AMBIENTE_DA_CONFIGURARE prima di attivare.",
+      "source_code": "rentri",
+      "operation_type": "insert",
+      "trigger_scope": "all_inserts",
+      "is_active": false,
+      "is_draft": true,
+      "stop_on_first_failure": false,
+      "conditions": [],
+      "actions": [
+        {
+          "action_type": "delay_schedule",
+          "description": "Attesa 5 giorni",
+          "mode": "relative",
+          "unit": "days",
+          "value_template": "5"
+        },
+        {
+          "action_type": "send_email",
+          "description": "Promemoria caricamento RENTRI",
+          "to": "AMBIENTE_DA_CONFIGURARE@costruzioninovicrom.it",
+          "subject_template": "[RENTRI] Promemoria caricamento - registrazione {id_registrazione}",
+          "body_text_template": "Buongiorno,\n\na 5 giorni dalla registrazione del seguente movimento rifiuti si ricorda di verificare/completare il caricamento RENTRI.\n\nDettaglio movimento\nRiferimento: #{id}\nID registrazione: {id_registrazione}\nTipo: {tipo}\nCodice rifiuto: {codice}\nData: {data}\n\nAzione richiesta: verificare che il caricamento RENTRI sia stato effettuato; in caso contrario procedere.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Buongiorno,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">a 5 giorni dalla registrazione del seguente movimento rifiuti si ricorda di verificare/completare il caricamento RENTRI.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">ID registrazione</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{id_registrazione}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipo}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Codice rifiuto</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{codice}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Data</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 12px;color:#475569;font-size:15px;line-height:1.65;\">Azione richiesta: verificare che il caricamento RENTRI sia stato effettuato; in caso contrario procedere.</p>",
+          "email_type": "Automazioni",
+          "section_label": "RENTRI",
+          "title_template": "Promemoria caricamento - {id_registrazione}"
+        }
+      ]
+    }
+  ]
+}

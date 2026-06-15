@@ -2,6 +2,8 @@
 
 {% block title %}{% if document %}Modifica documento{% else %}Nuovo documento{% endif %} | Portale{% endblock %}
 
+{% block body_class %}{{ block.super }} pr-workspace-page pr-document-form-page{% endblock %}
+
 {% block extra_head %}
 <style>
 #pr-root { display:flex; flex-direction:column; gap:20px; max-width:700px; }
@@ -32,6 +34,7 @@ body.theme-dark .pr-form-group input, body.theme-dark .pr-form-group select, bod
 body.theme-dark .pr-check-row label { color:var(--text); }
 body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text-mid); }
 </style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
 
 {% block content %}

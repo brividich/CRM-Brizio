@@ -24,6 +24,7 @@ urlpatterns = [
     path("assenze/invio", views.invio_placeholder, name="assenze_invio"),
     path("assenze/aggiorna_consenso/<int:item_id>", views.aggiorna_consenso_placeholder, name="assenze_aggiorna_consenso"),
     path("assenze/car/dashboard", views.car_dashboard, name="assenze_car_dashboard"),
+    path("assenze/riconciliazione/", views.riconciliazione, name="assenze_riconciliazione"),
     path("assenze/api/car/consenso/<int:item_id>", views.api_car_aggiorna_consenso, name="assenze_api_car_consenso"),
     path("assenze/api/mia/<int:item_id>/update", views.api_mia_assenza_update, name="assenze_api_mia_update"),
     path("assenze/car/export-csv", views.export_assenze_car_csv, name="assenze_car_export_csv"),

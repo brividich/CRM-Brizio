@@ -1,5 +1,271 @@
 # Agent Changelog
 
+## 2026-06-15 - Codex
+
+- Area: repository Git / pubblicazione su GitHub.
+- Richiesta: fare commit e push su GitHub unendo i branch di lavoro sotto l'unico `main`.
+- File modificati direttamente in questa sessione: `.gitignore`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File inclusi nel commit/push: tutto il workspace Git tracciabile gia modificato nella checkout, esclusi artefatti locali/privacy esplicitamente ignorati (`.tmp_export/`, `.tmp_timbri_commit/`, `/prod`).
+- File critici modificati: `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. La pubblicazione include comunque modifiche preesistenti in aree operative sensibili (`django_app/config/settings/base.py`, `django_app/core/middleware.py`, `django_app/core/urls.py` e varie URL di modulo), non editate in questa micro-sessione ma presenti nel workspace da consolidare.
+- Motivo tecnico: consolidare le modifiche locali e il branch `feat/timbri-export-csv` su `main`, evitando di versionare export CSV/scratch temporanei o marker locali.
+- Modifica: eseguito `git fetch --all --prune`; rimossi dall'indice gli artefatti temporanei/privacy gia staged; aggiunte regole `.gitignore` per `.tmp_export/`, `.tmp_timbri_commit/` e `/prod`; preparata la pubblicazione su `main`. Nessuna nuova dipendenza.
+- Impatto previsto: `main` diventa il ramo unico di riferimento per le modifiche consolidate, mentre gli artefatti locali restano sul disco ma fuori dal repository.
+- Rischi residui: commit molto ampio, composto da piu tranche precedenti e non da una singola feature; non e' stata lanciata una suite completa in questa micro-sessione. I branch Dependabot non sono stati fusi perche' introducono upgrade di dipendenze e richiedono revisione separata.
+- Test/check: `git diff --check` OK; `python -B django_app\manage.py check --settings=config.settings.test` OK; `gh` non disponibile nella macchina, quindi nessuna PR GitHub aperta da CLI.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` aggiornato per la guardia `.gitignore`; README non aggiornato perche' il cambio diretto di questa micro-sessione non modifica setup utente, URL, dipendenze o comportamento runtime.
+- Note operative: `.tmp_export/`, `.tmp_timbri_commit/` e `/prod` restano locali/ignorati e non devono essere forzati in Git.
+
+- Area: `django_app/assets`, pagine principali modulo Assets.
+- Richiesta: applicare anche alle altre pagine del modulo asset lo stesso stile apprezzato sulla scheda asset.
+- File modificati in questa sessione: `django_app/assets/templates/assets/base_shell.html`, `django_app/assets/templates/assets/pages/asset_dashboard.html`, `django_app/assets/templates/assets/pages/asset_list.html`, `django_app/assets/templates/assets/pages/maintenance_hub.html`, `django_app/assets/templates/assets/pages/work_machine_list.html`, `django_app/assets/templates/assets/pages/work_machine_dashboard.html`, `django_app/assets/templates/assets/pages/device_list.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: dopo la rifinitura della scheda singolo asset, le altre viste del modulo restavano visivamente disomogenee e piu pesanti, con KPI/card/tabelle percepiti come blocchi separati.
+- Modifica: aggiornata la shell comune Assets con sidebar, ricerca, header pagina, pulsanti, campi e tabelle in stile cockpit; aggiunti override visuali mirati a dashboard asset, inventario asset, hub manutenzione, elenco macchine, dashboard officina e dispositivi IT con accenti laterali, ombre leggere, radius piu compatti, header card sfumati e dark mode coerente. Nessuna nuova dipendenza.
+- Impatto previsto: consultazione piu omogenea e meno pesante nelle principali pagine operative Assets; dati, filtri, azioni e URL restano invariati.
+- Rischi residui: verifica visuale autenticata non eseguita; il Browser plugin e' disponibile come skill ma non espone tool runtime in questa sessione. Il workspace contiene modifiche preesistenti non correlate in vari file documentali, non revertite.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; template load via `manage.py shell` per i 7 template toccati OK; smoke test mirati AssetsRoutingTests su asset list, dashboard, macchine, dispositivi e dashboard officina OK (5 test); test mirati dettaglio asset/manutenzione OK (2 test); `git diff --check` sui file toccati OK; `rg` non trova `letter-spacing` negativo nei template toccati.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica solo presentazionale senza cambio URL, setup, dipendenze o comportamento operativo.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-15 - Codex
+
+- Area: `django_app/assets`, scheda asset `/assets/view/<id>/`.
+- Richiesta: rendere la UI della scheda asset piu accattivante rispetto alla prima sistemazione.
+- File modificati in questa sessione: `django_app/assets/templates/assets/pages/asset_detail.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la scheda era stata alleggerita ma restava visivamente piatta; serviva una testata piu riconoscibile e un'organizzazione delle azioni meno amministrativa.
+- Modifica: la testata asset ora usa un layout "cockpit" con accento laterale multicolore, tile tipo asset, nome macchina separato dal codice, chip informativi per tipo/reparto/produttore/modello/seriale quando disponibili e pannello Azioni rapide dedicato. La status band Copertura/Scadenze e le card hanno accenti visivi piu marcati ma sobri; responsive e dark mode aggiornati. Nessuna nuova dipendenza.
+- Impatto previsto: `/assets/view/<id>/` risulta piu curata e leggibile a colpo d'occhio, mantenendo la densita' operativa e gli stessi link/azioni.
+- Rischi residui: verifica visuale autenticata non eseguita; la resa finale va confermata in browser con sessione utente. Il Browser plugin e' disponibile come skill ma il tool runtime `node_repl js` non e' esposto in questa sessione.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `python -B django_app\manage.py test assets.tests.AssetAdministrativeStepOneTests.test_step_one_routes_render_and_asset_detail_contains_links --settings=config.settings.test --verbosity 1 --keepdb` OK; `rg` conferma presenza delle nuove classi `af-hero-*` e assenza di `Dettaglio asset`/letter-spacing negativo nel template.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-15 - Codex
+
+- Area: `django_app/assets`, scheda asset `/assets/view/<id>/`.
+- Richiesta: sostituire il titolo shell "Dettaglio asset" con un collegamento per tornare alla pagina precedente e proporre/applicare un layout meno pesante della scheda.
+- File modificati in questa sessione: `django_app/assets/templates/assets/pages/asset_detail.html`, `django_app/assets/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la shell mostrava ancora un titolo generico e ridondante rispetto all'H1 asset, mentre il contenuto del dettaglio si estendeva su tutta la larghezza disponibile generando card molto larghe e difficili da consultare.
+- Modifica: il blocco `assets_shell_title` ora renderizza un link `Torna indietro` con fallback a `collection_url` e JS che usa `history.back()` solo se il referrer e' interno al portale. La scheda e' stata centrata con `max-width:1440px`, header compattato, azioni secondarie meno invasive e sezioni dettaglio rese a due colonne responsive con `break-inside: avoid`; sotto 1180px torna una colonna. Aggiunta regressione nel test smoke asset per verificare il link di ritorno e l'assenza del vecchio titolo.
+- Impatto previsto: `/assets/view/<id>/` ha un ingresso piu chiaro per tornare indietro e una consultazione meno dispersiva su monitor larghi, senza cambiare dati, query, salvataggi, ACL, permessi, URL o routing.
+- Rischi residui: verifica visuale autenticata non eseguita; la resa finale va confermata con sessione utente sul portale locale. Il layout a colonne CSS rispetta l'ordine delle card ma puo' bilanciare visivamente l'altezza delle colonne in base ai contenuti disponibili.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `python -B django_app\manage.py test assets.tests.AssetAdministrativeStepOneTests.test_step_one_routes_render_and_asset_detail_contains_links --settings=config.settings.test --verbosity 2` OK; `git diff --check -- django_app/assets/templates/assets/pages/asset_detail.html django_app/assets/tests.py CHANGELOG.md django_app/CHANGELOG.md _AGENT_CONTROL/AGENT_CHANGELOG.md session_checkpoint.md` OK; `rg` conferma che nel template non restano `Dettaglio asset`, `af-breadcrumb` o `letter-spacing` negativo, e trova il nuovo `data-af-back-link`. Un primo lancio con classe test errata e' fallito prima dell'esecuzione (`AttributeError`), poi rilanciato con path corretto. Verifica Browser in-app non eseguita perche' il plugin Browser e' presente ma il tool runtime `node_repl js` richiesto non e' esposto in questa sessione.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-15 - Codex
+
+- Area: `django_app/assets`, scheda asset `/assets/view/<id>/`.
+- Richiesta: eliminare il blocco alto dove nome/tag macchina si ripetevano, sistemare i pulsanti del Registro manutenzione in massimo due righe e rendere piu compatta la banda Copertura/Scadenze per ridurre l'effetto "grossi blocchi".
+- File modificati in questa sessione: `django_app/assets/templates/assets/pages/asset_detail.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la scheda asset mostrava sopra l'H1 sia il sottotitolo `asset_tag - asset.name` sia il breadcrumb con asset tag, duplicando l'identita' della macchina gia presente nel titolo principale. La status band Copertura/Scadenze usava dimensioni da KPI/card troppo alte e i pulsanti del Registro manutenzione si disponevano come blocco largo poco leggibile.
+- Modifica: rimosso il sottotitolo asset e il breadcrumb superiore dal dettaglio; ridotte dimensioni di titolo, card, shadow, gap e status band; la banda Copertura/Scadenze ora usa valori e metadati piu piccoli; il Registro manutenzione usa `af-card-actions--maintenance` in griglia 2 colonne con etichette compatte (`Regole`, `Scadenzario`, `Periodica`, `+ Straordinaria`) e tooltip descrittivi completi. Rimossi `letter-spacing` negativi dal template toccato.
+- Impatto previsto: `/assets/view/<id>/` risulta piu pulita in alto, con meno duplicazione del nome macchina, una banda stato meno invadente e una toolbar manutenzione leggibile senza occupare molte righe. Nessun cambio a dati, query, salvataggi, ACL, permessi, URL o routing.
+- Rischi residui: verifica visuale autenticata non eseguita; la rotta locale `/assets/view/714/` risponde ma reindirizza al login senza sessione. Il Browser in-app non esponeva il canale di automazione in questa sessione, quindi la verifica e' rimasta HTTP/template/test.
+- Test/check: `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `python -B django_app\manage.py test assets.tests.AssetAdministrativeStepOneTests.test_step_one_routes_render_and_asset_detail_contains_links assets.tests.AssetMaintenanceStepThreeTests.test_asset_maintenance_routes_render_and_reset_override --settings=config.settings.test --verbosity 1 --keepdb` OK (2 test); `git diff --check -- django_app/assets/templates/assets/pages/asset_detail.html CHANGELOG.md django_app/CHANGELOG.md` OK; `rg` non trova `letter-spacing` negativo, `af-breadcrumb` o il vecchio sottotitolo duplicato nel template; `curl.exe -I http://localhost:8000/assets/view/714/` e `http://127.0.0.1:8000/assets/view/714/` restituiscono `302 Found` verso `/login/?next=%2Fassets%2Fview%2F714%2F`.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod. Primo tentativo test con path classe errato fallito con `AttributeError` prima dell'esecuzione del test; rilancio con path corretto OK.
+
+## 2026-06-15 - Codex
+
+- Area: `django_app/notizie`, impostazioni Notizie `/notizie/impostazioni/` e collegamenti da `/notizie/` + `/notizie/dashboard/`.
+- Richiesta: rendere anche `notizie/impostazioni` coerente con la dashboard/lista e inserire il collegamento a Impostazioni da dashboard e Notizie.
+- File modificati in questa sessione: `django_app/notizie/templates/notizie/pages/gestione_admin.html`, `django_app/notizie/templates/notizie/pages/lista.html`, `django_app/notizie/templates/notizie/pages/dashboard.html`, `django_app/notizie/views.py`, `django_app/notizie/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: `/notizie/impostazioni/` usava ancora il layout amministrativo `ga-*` con tabella `tbl` dentro `overflow-x:auto`, visivamente distante dalla nuova lista/dashboard Notizie e con lo stesso problema di scorrimento orizzontale segnalato sulla dashboard. La lista non riceveva inoltre il flag necessario per mostrare il collegamento a Impostazioni agli utenti abilitati.
+- Modifica: `gestione_admin.html` ora usa body class `notizie-settings-page`, hero full page, KPI, tab compatte e pannelli coerenti con il linguaggio `news-*`; la tab Record e' stata trasformata in card responsive con stato, obbligatorieta', metadati, metriche letture/conformi e azioni, senza tabella e senza `overflow-x`. La lista `/notizie/` mostra il link `Impostazioni` in hero e vista rapida per chi ha `can_gestione_admin`; la dashboard mantiene il link in hero e aggiunge un pannello Strumenti nel rail laterale. `views.py` introduce `_can_manage_notizie_settings`, riusato dalla dashboard ed esposto alla lista, e `tasso_conformita_int` come campo derivato per la barra visuale. Aggiunte regressioni sui link e sul render impostazioni a card.
+- Impatto previsto: impostazioni, dashboard e lista Notizie hanno ora ingressi coerenti e una resa allineata, con record amministrativi leggibili senza scroll orizzontale. Nessun cambio a dati, audience, pubblicazione, conferma lettura, permessi, URL o routing.
+- Rischi residui: screenshot autenticato non eseguito; Playwright locale raggiunge `/notizie/impostazioni/?tab=record` ma viene reindirizzato a `/login/?next=%2Fnotizie%2Fimpostazioni%2F%3Ftab%3Drecord`, quindi la resa finale va confermata con sessione autenticata. La suite completa `notizie` non e' stata rilanciata in questa tranche; resta nota la precedente rottura fuori scope su due test upload/form (`test_crea_notizia_con_audience_e_allegato_file`, `test_form_rejects_empty_file`).
+- Test/check: template load OK per `notizie/pages/gestione_admin.html`, `notizie/pages/lista.html`, `notizie/pages/dashboard.html`; `python -B django_app\manage.py test notizie.tests.NotizieACLTests.test_lista_mostra_link_impostazioni_per_admin notizie.tests.NotizieACLTests.test_dashboard_mostra_link_impostazioni_per_admin notizie.tests.NotizieACLTests.test_impostazioni_renderizza_workspace_a_card_senza_tabella notizie.tests.NotizieACLTests.test_bottone_dashboard_visibile_solo_abilitati notizie.tests.NotizieACLTests.test_dashboard_renderizza_workspace_a_card_senza_tabella --settings=config.settings.test --verbosity 1 --keepdb` OK (5 test); `python -B django_app\manage.py test notizie.tests.NotizieACLTests --settings=config.settings.test --verbosity 1 --keepdb` OK (15 test); `python -B django_app\manage.py check notizie --settings=config.settings.test` OK; `git diff --check` sui file Notizie OK; `rg` non trova `ga-`, `class="tbl"`, `overflow-x` o `letter-spacing` negativo nei template Notizie toccati; smoke Playwright locale su `/notizie/impostazioni/?tab=record` OK fino al redirect login.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-15 - Codex
+
+- Area: `django_app/notizie`, dashboard gestione `/notizie/dashboard/`.
+- Richiesta: rendere la dashboard gestione Notizie coerente con la nuova UI Notizie ed eliminare la tabella scrollabile/antiestetica.
+- File modificati in questa sessione: `django_app/notizie/templates/notizie/pages/dashboard.html`, `django_app/notizie/views.py`, `django_app/notizie/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: `/notizie/dashboard/` usava ancora una tabella larga che veniva agganciata automaticamente da `fm-table-enhanced` (toolbar Cerca/Colonne/Reset) e richiedeva scroll orizzontale; inoltre la resa era distante dalla nuova lista `/notizie/` a workspace/card.
+- Modifica: `dashboard.html` ora usa body class `notizie-dashboard-page`, hero full page con KPI, tab stato, card gestionali responsive per ogni notizia e rail laterale con filtri, riepilogo e permessi dashboard. Rimossa la tabella `news-table`, quindi non c'e' piu' binding automatico del sistema tabelle ne' scroll orizzontale. `_dashboard_rows` espone `completion_rate_int` come campo derivato per la barra copertura. Aggiunta regressione `test_dashboard_renderizza_workspace_a_card_senza_tabella` e aggiornato il testo atteso del pannello permessi.
+- Impatto previsto: la dashboard gestione Notizie risulta coerente con `/notizie/`, piu leggibile e usabile su desktop/mobile, senza cambiare dati, audience, pubblicazione, archiviazione, permessi, URL o routing.
+- Rischi residui: screenshot autenticato non eseguito; Playwright locale arriva al login `/login/?next=%2Fnotizie%2Fdashboard%2F`, quindi la resa finale va confermata con sessione autenticata. La suite completa `notizie` resta rossa su due test non legati alla dashboard (`test_crea_notizia_con_audience_e_allegato_file`, `test_form_rejects_empty_file`) nella validazione allegati/upload.
+- Test/check: `python -B django_app\manage.py test notizie.tests.NotizieACLTests.test_dashboard_renderizza_workspace_a_card_senza_tabella notizie.tests.NotizieACLTests.test_dashboard_mostra_editor_permessi_per_hr notizie.tests.NotizieACLTests.test_bottone_dashboard_visibile_solo_abilitati --settings=config.settings.test --verbosity 1 --keepdb` OK (3 test); `python -B django_app\manage.py check notizie --settings=config.settings.test` OK; template load `notizie/pages/dashboard.html` OK; `git diff --check` sui file Notizie OK; `rg` conferma assenza di `news-table`, `fm-tbl-controls`, `<table` e `letter-spacing` negativo nel template dashboard; smoke Playwright locale su `/notizie/dashboard/` OK fino al redirect login; `python -B django_app\manage.py test notizie --settings=config.settings.test --verbosity 1 --keepdb` eseguito ma FALLISCE sui due test upload/form indicati sopra.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica solo presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/procedure_refresh`, lista personale `/procedure-refresh/`.
+- Richiesta: rendere piu carina e full page anche la UI del modulo Procedure Refresh, come fatto per Notizie.
+- File modificati in questa sessione: `django_app/procedure_refresh/views.py`, `django_app/procedure_refresh/templates/procedure_refresh/pages/my_assignments.html`, `django_app/procedure_refresh/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: `/procedure-refresh/` usava una tabella centrale compatta e lasciava molto spazio laterale inutilizzato, risultando meno coerente con le nuove workspace operative full page.
+- Modifica: `my_assignments` ora calcola `pr_stats` sulle sole assegnazioni dell'utente corrente; `my_assignments.html` usa `pr-workspace-page`, allarga la content area e introduce hero, KPI personali, filtri a tab, card assegnazione larghe con badge stato, empty state e rail laterale con stato personale/vista rapida. Aggiunta regressione `test_my_assignments_renderizza_workspace_fullpage`.
+- Impatto previsto: `/procedure-refresh/` risulta piu leggibile e operativa su desktop e mobile, senza cambiare assegnazioni visibili, workflow di presa visione, permessi o URL.
+- Rischi residui: screenshot autenticato non eseguito; il browser locale raggiunge `/procedure-refresh/` ma viene reindirizzato a `/login/?next=/procedure-refresh/`. La resa finale va confermata con una sessione autenticata.
+- Test/check: `python -B django_app\manage.py test procedure_refresh.tests.ViewTests.test_my_assignments_renderizza_workspace_fullpage procedure_refresh.tests.ViewTests.test_my_assignments_authenticated --settings=config.settings.test --verbosity 1 --keepdb` OK (2 test); `python -B django_app\manage.py check procedure_refresh --settings=config.settings.test` OK; template load `procedure_refresh/pages/my_assignments.html` OK; `git diff --check` sui file Procedure Refresh OK; verifica Playwright locale OK fino al redirect login.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo.
+- Note operative: nessuna.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/timbri`, UI modulo Timbri.
+- Richiesta: rendere piu carina la UI di Timbri, come per gli altri moduli.
+- File modificati in questa sessione: `django_app/timbri/templates/timbri/pages/index.html`, `django_app/timbri/templates/timbri/pages/operatore_detail.html`, `django_app/timbri/templates/timbri/pages/record_form.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: il modulo Timbri risultava piu spoglio e centrale rispetto alle nuove schermate Notizie/Assenze, con elenco e scheda meno coerenti col linguaggio visuale operativo del portale.
+- Modifica: aggiunte body class dedicate alle tre pagine principali; `index.html` ora allarga la content area, usa hero operativa full-width, KPI/card piu puliti e filtri/tabella piu rifiniti; `operatore_detail.html` usa una hero card visuale per scheda dipendente, KPI e meta piu ordinati; `record_form.html` usa header visuale, card/anteprime immagini piu curate e azioni allineate. Rimossi anche letter-spacing negativi dai template Timbri toccati.
+- Impatto previsto: `/timbri/`, la scheda dipendente Timbri e il form di caricamento record risultano piu moderni e coerenti con gli altri moduli, senza cambiare workflow, dati salvati, URL o permessi.
+- Rischi residui: verifica visuale autenticata non eseguita; la rotta locale Timbri porta al login se non c'e' sessione attiva e l'istanza Playwright MCP risulta gia' occupata da un'altra sessione, quindi la resa finale va confermata con utente autenticato.
+- Test/check: template load OK su `timbri/pages/index.html`, `timbri/pages/operatore_detail.html`, `timbri/pages/record_form.html`; `python -B django_app\manage.py check timbri --settings=config.settings.test` OK; `git diff --check` sui template Timbri e documenti aggiornati OK; `rg` conferma nessun `letter-spacing` negativo nei template Timbri toccati; `curl.exe -I http://127.0.0.1:8000/timbri/` restituisce `302 Found` verso `/login/?next=%2Ftimbri%2F`.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: modifica applicata solo alla workspace locale, non a `Y:\current`/prod.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/assenze`, pagina inserimento richiesta assenza.
+- Richiesta: spingere di piu la UI, soprattutto su richiesta assenza, con qualcosa di dinamico.
+- File modificati in questa sessione: `django_app/assenze/templates/assenze/pages/richiesta_assenze.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la prima rifinitura della pagina richiesta aggiungeva icone ma lasciava il form ancora statico e lineare; serviva una UI piu guidata e reattiva senza cambiare il workflow backend.
+- Modifica: `richiesta_assenze.html` ora usa `abs-request-page`, hero piu dinamica, stepper di compilazione, card cliccabili per tipo assenza sincronizzate col select nativo, misuratore live della durata, stato attivo sugli shortcut orari, riepilogo sticky laterale con tipo/periodo/durata/percorso approvativo e suggerimenti live per ferie, permesso, malattia, flessibilita e certifica presenza. Il JS resta inline nel template e agisce solo come enhancement client-side; il submit continua a usare gli stessi campi/nome endpoint esistenti.
+- Impatto previsto: `/assenze/richiesta_assenze` risulta piu moderna e dinamica, con feedback immediato durante la compilazione, senza cambiare dati salvati, view, URL o permessi.
+- Rischi residui: verifica screenshot autenticata non eseguita; Browser in-app non espone `node_repl js` e non sono installati Playwright locale/Python. Smoke HTTP su `http://10.0.0.79:8000/assenze/richiesta_assenze` restituisce login, quindi non consente verifica visuale autenticata.
+- Test/check: template load `get_template('assenze/pages/richiesta_assenze.html')` OK; render Django minimale OK; JS renderizzato validato con `node --check -` OK; `python -B django_app\manage.py check assenze --settings=config.settings.test` OK; `git diff --check` sul template OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' modifica presentazionale/client-side senza cambio URL, setup, dipendenze o comportamento operativo documentabile.
+- Note operative: il template `richiesta_assenze.html` non era read-only al momento della modifica.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/notizie`, lista modulo `/notizie/`.
+- Richiesta: rendere piu carina la UI del modulo Notizie e portarla full page, non solo centrale.
+- File modificati in questa sessione: `django_app/notizie/views.py`, `django_app/notizie/templates/notizie/pages/lista.html`, `django_app/notizie/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: `/notizie/` usava un wrapper centrale stretto (`max-width:860px`) con card semplici, lasciando molto spazio laterale inutilizzato e un'esperienza meno coerente con le nuove workspace operative.
+- Modifica: la view `lista` costruisce `news_stats` dai soli item gia visibili all'utente; il template `lista.html` usa `body_class` dedicata `notizie-list-page`, allarga la content area, aggiunge hero full page con KPI, filtri a tab, card comunicazione larghe con badge stato/obbligatorieta', empty state e rail laterale con riepilogo/stati rapidi. I test Notizie completano l'onboarding degli utenti creati per non essere deviati dal middleware globale prima della view.
+- Impatto previsto: `/notizie/` risulta piu piena, leggibile e operativa su desktop e mobile, senza cambiare audience, permessi, conferme di lettura o URL.
+- Rischi residui: screenshot autenticato non eseguito; il browser locale raggiunge `/notizie/` ma viene correttamente reindirizzato a `/login/?next=/notizie/`. La resa finale va confermata con una sessione autenticata.
+- Test/check: `python -B django_app\manage.py check notizie --settings=config.settings.test` OK; template load `get_template('notizie/pages/lista.html')` OK; `python -B django_app\manage.py test notizie.tests.NotizieACLTests.test_lista_renderizza_workspace_fullpage notizie.tests.NotizieACLTests.test_bottone_dashboard_visibile_solo_abilitati --settings=config.settings.test --verbosity 1 --keepdb` OK (2 test); `git diff --check` sui file Notizie OK. Primo tentativo test senza `--keepdb` interrotto durante setup DB test da `OSError: [Errno 22] Invalid argument` sul flush stdout di `migrate`, prima dell'esecuzione dei test.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' la modifica e' presentazionale e non cambia URL, setup, dipendenze o comportamento operativo.
+- Note operative: il runtime Browser in-app richiesto dal plugin non esponeva `node_repl js`; usato fallback Playwright disponibile solo per verificare il redirect login locale.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/assenze`, UI modulo Assenze oltre al menu.
+- Richiesta: la nuova UI del menu piace, ma la pagina resta un po' spoglia; continuare con lo stesso stile anche sulle altre pagine del modulo.
+- File modificati in questa sessione: `django_app/assenze/templates/assenze/base_shell.html`, `django_app/assenze/templates/assenze/pages/menu.html`, `django_app/assenze/templates/assenze/pages/richiesta_assenze.html`, `django_app/assenze/templates/assenze/pages/gestione_assenze.html`, `django_app/assenze/templates/assenze/pages/calendario.html`, `django_app/assenze/templates/assenze/pages/certificazione_presenza.html`, `django_app/assenze/templates/assenze/pages/car_dashboard.html`, `django_app/assenze/templates/assenze/pages/gestione_admin.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: il solo menu risultava piu curato, ma le altre viste Assenze restavano molto testuali/tabellari e senza segnali visivi coerenti; inoltre le icone SVG erano duplicate localmente nel menu invece che riusabili dal layout del modulo.
+- Modifica: spostato lo sprite SVG nel layout `base_shell.html`, aggiunte regole comuni per icone, titoli pannello, tab e KPI; rimosso lo sprite locale dal menu; aggiunte icone e piccoli accenti visuali a hero action, KPI, pannelli, tab admin, banner presenza, filtro ricerca, calendario, dashboard reparto e gestione admin. Il calendario mantiene l'icona del titolo agenda separata dallo span aggiornato via JavaScript per non perderla al cambio data.
+- Impatto previsto: le schermate `/assenze/richiesta_assenze`, gestione richieste, calendario, certificazione presenza, dashboard reparto/segnalazioni e gestione admin risultano piu piene e leggibili, coerenti col tema teal e con il menu, senza cambiare dati o workflow.
+- Rischi residui: verifica visuale autenticata/screenshot non eseguita per indisponibilita' del runtime Browser in-app (`node_repl js` non disponibile in questa sessione); verificati template, simboli SVG e check Django. La resa finale va confermata a browser autenticato.
+- Test/check: `python -B django_app\manage.py shell --settings=config.settings.test -c "from django.template.loader import get_template; templates=[...]; [get_template(t) for t in templates]; print('templates ok', len(templates))"` OK su 7 template; confronto simboli SVG `abs-i-*` usati vs definiti OK, missing vuoto; `python -B django_app\manage.py check assenze --settings=config.settings.test` OK; `git diff --check` sui template Assenze e sui documenti aggiornati OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' la modifica e' solo presentazionale e non cambia URL, setup, dipendenze o comportamento operativo.
+- Note operative: `base_shell.html`, `menu.html`, `gestione_assenze.html` e `calendario.html` erano read-only; attributo rimosso temporaneamente per applicare la patch e ripristinato prima della chiusura.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/assenze`, menu modulo `/assenze/`.
+- Richiesta: rendere piu compatta e piu curata la UI della pagina iniziale Assenze, poi renderla piu gradevole visivamente con icone e anche cambio UI se utile.
+- File modificati in questa sessione: `django_app/assenze/templates/assenze/base_shell.html`, `django_app/assenze/templates/assenze/pages/menu.html`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la shell Assenze eredita `min-height:100%` dal layout globale e la griglia del menu tendeva ad allungare hero, card e pannello "Ultime richieste" occupando molto spazio vuoto verticale.
+- Modifica: aggiunto un block opzionale `assenze_shell_class` in `base_shell.html` e usato `abs-menu-shell` solo nel menu; la pagina ora applica `align-content:start`/`grid-auto-rows:max-content`, hero a cockpit con micro-statistiche, card operative con accenti colore e icone SVG inline, badge reparto con conteggio richieste in attesa e lista ultime richieste in formato piu denso con icone di stato e link rapido alla gestione.
+- Impatto previsto: `/assenze/` risulta piu compatta, meno vuota e visivamente piu curata, coerente con il tema teal del modulo ma con accenti colore differenziati, senza cambiare dati, permessi o navigazione.
+- Rischi residui: verifica visuale autenticata non eseguita per indisponibilita' del runtime Browser in-app (`node_repl js` non disponibile in questa sessione); il controllo e' stato fatto via caricamento template e check Django.
+- Test/check: `python -B django_app\manage.py shell --settings=config.settings.test -c "from django.template.loader import get_template; get_template('assenze/pages/menu.html'); print('template ok')"` OK; `python -B django_app\manage.py check assenze --settings=config.settings.test` OK; `git diff --check -- django_app/assenze/templates/assenze/base_shell.html django_app/assenze/templates/assenze/pages/menu.html` OK; dopo il secondo passaggio visuale rieseguiti template load, `check assenze` e `git diff --check` sul template menu, tutti OK.
+- Backup creati: nessuno.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' la modifica e' solo presentazionale e non cambia URL, setup, dipendenze o comportamento operativo.
+- Note operative: i due template erano read-only; rimosso temporaneamente l'attributo solo su `base_shell.html` e `menu.html` per applicare la patch, poi ripristinato a fine sessione.
+
+## 2026-06-14 - Claude
+
+- Area: `django_app/anagrafica`, tab "Assenze" della scheda dettaglio dipendente.
+- Richiesta: in Anagrafica, tab Assenze della scheda dipendente non venivano mostrate le assenze presenti.
+- File modificati in questa sessione: `django_app/anagrafica/views.py`, `django_app/anagrafica/tests.py`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`.
+- File critici modificati: nessuno. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: due cause concomitanti. (1) Bug bloccante — `_query_assenze_dipendente` referenziava `connections["default"]` ma `connections` non era importato a livello di modulo in `anagrafica/views.py` (solo import locali in altre funzioni): ogni chiamata sollevava `NameError`, catturato dal `except Exception`, ritornando sempre lista vuota → il tab mostrava sempre "Nessuna assenza" mentre il widget conteggio (che filtra per `copia_nome`) ne riportava di presenti. (2) Match fragile — la query usava la sola `INNER JOIN dipendenti ON a.dipendente_id = d.id` filtrando per `d.utente_id`; la colonna `assenze.dipendente_id` può mancare in prod (errore `42S22`, già noto in `assenze.views._load_events`) o restare NULL.
+- Modifica: aggiunto `connections` a `from django.db import IntegrityError, connections, transaction`. Riscritto `_query_assenze_dipendente(dip)` con match robusto allineato al widget conteggio e al modulo assenze (`copia_nome` LIKE in entrambi gli ordini del nome, `utente_id` diretto su `assenze`, JOIN `dipendenti` solo se le colonne esistono — guardate da `legacy_table_columns`). La funzione ritorna ora `(lista, no_link)`; aggiornato il chiamante in `dipendente_detail`. Aggiunti 4 test (`QueryAssenzeDipendenteTests`).
+- Hotfix prod diretta: non applicata (modifica solo su workspace; valutare deploy + recycle App Pool come per le patch precedenti).
+- Impatto previsto: il tab Assenze elenca ora le assenze del dipendente (ultimi 2 anni) in modo coerente col widget conteggio, sia in dev sia in prod indipendentemente dalla presenza di `assenze.dipendente_id`.
+- Rischi residui: il match per `copia_nome` LIKE può, in caso di omonimia, includere assenze di un omonimo — stesso comportamento già accettato dal widget conteggio esistente.
+- Test/check: `python django_app/manage.py check anagrafica --settings=config.settings.test` OK; `python django_app/manage.py test anagrafica.tests.QueryAssenzeDipendenteTests --settings=config.settings.test` OK (4 test).
+- README/CHANGELOG: `CHANGELOG.md` aggiornato; README non aggiornato (fix interna, nessun cambio URL/setup/dipendenze/funzionalità visibile nuova).
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/timbri`, scheda timbri collegata ad Anagrafica HR.
+- Richiesta: analizzare errore prod `Internal Server Error: /timbri/anagrafica/141/` con `NotImplementedError` da `civile.foto.url` su `PrivateAnagraficaStorage`.
+- File modificati in questa sessione: `django_app/timbri/views.py`, `django_app/timbri/tests.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: dopo la migrazione GDPR, le foto dipendente Anagrafica sono su `PrivateAnagraficaStorage` e non hanno URL pubblico; `ImageField.url` solleva intenzionalmente `NotImplementedError`. La view Timbri `operatore_detail_by_legacy` usava ancora `civile.foto.url` invece della view protetta gia' disponibile.
+- Modifica: `operatore_detail_by_legacy` passa al template `reverse("anagrafica:foto_dipendente", args=[legacy_id])` quando la foto esiste, senza accedere a `.url`. Aggiunto test di regressione con foto privata su scheda timbri.
+- Hotfix prod diretta: applicata la stessa modifica anche su `Y:\current\django_app\timbri\views.py`, con backup preventivo `Y:\current\django_app\timbri\views.py.bak_20260614_184224`.
+- Impatto previsto: `/timbri/anagrafica/<legacy_id>/` non va piu' in 500 per dipendenti con foto profilo privata; la foto viene servita dalla route autenticata Anagrafica come nelle liste/schede HR.
+- Rischi residui: il processo web prod potrebbe richiedere recycle App Pool/IIS per caricare il file Python modificato. Il path `C:\PortaleNovicrom\prod\current\...` del traceback non e' raggiungibile da questa workspace; la patch e' stata applicata alla mappa prod disponibile `Y:\current\...`.
+- Test/check: `python -B -c "ast.parse(...)"` OK su `django_app/timbri/views.py` e `django_app/timbri/tests.py`; `python -B django_app\manage.py test timbri.tests.TimbriAnagraficaIntegrationTests.test_operatore_detail_uses_private_anagrafica_photo_route --settings=config.settings.test --verbosity 1 --keepdb` OK; `python -B -c ast.parse(...)` OK su `Y:\current\django_app\timbri\views.py`.
+- Backup creati: `Y:\current\django_app\timbri\views.py.bak_20260614_184224`.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' fix interna senza cambio URL/setup/dipendenze.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/timbri`, comando import immagini da share.
+- Richiesta: analizzare output prod di `python manage.py import_timbri_da_share --apply --settings=config.settings.prod`, che mostrava `ERRORE: 'charmap' codec can't encode character '\u2713'` per ogni immagine.
+- File modificati in questa sessione: `django_app/timbri/management/commands/import_timbri_da_share.py`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: il comando salvava correttamente file e record `RegistroTimbroImmagine`, poi stampava il simbolo Unicode di spunta dentro lo stesso blocco `try`. Sulla console prod Windows con encoding `charmap`/CP1252 la stampa falliva con `UnicodeEncodeError`, veniva catturata come se fosse un errore di import e impediva il conteggio `Salvate`.
+- Modifica: spostato il conteggio successo nel ramo `else` del `try` e sostituito il simbolo Unicode con `OK` ASCII. In questo modo eventuali errori reali di lettura/salvataggio restano tracciati, mentre il logging non trasforma un salvataggio riuscito in `ERRORE`.
+- Hotfix prod diretta: applicata la stessa modifica anche su `Y:\current\django_app\timbri\management\commands\import_timbri_da_share.py`, su richiesta esplicita, con backup preventivo `Y:\current\django_app\timbri\management\commands\import_timbri_da_share.py.bak_20260614_183347`.
+- Impatto previsto: rilanciando `import_timbri_da_share --apply` in prod il comando non fallisce piu' sulla stampa del successo. Le immagini gia' create dal tentativo precedente risultano come `gia' presente`/saltate grazie al controllo per variante.
+- Rischi residui: l'output prod gia' ricevuto indica che molti salvataggi potrebbero essere avvenuti nonostante il messaggio `ERRORE`; prima di rilanciare conviene eseguire il dry-run per verificare se le 180 immagini risultano gia' presenti. Restano da valutare separatamente i casi `Senza cartella`, `Senza record attivo` e `NO FILE`.
+- Test/check: `python -m py_compile django_app\timbri\management\commands\import_timbri_da_share.py` OK; `python django_app\manage.py help import_timbri_da_share --settings=config.settings.test` OK; `python -m py_compile Y:\current\django_app\timbri\management\commands\import_timbri_da_share.py` OK con Python locale; verifica `Select-String` conferma nessun simbolo `✓` rimasto nel file prod. Check con `Y:\venv\Scripts\python.exe` non eseguito per runtime prod locale rotto (`did not find executable at C:\Users\administrator\AppData\Local\Programs\Python\Python313\python.exe`).
+- Backup creati: `Y:\current\django_app\timbri\management\commands\import_timbri_da_share.py.bak_20260614_183347`.
+- README/CHANGELOG: `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati; README non aggiornato perche' la modifica riguarda solo compatibilita' output console del comando.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/dashboard`, home portale `/hub/home/`.
+- Richiesta: il flag "Mostra moduli non accessibili" non deve essere visibile, deve essere falso di default e nella home devono comparire solo i moduli visibili/accessibili.
+- File modificati in questa sessione: `django_app/dashboard/views_home_portale.py`, `django_app/dashboard/templates/dashboard/pages/home_portale.html`, `django_app/dashboard/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale.
+- Motivo tecnico: la home persisteva in sessione `hp_show_locked` con default precedente `True` e il template esponeva un toggle che permetteva di renderizzare anche tile non accessibili.
+- Modifica: `_module_groups()` filtra lato server i moduli non accessibili prima di costruire i gruppi; `home_portale` non legge piu' `hp_show_locked` e non passa piu' `show_locked_modules` al template; il vecchio endpoint `toggle_locked` resta compatibile ma forza la sessione a `False`; il template rimuove il form "Mostra moduli non accessibili", renderizza direttamente solo le tile ricevute e aggiorna i testi a "moduli disponibili".
+- Impatto previsto: ogni utente vede nella sezione "Moduli del portale" solo i moduli concessi dal proprio ruolo/utente; eventuali sessioni vecchie con `hp_show_locked=True` non mostrano piu' moduli bloccati. Gli amministratori continuano a vedere tutti i moduli perche' risultano accessibili.
+- Rischi residui: nessuno noto sulla sicurezza, perche' la modifica riguarda solo visibilita' UI e non sostituisce i controlli server-side ACL; il vecchio endpoint HTMX e' mantenuto per compatibilita' ma non e' piu' richiamato dal template.
+- Test/check: `python django_app\manage.py test dashboard.tests.HomePortaleModuleVisibilityTests dashboard.tests.PriorityKpisTests --settings=config.settings.test --verbosity 2` OK (4 test); `python django_app\manage.py check --settings=config.settings.test` OK; `git diff --check` OK; `rg "Mostra moduli non accessibili|show_locked_modules|hp_show_locked" django_app\dashboard django_app\core -S` conferma nessun testo/toggle visibile nel template, restano solo test ed endpoint compat. Verifica browser fallback su `http://10.0.0.79:8000/hub/home/`: server raggiunto ma redirect a `/login/?next=/hub/home/`, quindi niente verifica visuale autenticata.
+- Backup creati: nessuno.
+- README/CHANGELOG: `README.md`, `CHANGELOG.md` e `django_app/CHANGELOG.md` aggiornati.
+
+## 2026-06-14 - Codex
+
+- Area: `django_app/anagrafica`, diagnosi lista dipendenti vuota in dev.
+- Richiesta: capire perche' in Anagrafica HR non si vedono i dipendenti mentre KPI/altre pagine sembrano avere dati.
+- File modificati in questa sessione: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; `_AGENT_CONTROL/CRITICAL_FILES.md` non e' presente nella workspace. Nessuna modifica a codice runtime, ACL, middleware, settings, autenticazione, routing globale o navigazione globale.
+- Diagnosi: nel DB dev SQL Server la tabella canonica legacy `dbo.anagrafica_dipendenti` non esiste/non e' raggiungibile (`ProgrammingError` SQL Server 208, nome oggetto non valido). La lista `/anagrafica/dipendenti/` usa `core.legacy_anagrafica.fetch_anagrafica_rows()` e quindi ritorna 0 righe. Invece le tabelle Django HR collegate sono presenti e popolate: `DipendenteAnagraficaAziendale` 145 righe, `DipendenteAnagraficaCivile` 145, qualifiche 86, visite 200, record formazione 3399. Esiste anche `dbo.dipendenti` con 138 righe, ma e' una tabella legacy SharePoint/minimale (`title`, `sharepoint_item_id`, date, `utente_id`) e non sostituisce `anagrafica_dipendenti`.
+- Ripristino dev applicato: ricreata `dbo.anagrafica_dipendenti` con colonne legacy attese (`id`, `aliasusername`, `nome`, `cognome`, `mansione`, `reparto`, `email`, `email_notifica`, `utente_id`, `matricola`, `ruolo`, `attivo`) e popolata con 145 righe mantenendo gli stessi `legacy_anagrafica_id` delle tabelle HR. Fonte nominativi: `doc/people (2).xlsx` + `doc/Copia di people (3).xlsx`, match 145/145 su codice fiscale gia' presente in `DipendenteAnagraficaCivile`; reparto/ruolo/stato da `DipendenteAnagraficaAziendale`; qualifica corrente come fallback mansione da `StoricoContratto`.
+- Backup creato: tabella SQL Server `dbo.anagrafica_dipendenti_recovery_20260614_172410` con copia completa della tabella ricostruita.
+- Impatto previsto: `/anagrafica/dipendenti/` torna a mostrare 136 dipendenti in forza e `Ex dipendenti` resta a 9; schede HR e moduli collegati ritrovano la tabella legacy canonica.
+- Rischi residui: `utente_id` resta non popolato nel ripristino perche' non c'era match diretto email-account in `utenti`; gli account possono essere riallineati successivamente con le procedure esistenti (`reconcile_usernames`/login sync) se serve. La tabella e' ricostruita da export HR locali, quindi prima di promuovere in ambienti non-dev va usata una sorgente ufficiale controllata.
+- Test/check: `fetch_anagrafica_rows(deduplicate=True)` = 145; visibili in lista = 136; `count_anagrafica_statuses` = active 136 / inactive 9; riavviato `runserver` dev su `0.0.0.0:8000`; smoke test Django Client su `/anagrafica/dipendenti/` status 200, contiene `136 dipendenti`, non contiene `Nessun dipendente trovato`.
+- Note: nessun codice runtime modificato; README/CHANGELOG non aggiornati perche' non ci sono modifiche funzionali al progetto.
+
 ## 2026-06-08 - Codex
 
 - Area: repository completo, commit e push GitHub del branch `feat/acl-chiusura-migrazione-fase1`.

@@ -580,6 +580,7 @@ class FattoreRischioForm(forms.ModelForm):
             "codice", "nome", "categoria", "descrizione",
             "periodicita_formazione_mesi", "periodicita_sorveglianza_mesi",
             "richiede_formazione", "richiede_visita_medica", "richiede_dpi",
+            "tipi_visita", "categorie_dpi",
             "is_active", "note",
         ]
         widgets = {
@@ -592,9 +593,26 @@ class FattoreRischioForm(forms.ModelForm):
             "richiede_formazione":    forms.CheckboxInput(attrs=_FM_CHECK),
             "richiede_visita_medica": forms.CheckboxInput(attrs=_FM_CHECK),
             "richiede_dpi":           forms.CheckboxInput(attrs=_FM_CHECK),
+            "tipi_visita":   forms.SelectMultiple(attrs={**_FM_SELECT, "size": "5"}),
+            "categorie_dpi": forms.SelectMultiple(attrs={**_FM_SELECT, "size": "5"}),
             "is_active":              forms.CheckboxInput(attrs=_FM_CHECK),
             "note":        forms.Textarea(attrs=_FM_TEXTAREA),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo tipologie/categorie attive nel selettore; il modulo dpi è
+        # sempre installato ma restiamo difensivi sul queryset.
+        self.fields["tipi_visita"].queryset = (
+            self.fields["tipi_visita"].queryset.filter(is_active=True).order_by("nome")
+        )
+        try:
+            self.fields["categorie_dpi"].queryset = (
+                self.fields["categorie_dpi"].queryset.filter(is_active=True)
+                .order_by("order_index", "nome")
+            )
+        except Exception:
+            pass
 
 
 class CategoriaCorsoForm(forms.ModelForm):

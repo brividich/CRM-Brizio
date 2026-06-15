@@ -554,12 +554,12 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     <summary><h3 class="card-title">Policy manutenzione standard</h3><span class="ga-sum-right"><span class="muted-note">Template e regole manutentive</span><span class="ga-chevron">&#9660;</span></span></summary>
     <div class="card-body" style="display:grid;gap:10px;">
       <div class="muted-note">
-        Da qui puoi aprire il catalogo dei template intervento e le regole manutentive standard per categoria.
-        Gli override per singolo asset restano fuori da questo step.
+        Template intervento, regole manutentive standard per categoria e piano di manutenzione
+        sono gestiti dalle Impostazioni manutenzione. Gli override per singolo asset restano sul dettaglio asset.
       </div>
       <div class="inline-actions">
-        <a href="{% url 'assets:maintenance_template_list' %}" class="btn btn-primary btn-sm">Apri template manutenzione</a>
-        <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-primary btn-sm">Apri regole manutenzione</a>
+        <a href="{% url 'assets:maintenance_impostazioni' %}?tab=templates" class="btn btn-primary btn-sm">Template &amp; regole</a>
+        <a href="{% url 'assets:maintenance_impostazioni' %}?tab=piano" class="btn btn-sm">Piano per categoria</a>
       </div>
     </div>
   </details>

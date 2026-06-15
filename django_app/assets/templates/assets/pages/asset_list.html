@@ -347,6 +347,127 @@ body.theme-dark .assets-message { background:var(--surface); border-color:var(--
 body.theme-dark .assets-message-success { background:rgba(21,128,61,.15); border-color:rgba(134,239,172,.3); color:#86efac; }
 body.theme-dark .assets-message-error,body.theme-dark .assets-message-danger { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.3); color:#fca5a5; }
 body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
+
+/* Cockpit refresh */
+.dash {
+  border:none;
+  background:linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%);
+}
+.side {
+  background:linear-gradient(180deg,#ffffff 0%,#f3f8ff 100%);
+}
+.logo {
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  background:#0f172a;
+  box-shadow:0 12px 24px rgba(15,23,42,.16);
+}
+.brand-link {
+  padding:4px;
+  border-radius:12px;
+}
+.brand-link:hover { background:#eef6ff; }
+.name {
+  font-size:var(--fs-display-lg);
+  font-weight:900;
+}
+.ma,
+.ms {
+  position:relative;
+  padding:6px 9px;
+  font-weight:700;
+}
+.ma.active,
+.ms.active {
+  background:#fff;
+  color:#1f64d8;
+  box-shadow:0 8px 18px rgba(15,23,42,.06);
+}
+.ma.active:before,
+.ms.active:before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:7px;
+  bottom:7px;
+  width:3px;
+  border-radius:999px;
+  background:#14b8a6;
+}
+.main {
+  padding:14px;
+  gap:12px;
+  background:linear-gradient(180deg,#f8fbff 0%,#f4f7fc 100%);
+}
+.search {
+  background:#fff;
+  border-radius:10px;
+  box-shadow:0 8px 20px rgba(15,23,42,.04);
+}
+.tool,
+.ib {
+  background:#fff;
+  box-shadow:0 8px 18px rgba(15,23,42,.04);
+}
+.nb {
+  background:#2563eb;
+  border-color:#2563eb;
+  font-weight:800;
+  box-shadow:0 10px 22px rgba(37,99,235,.18);
+}
+.k,
+.card,
+.admin-form,
+.admin-item,
+.widget-manager-group {
+  border-radius:10px;
+  box-shadow:0 10px 24px rgba(15,23,42,.045);
+}
+.k {
+  position:relative;
+  overflow:hidden;
+  padding-left:14px;
+}
+.k:before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  background:#2563eb;
+}
+.k:nth-child(2):before { background:#14b8a6; }
+.k:nth-child(3):before { background:#f59e0b; }
+.k:nth-child(4):before { background:#dc2626; }
+.ch { background:linear-gradient(90deg,#f8fafc 0%,#fff 100%); }
+.t { letter-spacing:0; }
+.row-action,
+.rows-btn,
+.pg-btn,
+.chip { border-radius:8px; }
+body.theme-dark .dash { background:transparent; }
+body.theme-dark .side {
+  background:linear-gradient(180deg,var(--surface) 0%,rgba(20,184,166,.07) 100%);
+}
+body.theme-dark .main { background:transparent; }
+body.theme-dark .brand-link:hover { background:rgba(255,255,255,.05); }
+body.theme-dark .ma.active,
+body.theme-dark .ms.active {
+  background:rgba(255,255,255,.08);
+  box-shadow:none;
+}
+body.theme-dark .k,
+body.theme-dark .card,
+body.theme-dark .admin-form,
+body.theme-dark .admin-item,
+body.theme-dark .widget-manager-group {
+  box-shadow:none;
+}
+body.theme-dark .ch {
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
+}
 </style>
 {% endblock %}
 
@@ -393,8 +514,6 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
         <input type="hidden" name="asset_type" value="{{ request.GET.asset_type|default:'' }}">
         <input type="hidden" name="asset_category" value="{{ request.GET.asset_category|default:'' }}">
         <input type="hidden" name="reparto" value="{{ request.GET.reparto|default:'' }}">
-        <input type="hidden" name="vlan" value="{{ request.GET.vlan|default:'' }}">
-        <input type="hidden" name="ip" value="{{ request.GET.ip|default:'' }}">
         <input type="hidden" name="rows" value="{{ rows }}">
         <input type="hidden" name="page" value="1">
         <div class="search"><span style="color:#8da0bc;">&#128269;</span><input id="id_q" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Ricerca rapida per asset, seriali o utenti (Ctrl + K)"></div>
@@ -512,7 +631,7 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
           <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
         </div>
 
-        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.asset_category or request.GET.reparto or request.GET.vlan or request.GET.ip %}open{% endif %}>
+        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.asset_category or request.GET.reparto %}open{% endif %}>
           <summary class="text-base font-semibold" style="cursor:pointer;color:#4d6890;">Filtri avanzati</summary>
           <form method="get" style="margin-top:8px;">
             <input type="hidden" name="q" value="{{ request.GET.q|default:'' }}">
@@ -522,15 +641,13 @@ body.theme-dark .assets-message-warning { background:rgba(146,64,14,.15); border
               <div class="field"><label for="{{ filters_form.asset_type.id_for_label }}">Tipo</label>{{ filters_form.asset_type }}</div>
               <div class="field"><label for="{{ filters_form.asset_category.id_for_label }}">Categoria</label>{{ filters_form.asset_category }}</div>
               <div class="field"><label for="{{ filters_form.reparto.id_for_label }}">Reparto</label>{{ filters_form.reparto }}</div>
-              <div class="field"><label for="{{ filters_form.vlan.id_for_label }}">VLAN</label>{{ filters_form.vlan }}</div>
-              <div class="field"><label for="{{ filters_form.ip.id_for_label }}">IP</label>{{ filters_form.ip }}</div>
             </div>
             <div class="fa"><a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Reimposta</a><button class="btn" type="submit">Applica</button></div>
           </form>
         </details>
 
         <div class="tw">
-          <table class="tbl">
+          <table class="tbl" data-fm-hide-search="1">
             <thead>
               <tr>
                 <th style="width:42px;"><input type="checkbox" id="select-all-cb" title="Seleziona/deseleziona tutti"></th>

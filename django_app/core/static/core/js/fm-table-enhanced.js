@@ -7,11 +7,17 @@
  *   - icona filtro (imbuto stile Excel) — click apre popover con input filtro
  *
  * Sopra la tabella appare una barra controlli con:
- *   - ricerca globale
+ *   - ricerca globale (opt-out per tabella con data-fm-hide-search="1", utile
+ *     quando la pagina ha già una ricerca rapida dedicata sopra la tabella)
  *   - menu "Colonne ▾" (toggle visibilità + drag-reorder)
  *   - bottone Reset
  *   - status salvataggio
  *   - contatore risultati
+ *
+ * L'intera barra controlli può essere nascosta (mantenendo le icone di
+ * ordina/filtro per colonna negli header) con data-fm-hide-controls="1" sul
+ * <table> o su un suo antenato (es. <body data-fm-hide-controls="1"> per
+ * applicarlo a tutte le tabelle di un modulo).
  *
  * Stato per-utente persistito via /api/table-prefs/<table_id>/ (modello UserTablePreference).
  * Vedi docs/ai/TABELLE_PERSONALIZZABILI.md.
@@ -166,6 +172,17 @@
       table.dataset.fmTableSkip === "1" ||
       table.dataset.tableEnhanced === "0" ||
       table.closest("[data-fm-table-skip='1'], [data-table-enhanced='0']")
+    );
+  }
+
+  // Nasconde solo la barra controlli sopra la tabella (ricerca globale, menu
+  // Colonne, Reset, contatore), lasciando attive le icone di ordina/filtro per
+  // colonna negli header. Opt-out per tabella o per antenato (es. su <body>
+  // per coprire tutte le tabelle di un modulo).
+  function controlsHidden(table) {
+    return !!(
+      table.dataset.fmHideControls === "1" ||
+      table.closest("[data-fm-hide-controls='1']")
     );
   }
 
@@ -493,17 +510,20 @@
     const bar = document.createElement("div");
     bar.className = "fm-tbl-controls";
 
-    // Search globale
-    const searchWrap = document.createElement("div");
-    searchWrap.className = "fm-tbl-search";
-    searchWrap.innerHTML = '<span class="fm-tbl-search-ico">🔍</span>';
-    const search = document.createElement("input");
-    search.type = "search";
-    search.placeholder = "Cerca…";
-    search.value = state.q || "";
-    search.addEventListener("input", () => { state.q = search.value; onChange(); });
-    searchWrap.appendChild(search);
-    bar.appendChild(searchWrap);
+    // Search globale — opt-out per tabella con data-fm-hide-search="1"
+    // (utile quando la pagina ha già una ricerca rapida dedicata sopra la tabella).
+    if (table.dataset.fmHideSearch !== "1") {
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "fm-tbl-search";
+      searchWrap.innerHTML = '<span class="fm-tbl-search-ico">🔍</span>';
+      const search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "Cerca…";
+      search.value = state.q || "";
+      search.addEventListener("input", () => { state.q = search.value; onChange(); });
+      searchWrap.appendChild(search);
+      bar.appendChild(searchWrap);
+    }
 
     // Pulsante Colonne ▾
     const colsBtn = document.createElement("button");
@@ -1329,17 +1349,20 @@
     // Decorazione header (sort + filter icone per ogni th[data-col])
     cols.forEach(col => decorateHeader(col, state, onChange));
 
-    // Barra controlli sopra il wrap
-    const wrap = tableControlAnchor(table);
-    const bar = buildControlsBar(table, cols, state, onChange, statusEl);
-    wrap.parentNode.insertBefore(bar, wrap);
+    // Barra controlli sopra il wrap — saltata con data-fm-hide-controls (le
+    // icone di ordina/filtro per colonna restano comunque attive).
+    if (!controlsHidden(table)) {
+      const wrap = tableControlAnchor(table);
+      const bar = buildControlsBar(table, cols, state, onChange, statusEl);
+      wrap.parentNode.insertBefore(bar, wrap);
 
-    // Contatore
-    const countSpan = document.createElement("span");
-    countSpan.className = "fm-tbl-count";
-    countSpan.textContent = String($$("tr", table.tBodies[0]).length);
-    table._fmTblCountEl = countSpan;
-    bar.appendChild(countSpan);
+      // Contatore
+      const countSpan = document.createElement("span");
+      countSpan.className = "fm-tbl-count";
+      countSpan.textContent = String($$("tr", table.tBodies[0]).length);
+      table._fmTblCountEl = countSpan;
+      bar.appendChild(countSpan);
+    }
 
     // API programmatica per impostare/azzerare un filtro di colonna dall'esterno
     // (es. click su un KPI che filtra la tabella per anno). Aggiorna lo stato,

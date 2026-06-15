@@ -131,15 +131,31 @@ def _mod_is_accessible(mod: dict, user_slugs: set[str], is_admin: bool) -> bool:
 
 # ── Data layer ────────────────────────────────────────────────────────────────
 
-def _priority_kpis(request) -> list[dict]:
-    """4 KPI prioritari in hero — TODO: cablare conteggi reali."""
-    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+def _first_kpi_value(tile_kpis: dict, module_id: str) -> int:
+    """Estrae il primo conteggio KPI di un modulo da _tile_kpi_counts, 0 se assente."""
+    rows = tile_kpis.get(module_id) or []
+    if not rows:
+        return 0
+    value = rows[0].get("value")
+    return int(value) if isinstance(value, (int, float)) else 0
 
-    task_data = _board_data_tasks(int(legacy_user.id) if legacy_user else None,
-                                  {"filter_status": "open", "max_items": 1})
-    task_open = (task_data.get("stats", {}).get("todo", 0)
-                 + task_data.get("stats", {}).get("in_progress", 0))
+
+def _priority_kpis(request, tile_kpis: dict | None = None) -> list[dict]:
+    """4 KPI prioritari in hero. Riusa i conteggi già calcolati da
+    _tile_kpi_counts (passati in tile_kpis) per evitare query duplicate.
+    Il KPI 'Approvazioni' usa il modulo assenze (in approvazione)."""
+    tile_kpis = tile_kpis or {}
+    task_stats = (tile_kpis.get("task") or [])
+
+    task_open = _first_kpi_value(tile_kpis, "task")
+    # 'task' espone [in corso, scaduti]: lo scaduto è il secondo elemento.
+    task_overdue = 0
+    if len(task_stats) > 1 and isinstance(task_stats[1].get("value"), (int, float)):
+        task_overdue = int(task_stats[1]["value"])
+
+    anomalie_open = _first_kpi_value(tile_kpis, "anomalie")
+    ticket_attivi = _first_kpi_value(tile_kpis, "ticket")
+    approvazioni = _first_kpi_value(tile_kpis, "assenze")
 
     ticket_url = _safe_url("tickets:dashboard")
     anomalie_url = _safe_url("gestione_anomalie_page")
@@ -147,10 +163,10 @@ def _priority_kpis(request) -> list[dict]:
     assenze_url = _safe_url("assenze_menu")
 
     return [
-        {"tone": "red",    "icon_char": "⚠", "value": 0,        "label": "Anomalie aperte", "sub": "aggiornato in tempo reale", "url": anomalie_url},
-        {"tone": "orange", "icon_char": "🎫", "value": 0,        "label": "Ticket attivi",   "sub": "aggiornato in tempo reale", "url": ticket_url},
-        {"tone": "blue",   "icon_char": "✔", "value": task_open, "label": "Task in corso",   "sub": f"{task_data.get('stats', {}).get('overdue', 0)} scaduti", "url": task_url},
-        {"tone": "green",  "icon_char": "✓", "value": 0,        "label": "Approvazioni",    "sub": "richieste in attesa",       "url": assenze_url},
+        {"tone": "red",    "icon_char": "⚠", "value": anomalie_open, "label": "Anomalie aperte", "sub": "aggiornato in tempo reale", "url": anomalie_url},
+        {"tone": "orange", "icon_char": "🎫", "value": ticket_attivi, "label": "Ticket attivi",   "sub": "aggiornato in tempo reale", "url": ticket_url},
+        {"tone": "blue",   "icon_char": "✔", "value": task_open,     "label": "Task in corso",   "sub": f"{task_overdue} scaduti",   "url": task_url},
+        {"tone": "green",  "icon_char": "✓", "value": approvazioni,  "label": "Approvazioni",    "sub": "richieste in attesa",       "url": assenze_url},
     ]
 
 
@@ -367,7 +383,10 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     try:
         from rentri.models import RegistroRifiuti
         da_rentri = RegistroRifiuti.objects.filter(rentri_si_no=False, salva=True).count()
-        fir = RegistroRifiuti.objects.filter(arrivo_fir=False).exclude(tipo="C").count()
+        # arrivo_fir è una CharField (riferimento FIR): "FIR mancante" = stringa vuota
+        # sui soli scarichi (O/M/R). Il vecchio filtro `arrivo_fir=False` non matchava
+        # le stringhe vuote.
+        fir = RegistroRifiuti.objects.filter(arrivo_fir="", tipo__in=["O", "M", "R"]).count()
         out["rentri"] = [
             {"value": da_rentri, "unit": "da comunicare RENTRI", "tone": "warning"},
             {"value": fir, "unit": "FIR mancanti", "tone": "danger" if fir else "info"},
@@ -418,6 +437,8 @@ def _module_groups(request, accessible_set: set[str], is_admin: bool,
             if spec["cat"] != cat["key"]:
                 continue
             can = _mod_is_accessible(spec, accessible_set, is_admin)
+            if not can:
+                continue
             url = _safe_url(spec["url_name"]) if spec["url_name"] != "#" else "#"
             icon_image = _module_image_url_for(image_lookup, *spec["pulsante_aliases"])
             # kpis: list[{value, unit, tone}] — multi-KPI per tile
@@ -428,7 +449,7 @@ def _module_groups(request, accessible_set: set[str], is_admin: bool,
             modules.append({
                 "id":         spec["id"],
                 "label":      spec["label"],
-                "sub":        spec["sub"] if can else "Accesso non consentito",
+                "sub":        spec["sub"],
                 "icon":       None,
                 "icon_image": icon_image,
                 "tone":       spec["tone"],
@@ -589,7 +610,9 @@ def _active_unit(legacy_user_id) -> str | None:
 
 def _header_actions(request) -> list[dict]:
     return [
-        {"label": "Nuovo ticket",      "href": _safe_url("tickets:nuovo"),       "variant": "primary"},
+        {"label": "Le mie attività",   "href": _safe_url("mie_attivita"),          "variant": "primary"},
+        {"label": "Scadenzario",       "href": _safe_url("scadenze_globali"),      "variant": "ghost"},
+        {"label": "Nuovo ticket",      "href": _safe_url("tickets:nuovo"),       "variant": "ghost"},
         {"label": "Segnala anomalia",  "href": _safe_url("apertura_segnalazione"), "variant": "ghost"},
         {"label": "Richiedi permesso", "href": _safe_url("assenze_richiesta"),     "variant": "ghost"},
     ]
@@ -606,7 +629,6 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     display_name = (request.user.first_name
                     or getattr(legacy_user, "nome", "")
                     or request.user.get_username())
-    show_locked = bool(request.session.get("hp_show_locked", True))
 
     image_lookup = _module_card_image_lookup()
     accessible_set = _build_accessible_set(request)
@@ -624,6 +646,10 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user)
     groups = _module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
 
+    # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.
+    from dashboard.views_mie_attivita import build_cose_da_gestire
+    cose_da_gestire = build_cose_da_gestire(request)
+
     context: dict[str, Any] = {
         "greeting":           _greeting(now),
         "greeting_name":      display_name,
@@ -633,13 +659,15 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "active_role":        _active_role(legacy_user),
         "active_unit":        _active_unit(legacy_user_id),
         "header_actions":     _header_actions(request),
-        "priority_kpis":      _priority_kpis(request),
+        "priority_kpis":      _priority_kpis(request, tile_kpis),
         "module_groups":      groups,
         "module_total":       sum(g["total"] for g in groups),
-        "show_locked_modules": show_locked,
+        # my_tasks/pending alimentano il riepilogo del saluto; i singoli pannelli
+        # d'azione sono stati sostituiti dal cockpit "Le mie attività" (cose_da_gestire).
         "my_tasks":           my_tasks_list,
         "pending_approvals":  pending,
-        "anomalie_aperte":    _anomalie_aperte(request),
+        "cose_da_gestire":        cose_da_gestire["sections"],
+        "cose_da_gestire_total":  cose_da_gestire["total"],
         "calendar_week":      _calendar_week(request),
         "news_items":         _news_items(request),
         "activity_items":     _activity_items(request),
@@ -655,7 +683,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_POST
 def toggle_locked(request: HttpRequest) -> HttpResponse:
-    request.session["hp_show_locked"] = request.POST.get("show_locked") == "1"
+    request.session["hp_show_locked"] = False
     return HttpResponse(status=204)
 
 

@@ -54,6 +54,7 @@
 - **Spec colonna inline** nel template via `data-*` su `<th>`: niente accoppiamento Python/JS oltre il `table_id`.
 - **Auto-bind**: nessun JS da scrivere a livello di pagina. Le tabelle con `data-table-id` e `data-col` mantengono configurazione esplicita; le tabelle dati semplici senza attributi vengono riconosciute automaticamente, ricevono `table_id` generato dalla pagina e colonne inferite dai `<th>`.
 - **Opt-out**: aggiungere `data-fm-table-skip="1"` o `data-table-enhanced="0"` alla tabella o a un contenitore per escludere una tabella tecnica/layout dal potenziamento automatico.
+- **Nascondere solo la barra controlli**: `data-fm-hide-controls="1"` sulla `<table>` o su un antenato nasconde l'intera barra sopra la tabella (ricerca globale, menu Colonne, Reset, contatore) **mantenendo le icone di ordina/filtro per colonna** negli header. Utile quando la pagina ha già la propria ricerca/filtri. Impostato su `<body>` (es. dalla subnav di un modulo) vale per tutte le tabelle delle pagine di quel modulo — così è applicato all'area Anagrafica HR. Per nascondere solo la ricerca globale (lasciando Colonne/Reset) usare invece `data-fm-hide-search="1"`.
 
 ---
 

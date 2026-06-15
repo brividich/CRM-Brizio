@@ -23,15 +23,17 @@
     </div>
   </div>
 
-  <div class="hr-card" style="max-width:640px;">
+  <div class="hr-card">
     <form method="post">
       {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
-      <div style="display:flex;gap:8px;margin-top:20px;">
-        <button type="submit" class="hr-btn hr-btn-primary">
-          {% if modo == "crea" %}Crea corso{% else %}Salva modifiche{% endif %}
-        </button>
-        <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+      <div class="hr-card-pad" style="padding:20px 24px;">
+        {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+        <div style="display:flex;gap:8px;margin-top:20px;">
+          <button type="submit" class="hr-btn hr-btn-primary">
+            {% if modo == "crea" %}Crea corso{% else %}Salva modifiche{% endif %}
+          </button>
+          <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+        </div>
       </div>
     </form>
   </div>

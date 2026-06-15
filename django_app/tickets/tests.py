@@ -873,3 +873,115 @@ class TicketApiObjectLevelAuthTests(TestCase):
         resp = self._send("delete", "tickets:api_intervento", {"id": self.man_interv.id})
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(TicketIntervento.objects.filter(id=self.man_interv.id).exists())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketEscalationTests(TestCase):
+    """#1 — escalation ticket URGENTI aperti e non assegnati."""
+
+    def _make_ticket(self, **kwargs):
+        defaults = dict(
+            tipo="IT", titolo="Server giù", descrizione="x", categoria="SERVER",
+            priorita=PrioritaTicket.URGENTE, stato="APERTA", assegnato_a="",
+        )
+        defaults.update(kwargs)
+        return Ticket.objects.create(**defaults)
+
+    def _age(self, ticket, hours):
+        old = timezone.now() - timedelta(hours=hours)
+        Ticket.objects.filter(pk=ticket.pk).update(created_at=old)
+
+    def test_fetch_seleziona_solo_urgenti_aperti_non_assegnati_oltre_soglia(self):
+        from tickets.tasks import _fetch_tickets_da_escalare
+
+        target = self._make_ticket(titolo="Da escalare")
+        self._age(target, 10)
+
+        # Escluso: assegnato.
+        assigned = self._make_ticket(titolo="Assegnato", assegnato_a="Tecnico")
+        self._age(assigned, 10)
+        # Escluso: non urgente.
+        media = self._make_ticket(titolo="Media", priorita=PrioritaTicket.MEDIA)
+        self._age(media, 10)
+        # Escluso: troppo recente (sotto soglia 4h).
+        recent = self._make_ticket(titolo="Recente")
+        self._age(recent, 1)
+        # Escluso: già in carico.
+        incarico = self._make_ticket(titolo="In carico", stato="IN_CARICO")
+        self._age(incarico, 10)
+
+        result = list(_fetch_tickets_da_escalare(soglia_ore=4))
+        self.assertEqual([t.pk for t in result], [target.pk])
+
+    def test_run_crea_reminder_per_richiedente(self):
+        from core.models import Notifica
+        from tickets.tasks import run_tickets_escalation
+
+        t = self._make_ticket(richiedente_legacy_user_id=77)
+        self._age(t, 10)
+
+        result = run_tickets_escalation.__wrapped__(force_email=False) \
+            if hasattr(run_tickets_escalation, "__wrapped__") else run_tickets_escalation(force_email=False)
+
+        self.assertEqual(result["tickets"], 1)
+        self.assertGreaterEqual(result["reminders"], 1)
+        self.assertFalse(result["email_sent"])  # niente finestra, niente force
+        notif = Notifica.objects.filter(legacy_user_id=77, tipo="ticket_sla").first()
+        self.assertIsNotNone(notif)
+        self.assertIn(t.numero_ticket, notif.messaggio)
+        self.assertEqual(notif.url_azione, f"/tickets/gestione/{t.pk}/")
+
+    def test_run_reminder_idempotente(self):
+        from core.models import Notifica
+        from tickets.tasks import run_tickets_escalation
+
+        t = self._make_ticket(richiedente_legacy_user_id=77)
+        self._age(t, 10)
+
+        fn = getattr(run_tickets_escalation, "__wrapped__", run_tickets_escalation)
+        fn(force_email=False)
+        fn(force_email=False)
+        # Una sola notifica non letta per (utente, ticket).
+        self.assertEqual(
+            Notifica.objects.filter(legacy_user_id=77, tipo="ticket_sla", letta=False).count(), 1
+        )
+
+    def test_run_force_email_invia_resoconto_al_team(self):
+        from tickets.models import TicketImpostazioni
+        from tickets.tasks import run_tickets_escalation
+
+        imp = TicketImpostazioni.get_or_create_for("IT")
+        imp.team_gestori = [{"nome": "Gestore IT", "email": "it@example.com"}]
+        imp.save()
+
+        t = self._make_ticket()
+        self._age(t, 10)
+
+        fn = getattr(run_tickets_escalation, "__wrapped__", run_tickets_escalation)
+        with patch("core.email_utils.send_hub_mail", return_value=1) as mock_send:
+            result = fn(force_email=True)
+
+        self.assertTrue(result["email_sent"])
+        self.assertEqual(mock_send.call_count, 1)
+        # destinatari = team gestori IT
+        args, kwargs = mock_send.call_args
+        self.assertIn("it@example.com", args[2])
+
+    def test_escalation_config_round_trip(self):
+        from tickets.escalation_config import get_escalation_config, save_escalation_config
+
+        ok = save_escalation_config(attivo=True, soglia_ore=6, ora_invio=9)
+        self.assertTrue(ok)
+        cfg = get_escalation_config()
+        self.assertTrue(cfg["attivo"])
+        self.assertEqual(cfg["soglia_ore"], 6)
+        self.assertEqual(cfg["ora_invio"], 9)
+
+    def test_escalation_config_clamps_out_of_range(self):
+        from tickets.escalation_config import get_escalation_config, save_escalation_config
+
+        save_escalation_config(attivo=False, soglia_ore=9999, ora_invio=99)
+        cfg = get_escalation_config()
+        self.assertFalse(cfg["attivo"])
+        self.assertEqual(cfg["soglia_ore"], 168)  # SOGLIA_MAX
+        self.assertEqual(cfg["ora_invio"], 23)    # ORA_MAX

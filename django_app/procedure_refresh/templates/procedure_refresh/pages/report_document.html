@@ -2,6 +2,8 @@
 
 {% block title %}Report per documento | Presa Visione{% endblock %}
 
+{% block body_class %}{{ block.super }} pr-workspace-page pr-report-page pr-report-document-page{% endblock %}
+
 {% block extra_head %}
 <style>
 #pr-root { display:flex; flex-direction:column; gap:20px; }
@@ -55,6 +57,7 @@ body.theme-dark .pr-badge-cancelled { background:var(--surface-alt); color:var(-
 body.theme-dark .pr-doc-info { background:rgba(107,33,168,.15); border-color:rgba(233,213,255,.2); color:#d8b4fe; }
 body.theme-dark .pr-empty { color:var(--text-light); }
 </style>
+{% include "procedure_refresh/components/workspace_styles.html" %}
 {% endblock %}
 
 {% block content %}

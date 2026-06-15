@@ -1,0 +1,66 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{# ===================================================================
+   mie_attivita.html — pagina dedicata del cockpit "Le mie attività".
+   Riusa il design system della home (home_portale.css: hp-card / hp-cdg /
+   hp-list / hp-badge) per restare uniforme alla UI della dashboard.
+   Context (vedi dashboard/views_mie_attivita.py):
+     greeting_name  str
+     total_open     int
+     sections       list[dict] {key,label,tone,icon,items[],all_url,empty}
+       items[] {code?,title,meta,status,priority?,url}
+   =================================================================== #}
+
+{% block title %}Le mie attività · {{ block.super }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+<style>
+  .hp-mia { max-width: 1100px; margin: 0 auto; padding: 10px 0 32px; }
+  .hp-mia .hp-card { margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hp-mia">
+  <div class="hp-card" data-hp-section="card-mie-attivita">
+    <header class="hp-card-h">
+      <div>
+        <h3 class="hp-card-t">Le mie attività</h3>
+        <p class="hp-card-s">Ciao {{ greeting_name }}, tutto ciò che richiede una tua azione, dai vari moduli{% if total_open %} · {{ total_open }} in sospeso{% endif %}</p>
+      </div>
+    </header>
+    <div class="hp-collapse-body">
+      <div class="hp-cdg-grid">
+        {% for s in sections %}
+          <div class="hp-cdg-group">
+            <div class="hp-cdg-group-h">
+              <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
+              {% if s.all_url and s.all_url != "#" %}<a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>{% endif %}
+            </div>
+            {% if s.items %}
+              <ul class="hp-list">
+                {% for it in s.items %}
+                  <li>
+                    <a href="{{ it.url }}">
+                      {% if it.code %}<span class="hp-list-code">{{ it.code }}</span>{% endif %}
+                      <span class="hp-list-body">
+                        <span class="hp-list-t">{{ it.title }}</span>
+                        <span class="hp-list-m">{{ it.meta }}{% if it.priority %} · {{ it.priority }}{% endif %}</span>
+                      </span>
+                      {% if it.status %}<span class="hp-badge hp-tone-{{ s.tone }}">{{ it.status }}</span>{% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <ul class="hp-list"><li class="hp-empty">{{ s.empty }}</li></ul>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

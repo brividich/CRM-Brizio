@@ -62,6 +62,7 @@
     .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
     .text-input, .textarea-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: var(--fs-md); font-family: inherit; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.15s, background 0.15s; }
     .text-input:focus, .textarea-input:focus { border-color: rgba(249,115,22,.5); background: var(--surface); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
+    .text-input:disabled, .textarea-input:disabled { background: var(--bg-muted, #f1f5f9); color: var(--text-mid, #94a3b8); cursor: not-allowed; opacity: 0.7; }
     .textarea-input { resize: vertical; }
     .range-row { display: flex; align-items: center; gap: 10px; }
     .range-row .text-input { flex: 1; }
@@ -264,10 +265,15 @@
       setNewOp(prev => ({ ...prev, [field]: value }));
     };
 
+    // Sblocco progressivo: P/N -> dati OP (anno/numero/fase) -> Capocommessa/CAR.
+    const opUnlocked = !!newOp.pn.trim();
+    const ccCarUnlocked = opUnlocked && !!newOp.anno.trim() && !!newOp.numero.trim();
+    const newOpValid = ccCarUnlocked && !!newOp.capocommessa.trim() && !!newOp.car.trim();
+
     const validateNewOp = () => {
+      if (!newOp.pn.trim()) return 'P/N obbligatorio.';
       if (!newOp.anno.trim()) return 'Anno obbligatorio.';
       if (!newOp.numero.trim()) return 'Numero obbligatorio.';
-      if (!newOp.pn.trim()) return 'P/N obbligatorio.';
       if (!newOp.capocommessa.trim()) return 'Capocommessa obbligatorio.';
       if (!newOp.car.trim()) return 'CAR obbligatorio.';
       return '';
@@ -340,11 +346,24 @@
               </button>
               <div className="create-op-hint">
                 Prima scelta: puoi creare subito un nuovo OP e passare direttamente alla segnalazione.
+                Compila prima il <strong>P/N</strong>, poi i dati dell'OP (anno e numero), infine Capocommessa e CAR: i campi si sbloccano in ordine.
               </div>
 
               {showCreate && (
                 <div className="create-op-panel">
                   <div className="create-grid">
+                    <div className="field-group">
+                      <label className="field-label">P/N <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        placeholder="Part number"
+                        value={newOp.pn}
+                        onChange={e => updateNewOp('pn', e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+
                     <div className="field-group">
                       <label className="field-label">Causale doc.</label>
                       <input
@@ -353,6 +372,7 @@
                         value={newOp.causale_doc}
                         onChange={e => updateNewOp('causale_doc', e.target.value)}
                         list="causale-doc-options"
+                        disabled={!opUnlocked}
                       />
                       <datalist id="causale-doc-options">
                         {CFG_CAUSALI_DOC.map(v => <option key={v} value={v} />)}
@@ -368,6 +388,7 @@
                         placeholder="2026"
                         value={newOp.anno}
                         onChange={e => updateNewOp('anno', e.target.value)}
+                        disabled={!opUnlocked}
                       />
                     </div>
 
@@ -379,6 +400,7 @@
                         placeholder="123"
                         value={newOp.numero}
                         onChange={e => updateNewOp('numero', e.target.value)}
+                        disabled={!opUnlocked}
                       />
                     </div>
 
@@ -390,17 +412,7 @@
                         placeholder="Opzionale"
                         value={newOp.fase}
                         onChange={e => updateNewOp('fase', e.target.value)}
-                      />
-                    </div>
-
-                    <div className="field-group">
-                      <label className="field-label">P/N <span className="req">*</span></label>
-                      <input
-                        className="text-input"
-                        type="text"
-                        placeholder="Part number"
-                        value={newOp.pn}
-                        onChange={e => updateNewOp('pn', e.target.value)}
+                        disabled={!opUnlocked}
                       />
                     </div>
 
@@ -412,6 +424,7 @@
                         value={newOp.capocommessa}
                         onChange={e => updateNewOp('capocommessa', e.target.value)}
                         list="capocommessa-options"
+                        disabled={!ccCarUnlocked}
                       />
                       <datalist id="capocommessa-options">
                         {capocommessaOptions.map(v => <option key={v} value={v} />)}
@@ -426,6 +439,7 @@
                         value={newOp.car}
                         onChange={e => updateNewOp('car', e.target.value)}
                         list="car-options"
+                        disabled={!ccCarUnlocked}
                       />
                       <datalist id="car-options">
                         {carOptions.map(v => <option key={v} value={v} />)}
@@ -438,6 +452,7 @@
                           type="checkbox"
                           checked={newOp.collaudo_benestare}
                           onChange={e => updateNewOp('collaudo_benestare', e.target.checked)}
+                          disabled={!ccCarUnlocked}
                         />
                         <span>Collaudo di benestare</span>
                       </label>
@@ -451,6 +466,7 @@
                         placeholder="Note opzionali OP"
                         value={newOp.note}
                         onChange={e => updateNewOp('note', e.target.value)}
+                        disabled={!ccCarUnlocked}
                       />
                     </div>
                   </div>
@@ -461,7 +477,7 @@
                     <button className="btn-secondary" onClick={handleCancelCreate} disabled={creating}>
                       Annulla
                     </button>
-                    <button className="btn-primary" onClick={handleCreateOp} disabled={creating}>
+                    <button className="btn-primary" onClick={handleCreateOp} disabled={creating || !newOpValid}>
                       {creating ? 'Creazione OP...' : 'Crea OP e continua'}
                     </button>
                   </div>

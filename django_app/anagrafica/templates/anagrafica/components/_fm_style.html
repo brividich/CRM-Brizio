@@ -156,12 +156,25 @@ input[type=checkbox].fm-check,input[type=radio].fm-check{
 body.theme-dark .fm-input,body.theme-dark .fm-select{background:#0f172a;border-color:#334155;color:#e2e8f0}
 
 /* ── Campi form verticali compatti (partial _fm_form_fields) ─── */
-.fm-form-field{margin-bottom:10px}
+.fm-form-field{margin-bottom:12px}
 .fm-form-field>label{display:block;font-size:11px;font-weight:700;color:#475569;
-  margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+  margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
 .fm-form-field .fm-req{color:#dc2626;font-weight:700;margin-left:2px;font-size:11px}
 .fm-form-field .fm-err{font-size:11px;color:#dc2626;margin-top:3px}
 .fm-form-field .fm-help{font-size:11px;color:#94a3b8;margin-top:3px}
+/* Auto-stile widget Django dentro fm-form-field (nessuna classe manuale richiesta) */
+.fm-form-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.fm-form-field select,
+.fm-form-field textarea{
+  width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;
+  font-size:13px;box-sizing:border-box;font-family:inherit;
+  color:#0f172a;background:#fff;line-height:1.4;
+}
+.fm-form-field input:not([type=checkbox]):not([type=radio]):not([type=file]):focus,
+.fm-form-field select:focus,
+.fm-form-field textarea:focus{
+  outline:none;border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.12);
+}
 .fm-form-check{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 0;
   font-size:12.5px;color:#334155;font-weight:500;cursor:pointer}
 .fm-form-check input[type=checkbox],.fm-form-check input[type=radio]{
@@ -178,6 +191,9 @@ body.theme-dark .fm-input,body.theme-dark .fm-select{background:#0f172a;border-c
 body.theme-dark .fm-form-checks-row{background:rgba(148,163,184,.06);border-color:#334155}
 body.theme-dark .fm-form-field>label{color:#94a3b8}
 body.theme-dark .fm-form-check{color:#cbd5e1}
+body.theme-dark .fm-form-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+body.theme-dark .fm-form-field select,
+body.theme-dark .fm-form-field textarea{background:#0f172a;border-color:#334155;color:#e2e8f0}
 
 /* ── Tabelle interattive (fm-table-enhanced.js) ─────────────── */
 .fm-tbl-controls{

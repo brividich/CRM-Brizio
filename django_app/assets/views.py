@@ -63,6 +63,7 @@ from .forms import (
     AssetFilterForm,
     AssetForm,
     AssetLabelTemplateForm,
+    MaintenanceChecklistStepFormSet,
     MaintenanceInterventionTemplateForm,
     MaintenanceRuleForm,
     MaintenanceRuleAssetOverrideForm,
@@ -124,6 +125,7 @@ from .maintenance import (
     build_workorder_prefill_payload,
     build_day_based_maintenance_schedule_rows,
     contract_state_payload,
+    copy_template_checklist_to_workorder,
     get_applicable_assistance_contracts,
     get_primary_assistance_contract,
     normalize_workorder_source,
@@ -3562,6 +3564,61 @@ def _compute_ticket_kpi_for_asset(asset: Asset) -> dict:
     }
 
 
+def _build_asset_status_band(
+    *,
+    primary_contract: AssistanceContract | None,
+    primary_contract_state: dict[str, str] | None,
+    next_deadline_row: dict[str, object] | None,
+    asset_assistance_contracts_url: str,
+    asset_administrative_deadline_list_url: str,
+) -> dict[str, dict[str, str]]:
+    """Banda di stato del dettaglio asset: copertura assistenza + prossima scadenza
+    amministrativa unite in un'unica card. Lo stato asset resta nella pill header e
+    la prossima manutenzione viene mostrata nel Registro manutenzione."""
+    contract_value = str(primary_contract.supplier) if primary_contract is not None else "Copertura non disponibile"
+    contract_meta = "Copertura non disponibile"
+    if primary_contract is not None:
+        contract_meta = primary_contract.coverage_summary or primary_contract.target_label
+    coverage = {
+        "label": "Copertura assistenza",
+        "value": contract_value,
+        "meta": contract_meta or "Nessun contratto attivo collegato.",
+        "badge_label": (
+            str(primary_contract_state.get("label"))
+            if primary_contract_state is not None
+            else "Senza contratto"
+        ),
+        "badge_class": (
+            str(primary_contract_state.get("badge_class"))
+            if primary_contract_state is not None
+            else "muted"
+        ),
+        "link_label": "Apri contratti",
+        "link_url": asset_assistance_contracts_url,
+    }
+    deadline_value = "Nessuna scadenza"
+    deadline_meta = "Nessuna scadenza amministrativa registrata."
+    deadline_badge_class = "muted"
+    deadline_badge_label = "Nessuna"
+    if next_deadline_row is not None:
+        deadline = next_deadline_row["deadline"]
+        deadline_state = next_deadline_row["state"]
+        deadline_value = str(deadline.title)
+        deadline_meta = str(deadline_state.get("days_label") or "")
+        deadline_badge_class = str(deadline_state.get("badge_class") or "muted")
+        deadline_badge_label = str(deadline_state.get("label") or "Programmato")
+    deadline_card = {
+        "label": "Scadenze amministrative",
+        "value": deadline_value,
+        "meta": deadline_meta,
+        "badge_label": deadline_badge_label,
+        "badge_class": deadline_badge_class,
+        "link_label": "Apri scadenze",
+        "link_url": asset_administrative_deadline_list_url,
+    }
+    return {"coverage": coverage, "deadline": deadline_card}
+
+
 def _build_asset_primary_kpis(
     *,
     asset: Asset,
@@ -3578,98 +3635,11 @@ def _build_asset_primary_kpis(
     asset_maintenance_schedule_url: str,
     asset_administrative_deadline_list_url: str,
 ) -> list[dict[str, str]]:
-    assignment_reparto = next(
-        (row.get("value") for row in assignment_rows if row.get("label") == "Reparto" and row.get("value")),
-        "",
-    )
-    assignment_location = next(
-        (row.get("value") for row in assignment_rows if row.get("label") == "Posizione" and row.get("value")),
-        "",
-    )
-    assignment_meta = " / ".join(value for value in [assignment_reparto, assignment_location] if value and value != "-")
-    contract_value = str(primary_contract.supplier) if primary_contract is not None else "Copertura non disponibile"
-    contract_meta = "Copertura non disponibile"
-    if primary_contract is not None:
-        contract_meta = primary_contract.coverage_summary or primary_contract.target_label
-    maintenance_meta = "Nessuna regola a giorni disponibile."
-    maintenance_badge_class = "muted"
-    maintenance_badge_label = "Non pianificato"
-    maintenance_value = "Nessuna regola attiva"
-    if next_maintenance_row is not None:
-        maintenance_template_label = str(next_maintenance_row["effective_intervention_template"].label)
-        maintenance_value = "Prima esecuzione da pianificare"
-        maintenance_meta = f"{maintenance_template_label} | Nessuna esecuzione registrata"
-        if next_maintenance_row.get("due_date"):
-            maintenance_meta = (
-                f"{maintenance_meta} · scadenza {next_maintenance_row['due_date']:%d-%m-%Y}"
-            )
-        maintenance_badge_class = str(next_maintenance_row.get("schedule_badge_class") or "muted")
-        maintenance_badge_label = str(next_maintenance_row.get("schedule_label") or "Da pianificare")
-        if next_maintenance_row.get("due_date"):
-            maintenance_value = f"{next_maintenance_row['due_date']:%d-%m-%Y}"
-            maintenance_meta = f"{maintenance_template_label} | {next_maintenance_row['schedule_label']}"
-    deadline_badge_class = "muted"
-    deadline_badge_label = "Nessuna"
-    deadline_value = "Nessuna scadenza"
-    deadline_meta = "Nessuna scadenza amministrativa registrata."
-    if next_deadline_row is not None:
-        deadline = next_deadline_row["deadline"]
-        deadline_state = next_deadline_row["state"]
-        deadline_value = str(deadline.title)
-        deadline_meta = str(deadline_state.get("days_label") or "")
-        deadline_badge_class = str(deadline_state.get("badge_class") or "muted")
-        deadline_badge_label = str(deadline_state.get("label") or "Programmato")
-
-    default_cards = [
-        {
-            "label": "Stato asset",
-            "value": asset_status["label"],
-            "meta": assignment_meta or "Asset operativo nel portale.",
-            "badge_label": asset_status["label"],
-            "badge_class": asset_status["badge_class"],
-            "link_label": "",
-            "link_url": "",
-            "size_class": "af-span-third",
-        },
-        {
-            "label": "Copertura assistenza",
-            "value": contract_value,
-            "meta": contract_meta or "Nessun contratto attivo collegato.",
-            "badge_label": (
-                str(primary_contract_state.get("label"))
-                if primary_contract_state is not None
-                else "Senza contratto"
-            ),
-            "badge_class": (
-                str(primary_contract_state.get("badge_class"))
-                if primary_contract_state is not None
-                else "muted"
-            ),
-            "link_label": "Apri contratti",
-            "link_url": asset_assistance_contracts_url,
-            "size_class": "af-span-third",
-        },
-        {
-            "label": "Prossima manutenzione",
-            "value": maintenance_value,
-            "meta": maintenance_meta,
-            "badge_label": maintenance_badge_label,
-            "badge_class": maintenance_badge_class,
-            "link_label": "Apri scadenzario",
-            "link_url": asset_maintenance_schedule_url,
-            "size_class": "af-span-third",
-        },
-        {
-            "label": "Scadenze amministrative",
-            "value": deadline_value,
-            "meta": deadline_meta,
-            "badge_label": deadline_badge_label,
-            "badge_class": deadline_badge_class,
-            "link_label": "Apri scadenze",
-            "link_url": asset_administrative_deadline_list_url,
-            "size_class": "af-span-third",
-        },
-    ]
+    # I KPI di default (stato/copertura/prossima manutenzione/scadenze) sono stati
+    # ridistribuiti: stato nella pill header, copertura+scadenze nella status band,
+    # prossima manutenzione nel Registro manutenzione. Qui restano solo le eventuali
+    # metriche "preferite" configurate via AssetDetailField.
+    default_cards: list[dict[str, str]] = []
 
     if not any(card["meta"] for card in default_cards) and detail_metrics:
         for index, metric in enumerate(detail_metrics[:4]):
@@ -5196,8 +5166,8 @@ def _default_asset_detail_section_layout_rows() -> list[dict[str, object]]:
         },
         {
             "code": AssetDetailSectionLayout.SECTION_QR,
-            "grid_size": AssetDetailSectionLayout.SIZE_HALF,
-            "sort_order": 240,
+            "grid_size": AssetDetailSectionLayout.SIZE_THIRD,
+            "sort_order": 280,
             "is_visible": True,
         },
         {
@@ -6775,9 +6745,47 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
+def _open_tickets_by_asset(asset_ids) -> dict[int, list[dict[str, object]]]:
+    """Mappa asset_id -> lista ticket aperti (una sola query batch, difensiva).
+
+    Usata per l'overlay ticket sulla planimetria (marker in rosso quando l'asset
+    ha ticket aperti). Stati aperti = APERTA/IN_CARICO/IN_ATTESA.
+    """
+    result: dict[int, list[dict[str, object]]] = defaultdict(list)
+    ids = [i for i in (asset_ids or []) if i]
+    if not ids:
+        return result
+    try:
+        from tickets.models import StatoTicket, Ticket
+
+        open_states = (StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA)
+        rows = (
+            Ticket.objects.filter(asset_id__in=ids, stato__in=open_states)
+            .order_by("-created_at", "-id")
+            .values("id", "asset_id", "numero_ticket", "titolo", "stato", "priorita")
+        )
+        label_map = dict(StatoTicket.choices)
+        for row in rows:
+            try:
+                url = reverse("tickets:detail", args=[row["id"]])
+            except Exception:
+                url = ""
+            result[row["asset_id"]].append({
+                "id": row["id"],
+                "numero": row["numero_ticket"] or f"T-{row['id']}",
+                "titolo": row["titolo"] or "Ticket",
+                "stato": label_map.get(row["stato"], row["stato"]),
+                "priorita": row["priorita"] or "",
+                "url": url,
+            })
+    except Exception:
+        return result
+    return result
+
+
 def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object]:
     if layout is None:
-        return {"layout": None, "areas": [], "markers": [], "machine_catalog": []}
+        return {"layout": None, "areas": [], "markers": [], "machine_catalog": [], "markers_with_tickets": 0}
 
     machine_catalog = _plant_layout_machine_catalog()
     machines_by_id = {row["id"]: row for row in machine_catalog}
@@ -6824,6 +6832,17 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
             }
         )
 
+    # Overlay ticket aperti (#5): arricchisce ogni marker con i ticket aperti
+    # dell'asset (una sola query batch) per evidenziarlo in rosso sulla mappa.
+    ticket_map = _open_tickets_by_asset({m["asset_id"] for m in marker_payload if m.get("asset_id")})
+    markers_with_tickets = 0
+    for m in marker_payload:
+        tickets = ticket_map.get(m["asset_id"], [])
+        m["open_tickets"] = len(tickets)
+        m["tickets"] = tickets
+        if tickets:
+            markers_with_tickets += 1
+
     return {
         "layout": {
             "id": layout.id,
@@ -6835,6 +6854,7 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         "areas": area_payload,
         "markers": marker_payload,
         "machine_catalog": machine_catalog,
+        "markers_with_tickets": markers_with_tickets,
     }
 
 
@@ -8805,12 +8825,14 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_SPECS: {
             "code": AssetDetailSectionLayout.SECTION_SPECS,
             "title": detail_specs_title,
-            "render": bool(spec_pairs),
+            # Fusa nella card "Anagrafica e assegnazione" come gruppo Specifiche tecniche.
+            "render": False,
         },
         AssetDetailSectionLayout.SECTION_TIMELINE: {
             "code": AssetDetailSectionLayout.SECTION_TIMELINE,
             "title": detail_timeline_title,
-            "render": True,
+            # Fusa nella card "Anagrafica e assegnazione" (gruppo storico ciclo di vita).
+            "render": False,
         },
         AssetDetailSectionLayout.SECTION_MAINTENANCE: {
             "code": AssetDetailSectionLayout.SECTION_MAINTENANCE,
@@ -8820,7 +8842,10 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_TICKETS: {
             "code": AssetDetailSectionLayout.SECTION_TICKETS,
             "title": detail_tickets_title,
-            "render": True,
+            # I ticket collegati sono gia mostrati nel "Registro manutenzione"
+            # (Storico interventi, righe con source=TICKET): card a se rimossa
+            # per evitare duplicazione.
+            "render": False,
         },
         AssetDetailSectionLayout.SECTION_PROFILE: {
             "code": AssetDetailSectionLayout.SECTION_PROFILE,
@@ -8835,7 +8860,8 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_PERIODIC: {
             "code": AssetDetailSectionLayout.SECTION_PERIODIC,
             "title": "Manutenzione periodica",
-            "render": True,
+            # Fusa nel "Registro manutenzione" come accordion dedicato.
+            "render": False,
         },
         AssetDetailSectionLayout.SECTION_QR: {
             "code": AssetDetailSectionLayout.SECTION_QR,
@@ -8855,7 +8881,9 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_ASSIGNMENT: {
             "code": AssetDetailSectionLayout.SECTION_ASSIGNMENT,
             "title": detail_assignment_title,
-            "render": True,
+            # Fusa nella card PROFILE ("Anagrafica e assegnazione"): non renderizzata
+            # come card a sé per evitare duplicazione (reparto/posizione/assegnatario).
+            "render": False,
         },
         AssetDetailSectionLayout.SECTION_MAP: {
             "code": AssetDetailSectionLayout.SECTION_MAP,
@@ -9120,10 +9148,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             },
         ]
         default_spec_pairs = [
-            ("Produttore", _coalesce_str(asset.manufacturer, "N/D")),
-            ("Modello", _coalesce_str(asset.model, asset.name, "N/D")),
-            ("Numero seriale", _coalesce_str(asset.serial_number, "N/D")),
-            ("Reparto", _coalesce_str(asset.reparto, "N/D")),
+            # Identità (produttore/modello/seriale/reparto) spostata nella card
+            # "Anagrafica e assegnazione"; qui restano solo le caratteristiche tecniche.
             ("Corsa X", _format_asset_detail_value(work_machine.x_mm, AssetDetailField.FORMAT_MM)),
             ("Corsa Y", _format_asset_detail_value(work_machine.y_mm, AssetDetailField.FORMAT_MM)),
             ("Corsa Z", _format_asset_detail_value(work_machine.z_mm, AssetDetailField.FORMAT_MM)),
@@ -9139,17 +9165,16 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ("Prossima manutenzione", _format_asset_detail_value(work_machine.next_maintenance_date, AssetDetailField.FORMAT_DATE)),
             ("Soglia reminder", f"{work_machine.maintenance_reminder_days} gg"),
         ]
+        # Solo identità: i campi tecnici (TCR/CNC/5 assi/manutenzione/accuracy)
+        # restano nella card "Caratteristiche tecniche" per evitare duplicazione.
         default_profile_rows = [
             {"label": "Tag asset", "value": asset.asset_tag},
-            {"label": "Reparto", "value": _coalesce_str(asset.reparto, "-")},
-            {"label": "TCR", "value": _format_asset_detail_value(work_machine.tcr_enabled, AssetDetailField.FORMAT_BOOL)},
-            {"label": "CNC", "value": _format_asset_detail_value(work_machine.cnc_controlled, AssetDetailField.FORMAT_BOOL)},
-            {"label": "5 assi", "value": _format_asset_detail_value(work_machine.five_axes, AssetDetailField.FORMAT_BOOL)},
-            {"label": "Prossima manutenzione", "value": _format_asset_detail_value(work_machine.next_maintenance_date, AssetDetailField.FORMAT_DATE)},
-            {"label": "Soglia reminder", "value": f"{work_machine.maintenance_reminder_days} gg"},
-            {"label": "Accuracy from", "value": _coalesce_str(work_machine.accuracy_from, "-")},
+            {"label": "Produttore", "value": _coalesce_str(asset.manufacturer, "-")},
+            {"label": "Modello", "value": _coalesce_str(asset.model, asset.name, "-")},
+            {"label": "Numero seriale", "value": _coalesce_str(asset.serial_number, "-")},
+            {"label": "Reparto macchina", "value": _coalesce_str(asset.reparto, "-")},
         ]
-        profile_card_title = "Profilo macchina"
+        profile_card_title = "Anagrafica e assegnazione"
     else:
         metric_battery = _coalesce_str(extra.get("battery_health"), extra.get("batteria"), "N/D")
         metric_cpu = _coalesce_str(extra.get("avg_cpu_load"), extra.get("cpu_load"), "N/D")
@@ -9176,7 +9201,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             {"label": "Modello", "value": _coalesce_str(asset.model, "-")},
             {"label": "Ultimo sync", "value": sync_text},
         ]
-        profile_card_title = "Profilo asset"
+        profile_card_title = "Anagrafica e assegnazione"
 
     default_assignment_rows = [
         {"label": "Reparto", "value": _coalesce_str(asset.assignment_reparto, "-")},
@@ -9650,12 +9675,20 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         asset_maintenance_schedule_url=_maintenance_schedule_page_url(asset_id=asset.id),
         asset_administrative_deadline_list_url=_asset_administrative_deadline_page_url(asset_id=asset.id),
     )
+    asset_status_band = _build_asset_status_band(
+        primary_contract=primary_contract,
+        primary_contract_state=primary_contract_state,
+        next_deadline_row=next_deadline_row,
+        asset_assistance_contracts_url=_assistance_contracts_page_url(asset_id=asset.id),
+        asset_administrative_deadline_list_url=_asset_administrative_deadline_page_url(asset_id=asset.id),
+    )
     return render(
         request,
         "assets/pages/asset_detail.html",
         {
             "page_title": f"Dettaglio asset {asset.asset_tag}",
             "asset": asset,
+            "asset_completeness": asset.completeness(),
             "asset_status": asset_status,
             "recent_workorders": recent_workorders,
             "custom_fields": custom_fields,
@@ -9664,6 +9697,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "sync_text": sync_text,
             "detail_metrics": detail_metrics,
             "asset_primary_kpis": asset_primary_kpis,
+            "asset_status_band": asset_status_band,
             "detail_specs_title": detail_specs_title,
             "spec_pairs": spec_pairs,
             "profile_rows": profile_rows,
@@ -10918,6 +10952,37 @@ def maintenance_template_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _save_template_checklist_formset(formset, template) -> None:
+    """Salva il formset degli step checklist e normalizza la numerazione a 10, 20, 30...
+    Gli step lasciati senza numero finiscono in coda."""
+    from .models import MaintenanceChecklistStep
+
+    formset.instance = template
+    saved = formset.save(commit=False)
+    for obj in formset.deleted_objects:
+        obj.delete()
+    for offset, obj in enumerate(saved):
+        if not obj.step_number:
+            obj.step_number = 9000 + offset
+        obj.save()
+    for idx, step in enumerate(
+        MaintenanceChecklistStep.objects.filter(intervention_template=template).order_by("step_number", "id"),
+        start=1,
+    ):
+        target = idx * 10
+        if step.step_number != target:
+            step.step_number = target
+            step.save(update_fields=["step_number"])
+
+
+def _template_next_step_rule_url(template) -> str:
+    """URL di creazione regola precompilato con il template appena salvato (CTA continuità)."""
+    next_url = f"{reverse('assets:maintenance_rule_create')}?template={template.id}"
+    if template.asset_category_id:
+        next_url += f"&category={template.asset_category_id}"
+    return next_url
+
+
 @login_required
 def maintenance_template_create(request: HttpRequest) -> HttpResponse:
     if not _is_assets_admin(request):
@@ -10929,22 +10994,24 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         form = MaintenanceInterventionTemplateForm(request.POST)
-        if form.is_valid():
+        checklist_formset = MaintenanceChecklistStepFormSet(request.POST, prefix="checklist")
+        if form.is_valid() and checklist_formset.is_valid():
             template = form.save()
+            _save_template_checklist_formset(checklist_formset, template)
             log_action(
                 request,
                 "create_maintenance_template",
                 "assets",
                 {"template_id": template.id, "code": template.code, "asset_category_id": template.asset_category_id},
             )
-            messages.success(request, "Template manutenzione creato.")
-            return redirect(
-                _maintenance_template_list_page_url(
-                    category_id=template.asset_category_id or 0,
-                )
+            messages.success(
+                request,
+                "Template manutenzione creato. Definisci ora una regola che lo applichi a una categoria asset.",
             )
+            return redirect(_template_next_step_rule_url(template))
     else:
         form = MaintenanceInterventionTemplateForm(initial=initial)
+        checklist_formset = MaintenanceChecklistStepFormSet(prefix="checklist")
 
     return render(
         request,
@@ -10952,6 +11019,7 @@ def maintenance_template_create(request: HttpRequest) -> HttpResponse:
         {
             "page_title": "Nuovo template manutenzione",
             "form": form,
+            "checklist_formset": checklist_formset,
             "is_edit": False,
             "back_url": _maintenance_template_list_page_url(category_id=selected_category_id),
             **_assets_shell_context(
@@ -10977,8 +11045,10 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
     template = get_object_or_404(MaintenanceInterventionTemplate.objects.select_related("asset_category"), pk=id)
     if request.method == "POST":
         form = MaintenanceInterventionTemplateForm(request.POST, instance=template)
-        if form.is_valid():
+        checklist_formset = MaintenanceChecklistStepFormSet(request.POST, instance=template, prefix="checklist")
+        if form.is_valid() and checklist_formset.is_valid():
             template = form.save()
+            _save_template_checklist_formset(checklist_formset, template)
             log_action(
                 request,
                 "update_maintenance_template",
@@ -10989,6 +11059,7 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
             return redirect(_maintenance_template_list_page_url(category_id=template.asset_category_id or 0))
     else:
         form = MaintenanceInterventionTemplateForm(instance=template)
+        checklist_formset = MaintenanceChecklistStepFormSet(instance=template, prefix="checklist")
 
     return render(
         request,
@@ -10996,8 +11067,10 @@ def maintenance_template_edit(request: HttpRequest, id: int | None = None) -> Ht
         {
             "page_title": f"Modifica template {template.label}",
             "form": form,
+            "checklist_formset": checklist_formset,
             "template": template,
             "is_edit": True,
+            "rule_create_url": _template_next_step_rule_url(template),
             "back_url": _maintenance_template_list_page_url(category_id=template.asset_category_id or 0),
             **_assets_shell_context(
                 request,
@@ -13763,6 +13836,49 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             )
             return redirect(redirect_url)
 
+        if action == "convert_periodic_to_rule":
+            redirect_url = _periodic_verification_redirect_from_request(request)
+            if not can_manage_periodic_verifications:
+                messages.error(request, "Solo admin puo convertire la manutenzione periodica in regola.")
+                return redirect(redirect_url)
+            verification_id = _as_int(request.POST.get("verification_id"), default=0)
+            verification = (
+                PeriodicVerification.objects.prefetch_related("assets__asset_category")
+                .filter(pk=verification_id)
+                .first()
+            )
+            if verification is None:
+                messages.error(request, "Piano di manutenzione periodica non trovato.")
+                return redirect(redirect_url)
+            if verification.is_legacy:
+                messages.info(request, "Questo piano e gia gestito da una regola di manutenzione.")
+                return redirect(redirect_url)
+            from .services.periodic_migration import migrate_periodic_verification_to_rule
+
+            result = migrate_periodic_verification_to_rule(verification)
+            if not result.get("ok"):
+                messages.error(request, result.get("message") or "Conversione non possibile per questo piano.")
+                return redirect(redirect_url)
+            log_action(
+                request,
+                "convert_periodic_verification_to_rule",
+                "assets",
+                {
+                    "verification_id": verification.id,
+                    "rule_id": result["rule"].id,
+                    "template_id": result["template"].id,
+                    "created_template": result["created_template"],
+                    "created_rule": result["created_rule"],
+                    "threshold_days": result["threshold_days"],
+                },
+            )
+            messages.success(
+                request,
+                f"Piano convertito in regola ({result['threshold_days']} giorni). "
+                "Il trigger temporale e ora gestito dalle regole di manutenzione.",
+            )
+            return redirect(redirect_url)
+
         if action in {"create_periodic_verification", "update_periodic_verification", "delete_periodic_verification"} and not can_manage_periodic_verifications:
             messages.error(request, "Solo admin puo gestire la manutenzione periodica.")
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0, scope=periodic_scope))
@@ -13833,10 +13949,30 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             asset_id=selected_asset.id if selected_asset is not None else 0,
             cutoff_date=execution_cutoff,
         )
+        # Idoneità alla conversione in regola (check leggero su asset già prefetchati;
+        # la validazione completa avviene nell'azione convert_periodic_to_rule).
+        all_assets = list(verification.assets.all())
+        all_category_ids = {asset.asset_category_id for asset in all_assets}
+        can_convert_to_rule = bool(
+            can_manage_periodic_verifications
+            and not verification.is_legacy
+            and all_assets
+            and None not in all_category_ids
+            and len(all_category_ids) == 1
+        )
+        convert_block_reason = ""
+        if can_manage_periodic_verifications and not verification.is_legacy and not can_convert_to_rule:
+            convert_block_reason = (
+                "Nessun asset collegato" if not all_assets
+                else "Asset di categorie diverse o senza categoria"
+            )
         verification_rows.append(
             {
                 "verification": verification,
                 "state": _periodic_verification_state(verification, today=today),
+                "is_legacy": verification.is_legacy,
+                "can_convert_to_rule": can_convert_to_rule,
+                "convert_block_reason": convert_block_reason,
                 "linked_assets": linked_assets,
                 "linked_assets_count": len(linked_assets),
                 "is_selected_asset_linked": is_selected_asset_linked,
@@ -14395,28 +14531,10 @@ def _save_workorder_attachments(*, workorder: WorkOrder, uploads: list, user) ->
 
 
 def _prepopulate_workorder_checklist_from_template(workorder: WorkOrder) -> int:
-    """Copia gli step del MaintenanceChecklistStep del template intervento nel WorkOrder.
-    Viene chiamata una sola volta alla creazione. Ritorna il numero di step creati."""
-    if not workorder.maintenance_rule_id:
-        return 0
-    template = getattr(getattr(workorder.maintenance_rule, "intervention_template", None), "pk", None)
-    if template is None:
-        return 0
-    from .models import MaintenanceChecklistStep
-    steps = list(
-        MaintenanceChecklistStep.objects.filter(
-            intervention_template_id=workorder.maintenance_rule.intervention_template_id
-        ).order_by("step_number", "id")
-    )
-    if not steps:
-        return 0
-    WorkOrderChecklist.objects.bulk_create(
-        [
-            WorkOrderChecklist(work_order=workorder, step_number=step.step_number, description=step.description)
-            for step in steps
-        ]
-    )
-    return len(steps)
+    """Copia gli step del template intervento nel WorkOrder alla creazione.
+    Delega all'helper condiviso in maintenance.py (stesso comportamento usato dalla
+    generazione periodica automatica). Ritorna il numero di step creati."""
+    return copy_template_checklist_to_workorder(workorder)
 
 
 def _add_form_validation_errors(form, exc: ValidationError) -> None:
@@ -15086,11 +15204,13 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     overdue_deadlines_count = AssetAdministrativeDeadline.objects.filter(
         is_active=True, due_date__lt=today
     ).count()
+    # Le verifiche is_legacy=True sono ora gestite dalle MaintenanceRule (trigger temporale):
+    # escluse dai conteggi/scadenzario a tempo per evitare il doppio conteggio con le regole.
     overdue_verifications_count = PeriodicVerification.objects.filter(
-        is_active=True, next_verification_date__lt=today
+        is_active=True, is_legacy=False, next_verification_date__lt=today
     ).count()
     upcoming_verifications_count = PeriodicVerification.objects.filter(
-        is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30
+        is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_30
     ).count()
     rules_count = MaintenanceRule.objects.filter(is_active=True).count()
     contracts_count = AssistanceContract.objects.filter(is_active=True).count()
@@ -15148,7 +15268,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             True,
         )
         + _verification_items(
-            PeriodicVerification.objects.filter(is_active=True, next_verification_date__lt=today).order_by("next_verification_date"),
+            PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__lt=today).order_by("next_verification_date"),
             True,
         )
     )
@@ -15160,7 +15280,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             False,
         )
         + _verification_items(
-            PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_30).order_by("next_verification_date"),
+            PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_30).order_by("next_verification_date"),
             False,
         )
     )
@@ -15194,7 +15314,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     next7_items: list[dict] = []
     for d in AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=horizon_7).order_by("due_date").select_related("asset")[:10]:
         next7_items.append({"title": d.title, "due_date": d.due_date, "kind": "scadenza", "kind_label": "Scadenza"})
-    for v in PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=horizon_7).order_by("next_verification_date")[:10]:
+    for v in PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_7).order_by("next_verification_date")[:10]:
         next7_items.append({"title": v.name, "due_date": v.next_verification_date, "kind": "verifica", "kind_label": "Verifica"})
     for c in AssistanceContract.objects.filter(is_active=True, end_date__gte=today, end_date__lte=horizon_7).order_by("end_date")[:5]:
         next7_items.append({"title": c.title, "due_date": c.end_date, "kind": "contratto", "kind_label": "Contratto"})
@@ -15215,7 +15335,7 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
 
     # ── Dati tab "scadenzario" ─────────────────────────────────────────────
     scope_filter = _clean_string(request.GET.get("scope")) or "all"
-    verif_qs = PeriodicVerification.objects.prefetch_related("assets").select_related("supplier")
+    verif_qs = PeriodicVerification.objects.exclude(is_legacy=True).prefetch_related("assets").select_related("supplier")
     if scope_filter == "it":
         verif_qs = verif_qs.filter(assets__asset_type__in=IT_DEVICE_TYPES).distinct()
     elif scope_filter == "production":
@@ -15318,11 +15438,76 @@ def maintenance_scadenzario(request: HttpRequest) -> HttpResponse:
     return redirect(f"{reverse('assets:maintenance_hub')}?{params.urlencode()}", permanent=True)
 
 
+def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
+    """Piano di manutenzione aggregato per categoria asset (filo conduttore Impostazioni → operativo).
+
+    Per ogni categoria con almeno una regola attiva: conta regole, asset coinvolti e la
+    salute della pianificazione (scadute / in scadenza / pianificate / mai eseguite),
+    riusando lo scadenzario a giorni. Le regole a contatore (ore/km/cicli) sono conteggiate
+    a parte: non rientrano ancora nello scadenzario giornaliero.
+    """
+    rules_by_cat: dict[int, list[MaintenanceRule]] = {}
+    for rule in (
+        MaintenanceRule.objects.filter(is_active=True)
+        .select_related("asset_category", "intervention_template")
+        .order_by("asset_category__sort_order", "asset_category__label", "sort_order", "id")
+    ):
+        if not rule.asset_category_id:
+            continue
+        rules_by_cat.setdefault(rule.asset_category_id, []).append(rule)
+
+    agg: dict[int, dict[str, object]] = {}
+    try:
+        for row in build_day_based_maintenance_schedule_rows():
+            asset = row["asset"]
+            bucket = agg.setdefault(
+                asset.asset_category_id,
+                {"assets": set(), "overdue": 0, "warning": 0, "upcoming": 0, "missing": 0},
+            )
+            bucket["assets"].add(asset.id)
+            status = str(row.get("schedule_status") or "")
+            if status in ("overdue", "warning", "upcoming", "missing"):
+                bucket[status] += 1
+    except Exception:
+        agg = {}
+
+    rows: list[dict[str, object]] = []
+    for cat_id, rules in rules_by_cat.items():
+        category = rules[0].asset_category
+        bucket = agg.get(cat_id, {"assets": set(), "overdue": 0, "warning": 0, "upcoming": 0, "missing": 0})
+        meter_rules = sum(1 for r in rules if r.threshold_type != MaintenanceRule.THRESHOLD_DAYS)
+        overdue = int(bucket["overdue"])
+        warning = int(bucket["warning"])
+        upcoming = int(bucket["upcoming"])
+        missing = int(bucket["missing"])
+        rows.append(
+            {
+                "category": category,
+                "rules_count": len(rules),
+                "day_rules_count": len(rules) - meter_rules,
+                "meter_rules_count": meter_rules,
+                "assets_count": len(bucket["assets"]),
+                "overdue": overdue,
+                "warning": warning,
+                "upcoming": upcoming,
+                "missing": missing,
+                "due_total": overdue + warning + missing,
+                "schedule_url": _maintenance_schedule_page_url(category_id=cat_id),
+                "schedule_due_url": _maintenance_schedule_page_url(category_id=cat_id, status="due"),
+                "rules_url": _maintenance_rule_list_page_url(category_id=cat_id),
+            }
+        )
+    rows.sort(
+        key=lambda r: (-int(r["overdue"]), -int(r["warning"]), -int(r["missing"]), str(r["category"].label).casefold())
+    )
+    return rows
+
+
 @login_required
 def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
-    """Impostazioni manutenzione: tab Template & Regole."""
+    """Impostazioni manutenzione: tab Template & Regole, Regole attive, Piano per categoria."""
     active_tab = _clean_string(request.GET.get("tab")) or "templates"
-    if active_tab not in ("templates", "rules"):
+    if active_tab not in ("templates", "rules", "piano"):
         active_tab = "templates"
     is_admin = _is_assets_admin(request)
 
@@ -15334,6 +15519,20 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
         template_rows.append({"t": t, "rules": rules, "rules_count": len(rules)})
 
     rule_qs = MaintenanceRule.objects.filter(is_active=True).select_related("intervention_template", "asset_category").order_by("asset_category__label", "intervention_template__label")
+
+    plan_rows = _maintenance_plan_by_category_rows() if active_tab == "piano" else []
+    plan_totals = {
+        "overdue": sum(int(r["overdue"]) for r in plan_rows),
+        "warning": sum(int(r["warning"]) for r in plan_rows),
+        "missing": sum(int(r["missing"]) for r in plan_rows),
+    }
+    # Conteggio leggero (sempre disponibile) per il badge del tab Piano
+    plan_category_count = (
+        MaintenanceRule.objects.filter(is_active=True, asset_category__isnull=False)
+        .values("asset_category_id")
+        .distinct()
+        .count()
+    )
 
     return render(
         request,
@@ -15347,10 +15546,16 @@ def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
             "template_count": len(template_rows),
             "rule_qs": rule_qs,
             "rules_count": rule_qs.count(),
+            "plan_rows": plan_rows,
+            "plan_category_count": plan_category_count,
+            "plan_totals": plan_totals,
             "url_hub": reverse("assets:maintenance_hub"),
             "url_scadenzario": reverse("assets:maintenance_scadenzario"),
+            "url_schedule": reverse("assets:maintenance_schedule"),
             "url_template_new": reverse("assets:maintenance_template_create"),
             "url_rule_new": reverse("assets:maintenance_rule_create"),
+            "url_templates_advanced": reverse("assets:maintenance_template_list"),
+            "url_rules_advanced": reverse("assets:maintenance_rule_list"),
         },
     )
 
@@ -16383,7 +16588,7 @@ def _compute_dashboard_kpis(today: date) -> dict:
     ).count()
 
     # Verifiche periodiche
-    pv_qs = PeriodicVerification.objects.filter(is_active=True, next_verification_date__isnull=False)
+    pv_qs = PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__isnull=False)
     pv_scadute = pv_qs.filter(next_verification_date__lt=today).count()
     pv_30 = pv_qs.filter(next_verification_date__gte=today, next_verification_date__lte=in_30).count()
 
@@ -16649,6 +16854,35 @@ def _asset_calendar_events(asset_id: int) -> list[dict]:
                 "project": "",
                 "url": "",
                 "color": "#10b981",
+                "textColor": "#fff",
+            })
+    except Exception:
+        pass
+
+    # -- Manutenzioni programmate predette (regole a giorni con prossima scadenza) --
+    try:
+        from .maintenance import build_maintenance_schedule_rows
+        _pm_colors = {"overdue": "#dc2626", "warning": "#f59e0b", "upcoming": "#10b981", "missing": "#94a3b8"}
+        for row in build_maintenance_schedule_rows(
+            asset_queryset=Asset.objects.filter(pk=asset_id).select_related("asset_category")
+        ):
+            due = row.get("due_date")
+            if not due:
+                continue
+            template = row.get("effective_intervention_template")
+            label = getattr(template, "label", "") or "Manutenzione programmata"
+            status = str(row.get("schedule_status") or "")
+            events.append({
+                "id": f"pm-{row['base_rule'].id}",
+                "title": f"Manut.: {label}",
+                "start": str(due),
+                "end": str(due),
+                "kind": "manutenzione_prog",
+                "status": status,
+                "assignee": "",
+                "project": "",
+                "url": "",
+                "color": _pm_colors.get(status, "#10b981"),
                 "textColor": "#fff",
             })
     except Exception:

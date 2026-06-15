@@ -2178,6 +2178,23 @@ def api_salva(request):
         except ValueError:
             pass
 
+    # Stato precedente (solo per UPDATE), per la timeline AnomaliaActionLog.
+    previous_status = ""
+    if where_clause == "id = %s" and local_pk_id is not None:
+        try:
+            with connections["default"].cursor() as pre_cur:
+                pre_cur.execute(
+                    "SELECT avanzamento, chiudere FROM anomalie WHERE id = %s",
+                    [local_pk_id],
+                )
+                pre_row = pre_cur.fetchone()
+            if pre_row is not None:
+                prev_av = str(pre_row[0] or "").strip()
+                prev_chiuso = bool(pre_row[1])
+                previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
+        except DatabaseError:
+            logger.warning("api_salva: lettura stato precedente fallita id=%s", local_pk_id, exc_info=True)
+
     try:
         with connections["default"].cursor() as cursor:
             updated = 0
@@ -2241,6 +2258,29 @@ def api_salva(request):
         except Exception:
             pass
 
+        # Timeline azioni (fire-and-forget): registra il cambio stato dal portale
+        # cosi' AnomaliaActionLog copre sia il canale mail sia quello web.
+        try:
+            new_status = "Chiusa" if chiudere_val else (payload_map.get("avanzamento") or "In attesa")
+            action_kind = "crea" if updated <= 0 else ("chiudi" if chiudere_val else "aggiorna")
+            identity = _current_user_identity(request)
+            from anomalie.mail_action_service import log_anomalia_portal_action
+            log_anomalia_portal_action(
+                anomalia_id=local_id,
+                op_id=op_id,
+                action=action_kind,
+                user=request.user,
+                legacy_user_id=int(legacy_user.id) if legacy_user else None,
+                user_display=identity.get("name") or request.user.username,
+                previous_status=previous_status,
+                new_status=new_status,
+                ip_address=(request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+                            or request.META.get("REMOTE_ADDR") or None),
+                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+        except Exception:
+            logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)
+
         # Notifiche in-app (fire-and-forget)
         sn_val = _safe_text(data.get("sn")) or ""
         if segnalare_val:
@@ -2290,6 +2330,108 @@ def api_salva(request):
         )
     except DatabaseError as exc:
         return JsonResponse({"success": False, "error": str(exc)}, status=500)
+
+
+# Etichette leggibili per le action loggate (mail + portale), per la timeline.
+_TIMELINE_ACTION_LABELS = {
+    "crea": "Anomalia creata",
+    "aggiorna": "Anomalia aggiornata",
+    "chiudi": "Anomalia chiusa",
+    "prendi_in_carico": "Presa in carico",
+    "approva": "Approvata",
+    "respingi": "Respinta",
+    "richiedi_modifica": "Richiesta modifica",
+    "visualizza": "Visualizzata",
+}
+
+# Etichette canale (AnomaliaActionLog.Source) per la timeline.
+_TIMELINE_SOURCE_LABELS = {
+    "mail_action": "Link da mail",
+    "portal": "Portale",
+    "system": "Sistema",
+}
+
+
+@login_required
+def api_anomalie_timeline(request):
+    """Timeline aggregata delle azioni su un OP (lettura AnomaliaActionLog).
+
+    Aggrega per OP: raccoglie gli id anomalia legacy dell'OP e restituisce i log
+    sia per quegli id sia per op_id (così copre anche azioni storiche su righe
+    poi rimosse). Sola lettura: accessibile a qualsiasi utente autenticato,
+    coerente con _can_view_anomalie_for_op.
+    """
+    op_title = _safe_text(request.GET.get("op_id"), 100)
+    op_item_id = request.GET.get("op_item_id") or request.GET.get("sp_item_id")
+    if not op_title and not op_item_id:
+        return JsonResponse({"items": []})
+    if not _can_view_anomalie_for_op(request, op_title):
+        return _json_error("Permesso negato", status=403)
+
+    from django.db.models import Q
+
+    from anomalie.mail_action_models import AnomaliaActionLog
+
+    # Id anomalie dell'OP dalla tabella legacy (match per lookup id e/o titolo).
+    anomalia_ids: list[int] = []
+    if _has_table("anomalie"):
+        where_parts: list[str] = []
+        params: list = []
+        resolved = _resolve_op_lookup_id(op_item_id, op_title)
+        if resolved is not None:
+            where_parts.append("op_lookup_id = %s")
+            params.append(resolved)
+        if op_title:
+            if connections["default"].vendor == "sqlite":
+                where_parts.append("LOWER(ex_op_nominativo) = LOWER(%s)")
+            else:
+                where_parts.append("LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s)")
+            params.append(op_title)
+        if where_parts:
+            try:
+                rows = _fetch_all_dict(
+                    f"SELECT id FROM anomalie WHERE {' OR '.join(where_parts)}", params
+                )
+                anomalia_ids = [int(r["id"]) for r in rows if r.get("id") is not None]
+            except DatabaseError:
+                logger.warning("api_anomalie_timeline: lettura id anomalie fallita op=%s", op_title, exc_info=True)
+
+    filt = Q()
+    if anomalia_ids:
+        filt |= Q(anomalia_id__in=anomalia_ids)
+    if op_title:
+        filt |= Q(op_id=op_title)
+    if not filt:
+        return JsonResponse({"items": []})
+
+    try:
+        logs = list(
+            AnomaliaActionLog.objects.filter(filt).order_by("-created_at")[:200]
+        )
+    except Exception:
+        logger.warning("api_anomalie_timeline: lettura log fallita op=%s", op_title, exc_info=True)
+        return JsonResponse({"items": []})
+
+    # NB: il `timezone` di modulo e' datetime.timezone (stdlib); per localtime
+    # serve django.utils.timezone, importato localmente con alias.
+    from django.utils import timezone as dj_tz
+
+    items = []
+    for log in logs:
+        items.append({
+            "id": log.id,
+            "anomalia_id": log.anomalia_id,
+            "action": log.action,
+            "action_label": _TIMELINE_ACTION_LABELS.get(log.action, log.action or "Azione"),
+            "user": log.user_display or "—",
+            "previous_status": log.previous_status or "",
+            "new_status": log.new_status or "",
+            "note": log.note or "",
+            "source": log.source,
+            "source_label": _TIMELINE_SOURCE_LABELS.get(log.source, log.source or ""),
+            "created_at": dj_tz.localtime(log.created_at).strftime("%d-%m-%Y %H:%M") if log.created_at else "",
+        })
+    return JsonResponse({"items": items})
 
 
 @login_required

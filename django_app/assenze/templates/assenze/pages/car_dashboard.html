@@ -141,39 +141,66 @@
     <div class="abs-hero-actions">
       {% if show_diag %}
         {% if is_admin_view and pending_scope == "all" %}
-          <a href="{% url 'assenze_car_dashboard' %}?scope=all" class="abs-hero-action">Nascondi diagnostica</a>
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>
+            Nascondi diagnostica
+          </a>
         {% else %}
-          <a href="{% url 'assenze_car_dashboard' %}" class="abs-hero-action">Nascondi diagnostica</a>
+          <a href="{% url 'assenze_car_dashboard' %}" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>
+            Nascondi diagnostica
+          </a>
         {% endif %}
       {% else %}
         {% if is_admin_view and pending_scope == "all" %}
-          <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" class="abs-hero-action">Diagnostica sync</a>
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>
+            Diagnostica sync
+          </a>
         {% else %}
-          <a href="{% url 'assenze_car_dashboard' %}?diag=1" class="abs-hero-action">Diagnostica sync</a>
+          <a href="{% url 'assenze_car_dashboard' %}?diag=1" class="abs-hero-action">
+            <svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>
+            Diagnostica sync
+          </a>
         {% endif %}
       {% endif %}
-      <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action abs-hero-action-primary">Esporta CSV</a>
+      <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action abs-hero-action-primary">
+        <svg aria-hidden="true"><use href="#abs-i-download"></use></svg>
+        Esporta CSV
+      </a>
     </div>
   </section>
 
   <section class="abs-kpis">
     <article class="abs-kpi amber">
-      <div class="abs-kpi-label">In attesa</div>
+      <div class="abs-kpi-top">
+        <div class="abs-kpi-label">In attesa</div>
+        <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span>
+      </div>
       <div class="abs-kpi-value">{{ da_gestire|length }}</div>
       <div class="abs-kpi-note">Richieste che aspettano una decisione.</div>
     </article>
     <article class="abs-kpi teal">
-      <div class="abs-kpi-label">Oggi</div>
+      <div class="abs-kpi-top">
+        <div class="abs-kpi-label">Oggi</div>
+        <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg></span>
+      </div>
       <div class="abs-kpi-value">{{ riepilogo_oggi|length }}</div>
       <div class="abs-kpi-note">Assenze previste o in corso per {{ data_oggi }}.</div>
     </article>
     <article class="abs-kpi green">
-      <div class="abs-kpi-label">Settimana</div>
+      <div class="abs-kpi-top">
+        <div class="abs-kpi-label">Settimana</div>
+        <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
+      </div>
       <div class="abs-kpi-value">{{ riepilogo_settimana|length }}</div>
       <div class="abs-kpi-note">Finestra {{ data_lunedi }} - {{ data_domenica }}.</div>
     </article>
     <article class="abs-kpi red">
-      <div class="abs-kpi-label">Gestite</div>
+      <div class="abs-kpi-top">
+        <div class="abs-kpi-label">Gestite</div>
+        <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span>
+      </div>
       <div class="abs-kpi-value">{{ gestite|length }}</div>
       <div class="abs-kpi-note">Ultime richieste gia approvate o rifiutate.</div>
     </article>
@@ -194,7 +221,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Diagnostica assegnazione CAR</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Diagnostica assegnazione CAR</h2>
           <p class="abs-panel-subtitle">Controllo matching fra utente corrente, capi reparto e sorgenti legacy.</p>
         </div>
       </div>
@@ -241,7 +268,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Diagnostica sincronizzazione SharePoint</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Diagnostica sincronizzazione SharePoint</h2>
           <p class="abs-panel-subtitle">Controllati {{ sync_diag.checked_count }} record. Allineati {{ sync_diag.ok_count }}, avvisi {{ sync_diag.warn_count }}, errori {{ sync_diag.error_count }}.</p>
         </div>
       </div>
@@ -290,7 +317,7 @@
   <section class="abs-panel">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
-        <h2 class="abs-panel-title">Richieste in attesa</h2>
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste in attesa</h2>
         <p class="abs-panel-subtitle">
           {% if is_admin_view %}
             {% if pending_scope == "all" %}
@@ -375,7 +402,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Assenze oggi</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg>Assenze oggi</h2>
           <p class="abs-panel-subtitle">{{ data_oggi }}</p>
         </div>
         <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_oggi|length }}</span></div>
@@ -418,7 +445,7 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title">Questa settimana</h2>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Questa settimana</h2>
           <p class="abs-panel-subtitle">{{ data_lunedi }} - {{ data_domenica }}</p>
         </div>
         <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_settimana|length }}</span></div>
@@ -462,7 +489,7 @@
   <section class="abs-panel">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
-        <h2 class="abs-panel-title">Ultime gestite</h2>
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg>Ultime gestite</h2>
         <p class="abs-panel-subtitle">
           {% if is_admin_view %}Ultime richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto gia gestite.{% endif %}
         </p>
