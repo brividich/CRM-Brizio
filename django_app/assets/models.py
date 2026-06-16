@@ -593,9 +593,9 @@ class AssetSidebarButton(models.Model):
     SECTION_ANALYTICS = "ANALYTICS"
     SECTION_OPERATIONS = "OPERATIONS"
     SECTION_CHOICES = [
-        (SECTION_MAIN, "Navigazione principale"),
+        (SECTION_MAIN, "Navigazione"),
         (SECTION_ANALYTICS, "Analisi e rischio"),
-        (SECTION_OPERATIONS, "Operativita"),
+        (SECTION_OPERATIONS, "Strumenti e gestione"),
     ]
 
     code = models.SlugField(max_length=80, unique=True)

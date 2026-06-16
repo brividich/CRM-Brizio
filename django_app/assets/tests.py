@@ -7166,9 +7166,22 @@ class CategorySidebarTests(TestCase):
             code="dispositivi_it", section=AssetSidebarButton.SECTION_MAIN, label="Dispositivi IT"
         )
 
+        # Il conteggio atteso e' derivato dal DB: oltre alle categorie create
+        # qui, le migration possono seminare radici (es. "Novicrom" dalla 0073).
+        # Il contratto del rebuild e' "un gruppo per radice attiva, una voce per
+        # figlia attiva", quindi confrontiamo con i conteggi reali.
+        expected_groups = AssetCategory.objects.filter(
+            parent__isnull=True, is_active=True
+        ).count()
+        expected_items = AssetCategory.objects.filter(
+            parent__isnull=False, is_active=True
+        ).count()
+
         groups, items = rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
-        self.assertEqual(groups, 2)  # Information Technology + HVAC
-        self.assertEqual(items, 3)   # PC, Server, Bruciatori
+        self.assertEqual(groups, expected_groups)
+        self.assertEqual(items, expected_items)
+        self.assertGreaterEqual(groups, 2)  # almeno Information Technology + HVAC
+        self.assertGreaterEqual(items, 3)   # almeno PC, Server, Bruciatori
 
         self.assertFalse(AssetSidebarButton.objects.filter(code="dispositivi_it").exists())
         root_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{self.root.id}")
