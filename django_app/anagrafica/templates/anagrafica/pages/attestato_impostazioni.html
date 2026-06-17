@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Impostazioni attestato | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+  .att-cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+  .att-cfg-grid .fm-form-field { min-width:0; }
+  @media (max-width:760px){ .att-cfg-grid { grid-template-columns:1fr; } }
+  .att-cfg-note {
+    margin:0 0 18px; padding:12px 16px; border-radius:10px;
+    background:#eff6ff; border:1px solid #dbeafe; color:#1e3a5f; font-size:13px; line-height:1.55;
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Impostazioni attestato
+      </div>
+      <h2 class="hr-pagehead-title">🏅 Template attestato di formazione</h2>
+      <p class="hr-pagehead-desc">
+        Personalizza i testi fissi dell'attestato autogenerato (intestazioni, formule, etichette firma,
+        nota legale, logo) e il comportamento sui dati personali. L'attestato si genera dal singolo
+        completamento corso/qualifica.
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      {% if sample_record_id %}
+      <a href="{% url 'anagrafica:attestato_formazione' sample_record_id %}" target="_blank" rel="noopener"
+         class="hr-btn hr-btn-ghost">👁 Anteprima esempio</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="att-cfg-note">
+    Le modifiche valgono per <strong>tutti</strong> gli attestati generati d'ora in poi. I default
+    riproducono il foglio originale. Il <em>responsabile del corso</em> viene preso dal docente
+    della sessione; il valore qui sotto è usato solo come ripiego quando il corso non ha un docente.
+  </div>
+
+  <div class="hr-card">
+    <form method="post">
+      {% csrf_token %}
+      <div class="hr-card-pad" style="padding:20px 24px;">
+        <div class="att-cfg-grid">
+          {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:18px;">
+          <button type="submit" class="hr-btn hr-btn-primary">Salva impostazioni</button>
+          <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

@@ -25,12 +25,15 @@
 .vd-sign div { flex:1; }
 .vd-sign .ln { border-bottom:1px solid #475569; height:34px; margin-top:6px; }
 .vd-empty { color:#94a3b8; font-style:italic; }
+.vd-foot { margin-top:22px; font-size:10px; color:#94a3b8; text-align:center; border-top:1px solid #e2e8f0; padding-top:8px; }
 @media print {
+  @page { size:A4; margin:14mm; }
   body * { visibility:hidden; }
   .vd-wrap, .vd-wrap * { visibility:visible; }
-  .vd-wrap { position:absolute; left:0; top:0; width:100%; }
+  .vd-wrap { position:absolute; left:0; top:0; width:100%; max-width:none; }
   .vd-toolbar { display:none; }
-  .vd-doc { border:none; padding:0; }
+  .vd-doc { border:none; padding:0; border-radius:0; }
+  .vd-table th { background:#f1f5f9 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 }
 </style>
 {% endblock %}
@@ -45,7 +48,7 @@
   <div class="vd-doc">
     <div class="vd-head">
       <div class="vd-brand">NOVICROM HUB</div>
-      <div class="vd-modref">MOD.155 — VCD<br>Verbale Consegna DPI</div>
+      <div class="vd-modref">MOD.155 — VCD<br>Verbale Consegna DPI<br>Data: {{ oggi|date:"d-m-Y" }}</div>
     </div>
 
     <div class="vd-title">VERBALE DI CONSEGNA DEI DISPOSITIVI DI PROTEZIONE INDIVIDUALE (DPI)</div>
@@ -62,15 +65,15 @@
     <div class="vd-field"><b>Mansione:</b> <span class="vd-line">{{ mansione|default:"—" }}</span>{% if reparto %} &nbsp;&nbsp;<b>Reparto:</b> {{ reparto }}{% endif %}</div>
 
     <table class="vd-table">
-      <thead><tr><th>DPI (categoria richiesta dalla mansione)</th><th class="data">Data di consegna</th></tr></thead>
+      <thead><tr><th>DPI (categoria richiesta dalla mansione)</th><th>Taglia / Modello</th><th class="data">Data di consegna</th></tr></thead>
       <tbody>
         {% for c in dpi %}
-        <tr><td>{{ c.nome }}</td><td class="data"></td></tr>
+        <tr><td>{{ c.nome }}</td><td></td><td class="data"></td></tr>
         {% empty %}
-        <tr><td colspan="2" class="vd-empty">Nessun DPI definito per questa mansione — impostare i requisiti nella pagina “Requisiti mansione”.</td></tr>
+        <tr><td colspan="3" class="vd-empty">Nessun DPI definito per questa mansione — impostare i requisiti nella pagina “Requisiti mansione”.</td></tr>
         {% endfor %}
-        <tr><td>&nbsp;</td><td class="data"></td></tr>
-        <tr><td>&nbsp;</td><td class="data"></td></tr>
+        <tr><td>&nbsp;</td><td></td><td class="data"></td></tr>
+        <tr><td>&nbsp;</td><td></td><td class="data"></td></tr>
       </tbody>
     </table>
 
@@ -85,6 +88,8 @@
       <div>Data ___________________<div class="ln"></div><div style="text-align:center;margin-top:4px;">Il Datore di Lavoro</div></div>
       <div>Data ___________________<div class="ln"></div><div style="text-align:center;margin-top:4px;">Il Lavoratore</div></div>
     </div>
+
+    <div class="vd-foot">MOD.155 — Verbale Consegna DPI · NOVICROM HUB · documento generato il {{ oggi|date:"d-m-Y" }} · DPI dedotti dai requisiti della mansione</div>
   </div>
 </div>
 {% endblock %}

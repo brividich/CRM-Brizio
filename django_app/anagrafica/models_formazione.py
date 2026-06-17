@@ -74,6 +74,73 @@ class AnagraficaFormazionePermission(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# ATTESTATO — configurazione template (singleton, da Impostazioni HR)
+# ─────────────────────────────────────────────────────────────
+
+class AttestatoFormazioneConfig(models.Model):
+    """Singleton — testi e opzioni del template attestato di formazione.
+
+    L'attestato si autogenera dal record di completamento: questo modello
+    permette di personalizzare le parti fisse (intestazioni, formule, etichette
+    firma, nota legale, logo) dalle Impostazioni Anagrafica HR, senza toccare il
+    template. I default replicano i testi originali del foglio.
+    """
+
+    NOTA_LEGALE_DEFAULT = (
+        "Documento valido ai fini della tracciabilità formativa interna, anche in "
+        "relazione agli obblighi di informazione, formazione e addestramento "
+        "previsti dal D.Lgs. 81/2008."
+    )
+
+    intestazione_eyebrow     = models.CharField(max_length=80, default="Formazione interna")
+    sezione_label            = models.CharField(max_length=120, default="NOVICROM HUB · Attestazione formativa")
+    titolo_partecipazione    = models.CharField(max_length=120, default="Attestato di partecipazione")
+    titolo_frequenza         = models.CharField(max_length=120, default="Attestato di frequenza")
+    titolo_qualifica         = models.CharField(max_length=120, default="Attestato di qualifica")
+    formula_attestazione     = models.CharField(max_length=200, default="Si attesta che")
+    firma_responsabile_label = models.CharField(max_length=80, default="Il Responsabile del corso")
+    firma_dipendente_label   = models.CharField(max_length=80, default="Il Dipendente")
+    responsabile_default     = models.CharField(
+        max_length=200, blank=True,
+        help_text="Nome stampato sotto la firma del responsabile quando il corso non ha un docente registrato.",
+    )
+    mostra_dati_personali    = models.BooleanField(
+        default=True,
+        help_text="Mostra C.F., luogo e data di nascita sull'attestato (utile per D.Lgs. 81/2008). "
+                  "Disattiva per minimizzazione GDPR.",
+    )
+    nota_legale              = models.TextField(default=NOTA_LEGALE_DEFAULT)
+    logo_url                 = models.URLField(
+        blank=True,
+        help_text="URL del logo in intestazione. Vuoto = logo NOVICROM HUB predefinito.",
+    )
+    pie_organizzazione       = models.CharField(
+        max_length=200, default="NOVICROM HUB · Portale interno · Costruzioni Novicrom S.r.l.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Impostazioni attestato formazione"
+        verbose_name_plural = "Impostazioni attestato formazione"
+
+    def __str__(self) -> str:
+        return "Impostazioni attestato formazione"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls) -> "AttestatoFormazioneConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+# ─────────────────────────────────────────────────────────────
 # PIANO FORMATIVO
 # ─────────────────────────────────────────────────────────────
 
@@ -832,6 +899,7 @@ class TrainingExportLog(models.Model):
         ("MATRICE",      "Matrice dipendente × corso"),
         ("KPI",          "Report KPI direzionale"),
         ("REPORT_FIRMA", "Report firma lezione PDF"),
+        ("ATTESTATO",    "Attestato di completamento"),
     ]
 
     tipo            = models.CharField(max_length=20, choices=TIPO_EXPORT_CHOICES)

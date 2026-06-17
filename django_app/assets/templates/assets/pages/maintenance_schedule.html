@@ -179,6 +179,13 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
     <article class="ms-kpi"><div class="ms-kpi-label">Scoperte</div><div class="ms-kpi-value">{{ uncovered_count }}</div></article>
   </section>
 
+  {% if status_filter == "attive" and schedule_missing_total %}
+    <p style="margin:.25rem 0 1rem;padding:.5rem .75rem;border-left:3px solid #c7c7c7;background:#f6f6f6;color:#555;font-size:.9rem;border-radius:4px;">
+      Vista <strong>Attive</strong>: {{ schedule_missing_total }} voci "Prima esecuzione da pianificare" sono nascoste per leggibilita.
+      <a href="{{ show_all_status_url }}">Mostra tutte</a>.
+    </p>
+  {% endif %}
+
   <article class="ms-card">
     <div class="ms-card-head">
       <div>

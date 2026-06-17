@@ -35,6 +35,7 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
+    AttestatoFormazioneConfigForm,
     FiglioACaricoFormSet,
     DipendenteLegacyForm,
     TrainingCompletionRuleForm,
@@ -89,6 +90,7 @@ from .models import (
 )
 from .models_formazione import (
     AnagraficaFormazionePermission,
+    AttestatoFormazioneConfig,
     TrainingCertificate,
     TrainingCompletionRule,
     TrainingCourse,
@@ -2189,6 +2191,159 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "ore_totali": ore_totali,
         "obblighi": obblighi,
         "oggi": oggi,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Attestato di formazione — foglio A4 autogenerato (layout email NOVICROM HUB)
+# ---------------------------------------------------------------------------
+
+@login_required
+def attestato_formazione(request, record_id: int):
+    """Attestato autogenerato per un singolo completamento corso.
+
+    Foglio A4 stampabile nello stile delle email NOVICROM HUB (header navy con
+    logo + banda arancio). Vale per corsi, qualifiche e formazione interna
+    generica ("altro"): il tipo viene derivato dalla qualifica àncora del corso.
+    Riporta i dati del corso e del dipendente e due blocchi firma —
+    Responsabile del corso e Dipendente. Nulla viene scritto: l'attestato si
+    autogenera dal record di completamento (campi snapshot per stabilità
+    storica). La generazione è tracciata in `TrainingExportLog` (tipo ATTESTATO).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+
+    record = get_object_or_404(
+        TrainingEmployeeRecord.objects.select_related(
+            "corso", "corso__piano", "corso__qualifica",
+            "sessione", "sessione__docente",
+        ),
+        pk=record_id,
+    )
+
+    # Attestato anagrafico collegato (OneToOne reverse): può non esistere.
+    try:
+        certificato = record.attestato
+    except TrainingCertificate.DoesNotExist:
+        certificato = None
+
+    legacy_id = record.legacy_anagrafica_id
+    dip = None
+    try:
+        ensure_anagrafica_schema()
+        rows = fetch_anagrafica_rows(ids=[legacy_id])
+        dip = rows[0] if rows else None
+    except Exception:
+        logger.exception("Errore lettura anagrafica per attestato record %s", record_id)
+
+    nominativo = ""
+    if dip:
+        nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    if not nominativo:
+        nominativo = f"Dipendente #{legacy_id}"
+
+    corso = record.corso
+    qualifica = corso.qualifica if corso else None
+
+    # Testi/opzioni del template, gestibili da Impostazioni Anagrafica HR.
+    cfg = AttestatoFormazioneConfig.get_instance()
+
+    # Tipo attestato derivato dall'àncora qualifica / obbligatorietà del corso.
+    if qualifica:
+        attestato_tipo = cfg.titolo_qualifica
+    elif corso and corso.obbligatorio:
+        attestato_tipo = cfg.titolo_frequenza
+    else:
+        attestato_tipo = cfg.titolo_partecipazione
+
+    # Responsabile del corso: snapshot docente → docente sessione → rilasciato_da
+    # → nome di default configurato nelle impostazioni.
+    responsabile = (
+        (record.teacher_name_snapshot or "").strip()
+        or (record.sessione.docente_nome.strip() if record.sessione and record.sessione.docente_nome else "")
+        or (str(record.sessione.docente).strip() if record.sessione and record.sessione.docente_id else "")
+        or (certificato.rilasciato_da.strip() if certificato and certificato.rilasciato_da else "")
+        or (cfg.responsabile_default or "").strip()
+    )
+
+    # Sessione/sede: snapshot codice sessione → sede della sessione collegata.
+    # Calcolata qui per evitare lookup concatenati su `sessione` None nel template.
+    sede_display = (
+        (record.session_code_snapshot or "").strip()
+        or (record.sessione.sede.strip() if record.sessione and record.sessione.sede else "")
+    )
+
+    # Numero attestato: quello anagrafico se presente, altrimenti riferimento
+    # stabile autogenerato dal record (per tracciabilità interna).
+    if certificato and certificato.numero_attestato:
+        numero_display = certificato.numero_attestato
+    else:
+        numero_display = f"FORM-{record.data_completamento:%Y}-{record.pk:05d}"
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO",
+            filtri_json={
+                "record_id": record.pk,
+                "legacy_anagrafica_id": legacy_id,
+                "formato": "attestato_html",
+            },
+            righe_esportate=1,
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore registrazione TrainingExportLog per attestato record %s", record_id)
+
+    return render(request, "anagrafica/pages/attestato_formazione.html", {
+        "record": record,
+        "certificato": certificato,
+        "dip": dip,
+        "legacy_id": legacy_id,
+        "nominativo": nominativo,
+        "corso": corso,
+        "qualifica": qualifica,
+        "attestato_tipo": attestato_tipo,
+        "responsabile": responsabile,
+        "numero_display": numero_display,
+        "sede_display": sede_display,
+        "cfg": cfg,
+        "can_edit": _can_edit_formazione(request),
+    })
+
+
+@login_required
+def attestato_impostazioni(request):
+    """Impostazioni del template attestato di formazione (singleton).
+
+    Gestione dei testi fissi (intestazioni, formule, etichette firma, nota
+    legale, logo) e del toggle privacy dei dati personali, da Impostazioni
+    Anagrafica HR. Gated dallo stesso permesso di modifica della formazione.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+
+    cfg = AttestatoFormazioneConfig.get_instance()
+    if request.method == "POST":
+        form = AttestatoFormazioneConfigForm(request.POST, instance=cfg)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.updated_by = request.user
+            obj.save()
+            messages.success(request, "Impostazioni attestato salvate.")
+            return redirect("anagrafica:attestato_impostazioni")
+        messages.error(request, "Controlla i campi evidenziati.")
+    else:
+        form = AttestatoFormazioneConfigForm(instance=cfg)
+
+    # Record di esempio per il pulsante "anteprima" (il più recente disponibile).
+    sample = TrainingEmployeeRecord.objects.order_by("-data_completamento", "-id").first()
+    return render(request, "anagrafica/pages/attestato_impostazioni.html", {
+        "form": form,
+        "cfg": cfg,
+        "sample_record_id": sample.pk if sample else None,
     })
 
 
@@ -8855,6 +9010,7 @@ def formazione_dashboard(request):
 
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
         "oggi": oggi,
+        "can_edit_formazione": _can_edit_formazione(request),
         "kpi_dipendenti_formazione": kpi_dipendenti_formazione,
         "kpi_scaduti": kpi_scaduti,
         "kpi_in_scadenza_30": kpi_in_scadenza_30,

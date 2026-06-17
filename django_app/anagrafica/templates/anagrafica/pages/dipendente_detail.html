@@ -1771,9 +1771,12 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
   <div class="dp-card" data-tab="dpi">
     <div class="dp-card-head">
       <div class="dp-card-title">🦺 DPI — Dispositivi di Protezione Individuale</div>
-      {% if is_admin %}
-        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'dpi:gestione_list' %}?q={{ dip.cognome|urlencode }} {{ dip.nome|urlencode }}">Gestione DPI</a>
-      {% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendente_verbale_dpi' dip.id %}" target="_blank" title="Verbale di consegna DPI (MOD.155) precompilato dai requisiti della mansione">📄 Verbale consegna</a>
+        {% if is_admin %}
+          <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'dpi:gestione_list' %}?q={{ dip.cognome|urlencode }} {{ dip.nome|urlencode }}">Gestione DPI</a>
+        {% endif %}
+      </div>
     </div>
     <div class="dp-card-body">
 

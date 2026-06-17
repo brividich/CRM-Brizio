@@ -201,6 +201,12 @@
                     {% if rec.validity_months_snapshot %}{{ rec.validity_months_snapshot }} mesi{% else %}Una tantum{% endif %}</div>
                   {% if rec.note %}<div style="grid-column:1/-1;"><span style="color:#94a3b8;font-weight:600;">Note:</span> {{ rec.note }}</div>{% endif %}
                 </div>
+                <div style="margin-top:10px;text-align:right;">
+                  <a href="{% url 'anagrafica:attestato_formazione' rec.pk %}" target="_blank" rel="noopener"
+                     style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#002b5c;text-decoration:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 10px;background:#fff;">
+                    🖨 Genera attestato
+                  </a>
+                </div>
               </div>
             </td>
           </tr>

@@ -120,6 +120,13 @@
     .lb-pill-info    { background: #dbeafe; color: #1e40af; }
     .lb-pill-na      { background: var(--line-soft); color: var(--muted); }
 
+    .lb-att-link {
+      display: inline-block; margin-top: 3px;
+      font-size: 10.5px; font-weight: 700; color: var(--primary);
+      text-decoration: none; white-space: nowrap;
+    }
+    .lb-att-link:hover { text-decoration: underline; }
+
     /* ── Footer ──────────────────────────────────────────────── */
     .pb-footer {
       margin-top: 28px; padding-top: 12px;
@@ -143,6 +150,7 @@
     @media print {
       body { background: #fff; font-size: 11px; }
       .pb-actions { display: none !important; }
+      .lb-att-link { display: none !important; }
       .pb-sheet {
         max-width: none; margin: 0; padding: 0;
         border: none; box-shadow: none; border-radius: 0;
@@ -278,9 +286,8 @@
               {% if r.attestato %}
                 <span class="lb-pill lb-pill-info">{% if r.attestato.numero_attestato %}n° {{ r.attestato.numero_attestato }}{% else %}rilasciato{% endif %}</span>
                 {% if r.attestato.rilasciato_da %}<div class="lb-muted" style="font-size:10.5px;">{{ r.attestato.rilasciato_da }}</div>{% endif %}
-              {% else %}
-                <span class="lb-pill lb-pill-na">—</span>
               {% endif %}
+              <a class="lb-att-link" href="{% url 'anagrafica:attestato_formazione' r.pk %}" target="_blank" rel="noopener">🖨 Attestato</a>
             </td>
           </tr>
           {% endfor %}

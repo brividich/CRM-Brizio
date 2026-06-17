@@ -26,6 +26,10 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
     # Libretto formativo stampabile (storico corsi + obblighi correnti)
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
+    # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
+    path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
+    # Impostazioni template attestato (testi/firme/logo/privacy) — da Impostazioni HR
+    path("formazione/attestato-impostazioni/", views.attestato_impostazioni, name="attestato_impostazioni"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),

@@ -16,6 +16,7 @@ from .models import (
     VisitaMedica,
 )
 from .models_formazione import (
+    AttestatoFormazioneConfig,
     TrainingCourse,
     TrainingCompletionRule,
     TrainingCourseDependency,
@@ -239,6 +240,37 @@ _FM_TEXTAREA = {"class": "fm-input", "rows": 3}
 _FM_DATE = {"class": "fm-input", "type": "date"}
 _FM_NUMBER = {"class": "fm-input"}
 _FM_CHECK = {"class": "fm-check"}
+
+
+class AttestatoFormazioneConfigForm(forms.ModelForm):
+    """Testi/opzioni del template attestato di formazione (singleton),
+    modificabili da Impostazioni Anagrafica HR."""
+
+    class Meta:
+        model = AttestatoFormazioneConfig
+        fields = [
+            "intestazione_eyebrow", "sezione_label",
+            "titolo_partecipazione", "titolo_frequenza", "titolo_qualifica",
+            "formula_attestazione",
+            "firma_responsabile_label", "firma_dipendente_label",
+            "responsabile_default", "mostra_dati_personali",
+            "nota_legale", "logo_url", "pie_organizzazione",
+        ]
+        widgets = {
+            "intestazione_eyebrow":     forms.TextInput(attrs=_FM),
+            "sezione_label":            forms.TextInput(attrs=_FM),
+            "titolo_partecipazione":    forms.TextInput(attrs=_FM),
+            "titolo_frequenza":         forms.TextInput(attrs=_FM),
+            "titolo_qualifica":         forms.TextInput(attrs=_FM),
+            "formula_attestazione":     forms.TextInput(attrs=_FM),
+            "firma_responsabile_label": forms.TextInput(attrs=_FM),
+            "firma_dipendente_label":   forms.TextInput(attrs=_FM),
+            "responsabile_default":     forms.TextInput(attrs={**_FM, "placeholder": "Es. Ing. Mario Rossi (RSPP)"}),
+            "mostra_dati_personali":    forms.CheckboxInput(attrs=_FM_CHECK),
+            "nota_legale":              forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 3}),
+            "logo_url":                 forms.URLInput(attrs={**_FM, "placeholder": "https://… (vuoto = logo predefinito)"}),
+            "pie_organizzazione":       forms.TextInput(attrs=_FM),
+        }
 
 
 class TrainingPlanForm(forms.ModelForm):

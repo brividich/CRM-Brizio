@@ -11702,6 +11702,7 @@ def asset_maintenance_rule_override_reset(request: HttpRequest, asset_id: int, i
 
 def _maintenance_schedule_status_choices() -> list[tuple[str, str]]:
     return [
+        ("attive", "Attive (escludi senza storico)"),
         ("all", "Tutte"),
         ("due", "Solo da gestire"),
         ("overdue", "Scadute"),
@@ -11789,6 +11790,8 @@ def _maintenance_schedule_periodic_rows(
             due_date = verification.next_verification_date if isinstance(verification.next_verification_date, date) else None
             schedule = _periodic_verification_schedule_status(due_date=due_date, today=today)
             if status_filter == "due" and schedule["status"] not in {"overdue", "warning", "missing"}:
+                continue
+            if status_filter == "attive" and schedule["status"] == "missing":
                 continue
             if status_filter in {"overdue", "warning", "upcoming", "missing"} and schedule["status"] != status_filter:
                 continue
@@ -12000,7 +12003,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     selected_asset = None
     if selected_asset_id:
         selected_asset = Asset.objects.select_related("asset_category").filter(pk=selected_asset_id).first()
-    status_filter = _clean_string(request.GET.get("status")) or "all"
+    status_filter = _clean_string(request.GET.get("status")) or "attive"
     category_id = _as_int(request.GET.get("category"), default=0)
     reparto_filter = _clean_string(request.GET.get("reparto"))
     coverage_filter = _clean_string(request.GET.get("coverage")) or "all"
@@ -12029,6 +12032,9 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=asset_qs)
     primary_contract_by_asset_id: dict[int, AssistanceContract | None] = {}
     filtered_rows: list[dict[str, object]] = []
+    # "Senza storico" (prima esecuzione da pianificare): contate a parte cosi restano
+    # visibili come totale anche quando la vista "Attive" le nasconde dalla tabella.
+    schedule_missing_total = 0
     for row in schedule_rows:
         asset = row["asset"]
         if asset.id not in primary_contract_by_asset_id:
@@ -12063,10 +12069,8 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             source="maintenance_schedule",
         )
 
-        if status_filter == "due" and row["schedule_status"] not in {"overdue", "warning", "missing"}:
-            continue
-        if status_filter in {"overdue", "warning", "upcoming", "missing"} and row["schedule_status"] != status_filter:
-            continue
+        # Filtri non-stato prima (copertura/ricerca), cosi il conteggio "senza storico"
+        # riflette il sottoinsieme realmente pertinente.
         if coverage_filter == "covered" and not row["is_covered"]:
             continue
         if coverage_filter == "uncovered" and row["is_covered"]:
@@ -12082,6 +12086,16 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             ]
             if not any(q_value in _clean_string(chunk).casefold() for chunk in searchable_chunks):
                 continue
+        if row["schedule_status"] == "missing":
+            schedule_missing_total += 1
+        # Filtro stato. "attive" = default operativo: nasconde le "senza storico" (rumore)
+        # ma le mantiene contate; "all" le mostra tutte.
+        if status_filter == "due" and row["schedule_status"] not in {"overdue", "warning", "missing"}:
+            continue
+        if status_filter == "attive" and row["schedule_status"] == "missing":
+            continue
+        if status_filter in {"overdue", "warning", "upcoming", "missing"} and row["schedule_status"] != status_filter:
+            continue
         filtered_rows.append(row)
 
     calendar_event_map: dict[tuple[int, int, date], list[AssetCalendarEvent]] = defaultdict(list)
@@ -12174,6 +12188,8 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             dl_status = "upcoming"
         if status_filter == "due" and dl_status not in {"overdue", "warning", "missing"}:
             continue
+        if status_filter == "attive" and dl_status == "missing":
+            continue
         if status_filter in {"overdue", "warning", "upcoming", "missing"} and dl_status != status_filter:
             continue
         admin_deadline_rows.append({
@@ -12207,7 +12223,9 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue") + periodic_overdue,
             "warning_count": sum(1 for row in filtered_rows if row["schedule_status"] == "warning") + periodic_warning,
             "upcoming_count": sum(1 for row in filtered_rows if row["schedule_status"] == "upcoming") + periodic_upcoming,
-            "missing_count": sum(1 for row in filtered_rows if row["schedule_status"] == "missing") + periodic_missing,
+            "missing_count": schedule_missing_total + periodic_missing,
+            "schedule_missing_total": schedule_missing_total,
+            "show_all_status_url": _query_url(request, status="all"),
             "covered_count": sum(1 for row in filtered_rows if row["is_covered"]),
             "uncovered_count": sum(1 for row in filtered_rows if not row["is_covered"]),
             "category_options": AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"),

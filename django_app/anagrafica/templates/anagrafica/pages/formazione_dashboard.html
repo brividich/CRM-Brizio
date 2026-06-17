@@ -20,6 +20,11 @@
       <h2 class="hr-pagehead-title">🎓 Formazione</h2>
       <p class="hr-pagehead-desc">Panoramica formazione aziendale. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
     </div>
+    {% if can_edit_formazione %}
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <a href="{% url 'anagrafica:attestato_impostazioni' %}" class="hr-btn hr-btn-ghost">🏅 Template attestato</a>
+    </div>
+    {% endif %}
   </div>
 
   {# ── Banner cache vuota ──────────────────────────────────────────────── #}

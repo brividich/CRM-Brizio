@@ -1661,6 +1661,134 @@ class LibrettoFormativoTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# H5b — attestato di formazione autogenerato
+# ---------------------------------------------------------------------------
+
+class AttestatoFormazioneTests(TestCase):
+    """Attestato A4 autogenerato per singolo completamento: tipo derivato,
+    responsabile, snapshot storici, gate permessi, audit."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="att_admin", email="att_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) "
+                "VALUES (401, 'Anna', 'Bianchi', 'Saldatrice', 'PROD', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_record(self, *, qualifica=None, obbligatorio=False, teacher="Ing. Verdi"):
+        from django.utils import timezone
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
+        piano = TrainingPlan.objects.create(codice="PATT", nome="Piano sicurezza")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CATT", titolo="Titolo attuale",
+            durata_ore_teorica=8, obbligatorio=obbligatorio, qualifica=qualifica,
+        )
+        return TrainingEmployeeRecord.objects.create(
+            corso=corso,
+            legacy_anagrafica_id=401,
+            data_completamento=timezone.localdate(),
+            ore_frequentate=8,
+            idoneo=True,
+            course_title_snapshot="Titolo storico corso",
+            teacher_name_snapshot=teacher,
+        )
+
+    def test_attestato_render_snapshot_e_firme(self):
+        rec = self._make_record()
+        resp = self.client.get(
+            reverse("anagrafica:attestato_formazione", args=[rec.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Usa lo snapshot storico, non il titolo attuale del corso
+        self.assertContains(resp, "Titolo storico corso")
+        self.assertNotContains(resp, "Titolo attuale")
+        # Nominativo dall'anagrafica + entrambi i blocchi firma
+        self.assertContains(resp, "Bianchi Anna")
+        self.assertContains(resp, "Il Responsabile del corso")
+        self.assertContains(resp, "Il Dipendente")
+        self.assertContains(resp, "Ing. Verdi")
+
+    def test_tipo_partecipazione_default(self):
+        rec = self._make_record()
+        resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        self.assertContains(resp, "Attestato di partecipazione")
+
+    def test_tipo_qualifica_quando_corso_ancorato(self):
+        from .models import TipoQualifica
+        qual = TipoQualifica.objects.create(nome="Saldatore certificato")
+        rec = self._make_record(qualifica=qual)
+        resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        self.assertContains(resp, "Attestato di qualifica")
+        self.assertContains(resp, "Saldatore certificato")
+
+    def test_attestato_negato_senza_permesso_formazione(self):
+        rec = self._make_record()
+        with patch("anagrafica.views._can_view_formazione", return_value=False):
+            resp = self.client.get(
+                reverse("anagrafica:attestato_formazione", args=[rec.pk])
+            )
+        self.assertEqual(resp.status_code, 302)
+
+    def test_generazione_tracciata_in_export_log(self):
+        from .models_formazione import TrainingExportLog
+        rec = self._make_record()
+        self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        log = TrainingExportLog.objects.filter(tipo="ATTESTATO").last()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.righe_esportate, 1)
+        self.assertEqual(log.filtri_json.get("record_id"), rec.pk)
+
+    def test_attestato_usa_titolo_configurato(self):
+        from .models_formazione import AttestatoFormazioneConfig
+        cfg = AttestatoFormazioneConfig.get_instance()
+        cfg.titolo_partecipazione = "Certificato interno NOVICROM"
+        cfg.firma_dipendente_label = "Il Partecipante"
+        cfg.save()
+        rec = self._make_record()
+        resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        self.assertContains(resp, "Certificato interno NOVICROM")
+        self.assertContains(resp, "Il Partecipante")
+
+    def test_impostazioni_get_e_salva(self):
+        from .models_formazione import AttestatoFormazioneConfig
+        url = reverse("anagrafica:attestato_impostazioni")
+        self.assertEqual(self.client.get(url).status_code, 200)
+        data = {
+            "intestazione_eyebrow": "Formazione interna",
+            "sezione_label": "NOVICROM HUB · Attestazione formativa",
+            "titolo_partecipazione": "Certificato interno NOVICROM",
+            "titolo_frequenza": "Attestato di frequenza",
+            "titolo_qualifica": "Attestato di qualifica",
+            "formula_attestazione": "Si attesta che",
+            "firma_responsabile_label": "Il Responsabile del corso",
+            "firma_dipendente_label": "Il Dipendente",
+            "responsabile_default": "",
+            "mostra_dati_personali": "on",
+            "nota_legale": "Nota di prova.",
+            "logo_url": "",
+            "pie_organizzazione": "NOVICROM HUB",
+        }
+        resp = self.client.post(url, data)
+        self.assertEqual(resp.status_code, 302)
+        cfg = AttestatoFormazioneConfig.get_instance()
+        self.assertEqual(cfg.titolo_partecipazione, "Certificato interno NOVICROM")
+        self.assertEqual(cfg.updated_by_id, self.admin.id)
+
+    def test_impostazioni_negato_senza_permesso_modifica(self):
+        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+            resp = self.client.get(reverse("anagrafica:attestato_impostazioni"))
+        self.assertEqual(resp.status_code, 302)
+
+
+# ---------------------------------------------------------------------------
 # H6 — organigramma visuale
 # ---------------------------------------------------------------------------
 
@@ -2155,6 +2283,35 @@ class MatriceCompetenzeTests(TestCase):
         self.assertEqual(resp.context["active_categoria"], "SICUREZZA")
         self.assertEqual(len(resp.context["tipi"]), 1)
         self.assertEqual(resp.context["tipi"][0].nome, "Carrellista MC")
+
+
+class VerbaleDpiTests(TestCase):
+    """Verbale consegna DPI (MOD.155) precompilato dai requisiti della mansione."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="vd_admin", email="vd@x.local", password="x"
+        )
+
+    def test_verbale_render_con_dpi_mansione(self):
+        from .models import Mansione
+        from dpi.models import CategoriaDPI
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (8001, 'Luca', 'Verdi', 'Verniciatore VD', 1)"
+            )
+        m = Mansione.objects.create(nome="Verniciatore VD")
+        m.dpi_richiesti.add(CategoriaDPI.objects.create(nome="Maschera vapori", is_active=True))
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:dipendente_verbale_dpi", args=[8001]))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("MOD.155", body)
+        self.assertIn("Maschera vapori", body)
+        self.assertIn("Taglia / Modello", body)
 
 
 class SafetyIntegrationsTests(TestCase):
