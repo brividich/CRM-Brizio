@@ -1898,11 +1898,13 @@ class AttestatoArchivioTests(TestCase):
         self.client.force_login(self.admin)
 
     def _make_record(self):
+        import uuid
         from django.utils import timezone
         from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
-        piano = TrainingPlan.objects.create(codice="PARC", nome="Piano archivio")
+        sfx = uuid.uuid4().hex[:6].upper()
+        piano = TrainingPlan.objects.create(codice=f"PA{sfx}", nome="Piano archivio")
         corso = TrainingCourse.objects.create(
-            piano=piano, codice="CARC", titolo="Corso archivio", durata_ore_teorica=6,
+            piano=piano, codice=f"CA{sfx}", titolo="Corso archivio", durata_ore_teorica=6,
         )
         return TrainingEmployeeRecord.objects.create(
             corso=corso, legacy_anagrafica_id=601,
@@ -2020,6 +2022,151 @@ class AttestatoArchivioTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
         self.assertIn(b"Rossi Marco", resp.content)
+
+    def test_protocollo_progressivo_per_anno_e_stabile(self):
+        from .services.attestato_pdf import assegna_numero_protocollo
+        rec1 = self._make_record()
+        rec2 = self._make_record()
+        anno = rec1.data_completamento.year
+        n1 = assegna_numero_protocollo(rec1)
+        n2 = assegna_numero_protocollo(rec2)
+        self.assertEqual(n1, f"ATT-{anno}-0001")
+        self.assertEqual(n2, f"ATT-{anno}-0002")
+        # idempotente/stabile: rilanciare ritorna lo stesso numero, salvato sul record
+        self.assertEqual(assegna_numero_protocollo(rec1), n1)
+        rec1.refresh_from_db()
+        self.assertEqual(rec1.numero_protocollo, n1)
+
+    def test_attestato_usa_numero_protocollo(self):
+        rec = self._make_record()
+        resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        anno = rec.data_completamento.year
+        self.assertContains(resp, f"ATT-{anno}-0001")
+
+    def test_attestato_mostra_link_copia_archiviata(self):
+        from .services.attestato_pdf import archivia_attestato
+        rec = self._make_record()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            archivia_attestato(rec, user=self.admin)
+            resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        self.assertContains(resp, "Copia archiviata")
+
+    def test_impostazioni_mostra_retention_gdpr(self):
+        resp = self.client.get(reverse("anagrafica:attestato_impostazioni"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Conservazione GDPR")
+
+    def test_task_archivia_mancanti_opt_in(self):
+        from .models_formazione import AttestatoFormazioneConfig
+        from .tasks import run_archivia_attestati_mancanti
+        rec = self._make_record()
+        # disattivato → no-op
+        res = run_archivia_attestati_mancanti()
+        self.assertEqual(res.get("archiviati"), 0)
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 0
+        )
+        # attivato → archivia i mancanti
+        cfg = AttestatoFormazioneConfig.get_instance()
+        cfg.auto_salva_attestato = True
+        cfg.save()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            res2 = run_archivia_attestati_mancanti()
+        self.assertEqual(res2.get("archiviati"), 1)
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 1
+        )
+
+    def test_sessione_attestati_bulk(self):
+        from .views import _crea_employee_record
+        enr = self._make_enrollment()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            rec = _crea_employee_record(enr, self.admin)  # auto-save off → nessun doc
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 0
+            )
+            resp = self.client.post(
+                reverse("anagrafica:formazione_sessione_attestati", args=[enr.sessione_id])
+            )
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 1
+            )
+
+
+# ---------------------------------------------------------------------------
+# H5e — libretto formativo PDF server-side + archiviazione
+# ---------------------------------------------------------------------------
+
+class LibrettoArchivioTests(TestCase):
+    """Libretto formativo come PDF server-side, variante ?formato=pdf e salvataggio nel box."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="lib_admin", email="lib_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) "
+                "VALUES (701, 'Sara', 'Neri', 'Operaia', 'PROD', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_record_for(self, legacy_id):
+        import uuid
+        from django.utils import timezone
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
+        sfx = uuid.uuid4().hex[:6].upper()
+        piano = TrainingPlan.objects.create(codice=f"PL{sfx}", nome="Piano libretto")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice=f"CL{sfx}", titolo="Corso libretto", durata_ore_teorica=8,
+        )
+        return TrainingEmployeeRecord.objects.create(
+            corso=corso, legacy_anagrafica_id=legacy_id,
+            data_completamento=timezone.localdate(),
+            ore_frequentate=8, idoneo=True,
+            course_title_snapshot="Corso libretto storico",
+        )
+
+    def test_build_libretto_pdf_bytes(self):
+        from .services.attestato_pdf import build_libretto_pdf_bytes
+        self._make_record_for(701)
+        pdf = build_libretto_pdf_bytes(701)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertGreater(len(pdf), 800)
+
+    def test_libretto_formato_pdf_view(self):
+        self._make_record_for(701)
+        resp = self.client.get(
+            reverse("anagrafica:dipendente_libretto_formativo", args=[701]) + "?formato=pdf"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    def test_libretto_salva_box(self):
+        from .services.attestato_pdf import RIFERIMENTO_LIBRETTO
+        self._make_record_for(701)
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            resp = self.client.post(reverse("anagrafica:libretto_salva_box", args=[701]))
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(
+                    oggetto_riferimento_tipo=RIFERIMENTO_LIBRETTO, oggetto_riferimento_id=701
+                ).count(),
+                1,
+            )
+
+    def test_libretto_salva_box_negato_senza_permesso(self):
+        self._make_record_for(701)
+        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+            resp = self.client.post(reverse("anagrafica:libretto_salva_box", args=[701]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(DocumentoDipendente.objects.filter(legacy_anagrafica_id=701).count(), 0)
 
 
 # ---------------------------------------------------------------------------

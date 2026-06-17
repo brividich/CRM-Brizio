@@ -141,6 +141,9 @@
       </button>
     </form>
     {% endif %}
+    {% if doc_archiviato %}
+    <a href="{% url 'anagrafica:documento_download' doc_archiviato.pk %}" target="_blank" rel="noopener" title="Apri il PDF archiviato nel box documenti del dipendente">👁 Copia archiviata</a>
+    {% endif %}
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>
   </div>
 

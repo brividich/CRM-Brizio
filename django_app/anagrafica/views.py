@@ -2156,6 +2156,30 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         return redirect("anagrafica:dipendenti_list")
     dip = rows[0]
 
+    # Variante PDF server-side (stessa fonte dati): ?formato=pdf
+    formato = (request.GET.get("formato") or "").strip().lower()
+    if formato == "pdf":
+        from .services.attestato_pdf import build_libretto_pdf_bytes
+        try:
+            pdf = build_libretto_pdf_bytes(legacy_id)
+        except Exception:
+            logger.exception("Errore generazione PDF libretto %s", legacy_id)
+            messages.error(request, "Errore nella generazione del PDF del libretto.")
+            return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
+        try:
+            TrainingExportLog.objects.create(
+                tipo="STORICO_DIP",
+                filtri_json={"legacy_anagrafica_id": legacy_id, "formato": "libretto_pdf"},
+                righe_esportate=0,
+                generato_da=request.user,
+                ip_address=request.META.get("REMOTE_ADDR") or None,
+            )
+        except Exception:
+            logger.exception("Errore TrainingExportLog per libretto PDF")
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="libretto_formativo_{legacy_id}.pdf"'
+        return resp
+
     record_storici = list(
         TrainingEmployeeRecord.objects
         .filter(legacy_anagrafica_id=legacy_id)
@@ -2184,6 +2208,12 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     except Exception:
         logger.exception("Errore registrazione TrainingExportLog per libretto formativo")
 
+    from .services.attestato_pdf import RIFERIMENTO_LIBRETTO
+    doc_libretto = (
+        DocumentoDipendente.objects
+        .filter(oggetto_riferimento_tipo=RIFERIMENTO_LIBRETTO, oggetto_riferimento_id=legacy_id)
+        .order_by("-id").first()
+    )
     return render(request, "anagrafica/pages/dipendente_libretto.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -2191,7 +2221,30 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "ore_totali": ore_totali,
         "obblighi": obblighi,
         "oggi": oggi,
+        "can_edit": _can_edit_formazione(request),
+        "doc_libretto": doc_libretto,
     })
+
+
+@login_required
+@require_POST
+def libretto_salva_box(request, legacy_id: int):
+    """Genera e salva (manualmente) il libretto formativo PDF nel box del dipendente.
+
+    Un solo libretto per dipendente: la copia viene sostituita ad ogni salvataggio
+    (è una fotografia aggiornata del curriculum). Gated dal permesso di modifica.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare il libretto.")
+        return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
+    from .services.attestato_pdf import archivia_libretto
+    try:
+        doc = archivia_libretto(legacy_id, user=request.user)
+        messages.success(request, f"Libretto formativo archiviato nel box ({doc.nome_originale}).")
+    except Exception:
+        logger.exception("Archiviazione libretto fallita per %s", legacy_id)
+        messages.error(request, "Errore durante l'archiviazione del libretto.")
+    return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
 
 
 # ---------------------------------------------------------------------------
@@ -2335,10 +2388,19 @@ def attestato_impostazioni(request):
         messages.error(request, "Controlla i campi evidenziati.")
 
     # Statistiche archivio (per la sezione "Gestione report salvati").
+    from datetime import date as _date, timedelta as _timedelta
     arch_qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
     n_archiviati = arch_qs.count()
     ultimo = arch_qs.order_by("-created_at").values_list("created_at", flat=True).first()
     n_completamenti = TrainingEmployeeRecord.objects.count()
+
+    # Stato conservazione GDPR (retention_until calcolata su DocumentoDipendente).
+    # Il command `cleanup_expired_documents` elimina solo i doc scaduti di cessati.
+    _oggi = _date.today()
+    n_retention_scaduta = arch_qs.filter(retention_until__lt=_oggi).count()
+    n_retention_vicina = arch_qs.filter(
+        retention_until__gte=_oggi, retention_until__lte=_oggi + _timedelta(days=90)
+    ).count()
 
     # Record di esempio per il pulsante "anteprima" (il più recente disponibile).
     sample = TrainingEmployeeRecord.objects.order_by("-data_completamento", "-id").first()
@@ -2350,6 +2412,8 @@ def attestato_impostazioni(request):
         "n_completamenti": n_completamenti,
         "n_mancanti": max(0, n_completamenti - n_archiviati),
         "ultimo_archiviato": ultimo,
+        "n_retention_scaduta": n_retention_scaduta,
+        "n_retention_vicina": n_retention_vicina,
     })
 
 
@@ -2434,6 +2498,47 @@ def attestato_report_export(request):
     except Exception:
         logger.exception("Errore TrainingExportLog export archivio attestati")
     return response
+
+
+@login_required
+@require_POST
+def formazione_sessione_attestati(request, sessione_id: int):
+    """Genera e archivia nel box gli attestati di tutti i completati della sessione.
+
+    Comodo a fine edizione: un click produce gli attestati PDF di tutti i
+    `TrainingEmployeeRecord` della sessione e li salva nel box documenti
+    (idempotente). Gated dal permesso di modifica formazione.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare gli attestati.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    records = list(TrainingEmployeeRecord.objects.filter(sessione=sessione))
+    from .services.attestato_pdf import archivia_attestato
+
+    ok = err = 0
+    for rec in records:
+        try:
+            archivia_attestato(rec, user=request.user)
+            ok += 1
+        except Exception:
+            err += 1
+            logger.exception(
+                "Archiviazione attestato sessione %s record %s fallita", sessione_id, rec.pk
+            )
+
+    if not records:
+        messages.info(
+            request,
+            "Nessun completamento registrato per questa sessione: nessun attestato da archiviare.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Attestati archiviati nel box: {ok}" + (f", {err} errori" if err else "") + ".",
+        )
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
 
 # ---------------------------------------------------------------------------

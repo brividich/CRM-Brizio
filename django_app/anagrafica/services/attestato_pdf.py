@@ -34,6 +34,43 @@ RIFERIMENTO_TIPO = "anagrafica.training_record"
 
 
 # ---------------------------------------------------------------------------
+# Numero di protocollo (progressivo per anno: ATT-2026-0001)
+# ---------------------------------------------------------------------------
+
+def assegna_numero_protocollo(record) -> str:
+    """Ritorna il numero di protocollo dell'attestato, assegnandolo se mancante.
+
+    Progressivo per anno (anno del completamento), formato ``ATT-AAAA-NNNN``,
+    azzerato a inizio anno. Allocazione concorrenza-safe (transazione +
+    ``select_for_update`` sul contatore annuale) e idempotente: una volta
+    assegnato resta stabile sul record.
+    """
+    from django.db import transaction
+    from anagrafica.models_formazione import AttestatoProtocolloCounter
+
+    if record.numero_protocollo:
+        return record.numero_protocollo
+
+    anno = record.data_completamento.year if record.data_completamento else None
+    if not anno:
+        from django.utils import timezone
+        anno = timezone.localdate().year
+
+    with transaction.atomic():
+        counter, _ = (
+            AttestatoProtocolloCounter.objects
+            .select_for_update()
+            .get_or_create(anno=anno)
+        )
+        counter.ultimo += 1
+        counter.save(update_fields=["ultimo"])
+        numero = f"{AttestatoProtocolloCounter.PREFISSO}-{anno}-{counter.ultimo:04d}"
+        record.numero_protocollo = numero
+        record.save(update_fields=["numero_protocollo"])
+    return numero
+
+
+# ---------------------------------------------------------------------------
 # Derivazione contesto (condivisa view HTML ↔ PDF)
 # ---------------------------------------------------------------------------
 
@@ -93,10 +130,12 @@ def build_attestato_context(record, cfg=None) -> dict:
         or (record.sessione.sede.strip() if record.sessione and record.sessione.sede else "")
     )
 
+    # Numero di protocollo: quello anagrafico esterno se presente, altrimenti il
+    # protocollo interno progressivo per anno (assegnato e stabile sul record).
     if certificato and certificato.numero_attestato:
         numero_display = certificato.numero_attestato
     else:
-        numero_display = f"FORM-{record.data_completamento:%Y}-{record.pk:05d}"
+        numero_display = assegna_numero_protocollo(record)
 
     return {
         "record": record,
@@ -240,6 +279,177 @@ def build_attestato_pdf_bytes(record, cfg=None) -> bytes:
     )
     doc.build(story, onFirstPage=draw, onLaterPages=draw)
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Libretto formativo (curriculum) come PDF server-side
+# ---------------------------------------------------------------------------
+
+# Tag di riferimento per il libretto archiviato (uno per dipendente, sovrascritto).
+RIFERIMENTO_LIBRETTO = "anagrafica.libretto_formativo"
+
+
+def build_libretto_pdf_bytes(legacy_id: int) -> bytes:
+    """Genera il libretto formativo (curriculum) del dipendente come PDF (``bytes``).
+
+    Aggrega storico completamenti (campi snapshot) e obblighi correnti, nello
+    stesso tema PDF del portale. Self-contained: legge i dati da sé, così è usabile
+    anche da archiviazione/schedulazione senza passare dalla view.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, Spacer
+    from django.utils import timezone
+    from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
+    from core.pdf import (
+        PdfTheme, build_styles, data_table, header_footer_callback,
+        make_document, section_heading,
+    )
+    from anagrafica.models_formazione import TrainingDeadline, TrainingEmployeeRecord
+
+    dip = None
+    try:
+        ensure_anagrafica_schema()
+        rows = fetch_anagrafica_rows(ids=[legacy_id])
+        dip = rows[0] if rows else None
+    except Exception:
+        logger.exception("Errore lettura anagrafica per libretto %s", legacy_id)
+    dip = dip or {}
+    nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip() or f"Dipendente #{legacy_id}"
+
+    records = list(
+        TrainingEmployeeRecord.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .select_related("corso")
+        .order_by("-data_completamento", "-created_at")
+    )
+    ore_totali = sum((r.ore_frequentate or 0) for r in records)
+    oggi = timezone.localdate()
+    obblighi = list(
+        TrainingDeadline.objects
+        .filter(legacy_anagrafica_id=legacy_id, is_required=True)
+        .select_related("corso")
+        .order_by("data_scadenza")
+    )
+
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = BytesIO()
+    doc = make_document(buf, title=f"Libretto formativo — {nominativo}")
+    story: list = []
+
+    # Intestazione dipendente
+    sub = []
+    if dip.get("matricola"):
+        sub.append(f"Matricola {dip.get('matricola')}")
+    if dip.get("reparto"):
+        sub.append(str(dip.get("reparto")))
+    if dip.get("mansione"):
+        sub.append(str(dip.get("mansione")))
+    story.append(Paragraph(nominativo, styles["title"]))
+    if sub:
+        story.append(Paragraph(" · ".join(sub), styles["subtitle"]))
+    story.append(Paragraph(
+        f"<b>{len(records)}</b> corsi completati · <b>{ore_totali}</b> ore totali · "
+        f"aggiornato al {oggi.strftime('%d-%m-%Y')}",
+        styles["body"],
+    ))
+    story.append(Spacer(1, 5 * mm))
+
+    # Storico completamenti
+    story += section_heading("Storico formazione", theme, styles)
+    if records:
+        head = ["Corso", "Codice", "Data", "Ore", "Esito", "Validità"]
+        body = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for r in records:
+            body.append([
+                Paragraph(r.course_title_snapshot or (r.corso.titolo if r.corso else "—"), styles["cell"]),
+                Paragraph(r.course_code_snapshot or (r.corso.codice if r.corso else "—"), styles["cell"]),
+                Paragraph(r.data_completamento.strftime("%d-%m-%Y") if r.data_completamento else "—", styles["cell"]),
+                Paragraph(str(r.ore_frequentate or "—"), styles["cell_right"]),
+                Paragraph("Idoneo" if r.idoneo else "Non idoneo", styles["cell"]),
+                Paragraph(r.data_scadenza.strftime("%d-%m-%Y") if r.data_scadenza else "—", styles["cell"]),
+            ])
+        story.append(data_table(body, theme, col_widths=[None, 60, 52, 28, 50, 52], repeat_rows=1))
+    else:
+        story.append(Paragraph("Nessun completamento registrato.", styles["body"]))
+    story.append(Spacer(1, 5 * mm))
+
+    # Obblighi correnti
+    story += section_heading("Obblighi formativi correnti", theme, styles)
+    if obblighi:
+        head = ["Corso", "Scadenza", "Stato"]
+        body = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for o in obblighi:
+            if o.data_scadenza and o.data_scadenza < oggi:
+                stato = "Scaduto"
+            elif o.data_scadenza and (o.data_scadenza - oggi).days <= 60:
+                stato = "In scadenza"
+            elif o.data_scadenza:
+                stato = "Valido"
+            else:
+                stato = "Da pianificare"
+            body.append([
+                Paragraph(o.corso.titolo if o.corso_id else "—", styles["cell"]),
+                Paragraph(o.data_scadenza.strftime("%d-%m-%Y") if o.data_scadenza else "—", styles["cell"]),
+                Paragraph(stato, styles["cell"]),
+            ])
+        story.append(data_table(body, theme, col_widths=[None, 70, 80], repeat_rows=1))
+    else:
+        story.append(Paragraph("Nessun obbligo formativo corrente.", styles["body"]))
+
+    draw = header_footer_callback(theme, title="Libretto formativo", subtitle=nominativo)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    return buf.getvalue()
+
+
+def archivia_libretto(legacy_id: int, *, user=None):
+    """Genera e salva il libretto formativo PDF nel box documenti del dipendente.
+
+    Un solo libretto per dipendente: l'eventuale copia precedente viene
+    **sostituita** (è una fotografia aggiornata, non uno storico immutabile).
+    Ritorna il :class:`DocumentoDipendente` salvato.
+    """
+    from anagrafica.models import DocumentoDipendente
+
+    pdf_bytes = build_libretto_pdf_bytes(legacy_id)
+    filename = f"Libretto_formativo_{legacy_id}.pdf"
+
+    esistente = (
+        DocumentoDipendente.objects
+        .filter(oggetto_riferimento_tipo=RIFERIMENTO_LIBRETTO, oggetto_riferimento_id=legacy_id)
+        .order_by("-id").first()
+    )
+    actor = user if (user and getattr(user, "pk", None)) else None
+    display = (actor.get_full_name() or actor.username) if actor else "Sistema (auto)"
+
+    if esistente:
+        try:
+            esistente.file.delete(save=False)
+        except Exception:
+            logger.warning("Vecchio libretto non eliminabile (doc %s)", esistente.pk, exc_info=True)
+        esistente.nome_originale = filename
+        esistente.tipo_mime = "application/pdf"
+        esistente.dimensione_bytes = len(pdf_bytes)
+        esistente.file.save(filename, ContentFile(pdf_bytes), save=False)
+        esistente.save()
+        return esistente
+
+    doc = DocumentoDipendente(
+        legacy_anagrafica_id=legacy_id,
+        tipo=DocumentoDipendente.Tipo.ALTRO,
+        nome_originale=filename,
+        tipo_mime="application/pdf",
+        dimensione_bytes=len(pdf_bytes),
+        descrizione="Libretto formativo (curriculum) generato dal portale",
+        oggetto_riferimento_tipo=RIFERIMENTO_LIBRETTO,
+        oggetto_riferimento_id=legacy_id,
+        created_by=actor,
+        created_by_display=display,
+    )
+    doc.file.save(filename, ContentFile(pdf_bytes), save=False)
+    doc.save()
+    return doc
 
 
 # ---------------------------------------------------------------------------

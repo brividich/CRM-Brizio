@@ -43,7 +43,13 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       </p>
     </div>
     {% if is_editor %}
-    <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <form method="post" action="{% url 'anagrafica:formazione_sessione_attestati' sessione.pk %}" style="margin:0;"
+            onsubmit="return confirm('Generare e archiviare nel box documenti gli attestati di tutti i completati di questa sessione?');">
+        {% csrf_token %}
+        <button type="submit" class="hr-btn hr-btn-ghost"
+                title="Genera e archivia gli attestati di tutti i partecipanti completati">🏅 Attestati completati</button>
+      </form>
       <button class="hr-btn hr-btn-primary"
               onclick="togglePanel('panel-add-iscritto')">+ Aggiungi iscritto</button>
     </div>

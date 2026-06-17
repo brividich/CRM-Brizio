@@ -79,6 +79,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Archiviazione notturna degli attestati mancanti nel box documenti del
+        # dipendente. No-op se il salvataggio automatico è disattivato (opt-in da
+        # Impostazioni → Template attestato), quindi sicuro da tenere sempre attivo.
+        "name": "archivia_attestati_mancanti",
+        "func": "anagrafica.tasks.run_archivia_attestati_mancanti",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 2 * * *",       # ogni notte alle 02:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
         # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
         "name": "cleanup_run_logs",

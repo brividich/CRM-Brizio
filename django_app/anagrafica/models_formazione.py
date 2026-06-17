@@ -164,6 +164,27 @@ class AttestatoFormazioneConfig(models.Model):
         return obj
 
 
+class AttestatoProtocolloCounter(models.Model):
+    """Contatore progressivo annuale del numero di protocollo degli attestati.
+
+    Una riga per anno; ``ultimo`` è l'ultimo numero assegnato. L'allocazione del
+    prossimo numero avviene in transazione con ``select_for_update`` per essere
+    sicura in concorrenza (vedi ``services.attestato_pdf.assegna_numero_protocollo``).
+    """
+
+    PREFISSO = "ATT"
+
+    anno   = models.PositiveSmallIntegerField(unique=True, db_index=True)
+    ultimo = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Contatore protocollo attestati"
+        verbose_name_plural = "Contatori protocollo attestati"
+
+    def __str__(self) -> str:
+        return f"{self.PREFISSO}-{self.anno}: {self.ultimo}"
+
+
 # ─────────────────────────────────────────────────────────────
 # PIANO FORMATIVO
 # ─────────────────────────────────────────────────────────────
@@ -783,6 +804,12 @@ class TrainingEmployeeRecord(models.Model):
     validato_il = models.DateField(null=True, blank=True)
     note        = models.TextField(blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
+
+    # Numero di protocollo dell'attestato (progressivo per anno, es. ATT-2026-0001).
+    # Assegnato in modo lazy alla prima emissione/archiviazione dell'attestato e poi
+    # stabile (vedi services.attestato_pdf.assegna_numero_protocollo). Vuoto = non
+    # ancora emesso.
+    numero_protocollo = models.CharField(max_length=20, blank=True, default="", db_index=True)
 
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.

@@ -24,8 +24,10 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
     # Stampa scheda dipendente completa (anagrafica civile + aziendale + dati bancari)
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
-    # Libretto formativo stampabile (storico corsi + obblighi correnti)
+    # Libretto formativo stampabile (storico corsi + obblighi correnti); ?formato=pdf per il PDF
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
+    # Salva (manualmente) il libretto formativo PDF nel box documenti del dipendente
+    path("dipendenti/<int:legacy_id>/libretto-formativo/salva-box", views.libretto_salva_box, name="libretto_salva_box"),
     # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
     path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
     # Salva (manualmente) l'attestato PDF nel box documenti del dipendente
@@ -34,6 +36,8 @@ urlpatterns = [
     path("formazione/attestato-impostazioni/", views.attestato_impostazioni, name="attestato_impostazioni"),
     # Export CSV dell'archivio attestati salvati
     path("formazione/attestato-report-export/", views.attestato_report_export, name="attestato_report_export"),
+    # Genera e archivia in blocco gli attestati di tutti i completati di una sessione
+    path("formazione/sessioni/<int:sessione_id>/attestati/", views.formazione_sessione_attestati, name="formazione_sessione_attestati"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),

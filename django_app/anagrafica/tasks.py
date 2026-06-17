@@ -27,3 +27,41 @@ def run_idoneita_digest(only_ko: bool = False) -> dict:
     except Exception:
         logger.exception("run_idoneita_digest: eccezione inattesa")
         raise
+
+
+def run_archivia_attestati_mancanti(limit: int = 500) -> dict:
+    """Archivia nel box documenti gli attestati mancanti per i completamenti.
+
+    Tiene allineato l'archivio anche se un auto-save a fine corso è fallito o se
+    l'archiviazione automatica è stata attivata dopo che c'erano già completamenti.
+
+    **Opt-in / fail-safe**: no-op se il salvataggio automatico è disattivato
+    (`AttestatoFormazioneConfig.auto_salva_attestato`), coerente con le
+    impostazioni; un errore sul singolo record non blocca gli altri.
+    """
+    from anagrafica.models import DocumentoDipendente
+    from anagrafica.models_formazione import AttestatoFormazioneConfig, TrainingEmployeeRecord
+    from anagrafica.services.attestato_pdf import RIFERIMENTO_TIPO, archivia_attestato
+
+    cfg = AttestatoFormazioneConfig.get_instance()
+    if not cfg.auto_salva_attestato:
+        return {"ok": True, "skipped": "auto_salva_attestato disattivato", "archiviati": 0}
+
+    gia_archiviati = DocumentoDipendente.objects.filter(
+        oggetto_riferimento_tipo=RIFERIMENTO_TIPO
+    ).values_list("oggetto_riferimento_id", flat=True)
+    mancanti = list(
+        TrainingEmployeeRecord.objects.exclude(pk__in=gia_archiviati)
+        .order_by("-data_completamento", "-id")[:limit]
+    )
+
+    ok = err = 0
+    for rec in mancanti:
+        try:
+            archivia_attestato(rec, cfg=cfg, user=None)
+            ok += 1
+        except Exception:
+            err += 1
+            logger.exception("run_archivia_attestati_mancanti: errore record %s", rec.pk)
+
+    return {"ok": True, "archiviati": ok, "errori": err, "residui": len(mancanti) >= limit}
