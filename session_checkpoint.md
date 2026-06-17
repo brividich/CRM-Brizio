@@ -1,8 +1,114 @@
 # Session Checkpoint
 
-Data: 2026-06-15
+Data: 2026-06-17
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-17 - Codex` (Admin Portale/Core: gestione template PDF condiviso)
+- `django_app/core/pdf.py` -> `PdfTheme.from_branding()` legge le nuove chiavi `SiteConfig` `pdf_template_*` per logo PDF, colori primario/accento, testo footer, visibilita data/ora e numerazione pagina; fallback al branding portale quando i valori PDF sono vuoti.
+- `django_app/admin_portale/views.py` -> aggiunti helper di validazione/upload logo PDF (PNG/JPG in `media/pdf_template/`), view GET `pdf_template_config`, GET `pdf_template_preview` per PDF dimostrativo inline e POST `api_pdf_template_config_save` con audit `pdf_template_config_save`.
+- `django_app/admin_portale/urls.py` -> aggiunte route interne `pdf-template/`, `pdf-template/preview/` e `api/pdf-template/save`.
+- `django_app/admin_portale/templates/admin_portale/pages/pdf_template_config.html` -> nuova pagina admin con form, mini anteprima del template PDF e pulsanti **Anteprima PDF / Apri PDF**.
+- `django_app/admin_portale/templates/admin_portale/pages/index.html` -> sezione Configurazione aggiornata a 3 strumenti con card `Template PDF`.
+- `django_app/admin_portale/tests.py` -> aggiunta suite `AdminPortalePdfTemplateConfigTests` su render, salvataggio `SiteConfig`, anteprima PDF e applicazione al tema PDF.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la gestione del template PDF da `/admin-portale/pdf-template/` e la preview reale da `/admin-portale/pdf-template/preview/`.
+- Test/check: parsing in memoria OK su Python toccati (`utf-8-sig` per `views.py`); primo `py_compile` non usato per `Accesso negato` su `django_app/admin_portale/__pycache__`; primo test preview fallito per import `HttpResponse` mancante, corretto; `python -B django_app\manage.py test admin_portale.tests.AdminPortalePdfTemplateConfigTests --settings=config.settings.test --verbosity 1 --keepdb` OK; `python -B django_app\manage.py check --settings=config.settings.test` OK.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato. Sono stati modificati `django_app/core/pdf.py` e file `admin_portale` su richiesta esplicita dell'utente; aggiunte route interne al namespace admin_portale, nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Assets: deep-link KPI hub/report verso registri filtrati)
+- `django_app/assets/views.py` -> aggiunto `_workorder_list_page_url`; hub manutenzione passa URL OdL aperti/in ritardo/chiusi e tab scadenzario; report dashboard passa URL OdL aperti, aperti oltre 30 giorni, chiusi, scadenzario due/missing e URL OdL per righe budget categoria.
+- `django_app/assets/templates/assets/pages/maintenance_hub.html` -> KPI superiori trasformati in link operativi verso OdL/scadenzario/prossime manutenzioni; card `Interventi aperti` punta agli OdL aperti filtrati.
+- `django_app/assets/templates/assets/pages/reports_dashboard.html` -> KPI report linkati a scadenzario/registro OdL; tabella Budget vs actual con colonna `Registro` per aprire OdL della categoria.
+- `django_app/assets/templates/assets/pages/workorder_list.html` -> filtro `Aperti da almeno` include `21 giorni`, coerente con la soglia hub degli aperti in ritardo.
+- `django_app/assets/tests.py` -> estese regressioni su link dashboard report, hub manutenzione e chip/filtro 21 giorni lista OdL.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentati KPI e budget come scorciatoie verso liste filtrate.
+- Test/check: test mirato report OK; test mirati hub/lista OdL OK; template load sui tre template OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK; smoke HTTP `/assets/reports/?scope=production` OK fino a `302` login con `next`; Playwright diretto non completato per backend/browser chiuso.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; nessuna modifica a dati, ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Assets: azioni contestuali subnav e chip filtri registro OdL)
+- `django_app/assets/views.py` -> `_assets_section_nav` espone azioni rapide `Nuovo intervento`, `Esporta OdL`, `Impostazioni`; aggiunti helper `_workorder_list_filter_remove_url` e `_workorder_list_filter_chips` per generare chip filtri rimovibili nella lista OdL.
+- `django_app/assets/templates/assets/base_shell.html` -> la sotto-nav manutenzione renderizza anche le azioni contestuali accanto ai tab, con stili light/dark e comportamento responsive.
+- `django_app/assets/templates/assets/pages/workorder_list.html` -> auto-apertura dialog da `?create=1` / `?export=1`; riepilogo filtri attivi con chip rimovibili e link `Rimuovi tutti`.
+- `django_app/assets/tests.py` -> estese regressioni `test_maintenance_pages_share_section_navigation` e `test_workorder_list_filters_show_operational_columns` per azioni subnav, auto-dialog e chip filtri.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentate azioni rapide manutenzione e chip filtri OdL.
+- Test/check: `python -B django_app\manage.py test assets.tests.AssetsRoutingTests.test_maintenance_pages_share_section_navigation assets.tests.WorkOrderFlowTests.test_workorder_list_filters_show_operational_columns --settings=config.settings.test --verbosity 1 --keepdb` OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK; smoke HTTP su `/assets/workorders/?status=DONE&origin=PERIODIC&coverage=covered&q=Tagliando` OK fino a `302` login; Playwright su `/assets/workorders/?create=1` OK fino a redirect login con `next`.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; `base_shell.html` tocca navigazione locale Assets come richiesto; nessuna modifica a dati, ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Assets: sotto-navigazione manutenzione condivisa)
+- `django_app/assets/views.py` -> aggiunta `_assets_section_nav`, agganciata a `_assets_shell_context`, per generare breadcrumb e tab comuni sulle route manutenzione/scadenzario/OdL/report/template report/impostazioni.
+- `django_app/assets/templates/assets/base_shell.html` -> render opzionale di `assets_section_nav` sotto l'header pagina, con breadcrumb `Assets / Manutenzione / ...` e tab `Da fare`, `Scadenzario`, `Interventi`, `Report`, `Template report`, `Impostazioni`; stili light/dark e responsive.
+- `django_app/assets/tests.py` -> regressione `test_maintenance_pages_share_section_navigation` su hub manutenzione, scadenzario, lista OdL e gestione template report; conferma link e stato attivo.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la sotto-navigazione condivisa.
+- Test/check: `python -B django_app\manage.py test assets.tests.AssetsRoutingTests.test_maintenance_pages_share_section_navigation assets.tests.AssetsRoutingTests.test_superuser_can_access_report_template_admin_page --settings=config.settings.test --verbosity 1 --keepdb` OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK; runserver locale avviato su `http://127.0.0.1:8000/`; smoke HTTP su `/assets/manutenzione/` OK fino a `302` login; apertura Playwright non completata per backend browser chiuso.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; nessuna modifica a dati, ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Assets: gestione template report, form centrato)
+- `django_app/assets/templates/assets/pages/report_template_admin.html` -> i form di `/assets/reports/manage/` sono ora centrati in `rta-form-stack` (max 920px), dentro pagina max 1180px; card form dedicate, griglia a due colonne e lista report separata sotto.
+- `django_app/assets/tests.py` -> regressione `test_superuser_can_access_report_template_admin_page` estesa per verificare classi e vincoli di centratura del form report.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la correzione UX della gestione template report.
+- Test/check: `python -B django_app\manage.py test assets.tests.AssetsRoutingTests.test_superuser_can_access_report_template_admin_page --settings=config.settings.test --verbosity 1 --keepdb` OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK; Playwright su `http://127.0.0.1:8000/assets/reports/manage/` verificato fino a redirect `/login/?next=%2Fassets%2Freports%2Fmanage%2F`.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; nessuna modifica a dati, ACL, middleware, settings, autenticazione, permessi, URL, routing globale o navigazione globale; nessun backup creato; README non aggiornato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Assets: manutenzione operativa e registro OdL consultabile)
+- `django_app/assets/forms.py` -> `WorkOrderCloseForm` espone costi manodopera/materiali/totale in chiusura OdL.
+- `django_app/assets/models.py` -> `WorkOrder.close()` persiste anche `assigned_to`/`executed_by` quando la view li valorizza prima della chiusura.
+- `django_app/assets/views.py` -> hub manutenzione arricchito con regole effettive critiche; lista/export workorders filtrabili per stato/tipo/origine/copertura/reparto/categoria/responsabile/anzianita; chiusura OdL con costi e allegati finali.
+- `django_app/assets/templates/assets/pages/maintenance_hub.html` -> KPI `Regole manut.` e card `Regole manutenzione critiche` con azioni dirette.
+- `django_app/assets/templates/assets/pages/workorder_list.html` -> registro interventi tabellare con filtri operativi, copertura, tempi e costi.
+- `django_app/assets/templates/assets/pages/workorder_close.html` -> form multipart con costi e allegati di chiusura.
+- `django_app/assets/templates/assets/pages/workorder_detail.html` -> sidebar con costo registrato.
+- `django_app/assets/tests.py` -> regressioni per chiusura con costi/allegato/responsabili, lista filtrata, export filtrato e hub regole critiche.
+- `README.md`, `django_app/assets/README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la consultazione manutenzione/registro OdL.
+- Test/check: parsing AST in memoria OK sui file Python assets toccati; `python -B django_app\manage.py test assets.tests.WorkOrderFlowTests.test_close_workorder_records_costs_assignee_and_attachments assets.tests.WorkOrderFlowTests.test_workorder_list_filters_show_operational_columns assets.tests.WorkOrderFlowTests.test_workorder_export_uses_filtered_scope_and_operational_columns assets.tests.WorkOrderFlowTests.test_maintenance_hub_shows_critical_rule_rows --settings=config.settings.test --verbosity 1 --keepdb` OK; regressioni contatori/chiusura OK (3 test); `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK; Playwright locale su `/assets/manutenzione/` arrivato al login per assenza di sessione autenticata.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-16 - Codex` (Core/Assets: template grafico PDF condiviso)
+- `django_app/core/pdf.py` -> aggiunti helper canvas `draw_canvas_header` e `draw_canvas_footer`, riusati da `header_footer_callback`, per centralizzare header/footer standard anche nei PDF ReportLab non-Platypus.
+- `django_app/assets/views.py` -> export PDF tabellari Assets spostati su `PdfTheme`, `make_document`, `header_footer_callback` e `data_table`; report PDF scheda asset e report mensile manutenzioni macchine passano da header/footer/palette hardcodati a tema/header/footer condivisi.
+- `django_app/assets/tests.py` -> aggiunta regressione `test_asset_list_export_pdf_returns_shared_template_pdf`.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentato il template PDF condiviso.
+- Test/check: parsing in memoria OK su `django_app/core/pdf.py` e `django_app/assets/views.py`; primo `py_compile` non usato per `Accesso negato` su `django_app/assets/__pycache__`; test mirati PDF Assets OK (4 test); `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` sui file toccati OK.
+- Note: `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti nella workspace; nessun file critico elencato modificato; `django_app/core/pdf.py` e' area core modificata su richiesta esplicita per centralizzare la grafica PDF; nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; nessun backup creato; workspace gia' sporca con modifiche preesistenti non correlate.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (Assets: UI form nuovo intervento da lista OdL)
+- `django_app/assets/maintenance.py` -> aggiunta sorgente `workorder_list` con label `Lista interventi`, cosi il form non ricade piu su `Apertura manuale`.
+- `django_app/assets/views.py` -> `workorder_create` passa `workorder_back_url`/`workorder_back_label`: da `source=workorder_list` torna a `/assets/workorders/`, altrimenti alla scheda asset.
+- `django_app/assets/templates/assets/pages/workorder_form.html` -> UI resa da data-entry compatta: la search/topbar della shell viene nascosta su questa pagina, header modulo ridotto, niente hero/card contesto grandi, sola striscia asset bassa, layout a due colonne fino a 1180px con dati principali a sinistra e note/allegati a destra, checkbox copertura piu compatto, Annulla coerente con origine.
+- `django_app/assets/tests.py` -> aggiunta regressione `test_workorder_create_from_list_uses_compact_ui_and_back_link`.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la rifinitura UI del form OdL.
+- Test/check: `test_workorder_create_from_list_uses_compact_ui_and_back_link` OK; template load `workorder_form.html` e `workorder_list.html` OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` sui file toccati OK; `rg` conferma assenza dei vecchi blocchi larghi (`wof-hero`, `wof-side-card`, `wof-backlink`), del font display, dell'icona allegato emoji e della precedente larghezza stretta, e presenza di `max-width: 1180px` con sezioni `wof-section--main`, `wof-section--notes`, `wof-section--attachments`. Fallback Playwright su `http://10.0.0.79:8000/assets/workorders/new/307/?source=workorder_list` arrivato al login per assenza di sessione autenticata nel tool.
+- Note: nessun file critico modificato; nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; nessun backup creato; README non aggiornato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (Assets: nuovo intervento dalla lista workorders)
+- `django_app/assets/templates/assets/pages/workorder_list.html` -> aggiunto pulsante `+ Nuovo intervento` nella toolbar di `/assets/workorders/` con dialog centrale, backdrop, lista asset selezionabile e ricerca live per tag/nome/reparto.
+- `django_app/assets/views.py` -> `workorder_create` accetta `asset=<id>` sulla route globale `/assets/workorders/new/` e reindirizza al form esistente `/assets/workorders/new/<id>/`, preservando parametri come `kind` e aggiungendo `source=workorder_list` se mancante; `workorder_list` passa gli asset non dismessi al selector.
+- `django_app/assets/tests.py` -> aggiunte regressioni per presenza CTA/dialog ricercabile e redirect del form globale verso l'asset selezionato.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la creazione OdL dalla lista interventi.
+- Test/check: test mirati WorkOrderFlowTests OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; template load `assets/pages/workorder_list.html` OK; `git diff --check` sui file toccati OK. Dopo la rifinitura del dialog centrale con ricerca, test/check rilanciati OK. Primo lancio test parallelo interrotto da timeout durante setup DB, poi rilancio singolo OK.
+- Note: nessun file critico modificato; nessuna modifica a ACL, middleware, settings, autenticazione, permessi, routing globale o navigazione globale; nessun backup creato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (Assets: sidebar categorie con active match esatto)
+- `django_app/assets/views.py` -> `_is_sidebar_button_active` ora confronta gli `active_match` query string (`asset_category=<id>`, `asset_type=<code>`) sui parametri `request.GET`, evitando falsi positivi per ID prefisso come `60` vs `608`.
+- `django_app/assets/templates/assets/base_shell.html`, `django_app/assets/templates/assets/pages/asset_list.html` -> rimossa la persistenza `localStorage` dei gruppi sidebar aperti; shell Assets e inventario cancellano la vecchia chiave `assets_sidebar_open_groups_v1` e usano comportamento accordion, evitando gruppi accumulati dopo navigazioni tipo `/assets/workorders/`.
+- `django_app/assets/tests.py` -> aggiunta regressione `test_asset_sidebar_category_active_match_is_exact` sul caso `CMM > Controllo` (`608`) e `Costruzioni Novicrom > Bls d` (`60`); aggiornato il test template sidebar per verificare inventario + shell senza `localStorage.setItem(storageKey)`.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la fix sidebar categorie.
+- Test/check: test mirati sidebar/template OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK.
+- Note: nessun file critico modificato; nessun rebuild sidebar richiesto; README non aggiornato perche' non cambiano URL/setup/dipendenze.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (Assets: reportistica manutenzione con PM compliance e budget vs actual)
+- `django_app/assets/services/maintenance_kpi.py` -> nuovo servizio read-only `build_maintenance_report_kpis` che aggrega scadenzario manutentivo e costi OdL chiusi dell'anno corrente per calcolare PM compliance e budget/actual per categoria.
+- `django_app/assets/views.py`, `django_app/assets/templates/assets/pages/reports_dashboard.html` -> `/assets/reports/` espone KPI PM compliance, budget usato e tabella Budget vs actual con stati in linea/attenzione/oltre budget/budget mancante nello scope report selezionato.
+- `django_app/assets/tests.py` -> aggiunta regressione sulla dashboard report per valori PM compliance e budget/actual.
+- `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la nuova reportistica manutenzione.
+- Test/check: test mirati report Assets OK; `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK. Primo lancio parallelo dei test in timeout lato shell, rilancio singolo OK.
+- Note: nessun file critico modificato; i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non sono presenti nella workspace; nessun backup creato.
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (Assets: manutenzioni a contatore con baseline OdL corretta)
+- `django_app/assets/models.py`, `django_app/assets/maintenance.py` -> la chiusura/sincronizzazione degli OdL collegati a regole `HOURS/KM/CYCLES` salva automaticamente `meter_value_at_close` dal relativo `AssetMeter`, cosi scadenzario e generatore ripartono dal contatore dell'ultimo intervento.
+- `django_app/assets/tests.py` -> aggiunte regressioni su chiusura OdL a contatore e registrazione esecuzione dallo scadenzario.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md` -> documentata la fix Assets manutenzioni a contatore.
+- Test/check: test mirati nuovi OK; `AssetMeterScheduleTests` OK; flusso manutenzione/WorkOrder/regole/convergenza periodiche OK (52 test); registro manutenzione unificato/ticket OK (14 test); `python -B django_app\manage.py check assets --settings=config.settings.test` OK; `git diff --check` OK.
+- Note: nessun file critico modificato; i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non sono presenti nella workspace; nessun backup creato; README non aggiornato.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-06-15 - Codex` (repository Git: commit/push su `main` e guardie `.gitignore`)
 - `.gitignore` -> aggiunte regole per ignorare `.tmp_export/`, `.tmp_timbri_commit/` e `/prod`, cosi export CSV temporanei, scratch di commit e marker locali non finiscono accidentalmente nel repository.

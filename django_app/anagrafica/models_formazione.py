@@ -138,6 +138,14 @@ class TrainingCourse(models.Model):
         on_delete=models.SET_NULL, related_name="corsi",
         help_text="Categoria che lega il corso ai fattori di rischio. Null = nessuna derivazione.",
     )
+    # La qualifica è l'àncora (competency management): un corso RILASCIA/RINNOVA
+    # una qualifica. Così corso, sessioni e completamenti restano collegati alla
+    # qualifica invece di esistere in parallelo. Null = corso non legato a qualifica.
+    qualifica          = models.ForeignKey(
+        "anagrafica.TipoQualifica", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="corsi",
+        help_text="Qualifica/abilitazione rilasciata o rinnovata da questo corso.",
+    )
     codice             = models.CharField(max_length=30, unique=True)
     titolo             = models.CharField(max_length=300)
     descrizione        = models.TextField(blank=True)

@@ -81,6 +81,7 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
 <div class="mn-page">
 
   {% include "anagrafica/components/flash_messages.html" %}
+  {% include "anagrafica/partials/_safety_subnav.html" with active="mansioni" %}
 
   <div class="mn-topbar">
     <div>
@@ -119,11 +120,20 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
               {% endif %}
               <div class="mn-item-meta">
                 <span class="mn-badge mn-badge-gray">{{ m.n_dipendenti }} dip.</span>
+                {% if m.livello_label %}
+                <span class="mn-badge {% if m.livello_rischio == 'A' %}mn-badge-red{% elif m.livello_rischio == 'M' %}mn-badge-orange{% else %}mn-badge-green{% endif %}">⚠ Rischio {{ m.livello_label }}</span>
+                {% endif %}
+                <span class="mn-badge {% if m.n_dpi %}mn-badge-blue{% else %}mn-badge-gray{% endif %}">🦺 {{ m.n_dpi }} DPI</span>
+                <span class="mn-badge {% if m.n_visite %}mn-badge-purple{% else %}mn-badge-gray{% endif %}">🏥 {{ m.n_visite }} visite</span>
               </div>
-              {% if is_admin %}
+              {% if can_view_requisiti or is_admin %}
               <div class="mn-item-actions">
+                {% if can_view_requisiti %}
+                <a class="mn-btn mn-btn-primary mn-btn-sm" href="{% url 'anagrafica:mansione_requisiti' m.id %}">⚙️ Requisiti · DPI · visite</a>
+                {% endif %}
+                {% if is_admin %}
                 <button type="button" class="mn-btn mn-btn-ghost mn-btn-sm"
-                  onclick="openEdit({{ m.id }}, '{{ m.nome|escapejs }}', '{{ m.descrizione|escapejs }}', '{{ m.colore }}', '{{ m.categoria }}', {{ m.is_active|yesno:'true,false' }})">
+                  onclick="openEdit({{ m.id }}, '{{ m.nome|escapejs }}', '{{ m.descrizione|escapejs }}', '{{ m.colore }}', '{{ m.categoria }}', '{{ m.livello_rischio }}', {{ m.is_active|yesno:'true,false' }})">
                   ✏ Modifica
                 </button>
                 {% if m.n_dipendenti == 0 %}
@@ -134,6 +144,7 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
                 </form>
                 {% else %}
                 <span style="font-size:11px;color:#94a3b8;">non eliminabile</span>
+                {% endif %}
                 {% endif %}
               </div>
               {% endif %}
@@ -166,7 +177,7 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
           </div>
           <div class="mn-field">
             <label>Categoria</label>
-            <select class="mn-input" name="categoria">
+            <select class="mn-input" name="categoria" title="Categoria mansione">
               <option value="">— Nessuna categoria —</option>
               {% for val, label in CATEGORIA_CHOICES %}
                 <option value="{{ val }}">{{ label }}</option>
@@ -174,16 +185,26 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
             </select>
           </div>
           <div class="mn-field">
+            <label>Livello di rischio (ASR)</label>
+            <select class="mn-input" name="livello_rischio" title="Livello di rischio formazione ASR">
+              <option value="">— non definito —</option>
+              {% for val, label in LIVELLO_RISCHIO_CHOICES %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mn-field">
             <label>Colore badge</label>
-            <input class="mn-input" type="color" name="colore" value="#1d4ed8" style="height:40px;padding:4px 8px;cursor:pointer;">
+            <input class="mn-input" type="color" name="colore" value="#1d4ed8" title="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;">
           </div>
           <div class="mn-field" style="grid-column:1/-1;">
             <label>Descrizione (opzionale)</label>
             <input class="mn-input" type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
           </div>
         </div>
-        <div style="margin-top:14px;">
+        <div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <button type="submit" class="mn-btn mn-btn-primary">Crea mansione</button>
+          <span style="font-size:12px;color:#94a3b8;">🦺 DPI e 🏥 visite mediche richieste si associano dal pulsante <strong>⚙️ Requisiti</strong> della mansione.</span>
         </div>
       </form>
     </div>
@@ -225,7 +246,7 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
         </div>
         <div class="mn-field">
           <label>Categoria</label>
-          <select class="mn-input" name="categoria" id="edit-categoria">
+          <select class="mn-input" name="categoria" id="edit-categoria" title="Categoria mansione">
             <option value="">— Nessuna categoria —</option>
             {% for val, label in CATEGORIA_CHOICES %}
               <option value="{{ val }}">{{ label }}</option>
@@ -233,8 +254,17 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
           </select>
         </div>
         <div class="mn-field">
+          <label>Livello di rischio (ASR)</label>
+          <select class="mn-input" name="livello_rischio" id="edit-livello" title="Livello di rischio formazione ASR">
+            <option value="">— non definito —</option>
+            {% for val, label in LIVELLO_RISCHIO_CHOICES %}
+              <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mn-field">
           <label>Colore</label>
-          <input class="mn-input" type="color" name="colore" id="edit-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
+          <input class="mn-input" type="color" name="colore" id="edit-colore" title="Colore badge mansione" style="height:40px;padding:4px 8px;cursor:pointer;">
         </div>
         <div class="mn-field" style="grid-column:1/-1;">
           <label>Descrizione</label>
@@ -247,6 +277,10 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
           </label>
         </div>
       </div>
+      <div style="margin-top:4px;font-size:12px;color:#64748b;">
+        🦺 DPI e 🏥 visite mediche richieste si gestiscono in
+        <a id="edit-requisiti-link" href="#" style="color:#1f5c91;font-weight:600;text-decoration:none;">⚙️ Requisiti della mansione</a>.
+      </div>
       <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
         <button type="button" class="mn-btn mn-btn-ghost" onclick="closeEdit()">Annulla</button>
         <button type="submit" class="mn-btn mn-btn-primary">Salva modifiche</button>
@@ -258,13 +292,15 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
 <script>
 const BASE_EDIT_URL = "/anagrafica/mansioni/";
 
-function openEdit(id, nome, desc, colore, categoria, isActive) {
+function openEdit(id, nome, desc, colore, categoria, livello, isActive) {
   document.getElementById('mn-edit-form').action = BASE_EDIT_URL + id + '/modifica';
   document.getElementById('edit-nome').value = nome;
   document.getElementById('edit-desc').value = desc;
   document.getElementById('edit-colore').value = colore;
   document.getElementById('edit-categoria').value = categoria;
+  document.getElementById('edit-livello').value = livello || '';
   document.getElementById('edit-active').checked = isActive;
+  document.getElementById('edit-requisiti-link').href = BASE_EDIT_URL + id + '/requisiti';
   document.getElementById('mn-modal').classList.add('open');
 }
 function closeEdit() {

@@ -13,11 +13,13 @@
 {% block content %}
 <div class="hr-shell">
 
+  {% include "anagrafica/partials/_safety_subnav.html" with active="fattori" %}
+
   <div class="hr-pagehead">
     <div>
       <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
-        &rsaquo; Safety &rsaquo; Fattori di Rischio
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-crumb">Salute e Sicurezza</a>
+        <span class="fm-crumb-sep">›</span> Fattori di Rischio
       </div>
       <h2 class="hr-pagehead-title">⚠️ Fattori di Rischio</h2>
       <p class="hr-pagehead-desc">
@@ -27,7 +29,7 @@
     </div>
     {% if is_editor %}
     <div>
-      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-fattore').style.display='flex'">
+      <button class="hr-btn hr-btn-primary" onclick="document.getElementById('modal-crea-fattore').classList.add('open')">
         + Nuovo fattore
       </button>
     </div>
@@ -80,7 +82,7 @@
             <td class="nowrap">
               {% if is_editor %}
               <button class="hr-btn hr-btn-sm"
-                      onclick="openFattoreEdit({{ f.pk }}, '{{ f.codice|escapejs }}', '{{ f.nome|escapejs }}', '{{ f.categoria }}', '{{ f.descrizione|escapejs }}', {{ f.periodicita_formazione_mesi }}, {{ f.periodicita_sorveglianza_mesi }}, {{ f.richiede_formazione|yesno:'true,false' }}, {{ f.richiede_visita_medica|yesno:'true,false' }}, {{ f.richiede_dpi|yesno:'true,false' }}, {{ f.is_active|yesno:'true,false' }}, '{{ f.note|escapejs }}')">
+                      onclick="openFattoreEdit({{ f.pk }}, '{{ f.codice|escapejs }}', '{{ f.nome|escapejs }}', '{{ f.categoria }}', '{{ f.descrizione|escapejs }}', {{ f.periodicita_formazione_mesi }}, {{ f.periodicita_sorveglianza_mesi }}, {{ f.richiede_formazione|yesno:'true,false' }}, {{ f.richiede_visita_medica|yesno:'true,false' }}, {{ f.richiede_dpi|yesno:'true,false' }}, {{ f.is_active|yesno:'true,false' }}, '{{ f.note|escapejs }}', {{ f.sel_visite_ids }}, {{ f.sel_dpi_ids }})">
                 Modifica
               </button>
               <form method="post" action="{% url 'anagrafica:fattore_rischio_delete' f.pk %}"
@@ -99,7 +101,7 @@
     {% else %}
     <div class="fm-empty" style="text-align:center;padding:32px;">
       Nessun fattore di rischio in catalogo.
-      {% if is_editor %}<br><a href="#" onclick="document.getElementById('modal-crea-fattore').style.display='flex'">Aggiungi il primo</a>.{% endif %}
+      {% if is_editor %}<br><a href="#" onclick="document.getElementById('modal-crea-fattore').classList.add('open')">Aggiungi il primo</a>.{% endif %}
     </div>
     {% endif %}
   </div>
@@ -108,34 +110,62 @@
 
 {# ── Modal crea ─────────────────────────────────────────────────────────── #}
 {% if is_editor %}
-<div id="modal-crea-fattore" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <strong style="font-size:15px;">Nuovo fattore di rischio</strong>
-      <button type="button" onclick="document.getElementById('modal-crea-fattore').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+<div id="modal-crea-fattore" class="fm-modal">
+  <div class="fm-modal-card">
+    <div class="fm-modal-head">
+      <strong>⚠️ Nuovo fattore di rischio</strong>
+      <button type="button" class="fm-modal-x" onclick="document.getElementById('modal-crea-fattore').classList.remove('open')">×</button>
     </div>
     <form method="post" action="{% url 'anagrafica:fattore_rischio_create' %}">
       {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
-      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-fattore').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+      <div class="fm-modal-body">
+        <div class="fm-form-section-lbl">Dati fattore</div>
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field"><label>Codice <span class="fm-req">*</span></label>{{ form.codice }}</div>
+          <div class="fm-form-field"><label>Categoria <span class="fm-req">*</span></label>{{ form.categoria }}</div>
+        </div>
+        <div class="fm-form-field"><label>Nome <span class="fm-req">*</span></label>{{ form.nome }}</div>
+        <div class="fm-form-field"><label>Descrizione</label>{{ form.descrizione }}</div>
+
+        <div class="fm-form-section-lbl">Periodicità e obblighi</div>
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field"><label>Periodicità formazione (mesi)</label>{{ form.periodicita_formazione_mesi }}</div>
+          <div class="fm-form-field"><label>Periodicità sorveglianza (mesi)</label>{{ form.periodicita_sorveglianza_mesi }}</div>
+        </div>
+        <div class="fm-form-checks-row">
+          <label class="fm-form-check">{{ form.richiede_formazione }} <span>Richiede formazione</span></label>
+          <label class="fm-form-check">{{ form.richiede_visita_medica }} <span>Richiede visita medica</span></label>
+          <label class="fm-form-check">{{ form.richiede_dpi }} <span>Richiede DPI</span></label>
+        </div>
+
+        <div class="fm-form-section-lbl">Requisiti generati (ereditati dalle mansioni esposte)</div>
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field"><label>🏥 Visite generate</label>{{ form.tipi_visita }}</div>
+          <div class="fm-form-field"><label>🦺 DPI generati</label>{{ form.categorie_dpi }}</div>
+        </div>
+
+        <div class="fm-form-field"><label>Note</label>{{ form.note }}</div>
+        <label class="fm-form-check">{{ form.is_active }} <span>Attivo</span></label>
+      </div>
+      <div class="fm-modal-foot">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-crea-fattore').classList.remove('open')">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Crea fattore</button>
       </div>
     </form>
   </div>
 </div>
 
-<div id="modal-edit-fattore" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <strong style="font-size:15px;">Modifica fattore</strong>
-      <button type="button" onclick="document.getElementById('modal-edit-fattore').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+<div id="modal-edit-fattore" class="fm-modal">
+  <div class="fm-modal-card">
+    <div class="fm-modal-head">
+      <strong>⚠️ Modifica fattore</strong>
+      <button type="button" class="fm-modal-x" onclick="document.getElementById('modal-edit-fattore').classList.remove('open')">×</button>
     </div>
     <form id="form-edit-fattore" method="post" action="">
       {% csrf_token %}
-      <div id="edit-fattore-fields"></div>
-      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;">
-        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-fattore').style.display='none'">Annulla</button>
+      <div class="fm-modal-body"><div id="edit-fattore-fields"></div></div>
+      <div class="fm-modal-foot">
+        <button type="button" class="hr-btn hr-btn-ghost" onclick="document.getElementById('modal-edit-fattore').classList.remove('open')">Annulla</button>
         <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
       </div>
     </form>
@@ -144,7 +174,14 @@
 
 <script>
 const CAT_OPTS = [{% for c, l in CATEGORIA_CHOICES %}["{{ c }}","{{ l|escapejs }}"]{% if not forloop.last %},{% endif %}{% endfor %}];
-function openFattoreEdit(pk, codice, nome, categoria, descrizione, periodForm, periodSorv, reqForm, reqMed, reqDpi, isActive, note) {
+const VIS_OPTS = [{% for o in visite_opts %}{ id:{{ o.id }}, nome:'{{ o.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}];
+const DPI_OPTS = [{% for o in dpi_opts %}{ id:{{ o.id }}, nome:'{{ o.nome|escapejs }}' }{% if not forloop.last %},{% endif %}{% endfor %}];
+function multiSel(name, opts, selected) {
+  const sel = new Set(selected || []);
+  const o = opts.map(x => `<option value="${x.id}"${sel.has(x.id)?' selected':''}>${x.nome}</option>`).join('');
+  return `<select name="${name}" class="fm-input fm-select" multiple size="5">${o}</select>`;
+}
+function openFattoreEdit(pk, codice, nome, categoria, descrizione, periodForm, periodSorv, reqForm, reqMed, reqDpi, isActive, note, selVis, selDpi) {
   document.getElementById('form-edit-fattore').action = `/anagrafica/formazione/rischi/fattori/${pk}/modifica`;
   const catSel = CAT_OPTS.map(o => `<option value="${o[0]}"${o[0]===categoria?' selected':''}>${o[1]}</option>`).join('');
   document.getElementById('edit-fattore-fields').innerHTML = `
@@ -163,10 +200,14 @@ function openFattoreEdit(pk, codice, nome, categoria, descrizione, periodForm, p
       <label class="fm-form-check"><input type="checkbox" name="richiede_visita_medica"${reqMed?' checked':''}> <span>Richiede visita medica</span></label>
       <label class="fm-form-check"><input type="checkbox" name="richiede_dpi"${reqDpi?' checked':''}> <span>Richiede DPI</span></label>
     </div>
+    <div class="fm-form-grid-2">
+      <div class="fm-form-field"><label>Visite generate dal fattore</label>${multiSel('tipi_visita', VIS_OPTS, selVis)}</div>
+      <div class="fm-form-field"><label>DPI generati dal fattore</label>${multiSel('categorie_dpi', DPI_OPTS, selDpi)}</div>
+    </div>
     <div class="fm-form-field"><label>Note</label><textarea name="note" class="fm-input" rows="2">${note}</textarea></div>
     <label class="fm-form-check"><input type="checkbox" name="is_active"${isActive?' checked':''}> <span>Attivo</span></label>
   `;
-  document.getElementById('modal-edit-fattore').style.display = 'flex';
+  document.getElementById('modal-edit-fattore').classList.add('open');
 }
 </script>
 {% endif %}

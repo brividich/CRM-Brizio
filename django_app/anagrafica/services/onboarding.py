@@ -12,13 +12,17 @@ task non completati si chiude comunque, ma in stato ``CHIUSA_CON_ECCEZIONI``.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Iterable
 
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from . import mansionario
 from ..models import OnboardingOffboardingCampo, OnboardingPratica, OnboardingTask
+
+logger = logging.getLogger(__name__)
 
 
 # Task standard sempre creati. Le descrizioni di DPI e formazione vengono
@@ -174,20 +178,41 @@ def task_definitions(
     reparto: str = "",
     ruolo_ids: Iterable[int] | None = None,
 ) -> list[dict[str, Any]]:
-    """Lista (dict) dei task da creare per una pratica onboarding."""
+    """Lista (dict) dei task da creare per una pratica onboarding.
+
+    I requisiti DPI/formazione/visite sono derivati dalla "mansione di rischio"
+    (``services.mansionario``); se la mansione non è a catalogo si ricade sui
+    fallback legacy (flag globale DPI, regole di obbligatorietà formativa).
+    """
     tasks = [dict(t) for t in TASK_BASE]
     by_code = {t["codice"]: t for t in tasks}
 
-    categorie_dpi = _categorie_dpi_obbligatorie()
+    requisiti = (
+        mansionario.requisiti_per_nome_mansione(mansione)
+        if mansione else mansionario.requisiti_vuoti()
+    )
+
+    # DPI: categorie dalla mansione di rischio, fallback al flag globale.
+    categorie_dpi = [c.nome for c in requisiti["dpi"]] or _categorie_dpi_obbligatorie()
     if categorie_dpi and "dpi_consegna_iniziale" in by_code:
         by_code["dpi_consegna_iniziale"]["descrizione"] += (
-            " Categorie obbligatorie da mansionario: " + ", ".join(categorie_dpi) + "."
+            " Categorie obbligatorie per la mansione: " + ", ".join(categorie_dpi) + "."
         )
 
-    corsi = _corsi_obbligatori(legacy_id, mansione, reparto, ruolo_ids)
+    # Formazione: corsi/piani dalla mansione di rischio, fallback alle regole.
+    corsi = [c.titolo for c in requisiti["corsi"]] + [f"Piano: {p.nome}" for p in requisiti["piani"]]
+    if not corsi:
+        corsi = _corsi_obbligatori(legacy_id, mansione, reparto, ruolo_ids)
     if corsi and "formazione_corsi_obbligatori" in by_code:
         by_code["formazione_corsi_obbligatori"]["descrizione"] += (
             " Corsi obbligatori applicabili: " + ", ".join(corsi) + "."
+        )
+
+    # Visite mediche richieste dalla mansione di rischio.
+    visite = [v.nome for v in requisiti["visite"]]
+    if visite and "visita_preassuntiva" in by_code:
+        by_code["visita_preassuntiva"]["descrizione"] += (
+            " Visite previste per la mansione: " + ", ".join(visite) + "."
         )
 
     existing = set(by_code)
@@ -219,6 +244,152 @@ def genera_task_pratica(pratica: OnboardingPratica, *, ruolo_ids: Iterable[int] 
     return len(definizioni)
 
 
+def _caporeparto_emails(reparto_nome: str) -> list[str]:
+    """Email di notifica del caporeparto del reparto (CAR), se presente."""
+    if not reparto_nome:
+        return []
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        from ..models import Reparto
+        rep = Reparto.objects.filter(nome__iexact=reparto_nome.strip()).first()
+        if not rep or not rep.caporeparto_legacy_id:
+            return []
+        # NB: in anagrafica_dipendenti `email` è il login legacy → usare email_notifica.
+        email = (
+            AnagraficaDipendente.objects
+            .filter(id=rep.caporeparto_legacy_id)
+            .values_list("email_notifica", flat=True)
+            .first()
+        ) or ""
+        return [email.strip()] if email.strip() else []
+    except Exception:
+        logger.debug("Risoluzione email caporeparto fallita per reparto=%s", reparto_nome, exc_info=True)
+        return []
+
+
+def notifica_assegnazione_mansione_rischio(
+    *,
+    dipendente_nome: str,
+    mansione: str,
+    reparto: str = "",
+    requisiti: dict | None = None,
+) -> None:
+    """All'assegnazione di una mansione con requisiti DPI notifica via email
+    AMM (DPI da distribuire) e CAR/caporeparto (controllo uso effettivo DPI).
+
+    Fail-open: nessuna eccezione propagata (l'onboarding non deve rompersi se
+    la mail non parte). Non invia nulla se la mansione non richiede DPI.
+    """
+    try:
+        from core.email_utils import send_hub_mail
+        from .reminders import get_reminder_recipients
+
+        if requisiti is None:
+            requisiti = (
+                mansionario.requisiti_per_nome_mansione(mansione)
+                if mansione else mansionario.requisiti_vuoti()
+            )
+        categorie = [c.nome for c in requisiti.get("dpi", [])]
+        if not categorie:
+            return  # non è una mansione di rischio (nessun DPI richiesto)
+
+        elenco = ", ".join(categorie)
+        nome = dipendente_nome or "nuovo assunto"
+        rep_txt = f" — reparto {reparto}" if reparto else ""
+
+        amm = get_reminder_recipients("dpi_amm_emails")
+        if amm:
+            send_hub_mail(
+                subject=f"[DPI] Da distribuire — {nome} ({mansione})",
+                body_text=(
+                    f"Assegnata la mansione «{mansione}» a {nome}{rep_txt}.\n\n"
+                    f"DPI da preparare e consegnare: {elenco}."
+                ),
+                recipients=amm,
+                title="DPI da distribuire",
+                email_type="Anagrafica HR",
+                section_label="Onboarding",
+                fail_silently=True,
+            )
+
+        car = _caporeparto_emails(reparto) or get_reminder_recipients("dpi_car_emails")
+        if car:
+            send_hub_mail(
+                subject=f"[DPI] Controllo uso — {nome} ({mansione})",
+                body_text=(
+                    f"{nome} è stato assegnato alla mansione «{mansione}»{rep_txt}.\n\n"
+                    f"Verificare l'uso effettivo dei DPI previsti: {elenco}."
+                ),
+                recipients=car,
+                title="Controllo uso DPI",
+                email_type="Anagrafica HR",
+                section_label="Onboarding",
+                fail_silently=True,
+            )
+    except Exception:
+        logger.warning("Notifica mansione di rischio fallita (mansione=%s)", mansione, exc_info=True)
+
+
+def registra_formazione_pregressa(
+    legacy_id: int,
+    items: Iterable[dict[str, Any]],
+    *,
+    user=None,
+) -> int:
+    """Registra la formazione sicurezza pregressa dichiarata in preinserimento.
+
+    ``items`` = iterabile di ``{"corso_id": int, "data": date}``. Per ogni corso
+    crea un ``TrainingEmployeeRecord`` con gli snapshot storici e marca la
+    scadenza formazione da ricalcolare. Ritorna il numero di record creati.
+    Idempotente: salta i corsi già presenti nello storico del dipendente.
+    """
+    from ..models import _add_months
+    from ..models_formazione import TrainingDeadline, TrainingEmployeeRecord
+
+    items = [it for it in (items or []) if it.get("corso_id") and it.get("data")]
+    if not items:
+        return 0
+
+    creati = 0
+    for it in items:
+        corso_id = int(it["corso_id"])
+        data = it["data"]
+        if TrainingEmployeeRecord.objects.filter(
+            legacy_anagrafica_id=legacy_id, corso_id=corso_id
+        ).exists():
+            continue
+        try:
+            from ..models_formazione import TrainingCourse
+            corso = TrainingCourse.objects.select_related("piano").filter(pk=corso_id).first()
+            if corso is None:
+                continue
+            validita = corso.validita_mesi or 0
+            scad = _add_months(data, validita) if validita > 0 else None
+            TrainingEmployeeRecord.objects.create(
+                corso=corso,
+                legacy_anagrafica_id=legacy_id,
+                data_completamento=data,
+                idoneo=True,
+                data_scadenza=scad,
+                validato_da=user,
+                validato_il=timezone.localdate(),
+                note="Formazione pregressa dichiarata in preinserimento.",
+                course_code_snapshot=corso.codice,
+                course_title_snapshot=corso.titolo,
+                course_version_snapshot=corso.versione,
+                plan_code_snapshot=corso.piano.codice if corso.piano_id else "",
+                plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
+                validity_months_snapshot=validita,
+            )
+            TrainingDeadline.objects.filter(
+                legacy_anagrafica_id=legacy_id, corso_id=corso_id
+            ).update(needs_refresh=True)
+            creati += 1
+        except Exception:
+            logger.warning("Registrazione formazione pregressa fallita (corso=%s)", corso_id, exc_info=True)
+    return creati
+
+
 def avvia_onboarding(
     *,
     legacy_id: int,
@@ -229,8 +400,13 @@ def avvia_onboarding(
     note_hr: str = "",
     user=None,
     ruolo_ids: Iterable[int] | None = None,
+    notifica_dpi: bool = True,
 ) -> OnboardingPratica:
-    """Crea una pratica onboarding con la checklist generata, in transazione."""
+    """Crea una pratica onboarding con la checklist generata, in transazione.
+
+    Se ``notifica_dpi`` e la mansione richiede DPI, invia (fuori transazione)
+    le notifiche ad AMM e al caporeparto (CAR).
+    """
     with transaction.atomic():
         pratica = OnboardingPratica.objects.create(
             legacy_anagrafica_id=legacy_id,
@@ -243,6 +419,10 @@ def avvia_onboarding(
             updated_by=user,
         )
         genera_task_pratica(pratica, ruolo_ids=ruolo_ids)
+    if notifica_dpi:
+        notifica_assegnazione_mansione_rischio(
+            dipendente_nome=dipendente_nome, mansione=mansione, reparto=reparto,
+        )
     return pratica
 
 

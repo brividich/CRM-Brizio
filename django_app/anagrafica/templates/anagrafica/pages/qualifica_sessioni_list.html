@@ -1,0 +1,104 @@
+{% extends "core/base.html" %}
+{% block title %}Sessioni di rinnovo qualifiche | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<style>
+.qs-page { display:flex; flex-direction:column; gap:20px; }
+.qs-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.qs-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.qs-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.qs-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; }
+.qs-btn-primary { background:#12395f; color:#fff; }
+.qs-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.qs-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.qs-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+.qs-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.qs-table { width:100%; border-collapse:collapse; font-size:13px; }
+.qs-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+.qs-table td { padding:11px 16px; border-bottom:1px solid #f8fafc; color:#334155; }
+.qs-table tr:hover td { background:#f8fafc; }
+.qs-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#dbeafe; color:#1e40af; }
+body.theme-dark .qs-title { color:var(--text); }
+body.theme-dark .qs-sub { color:var(--text-light); }
+body.theme-dark .qs-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .qs-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .qs-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="qs-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="qs-topbar">
+    <div>
+      <div class="qs-title">↻ Sessioni di rinnovo qualifiche</div>
+      <div class="qs-sub">Rilascio/rinnovo collettivo di una stessa abilitazione (data + ente + partecipanti), come per i corsi</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifiche_list' %}">&larr; Catalogo qualifiche</a>
+      {% if is_admin %}<a class="qs-btn qs-btn-primary" href="{% url 'anagrafica:qualifica_sessione_create' %}">+ Nuova sessione</a>{% endif %}
+    </div>
+  </div>
+
+  <form method="get" class="qs-card" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Qualifica</label>
+      <select name="tipo" aria-label="Filtra per qualifica" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;min-width:220px;">
+        <option value="">Tutte</option>
+        {% for t in tipi_con_sessioni %}<option value="{{ t.id }}" {% if filtro_tipo == t.id|stringformat:'s' %}selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px;">
+      <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Ricerca (qualifica / ente)</label>
+      <input type="text" name="q" value="{{ q_text }}" placeholder="es. carrellisti, ente…" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;width:100%;box-sizing:border-box;">
+    </div>
+    <button type="submit" class="qs-btn qs-btn-primary">Filtra</button>
+    {% if filtro_tipo or q_text %}<a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">Azzera</a>{% endif %}
+  </form>
+
+  <div class="qs-card">
+    {% if sessioni %}
+    <div style="overflow-x:auto;">
+      <table class="qs-table" data-table-id="anagrafica.qualifiche.sessioni">
+        <thead>
+          <tr>
+            <th>Data</th><th>Qualifica</th><th>Ente</th><th>Partecipanti</th><th>Scadenza</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sessioni %}
+          <tr>
+            <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{{ s.data_conseguimento|date:"d-m-Y" }}</td>
+            <td style="font-weight:600;">
+              <a href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}" style="color:#1f5c91;text-decoration:none;">{{ s.tipo.nome }}</a>
+            </td>
+            <td>{{ s.ente|default:"—" }}</td>
+            <td><span class="qs-badge">{{ s.n_part }}</span></td>
+            <td>{% if s.scadenza_effettiva %}{{ s.scadenza_effettiva|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td style="text-align:right;">
+              <a class="qs-btn qs-btn-ghost qs-btn-sm" href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}">Apri</a>
+              {% if is_admin %}
+              <form method="post" action="{% url 'anagrafica:qualifica_sessione_delete' s.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="qs-btn qs-btn-danger qs-btn-sm" onclick="return confirm('Eliminare la sessione? Le qualifiche dei dipendenti restano.')">🗑</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
+      Nessuna sessione di rinnovo registrata.{% if is_admin %} Usa <strong>+ Nuova sessione</strong> per crearne una.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

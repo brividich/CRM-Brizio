@@ -294,6 +294,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-row-name">{{ m.nome }}</div>
                     <div class="imp-row-meta">
                       {{ m.n_dipendenti|default:0 }} dipendenti
+                      · <a href="{% url 'anagrafica:mansione_requisiti' m.id %}" style="color:#1f5c91;text-decoration:none;font-weight:600;">🎯 Requisiti di rischio</a>
                       {% if not m.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                     </div>
                   </div>

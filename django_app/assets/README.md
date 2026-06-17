@@ -80,6 +80,13 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 - La schermata di gestione include layout selezionabile lato utente (`Compatta`, `Bilanciata`, `Ampia`) memorizzato nel browser.
 - La selezione asset supporta ricerca live per tag/nome e azioni rapide `Seleziona visibili` / `Pulisci`.
 
+## Interventi / Work order
+- Le pagine operative di manutenzione, scadenzario, interventi, report e template report condividono una sotto-navigazione con breadcrumb e tab `Da fare`, `Scadenzario`, `Interventi`, `Report`, `Template report`, `Impostazioni`, piu azioni rapide per `Nuovo intervento`, export OdL e impostazioni, cosi l'utente resta orientato tra consultazione e azioni operative.
+- I KPI dell'hub manutenzione e della dashboard report sono scorciatoie operative: portano a scadenzario, registro OdL aperti/chiusi o liste filtrate; il budget per categoria rimanda al registro OdL gia filtrato sulla categoria.
+- `/assets/manutenzione/` evidenzia nel tab **Da fare** anche le regole manutenzione effettive con stato critico (`overdue`, `warning`, `missing`), calcolate dallo stesso motore di `/assets/manutenzione/prossime/`. Ogni riga porta all'asset, alla creazione OdL o alla baseline della prima esecuzione.
+- `/assets/workorders/` e' il registro consultabile degli interventi: filtri per stato, tipo, origine, copertura contratto, reparto, categoria, assegnato/eseguito da e anzianita apertura; i filtri attivi sono riepilogati in chip rimovibili; tabella con responsabili, copertura, tempi e costi; export XLSX/PDF coerente con i filtri.
+- La chiusura OdL (`/assets/workorders/close/<id>/`) registra durata, fermo, costi manodopera/materiali/totale, assegnato/eseguito da e allegati finali (`close_attachments`) validati come gli altri documenti asset.
+
 ## Assegnazione asset <-> dipendente
 - Da pagina asset (`/assets/assign/<id>/`) puoi assegnare il singolo asset a un dipendente attivo.
 - Da scheda dipendente admin (`/admin-portale/utenti/<id>/`, tab Anagrafica) puoi assegnare in blocco uno o piu asset.

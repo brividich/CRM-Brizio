@@ -298,4 +298,49 @@ body.theme-dark .fm-tbl-menu{background:#0f172a;border-color:#334155;color:#e2e8
 body.theme-dark .fm-tbl-col-item:hover{background:rgba(148,163,184,.08)}
 body.theme-dark .fm-tbl-col-item{color:#cbd5e1}
 body.theme-dark .fm-tbl-count{background:#1e293b;color:#94a3b8}
+
+/* ── Breadcrumb cliccabile ─────────────────────────────────── */
+.hr-pagehead-eyebrow .fm-crumb{color:#1f5c91;font-weight:700;text-decoration:none;border-bottom:1px dotted #94a3b8;padding-bottom:1px}
+.hr-pagehead-eyebrow .fm-crumb:hover{color:#12395f;border-bottom-color:#1f5c91}
+.fm-crumb-sep{color:#cbd5e1;margin:0 3px}
+body.theme-dark .hr-pagehead-eyebrow .fm-crumb{color:#93c5fd}
+
+/* ── Multi-select più ariosi ───────────────────────────────── */
+.fm-form-field select[multiple],.fm-multiselect{min-height:150px;padding:5px;background:#fff;line-height:1.5}
+.fm-form-field select[multiple] option,.fm-multiselect option{padding:6px 9px;border-radius:6px;font-size:13px;margin-bottom:1px}
+.fm-form-field select[multiple] option:checked,.fm-multiselect option:checked{
+  background:#12395f linear-gradient(0deg,#12395f,#12395f);color:#fff;font-weight:600}
+body.theme-dark .fm-form-field select[multiple],body.theme-dark .fm-multiselect{background:#0f172a}
+
+/* ── Form dentro card (spaziatura) ─────────────────────────── */
+.fm-formpad{padding:18px 20px}
+.fm-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9}
+body.theme-dark .fm-form-actions{border-color:#334155}
+
+/* ── Riepilogo requisiti ───────────────────────────────────── */
+.fm-req-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:18px 20px}
+.fm-req-grouptitle{font-weight:700;color:#334155;margin-bottom:8px;font-size:13px}
+.fm-req-summary .fm-pill{display:inline-block;margin:0 5px 6px 0}
+body.theme-dark .fm-req-grouptitle{color:#cbd5e1}
+
+/* ── Modale form (più largo e arioso) ──────────────────────── */
+.fm-modal{position:fixed;inset:0;z-index:1000;display:none;align-items:flex-start;justify-content:center;
+  background:rgba(15,23,42,.45);padding:40px 16px;overflow-y:auto}
+.fm-modal.open{display:flex}
+.fm-modal-card{background:#fff;border-radius:14px;width:720px;max-width:96vw;
+  box-shadow:0 24px 60px -20px rgba(15,23,42,.5);overflow:hidden}
+.fm-modal-head{display:flex;justify-content:space-between;align-items:center;
+  padding:18px 24px;border-bottom:1px solid #eef2f7}
+.fm-modal-head strong{font-size:16px;font-weight:800;color:#0f172a}
+.fm-modal-x{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:#94a3b8}
+.fm-modal-x:hover{color:#334155}
+.fm-modal-body{padding:20px 24px;max-height:68vh;overflow-y:auto}
+.fm-modal-foot{display:flex;justify-content:flex-end;gap:8px;
+  padding:14px 24px;border-top:1px solid #eef2f7;background:#fafbfc}
+.fm-form-section-lbl{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:#94a3b8;margin:6px 0 8px}
+body.theme-dark .fm-modal-card{background:#0f172a}
+body.theme-dark .fm-modal-head,body.theme-dark .fm-modal-foot{border-color:#334155}
+body.theme-dark .fm-modal-head strong{color:#e2e8f0}
+body.theme-dark .fm-modal-foot{background:#0b1220}
 </style>

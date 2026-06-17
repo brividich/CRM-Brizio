@@ -587,6 +587,34 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     </div>
     {% endif %}
 
+    <!-- ── Formazione sicurezza pregressa ── -->
+    {% if formazione_sicurezza_corsi %}
+    <div class="dc-card">
+      <div class="dc-card-head">
+        <div class="dc-card-title">🎓 Formazione sicurezza pregressa</div>
+        <div class="dc-card-sub">Dichiara i corsi di sicurezza già frequentati dal nuovo assunto (con la data). Verranno registrati nello storico e contribuiranno all'idoneità alla mansione.</div>
+      </div>
+      <div class="dc-card-body">
+        <table class="dc-table" style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Già fatto</th>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Corso</th>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Data conseguimento</th>
+          </tr></thead>
+          <tbody>
+            {% for corso in formazione_sicurezza_corsi %}
+            <tr>
+              <td style="padding:4px 8px;"><input type="checkbox" name="fsic_corso" value="{{ corso.pk }}" title="Corso già frequentato: {{ corso.titolo }}" aria-label="Corso già frequentato: {{ corso.titolo }}"></td>
+              <td style="padding:4px 8px;font-size:13px;">{{ corso.titolo }}{% if corso.validita_mesi %} <span style="color:#94a3b8;">· validità {{ corso.validita_mesi }} mesi</span>{% endif %}</td>
+              <td style="padding:4px 8px;"><input type="date" name="fsic_data_{{ corso.pk }}" class="dc-input" style="max-width:170px;" title="Data conseguimento {{ corso.titolo }}" aria-label="Data conseguimento {{ corso.titolo }}"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- ── Footer ── -->
     <div class="dc-card">
       <div class="dc-footer" style="flex-wrap:wrap;gap:10px;">

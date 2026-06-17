@@ -142,6 +142,13 @@
             <span class="fm-nav-tile-sub">Catalogo interni ed esterni</span>
           </div>
         </a>
+        <a href="{% url 'anagrafica:qualifiche_list' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🎓</div>
+          <div class="fm-nav-tile-body">
+            <span class="fm-nav-tile-title">Qualifiche / Abilitazioni</span>
+            <span class="fm-nav-tile-sub">Catalogo unico · sicurezza · professionali · gestionali</span>
+          </div>
+        </a>
         <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fm-nav-tile">
           <div class="fm-nav-tile-ico">⏰</div>
           <div class="fm-nav-tile-body">
@@ -156,25 +163,11 @@
             <span class="fm-nav-tile-sub">Calendario corsi · scadenze · (DPI/assenze)</span>
           </div>
         </a>
-        <a href="{% url 'anagrafica:fattori_rischio_list' %}" class="fm-nav-tile">
-          <div class="fm-nav-tile-ico">⚠️</div>
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-nav-tile">
+          <div class="fm-nav-tile-ico">🛡</div>
           <div class="fm-nav-tile-body">
-            <span class="fm-nav-tile-title">Fattori di rischio</span>
-            <span class="fm-nav-tile-sub">Catalogo fattori · periodicità · DPI/visite</span>
-          </div>
-        </a>
-        <a href="{% url 'anagrafica:categorie_corso_list' %}" class="fm-nav-tile">
-          <div class="fm-nav-tile-ico">🏷</div>
-          <div class="fm-nav-tile-body">
-            <span class="fm-nav-tile-title">Categorie corso</span>
-            <span class="fm-nav-tile-sub">Tassonomia corsi ↔ fattori di rischio</span>
-          </div>
-        </a>
-        <a href="{% url 'anagrafica:esposizioni_rischio_list' %}" class="fm-nav-tile">
-          <div class="fm-nav-tile-ico">🎯</div>
-          <div class="fm-nav-tile-body">
-            <span class="fm-nav-tile-title">Esposizioni</span>
-            <span class="fm-nav-tile-sub">Mansione/Area → fattore di rischio</span>
+            <span class="fm-nav-tile-title">Salute e Sicurezza</span>
+            <span class="fm-nav-tile-sub">Area dedicata: fattori di rischio, esposizioni, mansioni di rischio, idoneità (cruscotto + guida)</span>
           </div>
         </a>
         <a href="{% url 'anagrafica:scadenzario' %}" class="fm-nav-tile">

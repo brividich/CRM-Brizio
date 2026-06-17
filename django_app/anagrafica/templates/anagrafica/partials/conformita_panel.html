@@ -46,6 +46,36 @@ body.theme-dark .cf-badge-na { background:rgba(100,116,139,.25); color:#cbd5e1; 
 </div>
 {% endwith %}
 
+{% with idn=stato.idoneita %}
+{% if idn.esito != 'na' %}
+<div class="cf-dom" style="margin-bottom:14px;border-left:4px solid {% if idn.esito == 'ok' %}#22c55e{% elif idn.esito == 'warn' %}#f59e0b{% else %}#ef4444{% endif %};">
+  <div class="cf-dom-head">
+    <span class="cf-dom-title">🎯 Idoneità alla mansione{% if mansione_nome %} ({{ mansione_nome }}){% endif %}</span>
+    <span class="cf-badge {% if idn.esito == 'ok' %}cf-badge-ok{% elif idn.esito == 'warn' %}cf-badge-warn{% else %}cf-badge-ko{% endif %}">
+      {% if idn.esito == 'ok' %}Idoneo{% elif idn.esito == 'warn' %}Idoneo con riserve{% else %}Non idoneo{% endif %}
+    </span>
+  </div>
+  {% if idn.scaduti %}
+  <div style="font-size:12px;color:#991b1b;margin-top:4px;">Scaduti:</div>
+  <ul class="cf-dettagli">{% for d in idn.scaduti %}<li>{{ d }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if idn.mancanti %}
+  <div style="font-size:12px;color:#854d0e;margin-top:4px;">Da soddisfare:</div>
+  <ul class="cf-dettagli">{% for d in idn.mancanti %}<li>{{ d }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if not idn.scaduti and not idn.mancanti %}
+  <div class="cf-dettagli" style="padding-left:0;">Tutti i requisiti della mansione sono soddisfatti.</div>
+  {% endif %}
+  <div style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;">
+    {% if mansione_id %}
+    <a href="{% url 'anagrafica:mansione_requisiti' mansione_id %}" style="font-size:12px;color:#1f5c91;font-weight:600;text-decoration:none;">🎯 Requisiti della mansione →</a>
+    {% endif %}
+    <a href="{% url 'anagrafica:dipendente_verbale_dpi' legacy_id %}" target="_blank" style="font-size:12px;color:#1f5c91;font-weight:600;text-decoration:none;">📄 Verbale consegna DPI →</a>
+  </div>
+</div>
+{% endif %}
+{% endwith %}
+
 <div class="cf-domini">
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.formazione titolo="Formazione" icon="📚" %}
   {% include "anagrafica/partials/_conformita_dom.html" with dom=stato.visite titolo="Visite mediche" icon="🏥" %}

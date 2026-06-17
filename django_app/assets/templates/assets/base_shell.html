@@ -105,6 +105,102 @@
 }
 .as-backlink { color: #64748b; text-decoration: none; font-size: var(--fs-base); }
 .as-backlink:hover { color: #1f64d8; }
+.as-section-nav {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d9e2ef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  box-shadow: 0 10px 24px rgba(15,23,42,.04);
+}
+.as-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #8da0bc;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+}
+.as-crumbs a {
+  color: #64748b;
+  text-decoration: none;
+}
+.as-crumbs a:hover { color: #1f64d8; }
+.as-crumb-current { color: #0f172a; }
+.as-crumb-sep { color: #b6c3d5; }
+.as-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.as-section-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.as-section-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid #dbe5f2;
+  border-radius: 9px;
+  color: #475569;
+  background: #f8fbff;
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 850;
+  line-height: 1;
+}
+.as-section-tab:hover {
+  border-color: #b9c9df;
+  background: #eef6ff;
+  color: #1d4ed8;
+}
+.as-section-tab.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(37,99,235,.14);
+}
+.as-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.as-section-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid #dbe5f2;
+  border-radius: 9px;
+  color: #334155;
+  background: #fff;
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 850;
+  line-height: 1;
+}
+.as-section-action:hover {
+  border-color: #b9c9df;
+  background: #f8fbff;
+  color: #1d4ed8;
+}
+.as-section-action--primary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(37,99,235,.14);
+}
+.as-section-action--primary:hover {
+  background: #1d4ed8;
+  color: #fff;
+}
 .as-help { color: #64748b; font-size: var(--fs-sm); }
 .as-error { color: #b91c1c; font-size: var(--fs-sm); }
 .as-section-title { margin: 0; font-size: var(--fs-lg); color: #0f172a; }
@@ -159,6 +255,8 @@
   .as-top { flex-direction: column; align-items: stretch; }
   .as-page-head { flex-wrap: wrap; align-items:flex-start; padding:14px 14px 14px 20px; }
   .as-page-head-actions { width: 100%; }
+  .as-section-main { align-items: stretch; flex-direction: column; }
+  .as-section-actions { justify-content: flex-start; }
 }
 @media (max-width: 640px) {
   .as-form-grid-2, .as-form-grid-3, .as-form-grid-5 { grid-template-columns: 1fr; }
@@ -196,6 +294,19 @@ body.theme-dark .as-main table th { background:rgba(255,255,255,.04); }
 body.theme-dark .as-main table td { border-color:var(--border); }
 body.theme-dark .as-backlink { color: var(--text-light); }
 body.theme-dark .as-backlink:hover { color: #60a5fa; }
+body.theme-dark .as-section-nav { background: var(--surface); border-color: var(--border); box-shadow:none; }
+body.theme-dark .as-crumbs { color: var(--text-light); }
+body.theme-dark .as-crumbs a { color: var(--text-light); }
+body.theme-dark .as-crumbs a:hover { color: #60a5fa; }
+body.theme-dark .as-crumb-current { color: var(--text); }
+body.theme-dark .as-crumb-sep { color: var(--text-light); }
+body.theme-dark .as-section-tab { background: rgba(255,255,255,.04); border-color: var(--border); color: var(--text-mid); }
+body.theme-dark .as-section-tab:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
+body.theme-dark .as-section-tab.active { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow:none; }
+body.theme-dark .as-section-action { background: rgba(255,255,255,.04); border-color: var(--border); color: var(--text-mid); }
+body.theme-dark .as-section-action:hover { background: rgba(255,255,255,.07); color: #60a5fa; }
+body.theme-dark .as-section-action--primary { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow:none; }
+body.theme-dark .as-section-action--primary:hover { background: #1d4ed8; color: #fff; }
 body.theme-dark .as-help, body.theme-dark .as-note, body.theme-dark .as-meta { color: var(--text-light); }
 body.theme-dark .as-error { color: #fca5a5; }
 body.theme-dark .as-section-title, body.theme-dark .as-section-title-lg { color: var(--text); }
@@ -278,6 +389,35 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
       </div>
     </header>
 
+    {% if assets_section_nav %}
+      <nav class="as-section-nav" aria-label="{{ assets_section_nav.label }}">
+        <div class="as-crumbs">
+          {% for crumb in assets_section_nav.breadcrumbs %}
+            {% if not forloop.first %}<span class="as-crumb-sep" aria-hidden="true">/</span>{% endif %}
+            {% if crumb.url %}
+              <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+            {% else %}
+              <span class="as-crumb-current" aria-current="page">{{ crumb.label }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="as-section-main">
+          <div class="as-section-tabs">
+            {% for item in assets_section_nav.items %}
+              <a class="as-section-tab{% if item.active %} active{% endif %}" href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+            {% endfor %}
+          </div>
+          {% if assets_section_nav.actions %}
+            <div class="as-section-actions">
+              {% for action in assets_section_nav.actions %}
+                <a class="as-section-action as-section-action--{{ action.kind }}" href="{{ action.url }}" data-as-section-action="{{ action.key }}">{{ action.label }}</a>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </nav>
+    {% endif %}
+
     {% include "assets/components/messages.html" %}
     {% block assets_shell_content %}{% endblock %}
   </main>
@@ -291,36 +431,36 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
   if (!groups.length) return;
 
   var storageKey = "assets_sidebar_open_groups_v1";
-  var openKeys = [];
   try {
-    openKeys = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    if (!Array.isArray(openKeys)) openKeys = [];
-  } catch (e) {
-    openKeys = [];
+    localStorage.removeItem(storageKey);
+  } catch (e) {}
+
+  function setGroupOpen(group, isOpen) {
+    var toggle = group.querySelector("[data-as-nav-toggle]");
+    group.classList.toggle("open", isOpen);
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    }
   }
 
-  function saveOpenKeys() {
-    try {
-      var keys = groups
-        .filter(function (group) { return group.classList.contains("open"); })
-        .map(function (group) { return group.dataset.asNavKey; })
-        .filter(Boolean);
-      localStorage.setItem(storageKey, JSON.stringify(keys));
-    } catch (e) {}
+  function closeOtherGroups(activeGroup) {
+    groups.forEach(function (group) {
+      if (group !== activeGroup) {
+        setGroupOpen(group, false);
+      }
+    });
   }
 
   groups.forEach(function (group) {
-    var key = group.dataset.asNavKey || "";
     var toggle = group.querySelector("[data-as-nav-toggle]");
-    if (key && openKeys.indexOf(key) !== -1) {
-      group.classList.add("open");
-    }
     if (toggle) {
       toggle.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
       toggle.addEventListener("click", function () {
-        var isOpen = group.classList.toggle("open");
-        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-        saveOpenKeys();
+        var shouldOpen = !group.classList.contains("open");
+        if (shouldOpen) {
+          closeOtherGroups(group);
+        }
+        setGroupOpen(group, shouldOpen);
       });
     }
   });

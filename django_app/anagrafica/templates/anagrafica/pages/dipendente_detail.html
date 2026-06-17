@@ -1646,7 +1646,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
     </div>
     <div class="dp-card-body">
       <div class="dp-qual-list">
-        {% for q in qualifiche_dip %}
+        {% regroup qualifiche_dip|dictsort:"tipo.categoria" by tipo.get_categoria_display as qual_gruppi %}
+        {% for grp in qual_gruppi %}
+          <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin:8px 0 2px;">{{ grp.grouper }}</div>
+          {% for q in grp.list %}
           <div class="dp-qual-item">
             <div style="flex:1;min-width:0;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1681,14 +1684,31 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
                 {% endif %}
                 {% if q.note %}<span>{{ q.note }}</span>{% endif %}
               </div>
+              {% if q.record_formazione %}
+                <div class="dp-qual-dates" style="margin-top:4px;">
+                  <span style="background:#ecfeff;color:#155e75;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
+                    📚 Evidenza: corso «{{ q.record_formazione.corso.titolo }}»{% if q.record_formazione.data_completamento %} del {{ q.record_formazione.data_completamento|date:"d-m-Y" }}{% endif %}
+                  </span>
+                </div>
+              {% elif q.sessione %}
+                <div class="dp-qual-dates" style="margin-top:4px;">
+                  <a href="{% url 'anagrafica:qualifica_sessione_detail' q.sessione_id %}" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-decoration:none;">
+                    ↻ Sessione di rinnovo del {{ q.sessione.data_conseguimento|date:"d-m-Y" }}
+                  </a>
+                </div>
+              {% endif %}
             </div>
             {% if is_admin %}
-              <form method="post" action="{% url 'anagrafica:dipendente_qualifica_delete' legacy_id q.id %}" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Rimuovere la qualifica {{ q.tipo.nome }}?')">🗑 Rimuovi</button>
-              </form>
+              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }})" title="Rinnova questa qualifica">↻ Rinnova</button>
+                <form method="post" action="{% url 'anagrafica:dipendente_qualifica_delete' legacy_id q.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Rimuovere la qualifica {{ q.tipo.nome }}?')">🗑 Rimuovi</button>
+                </form>
+              </div>
             {% endif %}
           </div>
+          {% endfor %}
         {% empty %}
           <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna qualifica registrata.</div>
         {% endfor %}
@@ -1703,7 +1723,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
               <label class="dp-qual-label">Tipo qualifica *</label>
-              <select name="tipo_id" class="dp-select" required style="width:100%;">
+              <select name="tipo_id" id="qual-add-tipo" class="dp-select" required style="width:100%;">
                 <option value="">— Seleziona —</option>
                 {% for t in tipi_qualifica %}
                   <option value="{{ t.id }}">{{ t.nome }}{% if t.durata_mesi %} ({{ t.durata_mesi }} mesi){% endif %}</option>
@@ -1712,7 +1732,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Data conseguimento</label>
-              <input type="date" name="data_conseguimento" class="dp-select" style="width:100%;">
+              <input type="date" name="data_conseguimento" id="qual-add-data" class="dp-select" style="width:100%;">
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Data scadenza (auto se durata impostata)</label>
@@ -1728,6 +1748,15 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           </div>
         </form>
         </div>
+        <script>
+        function rinnovaQualifica(tipoId){
+          var panel=document.getElementById('qualifica-form-panel');
+          if(panel){ panel.style.display='block'; }
+          var sel=document.getElementById('qual-add-tipo'); if(sel){ sel.value=String(tipoId); }
+          var d=document.getElementById('qual-add-data'); if(d && !d.value){ d.value=new Date().toISOString().slice(0,10); }
+          if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
+        }
+        </script>
       </div>
       {% elif is_admin and not tipi_qualifica %}
         <p style="font-size:13px;color:#94a3b8;margin-top:10px;">

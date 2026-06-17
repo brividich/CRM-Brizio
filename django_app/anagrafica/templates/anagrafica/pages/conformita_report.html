@@ -33,6 +33,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
 <div style="display:flex;flex-direction:column;gap:20px;">
 
   {% include "anagrafica/components/flash_messages.html" %}
+  {% include "anagrafica/partials/_safety_subnav.html" with active="conformita" %}
 
   <!-- Page header -->
   <div class="hr-pagehead">
@@ -93,6 +94,16 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
             <option value="na" {% if filtro_esito == "na" %}selected{% endif %}>Senza requisiti</option>
           </select>
         </div>
+        <div class="cr-field">
+          <label for="cr-idoneita">Idoneità mansione</label>
+          <select id="cr-idoneita" name="idoneita" class="cr-select" onchange="this.form.submit()">
+            <option value="" {% if not filtro_idoneita %}selected{% endif %}>Tutte</option>
+            <option value="ko" {% if filtro_idoneita == "ko" %}selected{% endif %}>Solo non idonei</option>
+            <option value="warn" {% if filtro_idoneita == "warn" %}selected{% endif %}>Idonei con riserve</option>
+            <option value="ok" {% if filtro_idoneita == "ok" %}selected{% endif %}>Solo idonei</option>
+            <option value="na" {% if filtro_idoneita == "na" %}selected{% endif %}>Non valutabile</option>
+          </select>
+        </div>
         {% if reparti %}
         <div class="cr-field">
           <label for="cr-reparto">Reparto</label>
@@ -132,6 +143,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
             <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
             <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
             <th data-col="conformita" data-col-label="Conformità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Conformità</th>
+            <th data-col="idoneita" data-col-label="Idoneità mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Idoneità mansione</th>
             <th data-col="formazione" data-col-label="Formazione" data-col-type="text">Formazione</th>
             <th data-col="visite" data-col-label="Visite" data-col-type="text">Visite</th>
             <th data-col="qualifiche" data-col-label="Qualifiche" data-col-type="text">Qualifiche</th>
@@ -145,9 +157,19 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
               <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
                 {{ r.cognome }} {{ r.nome }}
               </a>
+              {% if r.mansione %}<div style="font-size:11px;margin-top:1px;">{% if r.mansione_id %}<a href="{% url 'anagrafica:mansione_requisiti' r.mansione_id %}" style="color:#64748b;text-decoration:none;">🎯 {{ r.mansione }}</a>{% else %}<span style="color:#94a3b8;">{{ r.mansione }}</span>{% endif %}</div>{% endif %}
             </td>
             <td>{% if r.reparto %}<span class="hr-pill blue">{{ r.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.complessivo grande=1 %}</td>
+            <td>
+              {% with idn=r.idoneita %}
+              <span class="cr-badge {% if idn.esito == 'ok' %}cr-ok{% elif idn.esito == 'warn' %}cr-warn{% elif idn.esito == 'ko' %}cr-ko{% else %}cr-na{% endif %}"
+                    title="{% for d in idn.scaduti %}{{ d }} (scaduto){% if not forloop.last %}, {% endif %}{% endfor %}{% if idn.scaduti and idn.mancanti %}, {% endif %}{% for d in idn.mancanti %}{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                <span class="cr-dot"></span>
+                {% if idn.esito == 'ok' %}Idoneo{% elif idn.esito == 'warn' %}Con riserve{% elif idn.esito == 'ko' %}Non idoneo{% else %}—{% endif %}
+              </span>
+              {% endwith %}
+            </td>
             <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.formazione.esito %}</td>
             <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.visite.esito %}</td>
             <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.qualifiche.esito %}</td>

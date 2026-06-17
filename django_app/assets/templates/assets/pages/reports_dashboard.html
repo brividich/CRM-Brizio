@@ -1,18 +1,30 @@
 {% extends "assets/base_shell.html" %}
+{% load l10n %}
 
 {% block title %}{{ reports_page_title|default:"Report manutenzione" }}{% endblock %}
 
 {% block assets_shell_head %}
 <style>
 .rd-page { display:grid; gap:14px; }
-.rd-kpis { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
+.rd-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
 .rd-kpi, .rd-card {
   border:1px solid #dbe1ea;
   border-radius:16px;
   background:#fff;
   box-shadow:0 10px 24px rgba(15, 23, 42, .05);
 }
-.rd-kpi { padding:14px 16px; }
+.rd-kpi {
+  display:block;
+  padding:14px 16px;
+  color:inherit;
+  text-decoration:none;
+  transition:transform .12s, box-shadow .12s, border-color .12s;
+}
+.rd-kpi[href]:hover {
+  border-color:#93c5fd;
+  box-shadow:0 10px 24px rgba(37,99,235,.10);
+  transform:translateY(-1px);
+}
 .rd-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
 .rd-kpi-value { margin-top:8px; font-size:var(--fs-display-md); font-weight:800; color:#0f172a; }
 .rd-card-head {
@@ -81,11 +93,22 @@
   background:#fff;
   font:inherit;
 }
+.rd-health-grid { display:grid; gap:18px; grid-template-columns:minmax(0, .9fr) minmax(0, 1.1fr); align-items:start; }
+.rd-meter { height:10px; border-radius:999px; background:#e2e8f0; overflow:hidden; margin:10px 0; }
+.rd-meter span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, #2563eb, #16a34a); }
+.rd-health-stat { display:flex; gap:10px; flex-wrap:wrap; color:#64748b; font-size:var(--fs-sm); }
+.rd-health-stat strong { color:#0f172a; }
+.rd-budget-status { font-weight:800; }
+.rd-budget-status.ok { color:#15803d; }
+.rd-budget-status.warn { color:#b45309; }
+.rd-budget-status.over { color:#b91c1c; }
+.rd-budget-status.missing { color:#64748b; }
 @media (max-width: 1280px) {
   .rd-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 980px) {
-  .rd-summary-grid { grid-template-columns:1fr; }
+  .rd-summary-grid,
+  .rd-health-grid { grid-template-columns:1fr; }
 }
 @media (max-width: 760px) {
   .rd-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
@@ -106,17 +129,85 @@
 {% block assets_shell_content %}
 <section class="rd-page">
   <section class="rd-kpis">
+    <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}">
+      <div class="rd-kpi-label">PM compliance</div>
+      <div class="rd-kpi-value">{% if pm_kpi.has_compliance %}{{ pm_kpi.compliance_pct }}%{% else %}-{% endif %}</div>
+      <span class="rd-empty">{{ pm_kpi.compliant_rules }}/{{ pm_kpi.applicable_rules }} regole in linea</span>
+    </a>
+    <a class="rd-kpi" href="{{ done_workorders_url }}">
+      <div class="rd-kpi-label">Budget usato {{ budget_kpi.year }}</div>
+      <div class="rd-kpi-value">{% if budget_kpi.has_percent %}{{ budget_kpi.percent_used }}%{% else %}-{% endif %}</div>
+      <span class="rd-empty">{{ budget_kpi.actual_total }} / {{ budget_kpi.budget_total }} EUR</span>
+    </a>
     <article class="rd-kpi">
       <div class="rd-kpi-label">Interventi aperti</div>
       <div class="rd-kpi-value">{{ open_count }}</div>
       <a class="as-link-subtle" href="{{ open_workorders_url }}">Apri tutti gli aperti</a>
     </article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">In warning</div><div class="rd-kpi-value">{{ warning_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Senza baseline</div><div class="rd-kpi-value">{{ missing_count }}</div></article>
+    <a class="rd-kpi" href="{{ late_workorders_url }}"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></a>
+    <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></a>
+    <a class="rd-kpi" href="{{ maintenance_schedule_missing_url }}"><div class="rd-kpi-label">Senza baseline</div><div class="rd-kpi-value">{{ missing_count }}</div></a>
+    <a class="rd-kpi" href="{{ done_workorders_url }}"><div class="rd-kpi-label">Chiusi 90 gg</div><div class="rd-kpi-value">{{ done_recent_count }}</div></a>
     <article class="rd-kpi"><div class="rd-kpi-label">Costo 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></article>
   </section>
+
+  <article class="rd-card">
+    <div class="rd-card-head">
+      <div>
+        <h2>Compliance e budget</h2>
+        <p>Stato delle regole preventive e confronto consuntivo/budget dell'anno corrente.</p>
+      </div>
+    </div>
+    <div class="rd-card-body">
+      <div class="rd-health-grid">
+        <section>
+          <h3 style="margin:0;color:#0f172a;">Manutenzione preventiva</h3>
+          <div class="rd-meter" aria-hidden="true">
+            <span style="width:{% if pm_kpi.has_compliance %}{{ pm_kpi.compliance_pct|unlocalize }}{% else %}0{% endif %}%"></span>
+          </div>
+          <div class="rd-health-stat">
+            <span>In linea: <strong>{{ pm_kpi.compliant_rules }}</strong></span>
+            <span>Scadute: <strong>{{ pm_kpi.overdue_rules }}</strong></span>
+            <span>Warning: <strong>{{ pm_kpi.warning_rules }}</strong></span>
+            <span>Senza baseline: <strong>{{ pm_kpi.missing_baseline_rules }}</strong></span>
+          </div>
+        </section>
+
+        <section>
+          <h3 style="margin:0 0 10px;color:#0f172a;">Budget vs actual per categoria</h3>
+          <div class="rd-table-wrap">
+            <table class="rd-table">
+              <thead><tr><th>Categoria</th><th>Budget</th><th>Actual</th><th>Uso</th><th>Stato</th><th>Registro</th></tr></thead>
+              <tbody>
+                {% for row in budget_rows %}
+                  <tr>
+                    <td>{% if row.category %}{{ row.category.label }}{% else %}{{ row.category_label }}{% endif %}</td>
+                    <td>{% if row.has_budget %}{{ row.budget }} EUR{% else %}-{% endif %}</td>
+                    <td>{{ row.actual }} EUR</td>
+                    <td>{% if row.has_percent_used %}{{ row.percent_used }}%{% else %}-{% endif %}</td>
+                    <td>
+                      <span class="rd-budget-status {{ row.status }}">
+                        {% if row.status == "over" %}Oltre budget{% elif row.status == "warn" %}In attenzione{% elif row.status == "missing" %}Budget mancante{% else %}In linea{% endif %}
+                      </span>
+                    </td>
+                    <td>
+                      {% if row.workorders_url %}
+                        <a class="as-link-subtle" href="{{ row.workorders_url }}">OdL categoria</a>
+                      {% else %}
+                        <span class="rd-empty">&mdash;</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="rd-empty">Nessun budget o consuntivo disponibile per questo scope.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </article>
 
   <article class="rd-card">
     <div class="rd-card-head">

@@ -65,7 +65,7 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
     <a href="{% url 'assets:wo_view' workorder.id %}" class="as-backlink">&larr; Torna all'intervento</a>
   </header>
 
-  <form method="post" class="woc-card">
+  <form method="post" enctype="multipart/form-data" class="woc-card">
     {% csrf_token %}
     <div class="woc-card-body">
       {% if form.non_field_errors %}
@@ -133,6 +133,25 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
           {% if form.downtime_minutes.errors %}<div class="as-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
         </div>
 
+        <div class="woc-field">
+          <label for="{{ form.labor_cost_eur.id_for_label }}">{{ form.labor_cost_eur.label }}</label>
+          {{ form.labor_cost_eur }}
+          {% if form.labor_cost_eur.errors %}<div class="as-error">{{ form.labor_cost_eur.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.materials_cost_eur.id_for_label }}">{{ form.materials_cost_eur.label }}</label>
+          {{ form.materials_cost_eur }}
+          {% if form.materials_cost_eur.errors %}<div class="as-error">{{ form.materials_cost_eur.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field woc-field--full">
+          <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
+          {{ form.cost_eur }}
+          {% if form.cost_eur.help_text %}<div class="as-note">{{ form.cost_eur.help_text }}</div>{% endif %}
+          {% if form.cost_eur.errors %}<div class="as-error">{{ form.cost_eur.errors }}</div>{% endif %}
+        </div>
+
         <div class="woc-field woc-field--full">
           <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
           {{ form.resolution }}
@@ -143,6 +162,12 @@ body.theme-dark .woc-field textarea { background:var(--surface); border-color:va
           <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }}</label>
           {{ form.log_note }}
           {% if form.log_note.errors %}<div class="as-error">{{ form.log_note.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field woc-field--full">
+          <label for="id_close_attachments">Allegati chiusura</label>
+          <input id="id_close_attachments" type="file" name="close_attachments" multiple accept="{{ attachment_accept }}">
+          <div class="as-note">Verbali, rapportini, foto o documenti tecnici. Dimensione massima {{ attachment_max_mb }} MB per file.</div>
         </div>
       </section>
 

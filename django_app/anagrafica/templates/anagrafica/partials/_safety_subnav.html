@@ -1,0 +1,32 @@
+{% comment %}
+Sotto-navigazione "Safety" condivisa tra le pagine rischi/mansioni/conformità,
+così le sezioni non sembrano scollegate. Le pill sono cliccabili e quella della
+pagina corrente è evidenziata.
+Parametro: ``active`` ∈ {hub, wizard, mansioni, conformita, matrice}.
+{% endcomment %}
+<style>
+.safnav { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 16px;
+  background:#fff; border:1px solid #e2e8f0; border-radius:.85rem; padding:6px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.safnav-lbl { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  color:#94a3b8; padding:0 8px; }
+.safnav a { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  border-radius:.6rem; padding:7px 13px; font-size:13px; font-weight:700;
+  color:#475569; text-decoration:none; border:1px solid transparent;
+  transition:background .15s, color .15s, border-color .15s; }
+.safnav a:hover { background:#f1f5f9; color:#12395f; border-color:#e2e8f0; }
+.safnav a.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+body.theme-dark .safnav { background:var(--surface); border-color:var(--border); }
+body.theme-dark .safnav-lbl { color:var(--text-light); }
+body.theme-dark .safnav a { color:var(--text-mid); }
+body.theme-dark .safnav a:hover { background:var(--surface-alt); color:#93c5fd; border-color:var(--border); }
+</style>
+<nav class="safnav" aria-label="Navigazione Salute e Sicurezza">
+  <span class="safnav-lbl">🛡 Salute e Sicurezza</span>
+  <a href="{% url 'anagrafica:sicurezza_hub' %}" class="{% if active == 'hub' %}active{% endif %}">🧭 Cruscotto</a>
+  <a href="{% url 'anagrafica:sicurezza_wizard' %}" class="{% if active == 'wizard' %}active{% endif %}">🪄 Guida</a>
+  <a href="{% url 'anagrafica:mansioni_list' %}" class="{% if active == 'mansioni' %}active{% endif %}">🦺 Mansioni di rischio</a>
+  <a href="{% url 'anagrafica:conformita_report' %}" class="{% if active == 'conformita' %}active{% endif %}">✅ Conformità / Idoneità</a>
+  <a href="{% url 'anagrafica:matrice_competenze' %}" class="{% if active == 'matrice' %}active{% endif %}">📊 Matrice competenze</a>
+  <a href="{% url 'anagrafica:qualifiche_list' %}?categoria=SICUREZZA" class="{% if active == 'qualifiche' %}active{% endif %}">🎓 Qualifiche di sicurezza</a>
+</nav>

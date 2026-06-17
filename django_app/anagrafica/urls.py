@@ -28,6 +28,7 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
+    path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),
     path("dipendenti/<int:legacy_id>/ruoli/assegna", views.dipendente_ruolo_assegna, name="dipendente_ruolo_assegna"),
     path("dipendenti/<int:legacy_id>/ruoli/<int:assegnazione_id>/rimuovi", views.dipendente_ruolo_rimuovi, name="dipendente_ruolo_rimuovi"),
 
@@ -125,6 +126,7 @@ urlpatterns = [
     path("mansioni/", views.mansioni_list, name="mansioni_list"),
     path("mansioni/nuovo", views.mansione_create, name="mansione_create"),
     path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
+    path("mansioni/<int:mansione_id>/requisiti", views.mansione_requisiti, name="mansione_requisiti"),
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
@@ -147,6 +149,14 @@ urlpatterns = [
     # Qualifiche catalogo + scadenze
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
+    # Sessioni di rinnovo (rilascio/rinnovo collettivo "a sessioni")
+    path("qualifiche/sessioni/", views.qualifica_sessioni_list, name="qualifica_sessioni_list"),
+    path("qualifiche/sessioni/nuova", views.qualifica_sessione_create, name="qualifica_sessione_create"),
+    path("qualifiche/sessioni/<int:sessione_id>/", views.qualifica_sessione_detail, name="qualifica_sessione_detail"),
+    path("qualifiche/sessioni/<int:sessione_id>/elimina", views.qualifica_sessione_delete, name="qualifica_sessione_delete"),
+    path("qualifiche/sessioni/<int:sessione_id>/partecipante/aggiungi", views.qualifica_sessione_partecipante_add, name="qualifica_sessione_partecipante_add"),
+    path("qualifiche/sessioni/<int:sessione_id>/partecipante/<int:q_id>/rimuovi", views.qualifica_sessione_partecipante_remove, name="qualifica_sessione_partecipante_remove"),
+    path("qualifiche/<int:tipo_id>/", views.tipo_qualifica_detail, name="tipo_qualifica_detail"),
     path("qualifiche/<int:tipo_id>/modifica", views.tipo_qualifica_edit, name="tipo_qualifica_edit"),
     path("qualifiche/<int:tipo_id>/elimina", views.tipo_qualifica_delete, name="tipo_qualifica_delete"),
 
@@ -180,6 +190,9 @@ urlpatterns = [
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),
+    path("sicurezza/", views.sicurezza_hub, name="sicurezza_hub"),
+    path("sicurezza/guida/", views.sicurezza_wizard, name="sicurezza_wizard"),
+    path("sicurezza/matrice/", views.matrice_competenze, name="matrice_competenze"),
 
     # Onboarding strutturato (pratica + checklist, speculare a offboarding)
     path("onboarding/", views.onboarding_list, name="onboarding_list"),

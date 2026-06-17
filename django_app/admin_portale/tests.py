@@ -38,6 +38,7 @@ from core.models import (
     Profile,
     RolePermissionGrant,
     RoutePermissionBinding,
+    SiteConfig,
     UserDashboardConfig,
     UserDashboardLayout,
     UserExtraInfo,
@@ -46,6 +47,7 @@ from core.models import (
     UserPermissionGrant,
     UserPermissionOverride,
 )
+from core.pdf import PdfTheme
 
 User = get_user_model()
 
@@ -305,6 +307,88 @@ def _clear_acl_navigation_seed_tables() -> None:
                 cursor.execute(f"DELETE FROM {table_name}")
             except Exception:
                 continue
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortalePdfTemplateConfigTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-pdf-template",
+            email="admin.pdf.template@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin PDF Template",
+            email="admin.pdf.template@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def _as_admin_get(self, url, params=None):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.get(url, params or {})
+
+    def _as_admin_post(self, url, data):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.post(url, data, follow=True)
+
+    def test_pdf_template_config_page_renders(self):
+        response = self._as_admin_get(reverse("admin_portale:pdf_template_config"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Template PDF", html=False)
+        self.assertContains(response, reverse("admin_portale:pdf_template_preview"), html=False)
+        self.assertContains(response, 'name="pdf_template_primary_color"', html=False)
+        self.assertContains(response, 'name="pdf_template_footer_text"', html=False)
+
+    def test_pdf_template_preview_returns_pdf(self):
+        response = self._as_admin_get(reverse("admin_portale:pdf_template_preview"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("inline", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_pdf_template_config_save_updates_site_config_and_theme(self):
+        response = self._as_admin_post(
+            reverse("admin_portale:api_pdf_template_config_save"),
+            {
+                "pdf_template_logo_url": "",
+                "pdf_template_primary_color": "#123456",
+                "pdf_template_accent_color": "#abcdef",
+                "pdf_template_footer_text": "Documentazione Novicrom",
+                "pdf_template_show_generated_at": "0",
+                "pdf_template_show_page_number": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(SiteConfig.get("pdf_template_primary_color"), "#123456")
+        self.assertEqual(SiteConfig.get("pdf_template_accent_color"), "#abcdef")
+        self.assertEqual(SiteConfig.get("pdf_template_footer_text"), "Documentazione Novicrom")
+        self.assertEqual(SiteConfig.get("pdf_template_show_generated_at"), "0")
+
+        theme = PdfTheme.from_branding()
+        self.assertEqual(theme.primary, "#123456")
+        self.assertEqual(theme.accent, "#abcdef")
+        self.assertEqual(theme.footer_text, "Documentazione Novicrom")
+        self.assertFalse(theme.show_generated_at)
+        self.assertTrue(theme.show_page_number)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

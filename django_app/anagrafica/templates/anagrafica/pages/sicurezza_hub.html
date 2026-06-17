@@ -1,0 +1,118 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Sicurezza & Idoneità | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sh-flow { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 4px;
+  font-size:13px; font-weight:700; color:#475569; }
+.sh-flow .step { background:#eef2f7; border:1px solid #e2e8f0; border-radius:999px; padding:6px 13px; }
+.sh-flow .arr { color:#94a3b8; font-size:16px; }
+body.theme-dark .sh-flow { color:var(--text-mid); }
+body.theme-dark .sh-flow .step { background:var(--surface-alt); border-color:var(--border); }
+a.hr-metric { text-decoration:none; color:inherit; transition:border-color .15s, box-shadow .15s, transform .1s; }
+a.hr-metric:hover { border-color:#94a3b8; box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {% include "anagrafica/partials/_safety_subnav.html" with active="hub" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR · Safety</div>
+      <h2 class="hr-pagehead-title">🛡 Sicurezza &amp; Idoneità</h2>
+      <p class="hr-pagehead-desc">Punto unico per il flusso: la mansione dichiara i requisiti, il sistema verifica l'idoneità di ogni dipendente.</p>
+    </div>
+    <div>
+      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:sicurezza_wizard' %}">🪄 Configurazione guidata</a>
+    </div>
+  </div>
+
+  <div class="hr-card" style="padding:16px 18px;">
+    <div class="sh-flow">
+      <span class="step">🦺 Mansione di rischio</span>
+      <span class="arr">→</span>
+      <span class="step">DPI · Formazione · Visite</span>
+      <span class="arr">→</span>
+      <span class="step">✅ Idoneità alla mansione</span>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="hr-metric-grid">
+    <a class="hr-metric" href="{% url 'anagrafica:mansioni_list' %}" title="Vai alle mansioni di rischio">
+      <div class="hr-metric-ico blue">🦺</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Mansioni di rischio</span><span class="hr-metric-val">{{ n_mansioni_rischio }}</span></div>
+        <div class="hr-metric-sub">su {{ n_mansioni }} mansioni a catalogo</div></div>
+    </a>
+    {% if idoneita_kpi %}
+    <a class="hr-metric" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko" title="Elenco non idonei">
+      <div class="hr-metric-ico red">⛔</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Non idonei</span><span class="hr-metric-val">{{ idoneita_kpi.non_idonei }}</span></div>
+        <div class="hr-metric-sub">requisito mansione scaduto</div></div>
+    </a>
+    <a class="hr-metric" href="{% url 'anagrafica:conformita_report' %}?idoneita=warn" title="Elenco idonei con riserve">
+      <div class="hr-metric-ico amber">⏰</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Idonei con riserve</span><span class="hr-metric-val">{{ idoneita_kpi.riserve }}</span></div>
+        <div class="hr-metric-sub">requisito da soddisfare</div></div>
+    </a>
+    {% endif %}
+  </div>
+
+  {% if idoneita_kpi %}
+  <div class="hr-card" style="padding:10px 16px;">
+    <a class="fm-link" href="{% url 'anagrafica:conformita_report' %}?idoneita=ko">Vedi i {{ idoneita_kpi.non_idonei }} non idonei →</a>
+    &nbsp;·&nbsp;
+    <a class="fm-link" href="{% url 'anagrafica:conformita_report' %}">Report conformità completo</a>
+    <span class="muted" style="margin-left:8px;">({{ idoneita_kpi.valutati }} dipendenti con requisiti valutati)</span>
+  </div>
+  {% endif %}
+
+  <!-- Sezioni collegate -->
+  <div class="hr-card fm-section">
+    <div class="fm-section-head"><div class="fm-section-title">Sezioni collegate</div></div>
+    <div class="fm-nav-grid" style="padding:16px;">
+      <a href="{% url 'anagrafica:mansioni_list' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">🦺</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Mansioni di rischio</span>
+        <span class="fm-nav-tile-sub">Requisiti DPI/formazione/visite + livello rischio</span></div></a>
+      <a href="{% url 'anagrafica:conformita_report' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">✅</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Conformità / Idoneità</span>
+        <span class="fm-nav-tile-sub">Semaforo e idoneità per dipendente</span></div></a>
+      <a href="{% url 'anagrafica:matrice_competenze' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">📊</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Matrice competenze</span>
+        <span class="fm-nav-tile-sub">Dipendenti × abilitazioni per audit ISO</span></div></a>
+      <a href="{% url 'anagrafica:qualifiche_list' %}?categoria=SICUREZZA" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">🎓</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Qualifiche di sicurezza</span>
+        <span class="fm-nav-tile-sub">Catalogo abilitazioni di sicurezza (carrellisti, antincendio, BLSD…)</span></div></a>
+      <a href="{% url 'anagrafica:scadenzario' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">📆</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Scadenzario HR</span>
+        <span class="fm-nav-tile-sub">Qualifiche, visite, formazione, contratti</span></div></a>
+      <a href="{% url 'dpi:impostazioni' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">🧰</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Catalogo DPI</span>
+        <span class="fm-nav-tile-sub">Categorie, tipi, modelli, taglie</span></div></a>
+      <a href="{% url 'anagrafica:formazione_dashboard' %}" class="fm-nav-tile">
+        <div class="fm-nav-tile-ico">📚</div><div class="fm-nav-tile-body">
+        <span class="fm-nav-tile-title">Formazione</span>
+        <span class="fm-nav-tile-sub">Piani, corsi, sessioni, scadenze</span></div></a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

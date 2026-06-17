@@ -80,6 +80,7 @@ from .models import (
     SaldoCedolino,
     StoricoContratto,
     TipologiaContratto,
+    QualificaSessione,
     TipoQualifica,
     TipoVisitaMedica,
     VisitaMedica,
@@ -114,6 +115,7 @@ from .services.dpi_ingresso import (
 from .services.visite import stato_visite, visite_storico
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
+from .services import mansionario as mansionario_service
 
 logger = logging.getLogger(__name__)
 
@@ -974,6 +976,30 @@ def dipendente_create(request):
                     except Exception:
                         logger.warning("Avvio onboarding automatico fallito per dipendente %s", new_id, exc_info=True)
 
+                # Formazione sicurezza pregressa dichiarata in preinserimento
+                if new_id:
+                    try:
+                        fsic_items: list[dict] = []
+                        for cid in request.POST.getlist("fsic_corso"):
+                            if not str(cid).isdigit():
+                                continue
+                            raw = (request.POST.get(f"fsic_data_{cid}") or "").strip()
+                            if not raw:
+                                continue
+                            try:
+                                from datetime import date as _date3
+                                fsic_items.append({"corso_id": int(cid), "data": _date3.fromisoformat(raw)})
+                            except ValueError:
+                                continue
+                        if fsic_items:
+                            n_fsic = onboarding_service.registra_formazione_pregressa(
+                                new_id, fsic_items, user=request.user
+                            )
+                            if n_fsic:
+                                messages.info(request, f"Registrati {n_fsic} corsi di formazione pregressa.")
+                    except Exception:
+                        logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
+
                 nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
@@ -993,6 +1019,13 @@ def dipendente_create(request):
     reparti_catalogo = list(
         Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome")
     )
+    # Corsi di sicurezza per la dichiarazione "formazione pregressa" in preinserimento.
+    from .models_formazione import TrainingCourse
+    formazione_sicurezza_corsi = list(
+        TrainingCourse.objects
+        .filter(is_active=True, stato="ATTIVO", obbligatorio=True)
+        .order_by("titolo")
+    )
     return render(request, "anagrafica/pages/dipendente_create.html", {
         "legacy_form": legacy_form,
         "form_civile": form_civile,
@@ -1005,6 +1038,7 @@ def dipendente_create(request):
         "tipologie_contratto": list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")),
         "livelli_contrattuali": list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice")),
         "ruoli_operativi_catalogo": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")),
+        "formazione_sicurezza_corsi": formazione_sicurezza_corsi,
     })
 
 
@@ -1562,7 +1596,7 @@ def dipendente_detail(request, legacy_id: int):
     oggi = tz.localdate()
     qualifiche_dip = list(
         DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
-        .select_related("tipo")
+        .select_related("tipo", "record_formazione", "record_formazione__corso", "sessione")
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
@@ -2387,6 +2421,42 @@ def _registra_cambiamento(
     )
 
 
+def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=None) -> None:
+    """All'assegnazione di una nuova mansione, ricalcola l'idoneità e notifica
+    (email, fail-open) i requisiti mancanti/scaduti a caporeparto + RSPP/HR.
+    Nessun dato clinico: le visite restano in forma generica."""
+    try:
+        stato = conformita_service.stato_conformita(legacy_id, mansione=mansione_nome)
+        idn = stato.get("idoneita", {})
+        gap = list(idn.get("scaduti", [])) + list(idn.get("mancanti", []))
+        if idn.get("esito") not in ("warn", "ko") or not gap:
+            return
+        from core.email_utils import send_hub_mail
+        from .services.onboarding import _caporeparto_emails
+        from .services.reminders import get_reminder_recipients
+        reparto = (dip.get("reparto") or "").strip()
+        nome = f"{dip.get('cognome', '')} {dip.get('nome', '')}".strip() or f"#{legacy_id}"
+        dest = sorted(set(
+            get_reminder_recipients("idoneita_reminder_emails") + _caporeparto_emails(reparto)
+        ))
+        if not dest:
+            return
+        send_hub_mail(
+            subject=f"[Idoneità] {nome} → mansione «{mansione_nome}»: requisiti da verificare",
+            body_text=(
+                f"{nome}{(' — reparto ' + reparto) if reparto else ''} è stato assegnato alla "
+                f"mansione «{mansione_nome}».\n\nRequisiti della mansione ancora da soddisfare:\n- "
+                + "\n- ".join(gap)
+            ),
+            recipients=dest, title="Idoneità alla mansione",
+            email_type="Anagrafica HR", section_label="Idoneità", fail_silently=True,
+        )
+    except Exception:
+        logger.warning("Notifica gap idoneità (cambio mansione) fallita per %s", legacy_id, exc_info=True)
+
+
+@login_required
+@require_POST
 def dipendente_mansione_set(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
@@ -2424,6 +2494,9 @@ def dipendente_mansione_set(request, legacy_id: int):
             request.user,
         )
         messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
+        # E: cambio mansione → ricalcola idoneità e notifica i requisiti mancanti
+        if mansione_nome and mansione_nome.casefold() != mansione_vecchia.casefold():
+            _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
     except Exception:
         logger.exception("Errore aggiornamento mansione dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento della mansione.")
@@ -2974,6 +3047,37 @@ def dipendente_rimetti_in_forza(request, legacy_id: int):
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
+def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scadenza,
+                                 *, note="", user=None, sessione=None):
+    """Crea o aggiorna la qualifica corrente di un dipendente per un tipo.
+
+    Convenzione (come ``import_asr``): una sola ``DipendenteQualifica`` corrente
+    per (dipendente, tipo), aggiornata al rinnovo — niente duplicati. Lo storico
+    dei rinnovi vive nelle ``QualificaSessione`` collegate. Ritorna (obj, created).
+    """
+    if data_scadenza is None and tipo.durata_mesi and data_conseguimento:
+        from anagrafica.models import _add_months
+        data_scadenza = _add_months(data_conseguimento, tipo.durata_mesi)
+    obj = (
+        DipendenteQualifica.objects
+        .filter(legacy_anagrafica_id=legacy_id, tipo=tipo)
+        .order_by("-data_conseguimento", "-id").first()
+    )
+    created = obj is None
+    if obj is None:
+        obj = DipendenteQualifica(legacy_anagrafica_id=legacy_id, tipo=tipo)
+    obj.data_conseguimento = data_conseguimento
+    obj.data_scadenza = data_scadenza
+    if note:
+        obj.note = note[:255]
+    if sessione is not None:
+        obj.sessione = sessione
+    if user is not None:
+        obj.assegnato_da = user
+    obj.save()
+    return obj, created
+
+
 @login_required
 @require_POST
 def dipendente_qualifica_add(request, legacy_id: int):
@@ -3013,15 +3117,14 @@ def dipendente_qualifica_add(request, legacy_id: int):
 
     note = (request.POST.get("note") or "").strip()[:255]
 
-    DipendenteQualifica.objects.create(
-        legacy_anagrafica_id=legacy_id,
-        tipo=tipo,
-        data_conseguimento=data_conseguimento,
-        data_scadenza=data_scadenza,
-        note=note,
-        assegnato_da=request.user,
+    _, created = _upsert_dipendente_qualifica(
+        legacy_id, tipo, data_conseguimento, data_scadenza,
+        note=note, user=request.user,
     )
-    messages.success(request, f'Qualifica "{tipo.nome}" aggiunta.')
+    messages.success(
+        request,
+        f'Qualifica "{tipo.nome}" {"aggiunta" if created else "aggiornata (rinnovo)"}.',
+    )
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -4208,8 +4311,13 @@ def dipendenti_report(request):
 def mansioni_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    can_view_requisiti = _can_view_formazione(request)
 
-    mansioni = list(Mansione.objects.all().order_by("nome"))
+    mansioni = list(
+        Mansione.objects.all()
+        .order_by("nome")
+        .prefetch_related("visite_richieste", "dpi_richiesti")
+    )
 
     # Conta dipendenti per mansione dal DB legacy
     mansione_counts: dict[str, int] = {}
@@ -4228,6 +4336,13 @@ def mansioni_list(request):
 
     for m in mansioni:
         m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
+        # Contatori requisiti (usano la cache di prefetch_related → nessuna query extra)
+        m.n_visite = len(m.visite_richieste.all())
+        try:
+            m.n_dpi = len(m.dpi_richiesti.all())
+        except Exception:
+            m.n_dpi = 0
+        m.livello_label = m.get_livello_rischio_display() if m.livello_rischio else ""
 
     # Raggruppa per categoria nell'ordine definito
     cat_order = [c for c, _ in Mansione.CATEGORIA_CHOICES]
@@ -4256,8 +4371,10 @@ def mansioni_list(request):
         "mansioni": mansioni,
         "mansioni_grouped": grouped,
         "is_admin": is_admin,
+        "can_view_requisiti": can_view_requisiti,
         "mansioni_suggerite": mansioni_suggerite,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
+        "LIVELLO_RISCHIO_CHOICES": Mansione.LIVELLO_RISCHIO_CHOICES,
     })
 
 
@@ -4274,6 +4391,8 @@ def mansione_create(request):
         messages.error(request, "Il nome della mansione è obbligatorio.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
+    _lr = (request.POST.get("livello_rischio") or "").strip().upper()
+    _lr = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
     _, created = Mansione.objects.get_or_create(
         nome__iexact=nome,
         defaults={
@@ -4281,6 +4400,7 @@ def mansione_create(request):
             "categoria": (request.POST.get("categoria") or "").strip()[:20],
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
+            "livello_rischio": _lr,
         },
     )
     if created:
@@ -4304,10 +4424,12 @@ def mansione_edit(request, mansione_id: int):
         messages.error(request, "Il nome della mansione è obbligatorio.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
+    _lr = (request.POST.get("livello_rischio") or "").strip().upper()
     mansione.nome = nome
     mansione.categoria = (request.POST.get("categoria") or "").strip()[:20]
     mansione.descrizione = (request.POST.get("descrizione") or "").strip()
     mansione.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    mansione.livello_rischio = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
     mansione.is_active = request.POST.get("is_active") == "1"
     mansione.save()
     messages.success(request, f'Mansione "{mansione.nome}" aggiornata.')
@@ -4327,6 +4449,68 @@ def mansione_delete(request, mansione_id: int):
     mansione.delete()
     messages.success(request, f'Mansione "{nome}" eliminata.')
     return _back_to_caller(request, "anagrafica:mansioni_list")
+
+
+@login_required
+def mansione_requisiti(request, mansione_id: int):
+    """Profilo "mansione di rischio": DPI / visite / formazione richiesti.
+
+    GET mostra i requisiti **diretti** (modificabili) della mansione, quelli
+    **ereditati** dai fattori di rischio esposti (read-only) e il riepilogo dei
+    requisiti effettivi (unione). POST salva i M2M diretti ``dpi_richiesti`` e
+    ``visite_richieste``. Gate: visualizzazione/edit formazione (dominio Safety).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per i requisiti mansione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    mansione = get_object_or_404(Mansione, pk=mansione_id)
+
+    if request.method == "POST":
+        if not is_editor:
+            messages.error(request, "Permessi insufficienti per modificare i requisiti.")
+            return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
+        _lr = (request.POST.get("livello_rischio") or "").strip().upper()
+        mansione.livello_rischio = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
+        mansione.save(update_fields=["livello_rischio"])
+        visite_ids = [int(v) for v in request.POST.getlist("visite_richieste") if str(v).isdigit()]
+        mansione.visite_richieste.set(
+            TipoVisitaMedica.objects.filter(pk__in=visite_ids, is_active=True)
+        )
+        try:
+            from dpi.models import CategoriaDPI
+            dpi_ids = [int(v) for v in request.POST.getlist("dpi_richiesti") if str(v).isdigit()]
+            mansione.dpi_richiesti.set(CategoriaDPI.objects.filter(pk__in=dpi_ids, is_active=True))
+        except Exception:
+            logger.warning("Salvataggio DPI mansione fallito (modulo dpi?)", exc_info=True)
+        messages.success(request, f'Requisiti della mansione "{mansione.nome}" aggiornati.')
+        return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
+
+    # Requisiti effettivi (unione diretti + ereditati) per il riepilogo.
+    requisiti = mansionario_service.requisiti_mansione(mansione)
+
+    # Cataloghi per i selettori dei requisiti diretti.
+    visite_opts = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+    sel_visite_ids = set(mansione.visite_richieste.values_list("pk", flat=True))
+    dpi_opts: list = []
+    sel_dpi_ids: set[int] = set()
+    try:
+        from dpi.models import CategoriaDPI
+        dpi_opts = list(CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"))
+        sel_dpi_ids = set(mansione.dpi_richiesti.values_list("pk", flat=True))
+    except Exception:
+        dpi_opts = []
+
+    return render(request, "anagrafica/pages/mansione_requisiti.html", {
+        "mansione": mansione,
+        "is_editor": is_editor,
+        "requisiti": requisiti,
+        "visite_opts": visite_opts,
+        "sel_visite_ids": sel_visite_ids,
+        "dpi_opts": dpi_opts,
+        "sel_dpi_ids": sel_dpi_ids,
+        "livello_choices": Mansione.LIVELLO_RISCHIO_CHOICES,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -4668,8 +4852,18 @@ def qualifiche_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
+    # Catalogo unico, viste filtrate per categoria: la pagina è la "casa" delle
+    # qualifiche (modulo Formazione) ma può aprirsi già filtrata (es. Salute e
+    # Sicurezza → ?categoria=SICUREZZA).
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    cat_filter = (request.GET.get("categoria") or "").strip().upper()
+    if cat_filter not in valid_cats:
+        cat_filter = ""
+
     tipi = list(
-        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni")).order_by("categoria", "nome")
+        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni"))
+        .prefetch_related("corsi")  # corso(i) che rilasciano la qualifica (Step 3)
+        .order_by("categoria", "nome")
     )
 
     oggi = tz.localdate()
@@ -4732,6 +4926,17 @@ def qualifiche_list(request):
         if items:
             tipi_grouped.append((cat_code, cat_labels_q[cat_code], items))
 
+    # Barra tab "Tutte + categorie" con conteggi (sempre su tutto il catalogo).
+    tabs = [("", "Tutte", len(tipi))]
+    for cat_code in cat_order_q:
+        tabs.append((cat_code, cat_labels_q[cat_code],
+                     sum(1 for t in tipi if t.categoria == cat_code)))
+
+    # Vista filtrata: restringe gruppi e scadenze alla categoria selezionata.
+    if cat_filter:
+        tipi_grouped = [g for g in tipi_grouped if g[0] == cat_filter]
+        scadenze = [s for s in scadenze if s["tipo_categoria"] == cat_filter]
+
     return render(request, "anagrafica/pages/qualifiche_list.html", {
         "tipi": tipi,
         "tipi_grouped": tipi_grouped,
@@ -4740,6 +4945,90 @@ def qualifiche_list(request):
         "oggi": oggi,
         "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
         "tipi_suggeriti": tipi_suggeriti,
+        "tabs": tabs,
+        "active_categoria": cat_filter,
+        "active_categoria_label": cat_labels_q.get(cat_filter, ""),
+        "is_safety_view": cat_filter == TipoQualifica.CAT_SICUREZZA,
+    })
+
+
+@login_required
+def tipo_qualifica_detail(request, tipo_id: int):
+    """Dettaglio di una singola qualifica/abilitazione: chi la possiede (con
+    stato), corsi collegati, sessioni di rinnovo, e la formazione collegata
+    (sessioni corso, lezioni, attestati/completamenti) — modello qualifica àncora.
+    """
+    from datetime import timedelta
+    from django.utils import timezone as _tz
+    from .models_formazione import TrainingSession, TrainingEmployeeRecord, TrainingLesson
+
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
+    is_admin = _qualifiche_can_edit(request)
+    oggi = _tz.localdate()
+    soglia = oggi + timedelta(days=60)
+
+    corsi = list(tipo.corsi.select_related("piano").order_by("titolo"))
+    corso_ids = [c.id for c in corsi]
+
+    nomi = _build_nomi_map()
+    holders: list[dict] = []
+    n_scaduti = n_scadenza = 0
+    for q in (DipendenteQualifica.objects.filter(tipo=tipo)
+              .select_related("record_formazione", "record_formazione__corso", "sessione")
+              .order_by("data_scadenza", "id")):
+        if q.data_scadenza is None:
+            stato = "valida"
+        elif q.data_scadenza < oggi:
+            stato = "scaduta"; n_scaduti += 1
+        elif q.data_scadenza <= soglia:
+            stato = "in_scadenza"; n_scadenza += 1
+        else:
+            stato = "valida"
+        holders.append({
+            "q": q, "stato": stato,
+            "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+        })
+    _ord = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
+    holders.sort(key=lambda h: (_ord.get(h["stato"], 9), h["nome"].casefold()))
+
+    sessioni = list(
+        QualificaSessione.objects.filter(tipo=tipo)
+        .annotate(n_part=Count("qualifiche")).order_by("-data_conseguimento", "-id")
+    )
+
+    corso_sessioni: list = []
+    attestati_recenti: list = []
+    n_attestati = n_lezioni = 0
+    if corso_ids:
+        corso_sessioni = list(
+            TrainingSession.objects.filter(corso_id__in=corso_ids)
+            .select_related("corso")
+            .annotate(n_lezioni=Count("lezioni", distinct=True),
+                      n_iscritti=Count("iscrizioni", distinct=True))
+            .order_by("-data_inizio")[:30]
+        )
+        n_lezioni = TrainingLesson.objects.filter(sessione__corso_id__in=corso_ids).count()
+        rec_qs = (TrainingEmployeeRecord.objects.filter(corso_id__in=corso_ids)
+                  .select_related("corso").order_by("-data_completamento", "-id"))
+        n_attestati = rec_qs.count()
+        for r in rec_qs[:30]:
+            attestati_recenti.append({
+                "r": r, "nome": nomi.get(r.legacy_anagrafica_id, f"#{r.legacy_anagrafica_id}"),
+            })
+
+    return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
+        "tipo": tipo,
+        "is_admin": is_admin,
+        "corsi": corsi,
+        "holders": holders,
+        "n_holders": len(holders),
+        "n_scaduti": n_scaduti,
+        "n_scadenza": n_scadenza,
+        "sessioni": sessioni,
+        "corso_sessioni": corso_sessioni,
+        "attestati_recenti": attestati_recenti,
+        "n_attestati": n_attestati,
+        "n_lezioni": n_lezioni,
     })
 
 
@@ -4825,6 +5114,239 @@ def tipo_qualifica_delete(request, tipo_id: int):
     tipo.delete()
     messages.success(request, f'Tipo qualifica "{nome}" eliminato.')
     return _back_to_caller(request, "anagrafica:qualifiche_list")
+
+
+# ---------------------------------------------------------------------------
+# Sessioni di rinnovo qualifica — rilascio/rinnovo collettivo "a sessioni"
+# (speculare alle sessioni corsi; pattern batch come le visite mediche)
+# ---------------------------------------------------------------------------
+
+def _qualifiche_can_edit(request) -> bool:
+    return request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+
+
+def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
+    """Dipendenti (in forza) che detengono già la qualifica, con lo stato di
+    rinnovo: scaduta / in scadenza (≤90gg) / valida. I nuovi rilasci si
+    aggiungono dal picker. Pre-seleziona scadute e in scadenza."""
+    from datetime import timedelta
+    soglia = oggi + timedelta(days=90)
+    ultima_per_id: dict[int, "DipendenteQualifica"] = {}
+    for q in (DipendenteQualifica.objects.filter(tipo=tipo)
+              .order_by("legacy_anagrafica_id", "-data_conseguimento", "-id")):
+        ultima_per_id.setdefault(q.legacy_anagrafica_id, q)
+    nomi = _build_nomi_map()
+    cessati = _cessati_legacy_ids()
+    out: list[dict] = []
+    for lid, q in ultima_per_id.items():
+        if lid in cessati:
+            continue
+        if q.data_scadenza is None:
+            status = "valida"
+        elif q.data_scadenza < oggi:
+            status = "scaduta"
+        elif q.data_scadenza <= soglia:
+            status = "in_scadenza"
+        else:
+            status = "valida"
+        out.append({
+            "legacy_id": lid, "nome": nomi.get(lid, f"#{lid}"),
+            "ultima": q, "status": status,
+            "preselect": status in ("scaduta", "in_scadenza"),
+        })
+    order = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
+    out.sort(key=lambda c: (order.get(c["status"], 9), c["nome"].casefold()))
+    return out
+
+
+@login_required
+def qualifica_sessioni_list(request):
+    qs = QualificaSessione.objects.select_related("tipo").annotate(n_part=Count("qualifiche"))
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    q_text = (request.GET.get("q") or "").strip()
+    if filtro_tipo.isdigit():
+        qs = qs.filter(tipo_id=int(filtro_tipo))
+    if q_text:
+        qs = qs.filter(Q(tipo__nome__icontains=q_text) | Q(ente__icontains=q_text))
+    sessioni = list(qs.order_by("-data_conseguimento", "-id"))
+    # Tipi con almeno una sessione, per il filtro a tendina.
+    tipi_con_sessioni = list(
+        TipoQualifica.objects.filter(sessioni__isnull=False).distinct().order_by("nome")
+    )
+    return render(request, "anagrafica/pages/qualifica_sessioni_list.html", {
+        "sessioni": sessioni,
+        "is_admin": _qualifiche_can_edit(request),
+        "tipi_con_sessioni": tipi_con_sessioni,
+        "filtro_tipo": filtro_tipo,
+        "q_text": q_text,
+    })
+
+
+@login_required
+def qualifica_sessione_create(request):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Non hai i permessi per creare sessioni di rinnovo.")
+        return redirect("anagrafica:qualifiche_list")
+
+    from datetime import date as _date
+    from django.utils import timezone as _tz
+    from django.db import transaction
+
+    oggi = _tz.localdate()
+    tipi = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
+
+    # ---- Step 2: salva la sessione e i record dei partecipanti ----------
+    if request.method == "POST" and request.POST.get("step") == "2":
+        try:
+            tipo = TipoQualifica.objects.get(pk=request.POST.get("tipo_id", "").strip(), is_active=True)
+        except (TipoQualifica.DoesNotExist, ValueError):
+            messages.error(request, "Tipo qualifica non valido.")
+            return redirect("anagrafica:qualifica_sessione_create")
+        try:
+            data_cons = _date.fromisoformat(request.POST.get("data_conseguimento", "").strip())
+        except (ValueError, TypeError):
+            messages.error(request, "Data conseguimento non valida.")
+            return redirect("anagrafica:qualifica_sessione_create")
+        data_scad = None
+        ds_raw = (request.POST.get("data_scadenza") or "").strip()
+        if ds_raw:
+            try:
+                data_scad = _date.fromisoformat(ds_raw)
+            except (ValueError, TypeError):
+                data_scad = None
+        ente = (request.POST.get("ente") or "").strip()[:200]
+        note = (request.POST.get("note") or "").strip()
+
+        ids: list[int] = []
+        seen: set[int] = set()
+        raw = list(request.POST.getlist("dipendenti_selezionati"))
+        raw += [x for x in (request.POST.get("extra_ids") or "").split(",")]
+        for s in raw:
+            s = str(s).strip()
+            if s.isdigit():
+                lid = int(s)
+                if lid > 0 and lid not in seen:
+                    seen.add(lid)
+                    ids.append(lid)
+        if not ids:
+            messages.warning(request, "Nessun dipendente selezionato.")
+            return redirect("anagrafica:qualifica_sessione_create")
+
+        with transaction.atomic():
+            sess = QualificaSessione.objects.create(
+                tipo=tipo, data_conseguimento=data_cons, data_scadenza=data_scad,
+                ente=ente, note=note, created_by=request.user,
+            )
+            scad_eff = sess.scadenza_effettiva
+            for lid in ids:
+                _upsert_dipendente_qualifica(
+                    lid, tipo, data_cons, scad_eff, user=request.user, sessione=sess,
+                )
+        messages.success(
+            request,
+            f'Sessione «{tipo.nome}» del {data_cons:%d/%m/%Y}: {len(ids)} qualifiche registrate/rinnovate.',
+        )
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sess.id)
+
+    # ---- Step 1 → Step 2: prepara la tabella candidati -------------------
+    if request.method == "POST" and request.POST.get("step") == "1":
+        try:
+            tipo = TipoQualifica.objects.get(pk=request.POST.get("tipo_id", "").strip(), is_active=True)
+        except (TipoQualifica.DoesNotExist, ValueError):
+            messages.error(request, "Seleziona un tipo qualifica valido.")
+            return redirect("anagrafica:qualifica_sessione_create")
+        data_cons_raw = (request.POST.get("data_conseguimento") or "").strip() or oggi.isoformat()
+        return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
+            "step": 2, "tipo": tipo, "tipi": tipi,
+            "data_conseguimento": data_cons_raw,
+            "ente": (request.POST.get("ente") or "").strip(),
+            "candidati": _build_candidati_qualifica(tipo, oggi),
+            "dipendenti_picker": _dipendenti_picker_rows(),
+        })
+
+    # ---- Scorciatoia GET ?tipo=<id> → salta a Step 2 con i candidati -----
+    pre_tipo_id = (request.GET.get("tipo") or "").strip()
+    if pre_tipo_id.isdigit():
+        pre_tipo = TipoQualifica.objects.filter(pk=int(pre_tipo_id), is_active=True).first()
+        if pre_tipo:
+            return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
+                "step": 2, "tipo": pre_tipo, "tipi": tipi,
+                "data_conseguimento": oggi.isoformat(), "ente": "",
+                "candidati": _build_candidati_qualifica(pre_tipo, oggi),
+                "dipendenti_picker": _dipendenti_picker_rows(),
+            })
+
+    # ---- Step 1 (GET) ----------------------------------------------------
+    return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
+        "step": 1, "tipi": tipi, "oggi": oggi,
+    })
+
+
+@login_required
+def qualifica_sessione_detail(request, sessione_id: int):
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    nomi = _build_nomi_map()
+    rows = [
+        {"q": q, "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}")}
+        for q in sess.qualifiche.all()
+    ]
+    rows.sort(key=lambda r: r["nome"].casefold())
+    is_admin = _qualifiche_can_edit(request)
+    return render(request, "anagrafica/pages/qualifica_sessione_detail.html", {
+        "sess": sess,
+        "rows": rows,
+        "is_admin": is_admin,
+        "dipendenti_picker": _dipendenti_picker_rows() if is_admin else [],
+    })
+
+
+@login_required
+@require_POST
+def qualifica_sessione_partecipante_add(request, sessione_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    try:
+        lid = int(request.POST.get("legacy_id") or 0)
+    except (ValueError, TypeError):
+        lid = 0
+    if lid > 0:
+        _upsert_dipendente_qualifica(
+            lid, sess.tipo, sess.data_conseguimento, sess.scadenza_effettiva,
+            user=request.user, sessione=sess,
+        )
+        messages.success(request, "Partecipante aggiunto alla sessione.")
+    else:
+        messages.error(request, "Dipendente non valido.")
+    return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def qualifica_sessione_partecipante_remove(request, sessione_id: int, q_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, sessione_id=sessione_id)
+    # Stacca dalla sessione (la qualifica corrente del dipendente resta).
+    q.sessione = None
+    q.save(update_fields=["sessione"])
+    messages.success(request, "Partecipante rimosso dalla sessione (qualifica conservata).")
+    return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def qualifica_sessione_delete(request, sessione_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessioni_list")
+    sess = get_object_or_404(QualificaSessione, pk=sessione_id)
+    # SET_NULL: le qualifiche dei dipendenti restano, perdono solo il legame.
+    sess.delete()
+    messages.success(request, "Sessione eliminata (qualifiche dei dipendenti conservate).")
+    return redirect("anagrafica:qualifica_sessioni_list")
 
 
 # ---------------------------------------------------------------------------
@@ -9856,14 +10378,35 @@ def fattori_rischio_list(request):
         FattoreRischio.objects
         .annotate(n_categorie=Count("categorie_corso", distinct=True),
                   n_esposizioni=Count("esposizioni", distinct=True))
+        .prefetch_related("tipi_visita", "categorie_dpi")
         .order_by("categoria", "nome")
     )
+    # Id selezionati per il modale di modifica JS (requisiti generati dal fattore).
+    for f in fattori:
+        f.sel_visite_ids = [t.pk for t in f.tipi_visita.all()]
+        f.sel_dpi_ids = [c.pk for c in f.categorie_dpi.all()]
+
+    visite_opts = list(
+        TipoVisitaMedica.objects.filter(is_active=True).order_by("nome").values("id", "nome")
+    )
+    dpi_opts: list[dict] = []
+    try:
+        from dpi.models import CategoriaDPI
+        dpi_opts = list(
+            CategoriaDPI.objects.filter(is_active=True)
+            .order_by("order_index", "nome").values("id", "nome")
+        )
+    except Exception:
+        dpi_opts = []
+
     form = FattoreRischioForm()
     return render(request, "anagrafica/pages/rischi_fattori_list.html", {
         "fattori":   fattori,
         "form":      form,
         "is_editor": is_editor,
         "CATEGORIA_CHOICES": FattoreRischio.CATEGORIA_CHOICES,
+        "visite_opts": visite_opts,
+        "dpi_opts":    dpi_opts,
     })
 
 
@@ -10141,13 +10684,255 @@ def dipendente_conformita_panel(request, legacy_id: int):
     ``include_visite_dettaglio``.
     """
     can_view_visite = _can_view_visite_mediche(request)
+    mansione_nome = (
+        AnagraficaDipendente.objects
+        .filter(id=legacy_id).values_list("mansione", flat=True).first()
+    ) or ""
     stato = conformita_service.stato_conformita(
-        legacy_id, include_visite_dettaglio=can_view_visite
+        legacy_id,
+        include_visite_dettaglio=can_view_visite,
+        mansione=mansione_nome,
+    )
+    mansione_obj = (
+        Mansione.objects.filter(nome__iexact=mansione_nome.strip()).only("id").first()
+        if mansione_nome else None
     )
     return render(request, "anagrafica/partials/conformita_panel.html", {
         "legacy_id": legacy_id,
         "stato": stato,
+        "mansione_nome": mansione_nome,
+        "mansione_id": mansione_obj.id if mansione_obj else None,
         "can_view_visite": can_view_visite,
+    })
+
+
+@login_required
+def dipendente_verbale_dpi(request, legacy_id: int):
+    """Verbale di consegna DPI (MOD.155) precompilato con i DPI richiesti dalla
+    mansione del dipendente. Pagina stampabile (``window.print()``) da firmare;
+    riusa i requisiti del resolver mansionario, niente record di consegna creati."""
+    from django.utils import timezone
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    mansione_nome = str(dip.get("mansione") or "").strip()
+    requisiti = (
+        mansionario_service.requisiti_per_nome_mansione(mansione_nome)
+        if mansione_nome else mansionario_service.requisiti_vuoti()
+    )
+    nome = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    return render(request, "anagrafica/pages/verbale_dpi.html", {
+        "dip": dip,
+        "nome": nome,
+        "mansione": mansione_nome,
+        "reparto": str(dip.get("reparto") or "").strip(),
+        "dpi": requisiti["dpi"],
+        "oggi": timezone.localdate(),
+    })
+
+
+@login_required
+def sicurezza_hub(request):
+    """Cruscotto "Sicurezza & Idoneità": numeri chiave e collegamenti a tutte le
+    sezioni correlate (fattori, esposizioni, mansioni di rischio, conformità,
+    catalogo DPI), così le pagine non risultano isolate. Le metriche di idoneità
+    (aggregate, non nominative) sono mostrate solo con permesso HR.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per il cruscotto sicurezza.")
+        return redirect("anagrafica:index")
+    can_hr = _check_hr_permission(request)
+
+    n_mansioni = Mansione.objects.filter(is_active=True).count()
+    n_mansioni_rischio = (
+        Mansione.objects.filter(is_active=True)
+        .filter(Q(dpi_richiesti__isnull=False) | Q(visite_richieste__isnull=False)
+                | ~Q(livello_rischio=""))
+        .distinct().count()
+    )
+
+    idoneita_kpi = None
+    if can_hr:
+        dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+        dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+        mansioni_per_legacy = {
+            lid: str(d.get("mansione") or "").strip()
+            for lid, d in dip_map.items() if str(d.get("mansione") or "").strip()
+        }
+        stati = conformita_service.stato_conformita_batch(
+            list(dip_map), mansioni_per_legacy=mansioni_per_legacy
+        )
+        c = {"ok": 0, "warn": 0, "ko": 0, "na": 0}
+        for s in stati.values():
+            e = s.get("idoneita", {}).get("esito", "na")
+            c[e] = c.get(e, 0) + 1
+        idoneita_kpi = {
+            "idonei": c["ok"], "riserve": c["warn"], "non_idonei": c["ko"],
+            "valutati": c["ok"] + c["warn"] + c["ko"],
+        }
+
+    return render(request, "anagrafica/pages/sicurezza_hub.html", {
+        "can_hr": can_hr,
+        "n_mansioni": n_mansioni,
+        "n_mansioni_rischio": n_mansioni_rischio,
+        "idoneita_kpi": idoneita_kpi,
+    })
+
+
+@login_required
+def sicurezza_wizard(request):
+    """Configurazione guidata della "mansione di rischio": passi in ordine, con
+    stato (fatto/da fare) calcolato dai dati reali e CTA verso ogni sezione.
+    Rende esplicito il flusso e collega le sezioni tra loro."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la guida sicurezza.")
+        return redirect("anagrafica:index")
+
+    n_mansioni_rischio = (
+        Mansione.objects.filter(is_active=True)
+        .filter(Q(dpi_richiesti__isnull=False) | Q(visite_richieste__isnull=False)
+                | ~Q(livello_rischio=""))
+        .distinct().count()
+    )
+    try:
+        from dpi.models import CategoriaDPI
+        n_dpi = CategoriaDPI.objects.filter(is_active=True).count()
+    except Exception:
+        n_dpi = 0
+    n_visite = TipoVisitaMedica.objects.filter(is_active=True).count()
+
+    steps = [
+        {
+            "n": 1, "titolo": "Cataloghi di base",
+            "desc": "Verifica che esistano le categorie DPI e le tipologie di visita medica da assegnare alle mansioni.",
+            "stato": "ok" if (n_dpi or n_visite) else "todo",
+            "info": f"{n_dpi} categorie DPI · {n_visite} tipi visita",
+            "url": reverse("dpi:impostazioni"), "cta": "Catalogo DPI",
+            "url2": reverse("anagrafica:impostazioni") + "?tab=visite", "cta2": "Tipi visita",
+        },
+        {
+            "n": 2, "titolo": "Requisiti delle mansioni",
+            "desc": "Su ogni mansione imposta il livello di rischio e i requisiti (DPI, visite, formazione). Il rischio è dedotto dalla mansione e dai DPI associati.",
+            "stato": "ok" if n_mansioni_rischio else "todo",
+            "info": f"{n_mansioni_rischio} mansioni di rischio configurate",
+            "url": reverse("anagrafica:mansioni_list"), "cta": "Mansioni di rischio",
+        },
+        {
+            "n": 3, "titolo": "Verifica idoneità",
+            "desc": "Controlla il semaforo di idoneità di ogni dipendente: requisiti mancanti (avviso) o scaduti (non idoneo). Vedi anche la matrice competenze.",
+            "stato": "info",
+            "info": "Report trasversale su tutto il personale",
+            "url": reverse("anagrafica:conformita_report"), "cta": "Apri conformità",
+        },
+    ]
+    return render(request, "anagrafica/pages/sicurezza_wizard.html", {"steps": steps})
+
+
+@login_required
+def matrice_competenze(request):
+    """Matrice **dipendenti × competenze/abilitazioni** (qualifiche) per audit ISO 45001.
+
+    Celle: valido / in scadenza (≤60gg) / scaduto / mancante. Colonne = i
+    ``TipoQualifica`` con almeno un'assegnazione (competenze realmente in uso,
+    incl. quelle importate dall'ASR). Filtro reparto + export CSV.
+    Accesso: ``_check_hr_permission`` (vista trasversale sul personale).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per la matrice competenze.")
+        return redirect("anagrafica:index")
+
+    from datetime import timedelta
+    from django.utils import timezone
+    ensure_anagrafica_schema()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    cat_filter = (request.GET.get("categoria") or "").strip().upper()
+    if cat_filter not in valid_cats:
+        cat_filter = ""
+    oggi = timezone.localdate()
+    soglia = oggi + timedelta(days=60)
+
+    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    legacy_ids = list(dip_map.keys())
+
+    # Colonne = TipoQualifica con almeno un'assegnazione; tab per categoria.
+    cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+    tipi_all = list(
+        TipoQualifica.objects.annotate(_n=Count("assegnazioni"))
+        .filter(_n__gt=0).order_by("categoria", "nome")
+    )
+    tabs = [("", "Tutte", len(tipi_all))]
+    for cat_code, cat_lbl in TipoQualifica.CATEGORIA_CHOICES:
+        n = sum(1 for t in tipi_all if t.categoria == cat_code)
+        if n:
+            tabs.append((cat_code, cat_lbl, n))
+    tipi = [t for t in tipi_all if not cat_filter or t.categoria == cat_filter]
+    tipo_ids = [t.id for t in tipi]
+    q_map: dict[tuple[int, int], DipendenteQualifica] = {}
+    for q in DipendenteQualifica.objects.filter(
+        legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids
+    ):
+        q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
+
+    def _stato(q):
+        if q is None:
+            return "mancante"
+        if q.data_scadenza is None:
+            return "valido"
+        if q.data_scadenza < oggi:
+            return "scaduto"
+        if q.data_scadenza <= soglia:
+            return "in_scadenza"
+        return "valido"
+
+    righe: list[dict] = []
+    for lid, dip in dip_map.items():
+        reparto = str(dip.get("reparto") or "").strip()
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        celle = []
+        for t in tipi:
+            q = q_map.get((lid, t.id))
+            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None})
+        righe.append({
+            "legacy_id": lid,
+            "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": reparto,
+            "celle": celle,
+        })
+    righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
+    reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
+
+    if export_csv:
+        _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "—"}
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="matrice_competenze.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto"] + [t.nome for t in tipi])
+        for r in righe:
+            cells = []
+            for c in r["celle"]:
+                lab = _LAB.get(c["stato"], c["stato"])
+                if c["data"]:
+                    lab = f"{lab} {c['data']:%d/%m/%Y}"
+                cells.append(lab)
+            writer.writerow([f"{r['cognome']} {r['nome']}".strip(), r["reparto"]] + cells)
+        return resp
+
+    return render(request, "anagrafica/pages/matrice_competenze.html", {
+        "tipi": tipi,
+        "righe": righe,
+        "reparti": reparti,
+        "filtro_reparto": filtro_reparto,
+        "totale": len(righe),
+        "tabs": tabs,
+        "active_categoria": cat_filter,
+        "active_categoria_label": cat_labels.get(cat_filter, ""),
     })
 
 
@@ -10168,14 +10953,30 @@ def conformita_report(request):
 
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     filtro_esito = (request.GET.get("esito") or "").strip()
+    filtro_idoneita = (request.GET.get("idoneita") or "").strip()
+    filtro_mansione = (request.GET.get("mansione") or "").strip()
     export_csv = request.GET.get("format") == "csv"
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
     legacy_ids = list(dip_map.keys())
 
+    # Mappa nome mansione → id (per collegare ogni riga alla sua pagina Requisiti).
+    mansioni_map = {
+        m.nome.casefold(): m.id
+        for m in Mansione.objects.filter(is_active=True).only("id", "nome")
+    }
+
+    mansioni_per_legacy = {
+        lid: str(dip.get("mansione") or "").strip()
+        for lid, dip in dip_map.items()
+        if str(dip.get("mansione") or "").strip()
+    }
+
     stati = conformita_service.stato_conformita_batch(
-        legacy_ids, include_visite_dettaglio=can_view_visite
+        legacy_ids,
+        include_visite_dettaglio=can_view_visite,
+        mansioni_per_legacy=mansioni_per_legacy,
     )
 
     _ORDINE_ESITO = {
@@ -10191,16 +10992,25 @@ def conformita_report(request):
         reparto = str(dip.get("reparto") or "").strip()
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
             continue
+        mansione_nome = str(dip.get("mansione") or "").strip()
+        if filtro_mansione and mansione_nome.casefold() != filtro_mansione.casefold():
+            continue
         stato = stati.get(legacy_id, {"complessivo": conformita_service.ESITO_NA})
         complessivo = stato.get("complessivo", conformita_service.ESITO_NA)
         if filtro_esito and complessivo != filtro_esito:
             continue
+        idoneita = stato.get("idoneita", {"esito": conformita_service.ESITO_NA})
+        if filtro_idoneita and idoneita.get("esito") != filtro_idoneita:
+            continue
         righe.append({
             "legacy_id": legacy_id,
+            "mansione_id": mansioni_map.get(mansione_nome.casefold()),
             "cognome": str(dip.get("cognome") or f"ID {legacy_id}").strip(),
             "nome": str(dip.get("nome") or "").strip(),
             "reparto": reparto,
+            "mansione": str(dip.get("mansione") or "").strip(),
             "complessivo": complessivo,
+            "idoneita": idoneita,
             "formazione": stato.get("formazione", na),
             "visite": stato.get("visite", na),
             "qualifiche": stato.get("qualifiche", na),
@@ -10228,18 +11038,29 @@ def conformita_report(request):
             conformita_service.ESITO_KO: "Non conforme",
             conformita_service.ESITO_NA: "Nessun requisito",
         }
+        _LABEL_IDN = {
+            conformita_service.ESITO_OK: "Idoneo",
+            conformita_service.ESITO_WARN: "Idoneo con riserve",
+            conformita_service.ESITO_KO: "Non idoneo",
+            conformita_service.ESITO_NA: "Non valutabile",
+        }
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="conformita_anagrafica.csv"'
         writer = csv.writer(resp, delimiter=";")
         writer.writerow([
-            "Dipendente", "Reparto", "Conformità",
-            "Formazione", "Visite mediche", "Qualifiche", "DPI",
+            "Dipendente", "Reparto", "Mansione", "Conformità", "Idoneità mansione",
+            "Requisiti da soddisfare", "Formazione", "Visite mediche", "Qualifiche", "DPI",
         ])
         for r in righe:
+            idn = r["idoneita"]
+            da_soddisfare = "; ".join(list(idn.get("scaduti", [])) + list(idn.get("mancanti", [])))
             writer.writerow([
                 f"{r['cognome']} {r['nome']}".strip(),
                 r["reparto"],
+                r["mansione"],
                 _LABEL.get(r["complessivo"], r["complessivo"]),
+                _LABEL_IDN.get(idn.get("esito"), idn.get("esito")),
+                da_soddisfare,
                 _LABEL.get(r["formazione"]["esito"], r["formazione"]["esito"]),
                 _LABEL.get(r["visite"]["esito"], r["visite"]["esito"]),
                 _LABEL.get(r["qualifiche"]["esito"], r["qualifiche"]["esito"]),
@@ -10260,6 +11081,8 @@ def conformita_report(request):
         "reparti": reparti,
         "filtro_reparto": filtro_reparto,
         "filtro_esito": filtro_esito,
+        "filtro_idoneita": filtro_idoneita,
+        "filtro_mansione": filtro_mansione,
         "can_view_visite": can_view_visite,
     })
 

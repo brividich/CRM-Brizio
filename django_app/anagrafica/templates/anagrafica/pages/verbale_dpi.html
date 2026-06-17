@@ -1,0 +1,90 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Verbale consegna DPI · {{ nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.vd-wrap { max-width:820px; margin:0 auto; background:#fff; color:#0f172a; }
+.vd-toolbar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:14px; }
+.vd-doc { border:1px solid #e2e8f0; border-radius:10px; padding:28px 32px; }
+.vd-head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #12395f; padding-bottom:10px; margin-bottom:16px; }
+.vd-brand { font-size:20px; font-weight:800; color:#12395f; }
+.vd-modref { font-size:11px; color:#64748b; text-align:right; }
+.vd-title { font-size:16px; font-weight:800; text-align:center; margin:8px 0 14px; }
+.vd-intro { font-size:12.5px; line-height:1.6; color:#334155; }
+.vd-field { margin:12px 0; font-size:13px; }
+.vd-field b { display:inline-block; min-width:90px; }
+.vd-line { border-bottom:1px solid #94a3b8; display:inline-block; min-width:320px; }
+.vd-table { width:100%; border-collapse:collapse; margin:16px 0; font-size:12.5px; }
+.vd-table th, .vd-table td { border:1px solid #cbd5e1; padding:8px 10px; text-align:left; }
+.vd-table th { background:#f1f5f9; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.vd-table td.data { width:150px; }
+.vd-decl { font-size:11.5px; line-height:1.6; color:#475569; margin-top:14px; }
+.vd-sign { display:flex; justify-content:space-between; gap:30px; margin-top:34px; font-size:12.5px; }
+.vd-sign div { flex:1; }
+.vd-sign .ln { border-bottom:1px solid #475569; height:34px; margin-top:6px; }
+.vd-empty { color:#94a3b8; font-style:italic; }
+@media print {
+  body * { visibility:hidden; }
+  .vd-wrap, .vd-wrap * { visibility:visible; }
+  .vd-wrap { position:absolute; left:0; top:0; width:100%; }
+  .vd-toolbar { display:none; }
+  .vd-doc { border:none; padding:0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vd-wrap">
+  <div class="vd-toolbar">
+    <a class="hr-btn hr-btn-ghost hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.id %}">← Scheda</a>
+    <button type="button" class="hr-btn hr-btn-primary hr-btn-sm" onclick="window.print()">🖨 Stampa</button>
+  </div>
+
+  <div class="vd-doc">
+    <div class="vd-head">
+      <div class="vd-brand">NOVICROM HUB</div>
+      <div class="vd-modref">MOD.155 — VCD<br>Verbale Consegna DPI</div>
+    </div>
+
+    <div class="vd-title">VERBALE DI CONSEGNA DEI DISPOSITIVI DI PROTEZIONE INDIVIDUALE (DPI)</div>
+
+    <div class="vd-intro">
+      In relazione a quanto stabilito dall'art. 18, comma 1, lettera d) e dall'art. 77 del
+      D.Lgs. 9 aprile 2008 n. 81 e s.m.i., a seguito della Valutazione dei Rischi effettuata in
+      relazione allo svolgimento dell'attività lavorativa e alla mansione di riferimento, si dichiara
+      di aver consegnato al lavoratore i seguenti DPI, idonei ai rischi presenti e conformi alla
+      normativa vigente:
+    </div>
+
+    <div class="vd-field"><b>Nome:</b> <span class="vd-line">{{ nome }}</span></div>
+    <div class="vd-field"><b>Mansione:</b> <span class="vd-line">{{ mansione|default:"—" }}</span>{% if reparto %} &nbsp;&nbsp;<b>Reparto:</b> {{ reparto }}{% endif %}</div>
+
+    <table class="vd-table">
+      <thead><tr><th>DPI (categoria richiesta dalla mansione)</th><th class="data">Data di consegna</th></tr></thead>
+      <tbody>
+        {% for c in dpi %}
+        <tr><td>{{ c.nome }}</td><td class="data"></td></tr>
+        {% empty %}
+        <tr><td colspan="2" class="vd-empty">Nessun DPI definito per questa mansione — impostare i requisiti nella pagina “Requisiti mansione”.</td></tr>
+        {% endfor %}
+        <tr><td>&nbsp;</td><td class="data"></td></tr>
+        <tr><td>&nbsp;</td><td class="data"></td></tr>
+      </tbody>
+    </table>
+
+    <div class="vd-decl">
+      L'utilizzo corretto e continuativo dei DPI consegnati è obbligatorio. Il lavoratore è responsabile
+      della custodia e dell'uso diligente dei DPI (art. 78 D.Lgs. 81/08) e si impegna a segnalare
+      tempestivamente difetti o malfunzionamenti. Il Datore di Lavoro dichiara di aver informato il
+      lavoratore sui rischi e di averne curato la formazione/addestramento all'uso (art. 77).
+    </div>
+
+    <div class="vd-sign">
+      <div>Data ___________________<div class="ln"></div><div style="text-align:center;margin-top:4px;">Il Datore di Lavoro</div></div>
+      <div>Data ___________________<div class="ln"></div><div style="text-align:center;margin-top:4px;">Il Lavoratore</div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

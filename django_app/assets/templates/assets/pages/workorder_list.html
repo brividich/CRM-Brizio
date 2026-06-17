@@ -2,12 +2,373 @@
 
 {% block title %}Interventi{% endblock %}
 
+{% block assets_shell_head %}
+{{ block.super }}
+<style>
+.wo-create-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, .42);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, .32);
+  overflow: hidden;
+}
+.wo-create-dialog::backdrop {
+  background: rgba(15, 23, 42, .46);
+  backdrop-filter: blur(2px);
+}
+.wo-create-form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  max-height: inherit;
+}
+.wo-create-head,
+.wo-create-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.wo-create-actions {
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 0;
+  background: #f8fafc;
+}
+.wo-create-title {
+  margin: 0;
+  color: #17324f;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.wo-create-search {
+  padding: 14px 18px 10px;
+  display: grid;
+  gap: 8px;
+}
+.wo-create-search input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #0f172a;
+  font: inherit;
+}
+.wo-create-count {
+  color: #64748b;
+  font-size: .82rem;
+  font-weight: 700;
+}
+.wo-asset-list {
+  min-height: 220px;
+  max-height: min(420px, 46vh);
+  overflow: auto;
+  padding: 8px 18px 16px;
+  display: grid;
+  gap: 8px;
+}
+.wo-asset-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 11px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.wo-asset-option:hover,
+.wo-asset-option:has(input:checked) {
+  border-color: #2f80ed;
+  background: #eff6ff;
+}
+.wo-asset-option strong {
+  display: block;
+  color: #17324f;
+  font-size: .94rem;
+}
+.wo-asset-option span {
+  display: block;
+  color: #64748b;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+.wo-empty-search {
+  display: none;
+  padding: 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #64748b;
+  text-align: center;
+}
+.wo-empty-search.is-visible {
+  display: block;
+}
+.wo-list-page {
+  display: grid;
+  gap: 14px;
+}
+.wo-filter-card,
+.wo-table-card {
+  border: 1px solid #dbe1ea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
+}
+.wo-filter-card {
+  padding: 12px;
+}
+.wo-filter-actions {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wo-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.wo-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+.wo-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: .8rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.wo-filter-chip:hover {
+  border-color: #60a5fa;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.wo-filter-chip-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(29, 78, 216, .12);
+  font-size: .72rem;
+  line-height: 1;
+}
+.wo-filter-clear {
+  color: #475569;
+  font-size: .82rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.wo-filter-clear:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+.wo-table-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.wo-table-title {
+  margin: 0;
+  color: #17324f;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.wo-table-wrap {
+  overflow: auto;
+}
+.wo-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.wo-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wo-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+  font-size: .88rem;
+  vertical-align: top;
+}
+.wo-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.wo-title-link {
+  color: #1d4ed8;
+  font-weight: 800;
+  text-decoration: none;
+}
+.wo-title-link:hover {
+  text-decoration: underline;
+}
+.wo-muted {
+  color: #64748b;
+  font-size: .8rem;
+  line-height: 1.45;
+}
+.wo-cost {
+  color: #0f172a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.wo-action-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.wo-empty-row {
+  padding: 24px 16px;
+  color: #64748b;
+  text-align: center;
+}
+body.theme-dark .wo-create-dialog {
+  background: #111827;
+  border-color: rgba(148, 163, 184, .28);
+}
+body.theme-dark .wo-create-head,
+body.theme-dark .wo-create-actions {
+  border-color: rgba(148, 163, 184, .22);
+}
+body.theme-dark .wo-create-actions {
+  background: #0f172a;
+}
+body.theme-dark .wo-create-title,
+body.theme-dark .wo-asset-option strong {
+  color: #e5e7eb;
+}
+body.theme-dark .wo-create-search input,
+body.theme-dark .wo-asset-option {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, .32);
+  color: #e5e7eb;
+}
+body.theme-dark .wo-asset-option:hover,
+body.theme-dark .wo-asset-option:has(input:checked) {
+  background: rgba(47, 128, 237, .18);
+}
+body.theme-dark .wo-filter-card,
+body.theme-dark .wo-table-card {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: none;
+}
+body.theme-dark .wo-filter-summary {
+  background: rgba(37, 99, 235, .08);
+  border-color: rgba(96, 165, 250, .24);
+}
+body.theme-dark .wo-filter-chip {
+  background: rgba(37, 99, 235, .14);
+  border-color: rgba(96, 165, 250, .28);
+  color: #bfdbfe;
+}
+body.theme-dark .wo-filter-chip:hover {
+  background: rgba(37, 99, 235, .22);
+  color: #dbeafe;
+}
+body.theme-dark .wo-filter-chip-remove {
+  background: rgba(191, 219, 254, .12);
+}
+body.theme-dark .wo-filter-clear {
+  color: var(--text-light);
+}
+body.theme-dark .wo-filter-clear:hover {
+  color: #93c5fd;
+}
+body.theme-dark .wo-table-head {
+  border-color: var(--border);
+}
+body.theme-dark .wo-table-title,
+body.theme-dark .wo-table td,
+body.theme-dark .wo-cost {
+  color: var(--text);
+}
+body.theme-dark .wo-table th {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text-light);
+}
+body.theme-dark .wo-table td {
+  border-color: var(--border);
+}
+body.theme-dark .wo-muted {
+  color: var(--text-light);
+}
+</style>
+{% endblock %}
+
 {% block assets_shell_title %}Interventi{% endblock %}
 {% block assets_shell_subtitle %}<p>Interventi aperti, chiusi o annullati.</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
   <a class="btn" href="{% url 'assets:asset_list' %}">Inventario</a>
+  <button type="button" onclick="document.getElementById('woCreateDlg').showModal()" class="btn btn-primary"{% if not workorder_create_asset_options %} disabled{% endif %}>+ Nuovo intervento</button>
   <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn">&#8595; Esporta</button>
+  <dialog id="woCreateDlg" class="wo-create-dialog">
+    <form method="get" action="{% url 'assets:wo_create' %}" class="wo-create-form">
+      <div class="wo-create-head">
+        <h2 class="wo-create-title">Nuovo intervento</h2>
+        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn">Chiudi</button>
+      </div>
+      <input type="hidden" name="source" value="workorder_list">
+      <div class="wo-create-search">
+        <input type="search" id="woAssetSearch" data-wo-create-search placeholder="Cerca per tag, nome o reparto" autocomplete="off">
+        <div class="wo-create-count" data-wo-create-count>{{ workorder_create_asset_options|length }} asset disponibili</div>
+      </div>
+      <div class="wo-asset-list" data-wo-asset-list>
+        {% for asset in workorder_create_asset_options %}
+          <label class="wo-asset-option" data-wo-asset-option data-search="{{ asset.asset_tag }} {{ asset.name }} {{ asset.reparto }}">
+            <input type="radio" name="asset" value="{{ asset.id }}" required>
+            <span>
+              <strong>{{ asset.asset_tag }} - {{ asset.name }}</strong>
+              <span>{% if asset.reparto %}{{ asset.reparto }} - {% endif %}{{ asset.get_asset_type_display }} - {{ asset.get_status_display }}</span>
+            </span>
+          </label>
+        {% endfor %}
+        <div class="wo-empty-search" data-wo-empty-search>Nessun asset trovato.</div>
+      </div>
+      <div class="wo-create-actions">
+        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn">Annulla</button>
+        <button type="submit" class="btn btn-primary">Continua</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="woExportDlg" style="border:1px solid #dbe1ea;border-radius:14px;padding:20px;min-width:280px;box-shadow:0 8px 32px rgba(15,23,42,.15);">
     <div style="font-weight:700;font-size:1rem;margin-bottom:12px;color:#1e3a5f;">Esporta interventi</div>
     <div style="font-size:.875rem;font-weight:600;margin-bottom:6px;color:#64748b;">Ambito</div>
@@ -24,9 +385,54 @@
   <script>(function(){var base="{% url 'assets:workorder_list_export' %}",qs="{{ request.GET.urlencode|escapejs }}";function upd(){var s=document.querySelector('input[name="woExportScope"]:checked').value,q=s==="filtered"&&qs?qs+"&":"";document.getElementById("woXlsxLink").href=base+"?"+q+"scope="+s+"&format=xlsx";document.getElementById("woPdfLink").href=base+"?"+q+"scope="+s+"&format=pdf";}document.querySelectorAll('input[name="woExportScope"]').forEach(function(r){r.addEventListener("change",upd);});upd();})();</script>
 {% endblock %}
 
+{% block assets_shell_scripts %}
+{{ block.super }}
+<script>
+(function(){
+  var search = document.querySelector("[data-wo-create-search]");
+  var options = Array.prototype.slice.call(document.querySelectorAll("[data-wo-asset-option]"));
+  var count = document.querySelector("[data-wo-create-count]");
+  var empty = document.querySelector("[data-wo-empty-search]");
+  if (!search || !options.length) return;
+  function normalize(value){return (value || "").toString().toLowerCase().trim();}
+  function update(){
+    var needle = normalize(search.value);
+    var visible = 0;
+    options.forEach(function(option){
+      var match = !needle || normalize(option.getAttribute("data-search")).indexOf(needle) !== -1;
+      option.hidden = !match;
+      if (match) visible += 1;
+    });
+    if (count) count.textContent = visible + " asset disponibili";
+    if (empty) empty.classList.toggle("is-visible", visible === 0);
+  }
+  search.addEventListener("input", update);
+  document.getElementById("woCreateDlg").addEventListener("close", function(){
+    search.value = "";
+    update();
+  });
+  update();
+})();
+(function(){
+  var params = new URLSearchParams(window.location.search || "");
+  function openDialog(id){
+    var dialog = document.getElementById(id);
+    if (!dialog || dialog.open || typeof dialog.showModal !== "function") return;
+    dialog.showModal();
+  }
+  if (params.get("create") === "1" && document.querySelector("[data-wo-asset-option]")) {
+    openDialog("woCreateDlg");
+  }
+  if (params.get("export") === "1") {
+    openDialog("woExportDlg");
+  }
+})();
+</script>
+{% endblock %}
+
 {% block assets_shell_content %}
-<section style="display:grid;gap:14px;">
-  <form method="get" class="as-form-grid-5" style="border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:12px;">
+<section class="wo-list-page">
+  <form method="get" class="as-form-grid-5 wo-filter-card">
     <div style="grid-column:span 2;">
       <label>Ricerca</label>
       <input type="text" name="q" value="{{ q_filter }}">
@@ -49,30 +455,157 @@
         {% endfor %}
       </select>
     </div>
-    <div style="display:flex;align-items:flex-end;gap:8px;">
+    <div>
+      <label>Origine</label>
+      <select name="origin">
+        <option value="">Tutte</option>
+        {% for code,label in origin_choices %}
+          <option value="{{ code }}" {% if origin_filter == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Copertura</label>
+      <select name="coverage">
+        <option value="all" {% if coverage_filter == "all" %}selected{% endif %}>Tutte</option>
+        <option value="covered" {% if coverage_filter == "covered" %}selected{% endif %}>Con contratto</option>
+        <option value="uncovered" {% if coverage_filter == "uncovered" %}selected{% endif %}>Senza contratto</option>
+      </select>
+    </div>
+    <div>
+      <label>Reparto</label>
+      <select name="reparto">
+        <option value="">Tutti</option>
+        {% for reparto in reparto_options %}
+          <option value="{{ reparto }}" {% if reparto_filter == reparto %}selected{% endif %}>{{ reparto }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Categoria</label>
+      <select name="category">
+        <option value="">Tutte</option>
+        {% for category in category_options %}
+          <option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>{{ category.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Assegnato / eseguito da</label>
+      <select name="assigned">
+        <option value="">Tutti</option>
+        {% for user_option in user_options %}
+          <option value="{{ user_option.id }}" {% if assigned_filter == user_option.id %}selected{% endif %}>{{ user_option.get_full_name|default:user_option.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Aperti da almeno</label>
+      <select name="open_age">
+        <option value="0" {% if not open_age_filter %}selected{% endif %}>Qualsiasi</option>
+        <option value="7" {% if open_age_filter == 7 %}selected{% endif %}>7 giorni</option>
+        <option value="14" {% if open_age_filter == 14 %}selected{% endif %}>14 giorni</option>
+        <option value="21" {% if open_age_filter == 21 %}selected{% endif %}>21 giorni</option>
+        <option value="30" {% if open_age_filter == 30 %}selected{% endif %}>30 giorni</option>
+        <option value="60" {% if open_age_filter == 60 %}selected{% endif %}>60 giorni</option>
+      </select>
+    </div>
+    <div class="wo-filter-actions">
       <button class="btn btn-primary" type="submit">Filtra</button>
       <a class="btn" href="{% url 'assets:wo_list' %}">Reimposta</a>
     </div>
   </form>
+  {% if active_filter_chips %}
+    <div class="wo-filter-summary" aria-label="Filtri attivi">
+      <div class="wo-filter-chips">
+        {% for chip in active_filter_chips %}
+          <a class="wo-filter-chip" href="{{ chip.remove_url }}" title="Rimuovi filtro {{ chip.label }}">
+            <span>{{ chip.label }}: {{ chip.value }}</span>
+            <span class="wo-filter-chip-remove" aria-hidden="true">x</span>
+          </a>
+        {% endfor %}
+      </div>
+      <a class="wo-filter-clear" href="{% url 'assets:wo_list' %}">Rimuovi tutti</a>
+    </div>
+  {% endif %}
 
-  <div style="display:grid;gap:8px;">
-    {% for wo in workorders %}
-      <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;">
-        <div>
-          <div><strong>#{{ wo.id }} - {{ wo.title }}</strong></div>
-          <div class="as-note">{{ wo.asset.asset_tag }} | {{ wo.asset.name }} | {{ wo.get_kind_display }} | {{ wo.get_status_display }}</div>
-          <div class="as-meta">Aperta: {{ wo.opened_at|date:"d-m-Y H:i" }} {% if wo.closed_at %}| Chiusa: {{ wo.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
-          {% if wo.status == 'OPEN' %}
-            <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
-          {% endif %}
-        </div>
-      </article>
-    {% empty %}
-      <div style="padding:14px;border:1px solid #dbe1ea;border-radius:12px;background:#fff;color:#64748b;">Nessun intervento trovato.</div>
-    {% endfor %}
-  </div>
+  <article class="wo-table-card">
+    <div class="wo-table-head">
+      <h2 class="wo-table-title">Registro interventi</h2>
+      <span class="as-badge as-badge--info">{{ workorders|length }} righe</span>
+    </div>
+    <div class="wo-table-wrap">
+      <table class="wo-table">
+        <thead>
+          <tr>
+            <th>Intervento</th>
+            <th>Asset</th>
+            <th>Tipo / origine</th>
+            <th>Stato</th>
+            <th>Responsabili</th>
+            <th>Copertura</th>
+            <th>Tempi</th>
+            <th>Costi</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wo in workorders %}
+            <tr>
+              <td>
+                <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a>
+                {% if wo.description %}<div class="wo-muted">{{ wo.description|truncatechars:90 }}</div>{% endif %}
+              </td>
+              <td>
+                <strong>{{ wo.asset.asset_tag }}</strong>
+                <div class="wo-muted">{{ wo.asset.name }}</div>
+                <div class="wo-muted">{% if wo.asset.reparto %}{{ wo.asset.reparto }}{% else %}Reparto non indicato{% endif %}{% if wo.asset.asset_category %} · {{ wo.asset.asset_category.label }}{% endif %}</div>
+              </td>
+              <td>
+                {{ wo.get_kind_display }}
+                <div class="wo-muted">{{ wo.get_origin_display }}</div>
+              </td>
+              <td>
+                <span class="as-badge {% if wo.status == 'OPEN' %}as-badge--warn{% elif wo.status == 'DONE' %}as-badge--ok{% else %}as-badge--muted{% endif %}">{{ wo.get_status_display }}</span>
+              </td>
+              <td>
+                <div>{% if wo.assigned_to %}{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}{% else %}<span class="wo-muted">Non assegnato</span>{% endif %}</div>
+                <div class="wo-muted">Esec.: {% if wo.executed_by %}{{ wo.executed_by.get_full_name|default:wo.executed_by.username }}{% else %}&mdash;{% endif %}</div>
+              </td>
+              <td>
+                {% if wo.covered_by_contract %}
+                  <span class="as-badge as-badge--ok">Coperto</span>
+                {% else %}
+                  <span class="as-badge as-badge--muted">Scoperto</span>
+                {% endif %}
+                <div class="wo-muted">{% if wo.assistance_contract %}{{ wo.assistance_contract.title }}{% elif wo.supplier %}{{ wo.supplier }}{% else %}&mdash;{% endif %}</div>
+              </td>
+              <td>
+                <div>Aperto: {{ wo.opened_at|date:"d-m-Y H:i" }}</div>
+                <div class="wo-muted">{% if wo.closed_at %}Chiuso: {{ wo.closed_at|date:"d-m-Y H:i" }}{% else %}Ancora aperto{% endif %}</div>
+                <div class="wo-muted">{{ wo.intervention_duration_minutes|default:"0" }} min lavoro · {{ wo.downtime_minutes|default:"0" }} min fermo</div>
+              </td>
+              <td>
+                <span class="wo-cost">{% if wo.resolved_total_cost_eur is not None %}{{ wo.resolved_total_cost_eur }} EUR{% else %}&mdash;{% endif %}</span>
+                <div class="wo-muted">Man.: {% if wo.labor_cost_eur is not None %}{{ wo.labor_cost_eur }}{% else %}&mdash;{% endif %} · Mat.: {% if wo.materials_cost_eur is not None %}{{ wo.materials_cost_eur }}{% else %}&mdash;{% endif %}</div>
+              </td>
+              <td>
+                <div class="wo-action-cell">
+                  <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
+                  {% if wo.status == 'OPEN' %}
+                    <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="9"><div class="wo-empty-row">Nessun intervento trovato.</div></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
 </section>
 {% endblock %}

@@ -19,6 +19,21 @@
 .ql-btn-danger:hover { background:#fecaca; }
 .ql-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
 
+.ql-tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:#fff;
+  border:1px solid #e2e8f0; border-radius:.85rem; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.ql-tabs a { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  border-radius:.6rem; padding:7px 13px; font-size:13px; font-weight:700; color:#475569;
+  text-decoration:none; border:1px solid transparent; transition:background .15s,color .15s,border-color .15s; }
+.ql-tabs a:hover { background:#f1f5f9; color:#12395f; border-color:#e2e8f0; }
+.ql-tabs a.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+.ql-tabs .ql-tab-count { font-size:11px; font-weight:800; opacity:.7; }
+.ql-ctx { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:#475569; }
+.ql-ctx a { color:#1f5c91; font-weight:700; text-decoration:none; }
+body.theme-dark .ql-tabs { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ql-tabs a { color:var(--text-mid); }
+body.theme-dark .ql-tabs a:hover { background:var(--surface-alt); color:#93c5fd; border-color:var(--border); }
+body.theme-dark .ql-ctx { color:var(--text-mid); }
+
 .ql-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
 .ql-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
 .ql-card-title { font-size:15px; font-weight:700; color:#1e293b; }
@@ -89,11 +104,34 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
 
   <div class="ql-topbar">
     <div>
-      <div class="ql-title">📜 Qualifiche professionali</div>
-      <div class="ql-sub">Catalogo certificazioni e attestati con tracciamento scadenze</div>
+      {% if active_categoria %}
+        <div class="ql-title">📜 Qualifiche / Abilitazioni · {{ active_categoria_label }}</div>
+        <div class="ql-sub">Catalogo filtrato per categoria <strong>{{ active_categoria_label }}</strong> — certificazioni/attestati con tracciamento scadenze</div>
+      {% else %}
+        <div class="ql-title">📜 Qualifiche / Abilitazioni</div>
+        <div class="ql-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze</div>
+      {% endif %}
     </div>
-    <a class="ql-btn ql-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+    <div class="ql-ctx" style="gap:14px;">
+      <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" style="font-weight:700;">↻ Sessioni di rinnovo</a>
+      {% if is_safety_view %}
+        <a href="{% url 'anagrafica:sicurezza_hub' %}">&larr; Salute e Sicurezza</a>
+      {% else %}
+        <a href="{% url 'anagrafica:formazione_dashboard' %}">&larr; Formazione</a>
+      {% endif %}
+    </div>
   </div>
+
+  <!-- Tab per categoria (catalogo unico, vista filtrata) -->
+  <nav class="ql-tabs" aria-label="Filtra qualifiche per categoria">
+    {% for code, label, count in tabs %}
+      <a href="{% if code %}?categoria={{ code }}{% else %}{% url 'anagrafica:qualifiche_list' %}{% endif %}"
+         class="{% if active_categoria == code %}active{% endif %}">
+        {% if code == "SICUREZZA" %}🦺{% elif code == "PROFESSIONALE" %}🎓{% elif code == "GESTIONALE" %}📊{% elif code == "ALTRO" %}📌{% else %}📚{% endif %}
+        {{ label }} <span class="ql-tab-count">{{ count }}</span>
+      </a>
+    {% endfor %}
+  </nav>
 
   <!-- Sezione scadenze -->
   {% if scadenze %}
@@ -176,7 +214,10 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
           <tbody>
             {% for t in items %}
             <tr>
-              <td style="font-weight:600;">{{ t.nome }}</td>
+              <td style="font-weight:600;">
+                <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" style="color:#1f5c91;text-decoration:none;">{{ t.nome }}</a>
+                {% for corso in t.corsi.all %}{% if forloop.first %}<div style="font-weight:500;font-size:11px;color:#155e75;margin-top:2px;">📚 Corso: {{ corso.titolo }}{% if t.corsi.all|length > 1 %} (+{{ t.corsi.all|length|add:"-1" }}){% endif %}</div>{% endif %}{% endfor %}
+              </td>
               <td>
                 {% if t.durata_mesi %}
                   <span class="ql-badge ql-badge-orange">{{ t.durata_mesi }} mesi</span>
@@ -219,7 +260,7 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
   {% else %}
   <div class="ql-card">
     <div class="ql-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
-      Nessun tipo di qualifica nel catalogo.
+      {% if active_categoria %}Nessuna qualifica nella categoria <strong>{{ active_categoria_label }}</strong>.{% else %}Nessun tipo di qualifica nel catalogo.{% endif %}
     </div>
   </div>
   {% endif %}
@@ -240,7 +281,7 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
             <label>Categoria</label>
             <select class="ql-input" name="categoria">
               {% for val, label in CATEGORIA_CHOICES %}
-                <option value="{{ val }}">{{ label }}</option>
+                <option value="{{ val }}" {% if val == active_categoria %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
           </div>

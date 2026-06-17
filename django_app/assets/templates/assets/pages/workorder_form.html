@@ -2,104 +2,122 @@
 
 {% block title %}Nuovo intervento{% endblock %}
 
-{% block assets_shell_title %}Nuovo intervento - {{ asset.asset_tag }}{% endblock %}
+{% block assets_shell_title %}Nuovo intervento{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Registra un intervento su {{ asset.name }} e collega fornitore, manutenzione periodica e allegati in un unico passaggio.</p>
+<p>{{ asset.asset_tag }} - {{ asset.name }}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{{ workorder_back_url }}">&larr; {{ workorder_back_label }}</a>
+  <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Scheda asset</a>
 {% endblock %}
 
 {% block assets_shell_head %}
 <style>
-.wof-page { max-width: 1080px; display: grid; gap: 16px; }
-.wof-backlink { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-base); color: #5f7290; text-decoration: none; font-weight: 600; }
-.wof-backlink:hover { color: #1f64d8; }
-.wof-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid #d9e4f2;
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at top right, rgba(249, 115, 22, 0.10), transparent 32%),
-    linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
+.as-main {
+  gap: 8px;
+  padding-top: 8px;
 }
-.wof-hero-main { display: grid; gap: 12px; }
-.wof-eyebrow {
+.as-main > .as-top {
+  display: none;
+}
+.as-page-head {
+  min-height: 0;
+  padding: 8px 10px 8px 14px;
+  border-left-width: 3px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .035);
+}
+.as-page-head h1 {
+  font-size: var(--fs-title-md);
+  line-height: 1.12;
+}
+.as-page-head p {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+}
+.as-page-head-actions .btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: var(--fs-sm);
+}
+.wof-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: block;
+}
+.wof-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid #d9e4f2;
+  border-left: 4px solid #2f80ed;
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 8px;
+}
+.wof-context strong {
+  color: #0f172a;
+  font-size: var(--fs-sm);
+}
+.wof-context-text {
+  color: #64748b;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.wof-source {
   display: inline-flex;
   align-items: center;
-  width: fit-content;
-  padding: 6px 10px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: #e8f1ff;
   color: #1e4fbf;
   font-size: var(--fs-xs);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
-.wof-hero-main h2 { margin: 0; font-size: var(--fs-display-lg); line-height: 1.05; color: #0f172a; }
-.wof-hero-main p { margin: 0; max-width: 62ch; color: #5f7290; font-size: var(--fs-md); line-height: 1.6; }
-.wof-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .wof-chip {
   display: inline-flex;
   align-items: center;
-  padding: 7px 10px;
+  padding: 3px 7px;
   border-radius: 999px;
   border: 1px solid #d6e2f0;
-  background: rgba(255, 255, 255, 0.92);
+  background: #f8fafc;
   color: #274264;
   font-size: var(--fs-sm);
   font-weight: 700;
 }
-.wof-side {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-}
-.wof-side-card {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid #dce6f3;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-}
-.wof-side-card span {
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #7d91af;
-}
-.wof-side-card strong { font-size: var(--fs-xl); color: #0f172a; }
-.wof-side-card small { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
 .wof-form {
   display: grid;
-  gap: 0;
-  border: 1px solid #dbe3ef;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
-  overflow: hidden;
+  gap: 8px;
 }
 .wof-alert {
-  margin: 18px 18px 0;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border: 1px solid #fecaca;
-  border-radius: 14px;
+  border-radius: 8px;
   background: #fff4f4;
   color: #b91c1c;
   font-size: var(--fs-base);
 }
-.wof-form-body { display: grid; gap: 16px; padding: 18px; }
+.wof-form-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+  align-items: start;
+  gap: 8px;
+}
 .wof-section {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 8px;
+  padding: 8px 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #ffffff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+}
+.wof-section--main {
+  grid-row: span 2;
 }
 .wof-section-head {
   display: flex;
@@ -108,20 +126,42 @@
   align-items: start;
   flex-wrap: wrap;
 }
-.wof-section-head h3 { margin: 0; font-size: var(--fs-title-md); color: #0f172a; }
-.wof-section-head p { margin: 4px 0 0; color: #64748b; font-size: var(--fs-base); }
-.wof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.wof-field { display: grid; gap: 6px; min-width: 0; }
+.wof-section-head h3 { margin: 0; font-size: var(--fs-title-sm); color: #0f172a; }
+.wof-section-head p { margin: 2px 0 0; color: #64748b; font-size: var(--fs-sm); }
+.wof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wof-field { display: grid; gap: 4px; min-width: 0; }
 .wof-field--full { grid-column: 1 / -1; }
-.wof-field label { font-size: var(--fs-base); font-weight: 700; color: #223756; }
+.wof-field--check {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.wof-field--check label {
+  grid-column: 1 / -1;
+}
+.wof-field--check input[type="checkbox"] {
+  justify-self: start;
+  width: 22px;
+  height: 22px;
+}
+.wof-field--check .wof-helper {
+  grid-column: 2;
+}
+.wof-field--check .wof-error {
+  grid-column: 1 / -1;
+}
+.wof-field label { color: #223756; font-size: var(--fs-sm); font-weight: 800; }
 .wof-field input,
 .wof-field select,
 .wof-field textarea {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid #d6e1ee;
   background: #fdfefe;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: var(--fs-sm);
 }
 .wof-field input[type="checkbox"] {
   width: auto;
@@ -131,12 +171,11 @@
   box-shadow: none;
   accent-color: #1d4ed8;
 }
-.wof-field textarea { min-height: 116px; resize: vertical; }
+.wof-field textarea { min-height: 58px; resize: vertical; }
 .wof-helper {
-  min-height: 18px;
   color: #64748b;
-  font-size: var(--fs-sm);
-  line-height: 1.5;
+  font-size: var(--fs-xs);
+  line-height: 1.3;
 }
 .wof-helper.is-highlight {
   color: #1d4ed8;
@@ -145,35 +184,35 @@
 .wof-error { color: #b91c1c; font-size: var(--fs-sm); }
 .wof-upload {
   display: grid;
-  gap: 10px;
-  padding: 16px;
+  gap: 8px;
+  padding: 8px;
   border: 1px dashed #c8d5e5;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border-radius: 8px;
+  background: #f8fbff;
   cursor: pointer;
-  transition: border-color .18s ease, transform .18s ease, background .18s ease;
+  transition: border-color .18s ease, background .18s ease;
 }
 .wof-upload:hover {
   border-color: #1f64d8;
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-  transform: translateY(-1px);
+  background: #eff6ff;
 }
-.wof-upload-main { display: flex; gap: 12px; align-items: flex-start; }
+.wof-upload-main { display: flex; gap: 8px; align-items: flex-start; }
 .wof-upload-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   background: #eff6ff;
   color: #1d4ed8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
+  font-weight: 900;
   flex: 0 0 auto;
 }
 .wof-upload-copy { display: grid; gap: 4px; }
-.wof-upload-copy strong { color: #0f172a; font-size: var(--fs-md); }
-.wof-upload-copy span { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
+.wof-upload-copy strong { color: #0f172a; font-size: var(--fs-sm); }
+.wof-upload-copy span { color: #64748b; font-size: var(--fs-xs); line-height: 1.3; }
 .wof-upload-input {
   position: absolute;
   width: 1px;
@@ -189,7 +228,7 @@
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  padding: 6px 10px;
+  padding: 3px 7px;
   border-radius: 999px;
   background: #f1f5f9;
   color: #334155;
@@ -201,15 +240,18 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 16px 18px 18px;
-  border-top: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.45) 0%, rgba(255, 255, 255, 0.95) 100%);
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
 }
 .wof-actions-copy { color: #64748b; font-size: var(--fs-sm); }
 .wof-actions-cta { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
-@media (max-width: 900px) {
-  .wof-hero { grid-template-columns: 1fr; }
+@media (max-width: 980px) {
+  .wof-form-body { grid-template-columns: 1fr; }
+  .wof-section--main { grid-row: auto; }
 }
 @media (max-width: 760px) {
   .wof-grid { grid-template-columns: 1fr; }
@@ -217,23 +259,16 @@
   .wof-actions-cta { justify-content: stretch; }
 }
 @media (max-width: 640px) {
-  .wof-page { gap: 14px; }
-  .wof-hero,
-  .wof-form-body,
-  .wof-actions { padding-left: 14px; padding-right: 14px; }
-  .wof-section { padding: 14px; }
-  .wof-hero-main h2 { font-size: var(--fs-display-sm); }
+  .wof-page { gap: 10px; }
+  .wof-actions { padding-left: 10px; padding-right: 10px; }
+  .wof-section { padding: 10px; }
 }
 
-body.theme-dark .wof-hero { background:var(--surface); border-color:var(--border); }
-body.theme-dark .wof-eyebrow { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .wof-hero-main h2 { color:var(--text); }
-body.theme-dark .wof-hero-main p { color:var(--text-light); }
+body.theme-dark .wof-context { background:var(--surface); border-color:var(--border); }
+body.theme-dark .wof-context strong { color:var(--text); }
+body.theme-dark .wof-context-text { color:var(--text-light); }
+body.theme-dark .wof-source { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .wof-chip { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .wof-side-card { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .wof-side-card span { color:var(--text-light); }
-body.theme-dark .wof-side-card strong { color:var(--text); }
-body.theme-dark .wof-side-card small { color:var(--text-light); }
 body.theme-dark .wof-form { background:var(--surface); border-color:var(--border); }
 body.theme-dark .wof-alert { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.3); color:#fca5a5; }
 body.theme-dark .wof-section { background:var(--surface-alt); border-color:var(--border); }
@@ -259,53 +294,18 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
 
 {% block assets_shell_content %}
 <section class="wof-page">
-  <header>
-    <a class="wof-backlink" href="{% url 'assets:asset_view' asset.id %}">&larr; Torna al dettaglio asset</a>
-  </header>
-
-  <section class="wof-hero">
-    <div class="wof-hero-main">
-      <span class="wof-eyebrow">Intervento operativo</span>
-      <h2>{{ asset.name }}</h2>
-      <p>Compila pochi dati chiave per aprire il work order, collegando subito manutenzione, copertura e documentazione solo quando servono davvero.</p>
-      <div class="wof-chip-row">
-        <span class="wof-chip">Asset {{ asset.asset_tag }}</span>
-        <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
-        <span class="wof-chip">Stato {{ asset.get_status_display }}</span>
-      </div>
-    </div>
-    <aside class="wof-side">
-      <div class="wof-side-card">
-        <span>Asset collegato</span>
-        <strong>{{ asset.asset_tag }}</strong>
-        <small>{{ asset.name }}</small>
-      </div>
-      <div class="wof-side-card">
-        <span>Origine</span>
-        <strong>{{ workorder_prefill.source_label }}</strong>
-        {% if workorder_prefill.maintenance_template %}
-          <small>Template, titolo e descrizione vengono proposti dalla manutenzione selezionata, ma puoi modificarli liberamente.</small>
-        {% elif initial_contract %}
-          <small>Il contratto attivo viene suggerito come copertura operativa per ridurre data entry.</small>
-        {% else %}
-          <small>Compilazione assistita: se scegli regola, manutenzione periodica o contratto il portale propone i collegamenti coerenti.</small>
-        {% endif %}
-      </div>
-      <div class="wof-side-card">
-        <span>Contesto manutentivo</span>
-        {% if workorder_prefill.maintenance_template %}
-          <strong>{{ workorder_prefill.maintenance_template.label }}</strong>
-          <small>{% if workorder_prefill.notes %}{{ workorder_prefill.notes }}{% else %}Regola manutentiva gia collegata al workorder in apertura.{% endif %}</small>
-        {% elif initial_contract %}
-          <strong>{{ initial_contract.supplier }}</strong>
-          <small>Contratto suggerito per questo asset. Opzioni disponibili: {{ available_contract_count }}.</small>
-        {% else %}
-          <strong>Compilazione smart</strong>
-          <small>Se scegli una manutenzione periodica collegata il portale propone il fornitore associato. Contratti disponibili: {{ available_contract_count }}.</small>
-        {% endif %}
-      </div>
-    </aside>
-  </section>
+  <div class="wof-context">
+    <span class="wof-source">{{ workorder_prefill.source_label }}</span>
+    <strong>{{ asset.asset_tag }}</strong>
+    <span class="wof-context-text">{{ asset.name }}</span>
+    <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
+    <span class="wof-chip">{{ asset.get_status_display }}</span>
+    {% if workorder_prefill.maintenance_template %}
+      <span class="wof-chip">{{ workorder_prefill.maintenance_template.label }}</span>
+    {% elif initial_contract %}
+      <span class="wof-chip">{{ initial_contract.supplier }}</span>
+    {% endif %}
+  </div>
 
   <form method="post" enctype="multipart/form-data" class="wof-form">
     {% csrf_token %}
@@ -317,11 +317,11 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
     {% endif %}
 
     <div class="wof-form-body">
-      <section class="wof-section">
+      <section class="wof-section wof-section--main">
         <div class="wof-section-head">
           <div>
-            <h3>Impostazioni intervento</h3>
-            <p>Metti in primo piano tipo e collegamenti a manutenzione, fornitore e contratto.</p>
+            <h3>Dati intervento</h3>
+            <p>Tipo, collegamenti manutentivi, copertura e assegnazione.</p>
           </div>
         </div>
         <div class="wof-grid">
@@ -375,7 +375,7 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
             {% if form.assistance_contract.errors %}<div class="wof-error">{{ form.assistance_contract.errors }}</div>{% endif %}
           </div>
 
-          <div class="wof-field wof-field--full">
+          <div class="wof-field wof-field--check">
             <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
             {{ form.covered_by_contract }}
             {% if form.covered_by_contract.help_text %}<div class="wof-helper">{{ form.covered_by_contract.help_text }}</div>{% endif %}
@@ -404,10 +404,10 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
         </div>
       </section>
 
-      <section class="wof-section">
+      <section class="wof-section wof-section--notes">
         <div class="wof-section-head">
           <div>
-            <h3>Dettagli attivita</h3>
+            <h3>Descrizione e risoluzione</h3>
             <p>Descrivi il problema, i controlli eseguiti e l'eventuale soluzione.</p>
           </div>
         </div>
@@ -434,7 +434,7 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
         </div>
       </section>
 
-      <section class="wof-section">
+      <section class="wof-section wof-section--attachments">
         <div class="wof-section-head">
           <div>
             <h3>Allegati</h3>
@@ -446,7 +446,7 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
             <label for="id_attachments">Allegati</label>
             <label class="wof-upload" for="id_attachments">
               <span class="wof-upload-main">
-                <span class="wof-upload-icon">&#128206;</span>
+                <span class="wof-upload-icon">+</span>
                 <span class="wof-upload-copy">
                   <strong>Carica report, foto, preventivi o verbali</strong>
                   <span>Formati supportati: PDF, Office, CSV e immagini. Puoi selezionare piu file in una sola volta.</span>
@@ -470,7 +470,7 @@ body.theme-dark .wof-actions-copy { color:var(--text-light); }
     <div class="wof-actions">
       <div class="wof-actions-copy">I campi possono essere completati subito o aggiornati in seguito dal dettaglio intervento.</div>
       <div class="wof-actions-cta">
-        <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Annulla</a>
+        <a class="btn" href="{{ workorder_back_url }}">Annulla</a>
         <button type="submit" class="btn btn-primary">Crea intervento</button>
       </div>
     </div>

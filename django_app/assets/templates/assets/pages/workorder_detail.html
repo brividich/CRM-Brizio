@@ -291,6 +291,10 @@ body.theme-dark .wod-link { color:#60a5fa; }
             <span>Fermo impianto</span>
             <strong>{{ workorder.downtime_minutes|default:"0" }} min</strong>
           </div>
+          <div class="wod-stat">
+            <span>Costo registrato</span>
+            <strong>{% if workorder.resolved_total_cost_eur is not None %}{{ workorder.resolved_total_cost_eur }} EUR{% else %}&mdash;{% endif %}</strong>
+          </div>
         </aside>
       </div>
     </div>

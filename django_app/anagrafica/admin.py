@@ -14,6 +14,7 @@ from .models import (
     OffboardingPratica,
     OffboardingTask,
     OnboardingOffboardingCampo,
+    QualificaSessione,
     StoricoContratto,
     TipologiaContratto,
     TipoVisitaMedica,
@@ -99,6 +100,15 @@ class VoceRetributivaInline(admin.TabularInline):
 
     def has_add_permission(self, request, obj=None):
         return False
+
+
+@admin.register(QualificaSessione)
+class QualificaSessioneAdmin(admin.ModelAdmin):
+    list_display = ("tipo", "data_conseguimento", "data_scadenza", "ente", "created_by", "created_at")
+    list_filter = ("tipo__categoria", "tipo", "data_conseguimento")
+    search_fields = ("tipo__nome", "ente", "note")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+    date_hierarchy = "data_conseguimento"
 
 
 @admin.register(ImportazioneRetributiva)
@@ -282,6 +292,7 @@ class FattoreRischioAdmin(admin.ModelAdmin):
     )
     list_filter = ("categoria", "is_active", "richiede_formazione", "richiede_visita_medica", "richiede_dpi")
     search_fields = ("codice", "nome", "descrizione")
+    filter_horizontal = ("tipi_visita", "categorie_dpi")
     readonly_fields = ("created_at", "updated_at")
 
 

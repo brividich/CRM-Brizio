@@ -563,7 +563,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">⚙️</div>
       <div class="ap-section-title">Configurazione</div>
-      <span class="ap-section-count">2 strumenti</span>
+      <span class="ap-section-count">3 strumenti</span>
     </div>
     <div class="modules-grid">
 
@@ -572,6 +572,13 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         <div>
           <div class="mod-name">Config Pagina Login</div>
           <div class="mod-sub">Titolo, sottotitolo, avviso, logo e pulsante SSO della pagina accesso</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:pdf_template_config' %}">
+        <div class="mod-icon">PDF</div>
+        <div>
+          <div class="mod-name">Template PDF</div>
+          <div class="mod-sub">Logo, colori e footer condivisi dai report PDF del portale</div>
         </div>
       </a>
       <a class="mod" href="{% url 'admin_portale:checklist_index' %}">

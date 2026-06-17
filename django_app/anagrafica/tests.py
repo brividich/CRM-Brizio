@@ -1818,6 +1818,525 @@ class ConformitaServiceTests(TestCase):
         self.assertTrue(any("Visita richiesta" in d for d in senza["visite"]["dettagli"]))
 
 
+class SicurezzaHubTests(TestCase):
+    """Smoke test del cruscotto Sicurezza & Idoneità (rendering + KPI)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="sh_admin", email="sh_admin@x.local", password="x"
+        )
+
+    def test_hub_render_ok(self):
+        from .models import Mansione
+        m = Mansione.objects.create(nome="Saldatore", livello_rischio=Mansione.RISCHIO_ALTO)
+        from dpi.models import CategoriaDPI
+        m.dpi_richiesti.add(CategoriaDPI.objects.create(nome="Guanti", is_active=True))
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:sicurezza_hub"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Sicurezza", body)
+        self.assertIn("Mansioni di rischio", body)
+        # la mansione con requisiti conta come "di rischio"
+        self.assertEqual(resp.context["n_mansioni_rischio"], 1)
+
+    def test_wizard_render_ok(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:sicurezza_wizard"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Configurazione guidata", resp.content.decode())
+        self.assertEqual(len(resp.context["steps"]), 3)
+
+    def test_mansioni_list_mostra_requisiti_e_contatori_dpi_visite(self):
+        """La lista mansioni espone il pulsante Requisiti e i contatori DPI/visite,
+        così DPI e visite sono visibili e raggiungibili dal "setup" mansione."""
+        from .models import Mansione, TipoVisitaMedica
+        from dpi.models import CategoriaDPI
+        m = Mansione.objects.create(nome="Saldatore", livello_rischio=Mansione.RISCHIO_ALTO)
+        m.dpi_richiesti.add(CategoriaDPI.objects.create(nome="Guanti", is_active=True))
+        m.visite_richieste.add(TipoVisitaMedica.objects.create(nome="Visita audiometrica"))
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:mansioni_list"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        # pulsante requisiti presente per la mansione
+        self.assertIn(reverse("anagrafica:mansione_requisiti", args=[m.id]), body)
+        # contatori visibili sulla card
+        self.assertIn("1 DPI", body)
+        self.assertIn("1 visite", body)
+        # i contatori sono calcolati sulla view
+        mansione_ctx = next(x for x in resp.context["mansioni"] if x.id == m.id)
+        self.assertEqual(mansione_ctx.n_dpi, 1)
+        self.assertEqual(mansione_ctx.n_visite, 1)
+
+
+class QualificheCatalogoTests(TestCase):
+    """Catalogo qualifiche unico con viste filtrate per categoria + navigazione."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="ql_admin", email="ql_admin@x.local", password="x"
+        )
+
+    def setUp(self):
+        from .models import TipoQualifica
+        TipoQualifica.objects.create(nome="Carrellista ASR", categoria=TipoQualifica.CAT_SICUREZZA)
+        TipoQualifica.objects.create(nome="Saldatore certificato", categoria=TipoQualifica.CAT_PROFESSIONALE)
+
+    def test_catalogo_completo_mostra_tutte_le_categorie_e_tab(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_list"))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Carrellista ASR", body)
+        self.assertIn("Saldatore certificato", body)
+        self.assertEqual(resp.context["active_categoria"], "")
+        self.assertEqual(len(resp.context["tabs"]), 5)  # Tutte + 4 categorie
+
+    def test_vista_filtrata_sicurezza_esclude_altre_categorie(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_list") + "?categoria=SICUREZZA")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Carrellista ASR", body)
+        self.assertNotIn("Saldatore certificato", body)
+        self.assertEqual(resp.context["active_categoria"], "SICUREZZA")
+        self.assertTrue(resp.context["is_safety_view"])
+        self.assertEqual(len(resp.context["tipi_grouped"]), 1)
+
+    def test_categoria_non_valida_ignorata(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_list") + "?categoria=PIPPO")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["active_categoria"], "")
+
+    def test_catalogo_mostra_corso_collegato(self):
+        """Step 3: il catalogo qualifiche mostra il corso collegato (qualifica àncora)."""
+        from decimal import Decimal
+        from .models import TipoQualifica
+        from .models_formazione import TrainingPlan, TrainingCourse
+        tipo = TipoQualifica.objects.get(nome="Carrellista ASR")
+        plan = TrainingPlan.objects.create(nome="Piano cat", codice="PCAT")
+        TrainingCourse.objects.create(
+            piano=plan, codice="CC1", titolo="Corso Carrellisti",
+            durata_ore_teorica=Decimal("0"), qualifica=tipo,
+        )
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:qualifiche_list"))
+        self.assertContains(resp, "Corso Carrellisti")
+
+    def test_dettaglio_qualifica_render(self):
+        """Step 3: dal catalogo si apre il dettaglio della singola qualifica
+        con sezioni dipendenti/corsi/sessioni/attestati."""
+        from .models import TipoQualifica
+        tipo = TipoQualifica.objects.get(nome="Carrellista ASR")
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:tipo_qualifica_detail", args=[tipo.id]))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Carrellista ASR", body)
+        self.assertIn("Dipendenti che la possiedono", body)
+        self.assertIn("Corsi collegati", body)
+
+    def test_subnav_binding_qualifiche_su_formazione_non_impostazioni(self):
+        """Dopo la 0045 l'highlight top-nav delle qualifiche è su Formazione e
+        non più su Impostazioni (niente doppio-highlight, come per la 0044)."""
+        from .models import SubnavLinkAnagrafica
+        form = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:formazione_dashboard").first()
+        imp = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:impostazioni").first()
+        if form:
+            self.assertIn("anagrafica:qualifiche_list", form.active_view_names)
+        if imp:
+            self.assertNotIn("anagrafica:qualifiche_list", imp.active_view_names)
+
+
+class QualificaSessioneTests(TestCase):
+    """Rinnovi qualifiche: singolo (update-or-create) + sessioni persistenti."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="qsess_admin", email="qsess@x.local", password="x"
+        )
+
+    def setUp(self):
+        from .models import TipoQualifica
+        self.tipo = TipoQualifica.objects.create(
+            nome="Carrellista test", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60,
+        )
+
+    def test_pagine_sessioni_render_ok(self):
+        from .models import QualificaSessione
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(reverse("anagrafica:qualifica_sessioni_list")).status_code, 200)
+        # step 1 (GET) e step 2 (POST step=1 → tabella candidati)
+        self.assertEqual(self.client.get(reverse("anagrafica:qualifica_sessione_create")).status_code, 200)
+        r2 = self.client.post(reverse("anagrafica:qualifica_sessione_create"), {
+            "step": "1", "tipo_id": self.tipo.id, "data_conseguimento": "2026-06-14",
+        })
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.context["step"], 2)
+        # dettaglio
+        sess = QualificaSessione.objects.create(tipo=self.tipo, data_conseguimento=date(2026, 6, 14))
+        self.assertEqual(
+            self.client.get(reverse("anagrafica:qualifica_sessione_detail", args=[sess.id])).status_code, 200
+        )
+
+    def test_single_add_aggiorna_non_duplica(self):
+        from .models import DipendenteQualifica
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:dipendente_qualifica_add", args=[5001])
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2024-01-10"})
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10"})
+        qs = DipendenteQualifica.objects.filter(legacy_anagrafica_id=5001, tipo=self.tipo)
+        self.assertEqual(qs.count(), 1)  # rinnovo = aggiornamento, non duplicato
+        q = qs.first()
+        self.assertEqual(q.data_conseguimento, date(2026, 1, 10))
+        self.assertEqual(q.data_scadenza, date(2031, 1, 10))  # +60 mesi (ASR)
+
+    def test_sessione_create_upsert_e_scadenza_auto(self):
+        from .models import DipendenteQualifica, QualificaSessione
+        self.client.force_login(self.admin)
+        resp = self.client.post(reverse("anagrafica:qualifica_sessione_create"), {
+            "step": "2", "tipo_id": self.tipo.id, "data_conseguimento": "2026-06-14",
+            "ente": "Ente X", "dipendenti_selezionati": ["5002", "5003"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(QualificaSessione.objects.count(), 1)
+        sess = QualificaSessione.objects.first()
+        self.assertEqual(DipendenteQualifica.objects.filter(sessione=sess).count(), 2)
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=5002, tipo=self.tipo)
+        self.assertEqual(q.data_scadenza, date(2031, 6, 14))  # scadenza calcolata dal tipo
+
+    def test_remove_partecipante_stacca_ma_conserva_qualifica(self):
+        from .models import DipendenteQualifica, QualificaSessione
+        self.client.force_login(self.admin)
+        self.client.post(reverse("anagrafica:qualifica_sessione_create"), {
+            "step": "2", "tipo_id": self.tipo.id, "data_conseguimento": "2026-06-14",
+            "dipendenti_selezionati": ["5004"],
+        })
+        sess = QualificaSessione.objects.first()
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=5004)
+        self.client.post(reverse("anagrafica:qualifica_sessione_partecipante_remove", args=[sess.id, q.id]))
+        q.refresh_from_db()
+        self.assertIsNone(q.sessione_id)
+        self.assertTrue(DipendenteQualifica.objects.filter(pk=q.pk).exists())
+
+    def test_delete_sessione_conserva_qualifiche(self):
+        from .models import DipendenteQualifica, QualificaSessione
+        self.client.force_login(self.admin)
+        self.client.post(reverse("anagrafica:qualifica_sessione_create"), {
+            "step": "2", "tipo_id": self.tipo.id, "data_conseguimento": "2026-06-14",
+            "dipendenti_selezionati": ["5005"],
+        })
+        sess = QualificaSessione.objects.first()
+        self.client.post(reverse("anagrafica:qualifica_sessione_delete", args=[sess.id]))
+        self.assertEqual(QualificaSessione.objects.count(), 0)
+        q = DipendenteQualifica.objects.filter(legacy_anagrafica_id=5005).first()
+        self.assertIsNotNone(q)            # qualifica conservata (SET_NULL)
+        self.assertIsNone(q.sessione_id)
+
+
+class LinkQualificheCorsiTests(TestCase):
+    """Back-fill dei legami qualifica↔corso↔completamento (competency management)."""
+
+    def test_backfill_collega_corso_e_record(self):
+        from decimal import Decimal
+        from django.core.management import call_command
+        from .models import TipoQualifica, DipendenteQualifica
+        from .models_formazione import TrainingPlan, TrainingCourse, TrainingEmployeeRecord
+
+        plan = TrainingPlan.objects.create(nome="Piano test", codice="PTEST")
+        tipo = TipoQualifica.objects.create(
+            nome="Carrellista X", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60,
+        )
+        corso = TrainingCourse.objects.create(
+            piano=plan, codice="CTEST", titolo="Carrellista X",
+            durata_ore_teorica=Decimal("0"), validita_mesi=60, stato="ATTIVO",
+        )
+        rec = TrainingEmployeeRecord.objects.create(
+            corso=corso, legacy_anagrafica_id=6001, data_completamento=date(2024, 1, 10),
+        )
+        dq = DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=6001, tipo=tipo, data_conseguimento=date(2024, 1, 10),
+        )
+        # corso che non corrisponde ad alcuna qualifica → deve restare scollegato
+        altro = TrainingCourse.objects.create(
+            piano=plan, codice="CX", titolo="Excel base", durata_ore_teorica=Decimal("0"),
+        )
+
+        call_command("link_qualifiche_corsi", "--commit", verbosity=0)
+
+        corso.refresh_from_db(); dq.refresh_from_db(); altro.refresh_from_db()
+        self.assertEqual(corso.qualifica_id, tipo.id)
+        self.assertEqual(dq.record_formazione_id, rec.id)
+        self.assertIsNone(altro.qualifica_id)  # nessun falso legame
+
+    def test_backfill_dry_run_non_scrive(self):
+        from decimal import Decimal
+        from django.core.management import call_command
+        from .models import TipoQualifica
+        from .models_formazione import TrainingPlan, TrainingCourse
+
+        plan = TrainingPlan.objects.create(nome="Piano test2", codice="PT2")
+        TipoQualifica.objects.create(nome="BLSD test", categoria=TipoQualifica.CAT_SICUREZZA)
+        corso = TrainingCourse.objects.create(
+            piano=plan, codice="CB", titolo="BLSD test", durata_ore_teorica=Decimal("0"),
+        )
+        call_command("link_qualifiche_corsi", verbosity=0)  # dry-run
+        corso.refresh_from_db()
+        self.assertIsNone(corso.qualifica_id)
+
+
+class MatriceCompetenzeTests(TestCase):
+    """Matrice competenze: tab per categoria filtrano le colonne."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="mc_admin", email="mc@x.local", password="x"
+        )
+
+    def setUp(self):
+        from .models import TipoQualifica, DipendenteQualifica
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (7001, 'Mario', 'Rossi', 'Saldatore', 1)"
+            )
+        tsic = TipoQualifica.objects.create(nome="Carrellista MC", categoria=TipoQualifica.CAT_SICUREZZA)
+        tprof = TipoQualifica.objects.create(nome="Saldatore MC", categoria=TipoQualifica.CAT_PROFESSIONALE)
+        DipendenteQualifica.objects.create(legacy_anagrafica_id=7001, tipo=tsic)
+        DipendenteQualifica.objects.create(legacy_anagrafica_id=7001, tipo=tprof)
+
+    def test_matrice_tutte_le_colonne(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:matrice_competenze"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["tipi"]), 2)
+        self.assertEqual(resp.context["active_categoria"], "")
+
+    def test_matrice_tab_categoria_filtra_colonne(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:matrice_competenze") + "?categoria=SICUREZZA")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["active_categoria"], "SICUREZZA")
+        self.assertEqual(len(resp.context["tipi"]), 1)
+        self.assertEqual(resp.context["tipi"][0].nome, "Carrellista MC")
+
+
+class SafetyIntegrationsTests(TestCase):
+    """A/B/D/E: digest idoneità, verbale DPI, matrice competenze, gap al cambio mansione."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="si2_admin", email="si2_admin@x.local", password="x"
+        )
+
+    def _ins(self, lid, mansione="", reparto="", attivo=1):
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, reparto, attivo) "
+                "VALUES (%s, 'Mario', 'Rossi', %s, %s, %s)", [lid, mansione, reparto, attivo],
+            )
+
+    def _cat_dpi(self, nome):
+        from dpi.models import CategoriaDPI
+        return CategoriaDPI.objects.create(nome=nome, is_active=True)
+
+    # B — verbale DPI
+    def test_verbale_dpi_render(self):
+        from .models import Mansione
+        self._ins(951, mansione="Saldatore")
+        m = Mansione.objects.create(nome="Saldatore")
+        m.dpi_richiesti.add(self._cat_dpi("Maschera saldatura"))
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:dipendente_verbale_dpi", args=[951]))
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("VERBALE DI CONSEGNA", body)
+        self.assertIn("Maschera saldatura", body)
+
+    # D — matrice competenze
+    def test_matrice_competenze_render_e_csv(self):
+        from .models import DipendenteQualifica, TipoQualifica
+        self._ins(952, reparto="PROD")
+        tipo = TipoQualifica.objects.create(nome="Patentino muletto", categoria="PROFESSIONALE")
+        DipendenteQualifica.objects.create(legacy_anagrafica_id=952, tipo=tipo)
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:matrice_competenze"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Patentino muletto", resp.content.decode())
+        csv_resp = self.client.get(reverse("anagrafica:matrice_competenze"), {"format": "csv"})
+        self.assertEqual(csv_resp.status_code, 200)
+        self.assertIn("text/csv", csv_resp["Content-Type"])
+
+    # A — digest idoneità
+    def test_idoneita_digest(self):
+        from django.core import mail
+        from django.core.management import call_command
+        from core.models import SiteConfig
+        from .models import Mansione
+        SiteConfig.set("idoneita_reminder_emails", "rspp@x.local")
+        self._ins(953, mansione="Saldatore")
+        m = Mansione.objects.create(nome="Saldatore")
+        m.dpi_richiesti.add(self._cat_dpi("Guanti"))  # mancante → idoneo con riserve
+        mail.outbox = []
+        call_command("send_idoneita_digest", verbosity=0)
+        destinatari = [a for msg in mail.outbox for a in msg.to]
+        self.assertIn("rspp@x.local", destinatari)
+
+    # E — gap idoneità al cambio mansione
+    def test_notifica_gap_cambio_mansione(self):
+        from django.core import mail
+        from core.models import SiteConfig
+        from . import views
+        from .models import Mansione
+        SiteConfig.set("idoneita_reminder_emails", "rspp@x.local")
+        m = Mansione.objects.create(nome="Carrellista")
+        m.dpi_richiesti.add(self._cat_dpi("Gilet AV"))
+        mail.outbox = []
+        views._notifica_gap_idoneita(954, {"cognome": "Verdi", "nome": "Ada", "reparto": ""}, "Carrellista")
+        destinatari = [a for msg in mail.outbox for a in msg.to]
+        self.assertIn("rspp@x.local", destinatari)
+
+
+class MansionarioIdoneitaTests(TestCase):
+    """Resolver requisiti "mansione di rischio" (diretti + ereditati) e idoneità."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+
+    def _cat_dpi(self, nome, vita=None):
+        from dpi.models import CategoriaDPI
+        return CategoriaDPI.objects.create(nome=nome, is_active=True, vita_utile_giorni=vita)
+
+    def _tipo_visita(self, nome, durata=12):
+        from .models import TipoVisitaMedica
+        return TipoVisitaMedica.objects.create(
+            nome=nome, obbligatoria=True, is_active=True, durata_mesi=durata
+        )
+
+    def test_resolver_unione_diretti_ed_ereditati(self):
+        from .models import Mansione
+        from .models_rischi import EsposizioneRischio, FattoreRischio
+        from .services import mansionario
+        m = Mansione.objects.create(nome="Saldatore")
+        m.dpi_richiesti.add(self._cat_dpi("Maschera saldatura"))
+        m.visite_richieste.add(self._tipo_visita("Visita base"))
+        fattore = FattoreRischio.objects.create(codice="R-FUMI", nome="Fumi saldatura")
+        fattore.categorie_dpi.add(self._cat_dpi("Filtrante FFP3"))
+        fattore.tipi_visita.add(self._tipo_visita("Spirometria"))
+        EsposizioneRischio.objects.create(fattore=fattore, mansione=m)
+
+        req = mansionario.requisiti_mansione(m)
+        self.assertEqual({c.nome for c in req["dpi"]}, {"Maschera saldatura", "Filtrante FFP3"})
+        self.assertEqual({v.nome for v in req["visite"]}, {"Visita base", "Spirometria"})
+        self.assertIn(fattore, req["fattori"])
+
+    def test_resolver_esposizione_disattivata_non_eredita(self):
+        from .models import Mansione
+        from .models_rischi import EsposizioneRischio, FattoreRischio
+        from .services import mansionario
+        m = Mansione.objects.create(nome="Magazziniere")
+        fattore = FattoreRischio.objects.create(codice="R-MMC", nome="Movimentazione carichi")
+        fattore.tipi_visita.add(self._tipo_visita("Visita MMC"))
+        EsposizioneRischio.objects.create(fattore=fattore, mansione=m, is_active=False)
+        req = mansionario.requisiti_mansione(m)
+        self.assertEqual(req["visite"], [])
+
+    def test_resolver_match_per_nome_case_insensitive(self):
+        from .models import Mansione
+        from .services import mansionario
+        m = Mansione.objects.create(nome="Carrellista")
+        m.visite_richieste.add(self._tipo_visita("Visita carrellista"))
+        req = mansionario.requisiti_per_nome_mansione("  carrellista ")
+        self.assertEqual({v.nome for v in req["visite"]}, {"Visita carrellista"})
+        self.assertEqual(mansionario.requisiti_per_nome_mansione("inesistente")["visite"], [])
+
+    def test_idoneita_dpi_mancante_warn(self):
+        from .models import Mansione
+        from .services import conformita
+        m = Mansione.objects.create(nome="Operaio A")
+        m.dpi_richiesti.add(self._cat_dpi("Guanti antitaglio"))
+        idn = conformita.stato_conformita(701, mansione="Operaio A")["idoneita"]
+        self.assertEqual(idn["esito"], conformita.ESITO_WARN)
+        self.assertTrue(any("Guanti antitaglio" in d for d in idn["mancanti"]))
+
+    def test_idoneita_visita_scaduta_ko(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import Mansione, VisitaMedica
+        from .services import conformita
+        m = Mansione.objects.create(nome="Operaio B")
+        tipo = self._tipo_visita("Sorveglianza rumore")
+        m.visite_richieste.add(tipo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=702, tipo=tipo,
+            data_svolgimento=timezone.localdate() - timedelta(days=730),
+        )
+        idn = conformita.stato_conformita(
+            702, mansione="Operaio B", include_visite_dettaglio=True
+        )["idoneita"]
+        self.assertEqual(idn["esito"], conformita.ESITO_KO)
+        self.assertTrue(any("Sorveglianza rumore" in d for d in idn["scaduti"]))
+
+    def test_idoneita_completa_ok(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from dpi.models import ConsegnaDPI, RichiestaDPI, StatoRichiesta
+        from .models import Mansione, VisitaMedica
+        from .services import conformita
+        m = Mansione.objects.create(nome="Operaio C")
+        cat = self._cat_dpi("Occhiali", vita=365)
+        tipo = self._tipo_visita("Visita C")
+        m.dpi_richiesti.add(cat)
+        m.visite_richieste.add(tipo)
+        rich = RichiestaDPI.objects.create(
+            categoria=cat, quantita=1, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=703, richiedente_nome="X",
+        )
+        ConsegnaDPI.objects.create(
+            richiesta=rich, data_consegna=timezone.localdate(),
+            data_scadenza_stimata=timezone.localdate() + timedelta(days=365),
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=703, tipo=tipo, data_svolgimento=timezone.localdate(),
+        )
+        self.assertEqual(
+            conformita.stato_conformita(703, mansione="Operaio C")["idoneita"]["esito"],
+            conformita.ESITO_OK,
+        )
+
+    def test_idoneita_senza_mansione_na(self):
+        from .services import conformita
+        self.assertEqual(conformita.stato_conformita(704)["idoneita"]["esito"], conformita.ESITO_NA)
+
+    def test_idoneita_privacy_visite(self):
+        from .models import Mansione
+        from .services import conformita
+        m = Mansione.objects.create(nome="Operaio D")
+        m.visite_richieste.add(self._tipo_visita("Sorveglianza speciale"))
+        senza = conformita.stato_conformita(
+            705, mansione="Operaio D", include_visite_dettaglio=False
+        )["idoneita"]
+        self.assertTrue(any("Visita richiesta" in d for d in senza["mancanti"]))
+        self.assertFalse(any("Sorveglianza speciale" in d for d in senza["mancanti"]))
+        con = conformita.stato_conformita(
+            705, mansione="Operaio D", include_visite_dettaglio=True
+        )["idoneita"]
+        self.assertTrue(any("Sorveglianza speciale" in d for d in con["mancanti"]))
+
+
 class ConformitaPanelTests(TestCase):
     """Pannello HTMX nella scheda dipendente: semaforo + gate dettaglio visite."""
 
@@ -1982,6 +2501,91 @@ class OnboardingServiceTests(TestCase):
         # lascia tutti i task DA_FARE
         stato = onboarding.chiudi_pratica(pratica)
         self.assertEqual(stato, OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI)
+
+
+class OnboardingMansioneRischioTests(TestCase):
+    """Task derivati dalla mansione di rischio, notifiche AMM/CAR, formazione pregressa."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+
+    def _cat_dpi(self, nome):
+        from dpi.models import CategoriaDPI
+        return CategoriaDPI.objects.create(nome=nome, is_active=True)
+
+    def _tipo_visita(self, nome):
+        from .models import TipoVisitaMedica
+        return TipoVisitaMedica.objects.create(nome=nome, obbligatoria=True, is_active=True)
+
+    def test_task_descrizioni_da_mansione_rischio(self):
+        from .models import Mansione
+        from .services import onboarding
+        m = Mansione.objects.create(nome="Verniciatore")
+        m.dpi_richiesti.add(self._cat_dpi("Maschera vapori"))
+        m.visite_richieste.add(self._tipo_visita("Sorveglianza chimica"))
+        pratica = onboarding.avvia_onboarding(
+            legacy_id=820, dipendente_nome="Neri Ugo", mansione="Verniciatore", notifica_dpi=False
+        )
+        self.assertIn("Maschera vapori", pratica.tasks.get(codice="dpi_consegna_iniziale").descrizione)
+        self.assertIn("Sorveglianza chimica", pratica.tasks.get(codice="visita_preassuntiva").descrizione)
+
+    def test_notifica_amm_e_car(self):
+        from django.core import mail
+        from core.models import SiteConfig
+        from .models import Mansione, Reparto
+        from .services import onboarding
+        SiteConfig.set("dpi_amm_emails", "amm@x.local")
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo, email_notifica) "
+                "VALUES (821, 'Capo', 'Reparto', 1, 'capo@x.local')"
+            )
+        Reparto.objects.create(nome="VERNICIATURA", caporeparto_legacy_id=821)
+        m = Mansione.objects.create(nome="Verniciatore2")
+        m.dpi_richiesti.add(self._cat_dpi("Guanti chimici"))
+        mail.outbox = []
+        onboarding.avvia_onboarding(
+            legacy_id=822, dipendente_nome="Gialli Tom",
+            mansione="Verniciatore2", reparto="VERNICIATURA",
+        )
+        destinatari = [addr for msg in mail.outbox for addr in msg.to]
+        self.assertIn("amm@x.local", destinatari)
+        self.assertIn("capo@x.local", destinatari)
+
+    def test_nessuna_notifica_senza_dpi(self):
+        from django.core import mail
+        from core.models import SiteConfig
+        from .models import Mansione
+        from .services import onboarding
+        SiteConfig.set("dpi_amm_emails", "amm@x.local")
+        Mansione.objects.create(nome="Impiegato ufficio")
+        mail.outbox = []
+        onboarding.avvia_onboarding(
+            legacy_id=823, dipendente_nome="Blu Ada", mansione="Impiegato ufficio"
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_registra_formazione_pregressa(self):
+        from datetime import date
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
+        from .services import onboarding
+        piano = TrainingPlan.objects.create(codice="PSEC", nome="Sicurezza")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CSEC1", titolo="Antincendio", durata_ore_teorica=8, validita_mesi=36
+        )
+        n = onboarding.registra_formazione_pregressa(
+            830, [{"corso_id": corso.pk, "data": date(2025, 1, 10)}]
+        )
+        self.assertEqual(n, 1)
+        rec = TrainingEmployeeRecord.objects.get(legacy_anagrafica_id=830, corso=corso)
+        self.assertEqual(rec.course_title_snapshot, "Antincendio")
+        self.assertIsNotNone(rec.data_scadenza)
+        # idempotente: non duplica
+        self.assertEqual(
+            onboarding.registra_formazione_pregressa(830, [{"corso_id": corso.pk, "data": date(2025, 1, 10)}]),
+            0,
+        )
 
 
 class OnboardingViewTests(TestCase):
@@ -2222,3 +2826,270 @@ class RateiAlertViewTests(TestCase):
         self.assertEqual(response.context["totale"], 3)
         codici = {s.tax_code for s in response.context["page_obj"].object_list}
         self.assertEqual(codici, {"AAA", "BBB", "CCC"})
+
+
+class ImportASRTests(TestCase):
+    """Importer matrice ASR: match per CF, qualifiche con date, livello rischio."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+
+    def _build_xlsx(self, path):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws1 = wb.active
+        ws1.title = "Salute e Sicurezza"
+        ws1.append(["Cognome Nome", "CODICE FISCALE", "Rischio",
+                    "Ultimo Corso Lavoratori", "Anno Scadenza (5 anni)"])
+        ws1.append(["ROSSI MARIO", "RSSMRA80A01H501U", "A", date(2024, 1, 10), 2029])
+        ws2 = wb.create_sheet("Cartel1.XLS")
+        ws2.append(["nome", "BLSD"])
+        ws2.append(["ROSSI MARIO", date(2024, 2, 1)])
+        wb.save(path)
+
+    def test_import_commit_popola_qualifiche_e_rischio(self):
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import (
+            DipendenteAnagraficaCivile, DipendenteQualifica, Mansione,
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (901, 'Mario', 'Rossi', 'Saldatore', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=901, codice_fiscale="RSSMRA80A01H501U"
+        )
+        mans = Mansione.objects.create(nome="Saldatore")
+
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            self._build_xlsx(path)
+            call_command("import_asr", path, "--commit", verbosity=0)
+        finally:
+            os.remove(path)
+
+        # abilitazione BLSD con data + scadenza calcolata (36 mesi default)
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=901, tipo__nome="BLSD")
+        self.assertEqual(q.data_conseguimento, date(2024, 2, 1))
+        self.assertEqual(q.data_scadenza, date(2027, 2, 1))
+        # corso lavoratori con scadenza all'anno indicato
+        corso = DipendenteQualifica.objects.get(
+            legacy_anagrafica_id=901, tipo__nome="Formazione lavoratori (ASR)"
+        )
+        self.assertEqual(corso.data_scadenza.year, 2029)
+        # livello rischio impostato sulla mansione del dipendente
+        mans.refresh_from_db()
+        self.assertEqual(mans.livello_rischio, Mansione.RISCHIO_ALTO)
+
+    def test_import_dry_run_non_scrive(self):
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile, DipendenteQualifica
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (902, 'Anna', 'Verdi', 'Operaia', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=902, codice_fiscale="VRDNNA85A41H501T"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            # CF diverso nel file → uso lo stesso schema ma con la dipendente 902
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws1 = wb.active; ws1.title = "Salute e Sicurezza"
+            ws1.append(["Cognome Nome", "CODICE FISCALE", "Rischio",
+                        "Ultimo Corso Lavoratori", "Anno Scadenza (5 anni)"])
+            ws1.append(["VERDI ANNA", "VRDNNA85A41H501T", "B", date(2024, 3, 1), 2029])
+            ws2 = wb.create_sheet("Cartel1.XLS")
+            ws2.append(["nome", "Carrellisti"]); ws2.append(["VERDI ANNA", date(2024, 3, 1)])
+            wb.save(path)
+            call_command("import_asr", path, verbosity=0)  # dry-run di default
+        finally:
+            os.remove(path)
+        self.assertEqual(DipendenteQualifica.objects.filter(legacy_anagrafica_id=902).count(), 0)
+
+    def test_import_match_nome_con_annotazioni(self):
+        """Il foglio date può avere il nominativo "sporcato" da annotazioni
+        ("(PREPOSTO)", "- PENSIONAMENTO"): la normalizzazione le rimuove e il
+        match col foglio principale (nome pulito) avviene comunque."""
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile, DipendenteQualifica
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (904, 'Iacopo', 'Simoncini', 'Saldatore', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=904, codice_fiscale="SMNCPI80A01H501U"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws1 = wb.active; ws1.title = "Salute e Sicurezza"
+            ws1.append(["Cognome Nome", "CODICE FISCALE", "Rischio",
+                        "Ultimo Corso Lavoratori", "Anno Scadenza (5 anni)"])
+            ws1.append(["SIMONCINI IACOPO", "SMNCPI80A01H501U", "A", date(2024, 1, 10), 2029])
+            ws2 = wb.create_sheet("Cartel1.XLS")
+            ws2.append(["nome", "BLSD"])
+            # nominativo annotato nel foglio date: deve comunque matchare
+            ws2.append(["SIMONCINI IACOPO (PREPOSTO)", date(2024, 2, 1)])
+            wb.save(path)
+            call_command("import_asr", path, "--commit", verbosity=0)
+        finally:
+            os.remove(path)
+        self.assertTrue(
+            DipendenteQualifica.objects.filter(
+                legacy_anagrafica_id=904, tipo__nome="BLSD"
+            ).exists()
+        )
+
+    def test_norm_nome_preserva_cognomi_composti(self):
+        """La pulizia annotazioni non deve spezzare i cognomi con trattino senza
+        spazi (es. "FERRARI-ROSSI MARIO")."""
+        from anagrafica.management.commands.import_asr import _norm_nome
+        self.assertEqual(_norm_nome("FERRARI-ROSSI MARIO"), "FERRARI-ROSSI MARIO")
+        self.assertEqual(_norm_nome("Simoncini Iacopo (Preposto)"), "SIMONCINI IACOPO")
+        self.assertEqual(_norm_nome("Pasqualetti Marco - Pensionamento"), "PASQUALETTI MARCO")
+
+    def test_import_collega_corso_qualifica_e_record(self):
+        """Step 2: l'import collega alla fonte corso→qualifica e
+        DipendenteQualifica→completamento (modello qualifica àncora)."""
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile, DipendenteQualifica, TipoQualifica
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (905, 'Sara', 'Neri', 'Saldatore', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=905, codice_fiscale="NRESRA80A41H501T"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            self._build_xlsx_dip(path, "NERI SARA", "NRESRA80A41H501T", abil="BLSD")
+            call_command("import_asr", path, "--commit", verbosity=0)
+        finally:
+            os.remove(path)
+        tipo = TipoQualifica.objects.get(nome="BLSD")
+        corso = TrainingCourse.objects.get(titolo="BLSD")
+        self.assertEqual(corso.qualifica_id, tipo.id)  # corso -> qualifica
+        dq = DipendenteQualifica.objects.get(legacy_anagrafica_id=905, tipo=tipo)
+        rec = TrainingEmployeeRecord.objects.get(legacy_anagrafica_id=905, corso=corso)
+        self.assertEqual(dq.record_formazione_id, rec.id)  # qualifica dip -> evidenza
+
+    def _build_xlsx_dip(self, path, cognome_nome, cf, abil="BLSD", data_abil=date(2024, 2, 1)):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws1 = wb.active; ws1.title = "Salute e Sicurezza"
+        ws1.append(["Cognome Nome", "CODICE FISCALE", "Rischio",
+                    "Ultimo Corso Lavoratori", "Anno Scadenza (5 anni)"])
+        ws1.append([cognome_nome, cf, "A", date(2024, 1, 10), 2029])
+        ws2 = wb.create_sheet("Cartel1.XLS")
+        ws2.append(["nome", abil]); ws2.append([cognome_nome, data_abil])
+        wb.save(path)
+
+    def test_import_commit_popola_formazione_e_idempotente(self):
+        """Fase formazione: corso creato, sessione partecipata + record completamento;
+        doppio run non genera doppioni (match per titolo)."""
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile
+        from .models_formazione import (
+            TrainingCourse, TrainingEmployeeRecord, TrainingSession,
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (903, 'Luca', 'Bianchi', 'Saldatore', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=903, codice_fiscale="BNCLCU80A01H501U"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            self._build_xlsx_dip(path, "BIANCHI LUCA", "BNCLCU80A01H501U")
+            call_command("import_asr", path, "--commit", verbosity=0)
+            call_command("import_asr", path, "--commit", verbosity=0)  # idempotenza
+        finally:
+            os.remove(path)
+        # corso BLSD creato nel modulo formazione, una sola volta
+        self.assertEqual(TrainingCourse.objects.filter(titolo__icontains="BLSD").count(), 1)
+        # 2 completamenti (BLSD + corso lavoratori), senza doppioni dopo due run
+        recs = TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=903)
+        self.assertEqual(recs.count(), 2)
+        blsd = recs.get(corso__titolo__icontains="BLSD")
+        self.assertEqual(blsd.data_completamento, date(2024, 2, 1))
+        self.assertEqual(blsd.data_scadenza, date(2027, 2, 1))  # BLSD 36 mesi
+        self.assertTrue(TrainingSession.objects.filter(corso__titolo__icontains="BLSD").exists())
+
+    def test_import_riusa_corso_esistente_senza_duplicare(self):
+        """Se un corso a catalogo matcha (alias per titolo), viene riusato."""
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile
+        from .models_formazione import TrainingCourse, TrainingPlan
+        piano = TrainingPlan.objects.create(
+            nome="Piano X", codice="P-X", categoria="OBBLIGATORIA", stato="ATTIVO"
+        )
+        esistente = TrainingCourse.objects.create(
+            piano=piano, codice="C-BLSD-OLD", titolo="BLS-D Corso Operatore",
+            durata_ore_teorica=5, stato="ATTIVO",
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (904, 'Sara', 'Neri', 'Operaia', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=904, codice_fiscale="NRESRA85A41H501T"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            self._build_xlsx_dip(path, "NERI SARA", "NRESRA85A41H501T")
+            call_command("import_asr", path, "--commit", "--no-qualifiche", verbosity=0)
+        finally:
+            os.remove(path)
+        # nessun corso BLSD nuovo: riusato quello esistente
+        self.assertEqual(TrainingCourse.objects.filter(titolo__icontains="bls").count(), 1)
+        self.assertEqual(
+            esistente.record_completamenti.filter(legacy_anagrafica_id=904).count(), 1
+        )
+
+    def test_no_corsi_salta_formazione(self):
+        import tempfile, os
+        from django.core.management import call_command
+        from .models import DipendenteAnagraficaCivile
+        from .models_formazione import TrainingEmployeeRecord
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (905, 'Ivo', 'Galli', 'Operaio', 1)"
+            )
+        DipendenteAnagraficaCivile.objects.create(
+            legacy_anagrafica_id=905, codice_fiscale="GLLIVO80A01H501U"
+        )
+        fd, path = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        try:
+            self._build_xlsx_dip(path, "GALLI IVO", "GLLIVO80A01H501U")
+            call_command("import_asr", path, "--commit", "--no-corsi", verbosity=0)
+        finally:
+            os.remove(path)
+        self.assertEqual(
+            TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=905).count(), 0
+        )
