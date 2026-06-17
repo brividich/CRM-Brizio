@@ -1028,9 +1028,9 @@ python django_app\manage.py process_automation_queue
 # Mailbox poller approvazioni (Graph)
 python django_app\manage.py process_approval_mailbox
 
-# Report scadenze visite mediche/contratti (schedulato lunedì 06:00 via django-q CRON)
-# Attivazione e parametri (giorni, destinatari, categorie) si gestiscono dalla pagina
-# Impostazioni automazioni → "Report scadenze" (SiteConfig); il command si auto-silenzia se disattivo.
+# Report scadenze visite mediche/contratti/qualifiche (schedulato lunedì 06:00 via django-q CRON)
+# Attivazione e parametri (giorni, destinatari, categorie: visite, contratti, qualifiche) si gestiscono
+# dalla pagina Impostazioni automazioni → "Report scadenze" (SiteConfig); il command si auto-silenzia se disattivo.
 python django_app\manage.py report_scadenze_settimanale --dry-run --forza   # test manuale
 python django_app\manage.py setup_q_schedules            # registra/aggiorna gli schedule (queue, mailbox, scadenze)
 
