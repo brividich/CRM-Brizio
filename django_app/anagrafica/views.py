@@ -4313,6 +4313,12 @@ def mansioni_list(request):
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
     can_view_requisiti = _can_view_formazione(request)
 
+    filtro_rischio = (request.GET.get("rischio") or "").strip().upper()
+    if filtro_rischio not in dict(Mansione.LIVELLO_RISCHIO_CHOICES):
+        filtro_rischio = ""
+    solo_rischio = request.GET.get("solo_rischio") == "1"
+    q_text = (request.GET.get("q") or "").strip()
+
     mansioni = list(
         Mansione.objects.all()
         .order_by("nome")
@@ -4343,6 +4349,22 @@ def mansioni_list(request):
         except Exception:
             m.n_dpi = 0
         m.livello_label = m.get_livello_rischio_display() if m.livello_rischio else ""
+        m.is_rischio = bool(m.livello_rischio or m.n_dpi or m.n_visite)
+
+    n_rischio_tot = sum(1 for m in mansioni if m.is_rischio)
+
+    # Filtri (livello rischio, solo mansioni di rischio, ricerca nome)
+    def _match(m) -> bool:
+        if q_text and q_text.casefold() not in m.nome.casefold():
+            return False
+        if filtro_rischio and m.livello_rischio != filtro_rischio:
+            return False
+        if solo_rischio and not m.is_rischio:
+            return False
+        return True
+
+    if filtro_rischio or solo_rischio or q_text:
+        mansioni = [m for m in mansioni if _match(m)]
 
     # Raggruppa per categoria nell'ordine definito
     cat_order = [c for c, _ in Mansione.CATEGORIA_CHOICES]
@@ -4375,6 +4397,11 @@ def mansioni_list(request):
         "mansioni_suggerite": mansioni_suggerite,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
         "LIVELLO_RISCHIO_CHOICES": Mansione.LIVELLO_RISCHIO_CHOICES,
+        "filtro_rischio": filtro_rischio,
+        "solo_rischio": solo_rischio,
+        "q_text": q_text,
+        "n_rischio_tot": n_rischio_tot,
+        "n_visibili": len(mansioni),
     })
 
 
@@ -5717,6 +5744,7 @@ def scadenzario(request):
                 "nome":         str(dip.get("nome") or "").strip(),
                 "reparto":      reparto,
                 "tipo_nome":    q.tipo.nome,
+                "tipo_id":      q.tipo_id,
                 "categoria":    q.tipo.get_categoria_display(),
                 "data_scadenza": q.data_scadenza,
                 "giorni":       delta,
@@ -5919,6 +5947,7 @@ def scadenzario(request):
         "totale":        len(voci),
         "can_view_formazione": can_view_formazione,
         "can_view_contratti": can_view_contratti,
+        "is_qual_admin": _qualifiche_can_edit(request),
         "fm_n_scaduti":  fm_n_scaduti,
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,

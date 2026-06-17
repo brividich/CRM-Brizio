@@ -91,6 +91,27 @@ body.theme-dark .mn-field label { color:var(--text-mid); }
     <a class="mn-btn mn-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
   </div>
 
+  <!-- Filtri -->
+  <form method="get" class="mn-card" style="padding:12px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <div class="mn-field" style="flex:1;min-width:180px;">
+      <label>Ricerca mansione</label>
+      <input class="mn-input" type="text" name="q" value="{{ q_text }}" placeholder="es. addetto verniciatura…">
+    </div>
+    <div class="mn-field">
+      <label>Livello di rischio</label>
+      <select class="mn-input" name="rischio" aria-label="Filtra per livello di rischio">
+        <option value="">Tutti</option>
+        {% for val, label in LIVELLO_RISCHIO_CHOICES %}<option value="{{ val }}" {% if filtro_rischio == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <label class="mn-field" style="flex-direction:row;align-items:center;gap:6px;font-size:13px;color:#475569;text-transform:none;letter-spacing:0;font-weight:600;padding-bottom:8px;">
+      <input type="checkbox" name="solo_rischio" value="1" {% if solo_rischio %}checked{% endif %}> Solo mansioni di rischio
+    </label>
+    <button type="submit" class="mn-btn mn-btn-primary">Filtra</button>
+    {% if q_text or filtro_rischio or solo_rischio %}<a class="mn-btn mn-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Azzera</a>{% endif %}
+    <span class="mn-sub" style="margin-left:auto;">{{ n_visibili }} mostrate · {{ n_rischio_tot }} di rischio</span>
+  </form>
+
   <!-- Mansioni raggruppate per categoria -->
   {% if mansioni_grouped %}
     {% for cat_code, cat_label, items in mansioni_grouped %}

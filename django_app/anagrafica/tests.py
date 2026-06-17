@@ -1520,6 +1520,19 @@ class ScadenzarioEstesoTests(TestCase):
         resp = self.client.get(reverse("anagrafica:scadenzario"))
         self.assertNotContains(resp, "Corso facoltativo X")
 
+    def test_qualifica_scaduta_mostra_azione_rinnova(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import TipoQualifica, DipendenteQualifica
+        tipo = TipoQualifica.objects.create(nome="Carrellista SC", categoria=TipoQualifica.CAT_SICUREZZA)
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=205, tipo=tipo,
+            data_scadenza=timezone.localdate() - timedelta(days=5),
+        )
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "qualifica"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, reverse("anagrafica:qualifica_sessione_create") + "?tipo=" + str(tipo.id))
+
     def test_contratto_in_scadenza_in_scadenzario(self):
         from datetime import timedelta
         from django.utils import timezone
@@ -1870,6 +1883,19 @@ class SicurezzaHubTests(TestCase):
         mansione_ctx = next(x for x in resp.context["mansioni"] if x.id == m.id)
         self.assertEqual(mansione_ctx.n_dpi, 1)
         self.assertEqual(mansione_ctx.n_visite, 1)
+
+    def test_mansioni_list_filtri_rischio(self):
+        """Filtri lista mansioni: livello di rischio e 'solo mansioni di rischio'."""
+        from .models import Mansione
+        Mansione.objects.create(nome="Verniciatore X", livello_rischio=Mansione.RISCHIO_ALTO)
+        Mansione.objects.create(nome="Impiegato XYZ")  # nessun requisito → non di rischio
+        self.client.force_login(self.admin)
+        r1 = self.client.get(reverse("anagrafica:mansioni_list") + "?rischio=A")
+        self.assertContains(r1, "Verniciatore X")
+        self.assertNotContains(r1, "Impiegato XYZ")
+        r2 = self.client.get(reverse("anagrafica:mansioni_list") + "?solo_rischio=1")
+        self.assertContains(r2, "Verniciatore X")
+        self.assertNotContains(r2, "Impiegato XYZ")
 
 
 class QualificheCatalogoTests(TestCase):
