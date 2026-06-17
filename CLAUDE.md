@@ -58,6 +58,10 @@ python django_app\manage.py check --settings=config.settings.test
 python django_app\manage.py secret_hygiene_check
 python django_app\manage.py validate_deployment --format json --settings=config.settings.test
 
+# Tests - scoped (prefer these during development)
+python django_app\manage.py test django_app.<app_name> --settings=config.settings.test
+python django_app\manage.py test django_app.<app_name> --keepdb --settings=config.settings.test
+
 # ACL / release support
 python django_app\manage.py bootstrap_acl_v2 --dry-run
 python django_app\manage.py acl_fallback_report --only-unbound
@@ -67,6 +71,15 @@ python django_app\manage.py acl_coverage_report --max-missing 222
 ```
 
 No tests are required for documentation-only changes unless project files outside documentation are changed.
+
+## Resource Constraints
+
+- **Never run the full test suite (`manage.py test`) unless explicitly asked.**
+- Default to running only the tests for the app being modified:
+  `python django_app\manage.py test django_app.<app_name> --settings=config.settings.test`
+- Use `--keepdb` whenever possible to avoid recreating the test DB on every run.
+- Do not run `runserver` and the full test suite simultaneously.
+- Prefer `--verbosity 0` when running tests in background to reduce I/O.
 
 ## Patch Workflow
 
@@ -80,17 +93,7 @@ No tests are required for documentation-only changes unless project files outsid
 
 ## Documentation Map
 
-- [docs/ai/00_INDEX.md](docs/ai/00_INDEX.md) - AI documentation index.
-- [docs/ai/01_PROJECT_CONTEXT.md](docs/ai/01_PROJECT_CONTEXT.md) - product context, SiteConfig, search, audit, onboarding, logging, cache.
-- [docs/ai/02_ARCHITECTURE.md](docs/ai/02_ARCHITECTURE.md) - stack, ACL, routing, deployment-only infrastructure.
-- [docs/ai/03_BACKEND_MODULES.md](docs/ai/03_BACKEND_MODULES.md) - app catalog, Hub Tools, automations backend.
-- [docs/ai/04_FRONTEND_DIRECTION.md](docs/ai/04_FRONTEND_DIRECTION.md) - SSR/HTMX, navigation, dashboards, designer UI.
-- [docs/ai/05_SECURITY_BOUNDARIES.md](docs/ai/05_SECURITY_BOUNDARIES.md) - ACL/security/privacy boundaries.
-- [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md) - release guard, versioning, Setup Wizard, tests.
-- [docs/ai/07_PATCH_HISTORY.md](docs/ai/07_PATCH_HISTORY.md) - patch/release-history maintenance rules.
-- [docs/ai/08_ROADMAP.md](docs/ai/08_ROADMAP.md) - current direction and known debt.
-- [docs/ai/09_PROMPT_LIBRARY.md](docs/ai/09_PROMPT_LIBRARY.md) - reusable targeted prompts.
-- [docs/ai/11_FEATURE_BACKLOG.md](docs/ai/11_FEATURE_BACKLOG.md) - feature backlog con checklist avanzamento per modulo.
+Long-form context lives in `docs/ai/`. The canonical, complete index is [docs/ai/00_INDEX.md](docs/ai/00_INDEX.md) — open only the file relevant to the current task. Keep this pointer here instead of duplicating the file list. Two pointers worth inlining: security boundaries in [docs/ai/05_SECURITY_BOUNDARIES.md](docs/ai/05_SECURITY_BOUNDARIES.md), and the pre-finish quality gates in [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
 
 ## Current Product Direction
 
