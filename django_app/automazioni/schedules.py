@@ -68,6 +68,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP /
+        # medico competente / HR. Fail-safe: no-op se non sono configurati i
+        # destinatari (SiteConfig idoneita_reminder_emails).
+        "name": "idoneita_digest",
+        "func": "anagrafica.tasks.run_idoneita_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 7 * * 1",        # ogni lunedi alle 07:00 (dopo il report scadenze 06:00)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
         # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
         "name": "cleanup_run_logs",

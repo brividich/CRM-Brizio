@@ -162,6 +162,57 @@ def _my_procedure(request_user) -> list[dict]:
     return out
 
 
+def _safety_scadenze(request) -> list[dict] | None:
+    """Qualifiche/abilitazioni scadute o in scadenza (≤60gg) da gestire.
+
+    Vista **gestionale** (gated dal permesso formazione/HR): ritorna ``None`` se
+    l'utente non ha il permesso (la sezione non viene mostrata). Query leggera; i
+    nomi dipendente sono risolti solo per i pochi item mostrati. Le visite mediche
+    (dato sanitario) sono escluse di proposito; il conteggio idoneità "non idonei"
+    resta sul cruscotto Safety (calcolo batch più pesante).
+    """
+    try:
+        from anagrafica.views import _can_view_formazione
+        if not _can_view_formazione(request):
+            return None
+    except Exception:
+        return None
+    try:
+        from datetime import timedelta
+        from django.utils import timezone
+        from anagrafica.models import DipendenteQualifica
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+
+        oggi = timezone.localdate()
+        soglia = oggi + timedelta(days=60)
+        qs = list(
+            DipendenteQualifica.objects.select_related("tipo")
+            .filter(data_scadenza__isnull=False, data_scadenza__lte=soglia)
+            .order_by("data_scadenza")[:10]
+        )
+        nomi: dict[int, str] = {}
+        ids = list({q.legacy_anagrafica_id for q in qs})
+        if ids:
+            for r in fetch_anagrafica_rows(ids=ids):
+                rid = int(r.get("id") or 0)
+                if rid:
+                    nomi[rid] = f"{r.get('cognome', '')} {r.get('nome', '')}".strip()
+        url = _safe_url("anagrafica:scadenzario") + "?tipo=qualifica"
+        out = []
+        for q in qs:
+            scaduta = q.data_scadenza < oggi
+            out.append({
+                "code": f"Q-{q.id}",
+                "title": q.tipo.nome,
+                "meta": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+                "status": "Scaduta" if scaduta else "In scadenza",
+                "url": url,
+            })
+        return out
+    except Exception:
+        return []
+
+
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     """Aggrega in un'unica struttura le "cose da gestire" dell'utente corrente,
     attraversando i moduli. Riusato sia dalla pagina dedicata `mie_attivita` sia
@@ -222,6 +273,20 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": "Nessuna richiesta DPI in corso.",
         },
     ]
+
+    # Sezione Salute e Sicurezza (solo per chi gestisce formazione/HR).
+    safety_items = _safety_scadenze(request)
+    if safety_items is not None:
+        sections.append({
+            "key": "safety",
+            "label": "Salute e Sicurezza — scadenze qualifiche",
+            "tone": "warning",
+            "icon": "🛡",
+            "items": safety_items,
+            "all_url": _safe_url("anagrafica:scadenzario") + "?tipo=qualifica",
+            "empty": "Nessuna qualifica scaduta o in scadenza.",
+        })
+
     total = sum(len(s["items"]) for s in sections)
     return {"sections": sections, "total": total}
 
