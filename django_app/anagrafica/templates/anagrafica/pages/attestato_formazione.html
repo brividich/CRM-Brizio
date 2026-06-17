@@ -174,6 +174,7 @@
     {% if can_edit %}
     <a href="{% url 'anagrafica:attestato_impostazioni' %}" title="Personalizza il template dalle impostazioni HR">⚙ Template</a>
     {% endif %}
+    <a href="{% url 'anagrafica:attestato_formazione' record.pk %}?stile=stampa" title="Versione sobria a basso consumo d'inchiostro">🖶 Versione stampa</a>
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>
   </div>
 

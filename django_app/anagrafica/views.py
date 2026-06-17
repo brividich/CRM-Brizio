@@ -2281,13 +2281,22 @@ def attestato_formazione(request, record_id: int):
     else:
         numero_display = f"FORM-{record.data_completamento:%Y}-{record.pk:05d}"
 
+    # Variante "stampa": layout sobrio a basso consumo d'inchiostro (B/N),
+    # mantenendo la versione a colori come default.
+    stile = (request.GET.get("stile") or "").strip().lower()
+    is_stampa = stile == "stampa"
+    template_name = (
+        "anagrafica/pages/attestato_formazione_stampa.html" if is_stampa
+        else "anagrafica/pages/attestato_formazione.html"
+    )
+
     try:
         TrainingExportLog.objects.create(
             tipo="ATTESTATO",
             filtri_json={
                 "record_id": record.pk,
                 "legacy_anagrafica_id": legacy_id,
-                "formato": "attestato_html",
+                "formato": "attestato_stampa_html" if is_stampa else "attestato_html",
             },
             righe_esportate=1,
             generato_da=request.user,
@@ -2296,7 +2305,7 @@ def attestato_formazione(request, record_id: int):
     except Exception:
         logger.exception("Errore registrazione TrainingExportLog per attestato record %s", record_id)
 
-    return render(request, "anagrafica/pages/attestato_formazione.html", {
+    return render(request, template_name, {
         "record": record,
         "certificato": certificato,
         "dip": dip,
@@ -2308,6 +2317,7 @@ def attestato_formazione(request, record_id: int):
         "responsabile": responsabile,
         "numero_display": numero_display,
         "sede_display": sede_display,
+        "stile": stile,
         "cfg": cfg,
         "can_edit": _can_edit_formazione(request),
     })
@@ -10080,6 +10090,70 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
         "is_editor":  is_editor,
         "n_presenti": n_presenti,
         "STATO_PRESENZA_CHOICES": TrainingLessonAttendance.STATO_PRESENZA_CHOICES,
+    })
+
+
+@login_required
+def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
+    """Registro presenze cartaceo di una lezione — foglio firme stampabile A4.
+
+    Layout sobrio (basso consumo d'inchiostro) coerente con la versione stampa
+    dell'attestato: intestazione corso/sessione/lezione + tabella con i nominativi
+    degli iscritti e le colonne firma ingresso/uscita da compilare a mano, righe
+    vuote per partecipanti aggiuntivi e firma del docente. La generazione è
+    tracciata in `TrainingExportLog` (tipo REPORT_FIRMA).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso", "corso__piano"), pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    iscrizioni = list(
+        TrainingEnrollment.objects.filter(sessione=sessione).order_by("legacy_anagrafica_id")
+    )
+    nomi_map = _build_nomi_map()
+    righe = [
+        {"n": idx, "nome": nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")}
+        for idx, i in enumerate(
+            sorted(iscrizioni, key=lambda e: nomi_map.get(e.legacy_anagrafica_id, "").casefold()),
+            start=1,
+        )
+    ]
+    # Righe vuote per partecipanti aggiuntivi (almeno 6, foglio sempre ~25 righe).
+    n_extra = max(6, 25 - len(righe))
+    extra_rows = range(len(righe) + 1, len(righe) + 1 + n_extra)
+
+    # Docente di riferimento: snapshot lezione → docente lezione → docente sessione.
+    docente = (
+        (lezione.docente_nome or "").strip()
+        or (str(lezione.docente).strip() if lezione.docente_id else "")
+        or (sessione.docente_nome or "").strip()
+        or (str(sessione.docente).strip() if sessione.docente_id else "")
+    )
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={
+                "sessione_id": sessione.pk,
+                "lezione_id": lezione.pk,
+                "formato": "registro_presenze_html",
+            },
+            righe_esportate=len(righe),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore registrazione TrainingExportLog per registro lezione %s", lezione_id)
+
+    return render(request, "anagrafica/pages/formazione_registro_presenze.html", {
+        "sessione": sessione,
+        "lezione": lezione,
+        "righe": righe,
+        "extra_rows": extra_rows,
+        "docente": docente,
     })
 
 

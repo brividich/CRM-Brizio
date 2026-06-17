@@ -42,6 +42,10 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         {% if lezione.docente_nome %}&nbsp;·&nbsp; {{ lezione.docente_nome }}{% endif %}
       </p>
     </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <a href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezione.pk %}" target="_blank" rel="noopener"
+         class="hr-btn hr-btn-ghost">🖨 Stampa foglio firme</a>
+    </div>
   </div>
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}

@@ -253,6 +253,8 @@ urlpatterns = [
     # Presenze per lezione
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/", views.formazione_lezione_presenze, name="formazione_lezione_presenze"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/set", views.formazione_presenza_set, name="formazione_presenza_set"),
+    # Registro presenze lezione — foglio firme stampabile A4
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro/", views.formazione_lezione_registro, name="formazione_lezione_registro"),
 
     # ── Formazione HR — Iscritti ────────────────────────────────────────────
     path("formazione/sessioni/<int:sessione_id>/iscritti/", views.formazione_sessione_iscritti, name="formazione_sessione_iscritti"),

@@ -1787,6 +1787,92 @@ class AttestatoFormazioneTests(TestCase):
             resp = self.client.get(reverse("anagrafica:attestato_impostazioni"))
         self.assertEqual(resp.status_code, 302)
 
+    def test_variante_stampa_render(self):
+        rec = self._make_record()
+        resp = self.client.get(
+            reverse("anagrafica:attestato_formazione", args=[rec.pk]) + "?stile=stampa"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "anagrafica/pages/attestato_formazione_stampa.html")
+        self.assertContains(resp, "Bianchi Anna")
+        self.assertContains(resp, "Versione a colori")
+
+    def test_default_usa_variante_a_colori(self):
+        rec = self._make_record()
+        resp = self.client.get(reverse("anagrafica:attestato_formazione", args=[rec.pk]))
+        self.assertTemplateUsed(resp, "anagrafica/pages/attestato_formazione.html")
+
+
+# ---------------------------------------------------------------------------
+# H5c — registro presenze lezione (foglio firme stampabile)
+# ---------------------------------------------------------------------------
+
+class RegistroPresenzeLezioneTests(TestCase):
+    """Foglio firme A4 di una lezione: nominativi iscritti + righe vuote + gate."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="reg_admin", email="reg_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) "
+                "VALUES (501, 'Luca', 'Conti', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_lezione(self):
+        from datetime import date, time
+        from .models_formazione import (
+            TrainingCourse, TrainingEnrollment, TrainingLesson,
+            TrainingPlan, TrainingSession,
+        )
+        piano = TrainingPlan.objects.create(codice="PREG", nome="Piano")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CREG", titolo="Sicurezza base", durata_ore_teorica=4,
+        )
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SREG1",
+            data_inizio=date.today(), data_fine=date.today(), sede="Aula A",
+        )
+        lez = TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=date.today(),
+            ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="Rischi generali",
+        )
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=501)
+        return sess, lez
+
+    def test_registro_render_con_iscritti_e_righe_vuote(self):
+        sess, lez = self._make_lezione()
+        resp = self.client.get(
+            reverse("anagrafica:formazione_lezione_registro", args=[sess.pk, lez.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Conti Luca")
+        self.assertContains(resp, "Firma ingresso")
+        self.assertContains(resp, "Firma uscita")
+        self.assertContains(resp, "Rischi generali")
+
+    def test_registro_tracciato_in_export_log(self):
+        from .models_formazione import TrainingExportLog
+        sess, lez = self._make_lezione()
+        self.client.get(reverse("anagrafica:formazione_lezione_registro", args=[sess.pk, lez.pk]))
+        log = TrainingExportLog.objects.filter(tipo="REPORT_FIRMA").last()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.filtri_json.get("lezione_id"), lez.pk)
+
+    def test_registro_negato_senza_permesso(self):
+        sess, lez = self._make_lezione()
+        with patch("anagrafica.views._can_view_formazione", return_value=False):
+            resp = self.client.get(
+                reverse("anagrafica:formazione_lezione_registro", args=[sess.pk, lez.pk])
+            )
+        self.assertEqual(resp.status_code, 302)
+
 
 # ---------------------------------------------------------------------------
 # H6 — organigramma visuale

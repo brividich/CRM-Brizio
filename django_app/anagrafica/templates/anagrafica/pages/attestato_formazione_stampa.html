@@ -1,0 +1,242 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attestato (stampa) — {{ nominativo }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --ink: #111111;
+      --soft: #333333;
+      --muted: #555555;
+      --line: #000000;
+      --line-soft: #bbbbbb;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 13px; line-height: 1.5; color: var(--ink); background: #f4f4f4;
+    }
+
+    /* ── Action bar (non stampata) ─────────────────────────────── */
+    .pb-actions {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px; background: #1f2937; color: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .pb-actions-title { flex: 1; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .pb-actions a, .pb-actions button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 13px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08);
+      color: #fff; font-size: 12px; font-weight: 700; font-family: inherit;
+      cursor: pointer; text-decoration: none;
+    }
+    .pb-actions a:hover, .pb-actions button:hover { background: rgba(255,255,255,.2); }
+    .pb-actions .pb-btn-print { background: #2563eb; border-color: #2563eb; }
+
+    /* ── Foglio ────────────────────────────────────────────────── */
+    .as-wrap { padding: 26px 14px 50px; }
+    .as-sheet {
+      max-width: 800px; margin: 0 auto; background: #fff;
+      border: 1px solid var(--line-soft); padding: 40px 48px 34px;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    .as-head {
+      display: flex; align-items: center; gap: 16px;
+      border-bottom: 2px solid var(--line); padding-bottom: 14px; margin-bottom: 6px;
+    }
+    .as-logo { width: 180px; max-width: 180px; height: auto; filter: grayscale(100%); }
+    .as-head-meta { margin-left: auto; text-align: right; }
+    .as-eyebrow {
+      font-family: Arial, Helvetica, sans-serif; font-size: 9.5px; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    }
+    .as-num {
+      font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700;
+      margin-top: 4px; color: var(--ink);
+    }
+
+    /* ── Corpo ─────────────────────────────────────────────────── */
+    .as-title {
+      text-align: center; margin: 22px 0 2px; font-size: 27px; font-weight: 700;
+      letter-spacing: .02em; text-transform: uppercase;
+    }
+    .as-title-sub {
+      text-align: center; font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 22px;
+    }
+    .as-attesta { text-align: center; font-size: 14px; color: var(--soft); margin: 0 0 4px; }
+    .as-name {
+      text-align: center; font-size: 24px; font-weight: 700; margin: 2px 0 4px;
+      border-bottom: 1px solid var(--line-soft); padding-bottom: 8px;
+      display: inline-block; width: 100%;
+    }
+    .as-personal { text-align: center; font-size: 12px; color: var(--muted); margin: 6px 0 18px; }
+    .as-intro { text-align: center; font-size: 14px; line-height: 1.6; margin: 0 auto 6px; max-width: 60ch; }
+    .as-course {
+      text-align: center; margin: 10px auto 4px; padding: 12px 16px;
+      border: 1px solid var(--line); border-width: 1px 0;
+    }
+    .as-course-title { font-size: 17px; font-weight: 700; }
+    .as-course-sub { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Dati (righe semplici) ─────────────────────────────────── */
+    .as-facts { width: 100%; border-collapse: collapse; margin: 18px 0 4px; font-size: 12.5px; }
+    .as-facts td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    .as-facts td.lbl {
+      width: 38%; font-family: Arial, Helvetica, sans-serif; font-size: 10.5px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+    }
+
+    /* ── Firme ─────────────────────────────────────────────────── */
+    .as-signs { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 50px; }
+    .as-sign { text-align: center; }
+    .as-sign-name { min-height: 40px; }
+    .as-sign-line { border-top: 1px solid var(--line); padding-top: 5px; }
+    .as-sign-role {
+      font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; color: var(--ink);
+    }
+    .as-sign-hint { font-family: Arial, Helvetica, sans-serif; font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Footer ────────────────────────────────────────────────── */
+    .as-foot {
+      margin-top: 26px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+      font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: var(--muted); line-height: 1.5;
+    }
+
+    /* ── Print ─────────────────────────────────────────────────── */
+    @page { size: A4; margin: 14mm 14mm; }
+    @media print {
+      body { background: #fff; }
+      .as-wrap { padding: 0; }
+      .pb-actions { display: none !important; }
+      .as-sheet { max-width: none; margin: 0; border: none; padding: 0; }
+      .as-facts, .as-signs, .as-course { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Action bar (non stampata) -->
+  <div class="pb-actions">
+    <span class="pb-actions-title">Attestato (stampa) — {{ nominativo }}</span>
+    {% if legacy_id %}
+    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">← Libretto</a>
+    {% endif %}
+    <a href="{% url 'anagrafica:attestato_formazione' record.pk %}" title="Torna alla versione a colori">🎨 Versione a colori</a>
+    <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>
+  </div>
+
+  <div class="as-wrap">
+    <article class="as-sheet">
+
+      <!-- Header -->
+      <header class="as-head">
+        <img class="as-logo" src="{{ cfg.logo_url|default:'https://costruzioninovicrom.it/wp-content/uploads/2026/05/novicrmhub.png' }}" alt="NOVICROM HUB">
+        <div class="as-head-meta">
+          <div class="as-eyebrow">{{ cfg.intestazione_eyebrow|default:"Formazione interna" }}</div>
+          <div class="as-num">Attestato n° {{ numero_display }}</div>
+        </div>
+      </header>
+
+      <!-- Corpo -->
+      <h1 class="as-title">{{ attestato_tipo }}</h1>
+      <div class="as-title-sub">{{ cfg.sezione_label|default:"NOVICROM HUB · Attestazione formativa" }}</div>
+
+      <p class="as-attesta">{{ cfg.formula_attestazione|default:"Si attesta che" }}</p>
+      <div class="as-name">{{ nominativo }}</div>
+      {% if dip.matricola or cfg.mostra_dati_personali and dip.luogo_nascita or cfg.mostra_dati_personali and dip.data_nascita or cfg.mostra_dati_personali and dip.codice_fiscale %}
+      <p class="as-personal">
+        {% if cfg.mostra_dati_personali %}
+          {% if dip.luogo_nascita %}nato/a a {{ dip.luogo_nascita }}{% if dip.data_nascita %} il {{ dip.data_nascita|date:"d-m-Y" }}{% endif %} · {% endif %}
+          {% if dip.codice_fiscale %}C.F. {{ dip.codice_fiscale }}{% if dip.matricola %} · {% endif %}{% endif %}
+        {% endif %}
+        {% if dip.matricola %}Matricola {{ dip.matricola }}{% endif %}
+      </p>
+      {% endif %}
+
+      <p class="as-intro">
+        ha {% if record.idoneo %}frequentato e superato con esito positivo{% else %}frequentato{% endif %}
+        {% if qualifica %}il percorso di qualifica/abilitazione{% else %}il corso di formazione{% endif %}
+        interno qui di seguito indicato:
+      </p>
+
+      <div class="as-course">
+        <div class="as-course-title">{{ record.course_title_snapshot|default:corso.titolo|default:"Corso di formazione" }}</div>
+        <div class="as-course-sub">
+          {% with cod=record.course_code_snapshot|default:corso.codice %}{% if cod %}Codice {{ cod }}{% endif %}{% endwith %}
+          {% with piano=record.plan_name_snapshot|default:corso.piano.nome %}{% if piano %} · Piano: {{ piano }}{% endif %}{% endwith %}
+          {% if record.course_version_snapshot %} · Versione {{ record.course_version_snapshot }}{% endif %}
+        </div>
+      </div>
+
+      <!-- Dati -->
+      <table class="as-facts">
+        <tr>
+          <td class="lbl">Data completamento</td>
+          <td>{{ record.data_completamento|date:"d F Y" }}</td>
+        </tr>
+        <tr>
+          <td class="lbl">Durata</td>
+          <td>{% if record.ore_frequentate %}{{ record.ore_frequentate|floatformat:"-2" }} ore{% else %}non indicata{% endif %}</td>
+        </tr>
+        <tr>
+          <td class="lbl">Esito</td>
+          <td>{% if record.idoneo %}Idoneo{% else %}Non idoneo{% endif %}{% if record.percentuale_presenza %} · presenza {{ record.percentuale_presenza }}%{% endif %}</td>
+        </tr>
+        <tr>
+          <td class="lbl">Validità</td>
+          <td>{% if record.data_scadenza %}fino al {{ record.data_scadenza|date:"d-m-Y" }}{% else %}una tantum{% endif %}</td>
+        </tr>
+        {% if qualifica %}
+        <tr>
+          <td class="lbl">Qualifica rilasciata</td>
+          <td>{{ qualifica.nome|default:qualifica }}</td>
+        </tr>
+        {% endif %}
+        {% if sede_display %}
+        <tr>
+          <td class="lbl">Sessione / Sede</td>
+          <td>{{ sede_display }}</td>
+        </tr>
+        {% endif %}
+      </table>
+
+      <!-- Firme -->
+      <div class="as-signs">
+        <div class="as-sign">
+          <div class="as-sign-name">{{ responsabile }}</div>
+          <div class="as-sign-line">
+            <div class="as-sign-role">{{ cfg.firma_responsabile_label|default:"Il Responsabile del corso" }}</div>
+            <div class="as-sign-hint">Timbro e firma</div>
+          </div>
+        </div>
+        <div class="as-sign">
+          <div class="as-sign-name">{{ nominativo }}</div>
+          <div class="as-sign-line">
+            <div class="as-sign-role">{{ cfg.firma_dipendente_label|default:"Il Dipendente" }}</div>
+            <div class="as-sign-hint">Firma per ricevuta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="as-foot">
+        Attestato generato automaticamente da NOVICROM HUB il {% now "d-m-Y H:i" %} (rif. {{ numero_display }}).
+        {{ cfg.nota_legale }}
+      </div>
+
+    </article>
+  </div>
+
+</body>
+</html>
