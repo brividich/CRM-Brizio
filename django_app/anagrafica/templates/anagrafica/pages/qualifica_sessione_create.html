@@ -4,31 +4,59 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <style>
-.qs-page { display:flex; flex-direction:column; gap:20px; max-width:1100px; }
-.qs-title { font-size:24px; font-weight:800; color:#0f172a; }
-.qs-sub { font-size:13px; color:#64748b; margin-top:2px; }
-.qs-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
-.qs-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.qs-page { display:flex; flex-direction:column; gap:18px; max-width:1080px; padding-bottom:84px; }
+.qs-head { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.qs-title { font-size:23px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:9px; }
+.qs-sub { font-size:13px; color:#64748b; margin-top:3px; }
+.qs-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.qs-card-head { padding:13px 18px; border-bottom:1px solid #f1f5f9; font-weight:700; color:#1e293b; font-size:14px; display:flex; align-items:center; gap:8px; }
+.qs-card-body { padding:18px; }
+.qs-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
 .qs-field { display:flex; flex-direction:column; gap:4px; }
+.qs-field.full { grid-column:1/-1; }
 .qs-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.qs-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; width:100%; box-sizing:border-box; }
-.qs-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; }
-.qs-btn-primary { background:#12395f; color:#fff; }
-.qs-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.qs-field .hint { font-size:11px; color:#94a3b8; font-weight:500; text-transform:none; letter-spacing:0; }
+.qs-input { border:1px solid #e2e8f0; border-radius:9px; padding:9px 12px; font-size:13px; color:#0f172a; background:#f8fafc; width:100%; box-sizing:border-box; transition:border-color .15s,box-shadow .15s; }
+.qs-input:focus { outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.12); background:#fff; }
+.qs-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; }
+.qs-btn-primary { background:#12395f; color:#fff; } .qs-btn-primary:hover { background:#0d2c4a; }
+.qs-btn-primary:disabled { background:#94a3b8; cursor:not-allowed; }
+.qs-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; } .qs-btn-ghost:hover { background:#e2e8f0; }
+.qs-mini { background:#fff; border:1px solid #cbd5e1; color:#475569; border-radius:7px; padding:3px 9px; font-size:11px; font-weight:600; cursor:pointer; }
+.qs-mini:hover { background:#f1f5f9; border-color:#94a3b8; }
+.qs-cand-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:12px 18px; background:#f8fafc; border-bottom:1px solid #eef2f7; }
+.qs-cand-meta { font-size:13px; color:#475569; } .qs-cand-meta strong { color:#0f172a; }
+.qs-cand-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.qs-cand-scroll { max-height:430px; overflow:auto; }
 .qs-table { width:100%; border-collapse:collapse; font-size:13px; }
-.qs-table th { padding:9px 12px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
-.qs-table td { padding:9px 12px; border-bottom:1px solid #f8fafc; color:#334155; }
-.qs-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+.qs-table th { padding:9px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; background:#f1f5f9; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:1; }
+.qs-table td { padding:8px 14px; border-bottom:1px solid #f4f7fa; color:#334155; }
+.qs-cand-row { cursor:pointer; } .qs-cand-row:hover td { background:#f8fafc; }
+.qs-cand-row.qs-st-scaduta { box-shadow:inset 3px 0 0 #ef4444; }
+.qs-cand-row.qs-st-in_scadenza { box-shadow:inset 3px 0 0 #f59e0b; }
+.qs-badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; }
 .qs-b-red { background:#fee2e2; color:#b91c1c; } .qs-b-orange { background:#ffedd5; color:#9a3412; } .qs-b-green { background:#dcfce7; color:#166534; }
-.qs-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-.qs-chip { background:#eef2ff; color:#3730a3; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:600; }
-@media (max-width:700px){ .qs-grid { grid-template-columns:1fr; } }
-body.theme-dark .qs-title { color:var(--text); } body.theme-dark .qs-sub { color:var(--text-light); }
+.qs-empty-cand { padding:26px 18px; color:#94a3b8; font-size:13px; text-align:center; }
+.qs-extra { padding:14px 18px; border-top:1px solid #eef2f7; background:#fcfdff; }
+.qs-extra-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.qs-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.qs-chip { background:#eef2ff; color:#3730a3; border-radius:999px; padding:4px 11px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.qs-chip:hover { background:#e0e7ff; }
+.qs-bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid #e2e8f0; padding:12px 24px; display:flex; align-items:center; gap:14px; justify-content:flex-end; box-shadow:0 -4px 14px rgba(15,23,42,.05); z-index:20; }
+.qs-count { margin-right:auto; font-size:13px; color:#475569; } .qs-count b { color:#0f172a; font-size:15px; }
+.qs-indicator { display:none; font-size:12px; color:#2563eb; font-weight:600; }
+.htmx-request .qs-indicator, .qs-indicator.htmx-request { display:inline; }
+@media (max-width:700px){ .qs-grid { grid-template-columns:1fr; } .qs-bar { padding:10px 14px; } }
+body.theme-dark .qs-title { color:var(--text); } body.theme-dark .qs-sub,.qs-cand-meta { color:var(--text-light); }
 body.theme-dark .qs-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .qs-card-head { color:var(--text); border-color:var(--border); }
+body.theme-dark .qs-cand-bar,.qs-extra { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .qs-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .qs-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .qs-table td { border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .qs-cand-row:hover td { background:var(--surface-alt); }
+body.theme-dark .qs-btn-ghost,.qs-mini { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .qs-bar { background:var(--surface); border-color:var(--border); }
 </style>
 {% endblock %}
 
@@ -38,102 +66,71 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
 <div class="qs-page">
   {% include "anagrafica/components/flash_messages.html" %}
 
-  <div>
-    <div class="qs-title">+ Nuova sessione di rinnovo qualifica</div>
-    <div class="qs-sub">Passo {{ step }} di 2 — {% if step == 1 %}scegli tipo, data ed ente{% else %}seleziona i partecipanti{% endif %}</div>
+  <div class="qs-head">
+    <div>
+      <div class="qs-title">↻ Nuova sessione di rinnovo</div>
+      <div class="qs-sub">Rilascia o rinnova una qualifica a più dipendenti in un'unica data. Scaduti e in scadenza sono pre-selezionati.</div>
+    </div>
+    <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">← Sessioni</a>
   </div>
 
-  {% if step == 1 %}
-  <form method="post" action="{% url 'anagrafica:qualifica_sessione_create' %}">
-    {% csrf_token %}
-    <input type="hidden" name="step" value="1">
-    <div class="qs-card">
-      <div class="qs-grid">
-        <div class="qs-field">
-          <label>Tipo qualifica / abilitazione *</label>
-          <select class="qs-input" name="tipo_id" required>
-            <option value="">— seleziona —</option>
-            {% for t in tipi %}<option value="{{ t.id }}">{{ t.nome }}{% if t.durata_mesi %} ({{ t.durata_mesi }} mesi){% endif %}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="qs-field">
-          <label>Data conseguimento *</label>
-          <input class="qs-input" type="date" name="data_conseguimento" value="{{ oggi|date:'Y-m-d' }}" required>
-        </div>
-        <div class="qs-field" style="grid-column:1/-1;">
-          <label>Ente / provider (opzionale)</label>
-          <input class="qs-input" type="text" name="ente" maxlength="200" placeholder="es. Centro Formazione…">
-        </div>
-      </div>
-      <div style="margin-top:16px;display:flex;gap:8px;">
-        <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">Annulla</a>
-        <button type="submit" class="qs-btn qs-btn-primary">Avanti → partecipanti</button>
-      </div>
-    </div>
-  </form>
-
-  {% else %}
-  <form method="post" action="{% url 'anagrafica:qualifica_sessione_create' %}">
+  <form method="post" action="{% url 'anagrafica:qualifica_sessione_create' %}" id="qs-form">
     {% csrf_token %}
     <input type="hidden" name="step" value="2">
-    <input type="hidden" name="tipo_id" value="{{ tipo.id }}">
     <input type="hidden" name="extra_ids" id="extra-ids" value="">
 
-    <div class="qs-card">
-      <div class="qs-grid">
-        <div class="qs-field">
-          <label>Qualifica</label>
-          <input class="qs-input" type="text" value="{{ tipo.nome }}" disabled>
-        </div>
-        <div class="qs-field">
-          <label>Data conseguimento *</label>
-          <input class="qs-input" type="date" name="data_conseguimento" value="{{ data_conseguimento }}" required>
-        </div>
-        <div class="qs-field">
-          <label>Scadenza (vuota = +{{ tipo.durata_mesi|default:0 }} mesi dal tipo)</label>
-          <input class="qs-input" type="date" name="data_scadenza">
-        </div>
-        <div class="qs-field">
-          <label>Ente / provider</label>
-          <input class="qs-input" type="text" name="ente" value="{{ ente }}" maxlength="200">
-        </div>
-        <div class="qs-field" style="grid-column:1/-1;">
-          <label>Note sessione</label>
-          <input class="qs-input" type="text" name="note" maxlength="500">
+    <!-- Dati sessione -->
+    <div class="qs-card" style="margin-bottom:18px;">
+      <div class="qs-card-head">📋 Dati della sessione</div>
+      <div class="qs-card-body">
+        <div class="qs-grid">
+          <div class="qs-field">
+            <label>Tipo qualifica / abilitazione *</label>
+            <select class="qs-input" name="tipo_id" id="qs-tipo" required
+                    hx-get="{% url 'anagrafica:qualifica_sessione_candidati' %}"
+                    hx-target="#candidati-area" hx-swap="innerHTML"
+                    hx-trigger="change" hx-indicator="#qs-cand-loading">
+              <option value="">— seleziona —</option>
+              {% for t in tipi %}
+              <option value="{{ t.id }}" {% if pre_tipo and t.id == pre_tipo.id %}selected{% endif %}>{{ t.nome }}{% if t.durata_mesi %} ({{ t.durata_mesi }} mesi){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="qs-field">
+            <label>Data conseguimento *</label>
+            <input class="qs-input" type="date" name="data_conseguimento" value="{{ oggi|date:'Y-m-d' }}" required>
+          </div>
+          <div class="qs-field">
+            <label>Scadenza <span class="hint">— vuota = calcolata dalla validità del tipo</span></label>
+            <input class="qs-input" type="date" name="data_scadenza">
+          </div>
+          <div class="qs-field">
+            <label>Ente / provider <span class="hint">— opzionale</span></label>
+            <input class="qs-input" type="text" name="ente" value="" maxlength="200" placeholder="es. Centro Formazione…">
+          </div>
+          <div class="qs-field full">
+            <label>Note sessione <span class="hint">— opzionale</span></label>
+            <input class="qs-input" type="text" name="note" maxlength="500" placeholder="Annotazioni interne…">
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- Partecipanti -->
     <div class="qs-card">
-      <div style="font-weight:700;margin-bottom:10px;">Partecipanti — chi detiene «{{ tipo.nome }}» (scaduti/in scadenza già selezionati)</div>
-      {% if candidati %}
-      <div style="overflow-x:auto;">
-        <table class="qs-table">
-          <thead><tr><th style="width:36px;"></th><th>Dipendente</th><th>Stato attuale</th><th>Ultima scadenza</th></tr></thead>
-          <tbody>
-            {% for c in candidati %}
-            <tr>
-              <td><input type="checkbox" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}></td>
-              <td style="font-weight:600;">{{ c.nome }}</td>
-              <td>
-                {% if c.status == "scaduta" %}<span class="qs-badge qs-b-red">Scaduta</span>
-                {% elif c.status == "in_scadenza" %}<span class="qs-badge qs-b-orange">In scadenza</span>
-                {% else %}<span class="qs-badge qs-b-green">Valida</span>{% endif %}
-              </td>
-              <td>{% if c.ultima.data_scadenza %}{{ c.ultima.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="qs-card-head">
+        👥 Partecipanti
+        <span class="qs-indicator" id="qs-cand-loading">· aggiorno…</span>
       </div>
-      {% else %}
-      <div style="color:#94a3b8;font-size:13px;">Nessun dipendente detiene ancora questa qualifica: aggiungi i partecipanti qui sotto (primo rilascio).</div>
-      {% endif %}
+      <div id="candidati-area">
+        {% include "anagrafica/pages/_qualifica_candidati.html" with tipo=pre_tipo %}
+      </div>
 
-      <div style="margin-top:16px;">
-        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Aggiungi altri dipendenti (nuovo rilascio)</label>
-        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
-          <select class="qs-input" id="extra-picker" style="max-width:340px;">
+      <!-- Aggiunta dipendenti (primo rilascio) — statico, vale per ogni tipo -->
+      <div class="qs-extra">
+        <div class="qs-extra-label">Aggiungi altri dipendenti (nuovo rilascio)</div>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+          <select class="qs-input" id="extra-picker" style="max-width:360px;">
             <option value="">— scegli dipendente —</option>
             {% for d in dipendenti_picker %}<option value="{{ d.id }}" data-label="{{ d.label }}">{{ d.label }}</option>{% endfor %}
           </select>
@@ -143,15 +140,40 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
       </div>
     </div>
 
-    <div style="display:flex;gap:8px;">
-      <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessione_create' %}">← Indietro</a>
-      <button type="submit" class="qs-btn qs-btn-primary">Registra sessione</button>
+    <!-- Barra azioni sticky -->
+    <div class="qs-bar">
+      <div class="qs-count">Selezionati: <b id="qs-count">0</b></div>
+      <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">Annulla</a>
+      <button type="submit" class="qs-btn qs-btn-primary" id="qs-submit">✓ Registra sessione</button>
     </div>
   </form>
+</div>
 
-  <script>
+<script>
+(function(){
   const extraIds = new Set();
-  function addExtra() {
+
+  function area(){ return document.getElementById('candidati-area'); }
+  function checkboxes(){ return area() ? area().querySelectorAll('.qs-cand-cb') : []; }
+
+  window.qsSyncCount = function(){
+    let n = 0;
+    checkboxes().forEach(cb => { if (cb.checked) n++; });
+    n += extraIds.size;
+    const el = document.getElementById('qs-count');
+    if (el) el.textContent = n;
+    const all = document.getElementById('qs-check-all');
+    if (all){ const cbs = checkboxes(); all.checked = cbs.length > 0 && Array.from(cbs).every(c=>c.checked); }
+  };
+  window.qsSelectAll = function(on){ checkboxes().forEach(cb => cb.checked = on); qsSyncCount(); };
+  window.qsSelectScaduti = function(){ checkboxes().forEach(cb => cb.checked = (cb.dataset.status !== 'valida')); qsSyncCount(); };
+  window.qsRowToggle = function(ev, row){
+    if (ev.target.tagName === 'INPUT') return;   // il click diretto sulla checkbox la gestisce da sé
+    const cb = row.querySelector('.qs-cand-cb');
+    if (cb){ cb.checked = !cb.checked; qsSyncCount(); }
+  };
+
+  window.addExtra = function(){
     const sel = document.getElementById('extra-picker');
     const id = sel.value;
     if (!id || extraIds.has(id)) return;
@@ -160,17 +182,30 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
     document.getElementById('extra-ids').value = Array.from(extraIds).join(',');
     const chip = document.createElement('span');
     chip.className = 'qs-chip';
-    chip.textContent = label + ' ✕';
-    chip.style.cursor = 'pointer';
-    chip.onclick = function() {
+    chip.innerHTML = '<span></span> ✕';
+    chip.firstChild.textContent = label;
+    chip.title = 'Rimuovi';
+    chip.onclick = function(){
       extraIds.delete(id);
       document.getElementById('extra-ids').value = Array.from(extraIds).join(',');
       chip.remove();
+      qsSyncCount();
     };
     document.getElementById('extra-chips').appendChild(chip);
     sel.value = '';
-  }
-  </script>
-  {% endif %}
-</div>
+    qsSyncCount();
+  };
+
+  // Ricalcola il contatore quando i candidati vengono ricaricati via HTMX.
+  document.body.addEventListener('htmx:afterSwap', function(e){
+    if (e.target && e.target.id === 'candidati-area') qsSyncCount();
+  });
+  // Tieni il contatore allineato anche al click diretto sulle checkbox.
+  document.addEventListener('change', function(e){
+    if (e.target && e.target.classList && e.target.classList.contains('qs-cand-cb')) qsSyncCount();
+  });
+
+  qsSyncCount();
+})();
+</script>
 {% endblock %}

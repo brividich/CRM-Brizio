@@ -1,0 +1,56 @@
+{% comment %}
+Partial HTMX: tabella candidati al rinnovo per il tipo selezionato.
+Renderizzato sia inline (deep-link ?tipo=) sia via HTMX al cambio del select.
+Le checkbox (name=dipendenti_selezionati) vivono dentro il <form> della pagina.
+{% endcomment %}
+{% if tipo %}
+  <div class="qs-cand-bar">
+    <div class="qs-cand-meta">
+      <strong>{{ candidati|length }}</strong> {% if candidati|length == 1 %}dipendente detiene{% else %}dipendenti detengono{% endif %} «{{ tipo.nome }}»
+      {% if tipo.durata_mesi %}· validità <strong>{{ tipo.durata_mesi }} mesi</strong> (scadenza calcolata in automatico){% else %}· senza scadenza automatica{% endif %}
+    </div>
+    {% if candidati %}
+    <div class="qs-cand-actions">
+      {% if n_pre %}<span class="qs-badge qs-b-orange">{{ n_pre }} pre-selezionati</span>{% endif %}
+      <button type="button" class="qs-mini" onclick="qsSelectAll(true)">Tutti</button>
+      <button type="button" class="qs-mini" onclick="qsSelectAll(false)">Nessuno</button>
+      <button type="button" class="qs-mini" onclick="qsSelectScaduti()">Solo da rinnovare</button>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if candidati %}
+  <div class="qs-cand-scroll">
+    <table class="qs-table qs-cand-table">
+      <thead>
+        <tr>
+          <th style="width:40px;text-align:center;"><input type="checkbox" id="qs-check-all" onclick="qsSelectAll(this.checked)"></th>
+          <th>Dipendente</th>
+          <th>Stato attuale</th>
+          <th>Ultima scadenza</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in candidati %}
+        <tr class="qs-cand-row qs-st-{{ c.status }}" onclick="qsRowToggle(event, this)">
+          <td style="text-align:center;">
+            <input type="checkbox" class="qs-cand-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" data-status="{{ c.status }}" {% if c.preselect %}checked{% endif %}>
+          </td>
+          <td style="font-weight:600;">{{ c.nome }}</td>
+          <td>
+            {% if c.status == "scaduta" %}<span class="qs-badge qs-b-red">Scaduta</span>
+            {% elif c.status == "in_scadenza" %}<span class="qs-badge qs-b-orange">In scadenza</span>
+            {% else %}<span class="qs-badge qs-b-green">Valida</span>{% endif %}
+          </td>
+          <td>{% if c.ultima.data_scadenza %}{{ c.ultima.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="qs-empty-cand">Nessun dipendente detiene ancora «{{ tipo.nome }}». Aggiungi i partecipanti dal selettore qui sotto (primo rilascio).</div>
+  {% endif %}
+{% else %}
+  <div class="qs-empty-cand">👆 Seleziona un tipo di qualifica per vedere chi è da rinnovare.</div>
+{% endif %}
