@@ -133,6 +133,14 @@
     <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}">← Libretto</a>
     {% endif %}
     <a href="{% url 'anagrafica:attestato_formazione' record.pk %}" title="Torna alla versione a colori">🎨 Versione a colori</a>
+    {% if can_edit %}
+    <form method="post" action="{% url 'anagrafica:attestato_salva_box' record.pk %}" style="margin:0;display:inline;">
+      {% csrf_token %}
+      <button type="submit" title="Salva il PDF nel box documenti del dipendente">
+        💾 {% if doc_archiviato %}Riarchivia{% else %}Salva nel box{% endif %}
+      </button>
+    </form>
+    {% endif %}
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>
   </div>
 

@@ -14,6 +14,13 @@
     margin:0 0 18px; padding:12px 16px; border-radius:10px;
     background:#eff6ff; border:1px solid #dbeafe; color:#1e3a5f; font-size:13px; line-height:1.55;
   }
+  .att-arch-stats { display:flex; flex-wrap:wrap; gap:14px; margin:0 0 16px; }
+  .att-stat { flex:1 1 130px; padding:12px 14px; border-radius:10px; background:#f8fafc; border:1px solid #e2e8f0; }
+  .att-stat .v { font-size:22px; font-weight:800; color:#0f172a; line-height:1.1; }
+  .att-stat .k { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-top:2px; }
+  .att-arch-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .att-arch-actions form { margin:0; }
+  .att-danger { color:#b91c1c; border-color:#fecaca !important; }
 </style>
 {% endblock %}
 
@@ -52,6 +59,7 @@
   <div class="hr-card">
     <form method="post">
       {% csrf_token %}
+      <input type="hidden" name="action" value="save">
       <div class="hr-card-pad" style="padding:20px 24px;">
         <div class="att-cfg-grid">
           {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
@@ -62,6 +70,52 @@
         </div>
       </div>
     </form>
+  </div>
+
+  {# ── Gestione archivio report (salvataggio automatico / cancellazione / export) ── #}
+  <div class="hr-card" style="margin-top:18px;">
+    <div class="hr-card-pad" style="padding:20px 24px;">
+      <h3 style="margin:0 0 4px;font-size:16px;font-weight:800;color:#0f172a;">🗂 Gestione report salvati</h3>
+      <p style="margin:0 0 16px;color:#64748b;font-size:13px;line-height:1.5;">
+        Gli attestati archiviati finiscono nel <strong>box documenti</strong> del dipendente, nella cartella
+        <strong>«{{ cfg.cartella_attestati.nome|default:cfg.CARTELLA_ATTESTATI_NOME }}»</strong> (uguale per tutti),
+        con conservazione GDPR e accesso protetto. Con il <strong>salvataggio automatico</strong> attivo, ogni
+        completamento corso ci salva l'attestato; in alternativa puoi generarli in blocco qui sotto.
+      </p>
+
+      <div class="att-arch-stats">
+        <div class="att-stat"><div class="v">{{ n_archiviati }}</div><div class="k">Attestati archiviati</div></div>
+        <div class="att-stat"><div class="v">{{ n_completamenti }}</div><div class="k">Completamenti totali</div></div>
+        <div class="att-stat"><div class="v">{{ n_mancanti }}</div><div class="k">Da archiviare</div></div>
+        <div class="att-stat">
+          <div class="v" style="font-size:14px;">{% if ultimo_archiviato %}{{ ultimo_archiviato|date:"d-m-Y H:i" }}{% else %}—{% endif %}</div>
+          <div class="k">Ultimo salvataggio</div>
+        </div>
+      </div>
+
+      <div class="att-arch-actions">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="backfill">
+          <button type="submit" class="hr-btn hr-btn-primary"
+                  {% if not n_mancanti %}disabled title="Nessun attestato da archiviare"{% endif %}>
+            ⬇ Genera e archivia attestati mancanti
+          </button>
+        </form>
+
+        <a href="{% url 'anagrafica:attestato_report_export' %}" class="hr-btn hr-btn-ghost">📄 Esporta CSV archivio</a>
+
+        <form method="post"
+              onsubmit="return confirm('Eliminare TUTTI gli {{ n_archiviati }} attestati archiviati dai box documenti? L\'operazione non è reversibile.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="purge">
+          <button type="submit" class="hr-btn hr-btn-ghost att-danger"
+                  {% if not n_archiviati %}disabled{% endif %}>
+            🗑 Svuota archivio
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 
 </div>

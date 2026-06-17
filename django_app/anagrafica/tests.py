@@ -1875,6 +1875,154 @@ class RegistroPresenzeLezioneTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# H5d — archiviazione attestato PDF nel box documenti del dipendente
+# ---------------------------------------------------------------------------
+
+class AttestatoArchivioTests(TestCase):
+    """PDF attestato + archiviazione nel box: auto-save a fine corso, idempotenza,
+    salvataggio manuale, backfill/purge/export, cartella predefinita, gate."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="arch_admin", email="arch_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) "
+                "VALUES (601, 'Marco', 'Rossi', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_record(self):
+        from django.utils import timezone
+        from .models_formazione import TrainingCourse, TrainingEmployeeRecord, TrainingPlan
+        piano = TrainingPlan.objects.create(codice="PARC", nome="Piano archivio")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CARC", titolo="Corso archivio", durata_ore_teorica=6,
+        )
+        return TrainingEmployeeRecord.objects.create(
+            corso=corso, legacy_anagrafica_id=601,
+            data_completamento=timezone.localdate(),
+            ore_frequentate=6, idoneo=True,
+            course_title_snapshot="Corso archivio",
+            teacher_name_snapshot="Ing. Bianchi",
+        )
+
+    def _make_enrollment(self):
+        from datetime import date
+        from .models_formazione import (
+            TrainingCourse, TrainingEnrollment, TrainingPlan, TrainingSession,
+        )
+        piano = TrainingPlan.objects.create(codice="PAUT", nome="Piano auto")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CAUT", titolo="Corso auto", durata_ore_teorica=4,
+        )
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SAUT",
+            data_inizio=date.today(), data_fine=date.today(),
+        )
+        return TrainingEnrollment.objects.create(
+            sessione=sess, legacy_anagrafica_id=601, ore_frequentate=4, idoneo=True,
+        )
+
+    def test_build_pdf_bytes(self):
+        from .services.attestato_pdf import build_attestato_pdf_bytes
+        rec = self._make_record()
+        pdf = build_attestato_pdf_bytes(rec)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertGreater(len(pdf), 800)
+
+    def test_archivia_crea_documento_idempotente_e_cartella(self):
+        from .services.attestato_pdf import RIFERIMENTO_TIPO, archivia_attestato
+        rec = self._make_record()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            doc1 = archivia_attestato(rec, user=self.admin)
+            doc2 = archivia_attestato(rec, user=self.admin)  # idempotente: stesso doc
+        self.assertEqual(doc1.pk, doc2.pk)
+        self.assertEqual(doc1.tipo, DocumentoDipendente.Tipo.CERTIFICATO_FORMAZIONE)
+        self.assertEqual(doc1.cartella.nome, "Attestati formazione")
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(
+                oggetto_riferimento_tipo=RIFERIMENTO_TIPO, oggetto_riferimento_id=rec.pk
+            ).count(),
+            1,
+        )
+
+    def test_auto_save_a_fine_corso(self):
+        from .models_formazione import AttestatoFormazioneConfig
+        from .views import _crea_employee_record
+        cfg = AttestatoFormazioneConfig.get_instance()
+        cfg.auto_salva_attestato = True
+        cfg.save()
+        enr = self._make_enrollment()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            rec = _crea_employee_record(enr, self.admin)
+            self.assertIsNotNone(rec)
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(
+                    tipo=DocumentoDipendente.Tipo.CERTIFICATO_FORMAZIONE,
+                    oggetto_riferimento_id=rec.pk,
+                ).count(),
+                1,
+            )
+
+    def test_no_auto_save_se_disattivato(self):
+        from .views import _crea_employee_record
+        # default cfg.auto_salva_attestato = False
+        enr = self._make_enrollment()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            rec = _crea_employee_record(enr, self.admin)
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 0
+        )
+
+    def test_salva_box_manuale_view(self):
+        rec = self._make_record()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            resp = self.client.post(reverse("anagrafica:attestato_salva_box", args=[rec.pk]))
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 1
+            )
+
+    def test_salva_box_negato_senza_permesso(self):
+        rec = self._make_record()
+        with patch("anagrafica.views._can_edit_formazione", return_value=False):
+            resp = self.client.post(reverse("anagrafica:attestato_salva_box", args=[rec.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 0
+        )
+
+    def test_backfill_e_purge(self):
+        rec = self._make_record()
+        url = reverse("anagrafica:attestato_impostazioni")
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            self.client.post(url, {"action": "backfill"})
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 1
+            )
+            self.client.post(url, {"action": "purge"})
+            self.assertEqual(
+                DocumentoDipendente.objects.filter(oggetto_riferimento_id=rec.pk).count(), 0
+            )
+
+    def test_export_csv(self):
+        from .services.attestato_pdf import archivia_attestato
+        rec = self._make_record()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            archivia_attestato(rec, user=self.admin)
+            resp = self.client.get(reverse("anagrafica:attestato_report_export"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        self.assertIn(b"Rossi Marco", resp.content)
+
+
+# ---------------------------------------------------------------------------
 # H6 — organigramma visuale
 # ---------------------------------------------------------------------------
 
@@ -2214,13 +2362,15 @@ class QualificaSessioneTests(TestCase):
         from .models import QualificaSessione
         self.client.force_login(self.admin)
         self.assertEqual(self.client.get(reverse("anagrafica:qualifica_sessioni_list")).status_code, 200)
-        # step 1 (GET) e step 2 (POST step=1 → tabella candidati)
+        # Pagina unica di creazione (GET) + deep-link ?tipo= con candidati inline
         self.assertEqual(self.client.get(reverse("anagrafica:qualifica_sessione_create")).status_code, 200)
-        r2 = self.client.post(reverse("anagrafica:qualifica_sessione_create"), {
-            "step": "1", "tipo_id": self.tipo.id, "data_conseguimento": "2026-06-14",
-        })
-        self.assertEqual(r2.status_code, 200)
-        self.assertEqual(r2.context["step"], 2)
+        r_pre = self.client.get(reverse("anagrafica:qualifica_sessione_create") + f"?tipo={self.tipo.id}")
+        self.assertEqual(r_pre.status_code, 200)
+        self.assertEqual(r_pre.context["pre_tipo"].id, self.tipo.id)
+        # Partial HTMX dei candidati per il tipo selezionato
+        r_cand = self.client.get(reverse("anagrafica:qualifica_sessione_candidati") + f"?tipo={self.tipo.id}")
+        self.assertEqual(r_cand.status_code, 200)
+        self.assertContains(r_cand, self.tipo.nome)
         # dettaglio
         sess = QualificaSessione.objects.create(tipo=self.tipo, data_conseguimento=date(2026, 6, 14))
         self.assertEqual(

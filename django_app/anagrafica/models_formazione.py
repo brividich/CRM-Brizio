@@ -117,6 +117,30 @@ class AttestatoFormazioneConfig(models.Model):
     pie_organizzazione       = models.CharField(
         max_length=200, default="NOVICROM HUB · Portale interno · Costruzioni Novicrom S.r.l.",
     )
+
+    # ── Archiviazione automatica nel box documenti del dipendente ──────────
+    # Nome della cartella virtuale (uguale per tutti i dipendenti) in cui
+    # confluiscono gli attestati. Creata on-demand se non esiste.
+    CARTELLA_ATTESTATI_NOME = "Attestati formazione"
+
+    auto_salva_attestato = models.BooleanField(
+        default=False,
+        help_text="Salva automaticamente l'attestato PDF nel box documenti del dipendente "
+                  "alla chiusura del corso (quando l'iscrizione passa a «Completato»).",
+    )
+    cartella_attestati = models.ForeignKey(
+        "anagrafica.CartellaDocumentoDipendente",
+        null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+        help_text="Cartella del box documenti in cui archiviare gli attestati. "
+                  "Vuoto = usa/crea la cartella predefinita «Attestati formazione».",
+    )
+    rigenera_se_esiste = models.BooleanField(
+        default=False,
+        help_text="Se attivo, rigenera e sovrascrive l'attestato già archiviato per lo stesso "
+                  "completamento. Se disattivo, l'archiviazione è idempotente (non duplica).",
+    )
+
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,

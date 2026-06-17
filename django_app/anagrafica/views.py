@@ -2222,64 +2222,11 @@ def attestato_formazione(request, record_id: int):
         pk=record_id,
     )
 
-    # Attestato anagrafico collegato (OneToOne reverse): può non esistere.
-    try:
-        certificato = record.attestato
-    except TrainingCertificate.DoesNotExist:
-        certificato = None
-
-    legacy_id = record.legacy_anagrafica_id
-    dip = None
-    try:
-        ensure_anagrafica_schema()
-        rows = fetch_anagrafica_rows(ids=[legacy_id])
-        dip = rows[0] if rows else None
-    except Exception:
-        logger.exception("Errore lettura anagrafica per attestato record %s", record_id)
-
-    nominativo = ""
-    if dip:
-        nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
-    if not nominativo:
-        nominativo = f"Dipendente #{legacy_id}"
-
-    corso = record.corso
-    qualifica = corso.qualifica if corso else None
-
-    # Testi/opzioni del template, gestibili da Impostazioni Anagrafica HR.
-    cfg = AttestatoFormazioneConfig.get_instance()
-
-    # Tipo attestato derivato dall'àncora qualifica / obbligatorietà del corso.
-    if qualifica:
-        attestato_tipo = cfg.titolo_qualifica
-    elif corso and corso.obbligatorio:
-        attestato_tipo = cfg.titolo_frequenza
-    else:
-        attestato_tipo = cfg.titolo_partecipazione
-
-    # Responsabile del corso: snapshot docente → docente sessione → rilasciato_da
-    # → nome di default configurato nelle impostazioni.
-    responsabile = (
-        (record.teacher_name_snapshot or "").strip()
-        or (record.sessione.docente_nome.strip() if record.sessione and record.sessione.docente_nome else "")
-        or (str(record.sessione.docente).strip() if record.sessione and record.sessione.docente_id else "")
-        or (certificato.rilasciato_da.strip() if certificato and certificato.rilasciato_da else "")
-        or (cfg.responsabile_default or "").strip()
-    )
-
-    # Sessione/sede: snapshot codice sessione → sede della sessione collegata.
-    # Calcolata qui per evitare lookup concatenati su `sessione` None nel template.
-    sede_display = (
-        (record.session_code_snapshot or "").strip()
-        or (record.sessione.sede.strip() if record.sessione and record.sessione.sede else "")
-    )
-
-    # Numero attestato: quello anagrafico se presente, altrimenti riferimento
-    # stabile autogenerato dal record (per tracciabilità interna).
-    if certificato and certificato.numero_attestato:
-        numero_display = certificato.numero_attestato
-    else:
-        numero_display = f"FORM-{record.data_completamento:%Y}-{record.pk:05d}"
+    # Derivazione condivisa con il builder PDF (tipo, responsabile, nominativo,
+    # sede, numero, dati anagrafici) — un'unica fonte di verità.
+    from .services.attestato_pdf import build_attestato_context, _documento_esistente
+    ctx = build_attestato_context(record)
+    legacy_id = ctx["legacy_id"]
 
     # Variante "stampa": layout sobrio a basso consumo d'inchiostro (B/N),
     # mantenendo la versione a colori come default.
@@ -2306,20 +2253,10 @@ def attestato_formazione(request, record_id: int):
         logger.exception("Errore registrazione TrainingExportLog per attestato record %s", record_id)
 
     return render(request, template_name, {
-        "record": record,
-        "certificato": certificato,
-        "dip": dip,
-        "legacy_id": legacy_id,
-        "nominativo": nominativo,
-        "corso": corso,
-        "qualifica": qualifica,
-        "attestato_tipo": attestato_tipo,
-        "responsabile": responsabile,
-        "numero_display": numero_display,
-        "sede_display": sede_display,
+        **ctx,
         "stile": stile,
-        "cfg": cfg,
         "can_edit": _can_edit_formazione(request),
+        "doc_archiviato": _documento_esistente(record),
     })
 
 
@@ -2335,8 +2272,59 @@ def attestato_impostazioni(request):
         messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
         return redirect("anagrafica:formazione_dashboard")
 
+    from .services.attestato_pdf import RIFERIMENTO_TIPO, archivia_attestato
+
     cfg = AttestatoFormazioneConfig.get_instance()
+    form = AttestatoFormazioneConfigForm(instance=cfg)
+
     if request.method == "POST":
+        action = (request.POST.get("action") or "save").strip()
+
+        # ── Azioni di gestione archivio report ───────────────────────────
+        if action == "backfill":
+            # Genera e archivia gli attestati mancanti per i completamenti
+            # esistenti (idempotente, bounded). Fail-safe per singolo record.
+            mancanti = list(
+                TrainingEmployeeRecord.objects.exclude(
+                    pk__in=DocumentoDipendente.objects.filter(
+                        oggetto_riferimento_tipo=RIFERIMENTO_TIPO
+                    ).values_list("oggetto_riferimento_id", flat=True)
+                ).order_by("-data_completamento", "-id")[:500]
+            )
+            ok = err = 0
+            for rec in mancanti:
+                try:
+                    archivia_attestato(rec, cfg=cfg, user=request.user)
+                    ok += 1
+                except Exception:
+                    err += 1
+                    logger.exception("Backfill attestato fallito per record %s", rec.pk)
+            messages.success(
+                request,
+                f"Archiviazione completata: {ok} attestati generati"
+                + (f", {err} errori" if err else "")
+                + (". Limite di 500 per esecuzione: rilancia se restano completamenti." if len(mancanti) >= 500 else "."),
+            )
+            return redirect("anagrafica:attestato_impostazioni")
+
+        if action == "purge":
+            qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+            n = qs.count()
+            for doc in qs:
+                try:
+                    doc.file.delete(save=False)
+                except Exception:
+                    logger.warning("File attestato non eliminabile (doc %s)", doc.pk, exc_info=True)
+            qs.delete()
+            try:
+                from core.audit import log_action
+                log_action(request, "ATTESTATI_ARCHIVIO_PURGE", "anagrafica", {"eliminati": n})
+            except Exception:
+                logger.warning("Audit ATTESTATI_ARCHIVIO_PURGE fallito", exc_info=True)
+            messages.success(request, f"Archivio attestati svuotato: {n} documenti eliminati.")
+            return redirect("anagrafica:attestato_impostazioni")
+
+        # ── Salvataggio impostazioni (default) ───────────────────────────
         form = AttestatoFormazioneConfigForm(request.POST, instance=cfg)
         if form.is_valid():
             obj = form.save(commit=False)
@@ -2345,8 +2333,12 @@ def attestato_impostazioni(request):
             messages.success(request, "Impostazioni attestato salvate.")
             return redirect("anagrafica:attestato_impostazioni")
         messages.error(request, "Controlla i campi evidenziati.")
-    else:
-        form = AttestatoFormazioneConfigForm(instance=cfg)
+
+    # Statistiche archivio (per la sezione "Gestione report salvati").
+    arch_qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+    n_archiviati = arch_qs.count()
+    ultimo = arch_qs.order_by("-created_at").values_list("created_at", flat=True).first()
+    n_completamenti = TrainingEmployeeRecord.objects.count()
 
     # Record di esempio per il pulsante "anteprima" (il più recente disponibile).
     sample = TrainingEmployeeRecord.objects.order_by("-data_completamento", "-id").first()
@@ -2354,7 +2346,94 @@ def attestato_impostazioni(request):
         "form": form,
         "cfg": cfg,
         "sample_record_id": sample.pk if sample else None,
+        "n_archiviati": n_archiviati,
+        "n_completamenti": n_completamenti,
+        "n_mancanti": max(0, n_completamenti - n_archiviati),
+        "ultimo_archiviato": ultimo,
     })
+
+
+@login_required
+@require_POST
+def attestato_salva_box(request, record_id: int):
+    """Genera e salva (manualmente) l'attestato nel box documenti del dipendente.
+
+    Pulsante «💾 Salva nel box» dalla pagina attestato. Forza la rigenerazione
+    così l'utente ottiene sempre la versione aggiornata. Gated dal permesso di
+    modifica formazione (scrive nello spazio documenti del dipendente).
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare gli attestati.")
+        return redirect("anagrafica:attestato_formazione", record_id=record_id)
+
+    record = get_object_or_404(TrainingEmployeeRecord, pk=record_id)
+    from .services.attestato_pdf import archivia_attestato
+    try:
+        doc = archivia_attestato(record, user=request.user, force=True)
+        messages.success(
+            request,
+            f"Attestato archiviato nel box del dipendente ({doc.nome_originale}).",
+        )
+    except Exception:
+        logger.exception("Archiviazione manuale attestato fallita per record %s", record_id)
+        messages.error(request, "Errore durante l'archiviazione dell'attestato.")
+    return redirect("anagrafica:attestato_formazione", record_id=record_id)
+
+
+@login_required
+def attestato_report_export(request):
+    """Esporta in CSV l'elenco degli attestati archiviati (riepilogo audit).
+
+    Gated dal permesso di visualizzazione formazione. Nessun dato sanitario;
+    contiene riferimento dipendente, corso e metadati del documento.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:attestato_impostazioni")
+
+    import csv
+    from .services.attestato_pdf import RIFERIMENTO_TIPO
+
+    nomi_map = _build_nomi_map()
+    docs = list(
+        DocumentoDipendente.objects
+        .filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+        .select_related("cartella")
+        .order_by("-created_at")[:5000]
+    )
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="attestati_archiviati.csv"'
+    response.write("﻿")  # BOM per Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow([
+        "Documento ID", "Dipendente", "ID anagrafica", "Record completamento",
+        "Cartella", "Nome file", "Dimensione (KB)", "Archiviato il", "Conservare fino al",
+    ])
+    for d in docs:
+        writer.writerow([
+            d.pk,
+            nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}"),
+            d.legacy_anagrafica_id,
+            d.oggetto_riferimento_id or "",
+            d.cartella.nome if d.cartella else "",
+            d.nome_originale,
+            round((d.dimensione_bytes or 0) / 1024, 1),
+            d.created_at.strftime("%d-%m-%Y %H:%M") if d.created_at else "",
+            d.retention_until.strftime("%d-%m-%Y") if d.retention_until else "",
+        ])
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO",
+            filtri_json={"formato": "archivio_csv", "righe": len(docs)},
+            righe_esportate=len(docs),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export archivio attestati")
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -5440,37 +5519,39 @@ def qualifica_sessione_create(request):
         )
         return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sess.id)
 
-    # ---- Step 1 → Step 2: prepara la tabella candidati -------------------
-    if request.method == "POST" and request.POST.get("step") == "1":
-        try:
-            tipo = TipoQualifica.objects.get(pk=request.POST.get("tipo_id", "").strip(), is_active=True)
-        except (TipoQualifica.DoesNotExist, ValueError):
-            messages.error(request, "Seleziona un tipo qualifica valido.")
-            return redirect("anagrafica:qualifica_sessione_create")
-        data_cons_raw = (request.POST.get("data_conseguimento") or "").strip() or oggi.isoformat()
-        return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
-            "step": 2, "tipo": tipo, "tipi": tipi,
-            "data_conseguimento": data_cons_raw,
-            "ente": (request.POST.get("ente") or "").strip(),
-            "candidati": _build_candidati_qualifica(tipo, oggi),
-            "dipendenti_picker": _dipendenti_picker_rows(),
-        })
-
-    # ---- Scorciatoia GET ?tipo=<id> → salta a Step 2 con i candidati -----
+    # ---- Pagina unica (GET) — form + candidati caricati dinamicamente ----
+    # Se arriva ?tipo=<id> (da scadenzario / dettaglio qualifica / matrice) la
+    # tabella candidati è renderizzata subito lato server (deep-link no-JS);
+    # altrimenti si popola via HTMX al cambio del tipo nel select.
+    pre_tipo = None
     pre_tipo_id = (request.GET.get("tipo") or "").strip()
     if pre_tipo_id.isdigit():
         pre_tipo = TipoQualifica.objects.filter(pk=int(pre_tipo_id), is_active=True).first()
-        if pre_tipo:
-            return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
-                "step": 2, "tipo": pre_tipo, "tipi": tipi,
-                "data_conseguimento": oggi.isoformat(), "ente": "",
-                "candidati": _build_candidati_qualifica(pre_tipo, oggi),
-                "dipendenti_picker": _dipendenti_picker_rows(),
-            })
-
-    # ---- Step 1 (GET) ----------------------------------------------------
+    candidati = _build_candidati_qualifica(pre_tipo, oggi) if pre_tipo else []
+    n_pre = sum(1 for c in candidati if c["preselect"])
     return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
-        "step": 1, "tipi": tipi, "oggi": oggi,
+        "tipi": tipi, "oggi": oggi,
+        "pre_tipo": pre_tipo, "candidati": candidati, "n_pre": n_pre,
+        "dipendenti_picker": _dipendenti_picker_rows(),
+    })
+
+
+@login_required
+def qualifica_sessione_candidati(request):
+    """Partial HTMX: tabella dei candidati (chi detiene già la qualifica, con
+    stato di rinnovo) per il tipo selezionato. Popola dinamicamente la pagina di
+    creazione sessione senza ricaricarla."""
+    if not _qualifiche_can_edit(request):
+        return HttpResponse(status=403)
+    from django.utils import timezone as _tz
+    raw = (request.GET.get("tipo") or request.GET.get("tipo_id") or "").strip()
+    tipo = None
+    if raw.isdigit():
+        tipo = TipoQualifica.objects.filter(pk=int(raw), is_active=True).first()
+    candidati = _build_candidati_qualifica(tipo, _tz.localdate()) if tipo else []
+    n_pre = sum(1 for c in candidati if c["preselect"])
+    return render(request, "anagrafica/pages/_qualifica_candidati.html", {
+        "tipo": tipo, "candidati": candidati, "n_pre": n_pre,
     })
 
 
@@ -9927,6 +10008,18 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
         refresh_deadlines(legacy_id=enrollment.legacy_anagrafica_id, corso_id=corso.pk)
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
+
+    # Archiviazione automatica dell'attestato nel box documenti del dipendente
+    # (se abilitata da Impostazioni → Template attestato). Fail-safe: un errore
+    # qui NON deve impedire la registrazione del completamento.
+    try:
+        from .models_formazione import AttestatoFormazioneConfig
+        cfg = AttestatoFormazioneConfig.get_instance()
+        if cfg.auto_salva_attestato:
+            from .services.attestato_pdf import archivia_attestato
+            archivia_attestato(record, cfg=cfg, user=created_by)
+    except Exception:
+        logger.exception("Archiviazione automatica attestato fallita per record %s", record.pk)
 
     return record
 

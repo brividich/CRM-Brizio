@@ -28,8 +28,12 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
     # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
     path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
-    # Impostazioni template attestato (testi/firme/logo/privacy) — da Impostazioni HR
+    # Salva (manualmente) l'attestato PDF nel box documenti del dipendente
+    path("formazione/attestato/<int:record_id>/salva-box", views.attestato_salva_box, name="attestato_salva_box"),
+    # Impostazioni template attestato (testi/firme/logo/privacy) + gestione archivio — da Impostazioni HR
     path("formazione/attestato-impostazioni/", views.attestato_impostazioni, name="attestato_impostazioni"),
+    # Export CSV dell'archivio attestati salvati
+    path("formazione/attestato-report-export/", views.attestato_report_export, name="attestato_report_export"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),
@@ -156,6 +160,7 @@ urlpatterns = [
     # Sessioni di rinnovo (rilascio/rinnovo collettivo "a sessioni")
     path("qualifiche/sessioni/", views.qualifica_sessioni_list, name="qualifica_sessioni_list"),
     path("qualifiche/sessioni/nuova", views.qualifica_sessione_create, name="qualifica_sessione_create"),
+    path("qualifiche/sessioni/candidati", views.qualifica_sessione_candidati, name="qualifica_sessione_candidati"),
     path("qualifiche/sessioni/<int:sessione_id>/", views.qualifica_sessione_detail, name="qualifica_sessione_detail"),
     path("qualifiche/sessioni/<int:sessione_id>/elimina", views.qualifica_sessione_delete, name="qualifica_sessione_delete"),
     path("qualifiche/sessioni/<int:sessione_id>/partecipante/aggiungi", views.qualifica_sessione_partecipante_add, name="qualifica_sessione_partecipante_add"),

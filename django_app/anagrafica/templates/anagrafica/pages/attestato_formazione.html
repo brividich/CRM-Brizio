@@ -173,6 +173,12 @@
     {% endif %}
     {% if can_edit %}
     <a href="{% url 'anagrafica:attestato_impostazioni' %}" title="Personalizza il template dalle impostazioni HR">⚙ Template</a>
+    <form method="post" action="{% url 'anagrafica:attestato_salva_box' record.pk %}" style="margin:0;display:inline;">
+      {% csrf_token %}
+      <button type="submit" title="Salva il PDF nel box documenti del dipendente">
+        💾 {% if doc_archiviato %}Riarchivia{% else %}Salva nel box{% endif %}
+      </button>
+    </form>
     {% endif %}
     <a href="{% url 'anagrafica:attestato_formazione' record.pk %}?stile=stampa" title="Versione sobria a basso consumo d'inchiostro">🖶 Versione stampa</a>
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>

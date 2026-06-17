@@ -255,6 +255,7 @@ class AttestatoFormazioneConfigForm(forms.ModelForm):
             "firma_responsabile_label", "firma_dipendente_label",
             "responsabile_default", "mostra_dati_personali",
             "nota_legale", "logo_url", "pie_organizzazione",
+            "auto_salva_attestato", "cartella_attestati", "rigenera_se_esiste",
         ]
         widgets = {
             "intestazione_eyebrow":     forms.TextInput(attrs=_FM),
@@ -270,7 +271,20 @@ class AttestatoFormazioneConfigForm(forms.ModelForm):
             "nota_legale":              forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 3}),
             "logo_url":                 forms.URLInput(attrs={**_FM, "placeholder": "https://… (vuoto = logo predefinito)"}),
             "pie_organizzazione":       forms.TextInput(attrs=_FM),
+            "auto_salva_attestato":     forms.CheckboxInput(attrs=_FM_CHECK),
+            "cartella_attestati":       forms.Select(attrs=_FM_SELECT),
+            "rigenera_se_esiste":       forms.CheckboxInput(attrs=_FM_CHECK),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo cartelle attive; etichetta vuota = cartella predefinita on-demand.
+        from .models import CartellaDocumentoDipendente
+        self.fields["cartella_attestati"].queryset = (
+            CartellaDocumentoDipendente.objects.filter(attiva=True).order_by("ordine", "nome")
+        )
+        self.fields["cartella_attestati"].required = False
+        self.fields["cartella_attestati"].empty_label = "Predefinita («Attestati formazione»)"
 
 
 class TrainingPlanForm(forms.ModelForm):
