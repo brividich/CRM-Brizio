@@ -39,6 +39,9 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
     </div>
     <div style="display:flex;gap:8px;">
       <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessioni_list' %}">&larr; Sessioni</a>
+      <a class="qs-btn qs-btn-ghost" href="{% url 'anagrafica:qualifica_sessione_report_csv' sess.id %}"
+         title="Esporta i partecipanti in CSV">📃 Elenco (CSV)</a>
+      <button type="button" class="qs-btn qs-btn-ghost" onclick="window.print()" title="Stampa / salva PDF">🖨 Stampa</button>
       {% if is_admin %}
       <form method="post" action="{% url 'anagrafica:qualifica_sessione_delete' sess.id %}" style="display:inline;">
         {% csrf_token %}

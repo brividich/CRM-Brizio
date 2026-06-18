@@ -27,6 +27,25 @@
     {% endif %}
   </div>
 
+  {# ── Ricerca globale formazione ───────────────────────────────────────── #}
+  <form method="get" action="{% url 'anagrafica:formazione_ricerca' %}" class="fm-search" role="search">
+    <span class="fm-search-ico" aria-hidden="true">🔎</span>
+    <input type="search" name="q" class="fm-search-input"
+           placeholder="Cerca corsi, sessioni, piani, qualifiche, dipendenti, attestati…"
+           autocomplete="off" aria-label="Cerca nella formazione">
+    <button type="submit" class="hr-btn hr-btn-primary fm-search-btn">Cerca</button>
+  </form>
+  <style>
+    .fm-search{display:flex;align-items:center;gap:8px;margin:4px 0 18px;background:#fff;
+      border:1px solid #e2e8f0;border-radius:12px;padding:8px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
+    .fm-search-ico{font-size:16px;opacity:.7;flex-shrink:0;}
+    .fm-search-input{flex:1;border:none;outline:none;background:transparent;font-size:14px;color:#0f172a;padding:6px 2px;}
+    .fm-search-input::placeholder{color:#94a3b8;}
+    .fm-search-btn{flex-shrink:0;}
+    body.theme-dark .fm-search{background:var(--surface);border-color:var(--border);}
+    body.theme-dark .fm-search-input{color:var(--text);}
+  </style>
+
   {# ── Banner cache vuota ──────────────────────────────────────────────── #}
   {% if deadline_cache_empty %}
   <div class="fm-cache-banner">

@@ -236,6 +236,62 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
     {% endif %}
   </div>
 
+  {# ── Registro firme firmato (livello lezione) ────────────────────────────── #}
+  <div class="hr-card" style="margin-top:16px;">
+    <div class="hr-card-head">
+      <div class="hr-card-title">✍️ Registro firme firmato — Lezione {{ lezione.numero }}</div>
+      <span style="font-size:11px;color:#94a3b8;">Scansione del foglio firme di questa lezione</span>
+    </div>
+    {% if allegati_lezione %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table">
+        <thead><tr><th>File</th><th>Tipo</th><th>Caricato</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for a in allegati_lezione %}
+          <tr>
+            <td><a href="{% url 'anagrafica:formazione_allegato_download' a.pk %}" style="color:#3b82f6;text-decoration:none;">{{ a.nome_originale }}</a></td>
+            <td style="font-size:12px;color:#475569;">{{ a.get_tipo_display }}</td>
+            <td style="font-size:12px;color:#475569;">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+            {% if is_editor %}
+            <td>
+              <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Eliminare l\'allegato?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:16px;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun registro firmato caricato per questa lezione.
+    </div>
+    {% endif %}
+    {% if is_editor %}
+    <form method="post" action="{% url 'anagrafica:formazione_allegato_upload' sessione.pk %}"
+          enctype="multipart/form-data"
+          style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px;">
+      {% csrf_token %}
+      <input type="hidden" name="lezione_id" value="{{ lezione.pk }}">
+      <div class="fm-f" style="flex:1;min-width:240px;">
+        <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Carica registro firmato (PDF o scansione)</label>
+        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp" class="fm-input">
+      </div>
+      <div class="fm-f">
+        <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Tipo</label>
+        <select name="tipo" class="fm-input fm-select">
+          {% for val, lbl in ATTACH_TIPI %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="hr-btn hr-btn-primary">⬆ Carica</button>
+    </form>
+    {% endif %}
+  </div>
+
   {# ── Navigazione lezioni ─────────────────────────────────────────────────── #}
   <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
     <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}"

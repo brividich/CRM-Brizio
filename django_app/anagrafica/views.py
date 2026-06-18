@@ -91,6 +91,7 @@ from .models import (
 from .models_formazione import (
     AnagraficaFormazionePermission,
     AttestatoFormazioneConfig,
+    TrainingAttachment,
     TrainingCertificate,
     TrainingCompletionRule,
     TrainingCourse,
@@ -2539,6 +2540,294 @@ def formazione_sessione_attestati(request, sessione_id: int):
             f"Attestati archiviati nel box: {ok}" + (f", {err} errori" if err else "") + ".",
         )
     return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+# ---------------------------------------------------------------------------
+# Allegati formazione: registro firme firmato (sessione / lezione) e materiale
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def formazione_allegato_upload(request, sessione_id: int):
+    """Carica un allegato (registro firme firmato/materiale) di sessione o lezione.
+
+    Storage privato fuori webroot. Se ``lezione_id`` è valorizzato l'allegato è
+    legato alla singola lezione, altrimenti all'intera sessione. Gated dal
+    permesso di modifica formazione. Foglio firme = dato personale: come gli
+    altri documenti HR, scaricabile solo dalla view protetta.
+    """
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per caricare allegati.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    lezione = None
+    lezione_raw = (request.POST.get("lezione_id") or "").strip()
+    if lezione_raw.isdigit():
+        lezione = TrainingLesson.objects.filter(pk=int(lezione_raw), sessione=sessione).first()
+
+    tipo = (request.POST.get("tipo") or TrainingAttachment.Tipo.REGISTRO_FIRMATO).strip()
+    if tipo not in TrainingAttachment.Tipo.values:
+        tipo = TrainingAttachment.Tipo.REGISTRO_FIRMATO
+
+    def _back():
+        if lezione is not None:
+            return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione.pk)
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "Seleziona un file da caricare.")
+        return _back()
+
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
+        return _back()
+    if uploaded.size > _MAX_DOC_SIZE:
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        return _back()
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        return _back()
+
+    att = TrainingAttachment(
+        sessione=sessione,
+        lezione=lezione,
+        tipo=tipo,
+        nome_originale=uploaded.name[:255],
+        tipo_mime=mime,
+        dimensione_bytes=uploaded.size,
+        descrizione=(request.POST.get("descrizione") or "").strip()[:300],
+        created_by=request.user,
+        created_by_display=request.user.get_full_name() or request.user.username,
+    )
+    att.file = uploaded
+    att.save()
+
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_UPLOAD", "anagrafica", {
+            "attachment_id": att.pk, "sessione_id": sessione_id,
+            "lezione_id": lezione.pk if lezione else None, "tipo": tipo,
+            "nome_originale": att.nome_originale,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_UPLOAD fallito", exc_info=True)
+
+    messages.success(request, f"Allegato «{att.nome_originale}» caricato.")
+    return _back()
+
+
+@login_required
+@require_POST
+def formazione_allegato_delete(request, attachment_id: int):
+    att = get_object_or_404(TrainingAttachment.objects.select_related("sessione", "lezione"), pk=attachment_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare allegati.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=att.sessione_id)
+    sessione_id = att.sessione_id
+    lezione_id = att.lezione_id
+    nome = att.nome_originale
+    att.delete()
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_ELIMINATO", "anagrafica", {
+            "attachment_id": attachment_id, "sessione_id": sessione_id,
+            "lezione_id": lezione_id, "nome_originale": nome,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_ELIMINATO fallito", exc_info=True)
+    messages.success(request, "Allegato eliminato.")
+    if lezione_id:
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+def formazione_allegato_download(request, attachment_id: int):
+    """Scarica un allegato formazione dallo storage privato (ACL + audit)."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+    att = get_object_or_404(TrainingAttachment, pk=attachment_id)
+    if not att.file:
+        return HttpResponse("File non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_DOWNLOAD", "anagrafica", {
+            "attachment_id": att.pk, "tipo": att.tipo,
+            "sessione_id": att.sessione_id, "lezione_id": att.lezione_id,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = att.file.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    resp = FileResponse(fh, as_attachment=True, filename=att.nome_originale or f"allegato_{att.pk}.bin")
+    if att.tipo_mime:
+        resp["Content-Type"] = att.tipo_mime
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Report rapidi del corso (CSV iscritti, attestati ZIP, fogli firme PDF)
+# ---------------------------------------------------------------------------
+
+@login_required
+def formazione_corso_report_iscritti_csv(request, corso_id: int):
+    """CSV dei dipendenti del corso (aggregato su tutte le sessioni)."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+
+    from collections import defaultdict
+    agg = defaultdict(lambda: {"n_sessioni": 0, "stati": set(), "data": None, "idoneo": None, "n_compl": 0, "perc": None})
+    for e in TrainingEnrollment.objects.filter(sessione__corso=corso).values(
+        "legacy_anagrafica_id", "stato", "percentuale_presenza"
+    ):
+        a = agg[e["legacy_anagrafica_id"]]
+        a["n_sessioni"] += 1
+        a["stati"].add(e["stato"])
+        if e["percentuale_presenza"] is not None:
+            a["perc"] = e["percentuale_presenza"]
+    for r in TrainingEmployeeRecord.objects.filter(corso=corso).order_by("-data_completamento").values(
+        "legacy_anagrafica_id", "data_completamento", "idoneo"
+    ):
+        a = agg[r["legacy_anagrafica_id"]]
+        a["n_compl"] += 1
+        if a["data"] is None:
+            a["data"] = r["data_completamento"]
+            a["idoneo"] = r["idoneo"]
+
+    nomi = _build_nomi_map()
+    _prio = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
+
+    import csv
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_iscritti.csv"'
+    response.write("﻿")
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(["Dipendente", "ID anagrafica", "Stato", "Sessioni", "Completamenti",
+                     "% presenza", "Idoneo", "Ultimo completamento"])
+    for lid, a in sorted(agg.items(), key=lambda kv: nomi.get(kv[0], f"#{kv[0]}").casefold()):
+        stato = next((s for s in _prio if s in a["stati"]), next(iter(a["stati"]), ""))
+        writer.writerow([
+            nomi.get(lid, f"#{lid}"), lid, stato, a["n_sessioni"], a["n_compl"],
+            a["perc"] if a["perc"] is not None else "",
+            "" if a["idoneo"] is None else ("Sì" if a["idoneo"] else "No"),
+            a["data"].strftime("%d-%m-%Y") if a["data"] else "",
+        ])
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="CORSI", filtri_json={"corso_id": corso.pk, "formato": "iscritti_csv"},
+            righe_esportate=len(agg), generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export iscritti corso")
+    return response
+
+
+@login_required
+def formazione_corso_attestati_zip(request, corso_id: int):
+    """ZIP con gli attestati PDF di tutti i completamenti idonei del corso."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare gli attestati.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+
+    import io
+    import zipfile
+    from .services.attestato_pdf import build_attestato_pdf_bytes, build_attestato_context
+
+    records = list(
+        TrainingEmployeeRecord.objects
+        .filter(corso=corso)
+        .select_related("corso", "corso__piano", "corso__qualifica", "sessione", "sessione__docente")
+        .order_by("-data_completamento", "-id")
+    )
+    if not records:
+        messages.info(request, "Nessun completamento da esportare per questo corso.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    nomi = _build_nomi_map()
+    buf = io.BytesIO()
+    ok = err = 0
+    used_names: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rec in records:
+            try:
+                pdf = build_attestato_pdf_bytes(rec)
+                try:
+                    numero = build_attestato_context(rec)["numero_display"]
+                except Exception:
+                    numero = f"FORM-{rec.pk:05d}"
+                nome_dip = nomi.get(rec.legacy_anagrafica_id, f"dip{rec.legacy_anagrafica_id}")
+                base = f"{numero}_{nome_dip}".replace("/", "-").replace(" ", "_")[:120]
+                fname = f"{base}.pdf"
+                i = 2
+                while fname in used_names:
+                    fname = f"{base}_{i}.pdf"
+                    i += 1
+                used_names.add(fname)
+                zf.writestr(fname, pdf)
+                ok += 1
+            except Exception:
+                err += 1
+                logger.exception("Attestato ZIP corso %s record %s fallito", corso_id, rec.pk)
+
+    if not ok:
+        messages.error(request, "Generazione attestati fallita per tutti i record.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO", filtri_json={"corso_id": corso.pk, "formato": "attestati_zip", "ok": ok, "err": err},
+            righe_esportate=ok, generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export attestati ZIP")
+
+    resp = HttpResponse(buf.getvalue(), content_type="application/zip")
+    resp["Content-Disposition"] = f'attachment; filename="attestati_{corso.codice}.zip"'
+    return resp
+
+
+@login_required
+def formazione_corso_registri_pdf(request, corso_id: int):
+    """PDF del foglio firme (vuoto) di tutte le lezioni del corso."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per generare i report.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    from .services.attestato_pdf import build_registri_corso_pdf_bytes
+    try:
+        pdf = build_registri_corso_pdf_bytes(corso)
+    except Exception:
+        logger.exception("Errore generazione fogli firme corso %s", corso_id)
+        messages.error(request, "Errore nella generazione dei fogli firme.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA", filtri_json={"corso_id": corso.pk, "formato": "fogli_firme_corso_pdf"},
+            righe_esportate=0, generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog fogli firme corso")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="fogli_firme_{corso.codice}.pdf"'
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -5725,6 +6014,40 @@ def qualifica_sessione_delete(request, sessione_id: int):
     sess.delete()
     messages.success(request, "Sessione eliminata (qualifiche dei dipendenti conservate).")
     return redirect("anagrafica:qualifica_sessioni_list")
+
+
+@login_required
+def qualifica_sessione_report_csv(request, sessione_id: int):
+    """Esporta in CSV i partecipanti di una sessione di qualifica/abilitazione."""
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    nomi = _build_nomi_map()
+    rows = sorted(
+        sess.qualifiche.all(),
+        key=lambda q: nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}").casefold(),
+    )
+
+    import csv
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    fname = f"sessione_qualifica_{sess.tipo.nome}_{sess.data_conseguimento:%Y%m%d}.csv".replace(" ", "_")
+    response["Content-Disposition"] = f'attachment; filename="{fname}"'
+    response.write("﻿")
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(["Qualifica", "Ente", "Conseguimento", "Scadenza sessione"])
+    writer.writerow([
+        sess.tipo.nome, sess.ente or "",
+        sess.data_conseguimento.strftime("%d-%m-%Y") if sess.data_conseguimento else "",
+        sess.scadenza_effettiva.strftime("%d-%m-%Y") if sess.scadenza_effettiva else "",
+    ])
+    writer.writerow([])
+    writer.writerow(["Dipendente", "ID anagrafica", "Conseguimento", "Scadenza"])
+    for q in rows:
+        writer.writerow([
+            nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            q.legacy_anagrafica_id,
+            q.data_conseguimento.strftime("%d-%m-%Y") if q.data_conseguimento else "",
+            q.data_scadenza.strftime("%d-%m-%Y") if q.data_scadenza else "",
+        ])
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -9218,6 +9541,79 @@ def formazione_dashboard(request):
     })
 
 
+@login_required
+def formazione_ricerca(request):
+    """Ricerca globale formazione: corsi, sessioni, piani, qualifiche,
+    dipendenti (libretto) e attestati. Un'unica casella dalla dashboard.
+
+    Best-effort, limitata in righe: serve a "saltare" velocemente all'entità,
+    non è un motore full-text. Gated dal permesso di visualizzazione formazione.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    q = (request.GET.get("q") or "").strip()
+    risultati: dict[str, list] = {
+        "corsi": [], "sessioni": [], "piani": [], "qualifiche": [],
+        "dipendenti": [], "attestati": [],
+    }
+    totale = 0
+    if q:
+        ql = q.lower()
+
+        risultati["corsi"] = list(
+            TrainingCourse.objects.select_related("piano")
+            .filter(Q(titolo__icontains=q) | Q(codice__icontains=q))
+            .order_by("titolo")[:25]
+        )
+        risultati["piani"] = list(
+            TrainingPlan.objects.filter(Q(nome__icontains=q) | Q(codice__icontains=q))
+            .order_by("nome")[:25]
+        )
+        risultati["sessioni"] = list(
+            TrainingSession.objects.select_related("corso")
+            .filter(Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q) | Q(sede__icontains=q))
+            .order_by("-data_inizio")[:25]
+        )
+        risultati["qualifiche"] = list(
+            TipoQualifica.objects.filter(Q(nome__icontains=q) | Q(descrizione__icontains=q))
+            .order_by("nome")[:25]
+        )
+
+        # Dipendenti per nome → link al libretto formativo.
+        nomi = _build_nomi_map()
+        dip_match = [
+            {"legacy_id": lid, "nome": nome}
+            for lid, nome in nomi.items() if ql in nome.lower()
+        ]
+        dip_match.sort(key=lambda d: d["nome"].casefold())
+        risultati["dipendenti"] = dip_match[:25]
+
+        # Attestati: per nome dipendente o titolo corso (snapshot).
+        matched_ids = [d["legacy_id"] for d in dip_match]
+        rec_qs = TrainingEmployeeRecord.objects.filter(
+            Q(course_title_snapshot__icontains=q)
+            | Q(course_code_snapshot__icontains=q)
+            | Q(legacy_anagrafica_id__in=matched_ids)
+        ).order_by("-data_completamento")[:25]
+        att = []
+        for r in rec_qs:
+            att.append({
+                "record": r,
+                "nome": nomi.get(r.legacy_anagrafica_id, f"#{r.legacy_anagrafica_id}"),
+            })
+        risultati["attestati"] = att
+
+        totale = sum(len(v) for v in risultati.values())
+
+    return render(request, "anagrafica/pages/formazione_ricerca.html", {
+        "q": q,
+        "risultati": risultati,
+        "totale": totale,
+    })
+
+
 def _can_edit_formazione(request) -> bool:
     """Verifica permesso di modifica sezione formazione (modifica catalogo piani/corsi/istruttori)."""
     if request.user.is_superuser:
@@ -9897,6 +10293,27 @@ def formazione_sessione_detail(request, sessione_id: int):
     lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
     n_iscritti = sessione.iscrizioni.count()
 
+    # Presenze registrate per lezione (1 query aggregata).
+    presenze_per_lezione = {
+        row["lezione_id"]: row["n"]
+        for row in (
+            TrainingLessonAttendance.objects
+            .filter(lezione__sessione=sessione)
+            .values("lezione_id")
+            .annotate(n=Count("id"))
+        )
+    }
+    # Allegati (registro firmato / materiale): livello sessione + per-lezione.
+    allegati = list(sessione.allegati.select_related("lezione").order_by("-created_at"))
+    allegati_sessione = [a for a in allegati if a.lezione_id is None]
+    allegati_per_lezione: dict[int, list] = {}
+    for a in allegati:
+        if a.lezione_id is not None:
+            allegati_per_lezione.setdefault(a.lezione_id, []).append(a)
+    for lz in lezioni:
+        lz.n_presenze = presenze_per_lezione.get(lz.pk, 0)
+        lz.allegati_list = allegati_per_lezione.get(lz.pk, [])
+
     edit_form   = TrainingSessionForm(instance=sessione)
     lezione_form = TrainingLessonForm(sessione=sessione)
 
@@ -9907,6 +10324,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "edit_form":    edit_form,
         "lezione_form": lezione_form,
         "is_editor":    is_editor,
+        "allegati_sessione": allegati_sessione,
+        "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
     })
 
 
@@ -10129,6 +10548,43 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
     return record
 
 
+def _candidati_rinnovo_corso(corso, sessione=None) -> list[dict]:
+    """Dipendenti da (ri)formare per un corso, dalla cache scadenze
+    (`TrainingDeadline`): scaduti / in scadenza / mai frequentati, esclusi i
+    cessati e chi è già iscritto alla sessione. Pre-seleziona scaduti e in
+    scadenza (il "mai frequentato" è incluso ma non pre-spuntato: è un primo
+    rilascio, non un rinnovo). Specchio di `_build_candidati_qualifica`."""
+    rilevanti = ["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"]
+    deadlines = list(
+        TrainingDeadline.objects.filter(corso=corso, stato_scadenza__in=rilevanti)
+        .order_by("data_scadenza", "legacy_anagrafica_id")
+    )
+    iscritti_ids: set[int] = set()
+    if sessione is not None:
+        iscritti_ids = set(
+            TrainingEnrollment.objects.filter(sessione=sessione)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+    nomi = _build_nomi_map()
+    cessati = _cessati_legacy_ids()
+    out: list[dict] = []
+    for d in deadlines:
+        lid = d.legacy_anagrafica_id
+        if lid in cessati or lid in iscritti_ids:
+            continue
+        out.append({
+            "legacy_id": lid,
+            "nome": nomi.get(lid, f"#{lid}"),
+            "stato": d.stato_scadenza,
+            "stato_label": d.get_stato_scadenza_display(),
+            "data_scadenza": d.data_scadenza,
+            "preselect": d.stato_scadenza in ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"),
+        })
+    order = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
+    out.sort(key=lambda c: (order.get(c["stato"], 9), c["nome"].casefold()))
+    return out
+
+
 @login_required
 def formazione_sessione_iscritti(request, sessione_id: int):
     if not _can_view_formazione(request):
@@ -10170,6 +10626,11 @@ def formazione_sessione_iscritti(request, sessione_id: int):
     # Lista dipendenti attivi per il form di iscrizione
     dipendenti_attivi = _build_nomi_map()
 
+    # Candidati al rinnovo: chi ha questo corso scaduto/in scadenza/mai
+    # frequentato e non è ancora iscritto a questa edizione (solo per editor).
+    candidati_rinnovo = _candidati_rinnovo_corso(sessione.corso, sessione) if is_editor else []
+    n_rinnovo_pre = sum(1 for c in candidati_rinnovo if c["preselect"])
+
     return render(request, "anagrafica/pages/formazione_iscritti.html", {
         "sessione":          sessione,
         "iscrizioni":        iscrizioni,
@@ -10177,6 +10638,8 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         "is_editor":         is_editor,
         "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: x[1]),
         "STATO_CHOICES":     TrainingEnrollment.STATO_CHOICES,
+        "candidati_rinnovo": candidati_rinnovo,
+        "n_rinnovo_pre":     n_rinnovo_pre,
     })
 
 
@@ -10250,6 +10713,44 @@ def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
 
 
 @login_required
+@require_POST
+def formazione_iscrizione_bulk(request, sessione_id: int):
+    """Iscrive in blocco i dipendenti selezionati (candidati al rinnovo del
+    corso) a questa edizione. Idempotente: chi è già iscritto viene saltato."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    n_new = 0
+    for lid in ids:
+        _, created = TrainingEnrollment.objects.get_or_create(
+            sessione=sessione, legacy_anagrafica_id=lid,
+            defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+        )
+        if created:
+            n_new += 1
+    if n_new:
+        messages.success(request, f"{n_new} dipendenti iscritti all'edizione di rinnovo.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già iscritti.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
 def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
@@ -10281,6 +10782,8 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
 
     n_presenti = sum(1 for r in righe if r["presenza"] is not None)
 
+    allegati_lezione = list(lezione.allegati.order_by("-created_at"))
+
     return render(request, "anagrafica/pages/formazione_presenze.html", {
         "sessione":   sessione,
         "lezione":    lezione,
@@ -10288,6 +10791,8 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
         "is_editor":  is_editor,
         "n_presenti": n_presenti,
         "STATO_PRESENZA_CHOICES": TrainingLessonAttendance.STATO_PRESENZA_CHOICES,
+        "allegati_lezione": allegati_lezione,
+        "ATTACH_TIPI": TrainingAttachment.Tipo.choices,
     })
 
 
@@ -10481,6 +10986,7 @@ def formazione_scadenzario(request):
         "is_cache_empty": is_cache_empty,
         "totale":        len(scadenze),
         "STATO_SCADENZA_CHOICES": TrainingDeadline.STATO_SCADENZA_CHOICES,
+        "is_editor":     _can_edit_formazione(request),
     })
 
 

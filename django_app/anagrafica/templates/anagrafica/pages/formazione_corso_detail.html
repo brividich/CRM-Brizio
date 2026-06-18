@@ -82,6 +82,24 @@
     </div>
   </div>
 
+  {# ── Report rapidi del corso ─────────────────────────────────────────────── #}
+  <div class="hr-card fm-section" style="margin-bottom:20px;">
+    <div class="fm-section-head">
+      <div class="fm-section-title">📥 Report del corso</div>
+      <span class="muted" style="font-size:11px;">Scarica al volo i documenti pronti</span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;">
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_corso_report_iscritti_csv' corso.pk %}"
+         title="Elenco dipendenti con stato, % presenza, idoneità (CSV)">📃 Elenco iscritti/completati (CSV)</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_corso_attestati_zip' corso.pk %}"
+         title="ZIP con gli attestati PDF di tutti i completamenti">🏅 Attestati completati (ZIP)</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_corso_registri_pdf' corso.pk %}"
+         target="_blank" rel="noopener" title="Foglio firme di tutte le lezioni, pronto da firmare">🖨 Fogli firme di tutte le lezioni (PDF)</a>
+      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ corso.pk }}"
+         title="Chi è in regola / scaduto / mai frequentato per questo corso">📊 Report conformità</a>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
 
     {# ── Colonna sinistra ──────────────────────────────────────────────────── #}

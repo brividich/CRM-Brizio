@@ -453,6 +453,132 @@ def archivia_libretto(legacy_id: int, *, user=None):
 
 
 # ---------------------------------------------------------------------------
+# Foglio firme (registro presenze cartaceo) come PDF server-side
+# ---------------------------------------------------------------------------
+
+def _nomi_map(legacy_ids):
+    """Mappa {legacy_id: 'Cognome Nome'} per gli id richiesti (best-effort)."""
+    from core.legacy_models import AnagraficaDipendente
+
+    ids = [int(i) for i in dict.fromkeys(legacy_ids) if i]
+    if not ids:
+        return {}
+    out = {}
+    try:
+        for r in AnagraficaDipendente.objects.filter(id__in=ids).values("id", "cognome", "nome"):
+            lid = int(r.get("id") or 0)
+            cog = (r.get("cognome") or "").strip()
+            nom = (r.get("nome") or "").strip()
+            out[lid] = f"{cog} {nom}".strip() or f"Dipendente #{lid}"
+    except Exception:
+        logger.exception("Errore lettura nomi anagrafica per foglio firme")
+    return out
+
+
+def _foglio_firme_lezione_story(lezione, nomi_map, theme, styles, min_righe=18):
+    """Story (lista flowable) del foglio firme di una singola lezione."""
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from core.pdf import section_heading
+
+    sessione = lezione.sessione
+    corso = sessione.corso
+    story = []
+    story += section_heading(
+        f"{corso.titolo} — Lezione {lezione.numero}", theme, styles
+    )
+    meta = [
+        f"<b>Sessione:</b> {sessione.codice_sessione}",
+        f"<b>Data:</b> {lezione.data.strftime('%d-%m-%Y') if lezione.data else '—'}",
+        f"<b>Orario:</b> {lezione.ora_inizio.strftime('%H:%M') if lezione.ora_inizio else '—'}"
+        f"–{lezione.ora_fine.strftime('%H:%M') if lezione.ora_fine else '—'}",
+    ]
+    docente = (lezione.docente_nome or "").strip() or (sessione.docente_nome or "").strip()
+    if docente:
+        meta.append(f"<b>Docente:</b> {docente}")
+    story.append(Paragraph(" &nbsp;·&nbsp; ".join(meta), styles["body"]))
+    if lezione.argomento:
+        story.append(Paragraph(f"<b>Argomento:</b> {lezione.argomento}", styles["body"]))
+    story.append(Spacer(1, 3 * mm))
+
+    head = ["#", "Cognome e Nome", "Firma ingresso", "Firma uscita"]
+    rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+    iscritti = list(
+        sessione.iscrizioni.values_list("legacy_anagrafica_id", flat=True)
+    )
+    nominativi = sorted(
+        (nomi_map.get(lid, f"#{lid}") for lid in iscritti),
+        key=lambda s: s.casefold(),
+    )
+    n = 0
+    for n, nome in enumerate(nominativi, start=1):
+        rows.append([str(n), Paragraph(nome, styles["cell"]), "", ""])
+    # Righe vuote per partecipanti aggiuntivi.
+    for extra in range(n + 1, max(n + 1, min_righe) + 1):
+        rows.append([str(extra), "", "", ""])
+
+    tbl = Table(rows, colWidths=[10 * mm, None, 45 * mm, 45 * mm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, theme.c_border()),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (-1, 0), theme.c_primary()),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("TOPPADDING", (0, 1), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 7),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 6 * mm))
+    story.append(Paragraph(
+        "Firma del docente: ______________________________", styles["body"]
+    ))
+    return story
+
+
+def build_registri_corso_pdf_bytes(corso) -> bytes:
+    """Foglio firme (vuoto, da compilare) di **tutte le lezioni** del corso.
+
+    Una pagina per lezione, raggruppate per sessione, con l'elenco degli iscritti
+    già stampato e le colonne firma ingresso/uscita da firmare a mano. Veste
+    coerente col tema PDF del portale.
+    """
+    from reportlab.platypus import PageBreak
+    from core.pdf import PdfTheme, build_styles, header_footer_callback, make_document
+    from anagrafica.models_formazione import TrainingLesson
+
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = BytesIO()
+    doc = make_document(buf, title=f"Fogli firme — {corso.titolo}")
+
+    lezioni = list(
+        TrainingLesson.objects
+        .filter(sessione__corso=corso)
+        .select_related("sessione", "sessione__corso")
+        .order_by("sessione__data_inizio", "data", "ora_inizio")
+    )
+    all_ids = []
+    for lz in lezioni:
+        all_ids += list(lz.sessione.iscrizioni.values_list("legacy_anagrafica_id", flat=True))
+    nomi_map = _nomi_map(all_ids)
+
+    story = []
+    if not lezioni:
+        from reportlab.platypus import Paragraph
+        story.append(Paragraph("Nessuna lezione pianificata per questo corso.", styles["body"]))
+    for idx, lz in enumerate(lezioni):
+        story += _foglio_firme_lezione_story(lz, nomi_map, theme, styles)
+        if idx < len(lezioni) - 1:
+            story.append(PageBreak())
+
+    draw = header_footer_callback(theme, title="Foglio firme", subtitle=corso.titolo)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
 # Cartella «Attestati formazione» (scheletro uguale per tutti i dipendenti)
 # ---------------------------------------------------------------------------
 

@@ -5,8 +5,13 @@ Non spostare, non rinominare senza aggiornare l'import nel file principale.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+from .storage import PrivateAnagraficaStorage
 
 __all__ = [
     "AnagraficaFormazionePermission",
@@ -27,6 +32,7 @@ __all__ = [
     "TrainingCertificate",
     "TrainingDeadline",
     "TrainingExportLog",
+    "TrainingAttachment",
 ]
 
 
@@ -970,3 +976,77 @@ class TrainingExportLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()} — {self.generato_il}"
+
+
+# ─────────────────────────────────────────────────────────────
+# ALLEGATO SESSIONE / LEZIONE (registro firme firmato, materiale)
+# ─────────────────────────────────────────────────────────────
+
+def _training_attachment_upload_to(instance, filename: str) -> str:
+    sess_id = instance.sessione_id or "tmp"
+    livello = f"lez{instance.lezione_id}" if instance.lezione_id else "sessione"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "registro"
+    now = timezone.now()
+    return (
+        f"anagrafica/formazione/sessioni/{sess_id}/allegati/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{livello}_{stem}{suffix}"
+    )
+
+
+class TrainingAttachment(models.Model):
+    """Allegato di una sessione o di una singola lezione.
+
+    Uso principale: ricaricare il **registro firme firmato** (scansione del
+    foglio presenze raccolto in aula) a livello di lezione (``lezione`` valorizzato)
+    oppure dell'intera sessione (``lezione=None``). Storage privato fuori webroot
+    (:class:`PrivateAnagraficaStorage`), scaricabile solo dalla view protetta
+    ``anagrafica:formazione_allegato_download`` con ACL formazione + audit.
+
+    Il foglio firme contiene dati personali (nominativi + firme): conservarlo come
+    gli altri documenti HR, non esporlo su URL pubblico.
+    """
+
+    class Tipo(models.TextChoices):
+        REGISTRO_FIRMATO = "REGISTRO_FIRMATO", "Registro firme firmato"
+        MATERIALE = "MATERIALE", "Materiale didattico"
+        ALTRO = "ALTRO", "Altro"
+
+    sessione = models.ForeignKey(
+        TrainingSession, on_delete=models.CASCADE, related_name="allegati",
+    )
+    lezione = models.ForeignKey(
+        TrainingLesson, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="allegati",
+        help_text="Lezione di riferimento. Vuoto = allegato a livello di sessione.",
+    )
+    tipo = models.CharField(
+        max_length=20, choices=Tipo.choices, default=Tipo.REGISTRO_FIRMATO, db_index=True,
+    )
+    file = models.FileField(
+        upload_to=_training_attachment_upload_to,
+        storage=PrivateAnagraficaStorage(),
+    )
+    nome_originale   = models.CharField(max_length=255, blank=True, default="")
+    tipo_mime        = models.CharField(max_length=100, blank=True, default="")
+    dimensione_bytes = models.PositiveIntegerField(default=0)
+    descrizione      = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_by_display = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Allegato formazione"
+        verbose_name_plural = "Allegati formazione"
+        indexes = [
+            models.Index(fields=["sessione", "lezione"]),
+            models.Index(fields=["tipo"]),
+        ]
+
+    def __str__(self) -> str:
+        liv = f"lezione {self.lezione.numero}" if self.lezione_id else "sessione"
+        return f"[{self.get_tipo_display()}] {self.sessione.codice_sessione} — {liv}"

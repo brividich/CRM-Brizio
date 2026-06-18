@@ -1875,6 +1875,109 @@ class RegistroPresenzeLezioneTests(TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Rinnovo a sessione per i CORSI (specchio delle sessioni di rinnovo qualifica)
+# ---------------------------------------------------------------------------
+
+class FormazioneRinnovoTests(TestCase):
+    """Iscrizione in blocco dei "candidati al rinnovo" (corso scaduto/in
+    scadenza/mai frequentato) a un'edizione del corso."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="rinn_admin", email="rinn_admin@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) "
+                "VALUES (701, 'Mara', 'Riva', 1), (702, 'Ivo', 'Sala', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_corso_sessione(self):
+        from datetime import date
+        from .models_formazione import TrainingCourse, TrainingPlan, TrainingSession
+        piano = TrainingPlan.objects.create(codice="PRIN", nome="Piano rinnovo")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CRIN", titolo="Antincendio", durata_ore_teorica=8,
+        )
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SRIN1",
+            data_inizio=date.today(), data_fine=date.today(), sede="Aula B",
+        )
+        return corso, sess
+
+    def _make_deadline(self, corso, legacy_id, stato):
+        from datetime import date, timedelta
+        from .models_formazione import TrainingDeadline
+        return TrainingDeadline.objects.create(
+            corso=corso, legacy_anagrafica_id=legacy_id,
+            data_scadenza=date.today() - timedelta(days=5),
+            stato_scadenza=stato, is_required=True,
+        )
+
+    def test_helper_candidati_rinnovo_corso(self):
+        from .views import _candidati_rinnovo_corso
+        corso, sess = self._make_corso_sessione()
+        self._make_deadline(corso, 701, "SCADUTO")
+        self._make_deadline(corso, 702, "MAI_FREQUENTATO")
+        cand = _candidati_rinnovo_corso(corso, sess)
+        by_id = {c["legacy_id"]: c for c in cand}
+        self.assertIn(701, by_id)
+        self.assertTrue(by_id[701]["preselect"])        # scaduto = pre-spuntato
+        self.assertIn(702, by_id)
+        self.assertFalse(by_id[702]["preselect"])        # mai frequentato = non pre-spuntato
+
+    def test_candidato_gia_iscritto_escluso(self):
+        from .views import _candidati_rinnovo_corso
+        from .models_formazione import TrainingEnrollment
+        corso, sess = self._make_corso_sessione()
+        self._make_deadline(corso, 701, "SCADUTO")
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=701)
+        cand = _candidati_rinnovo_corso(corso, sess)
+        self.assertNotIn(701, [c["legacy_id"] for c in cand])
+
+    def test_iscritti_page_mostra_pannello_rinnovo(self):
+        corso, sess = self._make_corso_sessione()
+        self._make_deadline(corso, 701, "SCADUTO")
+        resp = self.client.get(
+            reverse("anagrafica:formazione_sessione_iscritti", args=[sess.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Iscrivi da rinnovare")
+        self.assertContains(resp, "Riva Mara")
+
+    def test_bulk_enroll_crea_iscrizioni(self):
+        from .models_formazione import TrainingEnrollment
+        corso, sess = self._make_corso_sessione()
+        self._make_deadline(corso, 701, "SCADUTO")
+        self._make_deadline(corso, 702, "SCADUTO")
+        resp = self.client.post(
+            reverse("anagrafica:formazione_iscrizione_bulk", args=[sess.pk]),
+            {"dipendenti_selezionati": ["701", "702"]},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            TrainingEnrollment.objects.filter(sessione=sess).count(), 2
+        )
+
+    def test_bulk_enroll_idempotente(self):
+        from .models_formazione import TrainingEnrollment
+        corso, sess = self._make_corso_sessione()
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=701)
+        self.client.post(
+            reverse("anagrafica:formazione_iscrizione_bulk", args=[sess.pk]),
+            {"dipendenti_selezionati": ["701"]},
+        )
+        self.assertEqual(
+            TrainingEnrollment.objects.filter(sessione=sess, legacy_anagrafica_id=701).count(), 1
+        )
+
+
+# ---------------------------------------------------------------------------
 # H5d — archiviazione attestato PDF nel box documenti del dipendente
 # ---------------------------------------------------------------------------
 
@@ -3659,3 +3762,167 @@ class ImportASRTests(TestCase):
         self.assertEqual(
             TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=905).count(), 0
         )
+
+
+class FormazioneAllegatiReportTests(TestCase):
+    """Registro firme firmato (sessione/lezione), report del corso (CSV/ZIP/PDF),
+    ricerca globale formazione e report CSV sessione qualifica."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="fmrep_admin", email="fmrep@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) "
+                "VALUES (810, 'Sara', 'Neri', 1), (811, 'Paolo', 'Verdi', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _make_corso(self):
+        from datetime import date, time
+        from .models_formazione import (
+            TrainingCourse, TrainingEnrollment, TrainingEmployeeRecord,
+            TrainingLesson, TrainingPlan, TrainingSession,
+        )
+        piano = TrainingPlan.objects.create(codice="PFR", nome="Piano fogli firme")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CFR", titolo="Antincendio rischio medio", durata_ore_teorica=8,
+        )
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SFR1",
+            data_inizio=date.today(), data_fine=date.today(), sede="Aula A",
+        )
+        lez = TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=date.today(),
+            ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="Teoria",
+        )
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=810)
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=811)
+        from django.utils import timezone
+        TrainingEmployeeRecord.objects.create(
+            corso=corso, sessione=sess, legacy_anagrafica_id=810,
+            data_completamento=timezone.localdate(), ore_frequentate=8, idoneo=True,
+            course_title_snapshot="Antincendio rischio medio",
+        )
+        return corso, sess, lez
+
+    # ── Registro firme firmato (allegati) ────────────────────────────────────
+    def test_upload_download_delete_registro_sessione(self):
+        from .models_formazione import TrainingAttachment
+        _, sess, _ = self._make_corso()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            up = SimpleUploadedFile("registro.pdf", b"%PDF-1.4\n% reg\n", content_type="application/pdf")
+            resp = self.client.post(
+                reverse("anagrafica:formazione_allegato_upload", args=[sess.pk]),
+                {"file": up, "tipo": "REGISTRO_FIRMATO"},
+            )
+            self.assertEqual(resp.status_code, 302)
+            att = TrainingAttachment.objects.get(sessione=sess)
+            self.assertIsNone(att.lezione_id)
+            self.assertEqual(att.tipo, "REGISTRO_FIRMATO")
+            # download
+            d = self.client.get(reverse("anagrafica:formazione_allegato_download", args=[att.pk]))
+            self.assertEqual(d.status_code, 200)
+            self.assertEqual(b"".join(d.streaming_content), b"%PDF-1.4\n% reg\n")
+            # delete
+            de = self.client.post(reverse("anagrafica:formazione_allegato_delete", args=[att.pk]))
+            self.assertEqual(de.status_code, 302)
+            self.assertFalse(TrainingAttachment.objects.filter(pk=att.pk).exists())
+
+    def test_upload_registro_lezione(self):
+        from .models_formazione import TrainingAttachment
+        _, sess, lez = self._make_corso()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            up = SimpleUploadedFile("lez.pdf", b"%PDF-1.4\n% lez\n", content_type="application/pdf")
+            resp = self.client.post(
+                reverse("anagrafica:formazione_allegato_upload", args=[sess.pk]),
+                {"file": up, "lezione_id": lez.pk},
+            )
+            self.assertEqual(resp.status_code, 302)
+            att = TrainingAttachment.objects.get(sessione=sess)
+            self.assertEqual(att.lezione_id, lez.pk)
+
+    def test_allegato_download_negato_senza_permesso(self):
+        from .models_formazione import TrainingAttachment
+        _, sess, _ = self._make_corso()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            up = SimpleUploadedFile("r.pdf", b"%PDF-1.4\n", content_type="application/pdf")
+            self.client.post(
+                reverse("anagrafica:formazione_allegato_upload", args=[sess.pk]), {"file": up}
+            )
+            att = TrainingAttachment.objects.get(sessione=sess)
+            with patch("anagrafica.views._can_view_formazione", return_value=False):
+                d = self.client.get(reverse("anagrafica:formazione_allegato_download", args=[att.pk]))
+            self.assertEqual(d.status_code, 403)
+
+    def test_sessione_detail_mostra_link_presenze_e_foglio_firme(self):
+        _, sess, _ = self._make_corso()
+        resp = self.client.get(reverse("anagrafica:formazione_sessione_detail", args=[sess.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Iscritti & presenze")  # testo statico: '&' non escaped
+        self.assertContains(resp, "Foglio firme")
+        self.assertContains(resp, "Registro firme firmato")
+
+    # ── Report del corso ─────────────────────────────────────────────────────
+    def test_corso_report_iscritti_csv(self):
+        corso, _, _ = self._make_corso()
+        resp = self.client.get(reverse("anagrafica:formazione_corso_report_iscritti_csv", args=[corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        body = resp.content.decode("utf-8")
+        self.assertIn("Neri Sara", body)
+        self.assertIn("Verdi Paolo", body)
+
+    def test_corso_attestati_zip(self):
+        import io
+        import zipfile
+        corso, _, _ = self._make_corso()
+        with tempfile.TemporaryDirectory() as root, override_settings(ANAGRAFICA_PRIVATE_ROOT=root):
+            resp = self.client.get(reverse("anagrafica:formazione_corso_attestati_zip", args=[corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/zip")
+        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        names = zf.namelist()
+        self.assertEqual(len(names), 1)  # un solo completamento idoneo
+        self.assertTrue(names[0].endswith(".pdf"))
+        self.assertTrue(zf.read(names[0]).startswith(b"%PDF"))
+
+    def test_corso_registri_pdf(self):
+        corso, _, _ = self._make_corso()
+        resp = self.client.get(reverse("anagrafica:formazione_corso_registri_pdf", args=[corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+    # ── Ricerca globale ──────────────────────────────────────────────────────
+    def test_ricerca_trova_corso_e_dipendente(self):
+        self._make_corso()
+        resp = self.client.get(reverse("anagrafica:formazione_ricerca") + "?q=Antincendio")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Antincendio rischio medio")
+        resp2 = self.client.get(reverse("anagrafica:formazione_ricerca") + "?q=Neri")
+        self.assertContains(resp2, "Neri Sara")
+
+    def test_ricerca_vuota_non_esplode(self):
+        resp = self.client.get(reverse("anagrafica:formazione_ricerca"))
+        self.assertEqual(resp.status_code, 200)
+
+    # ── Report CSV sessione qualifica ────────────────────────────────────────
+    def test_qualifica_sessione_report_csv(self):
+        from .models import DipendenteQualifica, QualificaSessione, TipoQualifica
+        tipo = TipoQualifica.objects.create(
+            nome="Carrellista CSV", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60,
+        )
+        sess = QualificaSessione.objects.create(tipo=tipo, data_conseguimento=date(2026, 6, 1), ente="Ente Y")
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=810, tipo=tipo, data_conseguimento=date(2026, 6, 1), sessione=sess,
+        )
+        resp = self.client.get(reverse("anagrafica:qualifica_sessione_report_csv", args=[sess.id]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        self.assertIn("Neri Sara", resp.content.decode("utf-8"))
