@@ -268,6 +268,7 @@ urlpatterns = [
     # ── Formazione HR — Iscritti ────────────────────────────────────────────
     path("formazione/sessioni/<int:sessione_id>/iscritti/", views.formazione_sessione_iscritti, name="formazione_sessione_iscritti"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/add", views.formazione_iscrizione_add, name="formazione_iscrizione_add"),
+    path("formazione/sessioni/<int:sessione_id>/iscritti/rinnovo-bulk", views.formazione_iscrizione_bulk, name="formazione_iscrizione_bulk"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/modifica", views.formazione_iscrizione_edit, name="formazione_iscrizione_edit"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
 

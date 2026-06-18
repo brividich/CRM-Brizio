@@ -165,6 +165,11 @@ body.theme-dark .fm-plan-count{background:#1e293b;color:#94a3b8}
         <a href="?view=matrice" class="{% if view_mode == 'matrice' %}is-active{% endif %}">🗂 Matrice</a>
         {% endif %}
       </div>
+      {% if is_editor %}
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-ghost hr-btn-sm"
+         title="Vedi corsi scaduti/in scadenza e pianifica le edizioni di rinnovo">↻ Pianifica rinnovi</a>
+      <a href="{% url 'anagrafica:formazione_sessione_create' %}" class="hr-btn hr-btn-primary hr-btn-sm">+ Nuova edizione</a>
+      {% endif %}
       <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost hr-btn-sm">← Dashboard</a>
     </div>
   </div>

@@ -25,7 +25,11 @@
         Corsi scaduti, in scadenza e mai frequentati.
       </p>
     </div>
-    <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if is_editor and filtro_corso %}
+      <a href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ filtro_corso }}" class="hr-btn hr-btn-primary"
+         title="Crea una nuova edizione di questo corso; in iscritti potrai iscrivere in blocco i candidati da rinnovare">↻ Pianifica edizione di rinnovo</a>
+      {% endif %}
       <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost">← Formazione</a>
     </div>
   </div>
