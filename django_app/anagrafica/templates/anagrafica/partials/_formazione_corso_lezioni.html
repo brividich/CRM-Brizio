@@ -1,0 +1,32 @@
+{# Sottoelenco espandibile di un corso: edizioni (sessioni) → lezioni.
+   Atteso: c = TrainingCourse con sessioni+lezioni prefetchate. Classi fmd-. #}
+{% with sess=c.sessioni.all %}
+{% if sess %}
+<details class="fmd-corso-det">
+  <summary><svg class="fmd-ico"><use href="#i-chevron-right"/></svg>Edizioni e lezioni</summary>
+  <div class="fmd-ed-list">
+    {% for s in sess %}
+    <div class="fmd-ed">
+      <a class="fmd-ed-head" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
+        <span class="fmd-ed-code">{{ s.codice_sessione }}</span>
+        <span class="fmd-ed-meta">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine and s.data_fine != s.data_inizio %}–{{ s.data_fine|date:"d-m-Y" }}{% endif %} · {{ s.lezioni.all|length }} lezion{{ s.lezioni.all|length|pluralize:"e,i" }}</span>
+      </a>
+      {% if s.lezioni.all %}
+      <ul class="fmd-lesson-list">
+        {% for l in s.lezioni.all %}
+        <li>
+          <span class="fmd-lesson-n">{{ l.numero }}</span>
+          <span class="fmd-lesson-date">{{ l.data|date:"d-m-Y" }} · {{ l.ora_inizio|time:"H:i" }}–{{ l.ora_fine|time:"H:i" }}</span>
+          <span class="fmd-lesson-arg">{{ l.argomento|default:"—"|truncatechars:64 }}{% if l.docente_nome %} · {{ l.docente_nome }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="fmd-ed-empty">Nessuna lezione pianificata per questa edizione.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endwith %}

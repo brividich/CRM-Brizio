@@ -6,18 +6,25 @@
    Incluso inline (pattern del modulo anagrafica) per non dipendere da collectstatic.
    ========================================================================== */
 
-#ana-root, .hr-shell { --hr-navy:#12395f; --hr-navy-dark:#0e2d4b; --hr-blue:#1f5c91; }
+#ana-root, .hr-shell { --hr-navy:#0c2545; --hr-navy-dark:#08142d; --hr-blue:#1f87cd; }
+.hr-shell, #ana-root { font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 /* ── Shell pagina ────────────────────────────────────────────────────────── */
 .hr-shell { display:flex; flex-direction:column; gap:14px; }
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 .hr-hero {
-  overflow:hidden; border-radius:24px; color:#fff;
-  background:linear-gradient(135deg,#12395f 0%,#1f5c91 55%,#12395f 100%);
-  padding:22px 26px; box-shadow:0 18px 40px -22px rgba(15,23,42,.55);
+  position:relative; overflow:hidden; color:#fff;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,138,31,.28), transparent 42%),
+    radial-gradient(circle at 2% 100%, rgba(31,135,205,.30), transparent 52%),
+    linear-gradient(135deg,#08142d 0%,#0c2545 55%,#1a3a66 100%);
+  padding:24px 28px; box-shadow:0 18px 40px -22px rgba(8,20,45,.55);
+  clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
   display:flex; gap:18px; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
 }
+.hr-hero::after { content:""; position:absolute; top:0; left:0; width:26px; height:5px;
+  background:#ff8a1f; transform:translate(-3px,5px) rotate(-45deg); transform-origin:left center; }
 .hr-hero-eyebrow {
   display:inline-flex; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
   border-radius:999px; padding:5px 13px; font-size:11px; font-weight:700;
@@ -48,11 +55,11 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   flex-shrink:0; width:38px; height:38px; border-radius:14px;
   display:flex; align-items:center; justify-content:center; font-size:18px;
 }
-.hr-metric-ico.blue  { background:#eff6ff; color:#1d4ed8; }
+.hr-metric-ico.blue  { background:#eff6ff; color:#1f87cd; }
 .hr-metric-ico.green { background:#ecfdf5; color:#047857; }
 .hr-metric-ico.amber { background:#fffbeb; color:#b45309; }
 .hr-metric-ico.red   { background:#fef2f2; color:#b91c1c; }
-.hr-metric-ico.navy  { background:#eef2ff; color:#12395f; }
+.hr-metric-ico.navy  { background:#eef2ff; color:#0c2545; }
 .hr-metric-body { min-width:0; flex:1; }
 .hr-metric-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .hr-metric-lbl { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
@@ -69,7 +76,7 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:14px 16px; border-bottom:1px solid #f1f5f9;
 }
-.hr-card-title { font-size:16px; font-weight:800; color:#12395f; }
+.hr-card-title { font-size:16px; font-weight:800; color:#0c2545; }
 .hr-card-desc { font-size:13px; color:#64748b; margin-top:2px; }
 .hr-grid { display:grid; gap:12px; }
 .hr-grid-2 { grid-template-columns:repeat(2,1fr); }
@@ -80,8 +87,8 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   background:#fff; border:1px solid #e2e8f0; border-radius:16px;
   padding:14px 18px; box-shadow:0 1px 2px rgba(15,23,42,.04);
 }
-.hr-pagehead-eyebrow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.18em; color:#1f5c91; }
-.hr-pagehead-title { margin:4px 0 0; font-size:22px; font-weight:800; letter-spacing:-.02em; color:#12395f; }
+.hr-pagehead-eyebrow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.18em; color:#1f87cd; }
+.hr-pagehead-title { margin:4px 0 0; font-size:22px; font-weight:800; letter-spacing:-.02em; color:#0c2545; }
 .hr-pagehead-desc { margin:4px 0 0; font-size:13px; line-height:1.45; color:#64748b; max-width:90ch; }
 
 /* ── Pill di stato ───────────────────────────────────────────────────────── */
@@ -93,11 +100,11 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
 .hr-pill.ok      { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
 .hr-pill.warning { background:#fffbeb; color:#b45309; border-color:#fde68a; }
 .hr-pill.danger  { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
-.hr-pill.blue    { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.hr-pill.blue    { background:#eff6ff; color:#1f87cd; border-color:#bfdbfe; }
 
 /* ── Progress ────────────────────────────────────────────────────────────── */
 .hr-progress { height:6px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
-.hr-progress > span { display:block; height:100%; border-radius:999px; background:#12395f; }
+.hr-progress > span { display:block; height:100%; border-radius:999px; background:#0c2545; }
 
 /* ── Bottoni ─────────────────────────────────────────────────────────────── */
 .hr-btn {
@@ -105,9 +112,9 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   border:1px solid transparent; border-radius:11px; padding:8px 14px;
   font-size:13px; font-weight:700; font-family:inherit; transition:background .15s, border-color .15s;
 }
-.hr-btn-primary { background:#12395f; color:#fff; }
-.hr-btn-primary:hover { background:#0e2d4b; }
-.hr-btn-outline { background:#fff; color:#12395f; border-color:#e2e8f0; }
+.hr-btn-primary { background:#0c2545; color:#fff; }
+.hr-btn-primary:hover { background:#08142d; }
+.hr-btn-outline { background:#fff; color:#0c2545; border-color:#e2e8f0; }
 .hr-btn-outline:hover { background:#f8fafc; }
 .hr-btn-ghost { background:#f1f5f9; color:#334155; }
 .hr-btn-ghost:hover { background:#e2e8f0; }
@@ -125,8 +132,8 @@ a.hr-metric:hover, button.hr-metric:hover { transform:translateY(-2px); box-shad
   color:#64748b; text-decoration:none; border:none; background:none;
   cursor:pointer; font-family:inherit; transition:background .15s, color .15s;
 }
-.hr-tab:hover { background:#f1f5f9; color:#12395f; }
-.hr-tab.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+.hr-tab:hover { background:#f1f5f9; color:#0c2545; }
+.hr-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
 
 /* ── Tabella ─────────────────────────────────────────────────────────────── */
 .hr-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -144,12 +151,12 @@ th.st-th { cursor:default; }
 .st-th-wrap { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .st-sort, .st-filter-toggle { background:none; border:none; padding:2px 4px; font-size:11px;
   color:#94a3b8; cursor:pointer; line-height:1; border-radius:4px; }
-.st-sort:hover, .st-filter-toggle:hover { color:#1f5c91; background:#eff6ff; }
-.st-filter-toggle.active { color:#1f5c91; background:#dbeafe; }
+.st-sort:hover, .st-filter-toggle:hover { color:#1f87cd; background:#eff6ff; }
+.st-filter-toggle.active { color:#1f87cd; background:#dbeafe; }
 .st-filter-input { display:inline-block; margin-left:4px; padding:3px 7px; border:1px solid #cbd5e1;
   border-radius:6px; font-size:12px; background:#fff; color:#0f172a; outline:none; max-width:140px;
   text-transform:none; letter-spacing:normal; font-weight:400; }
-.st-filter-input:focus { border-color:#1f5c91; }
+.st-filter-input:focus { border-color:#1f87cd; }
 
 /* ── Search field ────────────────────────────────────────────────────────── */
 .hr-search { position:relative; }
@@ -158,7 +165,7 @@ th.st-th { cursor:default; }
   border-radius:11px; background:#fff; padding:0 12px 0 34px; font-size:13px; color:#0f172a;
   outline:none;
 }
-.hr-search input:focus { border-color:#1f5c91; box-shadow:0 0 0 4px rgba(31,92,145,.12); }
+.hr-search input:focus { border-color:#1f87cd; box-shadow:0 0 0 4px rgba(31,92,145,.12); }
 .hr-search::before {
   content:"\1F50D"; position:absolute; left:11px; top:50%; transform:translateY(-50%);
   font-size:13px; opacity:.55; pointer-events:none;
@@ -177,7 +184,7 @@ th.st-th { cursor:default; }
   padding:22px; text-align:center; color:#64748b;
 }
 .hr-soon-badge {
-  display:inline-flex; border-radius:999px; background:#eef2ff; color:#12395f;
+  display:inline-flex; border-radius:999px; background:#eef2ff; color:#0c2545;
   padding:3px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
 }
 

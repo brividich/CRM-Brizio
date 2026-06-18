@@ -11,8 +11,8 @@
 .ri-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
 .ri-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .ri-btn-ghost:hover { background:#e2e8f0; }
-.ri-btn-primary { background:#12395f; color:#fff; }
-.ri-btn-primary:hover { background:#0e2d4b; }
+.ri-btn-primary { background:#0c2545; color:#fff; }
+.ri-btn-primary:hover { background:#08142d; }
 .ri-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
 .ri-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
 .ri-card-title { font-size:15px; font-weight:700; color:#1e293b; }
@@ -20,12 +20,12 @@
 
 /* Upload zone */
 .ri-upload-zone { border:2px dashed #cbd5e1; border-radius:12px; padding:32px 24px; text-align:center; background:#f8fafc; transition:border-color .2s; cursor:pointer; }
-.ri-upload-zone:hover { border-color:#1f5c91; background:#eff6ff; }
+.ri-upload-zone:hover { border-color:#1f87cd; background:#eff6ff; }
 .ri-upload-zone input[type=file] { display:none; }
 .ri-upload-icon { font-size:40px; margin-bottom:10px; }
 .ri-upload-label { font-size:14px; font-weight:600; color:#334155; margin-bottom:4px; }
 .ri-upload-hint { font-size:12px; color:#94a3b8; }
-.ri-upload-selected { font-size:13px; color:#1f5c91; font-weight:600; margin-top:8px; min-height:20px; }
+.ri-upload-selected { font-size:13px; color:#1f87cd; font-weight:600; margin-top:8px; min-height:20px; }
 
 /* Specifiche CSV */
 .ri-spec-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:14px; }
@@ -164,7 +164,7 @@ document.getElementById('upload-form').addEventListener('submit', function() {
   document.getElementById('submit-btn').disabled = true;
 });
 const dropZone = document.querySelector('.ri-upload-zone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#1f5c91'; });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#1f87cd'; });
 dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
 dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropZone.style.borderColor = '';

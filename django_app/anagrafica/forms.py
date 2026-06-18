@@ -29,6 +29,9 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSlide,
+    TrainingQuizQuestion,
+    TrainingQuizOption,
 )
 
 
@@ -320,6 +323,7 @@ class TrainingCourseForm(forms.ModelForm):
             "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "costo_unitario",
+            "is_elearning", "quiz_punteggio_minimo",
             "stato", "note", "versione", "is_active",
         ]
         widgets = {
@@ -333,6 +337,8 @@ class TrainingCourseForm(forms.ModelForm):
             "validita_mesi":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "obbligatorio":       forms.CheckboxInput(attrs=_FM_CHECK),
             "costo_unitario":     forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0"}),
+            "is_elearning":       forms.CheckboxInput(attrs=_FM_CHECK),
+            "quiz_punteggio_minimo": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "stato":              forms.Select(attrs=_FM_SELECT),
             "note":               forms.Textarea(attrs=_FM_TEXTAREA),
             "versione":           forms.TextInput(attrs=_FM),
@@ -443,6 +449,45 @@ class TrainingCompletionRuleForm(forms.ModelForm):
             "valid_to":                    forms.DateInput(attrs=_FM_DATE),
             "note":                        forms.Textarea(attrs=_FM_TEXTAREA),
             "is_active":                   forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+# ── E-learning: slide e quiz dei micro-corsi ───────────────────────────────
+
+class TrainingSlideForm(forms.ModelForm):
+    class Meta:
+        model = TrainingSlide
+        fields = ["titolo", "ordine", "contenuto", "is_active"]
+        widgets = {
+            "titolo":    forms.TextInput(attrs=_FM),
+            "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "contenuto": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 10}),
+            "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+        help_texts = {
+            "contenuto": "Markdown: # titolo, **grassetto**, *corsivo*, liste con - , link [testo](https://…).",
+        }
+
+
+class TrainingQuizQuestionForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizQuestion
+        fields = ["testo", "ordine", "is_active"]
+        widgets = {
+            "testo":     forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 2}),
+            "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+class TrainingQuizOptionForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizOption
+        fields = ["testo", "ordine", "corretta"]
+        widgets = {
+            "testo":    forms.TextInput(attrs=_FM),
+            "ordine":   forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "corretta": forms.CheckboxInput(attrs=_FM_CHECK),
         }
 
 

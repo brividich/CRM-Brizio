@@ -22,7 +22,7 @@
 
 .ana-widget { position:relative; }
 .ana-widget.hidden { display:none; }
-.ana-widget.drag-over { outline:2px dashed #1f5c91; outline-offset:4px; border-radius:1rem; }
+.ana-widget.drag-over { outline:2px dashed #1f87cd; outline-offset:4px; border-radius:1rem; }
 .ana-widget.dragging  { opacity:.35; }
 .ana-widget-bar { display:none; align-items:center; justify-content:space-between;
   background:#f8fafc; border:1px solid #e2e8f0; border-radius:.7rem .7rem 0 0;
@@ -168,14 +168,14 @@ body.theme-dark .hr-qa-stat-v { color:var(--text); }
         <div class="hr-metric-ico red">⚠️</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">Qualifiche scadute</span><span class="hr-metric-val">{{ n_qualifiche_scadute }}</span></div>
-          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=scaduta" style="color:#1f5c91;">Vedi scadenzario →</a></div>
+          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=scaduta" style="color:#1f87cd;">Vedi scadenzario →</a></div>
         </div>
       </div>
       <div class="hr-metric">
         <div class="hr-metric-ico amber">⏰</div>
         <div class="hr-metric-body">
           <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza</span><span class="hr-metric-val">{{ n_qualifiche_scadenza }}</span></div>
-          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=60" style="color:#1f5c91;">Prossimi 60 giorni →</a></div>
+          <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=60" style="color:#1f87cd;">Prossimi 60 giorni →</a></div>
         </div>
       </div>
       <div class="hr-metric">

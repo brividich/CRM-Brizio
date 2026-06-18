@@ -67,8 +67,11 @@
     Object.keys(CFG).forEach(function(key){
       document.querySelectorAll('select[name="' + key + '"]').forEach(function(sel){
         const b = document.createElement('button');
-        b.type = 'button'; b.className = 'hr-btn hr-btn-sm'; b.textContent = '+ nuovo';
-        b.style.marginTop = '4px';
+        b.type = 'button'; b.className = 'fmd-qa-add'; b.textContent = '+ nuovo';
+        {# stile self-contained: coerente su pagine fmd e legacy hr senza dipendere da framework #}
+        b.style.cssText = 'align-self:flex-start;margin-top:6px;padding:5px 11px;font:inherit;'
+          + 'font-size:11.5px;font-weight:700;line-height:1;color:#1565a8;background:#e8f3fb;'
+          + 'border:1px solid #bfdded;border-radius:7px;cursor:pointer;';
         b.addEventListener('click', function(){ qaOpen(key, sel); });
         sel.insertAdjacentElement('afterend', b);
       });

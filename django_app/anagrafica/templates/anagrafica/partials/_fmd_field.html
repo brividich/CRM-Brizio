@@ -1,0 +1,17 @@
+{# Singolo campo bound con stile .fmd (richiede il partial _fmd_form_style.html in pagina). #}
+{# Uso: includere passando field=form.NOMECAMPO ; opzione full=1 per occupare l'intera riga. #}
+{% if field.field.widget.input_type == "checkbox" %}
+<label class="fmd-check{% if full %} fmd-col-full{% endif %}" for="{{ field.id_for_label }}">
+  {{ field }}
+  <span>{{ field.label }}{% if field.field.required %}<i class="fmd-req">*</i>{% endif %}</span>
+</label>
+{% if field.help_text %}<div class="fmd-fhelp fmd-col-full">{{ field.help_text }}</div>{% endif %}
+{% for err in field.errors %}<div class="fmd-ferr fmd-col-full">{{ err }}</div>{% endfor %}
+{% else %}
+<div class="fmd-field{% if full %} fmd-col-full{% endif %}{% if field.errors %} fmd-field-err{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<i class="fmd-req">*</i>{% endif %}</label>
+  {{ field }}
+  {% if field.help_text %}<div class="fmd-fhelp">{{ field.help_text }}</div>{% endif %}
+  {% for err in field.errors %}<div class="fmd-ferr">{{ err }}</div>{% endfor %}
+</div>
+{% endif %}

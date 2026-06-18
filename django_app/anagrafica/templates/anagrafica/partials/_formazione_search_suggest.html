@@ -1,0 +1,58 @@
+{% if q and totale %}
+<div class="fmd-suggest">
+  {% if risultati.corsi %}<div class="fmd-suggest-cat">Corsi</div>
+    {% for c in risultati.corsi|slice:":5" %}
+    <div class="fmd-suggest-corso">
+      <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">
+        <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span>
+        <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ c.titolo|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ c.codice }} · {{ c.durata_ore_teorica|floatformat:"-2" }}h{% if c.n_sessioni %} · {{ c.n_sessioni }} edizion{{ c.n_sessioni|pluralize:"e,i" }}{% endif %}{% if c.validita_mesi %} · valida {{ c.validita_mesi }} mesi{% endif %}</span></span>
+      </a>
+      {% include "anagrafica/partials/_formazione_corso_lezioni.html" with c=c %}
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.sessioni %}<div class="fmd-suggest-cat">Sessioni</div>
+    {% for s in risultati.sessioni|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ s.codice_sessione }}</span><span class="fmd-suggest-m">{{ s.corso.titolo|truncatechars:22 }} · {{ s.data_inizio|date:"d-m-Y" }} · {{ s.n_iscritti }} iscritt{{ s.n_iscritti|pluralize:"o,i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.piani %}<div class="fmd-suggest-cat">Piani</div>
+    {% for p in risultati.piani|slice:":3" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ p.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ p.codice }}{% if p.n_corsi %} · {{ p.n_corsi }} cors{{ p.n_corsi|pluralize:"o,i" }}{% endif %}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.qualifiche %}<div class="fmd-suggest-cat">Qualifiche</div>
+    {% for t in risultati.qualifiche|slice:":3" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ t.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ t.get_categoria_display }}{% if t.durata_mesi %} · valida {{ t.durata_mesi }} mesi{% endif %} · {{ t.n_assegnazioni }} assegnat{{ t.n_assegnazioni|pluralize:"o,i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.dipendenti %}<div class="fmd-suggest-cat">Dipendenti</div>
+    {% for d in risultati.dipendenti|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ d.nome }}</span><span class="fmd-suggest-m">#{{ d.legacy_id }} · libretto formativo</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.attestati %}<div class="fmd-suggest-cat">Attestati</div>
+    {% for a in risultati.attestati|slice:":3" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ a.nome }}</span><span class="fmd-suggest-m">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:30 }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  <a class="fmd-suggest-all" href="{% url 'anagrafica:formazione_ricerca' %}?q={{ q|urlencode }}">Vedi tutti i {{ totale }} risultati →</a>
+</div>
+{% elif q %}
+<div class="fmd-suggest"><div class="fmd-suggest-empty">Nessun risultato per «{{ q }}»</div></div>
+{% endif %}

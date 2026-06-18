@@ -8,14 +8,22 @@
 /* ============================================================
    Pannello impostazioni anagrafica — UI a tabs verticali
    ============================================================ */
-#imp-root { display:flex; flex-direction:column; gap:18px; }
+#imp-root { display:flex; flex-direction:column; gap:18px; font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 .imp-hero {
-  background:linear-gradient(135deg,#12395f 0%,#1f5c91 60%,#12395f 100%);
-  border-radius:16px; padding:24px 28px; color:#fff;
+  position:relative; overflow:hidden; color:#fff;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,138,31,.28), transparent 42%),
+    radial-gradient(circle at 2% 100%, rgba(31,135,205,.30), transparent 52%),
+    linear-gradient(135deg,#08142d 0%,#0c2545 55%,#1a3a66 100%);
+  padding:24px 28px;
+  clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
 }
-.imp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.imp-hero::after { content:""; position:absolute; top:0; left:0; width:26px; height:5px;
+  background:#ff8a1f; transform:translate(-3px,5px) rotate(-45deg); transform-origin:left center; }
+.imp-hero > * { position:relative; }
+.imp-hero-title { font-size:24px; font-weight:800; letter-spacing:-.02em; }
 .imp-hero-sub { font-size:13px; opacity:.85; margin-top:3px; }
 
 .imp-noperm {
@@ -37,7 +45,7 @@
   background:transparent; border:none; text-align:left; width:100%;
 }
 .imp-tab:hover { background:#f1f5f9; color:#0f172a; }
-.imp-tab.active { background:#12395f; color:#fff; }
+.imp-tab.active { background:#0c2545; color:#fff; }
 .imp-tab .imp-tab-icon { font-size:16px; width:18px; text-align:center; }
 .imp-tab .imp-tab-count { margin-left:auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#e2e8f0; color:#475569; }
 .imp-tab.active .imp-tab-count { background:rgba(255,255,255,.25); color:#fff; }
@@ -46,7 +54,7 @@
 .imp-panel { display:none; flex-direction:column; gap:16px; }
 .imp-panel.active { display:flex; }
 
-.imp-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.imp-card { background:#fff; border:1px solid #e6ebf3; border-radius:14px; padding:18px 22px; box-shadow:0 1px 3px rgba(12,37,69,.05), 0 6px 18px rgba(12,37,69,.045); }
 .imp-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
 .imp-card-title { font-size:15px; font-weight:800; color:#0f172a; }
 .imp-card-sub { font-size:12px; color:#64748b; margin-top:2px; }
@@ -59,13 +67,13 @@
   width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:9px; font-size:13px;
   background:#f8fafc; color:#0f172a; outline:none; box-sizing:border-box;
 }
-.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f5c91; background:#fff; }
+.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f87cd; background:#fff; }
 .imp-textarea { resize:vertical; min-height:60px; }
 .imp-color { width:42px; height:36px; padding:2px; border-radius:8px; border:1px solid #d1d5db; cursor:pointer; }
 
 .imp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:12px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:background .15s; }
-.imp-btn-primary { background:#12395f; color:#fff; }
-.imp-btn-primary:hover { background:#0e2d4b; }
+.imp-btn-primary { background:#0c2545; color:#fff; }
+.imp-btn-primary:hover { background:#08142d; }
 .imp-btn-green { background:#16a34a; color:#fff; }
 .imp-btn-green:hover { background:#15803d; }
 .imp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
@@ -90,7 +98,7 @@
 .imp-dot { display:inline-block; width:10px; height:10px; border-radius:50%; vertical-align:middle; }
 
 .imp-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; }
-.imp-badge-blue { background:#dbeafe; color:#1d4ed8; }
+.imp-badge-blue { background:#dbeafe; color:#1f87cd; }
 .imp-badge-green { background:#dcfce7; color:#166534; }
 .imp-badge-gray { background:#f1f5f9; color:#475569; }
 .imp-badge-orange { background:#ffedd5; color:#c2410c; }
@@ -135,7 +143,7 @@
 body.theme-dark .imp-tabs { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-tab { color:var(--text-mid); }
 body.theme-dark .imp-tab:hover { background:var(--surface-alt); color:var(--text); }
-body.theme-dark .imp-tab.active { background:#1f5c91; color:#fff; }
+body.theme-dark .imp-tab.active { background:#1f87cd; color:#fff; }
 body.theme-dark .imp-tab .imp-tab-count { background:var(--surface-alt); color:var(--text-mid); }
 body.theme-dark .imp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-card-title { color:var(--text); }
@@ -294,7 +302,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-row-name">{{ m.nome }}</div>
                     <div class="imp-row-meta">
                       {{ m.n_dipendenti|default:0 }} dipendenti
-                      · <a href="{% url 'anagrafica:mansione_requisiti' m.id %}" style="color:#1f5c91;text-decoration:none;font-weight:600;">🎯 Requisiti di rischio</a>
+                      · <a href="{% url 'anagrafica:mansione_requisiti' m.id %}" style="color:#1f87cd;text-decoration:none;font-weight:600;">🎯 Requisiti di rischio</a>
                       {% if not m.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                     </div>
                   </div>
@@ -1172,7 +1180,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f5c91;">
+                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f87cd;">
                   <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
                 </label>
                 {% for ro in ruoli_operativi %}

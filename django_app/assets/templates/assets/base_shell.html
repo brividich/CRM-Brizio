@@ -322,6 +322,33 @@ body.theme-dark .assets-message-success{ background: rgba(21,128,61,.15); border
 body.theme-dark .assets-message-error,
 body.theme-dark .assets-message-danger { background: rgba(185,28,28,.15); border-color: rgba(252,165,165,.3); color: #fca5a5; }
 body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border-color: rgba(253,230,138,.3); color: #fde68a; }
+
+/* ── Sezioni collassabili + righe linkabili (riusabili, opt-in) ───────── */
+details.as-collapse { overflow: hidden; }
+details.as-collapse > summary {
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+details.as-collapse > summary::-webkit-details-marker { display: none; }
+details.as-collapse > summary::after {
+  content: "\25BE"; /* chevron giù */
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: .8em;
+  color: #94a3b8;
+  transition: transform .15s ease, color .15s ease;
+  flex: 0 0 auto;
+  align-self: center;
+}
+details.as-collapse:not([open]) > summary::after { transform: rotate(-90deg); }
+details.as-collapse > summary:hover::after { color: #1d4ed8; }
+/* cap altezza per la tabella primaria (aperta ma non lunga, con scroll) */
+details.as-collapse--cap > .as-collapse-body { max-height: 62vh; overflow: auto; }
+/* righe cliccabili verso asset / OdL / azione */
+tr[data-row-href] { cursor: pointer; }
+tr[data-row-href]:hover > td { background: #f1f6ff; }
+body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10); }
 </style>
 {% block assets_shell_head %}{% endblock %}
 {% endblock %}
@@ -463,6 +490,35 @@ body.theme-dark .assets-message-warning{ background: rgba(146,64,14,.15); border
         setGroupOpen(group, shouldOpen);
       });
     }
+  });
+})();
+
+/* Righe tabella linkabili (asset / OdL / azione) + link dentro summary collassabili */
+(function () {
+  // Naviga al click su una riga con data-row-href, ignorando i controlli interni.
+  document.addEventListener("click", function (ev) {
+    var row = ev.target.closest("tr[data-row-href]");
+    if (!row) return;
+    if (ev.target.closest("a, button, input, select, textarea, label, form")) return;
+    var href = row.getAttribute("data-row-href");
+    if (!href) return;
+    if (ev.ctrlKey || ev.metaKey || ev.button === 1) {
+      window.open(href, "_blank");
+    } else {
+      window.location.href = href;
+    }
+  });
+  // Supporto tastiera: invio su riga focalizzata.
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") return;
+    var row = ev.target.closest && ev.target.closest("tr[data-row-href]");
+    if (!row || ev.target !== row) return;
+    var href = row.getAttribute("data-row-href");
+    if (href) window.location.href = href;
+  });
+  // Un link/azione dentro un <summary> non deve far collassare la sezione.
+  document.querySelectorAll("details.as-collapse > summary a, details.as-collapse > summary button").forEach(function (el) {
+    el.addEventListener("click", function (ev) { ev.stopPropagation(); });
   });
 })();
 </script>

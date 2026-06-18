@@ -10,7 +10,7 @@
 .cr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
 .cr-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .cr-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; font-family:inherit; }
-.cr-select:focus { border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
+.cr-select:focus { border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
 /* Semaforo badge per dominio / complessivo */
 .cr-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
 .cr-dot { width:9px; height:9px; border-radius:50%; flex:none; }
@@ -155,7 +155,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
           {% for r in page_obj.object_list %}
           <tr>
             <td>
-              <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
+              <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="font-weight:700;color:#0c2545;text-decoration:none;">
                 {{ r.cognome }} {{ r.nome }}
               </a>
               {% if r.mansione %}<div style="font-size:11px;margin-top:1px;">{% if r.mansione_id %}<a href="{% url 'anagrafica:mansione_requisiti' r.mansione_id %}" style="color:#64748b;text-decoration:none;">🎯 {{ r.mansione }}</a>{% else %}<span style="color:#94a3b8;">{{ r.mansione }}</span>{% endif %}</div>{% endif %}

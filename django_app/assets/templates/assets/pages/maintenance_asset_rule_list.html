@@ -100,14 +100,14 @@
     </article>
   </section>
 
-  <article class="mar-card">
-    <div class="mar-card-head">
+  <details class="mar-card as-collapse as-collapse--cap" open>
+    <summary class="mar-card-head">
       <div>
         <h2>Policy effettiva</h2>
         <p>Le regole partono dalla categoria dell'asset e vengono eventualmente modificate da un override differenziale.</p>
       </div>
-    </div>
-    <div class="mar-card-body">
+    </summary>
+    <div class="mar-card-body as-collapse-body">
       {% if not asset_has_category %}
         <p class="mar-empty">L'asset non ha una categoria associata, quindi non puo ereditare regole manutentive standard.</p>
       {% elif rule_rows %}
@@ -126,7 +126,7 @@
             </thead>
             <tbody>
               {% for row in rule_rows %}
-                <tr id="rule-{{ row.base_rule.id }}" {% if row.is_focus %}class="mar-row-focus"{% endif %}>
+                <tr id="rule-{{ row.base_rule.id }}" data-row-href="{{ row.edit_url|default:row.create_url }}" {% if row.is_focus %}class="mar-row-focus"{% endif %}>
                   <td>
                     <strong>{{ row.effective_intervention_template.label }}</strong><br>
                     <span class="as-note">Base: {{ row.base_rule.intervention_template.label }}</span>
@@ -219,6 +219,6 @@
         <p class="mar-empty">Nessuna regola standard trovata per la categoria dell'asset.</p>
       {% endif %}
     </div>
-  </article>
+  </details>
 </section>
 {% endblock %}

@@ -1,0 +1,99 @@
+{# Frammento risultati ricerca sicurezza (inline + HTMX live). Context: q, totale, risultati. #}
+{% if not q %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-empty">
+    <span class="fmd-ebadge" style="background:#e8f3fb;color:#1f87cd;"><svg class="fmd-ico"><use href="#i-search"/></svg></span>
+    <span class="fmd-et">Inizia a cercare</span>
+    <span class="fmd-em">Digita un termine per trovare mansioni di rischio, dipendenti, qualifiche di sicurezza e fattori di rischio.</span>
+  </div>
+</section>
+{% elif totale == 0 %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-empty">
+    <span class="fmd-ebadge" style="background:#fff5ec;color:#c2410c;"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
+    <span class="fmd-et">Nessun risultato</span>
+    <span class="fmd-em">Nessun elemento corrisponde a «{{ q }}». Prova con un altro termine.</span>
+  </div>
+</section>
+{% else %}
+
+<div class="fmd-block-aside" style="margin:0 0 12px 2px;">{{ totale }} risultat{{ totale|pluralize:"o,i" }} per «{{ q }}»</div>
+
+{% if risultati.mansioni %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Mansioni di rischio <span class="fmd-count">{{ risultati.mansioni|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for m in risultati.mansioni %}
+    <a class="fmd-area" href="{% url 'anagrafica:mansione_requisiti' m.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ m.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc">{% if m.get_categoria_display %}{{ m.get_categoria_display }}{% endif %}{% if m.livello_rischio %} · Rischio {{ m.get_livello_rischio_display }}{% endif %}{% if m.n_esposizioni %} · {{ m.n_esposizioni }} fattor{{ m.n_esposizioni|pluralize:"e,i" }} di rischio{% endif %}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.dipendenti %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Dipendenti <span class="fmd-count">{{ risultati.dipendenti|length }}</span></div>
+    <div class="fmd-block-aside">scheda &amp; idoneità</div>
+  </div>
+  <div class="fmd-areas">
+    {% for d in risultati.dipendenti %}
+    <a class="fmd-area" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ d.nome }}</span>
+        <span class="fmd-area-desc"><span class="fmd-code">#{{ d.legacy_id }}</span> · scheda dipendente</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.qualifiche %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Qualifiche di sicurezza <span class="fmd-count">{{ risultati.qualifiche|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for t in risultati.qualifiche %}
+    <a class="fmd-area" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ t.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc">{{ t.get_categoria_display }}{% if t.durata_mesi %} · valida {{ t.durata_mesi }} mesi{% endif %} · {{ t.n_assegnazioni }} assegnat{{ t.n_assegnazioni|pluralize:"o,i" }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.fattori %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Fattori di rischio <span class="fmd-count">{{ risultati.fattori|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for f in risultati.fattori %}
+    <a class="fmd-area" href="{% url 'anagrafica:fattori_rischio_list' %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ f.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc"><span class="fmd-code">{{ f.codice }}</span> · {{ f.get_categoria_display }}{% if f.n_esposizioni %} · {{ f.n_esposizioni }} esposizion{{ f.n_esposizioni|pluralize:"e,i" }}{% endif %}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endif %}

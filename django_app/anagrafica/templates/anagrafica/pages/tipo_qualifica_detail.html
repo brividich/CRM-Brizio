@@ -1,187 +1,140 @@
 {% extends "core/base.html" %}
+{% load static %}
 {% block title %}{{ tipo.nome }} | Qualifiche{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<style>
-.tq-page { display:flex; flex-direction:column; gap:20px; }
-.tq-title { font-size:24px; font-weight:800; color:#0f172a; }
-.tq-sub { font-size:13px; color:#64748b; margin-top:2px; }
-.tq-kpis { display:flex; flex-wrap:wrap; gap:10px; }
-.tq-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 16px; min-width:120px; }
-.tq-kpi b { display:block; font-size:22px; font-weight:800; color:#0f172a; }
-.tq-kpi span { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.tq-kpi.red b { color:#b91c1c; } .tq-kpi.orange b { color:#9a3412; }
-.tq-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-.tq-card-head { padding:13px 18px; border-bottom:1px solid #f1f5f9; font-weight:700; color:#1e293b; font-size:15px; }
-.tq-table { width:100%; border-collapse:collapse; font-size:13px; }
-.tq-table th { padding:9px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
-.tq-table td { padding:9px 14px; border-bottom:1px solid #f8fafc; color:#334155; }
-.tq-table tr:hover td { background:#f8fafc; }
-.tq-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-.tq-b-red { background:#fee2e2; color:#b91c1c; } .tq-b-orange { background:#ffedd5; color:#9a3412; } .tq-b-green { background:#dcfce7; color:#166534; }
-.tq-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:8px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid #e2e8f0; background:#f1f5f9; color:#334155; }
-.tq-empty { padding:18px; color:#94a3b8; font-size:13px; }
-body.theme-dark .tq-title { color:var(--text); } body.theme-dark .tq-sub { color:var(--text-light); }
-body.theme-dark .tq-kpi,.tq-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .tq-kpi b { color:var(--text); }
-body.theme-dark .tq-card-head { color:var(--text); border-color:var(--border); }
-body.theme-dark .tq-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .tq-table td { border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .tq-btn { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="tq-page">
-  {% include "anagrafica/components/flash_messages.html" %}
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-    <div>
-      <div class="tq-title">📜 {{ tipo.nome }}</div>
-      <div class="tq-sub">
-        {{ tipo.get_categoria_display }}
-        {% if tipo.durata_mesi %} · validità {{ tipo.durata_mesi }} mesi{% else %} · senza scadenza{% endif %}
-        {% if not tipo.is_active %} · <span class="tq-badge tq-b-red">disattiva</span>{% endif %}
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">Qualifiche</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ tipo.nome|truncatechars:40 }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ tipo.nome }}</h1>
+        <p class="fmd-ph-sub">{{ tipo.get_categoria_display }}{% if tipo.durata_mesi %} · validità {{ tipo.durata_mesi }} mesi{% else %} · senza scadenza{% endif %}{% if not tipo.is_active %} · <span class="fmd-badge fmd-b-red">disattiva</span>{% endif %}</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">← Catalogo</a>
+        {% if is_admin %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ tipo.id }}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo</a>{% endif %}
       </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a class="tq-btn" href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">&larr; Catalogo</a>
-      {% if is_admin %}<a class="tq-btn" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ tipo.id }}">↻ Crea sessione di rinnovo</a>{% endif %}
-    </div>
-  </div>
 
-  <div class="tq-kpis">
-    <div class="tq-kpi"><b>{{ n_holders }}</b><span>Dipendenti</span></div>
-    <div class="tq-kpi red"><b>{{ n_scaduti }}</b><span>Scaduti</span></div>
-    <div class="tq-kpi orange"><b>{{ n_scadenza }}</b><span>In scadenza</span></div>
-    <div class="tq-kpi"><b>{{ corsi|length }}</b><span>Corsi collegati</span></div>
-    <div class="tq-kpi"><b>{{ sessioni|length }}</b><span>Sessioni rinnovo</span></div>
-    <div class="tq-kpi"><b>{{ n_attestati }}</b><span>Attestati</span></div>
-    <div class="tq-kpi"><b>{{ n_lezioni }}</b><span>Lezioni</span></div>
-  </div>
+    {# ── KPI ────────────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_holders }}</span></div><div class="fmd-mtr-lbl">Dipendenti</div></div>
+      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div></div>
+      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_scadenza }}</span></div><div class="fmd-mtr-lbl">In scadenza</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ corsi|length }}</span></div><div class="fmd-mtr-lbl">Corsi collegati</div></div>
+      <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Sessioni rinnovo</div></div>
+      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_attestati }}</span></div><div class="fmd-mtr-lbl">Attestati</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_lezioni }}</span></div><div class="fmd-mtr-lbl">Lezioni</div></div>
+    </section>
 
-  <!-- Dipendenti che la possiedono -->
-  <div class="tq-card">
-    <div class="tq-card-head">👤 Dipendenti che la possiedono ({{ n_holders }})</div>
-    {% if holders %}
-    <div style="overflow-x:auto;">
-      <table class="tq-table">
-        <thead><tr><th>Dipendente</th><th>Conseguita</th><th>Scadenza</th><th>Stato</th><th>Evidenza</th></tr></thead>
-        <tbody>
-          {% for h in holders %}
-          <tr>
-            <td style="font-weight:600;"><a href="{% url 'anagrafica:dipendente_detail' h.q.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;">{{ h.nome }}</a></td>
-            <td>{% if h.q.data_conseguimento %}{{ h.q.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-            <td>{% if h.q.data_scadenza %}{{ h.q.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td>
-              {% if h.stato == "scaduta" %}<span class="tq-badge tq-b-red">Scaduta</span>
-              {% elif h.stato == "in_scadenza" %}<span class="tq-badge tq-b-orange">In scadenza</span>
-              {% else %}<span class="tq-badge tq-b-green">Valida</span>{% endif %}
-            </td>
-            <td>
-              {% if h.q.record_formazione %}<span style="font-size:11px;color:#155e75;">📚 {{ h.q.record_formazione.corso.titolo }}</span>
-              {% elif h.q.sessione %}<a href="{% url 'anagrafica:qualifica_sessione_detail' h.q.sessione_id %}" style="font-size:11px;color:#3730a3;text-decoration:none;">↻ Sessione {{ h.q.sessione.data_conseguimento|date:"d-m-Y" }}</a>
-              {% else %}<span style="color:#cbd5e1;">—</span>{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="tq-empty">Nessun dipendente possiede questa qualifica.</div>{% endif %}
-  </div>
+    {# ── Dipendenti che la possiedono ───────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Dipendenti che la possiedono <span class="fmd-count">{{ n_holders }}</span></div></div>
+      {% if holders %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Dipendente</th><th class="fmd-nowrap">Conseguita</th><th class="fmd-nowrap">Scadenza</th><th>Stato</th><th>Evidenza</th></tr></thead>
+          <tbody>
+            {% for h in holders %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' h.q.legacy_anagrafica_id %}">{{ h.nome }}</a></td>
+              <td class="fmd-nowrap fmd-muted">{% if h.q.data_conseguimento %}{{ h.q.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted">{% if h.q.data_scadenza %}{{ h.q.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td>{% if h.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% elif h.stato == "in_scadenza" %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}</td>
+              <td class="fmd-muted">
+                {% if h.q.record_formazione %}<span style="font-size:11.5px;">{{ h.q.record_formazione.corso.titolo|truncatechars:40 }}</span>
+                {% elif h.q.sessione %}<a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' h.q.sessione_id %}" style="font-size:11.5px;">Sessione {{ h.q.sessione.data_conseguimento|date:"d-m-Y" }}</a>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun dipendente possiede questa qualifica.</div>{% endif %}
+    </section>
 
-  <!-- Corsi collegati -->
-  <div class="tq-card">
-    <div class="tq-card-head">📚 Corsi collegati ({{ corsi|length }})</div>
-    {% if corsi %}
-    <div style="overflow-x:auto;">
-      <table class="tq-table">
-        <thead><tr><th>Corso</th><th>Piano</th><th>Validità</th><th>Stato</th></tr></thead>
-        <tbody>
-          {% for c in corsi %}
-          <tr>
-            <td style="font-weight:600;">{{ c.titolo }}</td>
-            <td>{{ c.piano.nome|default:"—" }}</td>
-            <td>{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td>
-            <td>{{ c.get_stato_display }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="tq-empty">Nessun corso collegato. Il legame si crea automaticamente con <code>import_asr</code> o <code>link_qualifiche_corsi</code>.</div>{% endif %}
-  </div>
+    {# ── Corsi collegati ────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-book"/></svg>Corsi collegati <span class="fmd-count">{{ corsi|length }}</span></div></div>
+      {% if corsi %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Corso</th><th>Piano</th><th>Validità</th><th>Stato</th></tr></thead>
+          <tbody>
+            {% for c in corsi %}
+            <tr><td style="font-weight:700;color:var(--fmd-navy);">{{ c.titolo }}</td><td class="fmd-muted">{{ c.piano.nome|default:"—" }}</td><td class="fmd-muted">{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td><td><span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun corso collegato. Il legame si crea automaticamente con <code>import_asr</code> o <code>link_qualifiche_corsi</code>.</div>{% endif %}
+    </section>
 
-  <!-- Sessioni di rinnovo qualifica -->
-  <div class="tq-card">
-    <div class="tq-card-head">↻ Sessioni di rinnovo ({{ sessioni|length }})</div>
-    {% if sessioni %}
-    <div style="overflow-x:auto;">
-      <table class="tq-table">
-        <thead><tr><th>Data</th><th>Ente</th><th>Partecipanti</th><th>Scadenza</th></tr></thead>
-        <tbody>
-          {% for s in sessioni %}
-          <tr>
-            <td><a href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}" style="color:#1f5c91;text-decoration:none;font-weight:600;">{{ s.data_conseguimento|date:"d-m-Y" }}</a></td>
-            <td>{{ s.ente|default:"—" }}</td>
-            <td><span class="tq-badge tq-b-green">{{ s.n_part }}</span></td>
-            <td>{% if s.scadenza_effettiva %}{{ s.scadenza_effettiva|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="tq-empty">Nessuna sessione di rinnovo registrata.</div>{% endif %}
-  </div>
+    {# ── Sessioni di rinnovo qualifica ──────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo <span class="fmd-count">{{ sessioni|length }}</span></div></div>
+      {% if sessioni %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Data</th><th>Ente</th><th class="fmd-c">Partecipanti</th><th>Scadenza</th></tr></thead>
+          <tbody>
+            {% for s in sessioni %}
+            <tr><td><a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}">{{ s.data_conseguimento|date:"d-m-Y" }}</a></td><td class="fmd-muted">{{ s.ente|default:"—" }}</td><td class="fmd-c"><span class="fmd-badge fmd-b-green">{{ s.n_part }}</span></td><td class="fmd-muted">{% if s.scadenza_effettiva %}{{ s.scadenza_effettiva|date:"d-m-Y" }}{% else %}—{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessuna sessione di rinnovo registrata.</div>{% endif %}
+    </section>
 
-  <!-- Formazione collegata: sessioni corso + lezioni -->
-  <div class="tq-card">
-    <div class="tq-card-head">🗓️ Sessioni corso & lezioni ({{ corso_sessioni|length }})</div>
-    {% if corso_sessioni %}
-    <div style="overflow-x:auto;">
-      <table class="tq-table">
-        <thead><tr><th>Sessione</th><th>Corso</th><th>Periodo</th><th>Lezioni</th><th>Iscritti</th></tr></thead>
-        <tbody>
-          {% for s in corso_sessioni %}
-          <tr>
-            <td style="font-weight:600;">{{ s.codice_sessione }}</td>
-            <td>{{ s.corso.titolo }}</td>
-            <td>{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine and s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td>
-            <td>{{ s.n_lezioni }}</td>
-            <td>{{ s.n_iscritti }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="tq-empty">Nessuna sessione corso collegata.</div>{% endif %}
-  </div>
+    {# ── Sessioni corso & lezioni ───────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Sessioni corso &amp; lezioni <span class="fmd-count">{{ corso_sessioni|length }}</span></div></div>
+      {% if corso_sessioni %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Sessione</th><th>Corso</th><th>Periodo</th><th class="fmd-c">Lezioni</th><th class="fmd-c">Iscritti</th></tr></thead>
+          <tbody>
+            {% for s in corso_sessioni %}
+            <tr><td style="font-weight:700;color:var(--fmd-navy);">{{ s.codice_sessione }}</td><td class="fmd-muted">{{ s.corso.titolo|truncatechars:34 }}</td><td class="fmd-nowrap fmd-muted">{{ s.data_inizio|date:"d-m-Y" }}{% if s.data_fine and s.data_fine != s.data_inizio %} → {{ s.data_fine|date:"d-m-Y" }}{% endif %}</td><td class="fmd-c fmd-num">{{ s.n_lezioni }}</td><td class="fmd-c fmd-num">{{ s.n_iscritti }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessuna sessione corso collegata.</div>{% endif %}
+    </section>
 
-  <!-- Attestati / completamenti -->
-  <div class="tq-card">
-    <div class="tq-card-head">🎖️ Attestati / completamenti ({{ n_attestati }}{% if n_attestati > 30 %}, ultimi 30{% endif %})</div>
-    {% if attestati_recenti %}
-    <div style="overflow-x:auto;">
-      <table class="tq-table">
-        <thead><tr><th>Dipendente</th><th>Corso</th><th>Completamento</th><th>Scadenza</th></tr></thead>
-        <tbody>
-          {% for a in attestati_recenti %}
-          <tr>
-            <td style="font-weight:600;"><a href="{% url 'anagrafica:dipendente_detail' a.r.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;">{{ a.nome }}</a></td>
-            <td>{{ a.r.corso.titolo }}</td>
-            <td>{{ a.r.data_completamento|date:"d-m-Y" }}</td>
-            <td>{% if a.r.data_scadenza %}{{ a.r.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}<div class="tq-empty">Nessun attestato/completamento collegato.</div>{% endif %}
-  </div>
+    {# ── Attestati / completamenti ──────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Attestati / completamenti <span class="fmd-count">{{ n_attestati }}</span>{% if n_attestati > 30 %}<span class="fmd-block-aside" style="margin-left:6px;">ultimi 30</span>{% endif %}</div></div>
+      {% if attestati_recenti %}
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table">
+          <thead><tr><th>Dipendente</th><th>Corso</th><th class="fmd-nowrap">Completamento</th><th class="fmd-nowrap">Scadenza</th></tr></thead>
+          <tbody>
+            {% for a in attestati_recenti %}
+            <tr><td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' a.r.legacy_anagrafica_id %}">{{ a.nome }}</a></td><td class="fmd-muted">{{ a.r.corso.titolo|truncatechars:34 }}</td><td class="fmd-nowrap fmd-muted">{{ a.r.data_completamento|date:"d-m-Y" }}</td><td class="fmd-nowrap fmd-muted">{% if a.r.data_scadenza %}{{ a.r.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}<div class="fmd-muted" style="padding:4px 2px;">Nessun attestato/completamento collegato.</div>{% endif %}
+    </section>
 
-</div>
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

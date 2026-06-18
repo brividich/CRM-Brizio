@@ -5,181 +5,111 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<style>
-/* dipendenti_list — elementi specifici di pagina */
-.hr-search-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;
-  background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:14px 16px;
-  box-shadow:0 1px 2px rgba(15,23,42,.04); }
-.hr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:160px; }
-.hr-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.hr-input { border:1px solid #e2e8f0; border-radius:.6rem; padding:8px 12px; font-size:13px;
-  color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.hr-input:focus { border-color:#1f5c91; background:#fff; }
-.hr-notice { background:#fffbeb; border:1px solid #fde68a; border-radius:.7rem;
-  padding:10px 14px; font-size:13px; color:#92400e; }
-.hr-avatar { width:32px; height:32px; border-radius:50%; background:#e2e8f0; border:1px solid #cbd5e1;
-  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; position:relative; }
-.hr-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
-.hr-avatar-fb::before { content:""; position:absolute; top:7px; left:10px; width:10px; height:10px;
-  border-radius:50%; background:#94a3b8; }
-.hr-avatar-fb::after { content:""; position:absolute; left:7px; bottom:5px; width:16px; height:10px;
-  border-radius:10px 10px 6px 6px; background:#94a3b8; }
-.hr-name-cell { display:flex; align-items:center; gap:10px; }
-.hr-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:14px; }
-.hr-pag span { font-size:13px; color:#64748b; }
-body.theme-dark .hr-search-bar { background:var(--surface); border-color:var(--border); }
-body.theme-dark .hr-field label { color:var(--text-light); }
-body.theme-dark .hr-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .hr-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
-body.theme-dark .hr-pag span { color:var(--text-light); }
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <!-- Page header -->
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Anagrafica personale</div>
-      <h2 class="hr-pagehead-title">Dipendenti e fascicolo HR</h2>
-      <p class="hr-pagehead-desc">Anagrafica centrale unica per utenti, timbri, assenze e moduli collegati. Clicca "Scheda" per accedere al dettaglio del dipendente.</p>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a class="hr-btn hr-btn-primary" href="{% url 'anagrafica:dipendente_create' %}">+ Nuovo dipendente</a>
-      {% if n_ex %}
-      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:ex_dipendenti_list' %}" title="Rapporti di lavoro cessati">Ex dipendenti ({{ n_ex }})</a>
-      {% endif %}
-      <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:index' %}">← Anagrafica HR</a>
-    </div>
-  </div>
+<div class="fmd">
+  <div class="fmd-wrap">
 
-   
+    {% include "anagrafica/components/flash_messages.html" %}
 
-  {% include "anagrafica/components/flash_messages.html" %}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Dipendenti</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Dipendenti e fascicolo HR <span class="fmd-count">{{ page_obj.paginator.count }}</span></h1>
+        <p class="fmd-ph-sub">Anagrafica centrale per utenti, timbri, assenze e moduli collegati. Clicca «Scheda» per il dettaglio.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if n_ex %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:ex_dipendenti_list' %}" title="Rapporti di lavoro cessati">Ex dipendenti ({{ n_ex }})</a>{% endif %}
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV"><svg class="fmd-ico"><use href="#i-download"/></svg>Report</a>
+        <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:dipendente_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo dipendente</a>
+      </div>
+    </div>
 
-  <!-- Filtri -->
-  <form method="get" class="hr-search-bar">
-    <div class="hr-field">
-      <label>Cerca per nome</label>
-      <input class="hr-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome o username...">
-    </div>
-    <div class="hr-field" style="max-width:220px;">
-      <label>Reparto</label>
-      <select class="hr-input" name="reparto" aria-label="Filtra per reparto">
-        <option value="">Tutti i reparti</option>
-        {% for r in reparti %}
-          <option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% if aree %}
-    <div class="hr-field" style="max-width:220px;">
-      <label>Reparto (catalogo)</label>
-      <select class="hr-input" name="area" aria-label="Filtra per reparto del catalogo">
-        <option value="">Tutti i reparti</option>
-        {% for a in aree %}
-          <option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
-    {% if tipologie_contratto %}
-    <div class="hr-field" style="max-width:220px;">
-      <label>Tipo contratto</label>
-      <select class="hr-input" name="tipologia_contratto" aria-label="Filtra per tipo contratto">
-        <option value="">Tutti</option>
-        {% for tc in tipologie_contratto %}
-          <option value="{{ tc.codice }}"{% if tc.codice == tipologia_contratto %} selected{% endif %}>{{ tc.nome }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
-    <div style="display:flex;gap:8px;padding-top:20px;">
-      <button class="hr-btn hr-btn-primary" type="submit">Filtra</button>
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:dipendenti_report' %}" title="Report avanzato con export CSV">📋 Report</a>
-    </div>
-  </form>
+    <section class="fmd-panel">
+      <form method="get" class="fmd-toolbar">
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="text" name="q" value="{{ q }}" placeholder="Nome, cognome o username…" autocomplete="off">
+        </span>
+        <select class="fmd-select" name="reparto" aria-label="Filtra per reparto">
+          <option value="">Tutti i reparti</option>
+          {% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+        {% if aree %}
+        <select class="fmd-select" name="area" aria-label="Filtra per reparto del catalogo">
+          <option value="">Reparto (catalogo)</option>
+          {% for a in aree %}<option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        {% if tipologie_contratto %}
+        <select class="fmd-select" name="tipologia_contratto" aria-label="Filtra per tipo contratto">
+          <option value="">Tipo contratto: tutti</option>
+          {% for tc in tipologie_contratto %}<option value="{{ tc.codice }}"{% if tc.codice == tipologia_contratto %} selected{% endif %}>{{ tc.nome }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
+      </form>
 
-  <!-- Tabella -->
-  <div class="hr-card">
-    <div class="hr-card-head">
-      <div class="hr-card-title">{{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</div>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="hr-table" data-table-id="anagrafica.dipendenti.list">
-        <thead>
-          <tr>
-            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-            <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
-            <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
-            <th data-col="email" data-col-label="Email notifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email notifica</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for dip in page_obj %}
-          <tr>
-            <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
-              <div class="hr-name-cell">
-                <div class="hr-avatar{% if not dip.foto_url %} hr-avatar-fb{% endif %}" aria-hidden="true">
-                  {% if dip.foto_url %}<img class="hr-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="anagrafica.dipendenti.list">
+          <thead>
+            <tr>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+              <th data-col="mansione" data-col-label="Mansione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Mansione</th>
+              <th data-col="email" data-col-label="Email notifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email notifica</th>
+              <th class="fmd-r">Scheda</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dip in page_obj %}
+            <tr>
+              <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
+                <div class="fmd-person">
+                  <span class="fmd-avatar">{% if dip.foto_url %}<img src="{{ dip.foto_url }}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover;">{% else %}{{ dip.cognome|slice:":1" }}{{ dip.nome|slice:":1" }}{% endif %}</span>
+                  <span>
+                    <span class="fmd-cell-main" style="font-weight:700;color:var(--fmd-navy);">{{ dip.cognome }} {{ dip.nome }}</span>
+                    {% if dip.timbri_legacy_id %}<span class="fmd-cell-sub"><span class="fmd-code">#{{ dip.timbri_legacy_id }}</span></span>{% endif %}
+                  </span>
                 </div>
-                <div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div>
-              </div>
-            </td>
-            <td>{% if dip.reparto %}<span class="hr-pill blue">{{ dip.reparto }}</span>{% else %}-{% endif %}</td>
-            <td>{{ dip.mansione|default:"-" }}</td>
-            <td>
-              {% if dip.email_notifica %}
-                <a href="mailto:{{ dip.email_notifica }}" style="color:#1f5c91;font-size:12px;">{{ dip.email_notifica }}</a>
-              {% else %}
-                <span style="color:#cbd5e1;">-</span>
-              {% endif %}
-            </td>
-            <td>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              </td>
+              <td>{% if dip.reparto %}<span class="fmd-badge fmd-b-cyan">{{ dip.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-muted">{{ dip.mansione|default:"—" }}</td>
+              <td>{% if dip.email_notifica %}<a class="fmd-data-link" href="mailto:{{ dip.email_notifica }}" style="font-size:12px;">{{ dip.email_notifica }}</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-r fmd-nowrap">
                 {% if dip.timbri_legacy_id %}
-                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">👤 Scheda</a>
-                  <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:dipendente_print' dip.timbri_legacy_id %}" target="_blank" title="Stampa scheda completa (anagrafica civile, aziendale, dati bancari)">&#128438;</a>
-                {% else %}
-                  <span style="color:#cbd5e1;">-</span>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr data-empty-row="1"><td colspan="5" class="hr-empty">Nessun dipendente trovato.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+                  <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">Scheda <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr data-empty-row="1"><td colspan="5"><div class="fmd-empty"><span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-et">Nessun dipendente trovato</span><span class="fmd-em">Modifica i filtri di ricerca.</span></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-    
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} dipendenti{% if q or reparto %} (filtrati){% endif %}</span>
+        {% if page_obj.has_other_pages %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&reparto={{ reparto }}">‹</a>{% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ q }}&reparto={{ reparto }}">›</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </section>
 
-    {% if page_obj.has_other_pages %}
-    <div class="hr-pag">
-      {% if page_obj.has_previous %}
-        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&reparto={{ reparto }}">← Prec</a>
-      {% endif %}
-      <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-        <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&reparto={{ reparto }}">Succ →</a>
-      {% endif %}
-    </div>
-    {% endif %}
-  </div>
+    <p class="fmd-ph-sub" style="margin-top:14px;">I dipendenti non attivi restano in anagrafica senza account: se un account viene disattivato, il collegamento operativo viene staccato ma il dipendente resta qui.</p>
 
-  <div class="hr-notice">
-    I dipendenti non attivi restano in anagrafica senza account. Se un account viene disattivato, il collegamento operativo viene staccato ma il dipendente resta qui.
-  </div>
-
-</div>
-{% endblock %}
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html): ricerca, ordina/filtra per colonna, gestione colonne. #}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

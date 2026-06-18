@@ -4335,6 +4335,22 @@ class FormazioneAllegatiReportTests(TestCase):
         resp2 = self.client.get(reverse("anagrafica:formazione_ricerca") + "?q=Neri")
         self.assertContains(resp2, "Neri Sara")
 
+    def test_ricerca_sicurezza_trova_mansione_qualifica_dipendente(self):
+        from .models import Mansione, TipoQualifica
+        Mansione.objects.create(nome="Saldatore a rischio", livello_rischio="A")
+        TipoQualifica.objects.create(nome="Carrellista sicurezza", categoria=TipoQualifica.CAT_SICUREZZA)
+        r1 = self.client.get(reverse("anagrafica:sicurezza_ricerca") + "?q=Saldatore")
+        self.assertEqual(r1.status_code, 200)
+        self.assertContains(r1, "Saldatore a rischio")
+        r2 = self.client.get(reverse("anagrafica:sicurezza_ricerca") + "?q=Carrellista")
+        self.assertContains(r2, "Carrellista sicurezza")
+        r3 = self.client.get(reverse("anagrafica:sicurezza_ricerca") + "?q=Neri")
+        self.assertContains(r3, "Neri Sara")
+
+    def test_ricerca_sicurezza_vuota_non_esplode(self):
+        resp = self.client.get(reverse("anagrafica:sicurezza_ricerca"))
+        self.assertEqual(resp.status_code, 200)
+
     def test_ricerca_vuota_non_esplode(self):
         resp = self.client.get(reverse("anagrafica:formazione_ricerca"))
         self.assertEqual(resp.status_code, 200)

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -13,173 +13,47 @@
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 
-<div class="fm2">
-  <div class="wrap">
+<div class="fmd">
+  <div class="fmd-wrap">
 
     {# ── Hero ───────────────────────────────────────────────────────────── #}
-    <section class="hero">
-      <div class="hero-bg" aria-hidden="true"></div>
-      <div class="hero-inner">
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
         <div>
-          <div class="hero-eyebrow"><span class="dot"></span>Anagrafica HR · Formazione</div>
-          <h1><svg class="ico cap"><use href="#i-search"/></svg>Ricerca</h1>
-          <p class="sub">
-            {% if q %}{{ totale }} risultat{{ totale|pluralize:"o,i" }} per «{{ q }}» in corsi, sessioni, piani, qualifiche, dipendenti e attestati.
-            {% else %}Cerca in corsi, sessioni, piani, qualifiche, dipendenti e attestati.{% endif %}
-          </p>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Formazione</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-search"/></svg>Ricerca</h1>
+          <p class="fmd-sub">Cerca in corsi, sessioni, piani, qualifiche, dipendenti e attestati.</p>
         </div>
       </div>
     </section>
 
-    {# ── Barra di ricerca ───────────────────────────────────────────────── #}
-    <div class="panel" style="margin-bottom:16px;">
-      <form method="get" action="{% url 'anagrafica:formazione_ricerca' %}" class="toolbar" role="search">
-        <span class="search">
-          <svg class="ico"><use href="#i-search"/></svg>
+    {# ── Barra di ricerca live ──────────────────────────────────────────── #}
+    <div class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" action="{% url 'anagrafica:formazione_ricerca' %}" class="fmd-toolbar" role="search">
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
           <input type="search" name="q" value="{{ q }}" autofocus
                  placeholder="Cerca corsi, sessioni, piani, qualifiche, dipendenti, attestati…"
-                 autocomplete="off" aria-label="Cerca nella formazione">
+                 autocomplete="off" aria-label="Cerca nella formazione"
+                 hx-get="{% url 'anagrafica:formazione_ricerca' %}"
+                 hx-trigger="keyup changed delay:300ms, search"
+                 hx-target="#fm-results"
+                 hx-swap="innerHTML"
+                 hx-push-url="true"
+                 hx-indicator="#fm-spinner">
         </span>
-        <button type="submit" class="btn btn-primary"><svg class="ico"><use href="#i-search"/></svg>Cerca</button>
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" class="btn btn-ghost">Dashboard</a>
+        <span id="fm-spinner" class="htmx-indicator fmd-block-aside">Ricerca…</span>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" class="fmd-btn fmd-btn-ghost">Dashboard</a>
       </form>
     </div>
 
-    {% if not q %}
-    <section class="panel block">
-      <div class="empty">
-        <span class="ebadge"><svg class="ico"><use href="#i-search"/></svg></span>
-        <span class="t">Inizia a cercare</span>
-        <span class="m">Digita un termine per trovare corsi, sessioni, piani, qualifiche, dipendenti e attestati.</span>
-      </div>
-    </section>
-    {% elif totale == 0 %}
-    <section class="panel block">
-      <div class="empty">
-        <span class="ebadge" style="background:#fff5ec;color:#c2410c;"><svg class="ico"><use href="#i-alert-cir"/></svg></span>
-        <span class="t">Nessun risultato</span>
-        <span class="m">Nessun elemento corrisponde a «{{ q }}». Prova con un altro termine.</span>
-      </div>
-    </section>
-    {% else %}
+    {# ── Risultati (aggiornati live via HTMX) ───────────────────────────── #}
+    <div id="fm-results">
+      {% include "anagrafica/partials/_formazione_search_results.html" %}
+    </div>
 
-    {% if risultati.corsi %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-book"/></svg>Corsi <span class="count">{{ risultati.corsi|length }}</span></div>
-      </div>
-      <div class="areas">
-        {% for c in risultati.corsi %}
-        <a class="area" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-book"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ c.titolo|truncatechars:54 }}</span>
-            <span class="area-desc"><span class="code">{{ c.codice }}</span>{% if c.piano %} · {{ c.piano.nome|truncatechars:34 }}{% endif %}</span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if risultati.sessioni %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-calendar"/></svg>Sessioni <span class="count">{{ risultati.sessioni|length }}</span></div>
-      </div>
-      <div class="areas">
-        {% for s in risultati.sessioni %}
-        <a class="area" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-calendar"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ s.codice_sessione }}</span>
-            <span class="area-desc">{{ s.corso.titolo|truncatechars:34 }} · {{ s.data_inizio|date:"d-m-Y" }}</span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if risultati.piani %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-clipboard"/></svg>Piani formativi <span class="count">{{ risultati.piani|length }}</span></div>
-      </div>
-      <div class="areas">
-        {% for p in risultati.piani %}
-        <a class="area" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-clipboard"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ p.nome|truncatechars:54 }}</span>
-            <span class="area-desc"><span class="code">{{ p.codice }}</span></span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if risultati.qualifiche %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-cap"/></svg>Qualifiche / Abilitazioni <span class="count">{{ risultati.qualifiche|length }}</span></div>
-      </div>
-      <div class="areas">
-        {% for t in risultati.qualifiche %}
-        <a class="area" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-cap"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ t.nome|truncatechars:54 }}</span>
-            <span class="area-desc">{{ t.get_categoria_display }}</span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if risultati.dipendenti %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-users"/></svg>Dipendenti <span class="count">{{ risultati.dipendenti|length }}</span></div>
-        <div class="block-aside">apre il libretto formativo</div>
-      </div>
-      <div class="areas">
-        {% for d in risultati.dipendenti %}
-        <a class="area" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-users"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ d.nome }}</span>
-            <span class="area-desc"><span class="code">#{{ d.legacy_id }}</span> · libretto formativo</span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if risultati.attestati %}
-    <section class="panel block">
-      <div class="block-head">
-        <div class="block-title"><svg class="ico"><use href="#i-award"/></svg>Attestati <span class="count">{{ risultati.attestati|length }}</span></div>
-      </div>
-      <div class="areas">
-        {% for a in risultati.attestati %}
-        <a class="area" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
-          <span class="area-ic"><svg class="ico"><use href="#i-award"/></svg></span>
-          <span class="area-body">
-            <span class="area-title">{{ a.nome }}</span>
-            <span class="area-desc">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:34 }}{% if a.record.data_completamento %} · {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% endif %}
-
-  </div>{# .wrap #}
-</div>{# .fm2 #}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

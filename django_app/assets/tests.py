@@ -6533,7 +6533,8 @@ class AssetMaintenanceStepThreeTests(TestCase):
     def test_schedule_and_asset_detail_show_contextual_suggestions(self):
         self.client.force_login(self.admin)
 
-        schedule_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
+        # status=all per includere le righe "senza storico" (la vista default "Attive" le nasconde)
+        schedule_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}&status=all")
         self.assertEqual(schedule_response.status_code, 200)
         self.assertContains(schedule_response, "Imposta prima esecuzione")
         self.assertContains(schedule_response, "Verifica copertura")

@@ -346,11 +346,11 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
 
   <!-- TAB: VERIFICHE ───────────────────────────────────────────────── -->
   {% if active_tab == 'verifiche' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
+  <details class="sc-card as-collapse as-collapse--cap" open>
+    <summary class="sc-card-head">
       <span class="sc-card-title">Verifiche periodiche</span>
       <a href="{{ url_verifications_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
+    </summary>
     <div class="sc-filters">
       <form method="get" class="sc-filters-form">
         <input type="hidden" name="tab" value="verifiche">
@@ -362,7 +362,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
         </select>
       </form>
     </div>
-    <div class="sc-card-body">
+    <div class="sc-card-body as-collapse-body">
       {% if verif_rows %}
         <div class="sc-table-wrap">
           <table class="sc-table">
@@ -376,7 +376,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
             </tr></thead>
             <tbody>
               {% for row in verif_rows %}
-              <tr>
+              <tr data-row-href="{{ url_verifications_full }}">
                 <td><strong>{{ row.v.name }}</strong></td>
                 <td class="sc-muted">{{ row.v.supplier|default:"—" }}</td>
                 <td class="sc-muted">{{ row.v.frequency_months }} mesi</td>
@@ -412,16 +412,16 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
         <div class="sc-empty">Nessuna verifica periodica configurata per questo scope.</div>
       {% endif %}
     </div>
-  </div>
+  </details>
   {% endif %}
 
   <!-- TAB: SCADENZE AMM. ───────────────────────────────────────────── -->
   {% if active_tab == 'scadenze' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
+  <details class="sc-card as-collapse as-collapse--cap" open>
+    <summary class="sc-card-head">
       <span class="sc-card-title">Scadenze amministrative</span>
       <a href="{{ url_deadlines_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
+    </summary>
     <div class="sc-filters">
       <form method="get" class="sc-filters-form">
         <input type="hidden" name="tab" value="scadenze">
@@ -434,7 +434,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
         </select>
       </form>
     </div>
-    <div class="sc-card-body">
+    <div class="sc-card-body as-collapse-body">
       {% if deadline_rows %}
         <div class="sc-table-wrap">
           <table class="sc-table">
@@ -447,7 +447,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
             </tr></thead>
             <tbody>
               {% for row in deadline_rows %}
-              <tr>
+              <tr{% if row.d.asset %} data-row-href="{% url 'assets:asset_view' row.d.asset.id %}"{% endif %}>
                 <td><strong>{{ row.d.title }}</strong>{% if row.d.reference_code %} <span class="sc-muted">({{ row.d.reference_code }})</span>{% endif %}</td>
                 <td>
                   {% if row.d.asset %}
@@ -478,17 +478,17 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
         <div class="sc-empty">Nessuna scadenza amministrativa attiva{% if deadline_type_filter %} per questo tipo{% endif %}.</div>
       {% endif %}
     </div>
-  </div>
+  </details>
   {% endif %}
 
   <!-- TAB: CONTRATTI ───────────────────────────────────────────────── -->
   {% if active_tab == 'contratti' %}
-  <div class="sc-card">
-    <div class="sc-card-head">
+  <details class="sc-card as-collapse as-collapse--cap" open>
+    <summary class="sc-card-head">
       <span class="sc-card-title">Contratti assistenza</span>
       <a href="{{ url_contracts_full }}" class="sc-fullpage-link">Gestione completa &rsaquo;</a>
-    </div>
-    <div class="sc-card-body">
+    </summary>
+    <div class="sc-card-body as-collapse-body">
       {% if contract_rows %}
         <div class="sc-table-wrap">
           <table class="sc-table">
@@ -502,7 +502,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
             </tr></thead>
             <tbody>
               {% for row in contract_rows %}
-              <tr>
+              <tr{% if row.c.asset %} data-row-href="{% url 'assets:asset_view' row.c.asset.id %}"{% endif %}>
                 <td>
                   <strong>{{ row.c.title }}</strong>
                   {% if row.c.code %}<span class="sc-cell-code">{{ row.c.code }}</span>{% endif %}
@@ -538,7 +538,7 @@ body.theme-dark .sc-days-badge.muted { background:rgba(255,255,255,.07); color:#
         <div class="sc-empty">Nessun contratto assistenza attivo.</div>
       {% endif %}
     </div>
-  </div>
+  </details>
   {% endif %}
 
 </div>

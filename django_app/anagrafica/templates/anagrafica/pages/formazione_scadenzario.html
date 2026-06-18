@@ -5,216 +5,160 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  {# ── Header ─────────────────────────────────────────────────────────────── #}
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
-        &rsaquo; Scadenzario
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Scadenzario</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-alarm"/></svg>Scadenzario formazione</h1>
+        <p class="fmd-ph-sub">Corsi scaduti, in scadenza e mai frequentati.</p>
       </div>
-      <h2 class="hr-pagehead-title">Scadenzario Formazione</h2>
-      <p class="hr-pagehead-desc">
-        Corsi scaduti, in scadenza e mai frequentati.
-      </p>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      {% if is_editor and filtro_corso %}
-      <a href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ filtro_corso }}" class="hr-btn hr-btn-primary"
-         title="Crea una nuova edizione di questo corso; in iscritti potrai iscrivere in blocco i candidati da rinnovare">↻ Pianifica edizione di rinnovo</a>
-      {% endif %}
-      <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost">← Formazione</a>
-    </div>
-  </div>
-
-  {# ── Banner cache vuota ─────────────────────────────────────────────────── #}
-  {% if is_cache_empty %}
-  <div class="fm-cache-banner">
-    ⚠️ <strong>Cache scadenze vuota.</strong>
-    Eseguire <code>python manage.py refresh_training_deadlines --all</code> per popolare lo scadenzario.
-  </div>
-  {% endif %}
-
-  {# ── KPI ────────────────────────────────────────────────────────────────── #}
-  <div class="hr-metric-grid" style="margin-bottom:20px;">
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⚠️</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Scaduti</span>
-          <span class="hr-metric-val">{{ n_scaduti }}</span>
-        </div>
-        <div class="hr-metric-sub">Da rinnovare subito</div>
+      <div class="fmd-pagehead-actions">
+        {% if is_editor and filtro_corso %}
+        <a href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ filtro_corso }}" class="fmd-btn fmd-btn-primary"
+           title="Crea una nuova edizione di questo corso; in iscritti potrai iscrivere in blocco i candidati da rinnovare">
+          <svg class="fmd-ico"><use href="#i-refresh"/></svg>Pianifica edizione di rinnovo
+        </a>
+        {% endif %}
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" class="fmd-btn fmd-btn-ghost">← Formazione</a>
       </div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">⏰</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Entro 30gg</span>
-          <span class="hr-metric-val">{{ n_30gg }}</span>
-        </div>
-        <div class="hr-metric-sub">Prossima scadenza</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">📅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Entro 90gg</span>
-          <span class="hr-metric-val">{{ n_90gg }}</span>
-        </div>
-        <div class="hr-metric-sub">Pianificazione</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico navy">❌</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Mai frequentati</span>
-          <span class="hr-metric-val">{{ n_mai }}</span>
-        </div>
-        <div class="hr-metric-sub">Corsi obbligatori non svolti</div>
-      </div>
-    </div>
-  </div>
 
-  {# ── Filtri ──────────────────────────────────────────────────────────────── #}
-  <div class="hr-card" style="margin-bottom:16px;">
-    <form method="get" action="">
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:12px 16px;">
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px;">
-          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Stato</label>
-          <select name="stato" class="fm-input fm-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_stato %}selected{% endif %}>Scaduti + in scadenza + mai freq.</option>
-            {% for val, lbl in STATO_SCADENZA_CHOICES %}
-            <option value="{{ val }}" {% if filtro_stato == val %}selected{% endif %}>{{ lbl }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px;">
-          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Corso</label>
-          <select name="corso" class="fm-input fm-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_corso %}selected{% endif %}>Tutti</option>
-            {% for c in corsi_list %}
-            <option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:"d" %}selected{% endif %}>
-              {{ c.codice }} — {{ c.titolo|truncatechars:50 }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:2;min-width:200px;">
-          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Dipendente</label>
-          <input type="text" name="q" value="{{ filtro_q }}" class="fm-input" placeholder="Cerca per nome…">
-        </div>
-        <div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:1px;">
-          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
-          <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
-        </div>
+    {% if is_cache_empty %}
+    <div class="fmd-alert">
+      <span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
+      <div class="fmd-alert-body">
+        <div class="fmd-alert-t">Cache scadenze vuota.</div>
+        <div class="fmd-alert-m">Eseguire <code>python manage.py refresh_training_deadlines --all</code> per popolare lo scadenzario.</div>
       </div>
-    </form>
-  </div>
-
-  {# ── Tabella risultati ────────────────────────────────────────────────────── #}
-  <div class="hr-card fm-section">
-    <div class="fm-section-head">
-      <div class="fm-section-title">📑 Risultati <span class="fm-count">{{ totale }}</span></div>
     </div>
+    {% endif %}
 
-    {% if page_obj.object_list %}
-    <div class="fm-table-wrap">
-      <table class="fm-table" data-table-id="formazione.scadenzario">
-        <thead>
-          <tr>
-            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-            <th data-col="corso" data-col-label="Corso" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso</th>
-            <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
-            <th class="nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
-            <th data-col="stato" data-col-label="Stato" data-col-type="select"
-                data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"],["UNA_TANTUM","Una tantum"],["VALIDO","Valido"]]'
-                data-col-sortable="1" data-col-filterable="1">Stato</th>
-            <th data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obblig.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for sc in page_obj.object_list %}
-          <tr>
-            <td>
-              <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' sc.legacy_anagrafica_id %}">{{ sc.nome_dip }}</a>
-            </td>
-            <td>
-              <a class="fm-link" href="{% url 'anagrafica:formazione_corso_detail' sc.corso.pk %}" title="{{ sc.corso.titolo }}">{{ sc.corso.codice }}</a>
-              <div class="muted" style="font-size:11px;margin-top:1px;">{{ sc.corso.titolo|truncatechars:60 }}</div>
-            </td>
-            <td class="muted">{{ sc.corso.piano.nome|default:"—" }}</td>
-            <td class="nowrap muted"
-                data-sort-value="{{ sc.data_scadenza|date:'Y-m-d'|default:'9999-12-31' }}">
-              {{ sc.data_scadenza|date:"d-m-Y"|default:"—" }}
-            </td>
-            <td>
-              {% if sc.stato_scadenza == "SCADUTO" %}
-                <span class="fm-pill fm-pill-scaduto">Scaduto{% if sc.giorni_alla_scadenza %} da {{ sc.giorni_alla_scadenza|stringformat:"d"|slice:"1:" }}gg{% endif %}</span>
-              {% elif sc.stato_scadenza == "IN_SCADENZA_30" %}
-                <span class="fm-pill fm-pill-in_scadenza_30">⏰ {{ sc.giorni_alla_scadenza }}gg</span>
-              {% elif sc.stato_scadenza == "IN_SCADENZA_90" %}
-                <span class="fm-pill fm-pill-in_scadenza_90">{{ sc.giorni_alla_scadenza }}gg</span>
-              {% elif sc.stato_scadenza == "MAI_FREQUENTATO" %}
-                <span class="fm-pill fm-pill-mai_frequentato">Mai frequentato</span>
-              {% elif sc.stato_scadenza == "UNA_TANTUM" %}
-                <span class="fm-pill fm-pill-una_tantum">Una tantum</span>
-              {% elif sc.stato_scadenza == "VALIDO" %}
-                <span class="fm-pill fm-pill-valid">Valido — {{ sc.giorni_alla_scadenza }}gg</span>
-              {% else %}
-                <span class="fm-pill fm-pill-missing">{{ sc.stato_scadenza }}</span>
-              {% endif %}
-            </td>
-            <td style="text-align:center;">
-              {% if sc.is_required %}
-                <span style="color:#b91c1c;font-weight:700;">✓</span>
-              {% else %}
-                <span class="muted">—</span>
-              {% endif %}
-            </td>
-          </tr>
+    {# ── KPI ────────────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-amber">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
+        <div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare subito</div>
+      </div>
+      <div class="fmd-mtr fmd-t-orange">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div>
+        <div class="fmd-mtr-lbl">Entro 30gg</div><div class="fmd-mtr-sub">Prossima scadenza</div>
+      </div>
+      <div class="fmd-mtr fmd-t-yellow">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_90gg }}</span></div>
+        <div class="fmd-mtr-lbl">Entro 90gg</div><div class="fmd-mtr-sub">Pianificazione</div>
+      </div>
+      <div class="fmd-mtr fmd-t-navy">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div>
+        <div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Corsi obbligatori non svolti</div>
+      </div>
+    </section>
+
+    {# ── Tabella + filtri ───────────────────────────────────────────────── #}
+    <section class="fmd-panel">
+      <form method="get" action="" class="fmd-toolbar">
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato" onchange="this.form.submit()">
+          <option value="" {% if not filtro_stato %}selected{% endif %}>Scaduti + in scadenza + mai freq.</option>
+          {% for val, lbl in STATO_SCADENZA_CHOICES %}
+          <option value="{{ val }}" {% if filtro_stato == val %}selected{% endif %}>{{ lbl }}</option>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
+        </select>
+        <select name="corso" class="fmd-select" aria-label="Filtra per corso" onchange="this.form.submit()">
+          <option value="" {% if not filtro_corso %}selected{% endif %}>Tutti i corsi</option>
+          {% for c in corsi_list %}
+          <option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.codice }} — {{ c.titolo|truncatechars:50 }}</option>
+          {% endfor %}
+        </select>
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="text" name="q" value="{{ filtro_q }}" placeholder="Cerca dipendente…" autocomplete="off">
+        </span>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+      </form>
 
-    {% if page_obj.has_other_pages %}
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
-      {% if page_obj.has_previous %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}"
-           class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
+      {% if page_obj.object_list %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.scadenzario">
+          <thead>
+            <tr>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="corso" data-col-label="Corso" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Corso</th>
+              <th data-col="piano" data-col-label="Piano" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Piano</th>
+              <th class="fmd-nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+              <th data-col="stato" data-col-label="Stato" data-col-type="select"
+                  data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"],["UNA_TANTUM","Una tantum"],["VALIDO","Valido"]]'
+                  data-col-sortable="1" data-col-filterable="1">Stato</th>
+              <th class="fmd-c" data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obblig.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sc in page_obj.object_list %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' sc.legacy_anagrafica_id %}">{{ sc.nome_dip }}</a></td>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' sc.corso.pk %}" title="{{ sc.corso.titolo }}">{{ sc.corso.codice }}</a>
+                <div class="fmd-cell-sub">{{ sc.corso.titolo|truncatechars:60 }}</div>
+              </td>
+              <td class="fmd-muted">{{ sc.corso.piano.nome|default:"—" }}</td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ sc.data_scadenza|date:'Y-m-d'|default:'9999-12-31' }}">{{ sc.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+              <td>
+                {% if sc.stato_scadenza == "SCADUTO" %}
+                  <span class="fmd-badge fmd-b-red">Scaduto{% if sc.giorni_alla_scadenza %} da {{ sc.giorni_alla_scadenza|stringformat:"d"|slice:"1:" }}gg{% endif %}</span>
+                {% elif sc.stato_scadenza == "IN_SCADENZA_30" %}
+                  <span class="fmd-badge fmd-b-orange">{{ sc.giorni_alla_scadenza }}gg</span>
+                {% elif sc.stato_scadenza == "IN_SCADENZA_90" %}
+                  <span class="fmd-badge fmd-b-amber">{{ sc.giorni_alla_scadenza }}gg</span>
+                {% elif sc.stato_scadenza == "MAI_FREQUENTATO" %}
+                  <span class="fmd-badge fmd-b-grey">Mai frequentato</span>
+                {% elif sc.stato_scadenza == "UNA_TANTUM" %}
+                  <span class="fmd-badge fmd-b-cyan">Una tantum</span>
+                {% elif sc.stato_scadenza == "VALIDO" %}
+                  <span class="fmd-badge fmd-b-green">Valido — {{ sc.giorni_alla_scadenza }}gg</span>
+                {% else %}
+                  <span class="fmd-badge fmd-b-grey">{{ sc.stato_scadenza }}</span>
+                {% endif %}
+              </td>
+              <td class="fmd-c">{% if sc.is_required %}<span class="fmd-badge fmd-b-red">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} risultati</span>
+        {% if page_obj.has_other_pages %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
+        <span class="fmd-et">Nessuna scadenza trovata</span>
+        <span class="fmd-em">Nessun risultato con i filtri selezionati.</span>
+      </div>
       {% endif %}
-      <span style="font-size:13px;color:#64748b;">
-        Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
-      </span>
-      {% if page_obj.has_next %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}"
-           class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
-      {% endif %}
-    </div>
-    {% endif %}
+    </section>
 
-    {% else %}
-    <div class="hr-empty">
-      <div style="font-size:32px;margin-bottom:8px;">✅</div>
-      Nessuna scadenza trovata con i filtri selezionati.
-    </div>
-    {% endif %}
-  </div>
-
-</div>
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html). #}
-{% endblock %}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

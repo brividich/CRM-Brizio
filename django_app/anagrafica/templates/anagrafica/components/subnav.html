@@ -1,25 +1,41 @@
 {% load anagrafica_extras %}
 {% subnav_anagrafica as nav %}
+{% include "anagrafica/components/_fm_icons.html" %}
 <style>
-/* Subnav Anagrafica HR — restyle pill-tab (Fase A) */
-.hrnav { display:flex; gap:6px; flex-wrap:wrap; align-items:center;
-  background:#fff; border:1px solid #e2e8f0; border-radius:.85rem;
-  padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-.hrnav-tab { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
-  border-radius:.6rem; padding:7px 13px; font-size:13px; font-weight:700;
-  color:#64748b; text-decoration:none; border:none; background:none;
+/* Subnav Anagrafica HR — design «Novicrom HUB»: pill-tab + icone line */
+.hrnav { display:flex; gap:4px; flex-wrap:wrap; align-items:center;
+  position:sticky; top:var(--nav-h, 60px); z-index:90;
+  background:#fff; border-bottom:1px solid #e6ebf3; border-radius:0;
+  padding:7px var(--content-pad-x, 24px);
+  box-shadow:0 6px 14px -10px rgba(12,37,69,.28);
+  font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
+/* In modalità sidebar (desktop) NON c'è una topnav in alto (l'app-header è
+   display:none): la subnav va fissata al top assoluto della pagina. */
+body.nav-side .hrnav { top:0; }
+/* Su mobile l'app-header torna visibile e sticky a top:0 → ripristina l'offset. */
+@media (max-width:768px){ body.nav-side .hrnav { top:var(--nav-h, 60px); } }
+.hrnav-tab { display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  border-radius:9px; padding:8px 13px; font-size:13px; font-weight:600;
+  color:#5a6580; text-decoration:none; border:none; background:none;
   cursor:pointer; font-family:inherit; transition:background .15s, color .15s; }
-.hrnav-tab:hover { background:#f1f5f9; color:#12395f; }
-.hrnav-tab.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+.hrnav-ico { width:16px; height:16px; flex:0 0 16px; stroke:currentColor; stroke-width:1.8;
+  fill:none; stroke-linecap:round; stroke-linejoin:round; color:#94a3b8; transition:color .15s; }
+.hrnav-tab:hover { background:#f1f5f9; color:#0c2545; }
+.hrnav-tab:hover .hrnav-ico { color:#1f87cd; }
+.hrnav-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(8,20,45,.25); }
+.hrnav-tab.active .hrnav-ico { color:#1f87cd; }
+.hrnav-caret { font-size:9px; opacity:.7; }
 .hrnav-dd { position:relative; display:inline-block; }
-.hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:190px;
-  background:#fff; border:1px solid #e2e8f0; border-radius:.7rem;
-  box-shadow:0 10px 26px -12px rgba(15,23,42,.4); z-index:200; padding:5px; }
+.hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:210px;
+  background:#fff; border:1px solid #e6ebf3; border-radius:12px;
+  box-shadow:0 14px 36px rgba(12,37,69,.18); z-index:200; padding:6px; }
 .hrnav-dd:hover .hrnav-dd-menu, .hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
-.hrnav-dd-menu a { display:block; padding:8px 11px; border-radius:.5rem; font-size:13px;
-  font-weight:600; color:#374151; text-decoration:none; white-space:nowrap; }
-.hrnav-dd-menu a:hover { background:#f1f5f9; color:#12395f; }
-.hrnav-dd-menu a.active { background:#eef2ff; color:#12395f; }
+.hrnav-dd-menu a { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:8px;
+  font-size:13px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
+.hrnav-dd-menu a:hover { background:#f4f8fc; color:#0c2545; }
+.hrnav-dd-menu a:hover .hrnav-ico { color:#1f87cd; }
+.hrnav-dd-menu a.active { background:#e8f3fb; color:#0c2545; }
+.hrnav-dd-menu a.active .hrnav-ico { color:#1f87cd; }
 body.theme-dark .hrnav { background:var(--surface); border-color:var(--border); }
 body.theme-dark .hrnav-tab { color:var(--text-light); }
 body.theme-dark .hrnav-tab:hover { background:var(--surface-alt); color:#93c5fd; }
@@ -30,21 +46,23 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
 <div class="hrnav">
   {% for item in nav.items %}
     {% if item.type == "link" %}
+      {% with ic=item.label|subnav_svg_icon %}
       <a class="hrnav-tab{% if item.active %} active{% endif %}"
          href="{{ item.url }}"
-         {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+         {% if item.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
+      {% endwith %}
     {% elif item.type == "category" %}
       <span class="hrnav-dd">
-        <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">
-          {% if item.icona %}{{ item.icona }} {% endif %}{{ item.label }} ▾
-        </button>
+        {% with ic=item.label|subnav_svg_icon %}
+        <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
+        {% endwith %}
         <div class="hrnav-dd-menu">
           {% for child in item.links %}
+            {% with cic=child.label|subnav_svg_icon %}
             <a href="{{ child.url }}"
                class="{% if child.active %}active{% endif %}"
-               {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>
-              {% if child.icona %}{{ child.icona }} {% endif %}{{ child.label }}
-            </a>
+               {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
+            {% endwith %}
           {% endfor %}
         </div>
       </span>

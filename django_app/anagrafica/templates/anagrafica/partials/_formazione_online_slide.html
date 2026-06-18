@@ -1,0 +1,47 @@
+{# Partial HTMX: una slide del micro-corso e-learning. Swappato dentro #fm-slide-target. #}
+<div class="fm-slide" id="fm-slide-{{ slide.ordine }}">
+
+  <div class="fmd-bar" style="margin-bottom:14px;"><span style="width:{{ progress_pct }}%;"></span></div>
+
+  <div class="fm-slide-meta">
+    <span class="fmd-code">Slide {{ indice }} / {{ n_slide }}</span>
+  </div>
+
+  {% if not slide.is_immagine %}<h2 class="fm-slide-title">{{ slide.titolo }}</h2>{% endif %}
+
+  <div class="fm-slide-body">
+    {% if slide.is_immagine %}
+      <img class="fm-slide-img" src="{% url 'anagrafica:formazione_slide_image' slide.pk %}" alt="{{ slide.titolo }}" loading="lazy">
+    {% else %}
+      {{ contenuto_html }}
+    {% endif %}
+  </div>
+
+  <div class="fm-slide-nav">
+    {% if ordine_prec %}
+      <button type="button" class="fmd-btn fmd-btn-ghost"
+              hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_prec %}"
+              hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
+        <svg class="fmd-ico"><use href="#i-arrow-right" style="transform:scaleX(-1);"/></svg> Indietro
+      </button>
+    {% else %}
+      <span></span>
+    {% endif %}
+
+    {% if not is_ultima %}
+      <button type="button" class="fmd-btn fmd-btn-primary"
+              hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_succ %}"
+              hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
+        Avanti <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
+      </button>
+    {% elif n_domande > 0 %}
+      <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">
+        <svg class="fmd-ico"><use href="#i-check"/></svg> Vai al quiz finale
+      </a>
+    {% else %}
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_catalog' %}">
+        Fine — torna al catalogo
+      </a>
+    {% endif %}
+  </div>
+</div>

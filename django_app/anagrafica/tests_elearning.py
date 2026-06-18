@@ -1,0 +1,156 @@
+"""Test mirati per i micro-corsi e-learning (slide + quiz).
+
+Coprono: renderer Markdown sicuro, integrità modelli, endpoint autore (slide/quiz)
+via client con superuser (che supera `_can_edit_formazione`). Il flusso discente HTTP
+dipende dalle tabelle legacy (anagrafica_dipendenti, unmanaged) non presenti nel DB di
+test, quindi qui si verifica la logica di punteggio a livello di modello/servizio.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+
+from .models_formazione import (
+    TrainingCourse,
+    TrainingPlan,
+    TrainingQuizOption,
+    TrainingQuizQuestion,
+    TrainingSlide,
+)
+from .services.elearning_markdown import render_markdown
+
+
+class MarkdownRendererTests(TestCase):
+    def test_escape_first_blocca_xss(self):
+        html = render_markdown("<script>alert(1)</script>")
+        self.assertNotIn("<script>", html)
+        self.assertIn("&lt;script&gt;", html)
+
+    def test_sottoinsieme_markdown(self):
+        html = render_markdown("# Tit\n\n**b** *i* `c`\n\n- a\n- b\n\n[x](https://e.it)")
+        self.assertIn("<h2>Tit</h2>", html)
+        self.assertIn("<strong>b</strong>", html)
+        self.assertIn("<em>i</em>", html)
+        self.assertIn("<code>c</code>", html)
+        self.assertIn("<ul><li>a</li><li>b</li></ul>", html)
+        self.assertIn('<a href="https://e.it"', html)
+
+    def test_link_schema_non_sicuro_ignorato(self):
+        # javascript: non matcha il pattern http/https/mailto -> resta testo escapato
+        html = render_markdown("[x](javascript:alert(1))")
+        self.assertNotIn("<a ", html)
+
+
+class ElearningModelTests(TestCase):
+    def setUp(self):
+        self.piano = TrainingPlan.objects.create(codice="PE", nome="Piano E-learning")
+        self.corso = TrainingCourse.objects.create(
+            piano=self.piano, codice="EL01", titolo="Sicurezza base",
+            durata_ore_teorica=Decimal("1.0"), is_elearning=True, quiz_punteggio_minimo=70,
+            stato="ATTIVO",
+        )
+
+    def test_relazioni_slide_e_quiz(self):
+        s = TrainingSlide.objects.create(corso=self.corso, ordine=1, titolo="Intro", contenuto="# Ciao")
+        q = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=1, testo="2+2?")
+        TrainingQuizOption.objects.create(domanda=q, ordine=1, testo="4", corretta=True)
+        TrainingQuizOption.objects.create(domanda=q, ordine=2, testo="5", corretta=False)
+        self.assertEqual(self.corso.slides.count(), 1)
+        self.assertEqual(self.corso.quiz_domande.count(), 1)
+        self.assertEqual(q.opzioni.filter(corretta=True).count(), 1)
+        self.assertIn("EL01", str(s))
+
+
+class ElearningAuthoringEndpointTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("autore", "a@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+        self.piano = TrainingPlan.objects.create(codice="PE", nome="Piano E-learning")
+        self.corso = TrainingCourse.objects.create(
+            piano=self.piano, codice="EL01", titolo="Corso", durata_ore_teorica=Decimal("1.0"),
+            is_elearning=True, stato="ATTIVO",
+        )
+
+    def test_crea_slide(self):
+        url = reverse("anagrafica:formazione_slide_save", args=[self.corso.pk])
+        resp = self.client.post(url, {"titolo": "Slide 1", "ordine": 1, "contenuto": "# x", "is_active": "on"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.corso.slides.count(), 1)
+
+    def test_crea_domanda_e_opzione(self):
+        q_url = reverse("anagrafica:formazione_question_save", args=[self.corso.pk])
+        self.client.post(q_url, {"testo": "Domanda?", "ordine": 1, "is_active": "on"})
+        q = self.corso.quiz_domande.first()
+        self.assertIsNotNone(q)
+        o_url = reverse("anagrafica:formazione_option_save", args=[self.corso.pk, q.pk])
+        self.client.post(o_url, {"testo": "Giusta", "ordine": 1, "corretta": "on"})
+        self.assertEqual(q.opzioni.filter(corretta=True).count(), 1)
+
+    def test_pagina_autore_render(self):
+        resp = self.client.get(reverse("anagrafica:formazione_corso_elearning", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+
+
+def _pdf_due_pagine() -> bytes:
+    import io
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.drawString(100, 700, "Slide 1 - test")
+    c.showPage()
+    c.drawString(100, 700, "Slide 2 - test")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+class ElearningImportTests(TestCase):
+    """Import da PDF (PyMuPDF, niente LibreOffice): una slide-immagine per pagina."""
+
+    def setUp(self):
+        self.piano = TrainingPlan.objects.create(codice="PE", nome="Piano")
+        self.corso = TrainingCourse.objects.create(
+            piano=self.piano, codice="ELPDF", titolo="Corso PDF", durata_ore_teorica=Decimal("1.0"),
+            is_elearning=True, stato="ATTIVO",
+        )
+
+    def test_import_pdf_crea_slide_immagine(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .services.elearning_import import importa_slides_da_file
+        f = SimpleUploadedFile("lezione.pdf", _pdf_due_pagine(), content_type="application/pdf")
+        n = importa_slides_da_file(self.corso, f, user=None)
+        self.assertEqual(n, 2)
+        slides = list(self.corso.slides.order_by("ordine"))
+        self.assertEqual(len(slides), 2)
+        self.assertTrue(all(s.is_immagine for s in slides))
+
+    def test_estensione_non_valida(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .services.elearning_import import importa_slides_da_file, ImportError_
+        f = SimpleUploadedFile("note.txt", b"ciao", content_type="text/plain")
+        with self.assertRaises(ImportError_):
+            importa_slides_da_file(self.corso, f, user=None)
+
+    def test_serve_immagine_slide(self):
+        from django.contrib.auth import get_user_model
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .services.elearning_import import importa_slides_da_file
+        f = SimpleUploadedFile("l.pdf", _pdf_due_pagine(), content_type="application/pdf")
+        importa_slides_da_file(self.corso, f, user=None)
+        slide = self.corso.slides.first()
+        User = get_user_model()
+        u = User.objects.create_user("disc", "d@e.it", "pwd12345")
+        # Onboarding completato: evita il redirect del middleware (in prod i dipendenti l'hanno fatto)
+        from django.utils import timezone as _tz
+        from core.models import UserOnboarding
+        UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True, "completed_at": _tz.now()})
+        self.client.force_login(u)
+        # Corso pubblicato e-learning -> qualsiasi utente autenticato puo' caricare l'immagine
+        resp = self.client.get(reverse("anagrafica:formazione_slide_image", args=[slide.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "image/png")

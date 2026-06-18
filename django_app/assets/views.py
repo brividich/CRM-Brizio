@@ -12032,9 +12032,13 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=asset_qs)
     primary_contract_by_asset_id: dict[int, AssistanceContract | None] = {}
     filtered_rows: list[dict[str, object]] = []
-    # "Senza storico" (prima esecuzione da pianificare): contate a parte cosi restano
-    # visibili come totale anche quando la vista "Attive" le nasconde dalla tabella.
-    schedule_missing_total = 0
+    # Totali per i KPI (calcolati sul sottoinsieme che passa i filtri non-stato, cosi
+    # restano corretti anche quando la tabella e filtrata/snellita).
+    status_totals = {"overdue": 0, "warning": 0, "upcoming": 0, "missing": 0}
+    # Vista "Attive" (default): mostra solo cio che e azionabile a breve. Nasconde dalla
+    # tabella le "senza storico" e le pianificate oltre l'orizzonte, restando contate.
+    ATTIVE_HORIZON_DAYS = 90
+    attive_hidden_total = 0
     for row in schedule_rows:
         asset = row["asset"]
         if asset.id not in primary_contract_by_asset_id:
@@ -12086,16 +12090,24 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             ]
             if not any(q_value in _clean_string(chunk).casefold() for chunk in searchable_chunks):
                 continue
-        if row["schedule_status"] == "missing":
-            schedule_missing_total += 1
-        # Filtro stato. "attive" = default operativo: nasconde le "senza storico" (rumore)
-        # ma le mantiene contate; "all" le mostra tutte.
-        if status_filter == "due" and row["schedule_status"] not in {"overdue", "warning", "missing"}:
+        status_value = str(row["schedule_status"] or "")
+        if status_value in status_totals:
+            status_totals[status_value] += 1
+
+        # Filtro stato per la tabella.
+        if status_filter == "due" and status_value not in {"overdue", "warning", "missing"}:
             continue
-        if status_filter == "attive" and row["schedule_status"] == "missing":
+        if status_filter in {"overdue", "warning", "upcoming", "missing"} and status_value != status_filter:
             continue
-        if status_filter in {"overdue", "warning", "upcoming", "missing"} and row["schedule_status"] != status_filter:
-            continue
+        if status_filter == "attive":
+            far_upcoming = (
+                status_value == "upcoming"
+                and isinstance(row.get("days_until_due"), int)
+                and row["days_until_due"] > ATTIVE_HORIZON_DAYS
+            )
+            if status_value == "missing" or far_upcoming:
+                attive_hidden_total += 1
+                continue
         filtered_rows.append(row)
 
     calendar_event_map: dict[tuple[int, int, date], list[AssetCalendarEvent]] = defaultdict(list)
@@ -12127,6 +12139,22 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     schedule_execution_cutoff = _periodic_execution_window_cutoff(
         PERIODIC_EXECUTION_WINDOW_DEFAULT, today=schedule_today
     )
+    # Storico esecuzioni in batch: una sola query per tutte le righe visibili (evita N+1).
+    exec_pairs = {(row["asset"].id, row["base_rule"].id) for row in filtered_rows}
+    exec_by_pair: dict[tuple[int, int], list[dict[str, object]]] = defaultdict(list)
+    if exec_pairs:
+        exec_wo_qs = WorkOrder.objects.select_related("asset", "supplier").filter(
+            asset_id__in={pair[0] for pair in exec_pairs},
+            maintenance_rule_id__in={pair[1] for pair in exec_pairs},
+            status=WorkOrder.STATUS_DONE,
+        )
+        if schedule_execution_cutoff is not None:
+            exec_wo_qs = exec_wo_qs.filter(closed_at__date__gte=schedule_execution_cutoff)
+        for workorder in exec_wo_qs.order_by("-closed_at", "-id"):
+            key = (workorder.asset_id, workorder.maintenance_rule_id)
+            if key in exec_pairs and len(exec_by_pair[key]) < 5:
+                exec_by_pair[key].append(_serialize_execution_workorder(workorder))
+
     for row in filtered_rows:
         due_date = row.get("due_date")
         if isinstance(due_date, date):
@@ -12136,12 +12164,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         else:
             row["calendar_event_rows"] = []
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
-        row["execution_rows"] = _maintenance_rule_execution_rows(
-            asset_id=row["asset"].id,
-            base_rule_id=row["base_rule"].id,
-            cutoff_date=schedule_execution_cutoff,
-            limit=5,
-        )
+        row["execution_rows"] = exec_by_pair.get((row["asset"].id, row["base_rule"].id), [])
         row["execution_count"] = len(row["execution_rows"])
 
     reparto_options = [
@@ -12220,11 +12243,11 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "schedule_total": len(filtered_rows),
             "periodic_schedule_rows": periodic_schedule_rows,
             "periodic_schedule_total": len(periodic_schedule_rows),
-            "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue") + periodic_overdue,
-            "warning_count": sum(1 for row in filtered_rows if row["schedule_status"] == "warning") + periodic_warning,
-            "upcoming_count": sum(1 for row in filtered_rows if row["schedule_status"] == "upcoming") + periodic_upcoming,
-            "missing_count": schedule_missing_total + periodic_missing,
-            "schedule_missing_total": schedule_missing_total,
+            "overdue_count": status_totals["overdue"] + periodic_overdue,
+            "warning_count": status_totals["warning"] + periodic_warning,
+            "upcoming_count": status_totals["upcoming"] + periodic_upcoming,
+            "missing_count": status_totals["missing"] + periodic_missing,
+            "attive_hidden_total": attive_hidden_total,
             "show_all_status_url": _query_url(request, status="all"),
             "covered_count": sum(1 for row in filtered_rows if row["is_covered"]),
             "uncovered_count": sum(1 for row in filtered_rows if not row["is_covered"]),
@@ -15741,11 +15764,21 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     if scad_sub not in ("verifiche", "scadenze", "contratti"):
         scad_sub = "verifiche"
 
+    # ── Cruscotto operativo (cose da fare + segnalazioni arrivate) ─────────
+    from assets.services.dashboard_kpi import (
+        get_cose_da_fare_overview,
+        get_segnalazioni_overview,
+    )
+    cose_da_fare = get_cose_da_fare_overview(today=today)
+    segnalazioni = get_segnalazioni_overview(today=today)
+
     return render(
         request,
         "assets/pages/maintenance_hub.html",
         {
             **_assets_shell_context(request),
+            "cose_da_fare": cose_da_fare,
+            "segnalazioni": segnalazioni,
             "page_title": "Manutenzione",
             "today": today,
             "is_admin": is_admin,
@@ -17116,6 +17149,11 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
             "wo_closed_month": 0, "has_data": False,
         }
 
+    # Cruscotto operativo (cose da fare + segnalazioni arrivate), condiviso con il Centro Manutenzione
+    from assets.services.dashboard_kpi import get_cose_da_fare_overview, get_segnalazioni_overview
+    cose_da_fare = get_cose_da_fare_overview(today=today)
+    segnalazioni = get_segnalazioni_overview(today=today)
+
     # Categorie asset attive (solo principali, per i link in cima)
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
     family_options = categories
@@ -17152,6 +17190,8 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "downtime_by_family": downtime_by_family,
         "fire_safety_kpis": fire_safety_kpis,
         "maintenance_perf": maintenance_perf,
+        "cose_da_fare": cose_da_fare,
+        "segnalazioni": segnalazioni,
         "branding": branding,
         "page_title": "Dashboard Assets",
     })

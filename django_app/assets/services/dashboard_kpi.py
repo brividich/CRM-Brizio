@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 
 from assets.models import (
@@ -12,9 +12,10 @@ from assets.models import (
     AssetAdministrativeDeadline,
     AssetAdministrativeDeadlineCompletion,
     AssetCategory,
+    PeriodicVerification,
     WorkOrder,
 )
-from tickets.models import StatoTicket, Ticket, TipoTicket
+from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
 
 
 UNCATEGORIZED_LABEL = "Senza famiglia"
@@ -705,4 +706,185 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
         "prev_year": _today.year - 1,
         "quarter_label": f"T{quarter + 1} {_today.year}",
         "has_data": has_data,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Cruscotto operativo: "Cose da fare" + "Segnalazioni arrivate"
+# Condiviso tra Dashboard Assets (cruscotto) e Centro Manutenzione (hub).
+# ---------------------------------------------------------------------------
+
+def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict:
+    """Sintesi operativa delle cose da fare per il modulo asset.
+
+    Aggrega gli elementi azionabili (OdL aperti, scadenze e verifiche scadute o
+    imminenti) in un riepilogo compatto riutilizzabile da più dashboard.
+
+    Chiavi restituite:
+        wo_open            int   – ordini di lavoro aperti (asset non dismessi)
+        wo_overdue         int   – OdL aperti da oltre 21 giorni
+        deadlines_overdue  int   – scadenze amministrative scadute
+        deadlines_30       int   – scadenze amministrative entro 30 giorni
+        verifiche_overdue  int   – verifiche periodiche scadute
+        total_urgent       int   – somma degli elementi scaduti/in ritardo
+        items              list  – OdL aperti più vecchi (per la lista breve)
+        has_data           bool  – True se c'è almeno un elemento da gestire
+    """
+    today = today or timezone.localdate()
+    overdue_threshold = today - timedelta(days=21)
+    horizon_30 = today + timedelta(days=30)
+
+    wo_qs = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).exclude(
+        asset__status=Asset.STATUS_RETIRED
+    )
+    wo_open = _safe_count(wo_qs)
+    wo_overdue = _safe_count(wo_qs.filter(opened_at__date__lte=overdue_threshold))
+
+    dl_qs = AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(
+        asset__status=Asset.STATUS_RETIRED
+    )
+    deadlines_overdue = _safe_count(dl_qs.filter(due_date__lt=today))
+    deadlines_30 = _safe_count(dl_qs.filter(due_date__gte=today, due_date__lte=horizon_30))
+
+    pv_qs = PeriodicVerification.objects.filter(
+        is_active=True, is_legacy=False, next_verification_date__isnull=False
+    )
+    verifiche_overdue = _safe_count(pv_qs.filter(next_verification_date__lt=today))
+
+    items: list[dict[str, Any]] = []
+    for wo in wo_qs.select_related("asset").order_by("opened_at")[:limit]:
+        opened_date = wo.opened_at.date() if wo.opened_at else None
+        items.append(
+            {
+                "id": wo.pk,
+                "title": wo.title,
+                "asset_tag": wo.asset.asset_tag if wo.asset_id else "",
+                "asset_name": wo.asset.name if wo.asset_id else "",
+                "reparto": (wo.asset.reparto if wo.asset_id else "") or "",
+                "opened_at": wo.opened_at,
+                "is_overdue": bool(opened_date and opened_date <= overdue_threshold),
+            }
+        )
+
+    return {
+        "wo_open": wo_open,
+        "wo_overdue": wo_overdue,
+        "deadlines_overdue": deadlines_overdue,
+        "deadlines_30": deadlines_30,
+        "verifiche_overdue": verifiche_overdue,
+        "total_urgent": wo_overdue + deadlines_overdue + verifiche_overdue,
+        "items": items,
+        "has_data": bool(wo_open or deadlines_overdue or verifiche_overdue or deadlines_30),
+    }
+
+
+def _base_segnalazioni_qs():
+    """Tutte le segnalazioni di manutenzione (ticket MAN nel registro).
+
+    A differenza di ``_base_ticket_man_qs`` NON richiede un asset collegato:
+    include anche le segnalazioni rapide con punto di intervento a testo libero
+    (``asset_descrizione_libera``).
+    """
+    return Ticket.objects.filter(
+        tipo=TipoTicket.MAN,
+        include_in_maintenance_register=True,
+    )
+
+
+def get_segnalazioni_overview(today: date | None = None, limit: int = 6) -> dict:
+    """Sintesi delle segnalazioni di manutenzione arrivate (ticket MAN).
+
+    Le "segnalazioni" sono i ticket di manutenzione creati dagli operatori (es.
+    via "Segnala un problema"). Questa funzione fornisce il riepilogo per il
+    cruscotto operativo: nuove da prendere in carico, in lavorazione, urgenti,
+    arrivate negli ultimi 7 giorni, distribuzione per priorità e ultime arrivate.
+
+    Chiavi restituite:
+        open_total    int   – segnalazioni aperte/in carico/in attesa
+        nuove         int   – segnalazioni in stato APERTA (da prendere in carico)
+        in_carico     int   – segnalazioni in carico
+        in_attesa     int   – segnalazioni in attesa
+        urgenti       int   – aperte con priorità ALTA/URGENTE o che incidono sulla sicurezza
+        recenti_7gg   int   – segnalazioni create negli ultimi 7 giorni
+        by_priorita   list  – distribuzione delle aperte per priorità
+        items         list  – ultime segnalazioni aperte (per la lista breve)
+        has_data      bool  – True se c'è almeno una segnalazione aperta/recente
+    """
+    today = today or timezone.localdate()
+    week_ago = today - timedelta(days=7)
+    open_statuses = _ticket_open_statuses()  # APERTA, IN_CARICO, IN_ATTESA
+
+    base = _base_segnalazioni_qs()
+    open_qs = base.filter(stato__in=open_statuses)
+
+    open_total = _safe_count(open_qs)
+    nuove = _safe_count(base.filter(stato=StatoTicket.APERTA))
+    in_carico = _safe_count(base.filter(stato=StatoTicket.IN_CARICO))
+    in_attesa = _safe_count(base.filter(stato=StatoTicket.IN_ATTESA))
+    recenti_7gg = _safe_count(base.filter(created_at__date__gte=week_ago))
+    urgenti = _safe_count(
+        open_qs.filter(
+            Q(priorita__in=(PrioritaTicket.URGENTE, PrioritaTicket.ALTA))
+            | Q(incide_sicurezza=True)
+        )
+    )
+
+    prio_labels = dict(PrioritaTicket.choices)
+    try:
+        by_prio_raw = {
+            row["priorita"]: int(row["c"] or 0)
+            for row in open_qs.order_by().values("priorita").annotate(c=Count("id"))
+        }
+    except Exception:
+        by_prio_raw = {}
+    by_priorita: list[dict[str, Any]] = []
+    for code in (
+        PrioritaTicket.URGENTE,
+        PrioritaTicket.ALTA,
+        PrioritaTicket.MEDIA,
+        PrioritaTicket.BASSA,
+    ):
+        count = by_prio_raw.get(code, 0)
+        if count:
+            by_priorita.append(
+                {"code": code, "label": prio_labels.get(code, code), "count": count}
+            )
+
+    items: list[dict[str, Any]] = []
+    try:
+        recent_open = list(open_qs.select_related("asset").order_by("-created_at")[:limit])
+    except Exception:
+        recent_open = []
+    for t in recent_open:
+        if t.asset_id:
+            asset_label = f"{t.asset.asset_tag} — {t.asset.name}"
+        else:
+            asset_label = t.asset_descrizione_libera or "—"
+        items.append(
+            {
+                "id": t.pk,
+                "numero": t.numero_ticket,
+                "titolo": t.titolo,
+                "stato": t.stato,
+                "stato_label": t.get_stato_display(),
+                "priorita": t.priorita,
+                "priorita_label": t.get_priorita_display(),
+                "incide_sicurezza": t.incide_sicurezza,
+                "asset_label": asset_label,
+                "assegnato_a": t.assegnato_a,
+                "created_at": t.created_at,
+                "is_new": t.stato == StatoTicket.APERTA,
+            }
+        )
+
+    return {
+        "open_total": open_total,
+        "nuove": nuove,
+        "in_carico": in_carico,
+        "in_attesa": in_attesa,
+        "urgenti": urgenti,
+        "recenti_7gg": recenti_7gg,
+        "by_priorita": by_priorita,
+        "items": items,
+        "has_data": bool(open_total or recenti_7gg),
     }

@@ -5,71 +5,188 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_corsi_list' %}" style="color:#94a3b8;text-decoration:none;">Corsi</a>
-        &rsaquo; {% if modo == "crea" %}Nuovo{% else %}Modifica{% endif %}
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:920px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">{% if modo == "crea" %}Nuovo{% else %}Modifica{% endif %}</span>
+        </div>
+        <h1>
+          <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>
+          {% if modo == "crea" %}Nuovo corso formativo{% else %}Modifica corso{% endif %}
+        </h1>
       </div>
-      <h2 class="hr-pagehead-title">{% if modo == "crea" %}Nuovo corso formativo{% else %}Modifica corso{% endif %}</h2>
     </div>
-  </div>
 
-  <div class="hr-card">
-    <form method="post">
+    <form method="post" class="fmd-panel" id="corso-form">
       {% csrf_token %}
-      <div class="hr-card-pad" style="padding:20px 24px;">
-        {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
-        <div style="display:flex;gap:8px;margin-top:20px;">
-          <button type="submit" class="hr-btn hr-btn-primary">
-            {% if modo == "crea" %}Crea corso{% else %}Salva modifiche{% endif %}
-          </button>
-          <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+
+      {% if form.non_field_errors %}
+      <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
+      {% endif %}
+
+      {# ── Identificazione ──────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-doc"/></svg>
+          <span class="fmd-form-sec-t">Identificazione</span>
+          <span class="fmd-form-sec-n">Titolo e codice del corso</span>
+        </div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.titolo full=1 %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.codice %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.versione %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.descrizione full=1 %}
         </div>
       </div>
-    </form>
-  </div>
 
-</div>
+      {# ── Classificazione ──────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-clipboard"/></svg>
+          <span class="fmd-form-sec-t">Classificazione</span>
+          <span class="fmd-form-sec-n">Piano, rischio e qualifica àncora</span>
+        </div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.piano %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.categoria %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.qualifica full=1 %}
+        </div>
+      </div>
+
+      {# ── Durata e validità ────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-clock"/></svg>
+          <span class="fmd-form-sec-t">Durata, validità e costo</span>
+          <span class="fmd-form-sec-n">La validità si preimposta dalla qualifica</span>
+        </div>
+        <div class="fmd-grid-3">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.durata_ore_teorica %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.validita_mesi %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.costo_unitario %}
+        </div>
+      </div>
+
+      {# ── E-learning (micro-corso: slide + quiz) ───────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-cap"/></svg>
+          <span class="fmd-form-sec-t">E-learning</span>
+          <span class="fmd-form-sec-n">Micro-corso interno con slide e quiz finale</span>
+        </div>
+        <div class="fmd-checks">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.is_elearning %}
+        </div>
+        <div class="fmd-grid-3" style="margin-top:8px;">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.quiz_punteggio_minimo %}
+        </div>
+        {% if form.instance.pk and form.instance.is_elearning %}
+        <a href="{% url 'anagrafica:formazione_corso_elearning' form.instance.pk %}" class="fmd-btn fmd-btn-ghost" style="margin-top:10px;">
+          <svg class="fmd-ico"><use href="#i-edit"/></svg>Gestisci slide e quiz
+        </a>
+        {% endif %}
+      </div>
+
+      {# ── Stato e opzioni ──────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-gear"/></svg>
+          <span class="fmd-form-sec-t">Pubblicazione e opzioni</span>
+        </div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.stato %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.note full=1 %}
+        </div>
+        <div class="fmd-checks" style="margin-top:15px;">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.obbligatorio %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.is_active %}
+        </div>
+      </div>
+
+      <div class="fmd-form-foot">
+        <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
+        <span class="fmd-spacer"></span>
+        <a href="{% url 'anagrafica:formazione_corsi_list' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        <button type="submit" class="fmd-btn fmd-btn-primary">
+          <svg class="fmd-ico"><use href="#i-check"/></svg>{% if modo == "crea" %}Crea corso{% else %}Salva modifiche{% endif %}
+        </button>
+      </div>
+    </form>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
 {% include "anagrafica/partials/_quick_add.html" %}
 
 <script>
-{# Assist form corso: codice suggerito (se vuoto) dal titolo; validità preimpostata
-   dalla durata della qualifica selezionata (es. preposto 24m / lavoratori 60m). #}
+{# Assist form corso: codice suggerito (live, se vuoto) dal titolo; validità
+   preimpostata dalla durata della qualifica selezionata (es. preposto 24m,
+   lavoratori 60m). Non sovrascrive mai valori già digitati dall'utente. #}
 (function(){
-  const titolo = document.querySelector('[name="titolo"]');
-  const codice = document.querySelector('[name="codice"]');
+  const titolo    = document.querySelector('[name="titolo"]');
+  const codice    = document.querySelector('[name="codice"]');
   const qualifica = document.querySelector('[name="qualifica"]');
-  const validita = document.querySelector('[name="validita_mesi"]');
-  if (titolo && codice) {
-    titolo.addEventListener('blur', async function(){
-      if (codice.value.trim()) return;
-      const t = titolo.value.trim(); if (!t) return;
-      try {
-        const r = await fetch("{% url 'anagrafica:formazione_corso_codice_suggest' %}?titolo=" + encodeURIComponent(t));
-        const d = await r.json();
-        if (d.ok && d.codice && !codice.value.trim()) codice.value = d.codice;
-      } catch (e) {}
+  const validita  = document.querySelector('[name="validita_mesi"]');
+  const URL_COD = "{% url 'anagrafica:formazione_corso_codice_suggest' %}";
+  const URL_DUR = "{% url 'anagrafica:formazione_qualifica_durata' %}";
+
+  let codiceTouched = false;          // l'utente ha scritto a mano il codice?
+  if (codice) {
+    codice.addEventListener('input', function(){
+      codiceTouched = true;
+      codice.classList.remove('fmd-autofill');
     });
   }
+
+  let t = null;
+  async function suggerisciCodice(){
+    if (!titolo || !codice) return;
+    if (codiceTouched || codice.value.trim()) return;
+    const v = titolo.value.trim();
+    if (v.length < 2) return;
+    try {
+      const r = await fetch(URL_COD + "?titolo=" + encodeURIComponent(v));
+      const d = await r.json();
+      if (d.ok && d.codice && !codiceTouched && !codice.value.trim()) {
+        codice.value = d.codice;
+        codice.classList.add('fmd-autofill');
+      }
+    } catch (e) {}
+  }
+  if (titolo) {
+    titolo.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(suggerisciCodice, 450); });
+    titolo.addEventListener('blur', suggerisciCodice);
+  }
+
   if (qualifica && validita) {
     qualifica.addEventListener('change', async function(){
-      const id = qualifica.value; if (!id) return;
-      if (parseInt(validita.value || '0', 10) > 0) return;
+      const id = qualifica.value;
+      if (!id) return;
+      if (parseInt(validita.value || '0', 10) > 0) return;   // non sovrascrive
       try {
-        const r = await fetch("{% url 'anagrafica:formazione_qualifica_durata' %}?id=" + encodeURIComponent(id));
+        const r = await fetch(URL_DUR + "?id=" + encodeURIComponent(id));
         const d = await r.json();
-        if (d.ok && d.durata_mesi > 0) validita.value = d.durata_mesi;
+        if (d.ok && d.durata_mesi > 0 && parseInt(validita.value || '0', 10) === 0) {
+          validita.value = d.durata_mesi;
+          validita.classList.add('fmd-autofill');
+        }
       } catch (e) {}
     });
+    validita.addEventListener('input', function(){ validita.classList.remove('fmd-autofill'); });
   }
 })();
 </script>

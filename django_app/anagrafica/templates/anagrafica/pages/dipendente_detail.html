@@ -12,15 +12,15 @@
 /* Layout */
 .dp-page { display:flex; flex-direction:column; gap:14px; }
 .dp-topbar { display:none; }
-.dp-title { font-size:24px; font-weight:800; color:#12395f; letter-spacing:-.02em; }
+.dp-title { font-size:24px; font-weight:800; color:#0c2545; letter-spacing:-.02em; }
 .dp-sub { font-size:13px; color:#64748b; margin-top:2px; }
 
 /* Bottoni */
 .dp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:.7rem; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s, border-color .15s; }
 .dp-btn-ghost { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
 .dp-btn-ghost:hover { background:#e2e8f0; }
-.dp-btn-primary { background:#12395f; color:#fff; }
-.dp-btn-primary:hover { background:#0e2d4b; }
+.dp-btn-primary { background:#0c2545; color:#fff; }
+.dp-btn-primary:hover { background:#08142d; }
 .dp-btn-danger { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
 .dp-btn-danger:hover { background:#fecaca; }
 .dp-btn-sm { padding:5px 10px; font-size:12px; border-radius:.55rem; }
@@ -29,7 +29,7 @@
 /* Card generica */
 .dp-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .dp-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #f1f5f9; }
-.dp-card-title { font-size:16px; font-weight:800; color:#12395f; }
+.dp-card-title { font-size:16px; font-weight:800; color:#0c2545; }
 .dp-card-body { padding:16px 18px; }
 
 /* Hero dipendente */
@@ -39,7 +39,7 @@
 .dp-avatar-fallback::before { content:""; position:absolute; top:14px; left:22px; width:18px; height:18px; border-radius:50%; background:#94a3b8; }
 .dp-avatar-fallback::after { content:""; position:absolute; left:16px; bottom:12px; width:30px; height:18px; border-radius:18px 18px 10px 10px; background:#94a3b8; }
 .dp-hero-info { flex:1; min-width:0; }
-.dp-hero-name { font-size:22px; font-weight:800; color:#12395f; }
+.dp-hero-name { font-size:22px; font-weight:800; color:#0c2545; }
 .dp-hero-meta { font-size:13px; color:#64748b; margin-top:3px; }
 .dp-hero-actions { display:flex; gap:7px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
 .dp-offboarding-form { display:inline-flex; gap:6px; flex-wrap:nowrap; align-items:center; max-width:100%; }
@@ -63,7 +63,7 @@
 .dp-task-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .dp-task-note { flex:1 1 180px; min-height:30px; border:1px solid #e2e8f0; border-radius:.55rem; padding:5px 7px; font-size:12px; resize:vertical; }
 .dp-pill { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px; border:1px solid transparent; font-size:11px; font-weight:700; }
-.dp-pill-blue { background:#eff6ff; color:#1f5c91; border-color:#bfdbfe; }
+.dp-pill-blue { background:#eff6ff; color:#1f87cd; border-color:#bfdbfe; }
 .dp-pill-gray { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
 .dp-pill-green { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
 .dp-pill-red { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
@@ -89,7 +89,7 @@
 /* === Widget statistiche === */
 .dp-stat-section { display:flex; flex-direction:column; gap:14px; }
 .dp-stat-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
-.dp-stat-toolbar-title { font-size:15px; font-weight:800; color:#12395f; }
+.dp-stat-toolbar-title { font-size:15px; font-weight:800; color:#0c2545; }
 
 /* Griglia widget — compatta */
 .dp-widget-grid {
@@ -112,9 +112,9 @@
   border-radius:.85rem .85rem 0 0;
 }
 .dp-widget-icon { font-size:18px; line-height:1; margin-bottom:6px; }
-.dp-widget-count { font-size:26px; font-weight:800; color:#12395f; line-height:1; }
+.dp-widget-count { font-size:26px; font-weight:800; color:#0c2545; line-height:1; }
 .dp-widget-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
-.dp-widget-link { display:block; margin-top:8px; font-size:11px; color:#1f5c91; font-weight:700; text-decoration:none; }
+.dp-widget-link { display:block; margin-top:8px; font-size:11px; color:#1f87cd; font-weight:700; text-decoration:none; }
 .dp-widget-link:hover { text-decoration:underline; }
 
 /* Tasto rimuovi widget (visibile in edit mode) */
@@ -148,8 +148,8 @@
 .dp-add-grid { display:flex; flex-wrap:wrap; gap:8px; }
 .dp-add-item { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; font-size:13px; }
 .dp-add-item.already-added { opacity:.4; pointer-events:none; }
-.dp-add-btn { background:#12395f; color:#fff; border:none; border-radius:.5rem; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; }
-.dp-add-btn:hover { background:#0e2d4b; }
+.dp-add-btn { background:#0c2545; color:#fff; border:none; border-radius:.5rem; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; }
+.dp-add-btn:hover { background:#08142d; }
 
 /* Ruoli operativi */
 .dp-ruoli-list { display:flex; flex-wrap:wrap; gap:8px; }
@@ -169,10 +169,10 @@
 /* Form aggiungi ruolo */
 .dp-ruolo-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
 .dp-select { border:1px solid #e2e8f0; border-radius:.6rem; padding:7px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; }
-.dp-select:focus { border-color:#1f5c91; background:#fff; }
+.dp-select:focus { border-color:#1f87cd; background:#fff; }
 
 /* Drag ghost */
-.dp-drag-ghost { opacity:.4; border:2px dashed #1f5c91 !important; }
+.dp-drag-ghost { opacity:.4; border:2px dashed #1f87cd !important; }
 
 /* Mansione inline edit */
 .dp-mansione-form { display:none; flex-direction:column; gap:8px; margin-top:8px; }
@@ -194,7 +194,7 @@
 
 /* Input campi anagrafica */
 .dp-input { width:100%; border:1px solid #e2e8f0; border-radius:.6rem; padding:7px 10px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; box-sizing:border-box; }
-.dp-input:focus { border-color:#1f5c91; background:#fff; }
+.dp-input:focus { border-color:#1f87cd; background:#fff; }
 
 /* Grid form anagrafica */
 .dp-form-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
@@ -294,7 +294,7 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .dp-retr-table tr:last-child td { border-bottom:none; }
 .dp-retr-name { color:#334155; flex:1; }
 .dp-retr-val { text-align:right; font-weight:700; color:#1e293b; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:80px; }
-.dp-retr-val.is-totale { color:#1f5c91; }
+.dp-retr-val.is-totale { color:#1f87cd; }
 .dp-retr-val.is-ral { color:#166534; font-size:14px; }
 .dp-retr-changed { display:inline-flex; align-items:center; gap:3px; margin-left:4px; }
 .dp-retr-up { background:#dcfce7; color:#166534; padding:0 5px; border-radius:999px; font-size:9px; font-weight:700; }
@@ -322,22 +322,22 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .dp-contr-incorso td:first-child { font-weight:700; color:#166534; }
 .dp-btn-danger-sm { background:#fee2e2; color:#b91c1c; border:none; border-radius:6px; padding:3px 7px; font-size:11px; cursor:pointer; line-height:1.4; }
 .dp-btn-danger-sm:hover { background:#fecaca; }
-.dp-btn-edit-sm { background:#eff6ff; color:#1f5c91; border:none; border-radius:.5rem; padding:3px 7px; font-size:11px; cursor:pointer; line-height:1.4; margin-right:4px; }
+.dp-btn-edit-sm { background:#eff6ff; color:#1f87cd; border:none; border-radius:.5rem; padding:3px 7px; font-size:11px; cursor:pointer; line-height:1.4; margin-right:4px; }
 .dp-btn-edit-sm:hover { background:#dbeafe; }
 .dp-contr-edit-form { padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
 .dp-contr-edit-form .dp-form-label { font-size:10px; }
 /* Storico cambiamenti organizzativi */
 .sc-filter-btn { transition:background .15s, color .15s; }
-.sc-filter-active { background:#12395f !important; color:#fff !important; border-color:#12395f !important; }
+.sc-filter-active { background:#0c2545 !important; color:#fff !important; border-color:#0c2545 !important; }
 .sc-row:hover { background:#fafafa; }
 
 /* Tab interne scheda dipendente */
 .dp-tabs { display:flex; gap:6px; flex-wrap:wrap; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .dp-tab { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; border-radius:10px; padding:7px 13px; font-size:13px; font-weight:700; color:#64748b; background:none; border:none; cursor:pointer; font-family:inherit; text-decoration:none; transition:background .15s, color .15s; }
-.dp-tab:hover { background:#f1f5f9; color:#12395f; }
-.dp-tab.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
+.dp-tab:hover { background:#f1f5f9; color:#0c2545; }
+.dp-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
 .dp-soon-card { background:#f8fafc; border:1px dashed #cbd5e1; border-radius:1rem; padding:24px; text-align:center; }
-.dp-soon-badge { display:inline-flex; border-radius:999px; background:#eef2ff; color:#12395f; padding:3px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.dp-soon-badge { display:inline-flex; border-radius:999px; background:#eef2ff; color:#0c2545; padding:3px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
 body.theme-dark .dp-tabs { background:var(--surface); border-color:var(--border); }
 body.theme-dark .dp-tab { color:var(--text-light); }
 body.theme-dark .dp-tab:hover { background:var(--surface-alt); color:#93c5fd; }
@@ -346,9 +346,9 @@ body.theme-dark .dp-soon-card { background:var(--surface-alt); border-color:var(
 /* === Riepilogo · scheda sintetica (dashboard dipendente) === */
 .dp-sum-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
 .dp-sum-stats { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:10px; margin-top:16px; }
-.dp-sum-stat { display:flex; align-items:center; gap:11px; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #1f5c91; border-radius:12px; padding:11px 13px; }
+.dp-sum-stat { display:flex; align-items:center; gap:11px; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #1f87cd; border-radius:12px; padding:11px 13px; }
 .dp-sum-stat-ic { font-size:22px; line-height:1; flex-shrink:0; }
-.dp-sum-stat-val { font-size:18px; font-weight:800; color:#12395f; line-height:1.15; }
+.dp-sum-stat-val { font-size:18px; font-weight:800; color:#0c2545; line-height:1.15; }
 .dp-sum-stat-val span { font-size:11px; font-weight:600; color:#94a3b8; margin-left:2px; }
 .dp-sum-stat-lbl { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; margin-top:4px; }
 body.theme-dark .dp-sum-stat { background:var(--surface-alt); border-color:var(--border); border-left-color:#3b82f6; }
@@ -358,12 +358,12 @@ body.theme-dark .dp-sum-stat-lbl { color:var(--text-light); }
 /* === Assenze dipendente === */
 .dp-abs-summary-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px; }
 .dp-abs-summary-title { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.dp-abs-summary-tot { font-size:14px; font-weight:800; color:#12395f; white-space:nowrap; }
+.dp-abs-summary-tot { font-size:14px; font-weight:800; color:#0c2545; white-space:nowrap; }
 .dp-abs-summary-tot span { font-size:11px; font-weight:600; color:#94a3b8; }
 .dp-abs-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px; margin-bottom:18px; }
 .dp-abs-card { display:flex; align-items:center; gap:11px; background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #cbd5e1; border-radius:12px; padding:10px 13px; }
 .dp-abs-card-ic { font-size:22px; line-height:1; }
-.dp-abs-card-num { font-size:21px; font-weight:800; color:#12395f; line-height:1; }
+.dp-abs-card-num { font-size:21px; font-weight:800; color:#0c2545; line-height:1; }
 .dp-abs-card-num span { font-size:11px; font-weight:600; color:#94a3b8; margin-left:2px; }
 .dp-abs-card-tipo { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; margin-top:4px; }
 .dp-abs-card.dp-abs-ferie    { border-left-color:#f59e0b; }
@@ -376,7 +376,7 @@ body.theme-dark .dp-sum-stat-lbl { color:var(--text-light); }
 /* Cronologia assenze raggruppata per anno */
 .dp-abs-year { display:flex; align-items:baseline; gap:8px; margin:16px 0 8px; }
 .dp-abs-year:first-child { margin-top:0; }
-.dp-abs-year-num { font-size:15px; font-weight:800; color:#12395f; }
+.dp-abs-year-num { font-size:15px; font-weight:800; color:#0c2545; }
 .dp-abs-year-line { flex:1; height:1px; background:#e2e8f0; }
 .dp-abs-year-count { font-size:11px; font-weight:600; color:#94a3b8; white-space:nowrap; }
 .dp-abs-month { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:8px 0 1px 2px; }
@@ -430,7 +430,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
   <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-left:4px solid #64748b;border-radius:.6rem;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#334155;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
     <strong>Ex dipendente</strong> · rapporto cessato il {{ aziendale.data_cessazione|date:"d-m-Y" }}.
     Il fascicolo resta consultabile per adempimenti e audit.
-    <a href="{% url 'anagrafica:ex_dipendenti_list' %}" style="color:#1f5c91;font-weight:600;">Elenco ex dipendenti →</a>
+    <a href="{% url 'anagrafica:ex_dipendenti_list' %}" style="color:#1f87cd;font-weight:600;">Elenco ex dipendenti →</a>
   </div>
   {% endif %}
 
@@ -677,7 +677,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale_nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f5c91;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
       </div>
 
@@ -758,7 +758,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <div style="margin-top:12px;font-size:12px;color:#64748b;">
           <strong>Pratiche precedenti:</strong>
           {% for p in onboarding_pratiche_recenti %}
-            <a href="{% url 'anagrafica:onboarding_detail' p.id %}" style="color:#1f5c91;text-decoration:none;">{{ p.created_at|date:"d-m-Y" }} ({{ p.get_stato_display }})</a>{% if not forloop.last %} · {% endif %}
+            <a href="{% url 'anagrafica:onboarding_detail' p.id %}" style="color:#1f87cd;text-decoration:none;">{{ p.created_at|date:"d-m-Y" }} ({{ p.get_stato_display }})</a>{% if not forloop.last %} · {% endif %}
           {% endfor %}
         </div>
       {% endif %}
@@ -781,7 +781,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Reparto
-            {% if is_admin %}<button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>{% endif %}
+            {% if is_admin %}<button type="button" onclick="toggleRepartoForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia reparto">✏</button>{% endif %}
           </div>
           <div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div>
           {% if is_admin %}
@@ -803,14 +803,14 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleRepartoForm()">Annulla</button>
             </form>
             <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f5c91;">Gestisci il catalogo</a>.
+              Non trovi il reparto? <a href="{% url 'anagrafica:aree_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
             </div>
           </div>
           {% endif %}
         </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Mansione
-            <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
+            <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
           </div>
           <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
           <div class="dp-mansione-form" id="mansione-form">
@@ -829,7 +829,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMansioneForm()">Annulla</button>
             </form>
             <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f5c91;">Gestisci il catalogo</a>.
+              Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1f87cd;">Gestisci il catalogo</a>.
             </div>
           </div>
         </div>
@@ -856,7 +856,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Username
-            {% if is_admin %}<button type="button" onclick="toggleUsernameForm()" style="background:none;border:none;cursor:pointer;color:#1f5c91;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia username">✏</button>{% endif %}
+            {% if is_admin %}<button type="button" onclick="toggleUsernameForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia username">✏</button>{% endif %}
           </div>
           <div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div>
           {% if is_admin %}
@@ -871,8 +871,8 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           {% endif %}
         </div>
         <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f5c91;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f5c91;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f87cd;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
@@ -942,7 +942,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         <div class="dp-info-item"><div class="dp-info-label">Città domicilio</div><div class="dp-info-value">{{ civile.citta_domicilio|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Nazione domicilio</div><div class="dp-info-value">{{ civile.nazione_domicilio|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">CAP domicilio</div><div class="dp-info-value">{{ civile.cap_domicilio|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email privata</div><div class="dp-info-value">{% if civile.email_privata %}<a href="mailto:{{ civile.email_privata }}" style="color:#1f5c91;">{{ civile.email_privata }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email privata</div><div class="dp-info-value">{% if civile.email_privata %}<a href="mailto:{{ civile.email_privata }}" style="color:#1f87cd;">{{ civile.email_privata }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono privato</div><div class="dp-info-value">{{ civile.telefono_privato|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Patente auto</div><div class="dp-info-value">{% if civile.patente_auto %}<span class="dp-pill dp-pill-green">Sì</span>{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
       </div>
@@ -1150,7 +1150,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
       {% else %}
       <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
         Nessun record contrattuale.
-        {% if is_admin %}<br><a href="{% url 'anagrafica:contratti_import' %}" style="color:#1f5c91;font-weight:600;">Importa CSV →</a>{% endif %}
+        {% if is_admin %}<br><a href="{% url 'anagrafica:contratti_import' %}" style="color:#1f87cd;font-weight:600;">Importa CSV →</a>{% endif %}
       </div>
       {% endif %}
 
@@ -1326,7 +1326,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
     {% else %}
     <div style="padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
       Nessuna voce retributiva disponibile.
-      {% if is_admin %}<br><a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1f5c91;font-weight:600;">Importa il file CSV →</a>{% endif %}
+      {% if is_admin %}<br><a href="{% url 'anagrafica:retribuzioni_import' %}" style="color:#1f87cd;font-weight:600;">Importa il file CSV →</a>{% endif %}
     </div>
     {% endif %}
   </div>
@@ -1507,7 +1507,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
     <div class="dp-card-body" style="color:#64748b;font-size:13px;">
       Nessun dato cedolino disponibile per questo dipendente.
       {% if is_admin %}
-      <a href="{% url 'anagrafica:cedolini_import' %}" style="display:inline-block;margin-top:6px;color:#1f5c91;font-weight:600;font-size:13px;">Import cedolini →</a>
+      <a href="{% url 'anagrafica:cedolini_import' %}" style="display:inline-block;margin-top:6px;color:#1f87cd;font-weight:600;font-size:13px;">Import cedolini →</a>
       {% endif %}
     </div>
     {% endif %}
@@ -1630,7 +1630,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         </form>
       {% elif is_admin and not ruoli_disponibili and not ruoli_assegnati %}
         <p style="font-size:13px;color:#94a3b8;margin-top:8px;">
-          Nessun ruolo nel catalogo. <a href="{% url 'anagrafica:ruoli_operativi_list' %}" style="color:#1f5c91;">Crea i ruoli operativi</a>.
+          Nessun ruolo nel catalogo. <a href="{% url 'anagrafica:ruoli_operativi_list' %}" style="color:#1f87cd;">Crea i ruoli operativi</a>.
         </p>
       {% endif %}
     </div>
@@ -1760,7 +1760,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
       </div>
       {% elif is_admin and not tipi_qualifica %}
         <p style="font-size:13px;color:#94a3b8;margin-top:10px;">
-          Nessun tipo di qualifica nel catalogo. <a href="{% url 'anagrafica:qualifiche_list' %}" style="color:#1f5c91;">Crea le qualifiche</a>.
+          Nessun tipo di qualifica nel catalogo. <a href="{% url 'anagrafica:qualifiche_list' %}" style="color:#1f87cd;">Crea le qualifiche</a>.
         </p>
       {% endif %}
     </div>
@@ -1805,7 +1805,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               {% endif %}
             {% endif %}
             <div style="margin-top:4px;">
-              <a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f5c91;font-weight:600;">Dettaglio &rarr;</a>
+              <a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f87cd;font-weight:600;">Dettaglio &rarr;</a>
             </div>
           </div>
           {% endfor %}
@@ -1830,7 +1830,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             {% for r in dpi_richieste %}
             <tr style="border-bottom:1px solid #f1f5f9;">
               <td style="padding:7px 8px;">
-                <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f5c91;font-weight:600;font-size:12px;">{{ r.numero }}</a>
+                <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
               </td>
               <td style="padding:7px 8px;color:#1e293b;">
                 {{ r.categoria.icona_emoji }} {{ r.categoria.nome }}
@@ -1851,7 +1851,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               </td>
               <td style="padding:7px 8px;color:#64748b;font-size:12px;">{{ r.created_at|date:"d-m-Y" }}
                 {% if r.consegna and r.consegna.id in dpi_consegna_doc_map %}
-                  &nbsp;·&nbsp;<a href="{% url 'anagrafica:documento_download' dpi_consegna_doc_map|dictlookup:r.consegna.id %}" style="color:#1f5c91;font-weight:600;">📄 PDF</a>
+                  &nbsp;·&nbsp;<a href="{% url 'anagrafica:documento_download' dpi_consegna_doc_map|dictlookup:r.consegna.id %}" style="color:#1f87cd;font-weight:600;">📄 PDF</a>
                 {% endif %}
               </td>
             </tr>
@@ -1861,7 +1861,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         {% if dpi_richieste|length == 20 %}
           <div style="margin-top:8px;font-size:12px;color:#64748b;">
             Mostrate le ultime 20 richieste.
-            <a href="{% url 'dpi:gestione_list' %}?q={{ dip.cognome|urlencode }} {{ dip.nome|urlencode }}" style="color:#1f5c91;">Vedi tutte &rarr;</a>
+            <a href="{% url 'dpi:gestione_list' %}?q={{ dip.cognome|urlencode }} {{ dip.nome|urlencode }}" style="color:#1f87cd;">Vedi tutte &rarr;</a>
           </div>
         {% endif %}
       </div>
@@ -1941,7 +1941,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <td style="padding:7px 8px;color:#475569;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if v.referto_documento_id %}
-                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f5c91;font-weight:600;">📄 Apri</a>
+                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f87cd;font-weight:600;">📄 Apri</a>
                 {% else %}
                   <span style="color:#94a3b8;">—</span>
                 {% endif %}
@@ -2325,7 +2325,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
   <div class="dp-card">
     <div class="dp-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
       Le statistiche non sono disponibili per il tuo profilo.
-      {% if is_admin %}<br><a href="{% url 'anagrafica:widget_permissions' %}" style="color:#1f5c91;">Configura i permessi di accesso</a>{% endif %}
+      {% if is_admin %}<br><a href="{% url 'anagrafica:widget_permissions' %}" style="color:#1f87cd;">Configura i permessi di accesso</a>{% endif %}
     </div>
   </div>
   {% endif %}

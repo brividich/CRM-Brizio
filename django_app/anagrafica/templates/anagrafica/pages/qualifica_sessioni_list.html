@@ -9,7 +9,7 @@
 .qs-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .qs-sub { font-size:13px; color:#64748b; margin-top:2px; }
 .qs-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; }
-.qs-btn-primary { background:#12395f; color:#fff; }
+.qs-btn-primary { background:#0c2545; color:#fff; }
 .qs-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .qs-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
 .qs-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
@@ -75,7 +75,7 @@ body.theme-dark .qs-btn-ghost { background:var(--surface-alt); color:var(--text-
           <tr>
             <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{{ s.data_conseguimento|date:"d-m-Y" }}</td>
             <td style="font-weight:600;">
-              <a href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}" style="color:#1f5c91;text-decoration:none;">{{ s.tipo.nome }}</a>
+              <a href="{% url 'anagrafica:qualifica_sessione_detail' s.id %}" style="color:#1f87cd;text-decoration:none;">{{ s.tipo.nome }}</a>
             </td>
             <td>{{ s.ente|default:"—" }}</td>
             <td><span class="qs-badge">{{ s.n_part }}</span></td>

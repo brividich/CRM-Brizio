@@ -5,153 +5,108 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<style>
-.ob-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
-.ob-field { display:flex; flex-direction:column; gap:4px; min-width:170px; }
-.ob-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.ob-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; font-family:inherit; }
-.ob-select:focus { border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.12); }
-.ob-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
-.ob-st-corso { background:#dbeafe; color:#1e40af; }
-.ob-st-chiusa { background:#dcfce7; color:#166534; }
-.ob-st-ecc { background:#fef9c3; color:#854d0e; }
-.ob-st-ann { background:#f1f5f9; color:#64748b; }
-.ob-prog { font-size:12px; color:#64748b; font-variant-numeric:tabular-nums; white-space:nowrap; }
-body.theme-dark .ob-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .ob-field label { color:var(--text-light); }
-body.theme-dark .ob-st-corso { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .ob-st-chiusa { background:rgba(22,101,52,.25); color:#86efac; }
-body.theme-dark .ob-st-ecc { background:rgba(133,77,14,.25); color:#fde68a; }
-body.theme-dark .ob-st-ann { background:rgba(100,116,139,.25); color:#cbd5e1; }
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  {% include "anagrafica/components/flash_messages.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
-      <h1 class="hr-pagehead-title">Onboarding</h1>
-      <p class="hr-pagehead-desc">Pratiche di inserimento nuovi assunti con checklist di attivazione (account, badge, DPI, formazione, visita).</p>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
-    </div>
-  </div>
+    {% include "anagrafica/components/flash_messages.html" %}
 
-  <div class="hr-metric-grid">
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">🚀</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">In corso</span><span class="hr-metric-val">{{ n_in_corso }}</span></div>
-        <div class="hr-metric-sub">Checklist da completare</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico green">✅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Chiuse</span><span class="hr-metric-val">{{ n_chiuse }}</span></div>
-        <div class="hr-metric-sub">Inserimento completato</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">⚠️</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Con eccezioni</span><span class="hr-metric-val">{{ n_eccezioni }}</span></div>
-        <div class="hr-metric-sub">Chiuse con task non completati</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="hr-card">
-    <form method="get" action="">
-      <div class="ob-filters">
-        <div class="ob-field">
-          <label for="ob-stato">Stato</label>
-          <select id="ob-stato" name="stato" class="ob-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_stato %}selected{% endif %}>Tutte</option>
-            {% for value, label in stato_choices %}
-            <option value="{{ value }}" {% if filtro_stato == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Onboarding</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-id"/></svg>Pratiche di onboarding</h1>
+          <p class="fmd-sub">Inserimento nuovi assunti con checklist di attivazione (account, badge, DPI, formazione, visita).</p>
         </div>
-        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
-          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
-          <a href="{% url 'anagrafica:onboarding_list' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_in_corso }}</span><span class="fmd-lbl">In corso</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_chiuse }}</span><span class="fmd-lbl">Chiuse</span></div>
         </div>
       </div>
-    </form>
-  </div>
+    </section>
 
-  <div class="hr-card">
-    <div class="hr-card-head">
-      <div>
-        <span class="hr-card-title">Pratiche</span>
-        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;">{{ totale }}</span>
-      </div>
-    </div>
+    {# ── KPI ────────────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-id"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">In corso</div><div class="fmd-mtr-sub">Checklist da completare</div></div>
+      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_chiuse }}</span></div><div class="fmd-mtr-lbl">Chiuse</div><div class="fmd-mtr-sub">Inserimento completato</div></div>
+      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_eccezioni }}</span></div><div class="fmd-mtr-lbl">Con eccezioni</div><div class="fmd-mtr-sub">Chiuse con task non completati</div></div>
+    </section>
 
-    {% if page_obj.object_list %}
-    <div style="overflow-x:auto;">
-      <table class="hr-table" data-table-id="anagrafica.onboarding">
-        <thead>
-          <tr>
-            <th>Dipendente</th>
-            <th>Reparto</th>
-            <th>Assunzione</th>
-            <th>Stato</th>
-            <th>Avanzamento</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in page_obj.object_list %}
-          <tr>
-            <td>
-              <a href="{% url 'anagrafica:onboarding_detail' p.id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
-                {{ p.dipendente_nome|default:p.legacy_anagrafica_id }}
-              </a>
-            </td>
-            <td>{% if p.reparto %}<span class="hr-pill blue">{{ p.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td style="white-space:nowrap;color:#64748b;">{{ p.data_assunzione|date:"d-m-Y"|default:"—" }}</td>
-            <td>
-              {% if p.stato == "IN_CORSO" %}<span class="ob-badge ob-st-corso">In corso</span>
-              {% elif p.stato == "CHIUSA" %}<span class="ob-badge ob-st-chiusa">Chiusa</span>
-              {% elif p.stato == "CHIUSA_CON_ECCEZIONI" %}<span class="ob-badge ob-st-ecc">Con eccezioni</span>
-              {% else %}<span class="ob-badge ob-st-ann">Annullata</span>{% endif %}
-            </td>
-            <td class="ob-prog">{{ p.counts.completati }}/{{ p.counts.totale }} completati{% if p.counts.eccezioni %} · {{ p.counts.eccezioni }} eccezioni{% endif %}</td>
-            <td><a href="{% url 'anagrafica:onboarding_detail' p.id %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri →</a></td>
-          </tr>
+    {# ── Tabella + filtri ───────────────────────────────────────────────── #}
+    <section class="fmd-panel">
+      <form method="get" action="" class="fmd-toolbar">
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato" onchange="this.form.submit()">
+          <option value="" {% if not filtro_stato %}selected{% endif %}>Tutti gli stati</option>
+          {% for value, label in stato_choices %}
+          <option value="{{ value }}" {% if filtro_stato == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
+        </select>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:onboarding_list' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+      </form>
 
-    {% if page_obj.has_other_pages %}
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
-      {% if page_obj.has_previous %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
+      {% if page_obj.object_list %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="anagrafica.onboarding">
+          <thead>
+            <tr>
+              <th>Dipendente</th>
+              <th>Reparto</th>
+              <th class="fmd-nowrap">Assunzione</th>
+              <th>Stato</th>
+              <th>Avanzamento</th>
+              <th class="fmd-r">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in page_obj.object_list %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.id %}">{{ p.dipendente_nome|default:p.legacy_anagrafica_id }}</a></td>
+              <td>{% if p.reparto %}<span class="fmd-badge fmd-b-cyan">{{ p.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted">{{ p.data_assunzione|date:"d-m-Y"|default:"—" }}</td>
+              <td>
+                {% if p.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-cyan">In corso</span>
+                {% elif p.stato == "CHIUSA" %}<span class="fmd-badge fmd-b-green">Chiusa</span>
+                {% elif p.stato == "CHIUSA_CON_ECCEZIONI" %}<span class="fmd-badge fmd-b-amber">Con eccezioni</span>
+                {% else %}<span class="fmd-badge fmd-b-grey">Annullata</span>{% endif %}
+              </td>
+              <td class="fmd-muted">{{ p.counts.completati }}/{{ p.counts.totale }} completati{% if p.counts.eccezioni %} · {{ p.counts.eccezioni }} eccezioni{% endif %}</td>
+              <td class="fmd-r"><a href="{% url 'anagrafica:onboarding_detail' p.id %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} pratiche</span>
+        {% if page_obj.has_other_pages %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-id"/></svg></span>
+        <span class="fmd-et">Nessuna pratica onboarding</span>
+        <span class="fmd-em">Avvia una pratica dalla scheda di un dipendente.</span>
+      </div>
       {% endif %}
-      <span style="font-size:13px;color:#64748b;">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
-      {% endif %}
-    </div>
-    {% endif %}
+    </section>
 
-    {% else %}
-    <div class="hr-empty">
-      <div style="font-size:32px;margin-bottom:8px;">🚀</div>
-      Nessuna pratica onboarding. Avviala dalla scheda di un dipendente.
-    </div>
-    {% endif %}
-  </div>
-
-</div>
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

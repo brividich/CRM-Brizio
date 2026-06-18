@@ -34,6 +34,12 @@ __all__ = [
     "TrainingDeadline",
     "TrainingExportLog",
     "TrainingAttachment",
+    # E-learning (micro-corsi interni: slide + quiz)
+    "TrainingSlide",
+    "TrainingQuizQuestion",
+    "TrainingQuizOption",
+    "TrainingElearningEnrollment",
+    "TrainingQuizAttempt",
 ]
 
 
@@ -274,6 +280,17 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # ── E-learning (micro-corso interno: slide sequenziali + quiz finale) ─────
+    # Un corso e-learning si fruisce in autonomia dal portale: niente sessione
+    # d'aula, niente registro presenze. Gli altri corsi restano "d'aula".
+    is_elearning          = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Micro-corso e-learning: slide sequenziali + quiz finale, fruibile in autonomia.",
+    )
+    quiz_punteggio_minimo = models.PositiveSmallIntegerField(
+        default=70,
+        help_text="Percentuale minima di risposte corrette per superare il quiz finale (solo e-learning).",
+    )
     costo_unitario = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     stato          = models.CharField(max_length=15, choices=STATO_CHOICES, default="BOZZA")
     note           = models.TextField(blank=True)
@@ -1095,3 +1112,189 @@ class TrainingAttachment(models.Model):
     def __str__(self) -> str:
         liv = f"lezione {self.lezione.numero}" if self.lezione_id else "sessione"
         return f"[{self.get_tipo_display()}] {self.sessione.codice_sessione} — {liv}"
+
+
+# ═════════════════════════════════════════════════════════════
+# E-LEARNING — MICRO-CORSI INTERNI (slide sequenziali + quiz finale)
+# ═════════════════════════════════════════════════════════════
+# Modalità self-service, layer sopra TrainingCourse (corso con is_elearning=True).
+# Niente sessione/aula/presenze: le slide e le domande sono DATI, create da un
+# autore (anche non tecnico) dall'admin o dalla UI. Il completamento conforme
+# viene storicizzato su TrainingEmployeeRecord (audit qualità), riusando la
+# tabella già esistente invece di duplicarla.
+
+
+def _training_slide_upload_to(instance, filename: str) -> str:
+    corso_id = instance.corso_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:8] or ".png"
+    now = timezone.now()
+    return (
+        f"anagrafica/formazione/corsi/{corso_id}/slides/"
+        f"{now.strftime('%Y%m%d_%H%M%S')}_{now.microsecond}{suffix}"
+    )
+
+
+class TrainingSlide(models.Model):
+    """Slide di un micro-corso e-learning.
+
+    Le slide sono **dati** (non template hardcoded): un autore non tecnico le crea
+    e le ordina. Due tipi:
+    - **testo**: contenuto in Markdown reso lato server (``services.elearning_markdown``);
+    - **immagine**: una pagina importata da PowerPoint/PDF (``services.elearning_import``)
+      servita inline dalla view protetta ``formazione_slide_image``.
+    Se ``immagine`` è valorizzata la slide è di tipo immagine; ``titolo`` resta come
+    didascalia/etichetta di navigazione."""
+
+    corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="slides")
+    ordine     = models.PositiveSmallIntegerField(default=1, help_text="Posizione nella sequenza (1 = prima slide).")
+    titolo     = models.CharField(max_length=300)
+    contenuto  = models.TextField(blank=True, help_text="Contenuto in Markdown, reso lato server.")
+    immagine   = models.ImageField(
+        upload_to=_training_slide_upload_to, storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+        help_text="Slide-immagine (pagina importata da PPTX/PDF). Se valorizzata sostituisce il contenuto Markdown.",
+    )
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        # Niente unique_together su (corso, ordine): semplifica il riordino e evita
+        # i vincoli di indice univoco filtrato su SQL Server.
+        ordering = ["corso", "ordine", "id"]
+        verbose_name = "Slide e-learning"
+        verbose_name_plural = "Slide e-learning"
+        indexes = [models.Index(fields=["corso", "ordine"])]
+
+    @property
+    def is_immagine(self) -> bool:
+        return bool(self.immagine)
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · slide {self.ordine}: {self.titolo}"
+
+
+class TrainingQuizQuestion(models.Model):
+    """Domanda del quiz finale di un micro-corso e-learning."""
+
+    corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_domande")
+    ordine     = models.PositiveSmallIntegerField(default=1)
+    testo      = models.TextField()
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["corso", "ordine", "id"]
+        verbose_name = "Domanda quiz"
+        verbose_name_plural = "Domande quiz"
+        indexes = [models.Index(fields=["corso", "ordine"])]
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · domanda {self.ordine}"
+
+
+class TrainingQuizOption(models.Model):
+    """Opzione di risposta di una domanda del quiz (almeno una corretta per domanda)."""
+
+    domanda  = models.ForeignKey(TrainingQuizQuestion, on_delete=models.CASCADE, related_name="opzioni")
+    ordine   = models.PositiveSmallIntegerField(default=1)
+    testo    = models.CharField(max_length=500)
+    corretta = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["domanda", "ordine", "id"]
+        verbose_name = "Opzione quiz"
+        verbose_name_plural = "Opzioni quiz"
+        indexes = [models.Index(fields=["domanda"])]
+
+    def __str__(self) -> str:
+        return f"{self.testo[:40]}{' ✓' if self.corretta else ''}"
+
+
+class TrainingElearningEnrollment(models.Model):
+    """Iscrizione di un dipendente a un micro-corso e-learning (self-service).
+
+    Distinta da :class:`TrainingEnrollment` (iscrizione a una *sessione d'aula*).
+    Traccia l'avanzamento sulle slide e il miglior esito del quiz. Il completamento
+    storicizzato per l'audit resta su :class:`TrainingEmployeeRecord`.
+
+    Identità discente = ``legacy_anagrafica_id`` (convenzione del modulo formazione)."""
+
+    STATO_CHOICES = [
+        ("ISCRITTO",     "Iscritto"),
+        ("IN_CORSO",     "In corso"),
+        ("COMPLETATO",   "Completato"),
+        ("NON_SUPERATO", "Non superato"),
+    ]
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="iscrizioni_elearning")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    stato                = models.CharField(max_length=15, choices=STATO_CHOICES, default="ISCRITTO")
+    data_iscrizione      = models.DateTimeField(auto_now_add=True)
+    ultima_slide_ordine  = models.PositiveSmallIntegerField(default=0, help_text="Avanzamento: ultima slide vista.")
+    n_slide_totali       = models.PositiveSmallIntegerField(default=0)
+    best_punteggio_pct   = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    n_tentativi          = models.PositiveSmallIntegerField(default=0)
+    data_completamento   = models.DateField(null=True, blank=True)
+    record_completamento = models.ForeignKey(
+        TrainingEmployeeRecord, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at           = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("corso", "legacy_anagrafica_id")]
+        verbose_name = "Iscrizione e-learning"
+        verbose_name_plural = "Iscrizioni e-learning"
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "stato"])]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} ({self.stato})"
+
+
+class TrainingQuizAttempt(models.Model):
+    """Tentativo (invio) del quiz finale di un micro-corso e-learning.
+
+    Storicizza ogni invio (audit qualità: chi, quando, esito, punteggio, risposte).
+    Il primo tentativo conforme genera un :class:`TrainingEmployeeRecord` collegato."""
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_tentativi")
+    enrollment           = models.ForeignKey(
+        TrainingElearningEnrollment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="tentativi",
+    )
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    iniziato_il          = models.DateTimeField(null=True, blank=True)
+    inviato_il           = models.DateTimeField(auto_now_add=True)
+    punteggio_pct        = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    n_corrette           = models.PositiveSmallIntegerField(default=0)
+    n_totali             = models.PositiveSmallIntegerField(default=0)
+    superato             = models.BooleanField(default=False)
+    # Snapshot domande/opzioni scelte (audit: l'esito resta verificabile anche se il
+    # quiz viene poi modificato).
+    risposte_json        = models.JSONField(default=dict, blank=True)
+    record               = models.ForeignKey(
+        TrainingEmployeeRecord, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="quiz_tentativi",
+    )
+    utente               = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-inviato_il"]
+        verbose_name = "Tentativo quiz"
+        verbose_name_plural = "Tentativi quiz"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "corso"]),
+            models.Index(fields=["corso", "superato"]),
+        ]
+
+    def __str__(self) -> str:
+        esito = "OK" if self.superato else "KO"
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.punteggio_pct}% {esito}"

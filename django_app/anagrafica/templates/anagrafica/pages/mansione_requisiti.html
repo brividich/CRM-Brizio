@@ -6,101 +6,99 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  {% include "anagrafica/partials/_safety_subnav.html" with active="mansioni" %}
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:mansioni_list' %}" class="fm-crumb">Mansioni di rischio</a>
-        <span class="fm-crumb-sep">›</span> Requisiti
-      </div>
-      <h2 class="hr-pagehead-title">🎯 {{ mansione.nome }} — Requisiti di mansione</h2>
-      <p class="hr-pagehead-desc">
-        DPI, visite mediche e formazione necessari per l'idoneità a questa mansione (D.Lgs. 81/08).
-        Da qui parte il controllo di conformità/idoneità dei dipendenti che la ricoprono.
-      </p>
-    </div>
-    <div>
-      <a class="hr-btn hr-btn-sm hr-btn-ghost" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità / Idoneità</a>
-    </div>
-  </div>
+    {% include "anagrafica/partials/_safety_subnav.html" with active="mansioni" %}
 
-  {# ── Riepilogo requisiti effettivi ─────────────────────────────────── #}
-  <div class="hr-card fm-section">
-    <div class="fm-section-head"><div class="fm-section-title">Requisiti della mansione</div></div>
-    <div class="fm-req-summary">
+    <div class="fmd-pagehead">
       <div>
-        <div class="fm-req-grouptitle">🦺 DPI</div>
-        {% for c in requisiti.dpi %}<span class="fm-pill fm-pill-enrolled">{{ c.nome }}</span> {% empty %}<span class="muted">— nessuno</span>{% endfor %}
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansioni_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">Requisiti</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>{{ mansione.nome }}</h1>
+        <p class="fmd-ph-sub">DPI, visite mediche e formazione necessari per l'idoneità a questa mansione (D.Lgs. 81/08). Da qui parte il controllo di conformità/idoneità dei dipendenti che la ricoprono.</p>
       </div>
-      <div>
-        <div class="fm-req-grouptitle">🏥 Visite mediche</div>
-        {% for v in requisiti.visite %}<span class="fm-pill fm-pill-enrolled">{{ v.nome }}</span> {% empty %}<span class="muted">— nessuna</span>{% endfor %}
-      </div>
-      <div>
-        <div class="fm-req-grouptitle">📚 Formazione</div>
-        {% for c in requisiti.corsi %}<span class="fm-pill fm-pill-valid">{{ c.titolo }}</span> {% endfor %}
-        {% for p in requisiti.piani %}<span class="fm-pill fm-pill-valid">Piano: {{ p.nome }}</span> {% endfor %}
-        {% if not requisiti.corsi and not requisiti.piani %}<span class="muted">— nessuna</span>{% endif %}
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
       </div>
     </div>
-  </div>
 
-  {# ── Requisiti diretti (modificabili) ──────────────────────────────── #}
-  <div class="hr-card fm-section">
-    <div class="fm-section-head"><div class="fm-section-title">Requisiti diretti della mansione</div></div>
-    {% if is_editor %}
-    <form method="post" action="{% url 'anagrafica:mansione_requisiti' mansione.pk %}" class="fm-formpad">
-      {% csrf_token %}
-      <div class="fm-form-field" style="max-width:340px;">
-        <label>⚠️ Livello di rischio (formazione lavoratori ASR)</label>
-        <select name="livello_rischio" class="fm-input fm-select" aria-label="Livello di rischio mansione">
-          <option value="">— non definito —</option>
-          {% for code, label in livello_choices %}
-          <option value="{{ code }}"{% if mansione.livello_rischio == code %} selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-        <div class="fm-help">Determina le ore del corso lavoratori (8/12/16h) e il rinnovo quinquennale.</div>
-      </div>
-      <div class="fm-form-grid-2">
-        <div class="fm-form-field">
-          <label>🦺 DPI richiesti</label>
-          {% if dpi_opts %}
-          <select name="dpi_richiesti" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="DPI richiesti dalla mansione">
-            {% for c in dpi_opts %}<option value="{{ c.pk }}"{% if c.pk in sel_dpi_ids %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
-          </select>
-          {% else %}<div class="muted">Modulo DPI non disponibile.</div>{% endif %}
+    {# ── Riepilogo requisiti effettivi ─────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti della mansione</div></div>
+      <div class="fmd-split" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+        <div>
+          <div class="fmd-block-aside" style="margin-bottom:8px;">DPI</div>
+          {% for c in requisiti.dpi %}<span class="fmd-badge fmd-b-cyan" style="margin:0 5px 6px 0;">{{ c.nome }}</span>{% empty %}<span class="fmd-muted">— nessuno</span>{% endfor %}
         </div>
-        <div class="fm-form-field">
-          <label>🏥 Visite mediche richieste</label>
-          {% if visite_opts %}
-          <select name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="Visite mediche richieste dalla mansione">
-            {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
-          </select>
-          {% else %}<div class="muted">Nessun tipo di visita definito. Creane in <a href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche</a>.</div>{% endif %}
+        <div>
+          <div class="fmd-block-aside" style="margin-bottom:8px;">Visite mediche</div>
+          {% for v in requisiti.visite %}<span class="fmd-badge fmd-b-violet" style="margin:0 5px 6px 0;">{{ v.nome }}</span>{% empty %}<span class="fmd-muted">— nessuna</span>{% endfor %}
+        </div>
+        <div>
+          <div class="fmd-block-aside" style="margin-bottom:8px;">Formazione</div>
+          {% for c in requisiti.corsi %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">{{ c.titolo }}</span>{% endfor %}
+          {% for p in requisiti.piani %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">Piano: {{ p.nome }}</span>{% endfor %}
+          {% if not requisiti.corsi and not requisiti.piani %}<span class="fmd-muted">— nessuna</span>{% endif %}
         </div>
       </div>
-      <div class="fm-help" style="margin-top:6px;">Tieni premuto Ctrl/⌘ per selezionare più voci.</div>
-      <div class="fm-form-actions">
-        <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Indietro</a>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva requisiti</button>
-      </div>
-    </form>
-    {% else %}
-    <div class="fm-formpad muted">Non hai i permessi per modificare i requisiti. Visualizzazione sola lettura.</div>
-    {% endif %}
-    <div class="fm-formpad fm-help" style="padding-top:0;">
-      La <strong>formazione obbligatoria</strong> si gestisce dalle regole di obbligatorietà del modulo Formazione
-      (target mansione). Il rischio è dedotto dalla mansione e dai DPI associati.
-    </div>
-  </div>
+    </section>
 
-</div>
+    {# ── Requisiti diretti (modificabili) — form invariato ─────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Requisiti diretti della mansione</div></div>
+      {% if is_editor %}
+      <form method="post" action="{% url 'anagrafica:mansione_requisiti' mansione.pk %}">
+        {% csrf_token %}
+        <div class="fm-form-field" style="max-width:340px;">
+          <label>Livello di rischio (formazione lavoratori ASR)</label>
+          <select name="livello_rischio" class="fm-input fm-select" aria-label="Livello di rischio mansione">
+            <option value="">— non definito —</option>
+            {% for code, label in livello_choices %}
+            <option value="{{ code }}"{% if mansione.livello_rischio == code %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="fm-help">Determina le ore del corso lavoratori (8/12/16h) e il rinnovo quinquennale.</div>
+        </div>
+        <div class="fm-form-grid-2">
+          <div class="fm-form-field">
+            <label>DPI richiesti</label>
+            {% if dpi_opts %}
+            <select name="dpi_richiesti" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="DPI richiesti dalla mansione">
+              {% for c in dpi_opts %}<option value="{{ c.pk }}"{% if c.pk in sel_dpi_ids %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+            </select>
+            {% else %}<div class="fmd-muted">Modulo DPI non disponibile.</div>{% endif %}
+          </div>
+          <div class="fm-form-field">
+            <label>Visite mediche richieste</label>
+            {% if visite_opts %}
+            <select name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" aria-label="Visite mediche richieste dalla mansione">
+              {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+            </select>
+            {% else %}<div class="fmd-muted">Nessun tipo di visita definito. Creane in <a class="fmd-data-link" href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche</a>.</div>{% endif %}
+          </div>
+        </div>
+        <div class="fm-help" style="margin-top:6px;">Tieni premuto Ctrl/⌘ per selezionare più voci.</div>
+        <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;">
+          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansioni_list' %}">Indietro</a>
+          <button type="submit" class="fmd-btn fmd-btn-primary">Salva requisiti</button>
+        </div>
+      </form>
+      {% else %}
+      <div class="fmd-muted">Non hai i permessi per modificare i requisiti. Visualizzazione sola lettura.</div>
+      {% endif %}
+      <div class="fm-help" style="margin-top:12px;">
+        La <strong>formazione obbligatoria</strong> si gestisce dalle regole di obbligatorietà del modulo Formazione (target mansione). Il rischio è dedotto dalla mansione e dai DPI associati.
+      </div>
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

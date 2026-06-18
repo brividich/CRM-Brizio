@@ -143,14 +143,14 @@
     </div>
   </article>
 
-  <article class="mt-card">
-    <div class="mt-card-head">
+  <details class="mt-card as-collapse as-collapse--cap" open>
+    <summary class="mt-card-head">
       <div>
         <h2>Elenco template</h2>
-        <p>Il template descrive il tipo standard di intervento; la policy con soglia vive nelle regole manutentive.</p>
+        <p>Il template descrive il tipo standard di intervento; la policy con soglia vive nelle regole manutentive. Clicca una riga per modificarlo.</p>
       </div>
-    </div>
-    <div class="mt-card-body">
+    </summary>
+    <div class="mt-card-body as-collapse-body">
       {% if template_rows %}
         <div class="mt-table-wrap">
           <table class="mt-table">
@@ -165,7 +165,7 @@
             </thead>
             <tbody>
               {% for row in template_rows %}
-                <tr>
+                <tr data-row-href="{{ row.edit_url }}">
                   <td>
                     <strong>{{ row.template.label }}</strong><br>
                     <span class="as-note">{{ row.template.code }}</span>
@@ -198,6 +198,6 @@
         <p class="mt-empty">Nessun template trovato con i filtri correnti.</p>
       {% endif %}
     </div>
-  </article>
+  </details>
 </section>
 {% endblock %}

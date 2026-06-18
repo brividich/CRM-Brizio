@@ -5,271 +5,168 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 <style>
-.ql-page { display:flex; flex-direction:column; gap:20px; }
-.ql-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-.ql-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
-.ql-sub { font-size:13px; color:#64748b; margin-top:2px; }
+/* Stili residui per il form di creazione e il modale (logica invariata). */
 .ql-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.ql-btn-primary { background:#12395f; color:#fff; }
-.ql-btn-primary:hover { background:#0e2d4b; }
-.ql-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
-.ql-btn-ghost:hover { background:#e2e8f0; }
-.ql-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
-.ql-btn-danger:hover { background:#fecaca; }
+.ql-btn-primary { background:#1f87cd; color:#fff; }
+.ql-btn-primary:hover { filter:brightness(1.05); }
+.ql-btn-ghost { background:#fff; color:#334155; border:1px solid #e2e8f0; }
+.ql-btn-ghost:hover { background:#f8fafc; }
+.ql-btn-danger { background:#fff5f5; color:#c53030; border:1px solid #f6cccc; }
 .ql-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
-
-.ql-tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:#fff;
-  border:1px solid #e2e8f0; border-radius:.85rem; padding:6px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-.ql-tabs a { display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
-  border-radius:.6rem; padding:7px 13px; font-size:13px; font-weight:700; color:#475569;
-  text-decoration:none; border:1px solid transparent; transition:background .15s,color .15s,border-color .15s; }
-.ql-tabs a:hover { background:#f1f5f9; color:#12395f; border-color:#e2e8f0; }
-.ql-tabs a.active { background:#12395f; color:#fff; box-shadow:0 1px 2px rgba(15,23,42,.2); }
-.ql-tabs .ql-tab-count { font-size:11px; font-weight:800; opacity:.7; }
-.ql-ctx { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:#475569; }
-.ql-ctx a { color:#1f5c91; font-weight:700; text-decoration:none; }
-body.theme-dark .ql-tabs { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ql-tabs a { color:var(--text-mid); }
-body.theme-dark .ql-tabs a:hover { background:var(--surface-alt); color:#93c5fd; border-color:var(--border); }
-body.theme-dark .ql-ctx { color:var(--text-mid); }
-
-.ql-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-.ql-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
-.ql-card-title { font-size:15px; font-weight:700; color:#1e293b; }
-.ql-card-body { padding:18px 20px; }
-
-.ql-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
-.ql-badge-blue { background:#dbeafe; color:#1e40af; }
-.ql-badge-gray { background:#f1f5f9; color:#475569; }
-.ql-badge-red { background:#fee2e2; color:#b91c1c; }
-.ql-badge-orange { background:#ffedd5; color:#9a3412; }
-.ql-badge-green { background:#dcfce7; color:#166534; }
-.ql-badge-purple { background:#ede9fe; color:#5b21b6; }
-
-.ql-table { width:100%; border-collapse:collapse; font-size:13px; }
-.ql-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
-.ql-table td { padding:11px 16px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
-.ql-table tr:last-child td { border-bottom:none; }
-.ql-table tr:hover td { background:#f8fafc; }
-
 .ql-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ql-field { display:flex; flex-direction:column; gap:4px; }
 .ql-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.ql-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.ql-input:focus { border-color:#1f5c91; background:#fff; }
-
+.ql-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#fff; outline:none; width:100%; box-sizing:border-box; }
+.ql-input:focus { border-color:#1f87cd; }
 .ql-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
 .ql-modal-overlay.open { display:flex; }
 .ql-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; box-shadow:0 8px 32px rgba(0,0,0,.12); max-height:90vh; overflow-y:auto; }
 .ql-modal-title { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
-
-.ql-scad-row-red td { background:#fff5f5 !important; }
-.ql-scad-row-orange td { background:#fffbf0 !important; }
-
-@media (max-width:700px) {
-  .ql-form-grid { grid-template-columns:1fr; }
-}
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
-body.theme-dark .ql-title { color:var(--text); }
-body.theme-dark .ql-sub { color:var(--text-light); }
-body.theme-dark .ql-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
-body.theme-dark .ql-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
-body.theme-dark .ql-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ql-card-head { border-color:var(--border); background:var(--bg); }
-body.theme-dark .ql-card-title { color:var(--text); }
-body.theme-dark .ql-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
-body.theme-dark .ql-table td { border-color:var(--border); color:var(--text-mid); }
-body.theme-dark .ql-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .ql-scad-row-red td { background:rgba(153,27,27,.15) !important; }
-body.theme-dark .ql-scad-row-orange td { background:rgba(146,64,14,.15) !important; }
-body.theme-dark .ql-badge-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .ql-badge-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
-body.theme-dark .ql-badge-red  { background:rgba(185,28,28,.2); color:#fca5a5; }
-body.theme-dark .ql-empty { color:var(--text-light); }
-body.theme-dark .ql-modal-overlay { background:rgba(0,0,0,.65); }
-body.theme-dark .ql-modal { background:var(--surface); }
-body.theme-dark .ql-modal-title { color:var(--text); }
-body.theme-dark .ql-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .ql-field label { color:var(--text-mid); }
+.fmd-scad-red td { background:#fff5f5; }
+.fmd-scad-orange td { background:#fffbf0; }
+@media (max-width:700px){ .ql-form-grid { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="ql-page">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  {% include "anagrafica/components/flash_messages.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  <div class="ql-topbar">
-    <div>
-      {% if active_categoria %}
-        <div class="ql-title">📜 Qualifiche / Abilitazioni · {{ active_categoria_label }}</div>
-        <div class="ql-sub">Catalogo filtrato per categoria <strong>{{ active_categoria_label }}</strong> — certificazioni/attestati con tracciamento scadenze</div>
-      {% else %}
-        <div class="ql-title">📜 Qualifiche / Abilitazioni</div>
-        <div class="ql-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze</div>
-      {% endif %}
-    </div>
-    <div class="ql-ctx" style="gap:14px;">
-      <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" style="font-weight:700;">↻ Sessioni di rinnovo</a>
-      {% if is_safety_view %}
-        <a href="{% url 'anagrafica:sicurezza_hub' %}">&larr; Salute e Sicurezza</a>
-      {% else %}
-        <a href="{% url 'anagrafica:formazione_dashboard' %}">&larr; Formazione</a>
-      {% endif %}
-    </div>
-  </div>
+    {% include "anagrafica/components/flash_messages.html" %}
 
-  <!-- Tab per categoria (catalogo unico, vista filtrata) -->
-  <nav class="ql-tabs" aria-label="Filtra qualifiche per categoria">
-    {% for code, label, count in tabs %}
-      <a href="{% if code %}?categoria={{ code }}{% else %}{% url 'anagrafica:qualifiche_list' %}{% endif %}"
-         class="{% if active_categoria == code %}active{% endif %}">
-        {% if code == "SICUREZZA" %}🦺{% elif code == "PROFESSIONALE" %}🎓{% elif code == "GESTIONALE" %}📊{% elif code == "ALTRO" %}📌{% else %}📚{% endif %}
-        {{ label }} <span class="ql-tab-count">{{ count }}</span>
-      </a>
-    {% endfor %}
-  </nav>
-
-  <!-- Sezione scadenze -->
-  {% if scadenze %}
-  <div class="ql-card" style="border-color:#fde68a;">
-    <div class="ql-card-head" style="background:#fffbeb;">
-      <div class="ql-card-title" style="color:#92400e;">⚠ Scadenze in arrivo o già scadute ({{ scadenze|length }})</div>
-    </div>
-    <div style="overflow-x:auto;">
-      <table class="ql-table" data-table-id="anagrafica.qualifiche.list">
-        <thead>
-          <tr>
-            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-            <th data-col="qualifica" data-col-label="Qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Qualifica</th>
-            <th data-col="categoria" data-col-label="Categoria" data-col-type="select"
-                data-col-options='[["SICUREZZA","Sicurezza"],["PROFESSIONALE","Professionale"],["GESTIONALE","Gestionale"],["ALTRO","Altro"]]'
-                data-col-sortable="1" data-col-filterable="1">Categoria</th>
-            <th data-col="conseguita" data-col-label="Conseguita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Conseguita</th>
-            <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
-            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in scadenze %}
-          <tr class="{% if s.scaduta %}ql-scad-row-red{% elif s.in_scadenza %}ql-scad-row-orange{% endif %}">
-            <td>
-              <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f5c91;font-weight:600;text-decoration:none;">
-                {{ s.dipendente }}
-              </a>
-            </td>
-            <td style="font-weight:600;">{{ s.tipo_nome }}</td>
-            <td>
-              {% if s.tipo_categoria == "SICUREZZA" %}<span class="ql-badge ql-badge-red">Sicurezza</span>
-              {% elif s.tipo_categoria == "PROFESSIONALE" %}<span class="ql-badge ql-badge-blue">Professionale</span>
-              {% elif s.tipo_categoria == "GESTIONALE" %}<span class="ql-badge ql-badge-purple">Gestionale</span>
-              {% else %}<span class="ql-badge ql-badge-gray">Altro</span>{% endif %}
-            </td>
-            <td data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d-m-Y" }}{% else %}-{% endif %}</td>
-            <td style="font-weight:600;{% if s.scaduta %}color:#b91c1c;{% elif s.in_scadenza %}color:#9a3412;{% endif %}" data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}">
-              {{ s.data_scadenza|date:"d-m-Y" }}
-            </td>
-            <td>
-              {% if s.scaduta %}
-                <span class="ql-badge ql-badge-red">🔴 Scaduta</span>
-              {% else %}
-                <span class="ql-badge ql-badge-orange">🟠 In scadenza</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Catalogo TipoQualifica raggruppato per categoria -->
-  {% if tipi_grouped %}
-    {% for cat_code, cat_label, items in tipi_grouped %}
-    <div class="ql-card">
-      <div class="ql-card-head">
-        <div class="ql-card-title">
-          {% if cat_code == "SICUREZZA" %}🦺
-          {% elif cat_code == "PROFESSIONALE" %}🎓
-          {% elif cat_code == "GESTIONALE" %}📊
-          {% else %}📌{% endif %}
-          {{ cat_label }} <span style="font-size:13px;font-weight:400;color:#94a3b8;">({{ items|length }})</span>
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          {% if is_safety_view %}<a href="{% url 'anagrafica:sicurezza_hub' %}">Salute e Sicurezza</a>{% else %}<a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a>{% endif %}
+          <span class="fmd-sep"> / </span><span class="fmd-cur">Qualifiche{% if active_categoria %} · {{ active_categoria_label }}{% endif %}</span>
         </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Qualifiche / Abilitazioni</h1>
+        <p class="fmd-ph-sub">Catalogo unico certificazioni e attestati (sicurezza, professionali, gestionali) con tracciamento scadenze.</p>
       </div>
-      <div style="overflow-x:auto;">
-        <table class="ql-table" data-table-id="anagrafica.qualifiche.catalogo">
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Sessioni di rinnovo</a>
+      </div>
+    </div>
+
+    {# ── Tab categorie ──────────────────────────────────────────────────── #}
+    <nav class="fmd-chips" aria-label="Filtra qualifiche per categoria" style="margin-bottom:16px;">
+      {% for code, label, count in tabs %}
+        <a href="{% if code %}?categoria={{ code }}{% else %}{% url 'anagrafica:qualifiche_list' %}{% endif %}"
+           class="fmd-chip {% if active_categoria == code %}fmd-on{% endif %}">{{ label }} <span class="fmd-code" style="background:none;padding:0;">{{ count }}</span></a>
+      {% endfor %}
+    </nav>
+
+    {# ── Scadenze ───────────────────────────────────────────────────────── #}
+    {% if scadenze %}
+    <section class="fmd-panel fmd-block" style="border-color:#f6d9b8;">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title" style="color:#9a3412;"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze in arrivo o già scadute <span class="fmd-count">{{ scadenze|length }}</span></div>
+      </div>
+      <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+        <table class="fmd-table" data-table-id="anagrafica.qualifiche.list">
           <thead>
             <tr>
-              <th data-col="nome" data-col-label="Nome qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome qualifica</th>
-              <th data-col="durata" data-col-label="Durata validità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Durata validità</th>
-              <th data-col="assegnazioni" data-col-label="Assegnazioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Assegnazioni</th>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="qualifica" data-col-label="Qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Qualifica</th>
+              <th data-col="categoria" data-col-label="Categoria" data-col-type="select"
+                  data-col-options='[["SICUREZZA","Sicurezza"],["PROFESSIONALE","Professionale"],["GESTIONALE","Gestionale"],["ALTRO","Altro"]]'
+                  data-col-sortable="1" data-col-filterable="1">Categoria</th>
+              <th data-col="conseguita" data-col-label="Conseguita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Conseguita</th>
+              <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
               <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
-              {% if is_admin %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
-            {% for t in items %}
-            <tr>
-              <td style="font-weight:600;">
-                <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" style="color:#1f5c91;text-decoration:none;">{{ t.nome }}</a>
-                {% for corso in t.corsi.all %}{% if forloop.first %}<div style="font-weight:500;font-size:11px;color:#155e75;margin-top:2px;">📚 Corso: {{ corso.titolo }}{% if t.corsi.all|length > 1 %} (+{{ t.corsi.all|length|add:"-1" }}){% endif %}</div>{% endif %}{% endfor %}
-              </td>
+            {% for s in scadenze %}
+            <tr class="{% if s.scaduta %}fmd-scad-red{% elif s.in_scadenza %}fmd-scad-orange{% endif %}">
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}">{{ s.dipendente }}</a></td>
+              <td style="font-weight:700;color:var(--fmd-navy);">{{ s.tipo_nome }}</td>
               <td>
-                {% if t.durata_mesi %}
-                  <span class="ql-badge ql-badge-orange">{{ t.durata_mesi }} mesi</span>
-                {% else %}
-                  <span style="color:#94a3b8;">Nessuna scadenza</span>
-                {% endif %}
+                {% if s.tipo_categoria == "SICUREZZA" %}<span class="fmd-badge fmd-b-red">Sicurezza</span>
+                {% elif s.tipo_categoria == "PROFESSIONALE" %}<span class="fmd-badge fmd-b-cyan">Professionale</span>
+                {% elif s.tipo_categoria == "GESTIONALE" %}<span class="fmd-badge fmd-b-violet">Gestionale</span>
+                {% else %}<span class="fmd-badge fmd-b-grey">Altro</span>{% endif %}
               </td>
-              <td><span class="ql-badge ql-badge-blue">{{ t.n_assegnazioni }}</span></td>
-              <td>
-                {% if t.is_active %}
-                  <span class="ql-badge ql-badge-green">Attiva</span>
-                {% else %}
-                  <span class="ql-badge ql-badge-gray">Inattiva</span>
-                {% endif %}
-              </td>
-              {% if is_admin %}
-              <td>
-                <div style="display:flex;gap:6px;">
-                  <button type="button" class="ql-btn ql-btn-ghost ql-btn-sm"
-                    onclick="openEdit({{ t.id }}, '{{ t.nome|escapejs }}', '{{ t.categoria }}', {{ t.durata_mesi }}, '{{ t.descrizione|escapejs }}', {{ t.is_active|yesno:'true,false' }})">
-                    ✏ Modifica
-                  </button>
-                  {% if t.n_assegnazioni == 0 %}
-                  <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="ql-btn ql-btn-danger ql-btn-sm"
-                      onclick="return confirm('Eliminare definitivamente {{ t.nome }}?')">🗑</button>
-                  </form>
-                  {% endif %}
-                </div>
-              </td>
-              {% endif %}
+              <td class="fmd-muted" data-sort-value="{{ s.data_conseguimento|date:'Y-m-d' }}">{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td data-sort-value="{{ s.data_scadenza|date:'Y-m-d' }}" style="font-weight:700;{% if s.scaduta %}color:#c53030;{% elif s.in_scadenza %}color:#c2410c;{% endif %}">{{ s.data_scadenza|date:"d-m-Y" }}</td>
+              <td>{% if s.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% else %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    </div>
-    {% endfor %}
-  {% else %}
-  <div class="ql-card">
-    <div class="ql-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
-      {% if active_categoria %}Nessuna qualifica nella categoria <strong>{{ active_categoria_label }}</strong>.{% else %}Nessun tipo di qualifica nel catalogo.{% endif %}
-    </div>
-  </div>
-  {% endif %}
+    </section>
+    {% endif %}
 
-  <!-- Form nuovo tipo -->
-  {% if is_admin %}
-  <div class="ql-card">
-    <div class="ql-card-head"><div class="ql-card-title">+ Nuovo tipo di qualifica</div></div>
-    <div class="ql-card-body">
+    {# ── Catalogo per categoria ─────────────────────────────────────────── #}
+    {% if tipi_grouped %}
+      {% for cat_code, cat_label, items in tipi_grouped %}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>{{ cat_label }} <span class="fmd-count">{{ items|length }}</span></div>
+        </div>
+        <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
+          <table class="fmd-table" data-table-id="anagrafica.qualifiche.catalogo">
+            <thead>
+              <tr>
+                <th data-col="nome" data-col-label="Nome qualifica" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome qualifica</th>
+                <th data-col="durata" data-col-label="Durata validità" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Durata validità</th>
+                <th class="fmd-c" data-col="assegnazioni" data-col-label="Assegnazioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Assegnazioni</th>
+                <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+                {% if is_admin %}<th class="fmd-nowrap">Azioni</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in items %}
+              <tr>
+                <td>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}">{{ t.nome }}</a>
+                  {% for corso in t.corsi.all %}{% if forloop.first %}<div class="fmd-cell-sub">Corso: {{ corso.titolo }}{% if t.corsi.all|length > 1 %} (+{{ t.corsi.all|length|add:"-1" }}){% endif %}</div>{% endif %}{% endfor %}
+                </td>
+                <td>{% if t.durata_mesi %}<span class="fmd-badge fmd-b-orange">{{ t.durata_mesi }} mesi</span>{% else %}<span class="fmd-muted">Nessuna scadenza</span>{% endif %}</td>
+                <td class="fmd-c"><span class="fmd-badge fmd-b-cyan">{{ t.n_assegnazioni }}</span></td>
+                <td>{% if t.is_active %}<span class="fmd-badge fmd-b-green">Attiva</span>{% else %}<span class="fmd-badge fmd-b-grey">Inattiva</span>{% endif %}</td>
+                {% if is_admin %}
+                <td class="fmd-nowrap">
+                  <div style="display:flex;gap:6px;">
+                    <button type="button" class="ql-btn ql-btn-ghost ql-btn-sm"
+                      onclick="openEdit({{ t.id }}, '{{ t.nome|escapejs }}', '{{ t.categoria }}', {{ t.durata_mesi }}, '{{ t.descrizione|escapejs }}', {{ t.is_active|yesno:'true,false' }})">Modifica</button>
+                    {% if t.n_assegnazioni == 0 %}
+                    <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="ql-btn ql-btn-danger ql-btn-sm" onclick="return confirm('Eliminare definitivamente {{ t.nome }}?')">Elimina</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endfor %}
+    {% else %}
+    <div class="fmd-panel fmd-block">
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+        <span class="fmd-et">Nessuna qualifica</span>
+        <span class="fmd-em">{% if active_categoria %}Nessuna qualifica nella categoria {{ active_categoria_label }}.{% else %}Nessun tipo di qualifica nel catalogo.{% endif %}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Form nuovo tipo + suggeriti (logica/markup invariati) ──────────── #}
+    {% if is_admin %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo tipo di qualifica</div></div>
       <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}">
         {% csrf_token %}
         <div class="ql-form-grid">
@@ -279,10 +176,8 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
           </div>
           <div class="ql-field">
             <label>Categoria</label>
-            <select class="ql-input" name="categoria">
-              {% for val, label in CATEGORIA_CHOICES %}
-                <option value="{{ val }}" {% if val == active_categoria %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
+            <select class="ql-input" name="categoria" aria-label="Categoria">
+              {% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}" {% if val == active_categoria %}selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
           </div>
           <div class="ql-field">
@@ -294,18 +189,13 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
             <input class="ql-input" type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
           </div>
         </div>
-        <div style="margin-top:14px;">
-          <button type="submit" class="ql-btn ql-btn-primary">Crea tipo qualifica</button>
-        </div>
+        <div style="margin-top:14px;"><button type="submit" class="fmd-btn fmd-btn-primary">Crea tipo qualifica</button></div>
       </form>
-    </div>
-  </div>
+    </section>
 
-  <!-- Suggeriti -->
-  {% if not tipi %}
-  <div class="ql-card">
-    <div class="ql-card-head"><div class="ql-card-title">💡 Tipi suggeriti — crea con un click</div></div>
-    <div class="ql-card-body">
+    {% if not tipi %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title">Tipi suggeriti — crea con un click</div></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;">
         {% for nome, cat, mesi in tipi_suggeriti %}
         <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}" style="display:inline;">
@@ -313,18 +203,18 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
           <input type="hidden" name="nome" value="{{ nome }}">
           <input type="hidden" name="categoria" value="{{ cat }}">
           <input type="hidden" name="durata_mesi" value="{{ mesi }}">
-          <button type="submit" class="ql-btn ql-btn-ghost ql-btn-sm">+ {{ nome }}</button>
+          <button type="submit" class="fmd-btn fmd-btn-ghost">+ {{ nome }}</button>
         </form>
         {% endfor %}
       </div>
-    </div>
-  </div>
-  {% endif %}
-  {% endif %}
+    </section>
+    {% endif %}
+    {% endif %}
 
-</div>
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 
-<!-- Modal modifica tipo -->
+{# ── Modal modifica tipo (logica invariata) ──────────────────────────────── #}
 {% if is_admin %}
 <div class="ql-modal-overlay" id="ql-modal">
   <div class="ql-modal">
@@ -338,10 +228,8 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
         </div>
         <div class="ql-field">
           <label>Categoria</label>
-          <select class="ql-input" name="categoria" id="edit-categoria">
-            {% for val, label in CATEGORIA_CHOICES %}
-              <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
+          <select class="ql-input" name="categoria" id="edit-categoria" aria-label="Categoria">
+            {% for val, label in CATEGORIA_CHOICES %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
           </select>
         </div>
         <div class="ql-field">
@@ -354,14 +242,13 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
         </div>
         <div class="ql-field" style="grid-column:1/-1;">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
-            <input type="checkbox" name="is_active" value="1" id="edit-active">
-            Tipo attivo (visibile per nuove assegnazioni)
+            <input type="checkbox" name="is_active" value="1" id="edit-active"> Tipo attivo (visibile per nuove assegnazioni)
           </label>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-        <button type="button" class="ql-btn ql-btn-ghost" onclick="closeEdit()">Annulla</button>
-        <button type="submit" class="ql-btn ql-btn-primary">Salva modifiche</button>
+        <button type="button" class="fmd-btn fmd-btn-ghost" onclick="closeEdit()">Annulla</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Salva modifiche</button>
       </div>
     </form>
   </div>
@@ -369,7 +256,6 @@ body.theme-dark .ql-field label { color:var(--text-mid); }
 
 <script>
 const BASE_EDIT_URL = "/anagrafica/qualifiche/";
-
 function openEdit(id, nome, categoria, durata, desc, isActive) {
   document.getElementById('ql-edit-form').action = BASE_EDIT_URL + id + '/modifica';
   document.getElementById('edit-nome').value = nome;
@@ -379,16 +265,8 @@ function openEdit(id, nome, categoria, durata, desc, isActive) {
   document.getElementById('edit-active').checked = isActive;
   document.getElementById('ql-modal').classList.add('open');
 }
-function closeEdit() {
-  document.getElementById('ql-modal').classList.remove('open');
-}
-document.getElementById('ql-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeEdit();
-});
+function closeEdit() { document.getElementById('ql-modal').classList.remove('open'); }
+document.getElementById('ql-modal').addEventListener('click', function(e) { if (e.target === this) closeEdit(); });
 </script>
 {% endif %}
-{% endblock %}
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html). #}
 {% endblock %}

@@ -179,9 +179,9 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
     <article class="ms-kpi"><div class="ms-kpi-label">Scoperte</div><div class="ms-kpi-value">{{ uncovered_count }}</div></article>
   </section>
 
-  {% if status_filter == "attive" and schedule_missing_total %}
+  {% if status_filter == "attive" and attive_hidden_total %}
     <p style="margin:.25rem 0 1rem;padding:.5rem .75rem;border-left:3px solid #c7c7c7;background:#f6f6f6;color:#555;font-size:.9rem;border-radius:4px;">
-      Vista <strong>Attive</strong>: {{ schedule_missing_total }} voci "Prima esecuzione da pianificare" sono nascoste per leggibilita.
+      Vista <strong>Attive</strong>: {{ attive_hidden_total }} voci senza storico o pianificate oltre 90 giorni sono nascoste per leggibilita.
       <a href="{{ show_all_status_url }}">Mostra tutte</a>.
     </p>
   {% endif %}
@@ -244,13 +244,13 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
   </article>
 
   {% if periodic_schedule_rows %}
-    <article class="ms-card">
-      <div class="ms-card-head">
+    <details class="ms-card as-collapse">
+      <summary class="ms-card-head">
         <div>
           <h2>Verifiche periodiche pianificate</h2>
           <p>Piani di manutenzione periodica (es. cambio olio, taratura) collegati agli asset filtrati. Per registrare un'esecuzione apri la <a href="{% url 'assets:periodic_verifications' %}">pagina verifiche</a>.</p>
         </div>
-      </div>
+      </summary>
       <div class="ms-card-body">
         <div class="ms-table-wrap">
           <table class="ms-table">
@@ -266,7 +266,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
             </thead>
             <tbody>
               {% for row in periodic_schedule_rows %}
-                <tr>
+                <tr data-row-href="{{ row.edit_url }}">
                   <td>
                     <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} &middot; {{ row.asset.reparto }}{% endif %}</span>
@@ -299,22 +299,22 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
           </table>
         </div>
       </div>
-    </article>
+    </details>
   {% endif %}
 
-  <article class="ms-card">
-    <div class="ms-card-head">
+  <details class="ms-card as-collapse as-collapse--cap" open>
+    <summary class="ms-card-head">
       <div>
         <h2>Scadenzario</h2>
-        <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare.</p>
+        <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare. Clicca una riga per aprire l'asset.</p>
       </div>
       {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
         <p class="ms-inline-note ms-calendar-note">
           Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
         </p>
       {% endif %}
-    </div>
-    <div class="ms-card-body">
+    </summary>
+    <div class="ms-card-body as-collapse-body">
       {% if schedule_rows %}
         <div class="ms-table-wrap">
           <table class="ms-table">
@@ -330,7 +330,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
             </thead>
             <tbody>
               {% for row in schedule_rows %}
-                <tr>
+                <tr data-row-href="{{ row.asset_detail_url }}">
                   <td>
                     <strong><a href="{{ row.asset_detail_url }}" class="ms-cell-link">{{ row.asset.asset_tag }}</a></strong><br>
                     <span class="ms-meta">{{ row.asset.name }}{% if row.asset.reparto %} · {{ row.asset.reparto }}{% endif %}</span>
@@ -493,16 +493,16 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
         <p class="ms-empty">Nessuna manutenzione trovata con i filtri correnti.</p>
       {% endif %}
     </div>
-  </article>
+  </details>
 
   {% if admin_deadline_rows %}
-  <article class="ms-card">
-    <div class="ms-card-head">
+  <details class="ms-card as-collapse">
+    <summary class="ms-card-head">
       <div>
         <h2>Scadenze amministrative</h2>
         <p>Certificati, revisioni normative e scadenze una tantum — {{ admin_deadline_total }} totali con i filtri correnti.</p>
       </div>
-    </div>
+    </summary>
     <div class="ms-card-body">
       <div class="ms-table-wrap">
         <table class="ms-table">
@@ -517,7 +517,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
           </thead>
           <tbody>
             {% for row in admin_deadline_rows %}
-            <tr>
+            <tr data-row-href="{{ row.asset_detail_url }}">
               <td>
                 <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.deadline.asset.asset_tag }}</a>
                 <div class="ms-meta">{{ row.deadline.asset.name }}</div>
@@ -543,17 +543,17 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
         </table>
       </div>
     </div>
-  </article>
+  </details>
   {% endif %}
 
   {% if lookahead_rows %}
-  <article class="ms-card">
-    <div class="ms-card-head">
+  <details class="ms-card as-collapse">
+    <summary class="ms-card-head">
       <div>
         <h2>Pianificazione prossimi 90 giorni</h2>
         <p>Manutenzioni periodiche previste nelle prossime 13 settimane, raggruppate per settimana.</p>
       </div>
-    </div>
+    </summary>
     <div class="ms-card-body ms-lookahead-body">
       {% for week in lookahead_rows %}
       <details>
@@ -573,7 +573,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
             </thead>
             <tbody>
               {% for row in week.rows %}
-              <tr>
+              <tr data-row-href="{{ row.asset_detail_url }}">
                 <td>
                   <a href="{{ row.asset_detail_url }}" class="ms-blue-link">{{ row.asset.asset_tag }}</a>
                   <div class="ms-meta">{{ row.asset.name }}</div>
@@ -594,7 +594,7 @@ body.theme-dark .ms-lookahead-summary { color:#93c5fd; }
       </details>
       {% endfor %}
     </div>
-  </article>
+  </details>
   {% endif %}
 
 </section>

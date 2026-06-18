@@ -1,0 +1,140 @@
+{# Frammento risultati ricerca formazione (inline + HTMX live). Context: q, totale, risultati. #}
+{% if not q %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-empty">
+    <span class="fmd-ebadge" style="background:#e8f3fb;color:#1f87cd;"><svg class="fmd-ico"><use href="#i-search"/></svg></span>
+    <span class="fmd-et">Inizia a cercare</span>
+    <span class="fmd-em">Digita un termine per trovare corsi, sessioni, piani, qualifiche, dipendenti e attestati.</span>
+  </div>
+</section>
+{% elif totale == 0 %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-empty">
+    <span class="fmd-ebadge" style="background:#fff5ec;color:#c2410c;"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span>
+    <span class="fmd-et">Nessun risultato</span>
+    <span class="fmd-em">Nessun elemento corrisponde a «{{ q }}». Prova con un altro termine.</span>
+  </div>
+</section>
+{% else %}
+
+<div class="fmd-block-aside" style="margin:0 0 12px 2px;">{{ totale }} risultat{{ totale|pluralize:"o,i" }} per «{{ q }}»</div>
+
+{% if risultati.corsi %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-book"/></svg>Corsi <span class="fmd-count">{{ risultati.corsi|length }}</span></div>
+  </div>
+  <div class="fmd-corsi-list">
+    {% for c in risultati.corsi %}
+    <div class="fmd-corso-card">
+      <div class="fmd-corso-head">
+        <a class="fmd-area-ic" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}" title="Apri corso"><svg class="fmd-ico"><use href="#i-book"/></svg></a>
+        <a class="fmd-corso-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">
+          <span class="fmd-area-title">{{ c.titolo|truncatechars:70 }}</span>
+          <span class="fmd-area-desc"><span class="fmd-code">{{ c.codice }}</span> · {{ c.durata_ore_teorica|floatformat:"-2" }}h{% if c.n_sessioni %} · {{ c.n_sessioni }} edizion{{ c.n_sessioni|pluralize:"e,i" }}{% endif %}{% if c.validita_mesi %} · valida {{ c.validita_mesi }} mesi{% endif %}</span>
+        </a>
+      </div>
+      {% include "anagrafica/partials/_formazione_corso_lezioni.html" with c=c %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.sessioni %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Sessioni <span class="fmd-count">{{ risultati.sessioni|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for s in risultati.sessioni %}
+    <a class="fmd-area" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ s.codice_sessione }}</span>
+        <span class="fmd-area-desc">{{ s.corso.titolo|truncatechars:28 }} · {{ s.data_inizio|date:"d-m-Y" }} · {{ s.n_iscritti }} iscritt{{ s.n_iscritti|pluralize:"o,i" }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.piani %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Piani formativi <span class="fmd-count">{{ risultati.piani|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for p in risultati.piani %}
+    <a class="fmd-area" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ p.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc"><span class="fmd-code">{{ p.codice }}</span>{% if p.n_corsi %} · {{ p.n_corsi }} cors{{ p.n_corsi|pluralize:"o,i" }}{% endif %}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.qualifiche %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Qualifiche / Abilitazioni <span class="fmd-count">{{ risultati.qualifiche|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for t in risultati.qualifiche %}
+    <a class="fmd-area" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ t.nome|truncatechars:54 }}</span>
+        <span class="fmd-area-desc">{{ t.get_categoria_display }}{% if t.durata_mesi %} · valida {{ t.durata_mesi }} mesi{% endif %} · {{ t.n_assegnazioni }} assegnat{{ t.n_assegnazioni|pluralize:"o,i" }}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.dipendenti %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Dipendenti <span class="fmd-count">{{ risultati.dipendenti|length }}</span></div>
+    <div class="fmd-block-aside">apre il libretto formativo</div>
+  </div>
+  <div class="fmd-areas">
+    {% for d in risultati.dipendenti %}
+    <a class="fmd-area" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ d.nome }}</span>
+        <span class="fmd-area-desc"><span class="fmd-code">#{{ d.legacy_id }}</span> · libretto formativo</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if risultati.attestati %}
+<section class="fmd-panel fmd-block">
+  <div class="fmd-block-head">
+    <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Attestati <span class="fmd-count">{{ risultati.attestati|length }}</span></div>
+  </div>
+  <div class="fmd-areas">
+    {% for a in risultati.attestati %}
+    <a class="fmd-area" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
+      <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span>
+      <span class="fmd-area-body">
+        <span class="fmd-area-title">{{ a.nome }}</span>
+        <span class="fmd-area-desc">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:34 }}{% if a.record.data_completamento %} · {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% endif %}
