@@ -133,9 +133,9 @@
 {% include "anagrafica/partials/_quick_add.html" %}
 
 <script>
-{# Assist form corso: codice suggerito (live, se vuoto) dal titolo; validità
+/* Assist form corso: codice suggerito (live, se vuoto) dal titolo; validità
    preimpostata dalla durata della qualifica selezionata (es. preposto 24m,
-   lavoratori 60m). Non sovrascrive mai valori già digitati dall'utente. #}
+   lavoratori 60m). Non sovrascrive mai valori già digitati dall'utente. */
 (function(){
   const titolo    = document.querySelector('[name="titolo"]');
   const codice    = document.querySelector('[name="codice"]');

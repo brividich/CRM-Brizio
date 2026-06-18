@@ -1,7 +1,7 @@
-{# Quick-add inline (modale) per le entità collegate dei form formazione.
-   Auto-aggancia un pulsante "+ nuovo" ai <select> presenti in pagina con name
-   piano/categoria/qualifica/docente, crea l'entità al volo via endpoint JSON e la
-   appende+seleziona senza ricaricare. Richiede un {% csrf_token %} nella pagina. #}
+{# Quick-add inline (modale) per le entità collegate dei form formazione. #}
+{# Auto-aggancia un pulsante "+ nuovo" ai select in pagina (name piano/categoria/qualifica/docente), #}
+{# crea l'entità al volo via endpoint JSON e la appende+seleziona senza ricaricare. #}
+{# Richiede il tag csrf_token nella pagina che include questo partial. #}
 <div id="qa-modal" style="display:none;position:fixed;inset:0;z-index:1100;align-items:center;
      justify-content:center;background:rgba(0,0,0,.4);">
   <div style="background:#fff;border-radius:12px;padding:24px 28px;width:460px;max-width:95vw;">

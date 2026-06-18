@@ -111,8 +111,16 @@
         <svg class="fmd-ico"><use href="#i-check"/></svg> Domande quiz <span class="fmd-count">{{ domande|length }}</span>
       </div>
 
+      {% if n_domande_incomplete %}
+      <div class="fmd-alert">
+        <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+        <span><strong>{{ n_domande_incomplete }}</strong> domanda/e attiva/e <strong>senza risposta corretta</strong>: vengono escluse dal quiz finché non spunti almeno un'opzione corretta. I discenti non le vedranno.</span>
+      </div>
+      {% endif %}
+
       {% for d in domande %}
-      <div class="fm-q-card">
+      <div class="fm-q-card{% if d.senza_corretta %} fm-q-warn{% endif %}">
+        {% if d.senza_corretta %}<div class="fm-q-warnbar"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg> Nessuna risposta corretta selezionata — domanda esclusa dal quiz.</div>{% endif %}
         <form method="post" action="{% url 'anagrafica:formazione_question_save' corso.pk %}" class="fm-edit-row">
           {% csrf_token %}
           <input type="hidden" name="question_id" value="{{ d.pk }}">

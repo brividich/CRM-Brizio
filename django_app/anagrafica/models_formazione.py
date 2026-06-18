@@ -1298,3 +1298,24 @@ class TrainingQuizAttempt(models.Model):
     def __str__(self) -> str:
         esito = "OK" if self.superato else "KO"
         return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.punteggio_pct}% {esito}"
+
+
+# ─────────────────────────────────────────────────────────────
+# Pulizia file slide-immagine (evita file orfani nello storage)
+# ─────────────────────────────────────────────────────────────
+from django.db.models.signals import post_delete  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+
+@receiver(post_delete, sender=TrainingSlide)
+def _elimina_file_slide(sender, instance, **kwargs):
+    """Rimuove il file immagine dallo storage quando la slide viene eliminata.
+
+    Registrare il signal disabilita anche il fast-delete di Django per TrainingSlide,
+    così la pulizia avviene pure quando le slide sono cancellate a cascata (es. corso
+    eliminato). Fail-safe: un errore qui non deve bloccare l'eliminazione."""
+    if instance.immagine:
+        try:
+            instance.immagine.delete(save=False)
+        except Exception:
+            pass

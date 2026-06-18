@@ -136,6 +136,19 @@ class ElearningImportTests(TestCase):
         with self.assertRaises(ImportError_):
             importa_slides_da_file(self.corso, f, user=None)
 
+    def test_delete_slide_rimuove_file(self):
+        """Eliminando una slide-immagine il file viene rimosso dallo storage (no orfani)."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .services.elearning_import import importa_slides_da_file
+        f = SimpleUploadedFile("l.pdf", _pdf_due_pagine(), content_type="application/pdf")
+        importa_slides_da_file(self.corso, f, user=None)
+        slide = self.corso.slides.first()
+        name = slide.immagine.name
+        storage = slide.immagine.storage
+        self.assertTrue(storage.exists(name))
+        slide.delete()
+        self.assertFalse(storage.exists(name))
+
     def test_serve_immagine_slide(self):
         from django.contrib.auth import get_user_model
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -154,3 +167,40 @@ class ElearningImportTests(TestCase):
         resp = self.client.get(reverse("anagrafica:formazione_slide_image", args=[slide.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], "image/png")
+
+
+class ElearningQuizValidationTests(TestCase):
+    """Domande senza opzione corretta: escluse dal quiz discente + segnalate all'autore."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("autore2", "a2@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+        self.piano = TrainingPlan.objects.create(codice="PV", nome="Piano")
+        self.corso = TrainingCourse.objects.create(
+            piano=self.piano, codice="ELVAL", titolo="Corso", durata_ore_teorica=Decimal("1.0"),
+            is_elearning=True, stato="ATTIVO",
+        )
+        # Domanda valida (1 opzione corretta)
+        self.q_ok = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=1, testo="Domanda valida", is_active=True)
+        TrainingQuizOption.objects.create(domanda=self.q_ok, ordine=1, testo="Giusta", corretta=True)
+        TrainingQuizOption.objects.create(domanda=self.q_ok, ordine=2, testo="Sbagliata", corretta=False)
+        # Domanda invalida (nessuna opzione corretta)
+        self.q_ko = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=2, testo="DomandaSenzaCorretta", is_active=True)
+        TrainingQuizOption.objects.create(domanda=self.q_ko, ordine=1, testo="A", corretta=False)
+
+    def test_quiz_get_esclude_domande_invalide(self):
+        resp = self.client.get(reverse("anagrafica:formazione_online_quiz", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["domande"]), 1)
+        self.assertNotContains(resp, "DomandaSenzaCorretta")
+
+    def test_quiz_tutte_invalide_redirige(self):
+        self.q_ok.delete()  # resta solo la invalida
+        resp = self.client.get(reverse("anagrafica:formazione_online_quiz", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_autore_segnala_domanda_incompleta(self):
+        resp = self.client.get(reverse("anagrafica:formazione_corso_elearning", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["n_domande_incomplete"], 1)

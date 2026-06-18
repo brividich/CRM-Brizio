@@ -13073,10 +13073,18 @@ def formazione_corso_elearning(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     slides = list(corso.slides.all())
     domande = list(corso.quiz_domande.prefetch_related("opzioni").all())
+    # Segnala le domande attive senza alcuna opzione corretta: sarebbero impossibili da
+    # superare e vengono escluse dal quiz del discente finché non si completa l'autoring.
+    n_domande_incomplete = 0
+    for d in domande:
+        d.senza_corretta = d.is_active and not any(o.corretta for o in d.opzioni.all())
+        if d.senza_corretta:
+            n_domande_incomplete += 1
     return render(request, "anagrafica/pages/formazione_corso_elearning.html", {
         "corso": corso,
         "slides": slides,
         "domande": domande,
+        "n_domande_incomplete": n_domande_incomplete,
         "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}),
         "question_form": TrainingQuizQuestionForm(initial={"ordine": (domande[-1].ordine + 1) if domande else 1}),
     })
@@ -13372,6 +13380,14 @@ def formazione_online_quiz(request, corso_id: int):
 
     if not domande:
         messages.info(request, "Questo corso non ha ancora un quiz finale.")
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    # Solo domande "valide" (almeno un'opzione corretta): una domanda senza risposta
+    # corretta sarebbe impossibile da indovinare e bloccherebbe il superamento, quindi
+    # viene esclusa dal quiz finché l'autore non la completa (segnalata in pagina autore).
+    domande = [d for d in domande if any(o.corretta for o in d.opzioni.all())]
+    if not domande:
+        messages.info(request, "Il quiz non è ancora pronto: nessuna domanda ha una risposta corretta configurata.")
         return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
 
     if request.method != "POST":
