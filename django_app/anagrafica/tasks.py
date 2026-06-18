@@ -29,6 +29,25 @@ def run_idoneita_digest(only_ko: bool = False) -> dict:
         raise
 
 
+def run_formazione_session_reminders(days: list | None = None) -> dict:
+    """Promemoria email + invito calendario (.ics) per le sessioni formative imminenti.
+
+    Wrappa il management command ``send_formazione_session_reminders`` (default T-7 e
+    T-1). Fail-safe: senza email di notifica l'iscritto riceve solo la notifica in-app.
+    """
+    from django.core.management import call_command
+
+    try:
+        kwargs = {"verbosity": 0}
+        if days:
+            kwargs["days"] = list(days)
+        call_command("send_formazione_session_reminders", **kwargs)
+        return {"ok": True, "days": list(days) if days else [7, 1]}
+    except Exception:
+        logger.exception("run_formazione_session_reminders: eccezione inattesa")
+        raise
+
+
 def run_archivia_attestati_mancanti(limit: int = 500) -> dict:
     """Archivia nel box documenti gli attestati mancanti per i completamenti.
 

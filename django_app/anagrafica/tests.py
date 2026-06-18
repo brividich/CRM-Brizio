@@ -2294,6 +2294,38 @@ class FormazioneComplianceTests(TestCase):
         self.assertContains(resp, "Corso obbligo")
         self.assertContains(resp, "Test Dario")  # 731 = Dario Test (cognome nome)
 
+    # Reminder sessione T-7: email all'iscritto + invito calendario .ics
+    def test_session_reminder_email_e_ics(self):
+        from datetime import date, time, timedelta
+        from django.core import mail
+        from django.core.management import call_command
+        from .models_formazione import (
+            TrainingPlan, TrainingCourse, TrainingSession, TrainingLesson, TrainingEnrollment,
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, email_notifica, attivo) "
+                "VALUES (733, 'Gino', 'Mail', 'gino@example.com', 1)"
+            )
+        piano = TrainingPlan.objects.create(codice="PR", nome="Piano R")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CR", titolo="Corso reminder", durata_ore_teorica=4,
+        )
+        fra7 = date.today() + timedelta(days=7)
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SR1", data_inizio=fra7, data_fine=fra7, stato="PIANIFICATA",
+        )
+        TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=fra7, ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="L",
+        )
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=733, stato="ISCRITTO")
+        mail.outbox = []
+        call_command("send_formazione_session_reminders", verbosity=0)
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertIn("Corso reminder", msg.subject)
+        self.assertTrue(any(str(a[0]).endswith(".ics") for a in msg.attachments))
+
 
 # ---------------------------------------------------------------------------
 # H5d — archiviazione attestato PDF nel box documenti del dipendente

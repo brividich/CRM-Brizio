@@ -90,6 +90,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Promemoria sessioni formative imminenti (T-7 e T-1) agli iscritti, con
+        # invito calendario .ics + notifica in-app. Fail-safe / no-op se non ci sono
+        # edizioni pianificate nelle date bersaglio.
+        "name": "formazione_session_reminders",
+        "func": "anagrafica.tasks.run_formazione_session_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * *",       # ogni mattina alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
         # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
         "name": "cleanup_run_logs",
