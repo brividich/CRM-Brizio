@@ -507,9 +507,9 @@ def _foglio_firme_lezione_story(lezione, nomi_map, theme, styles, min_righe=18):
 
     head = ["#", "Cognome e Nome", "Firma ingresso", "Firma uscita"]
     rows = [[Paragraph(h, styles["table_header"]) for h in head]]
-    iscritti = list(
-        sessione.iscrizioni.values_list("legacy_anagrafica_id", flat=True)
-    )
+    # Iscritti *attesi* a questa lezione (rispetta i turni; fallback: tutti).
+    from .training_turni import iscritti_attesi_lezione
+    iscritti = [e.legacy_anagrafica_id for e in iscritti_attesi_lezione(sessione, lezione)]
     nominativi = sorted(
         (nomi_map.get(lid, f"#{lid}") for lid in iscritti),
         key=lambda s: s.casefold(),
@@ -538,6 +538,27 @@ def _foglio_firme_lezione_story(lezione, nomi_map, theme, styles, min_righe=18):
         "Firma del docente: ______________________________", styles["body"]
     ))
     return story
+
+
+def build_registro_lezione_pdf_bytes(lezione) -> bytes:
+    """Foglio firme (vuoto, da compilare) di una **singola lezione**, nella stessa
+    identica veste PDF del portale usata per i fogli firme di corso/fascicolo
+    (riusa :func:`_foglio_firme_lezione_story`)."""
+    from core.pdf import PdfTheme, build_styles, header_footer_callback, make_document
+
+    sessione = lezione.sessione
+    corso = sessione.corso
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = BytesIO()
+    doc = make_document(
+        buf, title=f"Foglio firme — {sessione.codice_sessione} — Lezione {lezione.numero}",
+    )
+    ids = list(sessione.iscrizioni.values_list("legacy_anagrafica_id", flat=True))
+    story = _foglio_firme_lezione_story(lezione, _nomi_map(ids), theme, styles)
+    draw = header_footer_callback(theme, title="Foglio firme", subtitle=corso.titolo)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    return buf.getvalue()
 
 
 def build_registri_corso_pdf_bytes(corso) -> bytes:

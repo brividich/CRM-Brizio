@@ -1846,16 +1846,15 @@ class RegistroPresenzeLezioneTests(TestCase):
         TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=501)
         return sess, lez
 
-    def test_registro_render_con_iscritti_e_righe_vuote(self):
+    def test_registro_render_pdf(self):
+        # Foglio firme ora generato come PDF nella veste unica del portale.
         sess, lez = self._make_lezione()
         resp = self.client.get(
             reverse("anagrafica:formazione_lezione_registro", args=[sess.pk, lez.pk])
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Conti Luca")
-        self.assertContains(resp, "Firma ingresso")
-        self.assertContains(resp, "Firma uscita")
-        self.assertContains(resp, "Rischi generali")
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content[:5] == b"%PDF-")
 
     def test_registro_tracciato_in_export_log(self):
         from .models_formazione import TrainingExportLog

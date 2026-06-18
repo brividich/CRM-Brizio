@@ -11151,54 +11151,30 @@ def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
     sessione = get_object_or_404(TrainingSession.objects.select_related("corso", "corso__piano"), pk=sessione_id)
     lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
 
-    from .services.training_turni import iscritti_attesi_lezione
-    tutte_iscrizioni = list(
-        TrainingEnrollment.objects.filter(sessione=sessione).order_by("legacy_anagrafica_id")
-    )
-    # Solo gli iscritti attesi a questa lezione/turno (fallback: tutti).
-    iscrizioni = iscritti_attesi_lezione(sessione, lezione, tutte_iscrizioni)
-    nomi_map = _build_nomi_map()
-    righe = [
-        {"n": idx, "nome": nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")}
-        for idx, i in enumerate(
-            sorted(iscrizioni, key=lambda e: nomi_map.get(e.legacy_anagrafica_id, "").casefold()),
-            start=1,
-        )
-    ]
-    # Righe vuote per partecipanti aggiuntivi (almeno 6, foglio sempre ~25 righe).
-    n_extra = max(6, 25 - len(righe))
-    extra_rows = range(len(righe) + 1, len(righe) + 1 + n_extra)
-
-    # Docente di riferimento: snapshot lezione → docente lezione → docente sessione.
-    docente = (
-        (lezione.docente_nome or "").strip()
-        or (str(lezione.docente).strip() if lezione.docente_id else "")
-        or (sessione.docente_nome or "").strip()
-        or (str(sessione.docente).strip() if sessione.docente_id else "")
-    )
-
+    # Foglio firme PDF nella veste UNICA del portale (la stessa dei fogli firme di
+    # corso e del fascicolo): riusa il builder reportlab condiviso, turno-aware
+    # (elenca gli iscritti attesi a questa lezione, fallback tutti).
+    from .services.attestato_pdf import build_registro_lezione_pdf_bytes
+    pdf = build_registro_lezione_pdf_bytes(lezione)
     try:
         TrainingExportLog.objects.create(
             tipo="REPORT_FIRMA",
             filtri_json={
                 "sessione_id": sessione.pk,
                 "lezione_id": lezione.pk,
-                "formato": "registro_presenze_html",
+                "formato": "foglio_firme_pdf",
             },
-            righe_esportate=len(righe),
+            righe_esportate=sessione.iscrizioni.count(),
             generato_da=request.user,
             ip_address=request.META.get("REMOTE_ADDR") or None,
         )
     except Exception:
-        logger.exception("Errore registrazione TrainingExportLog per registro lezione %s", lezione_id)
+        logger.exception("Errore TrainingExportLog per foglio firme lezione %s", lezione_id)
 
-    return render(request, "anagrafica/pages/formazione_registro_presenze.html", {
-        "sessione": sessione,
-        "lezione": lezione,
-        "righe": righe,
-        "extra_rows": extra_rows,
-        "docente": docente,
-    })
+    fname = f"Foglio_firme_{sessione.codice_sessione}_L{lezione.numero}.pdf".replace("/", "-").replace(" ", "_")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
 
 
 @login_required
