@@ -2157,6 +2157,27 @@ class FormazioneFlussoTests(TestCase):
         self.assertIsNotNone(q)
         self.assertEqual(q.record_formazione_id, rec.pk)
 
+    # Form corso: categoria (rischio) e qualifica (àncora) ora settabili
+    def test_corso_form_categoria_e_qualifica(self):
+        from .models import TipoQualifica
+        from .models_rischi import CategoriaCorso
+        from .forms import TrainingCourseForm
+        piano = self._piano()
+        cat = CategoriaCorso.objects.create(codice="CAT1", nome="Saldatura")
+        tipo = TipoQualifica.objects.create(nome="Patentino X")
+        self.assertIn("categoria", TrainingCourseForm().fields)
+        self.assertIn("qualifica", TrainingCourseForm().fields)
+        form = TrainingCourseForm(data={
+            "piano": piano.pk, "categoria": cat.pk, "qualifica": tipo.pk,
+            "codice": "cx1", "titolo": "Corso X", "durata_ore_teorica": "8",
+            "validita_mesi": "12", "stato": "BOZZA", "versione": "1.0",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        corso = form.save()
+        self.assertEqual(corso.categoria_id, cat.pk)
+        self.assertEqual(corso.qualifica_id, tipo.pk)
+        self.assertEqual(corso.codice, "CX1")  # clean_codice → maiuscolo
+
 
 class FormazioneComplianceTests(TestCase):
     """Compliance Accordo SR 2025 + flussi operativi: gating verifica finale e

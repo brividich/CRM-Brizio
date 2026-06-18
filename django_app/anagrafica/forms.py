@@ -317,13 +317,15 @@ class TrainingCourseForm(forms.ModelForm):
     class Meta:
         model = TrainingCourse
         fields = [
-            "piano", "codice", "titolo", "descrizione",
+            "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "costo_unitario",
             "stato", "note", "versione", "is_active",
         ]
         widgets = {
             "piano":              forms.Select(attrs=_FM_SELECT),
+            "categoria":          forms.Select(attrs=_FM_SELECT),
+            "qualifica":          forms.Select(attrs=_FM_SELECT),
             "codice":             forms.TextInput(attrs=_FM),
             "titolo":             forms.TextInput(attrs=_FM),
             "descrizione":        forms.Textarea(attrs=_FM_TEXTAREA),
@@ -340,6 +342,16 @@ class TrainingCourseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["piano"].queryset = TrainingPlan.objects.filter(is_active=True).order_by("nome")
+        # Categoria di rischio (deriva i fattori → pertinenza) e qualifica àncora
+        # (competency management): entrambe opzionali, settabili in creazione/modifica.
+        from .models import TipoQualifica
+        from .models_rischi import CategoriaCorso
+        self.fields["categoria"].queryset = CategoriaCorso.objects.filter(is_active=True).order_by("nome")
+        self.fields["categoria"].required = False
+        self.fields["categoria"].empty_label = "— Nessuna (nessuna derivazione rischio) —"
+        self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
+        self.fields["qualifica"].required = False
+        self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
 
     def clean_codice(self):
         return (self.cleaned_data.get("codice") or "").strip().upper()
