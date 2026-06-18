@@ -292,8 +292,13 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
                         {% if isc.idoneo %}'true'{% else %}'false'{% endif %},
                         '{{ isc.esito_esame|escapejs }}',
                         '{{ isc.data_completamento|date:'Y-m-d'|default:'' }}',
-                        '{{ isc.note|escapejs }}'
+                        '{{ isc.note|escapejs }}',
+                        {% if isc.verifica_superata %}'true'{% else %}'false'{% endif %},
+                        '{{ isc.data_verifica|date:'Y-m-d'|default:'' }}'
                       )">Modifica</button>
+              <button class="hr-btn hr-btn-sm"
+                      title="Carica l'attestato rilasciato dall'organizzatore e chiudi il corso"
+                      onclick="openAttestatoIscrizione({{ isc.pk }}, '{{ isc.nome_dip|escapejs }}')">📎 Attestato</button>
               <form method="post"
                     action="{% url 'anagrafica:formazione_iscrizione_delete' sessione.pk isc.pk %}"
                     style="display:inline;"
@@ -418,6 +423,55 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
   </div>
 </div>
 
+{# ── Modal: carica attestato organizzatore e chiudi il corso ──────────────── #}
+<div id="modal-attestato-iscrizione"
+     style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;
+            justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:560px;
+              max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <strong style="font-size:16px;">📎 Attestato organizzatore</strong>
+      <button onclick="document.getElementById('modal-attestato-iscrizione').style.display='none'"
+              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+    </div>
+    <p style="font-size:12px;color:#64748b;margin:0 0 14px;">
+      Carica l'attestato rilasciato dall'organizzatore per <strong id="attestato-iscrizione-nome"></strong>.
+      L'iscrizione passa a <strong>Completato</strong> e l'attestato viene archiviato nel box documenti.
+    </p>
+    <form id="form-attestato-iscrizione" method="post" action="" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Attestato (PDF o scansione) *</label>
+        <input type="file" name="file" required class="fm-input" accept=".pdf,.jpg,.jpeg,.png,.webp">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Rilasciato da (ente)</label>
+          <input type="text" name="rilasciato_da" maxlength="200" class="fm-input" placeholder="Organizzatore / provider">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">N. attestato</label>
+          <input type="text" name="numero_attestato" maxlength="100" class="fm-input" placeholder="Opzionale">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Data rilascio</label>
+          <input type="date" name="data_rilascio" class="fm-input">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;
+              font-size:12px;color:#b45309;margin-top:10px;">
+        <input type="checkbox" name="force" value="1" style="width:auto;cursor:pointer;">
+        Chiudi anche se verifica/frequenza non soddisfano la regola (tracciato)
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
+        <button type="button" class="hr-btn hr-btn-ghost"
+                onclick="document.getElementById('modal-attestato-iscrizione').style.display='none'">Annulla</button>
+        <button type="submit" class="hr-btn hr-btn-primary">Carica e chiudi</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function togglePanel(id) {
   const el = document.getElementById(id);
@@ -442,7 +496,7 @@ function toggleExpand(pk) {
 
 const STATO_OPTS = [{% for v, l in STATO_CHOICES %}{ v: '{{ v }}', l: '{{ l }}' },{% endfor %}];
 
-function openEditIscrizione(pk, stato, oreFq, percPresenza, idoneo, esitoEsame, dataCompl, note) {
+function openEditIscrizione(pk, stato, oreFq, percPresenza, idoneo, esitoEsame, dataCompl, note, verificaSup, dataVerifica) {
   const sessId = {{ sessione.pk }};
   document.getElementById('form-edit-iscrizione').action =
     `/anagrafica/formazione/sessioni/${sessId}/iscritti/${pk}/modifica`;
@@ -467,20 +521,40 @@ function openEditIscrizione(pk, stato, oreFq, percPresenza, idoneo, esitoEsame, 
       inp('ore_frequentate', 'number', oreFq, 'min="0" step="0.5"')),
     fld('% Presenza',
       inp('percentuale_presenza', 'number', percPresenza, 'min="0" max="100" step="0.01"')),
+    fld('Verifica finale di apprendimento',
+      `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+        <input type="checkbox" name="verifica_superata" ${verificaSup === 'true' ? 'checked' : ''}
+               style="width:auto;cursor:pointer;"> Superata
+      </label>`),
+    fld('Data verifica',
+      inp('data_verifica', 'date', dataVerifica, '')),
     fld('Idoneo',
       `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
         <input type="checkbox" name="idoneo" ${idoneo === 'true' ? 'checked' : ''}
                style="width:auto;cursor:pointer;"> Sì, idoneo
       </label>`),
-    fld('Esito esame',
+    fld('Esito esame (note/punteggio)',
       inp('esito_esame', 'text', esitoEsame.replace(/"/g, '&quot;'), 'maxlength="100"')),
     fld('Data completamento',
       inp('data_completamento', 'date', dataCompl, '')),
     fld('Note',
       `<textarea name="note" rows="3" class="fm-input">${note}</textarea>`),
+    `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;
+            font-size:12px;color:#b45309;margin-top:4px;">
+        <input type="checkbox" name="force" value="1" style="width:auto;cursor:pointer;">
+        Forza il completamento anche se verifica/frequenza non soddisfano la regola (tracciato)
+     </label>`,
   ].join('');
 
   document.getElementById('modal-edit-iscrizione').style.display = 'flex';
+}
+
+function openAttestatoIscrizione(pk, nome) {
+  const sessId = {{ sessione.pk }};
+  document.getElementById('form-attestato-iscrizione').action =
+    `/anagrafica/formazione/sessioni/${sessId}/iscritti/${pk}/attestato`;
+  document.getElementById('attestato-iscrizione-nome').textContent = nome;
+  document.getElementById('modal-attestato-iscrizione').style.display = 'flex';
 }
 </script>
 {% endif %}

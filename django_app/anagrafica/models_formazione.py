@@ -685,6 +685,10 @@ class TrainingEnrollment(models.Model):
     percentuale_presenza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     idoneo               = models.BooleanField(null=True, blank=True)
     esito_esame          = models.CharField(max_length=100, blank=True)
+    # Verifica finale di apprendimento (Accordo Stato-Regioni 2025): obbligatoria per i
+    # corsi la cui regola di superamento ha richiede_esame_finale=True. Null = non registrata.
+    verifica_superata    = models.BooleanField(null=True, blank=True)
+    data_verifica        = models.DateField(null=True, blank=True)
     data_completamento   = models.DateField(null=True, blank=True)
     note                 = models.TextField(blank=True)
     iscritto_da          = models.ForeignKey(

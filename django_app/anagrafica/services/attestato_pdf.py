@@ -685,3 +685,65 @@ def archivia_attestato(record, *, cfg=None, user=None, force=None):
     doc.file.save(filename, ContentFile(pdf_bytes), save=False)
     doc.save()
     return doc
+
+
+def archivia_attestato_caricato(record, uploaded, *, user=None, force=False,
+                                mime="", descrizione=""):
+    """Archivia nel box documenti l'attestato *caricato* (rilasciato dall'organizzatore
+    esterno del corso), invece di generarlo.
+
+    Crea un :class:`DocumentoDipendente` ``CERTIFICATO_FORMAZIONE`` legato al
+    completamento (stessa cartella/retention degli attestati generati). Idempotente
+    sul record: se esiste gia' un documento e ``force`` e' falso lo restituisce; con
+    ``force`` ne sostituisce il contenuto. Ritorna il documento.
+    """
+    from pathlib import Path
+
+    from anagrafica.models import DocumentoDipendente
+
+    esistente = _documento_esistente(record)
+    if esistente and not force:
+        return esistente
+
+    data = uploaded.read()
+    try:
+        uploaded.seek(0)
+    except Exception:
+        pass
+    suffix = (Path(getattr(uploaded, "name", "") or "").suffix.lower() or ".pdf")[:10]
+    filename = f"Attestato_caricato_{record.legacy_anagrafica_id}_{record.pk}{suffix}"
+    nome_orig = (getattr(uploaded, "name", "") or filename)[:255]
+    mime = mime or getattr(uploaded, "content_type", "") or "application/octet-stream"
+    descr = descrizione or "Attestato rilasciato dall'organizzatore del corso (caricato)"
+    cartella = get_or_create_cartella_attestati()
+
+    if esistente and force:
+        try:
+            esistente.file.delete(save=False)
+        except Exception:
+            logger.warning("Vecchio attestato non eliminabile (record %s)", record.pk, exc_info=True)
+        esistente.cartella = cartella
+        esistente.nome_originale = nome_orig
+        esistente.tipo_mime = mime
+        esistente.dimensione_bytes = len(data)
+        esistente.descrizione = descr
+        esistente.file.save(filename, ContentFile(data), save=False)
+        esistente.save()
+        return esistente
+
+    doc = DocumentoDipendente(
+        legacy_anagrafica_id=record.legacy_anagrafica_id,
+        tipo=DocumentoDipendente.Tipo.CERTIFICATO_FORMAZIONE,
+        cartella=cartella,
+        nome_originale=nome_orig,
+        tipo_mime=mime,
+        dimensione_bytes=len(data),
+        descrizione=descr,
+        oggetto_riferimento_tipo=RIFERIMENTO_TIPO,
+        oggetto_riferimento_id=record.pk,
+        created_by=user if (user and getattr(user, "pk", None)) else None,
+        created_by_display=(user.get_full_name() or user.username) if (user and getattr(user, "pk", None)) else "Sistema (auto)",
+    )
+    doc.file.save(filename, ContentFile(data), save=False)
+    doc.save()
+    return doc

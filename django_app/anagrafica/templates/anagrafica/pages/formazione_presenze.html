@@ -49,6 +49,10 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       {% endif %}
     </div>
     <div style="display:flex;gap:8px;align-items:flex-start;">
+      {% if is_editor and righe %}
+      <button class="hr-btn hr-btn-ghost" onclick="toggleAutocompila()"
+              title="Spunta chi ha firmato ingresso/uscita sul registro caricato: le presenze si compilano da sole">✍ Autocompila dal registro</button>
+      {% endif %}
       <a href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezione.pk %}" target="_blank" rel="noopener"
          class="hr-btn hr-btn-ghost">🖨 Stampa foglio firme</a>
     </div>
@@ -97,6 +101,53 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       </div>
     </div>
   </div>
+
+  {# ── Pannello autocompilazione dal registro firmato ──────────────────────── #}
+  {% if is_editor and righe %}
+  <div id="panel-autocompila" style="display:none;margin-bottom:16px;">
+    <div class="hr-card" style="padding:16px 20px;">
+      <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:4px;">✍ Autocompila presenze dal registro firmato</div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
+        Spunta, per ciascun iscritto atteso, le firme presenti sul <strong>registro caricato</strong>
+        (ingresso e/o uscita). Alla conferma le presenze vengono compilate: <strong>Presente</strong> se
+        entrambe le firme, <strong>Parziale</strong> se una sola. Chi non ha spunte non viene modificato.
+      </p>
+      <form method="post" action="{% url 'anagrafica:formazione_registro_autocompila' sessione.pk lezione.pk %}">
+        {% csrf_token %}
+        <div style="overflow-x:auto;max-height:360px;border:1px solid #e2e8f0;border-radius:8px;">
+          <table class="hr-table" style="margin:0;">
+            <thead>
+              <tr>
+                <th>Dipendente</th>
+                <th style="width:120px;text-align:center;">Firma ingresso</th>
+                <th style="width:120px;text-align:center;">Firma uscita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in righe %}
+              <tr>
+                <td style="font-weight:500;">{{ r.nome }}</td>
+                <td style="text-align:center;"><input type="checkbox" name="ingresso_{{ r.enrollment.legacy_anagrafica_id }}" value="1" checked></td>
+                <td style="text-align:center;"><input type="checkbox" name="uscita_{{ r.enrollment.legacy_anagrafica_id }}" value="1" checked></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button type="button" class="hr-btn hr-btn-ghost" onclick="toggleAutocompila()">Annulla</button>
+          <button type="submit" class="hr-btn hr-btn-primary">✍ Compila presenze</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+  function toggleAutocompila() {
+    var el = document.getElementById('panel-autocompila');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  </script>
+  {% endif %}
 
   {# ── Tabella presenze ────────────────────────────────────────────────────── #}
   <div class="hr-card">

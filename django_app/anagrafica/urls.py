@@ -264,6 +264,8 @@ urlpatterns = [
     # Presenze per lezione
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/", views.formazione_lezione_presenze, name="formazione_lezione_presenze"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/set", views.formazione_presenza_set, name="formazione_presenza_set"),
+    # Autocompila presenze dal registro firme firmato (firme ingresso/uscita -> DB)
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/da-registro", views.formazione_registro_autocompila, name="formazione_registro_autocompila"),
     # Registro presenze lezione — foglio firme stampabile A4
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro/", views.formazione_lezione_registro, name="formazione_lezione_registro"),
 
@@ -273,6 +275,8 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/iscritti/rinnovo-bulk", views.formazione_iscrizione_bulk, name="formazione_iscrizione_bulk"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/modifica", views.formazione_iscrizione_edit, name="formazione_iscrizione_edit"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/turni", views.formazione_iscrizione_turni, name="formazione_iscrizione_turni"),
+    # Carica attestato organizzatore esterno e chiudi il corso (completamento+archiviazione)
+    path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/attestato", views.formazione_iscrizione_attestato_upload, name="formazione_iscrizione_attestato_upload"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────

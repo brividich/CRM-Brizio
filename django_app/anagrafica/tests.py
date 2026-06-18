@@ -2159,6 +2159,112 @@ class FormazioneFlussoTests(TestCase):
         self.assertEqual(q.record_formazione_id, rec.pk)
 
 
+class FormazioneComplianceTests(TestCase):
+    """Compliance Accordo SR 2025 + flussi operativi: gating verifica finale e
+    frequenza minima, chiusura corso da attestato esterno, registro->presenze."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="comp_admin", email="comp@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, attivo) VALUES "
+                "(731, 'Dario', 'Test', 1), (732, 'Elsa', 'Test', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _corso_sessione(self, *, esame=False, presenza_min=0):
+        from datetime import date
+        from .models_formazione import (
+            TrainingPlan, TrainingCourse, TrainingSession, TrainingCompletionRule,
+        )
+        piano = TrainingPlan.objects.create(codice="PC", nome="Piano C")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CC", titolo="Corso C", durata_ore_teorica=8, validita_mesi=12,
+        )
+        TrainingCompletionRule.objects.create(
+            corso=corso, richiede_esame_finale=esame, presenza_minima_percentuale=presenza_min,
+        )
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SC1", data_inizio=date.today(), data_fine=date.today(),
+        )
+        return corso, sess
+
+    # F1 — la verifica finale blocca e poi sblocca il completamento
+    def test_gating_verifica_finale(self):
+        from .models_formazione import TrainingEnrollment, TrainingEmployeeRecord
+        _, sess = self._corso_sessione(esame=True, presenza_min=0)
+        enr = TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=731, stato="ISCRITTO")
+        url = reverse("anagrafica:formazione_iscrizione_edit", args=[sess.pk, enr.pk])
+        self.client.post(url, {"stato": "COMPLETATO", "ore_frequentate": "8"})
+        enr.refresh_from_db()
+        self.assertNotEqual(enr.stato, "COMPLETATO")
+        self.assertFalse(TrainingEmployeeRecord.objects.filter(enrollment=enr).exists())
+        self.client.post(url, {"stato": "COMPLETATO", "ore_frequentate": "8",
+                               "verifica_superata": "on", "idoneo": "on"})
+        enr.refresh_from_db()
+        self.assertEqual(enr.stato, "COMPLETATO")
+        self.assertTrue(TrainingEmployeeRecord.objects.filter(enrollment=enr).exists())
+
+    # F2 — frequenza sotto soglia blocca; force sblocca (tracciato)
+    def test_gating_frequenza_minima(self):
+        from .models_formazione import TrainingEnrollment
+        _, sess = self._corso_sessione(esame=False, presenza_min=90)
+        enr = TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=731, stato="ISCRITTO")
+        url = reverse("anagrafica:formazione_iscrizione_edit", args=[sess.pk, enr.pk])
+        self.client.post(url, {"stato": "COMPLETATO", "ore_frequentate": "4", "percentuale_presenza": "50"})
+        enr.refresh_from_db()
+        self.assertNotEqual(enr.stato, "COMPLETATO")
+        self.client.post(url, {"stato": "COMPLETATO", "ore_frequentate": "4",
+                               "percentuale_presenza": "50", "force": "1"})
+        enr.refresh_from_db()
+        self.assertEqual(enr.stato, "COMPLETATO")
+
+    # F3 — l'upload dell'attestato esterno chiude il corso e archivia il certificato
+    def test_attestato_esterno_chiude_e_archivia(self):
+        from .models_formazione import (
+            TrainingEnrollment, TrainingEmployeeRecord, TrainingCertificate,
+        )
+        _, sess = self._corso_sessione(esame=False, presenza_min=0)
+        enr = TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=731, stato="ISCRITTO")
+        up = SimpleUploadedFile("att.pdf", b"%PDF-1.4\n% attestato\n", content_type="application/pdf")
+        url = reverse("anagrafica:formazione_iscrizione_attestato_upload", args=[sess.pk, enr.pk])
+        self.client.post(url, {"file": up, "rilasciato_da": "Ente X", "numero_attestato": "AB-1"})
+        enr.refresh_from_db()
+        self.assertEqual(enr.stato, "COMPLETATO")
+        rec = TrainingEmployeeRecord.objects.filter(enrollment=enr).first()
+        self.assertIsNotNone(rec)
+        cert = TrainingCertificate.objects.filter(record=rec).first()
+        self.assertIsNotNone(cert)
+        self.assertEqual(cert.rilasciato_da, "Ente X")
+        self.assertIsNotNone(cert.file_attestato_id)
+
+    # F4 — il registro firmato autocompila le presenze
+    def test_registro_autocompila_presenze(self):
+        from datetime import date, time
+        from .models_formazione import (
+            TrainingEnrollment, TrainingLesson, TrainingLessonAttendance,
+        )
+        _, sess = self._corso_sessione(esame=False, presenza_min=0)
+        lz = TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=date.today(),
+            ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="L1",
+        )
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=731, stato="ISCRITTO")
+        url = reverse("anagrafica:formazione_registro_autocompila", args=[sess.pk, lz.pk])
+        self.client.post(url, {"ingresso_731": "1", "uscita_731": "1"})
+        att = TrainingLessonAttendance.objects.filter(lezione=lz, legacy_anagrafica_id=731).first()
+        self.assertIsNotNone(att)
+        self.assertEqual(att.stato_presenza, "PRESENTE")
+        self.assertEqual(att.signature_status, "FIRMATO")
+        self.assertTrue(att.firma_ingresso and att.firma_uscita)
+
+
 # ---------------------------------------------------------------------------
 # H5d — archiviazione attestato PDF nel box documenti del dipendente
 # ---------------------------------------------------------------------------

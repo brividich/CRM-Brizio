@@ -10527,6 +10527,47 @@ def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | Non
     return round(ore_effettive / ore_totali * 100, 2)
 
 
+def _ricalcola_presenza_enrollment(enrollment: TrainingEnrollment) -> None:
+    """Ricalcola e salva ore_frequentate e percentuale_presenza dell'iscrizione dalle
+    presenze registrate su tutte le lezioni della sessione."""
+    perc = _calcola_percentuale_presenza(enrollment)
+    ore = sum(
+        float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
+        for lz, pr in [
+            (lz, TrainingLessonAttendance.objects.filter(
+                lezione=lz, legacy_anagrafica_id=enrollment.legacy_anagrafica_id
+            ).first())
+            for lz in enrollment.sessione.lezioni.all()
+        ]
+        if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
+    )
+    enrollment.ore_frequentate = round(ore, 2)
+    enrollment.percentuale_presenza = perc
+    enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+
+
+def _motivi_blocco_completamento(iscrizione: TrainingEnrollment) -> list[str]:
+    """Motivi che impediscono un completamento *conforme* (Accordo Stato-Regioni 2025),
+    secondo la regola di superamento del corso: verifica finale non superata e/o
+    frequenza sotto la soglia minima. Lista vuota = nessun blocco (o nessuna regola)."""
+    corso = iscrizione.sessione.corso
+    try:
+        regola = corso.regola_superamento
+    except TrainingCompletionRule.DoesNotExist:
+        return []
+    motivi: list[str] = []
+    if regola.richiede_esame_finale and iscrizione.verifica_superata is not True:
+        motivi.append("verifica finale di apprendimento non superata o non registrata")
+    soglia = regola.presenza_minima_percentuale or 0
+    if soglia:
+        perc = iscrizione.percentuale_presenza
+        if perc is None:
+            perc = _calcola_percentuale_presenza(iscrizione)
+        if perc is not None and float(perc) < float(soglia):
+            motivi.append(f"frequenza {float(perc):.0f}% inferiore al minimo richiesto ({soglia}%)")
+    return motivi
+
+
 def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> TrainingEmployeeRecord | None:
     """Crea TrainingEmployeeRecord con tutti i campi snapshot al completamento.
 
@@ -10811,14 +10852,136 @@ def formazione_iscrizione_edit(request, sessione_id: int, iscrizione_id: int):
     form = TrainingEnrollmentEditForm(request.POST, instance=iscrizione)
     if form.is_valid():
         iscrizione = form.save()
-        # Se diventa COMPLETATO per la prima volta, crea il record storico
+        # Se diventa COMPLETATO per la prima volta: gating conformità (Accordo SR 2025).
         if iscrizione.stato == "COMPLETATO" and stato_precedente != "COMPLETATO":
+            force = request.POST.get("force") == "1"
+            motivi = _motivi_blocco_completamento(iscrizione)
+            if motivi and not force:
+                # Conserva i dati inseriti ma non avanza lo stato.
+                iscrizione.stato = stato_precedente
+                iscrizione.save(update_fields=["stato"])
+                messages.error(
+                    request,
+                    "Completamento bloccato: " + "; ".join(motivi)
+                    + ". Conferma la forzatura per registrarlo comunque.",
+                )
+                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+            if motivi and force:
+                _audit_safe(request, "formazione_completamento_forzato", "formazione", {
+                    "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk, "motivi": motivi,
+                })
             _crea_employee_record(iscrizione, request.user)
         messages.success(request, "Iscrizione aggiornata.")
     else:
         for field_errors in form.errors.values():
             for err in field_errors:
                 messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione_id: int):
+    """Carica l'attestato dell'organizzatore esterno e **chiude il corso** per l'iscritto:
+    porta l'iscrizione a COMPLETATO, crea il record storico, archivia il file nel box
+    documenti (CERTIFICATO_FORMAZIONE) e registra il TrainingCertificate. Rispetta il
+    gating conformità (verifica/frequenza), forzabile con force=1 (tracciato)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(
+        TrainingEnrollment.objects.select_related("sessione", "sessione__corso"),
+        pk=iscrizione_id, sessione_id=sessione_id,
+    )
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "Seleziona l'attestato da caricare.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    if uploaded.size > _MAX_DOC_SIZE:
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    force = request.POST.get("force") == "1"
+    # Gating conformità (se non già completata)
+    if iscrizione.stato != "COMPLETATO":
+        motivi = _motivi_blocco_completamento(iscrizione)
+        if motivi and not force:
+            messages.error(
+                request,
+                "Chiusura bloccata: " + "; ".join(motivi)
+                + ". Conferma la forzatura per chiudere comunque.",
+            )
+            return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        if motivi and force:
+            _audit_safe(request, "formazione_completamento_forzato", "formazione", {
+                "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk,
+                "motivi": motivi, "via": "attestato_caricato",
+            })
+        from django.utils import timezone as _tz
+        if not iscrizione.data_completamento:
+            iscrizione.data_completamento = _tz.localdate()
+        if iscrizione.idoneo is None:
+            iscrizione.idoneo = True
+        iscrizione.stato = "COMPLETATO"
+        iscrizione.save(update_fields=["stato", "idoneo", "data_completamento"])
+
+    record = _crea_employee_record(iscrizione, request.user)
+    if record is None:
+        record = getattr(iscrizione, "record_completamento", None)
+    if record is None:
+        messages.error(request, "Impossibile registrare il completamento.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    rilasciato_da = (request.POST.get("rilasciato_da") or "").strip()[:200]
+    numero = (request.POST.get("numero_attestato") or "").strip()[:100]
+    data_rilascio = None
+    raw = (request.POST.get("data_rilascio") or "").strip()
+    if raw:
+        try:
+            data_rilascio = date.fromisoformat(raw)
+        except ValueError:
+            data_rilascio = None
+    if data_rilascio is None:
+        data_rilascio = record.data_completamento
+
+    try:
+        from .services.attestato_pdf import archivia_attestato_caricato
+        descr = "Attestato organizzatore" + (f" — {rilasciato_da}" if rilasciato_da else "")
+        doc = archivia_attestato_caricato(
+            record, uploaded, user=request.user, force=True, mime=mime, descrizione=descr,
+        )
+        TrainingCertificate.objects.update_or_create(
+            record=record,
+            defaults={
+                "legacy_anagrafica_id": record.legacy_anagrafica_id,
+                "numero_attestato": numero,
+                "data_rilascio": data_rilascio,
+                "rilasciato_da": rilasciato_da,
+                "file_attestato": doc,
+                "created_by": request.user,
+            },
+        )
+        _audit_safe(request, "formazione_attestato_caricato", "formazione", {
+            "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk,
+            "record_id": record.pk, "documento_id": doc.pk,
+        })
+        messages.success(request, "Attestato caricato e corso chiuso: completamento registrato e archiviato.")
+    except Exception:
+        logger.exception("Upload attestato organizzatore fallito (iscrizione %s)", iscrizione.pk)
+        messages.error(request, "Errore durante l'archiviazione dell'attestato.")
     return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
 
@@ -11063,21 +11226,7 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
             enrollment = TrainingEnrollment.objects.get(
                 sessione_id=sessione_id, legacy_anagrafica_id=legacy_id
             )
-            perc = _calcola_percentuale_presenza(enrollment)
-            # Somma ore presenziate in tutte le lezioni
-            ore = sum(
-                float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
-                for lz, pr in [
-                    (lz, TrainingLessonAttendance.objects.filter(
-                        lezione=lz, legacy_anagrafica_id=legacy_id
-                    ).first())
-                    for lz in enrollment.sessione.lezioni.all()
-                ]
-                if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
-            )
-            enrollment.ore_frequentate  = round(ore, 2)
-            enrollment.percentuale_presenza = perc
-            enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+            _ricalcola_presenza_enrollment(enrollment)
         except TrainingEnrollment.DoesNotExist:
             pass
 
@@ -11086,6 +11235,65 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
         for field_errors in form.errors.values():
             for err in field_errors:
                 messages.error(request, err)
+    return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+@require_POST
+def formazione_registro_autocompila(request, sessione_id: int, lezione_id: int):
+    """Autocompila le presenze di una lezione dal **registro firme** firmato.
+
+    Per ogni iscritto *atteso* alla lezione (rispetta i turni) imposta firma
+    ingresso/uscita in base ai campi spuntati nel modulo (= "a seconda dei campi
+    firmati"), lo stato presenza (PRESENTE se entrambe, PARZIALE se una sola),
+    ``signature_status=FIRMATO`` / ``signature_method=UPLOAD`` / ``signed_at``, e
+    ricalcola ore/percentuale dell'iscrizione. Gli iscritti senza alcuna firma
+    spuntata non vengono toccati.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le presenze.")
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    from django.utils import timezone as _tz
+    from .services.training_turni import iscritti_attesi_lezione
+
+    attesi = iscritti_attesi_lezione(sessione, lezione)
+    now = _tz.now()
+    n = 0
+    toccati: list[TrainingEnrollment] = []
+    for e in attesi:
+        lid = e.legacy_anagrafica_id
+        ing = request.POST.get(f"ingresso_{lid}") == "1"
+        usc = request.POST.get(f"uscita_{lid}") == "1"
+        if not ing and not usc:
+            continue  # nessuna firma: non sovrascrive una presenza eventualmente già registrata
+        att, _ = TrainingLessonAttendance.objects.get_or_create(
+            lezione=lezione, legacy_anagrafica_id=lid,
+            defaults={"registrato_da": request.user},
+        )
+        att.firma_ingresso = ing
+        att.firma_uscita = usc
+        att.signature_status = "FIRMATO"
+        att.signature_method = "UPLOAD"
+        att.signed_at = now
+        att.stato_presenza = "PRESENTE" if (ing and usc) else "PARZIALE"
+        att.registrato_da = request.user
+        att.save()
+        toccati.append(e)
+        n += 1
+
+    for e in toccati:
+        _ricalcola_presenza_enrollment(e)
+
+    if n:
+        _audit_safe(request, "formazione_registro_autocompila", "formazione", {
+            "sessione_id": sessione_id, "lezione_id": lezione_id, "iscritti": n,
+        })
+        messages.success(request, f"Presenze autocompilate dal registro per {n} iscritti.")
+    else:
+        messages.info(request, "Nessuna firma selezionata: nessuna presenza modificata.")
     return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
 
 

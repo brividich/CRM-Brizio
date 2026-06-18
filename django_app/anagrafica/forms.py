@@ -532,6 +532,7 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
         fields = [
             "stato", "ore_frequentate",
             "percentuale_presenza", "idoneo",
+            "verifica_superata", "data_verifica",
             "esito_esame", "data_completamento", "note",
         ]
         widgets = {
@@ -539,6 +540,8 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
             "ore_frequentate":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0"}),
             "percentuale_presenza": forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0", "max": "100"}),
             "idoneo":               forms.CheckboxInput(attrs=_FM_CHECK),
+            "verifica_superata":    forms.CheckboxInput(attrs=_FM_CHECK),
+            "data_verifica":        forms.DateInput(attrs=_FM_DATE),
             "esito_esame":          forms.TextInput(attrs=_FM),
             "data_completamento":   forms.DateInput(attrs=_FM_DATE),
             "note":                 forms.Textarea(attrs=_FM_TEXTAREA),
