@@ -131,6 +131,41 @@ def _my_dpi(legacy_user_id) -> list[dict]:
     return out
 
 
+def _my_elearning(request) -> list[dict]:
+    """Micro-corsi e-learning assegnati (obbligo) all'utente e non ancora completati."""
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not legacy_user:
+        return []
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        from anagrafica.models_formazione import TrainingAssignment
+
+        ana = AnagraficaDipendente.objects.filter(utente_id=legacy_user.id).only("id").first()
+        if not ana:
+            return []
+        qs = (
+            TrainingAssignment.objects.filter(
+                legacy_anagrafica_id=ana.id,
+                corso__is_elearning=True, corso__is_active=True, corso__stato="ATTIVO",
+            )
+            .exclude(stato__in=("COMPLETATO", "ESONERATO"))
+            .select_related("corso")
+            .order_by("due_date")[:15]
+        )
+    except Exception:
+        return []
+    out = []
+    for a in qs:
+        out.append({
+            "code": a.corso.codice,
+            "title": a.corso.titolo,
+            "meta": ("Scadenza " + a.due_date.isoformat()) if a.due_date else "Da completare",
+            "status": a.get_stato_display(),
+            "url": _safe_url("anagrafica:formazione_online_player", a.corso_id),
+        })
+    return out
+
+
 def _my_procedure(request_user) -> list[dict]:
     """Procedure ancora da leggere/confermare assegnate all'utente corrente."""
     if not getattr(request_user, "is_authenticated", False):
@@ -271,6 +306,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": _my_dpi(legacy_user_id),
             "all_url": _safe_url("dpi:dashboard"),
             "empty": "Nessuna richiesta DPI in corso.",
+        },
+        {
+            "key": "elearning",
+            "label": "Corsi e-learning da completare",
+            "tone": "info",
+            "icon": "🎓",
+            "items": _my_elearning(request),
+            "all_url": _safe_url("anagrafica:formazione_online_catalog"),
+            "empty": "Nessun corso e-learning da completare.",
         },
     ]
 

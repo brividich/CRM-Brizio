@@ -43,6 +43,7 @@
             <div class="fmd-muted" style="font-size:12px;">
               <span class="fmd-code">{{ it.corso.codice }}</span>
               {% if it.corso.obbligatorio %}<span class="fmd-badge fmd-b-orange" style="margin-left:6px;">Obbligatorio</span>{% endif %}
+              {% if it.assegnato_da_fare %}<span class="fmd-badge fmd-b-orange" style="margin-left:6px;">Da fare{% if it.due_date %} · entro {{ it.due_date }}{% endif %}</span>{% elif it.assegnato %}<span class="fmd-badge fmd-b-grey" style="margin-left:6px;">Assegnato</span>{% endif %}
             </div>
           </div>
         </div>

@@ -13165,9 +13165,30 @@ def formazione_elearning_manage(request, corso_id: int):
         elif r["stato"] == "IN_CORSO":
             counts["in_corso"] += 1
 
+    is_editor = _can_edit_formazione(request)
+
+    # Assegnazioni (obbligo) del corso + pool dipendenti assegnabili per il picker.
+    assegnazioni = list(TrainingAssignment.objects.filter(corso=corso))
+    nomi = _build_nomi_map() if (assegnazioni or is_editor) else {}
+    for a in assegnazioni:
+        a.nome = nomi.get(a.legacy_anagrafica_id, f"#{a.legacy_anagrafica_id}")
+    assegnazioni.sort(key=lambda a: (a.nome or "").lower())
+    assegnabili = []
+    if is_editor:
+        assegnati_ids = {a.legacy_anagrafica_id for a in assegnazioni}
+        attivi_ids = set(
+            DipendenteAnagraficaAziendale.objects
+            .filter(data_cessazione__isnull=True)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+        for lid in sorted(attivi_ids):
+            if lid not in assegnati_ids and lid in nomi:
+                assegnabili.append({"legacy_id": lid, "nome": nomi[lid]})
+        assegnabili.sort(key=lambda x: x["nome"].lower())
+
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
         "corso": corso,
-        "is_editor": _can_edit_formazione(request),
+        "is_editor": is_editor,
         "n_slide": len(slides),
         "n_domande": len(domande),
         "n_invalid": n_invalid,
@@ -13175,6 +13196,8 @@ def formazione_elearning_manage(request, corso_id: int):
         "iscritti": iscritti,
         "counts": counts,
         "pubblicato": corso.stato == "ATTIVO" and corso.is_active,
+        "assegnazioni": assegnazioni,
+        "assegnabili": assegnabili,
     })
 
 
@@ -13242,6 +13265,73 @@ def formazione_elearning_iscritti_csv(request, corso_id: int):
     except Exception:
         logger.warning("Audit export e-learning iscritti fallito", exc_info=True)
     return resp
+
+
+@login_required
+@require_POST
+def formazione_elearning_assign(request, corso_id: int):
+    """Assegna (obbligo) il micro-corso a uno o più dipendenti: crea TrainingAssignment
+    e richiama l'hook notifica (predisposto, invio non attivo). Idempotente."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per assegnare corsi.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id, is_elearning=True)
+
+    ids, seen = [], set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+    due = None
+    raw_due = (request.POST.get("due_date") or "").strip()
+    if raw_due:
+        from datetime import datetime as _dt
+        try:
+            due = _dt.strptime(raw_due, "%Y-%m-%d").date()
+        except ValueError:
+            due = None
+
+    from .services.elearning_notifications import notify_corso_assegnato
+    n_new = 0
+    for lid in ids:
+        obj, created = TrainingAssignment.objects.get_or_create(
+            corso=corso, legacy_anagrafica_id=lid,
+            defaults={"stato": "ASSEGNATO", "piano": corso.piano, "due_date": due, "assigned_by": request.user},
+        )
+        if created:
+            n_new += 1
+            try:
+                notify_corso_assegnato(corso.pk, lid)
+            except Exception:
+                logger.debug("Hook notifica assegnazione e-learning fallito", exc_info=True)
+    if n_new:
+        messages.success(request, f"{n_new} dipendente/i assegnato/i al corso.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già assegnati.")
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_elearning_unassign(request, corso_id: int, assignment_id: int):
+    """Rimuove un'assegnazione non ancora completata."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    a = get_object_or_404(TrainingAssignment, pk=assignment_id, corso_id=corso_id)
+    if a.stato == "COMPLETATO":
+        messages.error(request, "Non puoi rimuovere un'assegnazione già completata.")
+    else:
+        a.delete()
+        messages.success(request, "Assegnazione rimossa.")
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
 
 
 # -- AUTORE: gestione contenuti (slide + quiz) -------------------------------
@@ -13437,6 +13527,7 @@ def formazione_online_catalog(request):
         .order_by("titolo")
     )
     iscrizioni = {}
+    assegnazioni = {}
     if legacy_id:
         iscrizioni = {
             e.corso_id: e
@@ -13444,16 +13535,30 @@ def formazione_online_catalog(request):
                 legacy_anagrafica_id=legacy_id, corso__in=corsi
             )
         }
+        assegnazioni = {
+            a.corso_id: a
+            for a in TrainingAssignment.objects.filter(
+                legacy_anagrafica_id=legacy_id, corso__in=corsi
+            )
+        }
     cards = []
     for c in corsi:
         e = iscrizioni.get(c.pk)
+        a = assegnazioni.get(c.pk)
+        # «Da fare» = assegnato (obbligo) e non ancora completato
+        assegnato_da_fare = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO") and (e is None or e.stato != "COMPLETATO")
         cards.append({
             "corso": c,
             "stato": e.stato if e else None,
             "best_pct": e.best_punteggio_pct if e else None,
             "n_slide": c.slides.filter(is_active=True).count(),
             "n_domande": c.quiz_domande.filter(is_active=True).count(),
+            "assegnato": bool(a),
+            "assegnato_da_fare": assegnato_da_fare,
+            "due_date": a.due_date if a else None,
         })
+    # Ordina: prima i corsi assegnati da completare, poi gli altri (per titolo)
+    cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["corso"].titolo.lower()))
     return render(request, "anagrafica/pages/formazione_online_catalog.html", {
         "cards": cards,
         "no_anagrafica": legacy_id is None,
@@ -13634,6 +13739,10 @@ def formazione_online_quiz(request, corso_id: int):
                 attempt.record = record
                 attempt.save(update_fields=["record"])
                 campi.append("record_completamento")
+            # Chiude eventuali assegnazioni (obbligo) aperte per questo corso/dipendente
+            TrainingAssignment.objects.filter(
+                corso=corso, legacy_anagrafica_id=legacy_id,
+            ).exclude(stato="COMPLETATO").update(stato="COMPLETATO")
         elif not superato and enr.stato != "COMPLETATO":
             enr.stato = "NON_SUPERATO"
             campi.append("stato")

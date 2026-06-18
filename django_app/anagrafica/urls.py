@@ -267,6 +267,8 @@ urlpatterns = [
     path("formazione/elearning/<int:corso_id>/gestione", views.formazione_elearning_manage, name="formazione_elearning_manage"),
     path("formazione/elearning/<int:corso_id>/pubblica", views.formazione_elearning_publish_toggle, name="formazione_elearning_publish_toggle"),
     path("formazione/elearning/<int:corso_id>/iscritti.csv", views.formazione_elearning_iscritti_csv, name="formazione_elearning_iscritti_csv"),
+    path("formazione/elearning/<int:corso_id>/assegna", views.formazione_elearning_assign, name="formazione_elearning_assign"),
+    path("formazione/elearning/<int:corso_id>/assegnazioni/<int:assignment_id>/rimuovi", views.formazione_elearning_unassign, name="formazione_elearning_unassign"),
     # Autore (gestione contenuti)
     path("formazione/corsi/<int:corso_id>/elearning/", views.formazione_corso_elearning, name="formazione_corso_elearning"),
     path("formazione/corsi/<int:corso_id>/elearning/slide/salva", views.formazione_slide_save, name="formazione_slide_save"),

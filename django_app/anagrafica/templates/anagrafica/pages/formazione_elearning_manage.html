@@ -95,6 +95,76 @@
       </div>
     </section>
 
+    {# ── Assegnazioni (obbligo) ─────────────────────────────────────────── #}
+    <section class="fmd-panel">
+      <div class="fmd-toolbar">
+        <span class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Assegnazioni (obbligo) <span class="fmd-count">{{ assegnazioni|length }}</span></span>
+      </div>
+      <p class="fmd-fhelp" style="margin:0 0 10px;">Chi è assegnato deve completare il corso: comparirà tra i «Corsi da completare» nella sua home e in cima al catalogo «Corsi online».</p>
+
+      {% if assegnazioni %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Dipendente</th><th>Stato</th><th>Scadenza</th>{% if is_editor %}<th class="fmd-nowrap">Azioni</th>{% endif %}</tr></thead>
+          <tbody>
+            {% for a in assegnazioni %}
+            <tr>
+              <td><span class="fmd-data-link">{{ a.nome }}</span></td>
+              <td>
+                {% if a.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">Completato</span>
+                {% elif a.stato == "ESONERATO" %}<span class="fmd-badge fmd-b-grey">Esonerato</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">{{ a.get_stato_display }}</span>{% endif %}
+              </td>
+              <td>{{ a.due_date|default:"—" }}</td>
+              {% if is_editor %}
+              <td class="fmd-nowrap">
+                {% if a.stato != "COMPLETATO" %}
+                <form method="post" action="{% url 'anagrafica:formazione_elearning_unassign' corso.pk a.pk %}" onsubmit="return confirm('Rimuovere l\'assegnazione?');" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Rimuovi</button>
+                </form>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="fmd-muted" style="margin:0;">Nessuna assegnazione: il corso è disponibile a tutti i dipendenti ma non obbligatorio per nessuno.</p>
+      {% endif %}
+
+      {% if is_editor %}
+      <form method="post" action="{% url 'anagrafica:formazione_elearning_assign' corso.pk %}" class="fm-add-box" style="margin-top:14px;">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Assegna dipendenti</div>
+        {% if assegnabili %}
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+          <label class="fmd-field" style="margin:0;">
+            <span style="display:block;font-size:12px;font-weight:700;color:var(--fmd-navy);margin-bottom:4px;">Scadenza (opzionale)</span>
+            <input type="date" name="due_date" class="fm-input" style="max-width:180px;">
+          </label>
+          <span class="fmd-search" style="flex:1;min-width:220px;">
+            <svg class="fmd-ico"><use href="#i-search"/></svg>
+            <input type="text" id="fm-assign-filter" placeholder="Filtra dipendenti…" autocomplete="off">
+          </span>
+        </div>
+        <div class="fm-assign-list">
+          {% for d in assegnabili %}
+          <label class="fm-assign-item" data-nome="{{ d.nome|lower }}">
+            <input type="checkbox" name="dipendenti_selezionati" value="{{ d.legacy_id }}"> <span>{{ d.nome }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;"><svg class="fmd-ico"><use href="#i-check"/></svg>Assegna selezionati</button>
+        {% else %}
+        <p class="fmd-muted" style="margin:0;">Tutti i dipendenti attivi sono già assegnati (o l'elenco anagrafica non è disponibile in questo ambiente).</p>
+        {% endif %}
+      </form>
+      {% endif %}
+    </section>
+
     {# ── Iscritti & esiti ───────────────────────────────────────────────── #}
     <section class="fmd-panel">
       <div class="fmd-toolbar">
@@ -146,4 +216,19 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+
+<script>
+/* Filtro client-side della lista dipendenti assegnabili (per nome). */
+(function(){
+  var box = document.getElementById('fm-assign-filter');
+  if (!box) return;
+  box.addEventListener('input', function(){
+    var q = box.value.trim().toLowerCase();
+    document.querySelectorAll('.fm-assign-item').forEach(function(it){
+      var n = it.getAttribute('data-nome') || '';
+      it.classList.toggle('fm-hidden', q && n.indexOf(q) === -1);
+    });
+  });
+})();
+</script>
 {% endblock %}

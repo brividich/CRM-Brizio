@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .models_formazione import (
+    TrainingAssignment,
     TrainingCourse,
     TrainingElearningEnrollment,
     TrainingPlan,
@@ -272,3 +273,24 @@ class ElearningManageTests(TestCase):
         self.assertIn("text/csv", resp["Content-Type"])
         body = resp.content.decode("utf-8")
         self.assertIn("Dipendente", body)
+
+    def test_assegna_crea_assignment(self):
+        url = reverse("anagrafica:formazione_elearning_assign", args=[self.corso.pk])
+        resp = self.client.post(url, {"dipendenti_selezionati": ["123", "456"], "due_date": "2026-12-31"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(TrainingAssignment.objects.filter(corso=self.corso).count(), 2)
+        a = TrainingAssignment.objects.get(corso=self.corso, legacy_anagrafica_id=123)
+        self.assertEqual(a.stato, "ASSEGNATO")
+        self.assertEqual(str(a.due_date), "2026-12-31")
+
+    def test_unassign(self):
+        a = TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=123, stato="ASSEGNATO")
+        url = reverse("anagrafica:formazione_elearning_unassign", args=[self.corso.pk, a.pk])
+        self.client.post(url)
+        self.assertFalse(TrainingAssignment.objects.filter(pk=a.pk).exists())
+
+    def test_unassign_completata_bloccata(self):
+        a = TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=123, stato="COMPLETATO")
+        url = reverse("anagrafica:formazione_elearning_unassign", args=[self.corso.pk, a.pk])
+        self.client.post(url)
+        self.assertTrue(TrainingAssignment.objects.filter(pk=a.pk).exists())  # non rimossa

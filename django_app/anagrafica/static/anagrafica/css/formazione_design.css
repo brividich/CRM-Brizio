@@ -326,3 +326,7 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 .fm-q-warn{ border-color:#f6d9b8; }
 .fm-q-warnbar{ display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#b45309; background:#fef7ed; border:1px solid #f6d9b8; border-radius:8px; padding:7px 10px; margin-bottom:10px; }
 .fm-q-warnbar .fmd-ico{ color:var(--fmd-orange); }
+.fm-assign-list{ max-height:280px; overflow:auto; border:1px solid #e6ecf3; border-radius:10px; padding:8px 10px; background:#fff; display:flex; flex-direction:column; gap:2px; }
+.fm-assign-item{ display:flex; align-items:center; gap:9px; padding:5px 6px; border-radius:7px; font-size:13.5px; color:#1f2d3d; cursor:pointer; }
+.fm-assign-item:hover{ background:#f3f9fe; }
+.fm-assign-item.fm-hidden{ display:none; }
