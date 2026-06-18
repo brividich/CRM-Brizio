@@ -1,0 +1,134 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione e-learning | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# ── Page header ────────────────────────────────────────────────────── #}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Gestione e-learning</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Gestione e-learning <span class="fmd-count">{{ tot.corsi }}</span></h1>
+        <p class="fmd-ph-sub">Micro-corsi interni: slide + quiz finale. Crea, controlla lo stato di salute e monitora iscritti e completamenti.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_online_catalog' %}" class="fmd-btn fmd-btn-ghost" target="_blank"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Vista discente</a>
+        {% if is_editor %}
+        <a href="{% url 'anagrafica:formazione_corso_create' %}?elearning=1" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo corso e-learning</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi">
+      <div class="fmd-mtr fmd-t-cyan">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span><span class="fmd-mtr-val">{{ tot.corsi }}</span></div>
+        <div class="fmd-mtr-lbl">Corsi e-learning</div>
+        <div class="fmd-mtr-sub">Totale micro-corsi</div>
+      </div>
+      <div class="fmd-mtr fmd-t-green">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ tot.pubblicati }}</span></div>
+        <div class="fmd-mtr-lbl">Pubblicati</div>
+        <div class="fmd-mtr-sub">Attivi e visibili ai discenti</div>
+      </div>
+      <div class="fmd-mtr fmd-t-navy">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ tot.iscritti }}</span></div>
+        <div class="fmd-mtr-lbl">Iscritti</div>
+        <div class="fmd-mtr-sub">Dipendenti che hanno avviato</div>
+      </div>
+      <div class="fmd-mtr fmd-t-violet">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ tot.completati }}</span></div>
+        <div class="fmd-mtr-lbl">Completati</div>
+        <div class="fmd-mtr-sub">Quiz superato</div>
+      </div>
+      <div class="fmd-mtr fmd-t-orange">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ tot.problemi }}</span></div>
+        <div class="fmd-mtr-lbl">Da sistemare</div>
+        <div class="fmd-mtr-sub">Senza slide o quiz incompleto</div>
+      </div>
+    </section>
+
+    {# ── Tabella corsi e-learning ───────────────────────────────────────── #}
+    <section class="fmd-panel">
+      {% if rows %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead>
+            <tr>
+              <th>Codice</th>
+              <th>Titolo</th>
+              <th>Stato</th>
+              <th class="fmd-c">Slide</th>
+              <th class="fmd-c">Quiz</th>
+              <th class="fmd-c">Iscritti</th>
+              <th class="fmd-c">Completati</th>
+              <th>Salute</th>
+              <th class="fmd-nowrap">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td><span class="fmd-code">{{ r.corso.codice }}</span></td>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}">{{ r.corso.titolo }}</a>
+                {% if r.corso.obbligatorio %}<span class="fmd-badge fmd-b-orange" style="margin-left:6px;">Obbl.</span>{% endif %}
+              </td>
+              <td>
+                {% if r.corso.stato == "ATTIVO" and r.corso.is_active %}<span class="fmd-badge fmd-b-green">Pubblicato</span>
+                {% elif r.corso.stato == "BOZZA" %}<span class="fmd-badge fmd-b-amber">Bozza</span>
+                {% else %}<span class="fmd-badge fmd-b-grey">{{ r.corso.get_stato_display }}</span>{% endif %}
+              </td>
+              <td class="fmd-c fmd-num">{{ r.corso.n_slide }}</td>
+              <td class="fmd-c fmd-num">
+                {{ r.corso.n_domande }}{% if r.n_invalid %} <span class="fmd-badge fmd-b-amber" title="Domande senza risposta corretta">⚠ {{ r.n_invalid }}</span>{% endif %}
+              </td>
+              <td class="fmd-c fmd-num">{{ r.corso.n_iscritti }}</td>
+              <td class="fmd-c fmd-num">{{ r.corso.n_completati }}</td>
+              <td>
+                {% if r.salute.0 == "OK" %}<span class="fmd-badge fmd-b-green">{{ r.salute.1 }}</span>
+                {% elif r.salute.0 == "WARN" %}<span class="fmd-badge fmd-b-amber">{{ r.salute.1 }}</span>
+                {% elif r.salute.0 == "INFO" %}<span class="fmd-badge fmd-b-grey">{{ r.salute.1 }}</span>
+                {% else %}<span class="fmd-badge" style="background:#fde2e2;color:#c0392b;">{{ r.salute.1 }}</span>{% endif %}
+              </td>
+              <td class="fmd-nowrap">
+                {% if is_editor %}
+                <a href="{% url 'anagrafica:formazione_corso_elearning' r.corso.pk %}" class="fmd-btn fmd-btn-navy" style="padding:5px 10px;"><svg class="fmd-ico"><use href="#i-edit"/></svg>Slide e quiz</a>
+                {% endif %}
+                <a href="{% url 'anagrafica:formazione_online_player' r.corso.pk %}" target="_blank" class="fmd-btn fmd-btn-ghost" style="padding:5px 10px;">Anteprima</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+        <span class="fmd-et">Nessun micro-corso e-learning</span>
+        <span class="fmd-em">Crea il primo corso e-learning: aggiungi slide e un quiz finale, poi pubblicalo.</span>
+        {% if is_editor %}<a href="{% url 'anagrafica:formazione_corso_create' %}?elearning=1" class="fmd-btn fmd-btn-primary" style="margin-top:12px;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo corso e-learning</a>{% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

@@ -94,6 +94,19 @@ class ElearningAuthoringEndpointTests(TestCase):
         resp = self.client.get(reverse("anagrafica:formazione_corso_elearning", args=[self.corso.pk]))
         self.assertEqual(resp.status_code, 200)
 
+    def test_hub_gestione_render(self):
+        resp = self.client.get(reverse("anagrafica:formazione_elearning_hub"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreaterEqual(resp.context["tot"]["corsi"], 1)
+        # Il corso del setup non ha slide -> salute CRIT (Senza slide)
+        salute_codes = [r["salute"][0] for r in resp.context["rows"]]
+        self.assertIn("CRIT", salute_codes)
+
+    def test_create_preset_elearning(self):
+        resp = self.client.get(reverse("anagrafica:formazione_corso_create") + "?elearning=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["form"].initial.get("is_elearning"))
+
 
 def _pdf_due_pagine() -> bytes:
     import io

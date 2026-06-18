@@ -262,6 +262,8 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
 
     # ── Formazione HR — E-learning (micro-corsi: slide + quiz) ─────────────
+    # Hub di gestione (autori/HR)
+    path("formazione/elearning/", views.formazione_elearning_hub, name="formazione_elearning_hub"),
     # Autore (gestione contenuti)
     path("formazione/corsi/<int:corso_id>/elearning/", views.formazione_corso_elearning, name="formazione_corso_elearning"),
     path("formazione/corsi/<int:corso_id>/elearning/slide/salva", views.formazione_slide_save, name="formazione_slide_save"),

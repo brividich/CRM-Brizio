@@ -9843,8 +9843,13 @@ def formazione_corso_create(request):
             messages.success(request, f'Corso "{corso.titolo}" creato.')
             return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
     else:
-        initial_piano = request.GET.get("piano")
-        form = TrainingCourseForm(initial={"piano": initial_piano} if initial_piano else {})
+        initial = {}
+        if request.GET.get("piano"):
+            initial["piano"] = request.GET.get("piano")
+        # Preset "nuovo corso e-learning" dal hub di gestione e-learning
+        if request.GET.get("elearning") in ("1", "true", "on"):
+            initial["is_elearning"] = True
+        form = TrainingCourseForm(initial=initial)
     return render(request, "anagrafica/pages/formazione_corso_form.html", {
         "form": form,
         "modo": "crea",
@@ -13060,6 +13065,57 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
         logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
 
     return record
+
+
+# -- GESTIONE E-LEARNING: hub autori/HR --------------------------------------
+
+@login_required
+def formazione_elearning_hub(request):
+    """Hub di gestione dei micro-corsi e-learning (autori/HR): elenco corsi con stato di
+    salute (slide/quiz), iscritti e completati, e azioni rapide."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la sezione formazione.")
+        return redirect("anagrafica:index")
+    from django.db.models import Count, Q
+    corsi = list(
+        TrainingCourse.objects.filter(is_elearning=True)
+        .select_related("piano")
+        .prefetch_related("quiz_domande__opzioni")
+        .annotate(
+            n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
+            n_domande=Count("quiz_domande", filter=Q(quiz_domande__is_active=True), distinct=True),
+            n_iscritti=Count("iscrizioni_elearning", distinct=True),
+            n_completati=Count("iscrizioni_elearning", filter=Q(iscrizioni_elearning__stato="COMPLETATO"), distinct=True),
+        )
+        .order_by("-is_active", "stato", "titolo")
+    )
+    tot = {"corsi": len(corsi), "pubblicati": 0, "iscritti": 0, "completati": 0, "problemi": 0}
+    rows = []
+    for c in corsi:
+        n_invalid = sum(
+            1 for d in c.quiz_domande.all()
+            if d.is_active and not any(o.corretta for o in d.opzioni.all())
+        )
+        if c.n_slide == 0:
+            salute = ("CRIT", "Senza slide")
+        elif c.n_domande == 0:
+            salute = ("INFO", "Senza quiz")
+        elif n_invalid:
+            salute = ("WARN", "Quiz incompleto")
+        else:
+            salute = ("OK", "Pronto")
+        if c.stato == "ATTIVO" and c.is_active:
+            tot["pubblicati"] += 1
+        tot["iscritti"] += c.n_iscritti
+        tot["completati"] += c.n_completati
+        if salute[0] in ("CRIT", "WARN"):
+            tot["problemi"] += 1
+        rows.append({"corso": c, "n_invalid": n_invalid, "salute": salute})
+    return render(request, "anagrafica/pages/formazione_elearning_hub.html", {
+        "rows": rows,
+        "tot": tot,
+        "is_editor": _can_edit_formazione(request),
+    })
 
 
 # -- AUTORE: gestione contenuti (slide + quiz) -------------------------------
