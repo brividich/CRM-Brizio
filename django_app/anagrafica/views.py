@@ -9888,6 +9888,46 @@ def formazione_quickadd_docente(request):
 
 
 @login_required
+def formazione_corso_codice_suggest(request):
+    """Suggerisce un codice corso UNIVOCO a partire dal titolo (JSON).
+
+    Base: alfanumerico maiuscolo del titolo (iniziali delle parole se lungo);
+    se già usato accoda un progressivo. Usato dal form corso per precompilare il
+    codice quando l'utente non lo digita."""
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False}, status=403)
+    import re
+    titolo = (request.GET.get("titolo") or "").strip()
+    parole = re.findall(r"[A-Za-z0-9]+", titolo)
+    if not parole:
+        base = "CORSO"
+    elif len("".join(parole)) <= 8:
+        base = "".join(parole).upper()
+    else:
+        base = ("".join(p[0] for p in parole).upper() or parole[0].upper())
+    base = (base or "CORSO")[:12]
+    codice, i = base, 1
+    while TrainingCourse.objects.filter(codice=codice).exists():
+        i += 1
+        codice = f"{base}-{i}"[:30]
+    return JsonResponse({"ok": True, "codice": codice})
+
+
+@login_required
+def formazione_qualifica_durata(request):
+    """Durata (mesi) di una TipoQualifica (JSON): il form corso preimposta la
+    validità del corso da quella della qualifica àncora selezionata."""
+    if not _can_view_formazione(request):
+        return JsonResponse({"ok": False}, status=403)
+    from .models import TipoQualifica
+    try:
+        q = TipoQualifica.objects.get(pk=int(request.GET.get("id") or 0))
+    except (TipoQualifica.DoesNotExist, TypeError, ValueError):
+        return JsonResponse({"ok": False}, status=404)
+    return JsonResponse({"ok": True, "durata_mesi": q.durata_mesi or 0})
+
+
+@login_required
 def formazione_corso_detail(request, corso_id: int):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")

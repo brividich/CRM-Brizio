@@ -2206,6 +2206,22 @@ class FormazioneFlussoTests(TestCase):
         self.assertContains(r, "qa-modal")
         self.assertContains(r, "formazione/quick-add/piano")
 
+    # Assist form corso: codice univoco suggerito + durata qualifica
+    def test_corso_form_assist_endpoints(self):
+        from .models import TipoQualifica
+        from .models_formazione import TrainingCourse
+        r = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"), {"titolo": "Sicurezza Base"})
+        self.assertEqual(r.status_code, 200)
+        cod = r.json()["codice"]
+        self.assertTrue(cod)
+        piano = self._piano()
+        TrainingCourse.objects.create(piano=piano, codice=cod, titolo="X", durata_ore_teorica=4)
+        r2 = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"), {"titolo": "Sicurezza Base"})
+        self.assertNotEqual(r2.json()["codice"], cod)  # progressivo: evita la collisione
+        q = TipoQualifica.objects.create(nome="Preposto QA", durata_mesi=24)
+        r3 = self.client.get(reverse("anagrafica:formazione_qualifica_durata"), {"id": q.pk})
+        self.assertEqual(r3.json()["durata_mesi"], 24)
+
 
 class FormazioneComplianceTests(TestCase):
     """Compliance Accordo SR 2025 + flussi operativi: gating verifica finale e

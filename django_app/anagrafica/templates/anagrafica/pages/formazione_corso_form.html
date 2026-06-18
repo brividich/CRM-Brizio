@@ -40,4 +40,37 @@
 
 </div>
 {% include "anagrafica/partials/_quick_add.html" %}
+
+<script>
+{# Assist form corso: codice suggerito (se vuoto) dal titolo; validità preimpostata
+   dalla durata della qualifica selezionata (es. preposto 24m / lavoratori 60m). #}
+(function(){
+  const titolo = document.querySelector('[name="titolo"]');
+  const codice = document.querySelector('[name="codice"]');
+  const qualifica = document.querySelector('[name="qualifica"]');
+  const validita = document.querySelector('[name="validita_mesi"]');
+  if (titolo && codice) {
+    titolo.addEventListener('blur', async function(){
+      if (codice.value.trim()) return;
+      const t = titolo.value.trim(); if (!t) return;
+      try {
+        const r = await fetch("{% url 'anagrafica:formazione_corso_codice_suggest' %}?titolo=" + encodeURIComponent(t));
+        const d = await r.json();
+        if (d.ok && d.codice && !codice.value.trim()) codice.value = d.codice;
+      } catch (e) {}
+    });
+  }
+  if (qualifica && validita) {
+    qualifica.addEventListener('change', async function(){
+      const id = qualifica.value; if (!id) return;
+      if (parseInt(validita.value || '0', 10) > 0) return;
+      try {
+        const r = await fetch("{% url 'anagrafica:formazione_qualifica_durata' %}?id=" + encodeURIComponent(id));
+        const d = await r.json();
+        if (d.ok && d.durata_mesi > 0) validita.value = d.durata_mesi;
+      } catch (e) {}
+    });
+  }
+})();
+</script>
 {% endblock %}

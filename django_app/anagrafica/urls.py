@@ -218,11 +218,15 @@ urlpatterns = [
     # ── Formazione HR — Dashboard ──────────────────────────────────────────
     path("formazione/", views.formazione_dashboard, name="formazione_dashboard"),
     # Ricerca globale formazione (corsi, sessioni, piani, qualifiche, dipendenti, attestati)
+    path("formazione/ricerca/", views.formazione_ricerca, name="formazione_ricerca"),
     # Quick-add inline (JSON) entità collegate dei form (piano/categoria/qualifica/docente)
     path("formazione/quick-add/piano", views.formazione_quickadd_piano, name="formazione_quickadd_piano"),
     path("formazione/quick-add/categoria", views.formazione_quickadd_categoria, name="formazione_quickadd_categoria"),
     path("formazione/quick-add/qualifica", views.formazione_quickadd_qualifica, name="formazione_quickadd_qualifica"),
     path("formazione/quick-add/docente", views.formazione_quickadd_docente, name="formazione_quickadd_docente"),
+    # Assist form corso: codice suggerito univoco + durata qualifica (validità preimpostata)
+    path("formazione/corsi/codice-suggerito", views.formazione_corso_codice_suggest, name="formazione_corso_codice_suggest"),
+    path("formazione/qualifica-durata", views.formazione_qualifica_durata, name="formazione_qualifica_durata"),
 
     # ── Formazione HR — Piani formativi ────────────────────────────────────
     path("formazione/piani/", views.formazione_piani_list, name="formazione_piani_list"),
