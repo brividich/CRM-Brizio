@@ -5,144 +5,181 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
-<style>
-  .fm-search{display:flex;align-items:center;gap:8px;margin:4px 0 18px;background:#fff;
-    border:1px solid #e2e8f0;border-radius:12px;padding:8px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04);}
-  .fm-search-ico{font-size:16px;opacity:.7;flex-shrink:0;}
-  .fm-search-input{flex:1;border:none;outline:none;background:transparent;font-size:14px;color:#0f172a;padding:6px 2px;}
-  .fm-search-input::placeholder{color:#94a3b8;}
-  .fm-res-card{margin-top:16px;}
-  .fm-res-group{font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;
-    margin:18px 0 8px;display:flex;align-items:center;gap:8px;}
-  .fm-res-count{background:#eef2f7;color:#475569;border-radius:999px;font-size:11px;padding:1px 8px;font-weight:700;}
-  .fm-res-list{display:flex;flex-direction:column;gap:6px;}
-  .fm-res-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e2e8f0;
-    border-radius:9px;background:#fff;text-decoration:none;color:#0f172a;transition:background .12s;}
-  .fm-res-item:hover{background:#f8fafc;}
-  .fm-res-ico{font-size:16px;flex-shrink:0;}
-  .fm-res-main{font-weight:600;font-size:13.5px;}
-  .fm-res-sub{font-size:12px;color:#64748b;margin-left:auto;text-align:right;}
-  body.theme-dark .fm-search{background:var(--surface);border-color:var(--border);}
-  body.theme-dark .fm-search-input{color:var(--text);}
-  body.theme-dark .fm-res-item{background:var(--surface);border-color:var(--border);color:var(--text);}
-  body.theme-dark .fm-res-item:hover{background:var(--surface-alt);}
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
-        &rsaquo; Ricerca
+<div class="fm2">
+  <div class="wrap">
+
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="hero">
+      <div class="hero-bg" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div>
+          <div class="hero-eyebrow"><span class="dot"></span>Anagrafica HR · Formazione</div>
+          <h1><svg class="ico cap"><use href="#i-search"/></svg>Ricerca</h1>
+          <p class="sub">
+            {% if q %}{{ totale }} risultat{{ totale|pluralize:"o,i" }} per «{{ q }}» in corsi, sessioni, piani, qualifiche, dipendenti e attestati.
+            {% else %}Cerca in corsi, sessioni, piani, qualifiche, dipendenti e attestati.{% endif %}
+          </p>
+        </div>
       </div>
-      <h2 class="hr-pagehead-title">🔎 Ricerca formazione</h2>
-      {% if q %}<p class="hr-pagehead-desc">{{ totale }} risultat{{ totale|pluralize:"o,i" }} per «{{ q }}».</p>{% endif %}
+    </section>
+
+    {# ── Barra di ricerca ───────────────────────────────────────────────── #}
+    <div class="panel" style="margin-bottom:16px;">
+      <form method="get" action="{% url 'anagrafica:formazione_ricerca' %}" class="toolbar" role="search">
+        <span class="search">
+          <svg class="ico"><use href="#i-search"/></svg>
+          <input type="search" name="q" value="{{ q }}" autofocus
+                 placeholder="Cerca corsi, sessioni, piani, qualifiche, dipendenti, attestati…"
+                 autocomplete="off" aria-label="Cerca nella formazione">
+        </span>
+        <button type="submit" class="btn btn-primary"><svg class="ico"><use href="#i-search"/></svg>Cerca</button>
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" class="btn btn-ghost">Dashboard</a>
+      </form>
     </div>
-  </div>
 
-  <form method="get" action="{% url 'anagrafica:formazione_ricerca' %}" class="fm-search" role="search">
-    <span class="fm-search-ico" aria-hidden="true">🔎</span>
-    <input type="search" name="q" value="{{ q }}" class="fm-search-input"
-           placeholder="Cerca corsi, sessioni, piani, qualifiche, dipendenti, attestati…"
-           autocomplete="off" autofocus aria-label="Cerca nella formazione">
-    <button type="submit" class="hr-btn hr-btn-primary">Cerca</button>
-  </form>
+    {% if not q %}
+    <section class="panel block">
+      <div class="empty">
+        <span class="ebadge"><svg class="ico"><use href="#i-search"/></svg></span>
+        <span class="t">Inizia a cercare</span>
+        <span class="m">Digita un termine per trovare corsi, sessioni, piani, qualifiche, dipendenti e attestati.</span>
+      </div>
+    </section>
+    {% elif totale == 0 %}
+    <section class="panel block">
+      <div class="empty">
+        <span class="ebadge" style="background:#fff5ec;color:#c2410c;"><svg class="ico"><use href="#i-alert-cir"/></svg></span>
+        <span class="t">Nessun risultato</span>
+        <span class="m">Nessun elemento corrisponde a «{{ q }}». Prova con un altro termine.</span>
+      </div>
+    </section>
+    {% else %}
 
-  {% if not q %}
-  <div class="hr-card" style="padding:28px;text-align:center;color:#94a3b8;font-size:14px;">
-    Digita un termine per cercare in corsi, sessioni, piani, qualifiche, dipendenti e attestati.
-  </div>
-  {% elif totale == 0 %}
-  <div class="hr-card" style="padding:28px;text-align:center;color:#94a3b8;font-size:14px;">
-    Nessun risultato per «{{ q }}». Prova con un altro termine.
-  </div>
-  {% else %}
+    {% if risultati.corsi %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-book"/></svg>Corsi <span class="count">{{ risultati.corsi|length }}</span></div>
+      </div>
+      <div class="areas">
+        {% for c in risultati.corsi %}
+        <a class="area" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-book"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ c.titolo|truncatechars:54 }}</span>
+            <span class="area-desc"><span class="code">{{ c.codice }}</span>{% if c.piano %} · {{ c.piano.nome|truncatechars:34 }}{% endif %}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.corsi %}
-  <div class="fm-res-group">📖 Corsi <span class="fm-res-count">{{ risultati.corsi|length }}</span></div>
-  <div class="fm-res-list">
-    {% for c in risultati.corsi %}
-    <a class="fm-res-item" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">
-      <span class="fm-res-ico">📖</span>
-      <span class="fm-res-main">[{{ c.codice }}] {{ c.titolo }}</span>
-      <span class="fm-res-sub">{% if c.piano %}{{ c.piano.nome|truncatechars:30 }}{% endif %}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% if risultati.sessioni %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-calendar"/></svg>Sessioni <span class="count">{{ risultati.sessioni|length }}</span></div>
+      </div>
+      <div class="areas">
+        {% for s in risultati.sessioni %}
+        <a class="area" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-calendar"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ s.codice_sessione }}</span>
+            <span class="area-desc">{{ s.corso.titolo|truncatechars:34 }} · {{ s.data_inizio|date:"d-m-Y" }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.sessioni %}
-  <div class="fm-res-group">🗓 Sessioni <span class="fm-res-count">{{ risultati.sessioni|length }}</span></div>
-  <div class="fm-res-list">
-    {% for s in risultati.sessioni %}
-    <a class="fm-res-item" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">
-      <span class="fm-res-ico">🗓</span>
-      <span class="fm-res-main">{{ s.codice_sessione }}</span>
-      <span class="fm-res-sub">{{ s.corso.titolo|truncatechars:32 }} · {{ s.data_inizio|date:"d-m-Y" }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% if risultati.piani %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-clipboard"/></svg>Piani formativi <span class="count">{{ risultati.piani|length }}</span></div>
+      </div>
+      <div class="areas">
+        {% for p in risultati.piani %}
+        <a class="area" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-clipboard"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ p.nome|truncatechars:54 }}</span>
+            <span class="area-desc"><span class="code">{{ p.codice }}</span></span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.piani %}
-  <div class="fm-res-group">📋 Piani formativi <span class="fm-res-count">{{ risultati.piani|length }}</span></div>
-  <div class="fm-res-list">
-    {% for p in risultati.piani %}
-    <a class="fm-res-item" href="{% url 'anagrafica:formazione_piano_detail' p.pk %}">
-      <span class="fm-res-ico">📋</span>
-      <span class="fm-res-main">[{{ p.codice }}] {{ p.nome }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% if risultati.qualifiche %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-cap"/></svg>Qualifiche / Abilitazioni <span class="count">{{ risultati.qualifiche|length }}</span></div>
+      </div>
+      <div class="areas">
+        {% for t in risultati.qualifiche %}
+        <a class="area" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-cap"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ t.nome|truncatechars:54 }}</span>
+            <span class="area-desc">{{ t.get_categoria_display }}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.qualifiche %}
-  <div class="fm-res-group">🎓 Qualifiche / Abilitazioni <span class="fm-res-count">{{ risultati.qualifiche|length }}</span></div>
-  <div class="fm-res-list">
-    {% for t in risultati.qualifiche %}
-    <a class="fm-res-item" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
-      <span class="fm-res-ico">🎓</span>
-      <span class="fm-res-main">{{ t.nome }}</span>
-      <span class="fm-res-sub">{{ t.get_categoria_display }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% if risultati.dipendenti %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-users"/></svg>Dipendenti <span class="count">{{ risultati.dipendenti|length }}</span></div>
+        <div class="block-aside">apre il libretto formativo</div>
+      </div>
+      <div class="areas">
+        {% for d in risultati.dipendenti %}
+        <a class="area" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-users"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ d.nome }}</span>
+            <span class="area-desc"><span class="code">#{{ d.legacy_id }}</span> · libretto formativo</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.dipendenti %}
-  <div class="fm-res-group">👤 Dipendenti (libretto) <span class="fm-res-count">{{ risultati.dipendenti|length }}</span></div>
-  <div class="fm-res-list">
-    {% for d in risultati.dipendenti %}
-    <a class="fm-res-item" href="{% url 'anagrafica:dipendente_libretto_formativo' d.legacy_id %}">
-      <span class="fm-res-ico">👤</span>
-      <span class="fm-res-main">{{ d.nome }}</span>
-      <span class="fm-res-sub">#{{ d.legacy_id }} · libretto formativo</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% if risultati.attestati %}
+    <section class="panel block">
+      <div class="block-head">
+        <div class="block-title"><svg class="ico"><use href="#i-award"/></svg>Attestati <span class="count">{{ risultati.attestati|length }}</span></div>
+      </div>
+      <div class="areas">
+        {% for a in risultati.attestati %}
+        <a class="area" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
+          <span class="area-ic"><svg class="ico"><use href="#i-award"/></svg></span>
+          <span class="area-body">
+            <span class="area-title">{{ a.nome }}</span>
+            <span class="area-desc">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:34 }}{% if a.record.data_completamento %} · {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
-  {% if risultati.attestati %}
-  <div class="fm-res-group">🏅 Attestati <span class="fm-res-count">{{ risultati.attestati|length }}</span></div>
-  <div class="fm-res-list">
-    {% for a in risultati.attestati %}
-    <a class="fm-res-item" href="{% url 'anagrafica:attestato_formazione' a.record.pk %}">
-      <span class="fm-res-ico">🏅</span>
-      <span class="fm-res-main">{{ a.nome }}</span>
-      <span class="fm-res-sub">{{ a.record.course_title_snapshot|default:a.record.corso.titolo|truncatechars:30 }}
-        {% if a.record.data_completamento %}· {{ a.record.data_completamento|date:"d-m-Y" }}{% endif %}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+    {% endif %}
 
-  {% endif %}
-
-</div>
+  </div>{# .wrap #}
+</div>{# .fm2 #}
 {% endblock %}
