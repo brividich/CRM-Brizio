@@ -88,7 +88,7 @@
             <tr>
               <td><span class="fmd-code">{{ r.corso.codice }}</span></td>
               <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}">{{ r.corso.titolo }}</a>
+                <a class="fmd-data-link" href="{% url 'anagrafica:formazione_elearning_manage' r.corso.pk %}">{{ r.corso.titolo }}</a>
                 {% if r.corso.obbligatorio %}<span class="fmd-badge fmd-b-orange" style="margin-left:6px;">Obbl.</span>{% endif %}
               </td>
               <td>
@@ -109,9 +109,7 @@
                 {% else %}<span class="fmd-badge" style="background:#fde2e2;color:#c0392b;">{{ r.salute.1 }}</span>{% endif %}
               </td>
               <td class="fmd-nowrap">
-                {% if is_editor %}
-                <a href="{% url 'anagrafica:formazione_corso_elearning' r.corso.pk %}" class="fmd-btn fmd-btn-navy" style="padding:5px 10px;"><svg class="fmd-ico"><use href="#i-edit"/></svg>Slide e quiz</a>
-                {% endif %}
+                <a href="{% url 'anagrafica:formazione_elearning_manage' r.corso.pk %}" class="fmd-btn fmd-btn-navy" style="padding:5px 10px;"><svg class="fmd-ico"><use href="#i-gear"/></svg>Gestisci</a>
                 <a href="{% url 'anagrafica:formazione_online_player' r.corso.pk %}" target="_blank" class="fmd-btn fmd-btn-ghost" style="padding:5px 10px;">Anteprima</a>
               </td>
             </tr>

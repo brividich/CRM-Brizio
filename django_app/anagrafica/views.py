@@ -13069,6 +13069,37 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
 
 # -- GESTIONE E-LEARNING: hub autori/HR --------------------------------------
 
+def _elearning_salute(n_slide: int, n_domande: int, n_invalid: int) -> tuple[str, str]:
+    """Classifica lo stato di salute di un micro-corso e-learning (codice, etichetta)."""
+    if n_slide == 0:
+        return ("CRIT", "Senza slide")
+    if n_domande == 0:
+        return ("INFO", "Senza quiz")
+    if n_invalid:
+        return ("WARN", "Quiz incompleto")
+    return ("OK", "Pronto")
+
+
+def _elearning_iscritti_rows(corso):
+    """Righe «iscritti & esiti» di un micro-corso: nome dipendente + avanzamento + esito."""
+    enrollments = list(TrainingElearningEnrollment.objects.filter(corso=corso))
+    nomi = _build_nomi_map() if enrollments else {}
+    rows = []
+    for e in enrollments:
+        rows.append({
+            "legacy_id": e.legacy_anagrafica_id,
+            "nome": nomi.get(e.legacy_anagrafica_id, f"#{e.legacy_anagrafica_id}"),
+            "stato": e.stato,
+            "stato_disp": e.get_stato_display(),
+            "avanzamento": f"{e.ultima_slide_ordine}/{e.n_slide_totali}" if e.n_slide_totali else "—",
+            "best": e.best_punteggio_pct,
+            "n_tentativi": e.n_tentativi,
+            "data_completamento": e.data_completamento,
+        })
+    rows.sort(key=lambda x: x["nome"].lower())
+    return rows
+
+
 @login_required
 def formazione_elearning_hub(request):
     """Hub di gestione dei micro-corsi e-learning (autori/HR): elenco corsi con stato di
@@ -13096,14 +13127,7 @@ def formazione_elearning_hub(request):
             1 for d in c.quiz_domande.all()
             if d.is_active and not any(o.corretta for o in d.opzioni.all())
         )
-        if c.n_slide == 0:
-            salute = ("CRIT", "Senza slide")
-        elif c.n_domande == 0:
-            salute = ("INFO", "Senza quiz")
-        elif n_invalid:
-            salute = ("WARN", "Quiz incompleto")
-        else:
-            salute = ("OK", "Pronto")
+        salute = _elearning_salute(c.n_slide, c.n_domande, n_invalid)
         if c.stato == "ATTIVO" and c.is_active:
             tot["pubblicati"] += 1
         tot["iscritti"] += c.n_iscritti
@@ -13116,6 +13140,108 @@ def formazione_elearning_hub(request):
         "tot": tot,
         "is_editor": _can_edit_formazione(request),
     })
+
+
+@login_required
+def formazione_elearning_manage(request, corso_id: int):
+    """Cabina di regia di un singolo micro-corso e-learning: contenuti, iscritti & esiti,
+    stato di pubblicazione ed export — tutto in un'unica pagina."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la sezione formazione.")
+        return redirect("anagrafica:index")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    slides = list(corso.slides.filter(is_active=True))
+    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+    n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+    salute = _elearning_salute(len(slides), len(domande), n_invalid)
+
+    iscritti = _elearning_iscritti_rows(corso)
+    counts = {"iscritti": len(iscritti), "in_corso": 0, "completati": 0, "non_superato": 0}
+    for r in iscritti:
+        if r["stato"] == "COMPLETATO":
+            counts["completati"] += 1
+        elif r["stato"] == "NON_SUPERATO":
+            counts["non_superato"] += 1
+        elif r["stato"] == "IN_CORSO":
+            counts["in_corso"] += 1
+
+    return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
+        "corso": corso,
+        "is_editor": _can_edit_formazione(request),
+        "n_slide": len(slides),
+        "n_domande": len(domande),
+        "n_invalid": n_invalid,
+        "salute": salute,
+        "iscritti": iscritti,
+        "counts": counts,
+        "pubblicato": corso.stato == "ATTIVO" and corso.is_active,
+    })
+
+
+@login_required
+@require_POST
+def formazione_elearning_publish_toggle(request, corso_id: int):
+    """Pubblica/ritira un micro-corso. La pubblicazione è bloccata se mancano le slide o
+    il quiz ha domande senza risposta corretta (controllo qualità centralizzato)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_hub")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    if corso.stato == "ATTIVO":
+        corso.stato = "BOZZA"
+        corso.save(update_fields=["stato", "updated_at"])
+        messages.info(request, "Corso ritirato (bozza): non più visibile ai discenti.")
+    else:
+        n_slide = corso.slides.filter(is_active=True).count()
+        domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+        n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+        if n_slide == 0:
+            messages.error(request, "Impossibile pubblicare: aggiungi almeno una slide.")
+        elif domande and n_invalid:
+            messages.error(request, "Impossibile pubblicare: il quiz ha domande senza risposta corretta. Completa le domande o disattivale.")
+        else:
+            corso.stato = "ATTIVO"
+            corso.is_active = True
+            corso.save(update_fields=["stato", "is_active", "updated_at"])
+            messages.success(request, "Corso pubblicato: ora visibile in «Corsi online».")
+    # Ritorna alla pagina di provenienza interna, altrimenti alla cabina di regia
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+@login_required
+def formazione_elearning_iscritti_csv(request, corso_id: int):
+    """Export CSV di iscritti ed esiti del micro-corso (audit). Tracciato in TrainingExportLog."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    rows = _elearning_iscritti_rows(corso)
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="elearning_{corso.codice}_iscritti.csv"'
+    resp.write("﻿")  # BOM per apertura corretta in Excel
+    writer = csv.writer(resp, delimiter=";")
+    writer.writerow(["Dipendente", "ID", "Stato", "Avanzamento slide", "Miglior punteggio %", "Tentativi", "Data completamento"])
+    for r in rows:
+        writer.writerow([
+            r["nome"], r["legacy_id"], r["stato_disp"], r["avanzamento"],
+            r["best"] if r["best"] is not None else "", r["n_tentativi"],
+            r["data_completamento"] or "",
+        ])
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ISCRITTI",
+            filtri_json={"modalita": "ELEARNING", "corso": corso.codice},
+            righe_esportate=len(rows),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+    except Exception:
+        logger.warning("Audit export e-learning iscritti fallito", exc_info=True)
+    return resp
 
 
 # -- AUTORE: gestione contenuti (slide + quiz) -------------------------------

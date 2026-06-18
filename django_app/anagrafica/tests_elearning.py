@@ -15,6 +15,7 @@ from django.urls import reverse
 
 from .models_formazione import (
     TrainingCourse,
+    TrainingElearningEnrollment,
     TrainingPlan,
     TrainingQuizOption,
     TrainingQuizQuestion,
@@ -217,3 +218,57 @@ class ElearningQuizValidationTests(TestCase):
         resp = self.client.get(reverse("anagrafica:formazione_corso_elearning", args=[self.corso.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["n_domande_incomplete"], 1)
+
+
+class ElearningManageTests(TestCase):
+    """Cabina di regia: render, pubblica/ritira con controllo qualità, export CSV."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("autore3", "a3@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+        self.piano = TrainingPlan.objects.create(codice="PM", nome="Piano")
+        # Corso "pronto": slide + quiz valido, parte come BOZZA
+        self.corso = TrainingCourse.objects.create(
+            piano=self.piano, codice="ELMAN", titolo="Corso gestito", durata_ore_teorica=Decimal("1.0"),
+            is_elearning=True, stato="BOZZA", is_active=True,
+        )
+        TrainingSlide.objects.create(corso=self.corso, ordine=1, titolo="S1", contenuto="x", is_active=True)
+        q = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=1, testo="Q?", is_active=True)
+        TrainingQuizOption.objects.create(domanda=q, ordine=1, testo="ok", corretta=True)
+        TrainingElearningEnrollment.objects.create(
+            corso=self.corso, legacy_anagrafica_id=999, stato="COMPLETATO",
+            best_punteggio_pct=Decimal("90.00"), n_tentativi=1, n_slide_totali=1,
+        )
+
+    def test_manage_render_con_iscritti(self):
+        resp = self.client.get(reverse("anagrafica:formazione_elearning_manage", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["counts"]["iscritti"], 1)
+        self.assertEqual(resp.context["counts"]["completati"], 1)
+
+    def test_pubblica_ok(self):
+        resp = self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.corso.refresh_from_db()
+        self.assertEqual(self.corso.stato, "ATTIVO")
+
+    def test_ritira(self):
+        self.corso.stato = "ATTIVO"
+        self.corso.save(update_fields=["stato"])
+        self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
+        self.corso.refresh_from_db()
+        self.assertEqual(self.corso.stato, "BOZZA")
+
+    def test_pubblica_bloccata_senza_slide(self):
+        self.corso.slides.all().delete()
+        self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
+        self.corso.refresh_from_db()
+        self.assertEqual(self.corso.stato, "BOZZA")  # non pubblicato
+
+    def test_csv_export(self):
+        resp = self.client.get(reverse("anagrafica:formazione_elearning_iscritti_csv", args=[self.corso.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/csv", resp["Content-Type"])
+        body = resp.content.decode("utf-8")
+        self.assertIn("Dipendente", body)
