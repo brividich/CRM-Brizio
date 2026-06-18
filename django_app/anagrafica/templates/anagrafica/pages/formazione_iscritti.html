@@ -50,6 +50,9 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
         <button type="submit" class="hr-btn hr-btn-ghost"
                 title="Genera e archivia gli attestati di tutti i partecipanti completati">🏅 Attestati completati</button>
       </form>
+      <a href="{% url 'anagrafica:formazione_sessione_fascicolo' sessione.pk %}" target="_blank" rel="noopener"
+         class="hr-btn hr-btn-ghost"
+         title="Fascicolo formativo dell'edizione: progettazione, programma, partecipanti ed esiti, relazione (PDF per ispezione)">📁 Fascicolo formativo</a>
       {% if candidati_rinnovo %}
       <button class="hr-btn hr-btn-ghost"
               onclick="togglePanel('panel-rinnovo')"

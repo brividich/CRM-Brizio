@@ -278,6 +278,8 @@ urlpatterns = [
     # Carica attestato organizzatore esterno e chiudi il corso (completamento+archiviazione)
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/attestato", views.formazione_iscrizione_attestato_upload, name="formazione_iscrizione_attestato_upload"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
+    # Fascicolo formativo dell'edizione (progettazione+programma+esiti+relazione) in PDF
+    path("formazione/sessioni/<int:sessione_id>/fascicolo.pdf", views.formazione_sessione_fascicolo, name="formazione_sessione_fascicolo"),
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────
     path("formazione/scadenzario/", views.formazione_scadenzario, name="formazione_scadenzario"),

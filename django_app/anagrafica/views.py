@@ -11298,6 +11298,35 @@ def formazione_registro_autocompila(request, sessione_id: int, lezione_id: int):
 
 
 @login_required
+def formazione_sessione_fascicolo(request, sessione_id: int):
+    """Fascicolo formativo dell'edizione in PDF (progettazione + programma + partecipanti
+    ed esiti + relazione): documento unico per la tracciabilità Accordo SR 2025."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    sessione = get_object_or_404(
+        TrainingSession.objects.select_related("corso", "corso__piano", "docente"),
+        pk=sessione_id,
+    )
+    from .services.attestato_pdf import build_fascicolo_sessione_pdf_bytes
+    pdf = build_fascicolo_sessione_pdf_bytes(sessione)
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={"sessione_id": sessione.pk, "formato": "fascicolo_edizione"},
+            righe_esportate=sessione.iscrizioni.count(),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog fascicolo sessione %s", sessione_id)
+    fname = f"Fascicolo_{sessione.codice_sessione}.pdf".replace("/", "-").replace(" ", "_")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
+
+
+@login_required
 def formazione_scadenzario(request):
     """Scadenzario formazione: corsi scaduti, in scadenza e mai frequentati."""
     if not _can_view_formazione(request):

@@ -578,6 +578,125 @@ def build_registri_corso_pdf_bytes(corso) -> bytes:
     return buf.getvalue()
 
 
+def build_fascicolo_sessione_pdf_bytes(sessione) -> bytes:
+    """Fascicolo formativo dell'edizione (tracciabilita' Accordo SR 2025): progettazione
+    del corso, programma/lezioni, partecipanti ed esiti (verifica/frequenza/idoneita') e
+    relazione finale. Documento unico da conservare/esibire in ispezione."""
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, Spacer
+    from core.pdf import (
+        PdfTheme, build_styles, data_table, header_footer_callback,
+        make_document, section_heading,
+    )
+    from anagrafica.models_formazione import TrainingLessonAttendance
+
+    corso = sessione.corso
+    lezioni = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
+    iscrizioni = list(sessione.iscrizioni.order_by("legacy_anagrafica_id"))
+    ids = [i.legacy_anagrafica_id for i in iscrizioni]
+    nomi = _nomi_map(ids)
+
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buf = BytesIO()
+    doc = make_document(buf, title=f"Fascicolo formativo - {sessione.codice_sessione}")
+    story: list = []
+
+    docente = (sessione.docente_nome or (str(sessione.docente) if sessione.docente_id else "") or "-")
+    story.append(Paragraph(f"Fascicolo formativo - {corso.titolo}", styles["title"]))
+    story.append(Paragraph(
+        " · ".join([
+            sessione.codice_sessione,
+            f"{sessione.data_inizio:%d-%m-%Y} - {sessione.data_fine:%d-%m-%Y}",
+            sessione.get_modalita_display(),
+        ]),
+        styles["subtitle"],
+    ))
+    story.append(Spacer(1, 4 * mm))
+
+    # Progettazione
+    meta = [
+        ["Corso", f"[{corso.codice}] {corso.titolo}"],
+        ["Edizione", sessione.codice_sessione],
+        ["Periodo", f"dal {sessione.data_inizio:%d-%m-%Y} al {sessione.data_fine:%d-%m-%Y}"],
+        ["Sede / modalita'", f"{sessione.sede or '-'} ({sessione.get_modalita_display()})"],
+        ["Docente", docente],
+        ["Durata teorica", f"{corso.durata_ore_teorica} h"],
+        ["Iscritti", str(len(iscrizioni))],
+    ]
+    try:
+        regola = corso.regola_superamento
+        meta.append([
+            "Regola di superamento",
+            f"presenza minima {regola.presenza_minima_percentuale}%"
+            + (" + verifica finale" if regola.richiede_esame_finale else ""),
+        ])
+    except Exception:
+        pass
+    story += section_heading("Progettazione del corso", theme, styles)
+    story.append(data_table(
+        [[Paragraph(k, styles["cell"]), Paragraph(str(v), styles["cell"])] for k, v in meta],
+        theme, col_widths=[130, None],
+    ))
+    story.append(Spacer(1, 4 * mm))
+
+    # Programma
+    story += section_heading("Programma e lezioni", theme, styles)
+    if lezioni:
+        head = ["#", "Data", "Orario", "Argomento", "Docente", "Ore"]
+        rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for lz in lezioni:
+            dnome = (lz.docente_nome or (str(lz.docente) if lz.docente_id else "") or docente)
+            rows.append([
+                Paragraph(str(lz.numero), styles["cell"]),
+                Paragraph(f"{lz.data:%d-%m-%Y}", styles["cell"]),
+                Paragraph(f"{lz.ora_inizio:%H:%M}-{lz.ora_fine:%H:%M}", styles["cell"]),
+                Paragraph(lz.argomento or "-", styles["cell"]),
+                Paragraph(dnome, styles["cell"]),
+                Paragraph(str(lz.durata_ore), styles["cell_right"]),
+            ])
+        story.append(data_table(rows, theme, col_widths=[18, 58, 64, None, 90, 30], repeat_rows=1))
+    else:
+        story.append(Paragraph("Nessuna lezione pianificata.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Partecipanti ed esiti
+    story += section_heading("Partecipanti ed esiti", theme, styles)
+    if iscrizioni:
+        head = ["Dipendente", "Stato", "% Pres.", "Verifica", "Idoneo", "Completam."]
+        rows = [[Paragraph(h, styles["table_header"]) for h in head]]
+        for i in iscrizioni:
+            if i.verifica_superata is True:
+                verif = "Superata"
+            elif i.verifica_superata is False:
+                verif = "No"
+            else:
+                verif = "-"
+            rows.append([
+                Paragraph(nomi.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}"), styles["cell"]),
+                Paragraph(i.get_stato_display(), styles["cell"]),
+                Paragraph(f"{i.percentuale_presenza}%" if i.percentuale_presenza is not None else "-", styles["cell_right"]),
+                Paragraph(verif, styles["cell"]),
+                Paragraph("Si" if i.idoneo else ("No" if i.idoneo is False else "-"), styles["cell"]),
+                Paragraph(f"{i.data_completamento:%d-%m-%Y}" if i.data_completamento else "-", styles["cell"]),
+            ])
+        story.append(data_table(rows, theme, col_widths=[None, 58, 42, 54, 40, 62], repeat_rows=1))
+    else:
+        story.append(Paragraph("Nessun iscritto.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Relazione finale
+    story += section_heading("Relazione finale e verifica", theme, styles)
+    rel = (sessione.note or "").strip()
+    story.append(Paragraph(rel or "_______________________________________________________________", styles["body"]))
+    story.append(Spacer(1, 12 * mm))
+    story.append(Paragraph("Il Responsabile del corso ____________________________     Data __________", styles["body"]))
+
+    draw = header_footer_callback(theme, title="Fascicolo formativo", subtitle=corso.titolo)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    return buf.getvalue()
+
+
 # ---------------------------------------------------------------------------
 # Cartella «Attestati formazione» (scheletro uguale per tutti i dipendenti)
 # ---------------------------------------------------------------------------

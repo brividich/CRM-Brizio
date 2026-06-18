@@ -2264,6 +2264,21 @@ class FormazioneComplianceTests(TestCase):
         self.assertEqual(att.signature_status, "FIRMATO")
         self.assertTrue(att.firma_ingresso and att.firma_uscita)
 
+    # F5 — il fascicolo formativo dell'edizione si genera come PDF
+    def test_fascicolo_edizione_pdf(self):
+        from datetime import date, time
+        from .models_formazione import TrainingEnrollment, TrainingLesson
+        _, sess = self._corso_sessione(esame=True, presenza_min=90)
+        TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=date.today(),
+            ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="L1",
+        )
+        TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=731, stato="ISCRITTO")
+        resp = self.client.get(reverse("anagrafica:formazione_sessione_fascicolo", args=[sess.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertTrue(resp.content[:5] == b"%PDF-")
+
 
 # ---------------------------------------------------------------------------
 # H5d — archiviazione attestato PDF nel box documenti del dipendente
