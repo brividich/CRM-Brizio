@@ -242,6 +242,8 @@ urlpatterns = [
     # Regole obbligatorietà
     path("formazione/corsi/<int:corso_id>/regole-obbligo/add", views.formazione_corso_req_rule_add, name="formazione_corso_req_rule_add"),
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
+    # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
+    path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
 
     # ── Formazione HR — Istruttori ─────────────────────────────────────────
     path("formazione/istruttori/", views.formazione_istruttori_list, name="formazione_istruttori_list"),
@@ -270,6 +272,7 @@ urlpatterns = [
     path("formazione/sessioni/<int:sessione_id>/iscritti/add", views.formazione_iscrizione_add, name="formazione_iscrizione_add"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/rinnovo-bulk", views.formazione_iscrizione_bulk, name="formazione_iscrizione_bulk"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/modifica", views.formazione_iscrizione_edit, name="formazione_iscrizione_edit"),
+    path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/turni", views.formazione_iscrizione_turni, name="formazione_iscrizione_turni"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────

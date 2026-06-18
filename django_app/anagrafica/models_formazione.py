@@ -27,6 +27,7 @@ __all__ = [
     "TrainingSession",
     "TrainingLesson",
     "TrainingEnrollment",
+    "TrainingEnrollmentLesson",
     "TrainingLessonAttendance",
     "TrainingEmployeeRecord",
     "TrainingCertificate",
@@ -704,6 +705,46 @@ class TrainingEnrollment(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] → {self.sessione.codice_sessione} ({self.stato})"
+
+
+# ─────────────────────────────────────────────────────────────
+# ASSEGNAZIONE TURNO (iscritto × lezione)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingEnrollmentLesson(models.Model):
+    """Assegnazione di un iscritto a una specifica lezione/turno della sua sessione.
+
+    Una sessione può erogare lo stesso contenuto in più lezioni-turno (es. mattina
+    e pomeriggio, per la gestione dei turni di lavoro): questo modello dice **a quale
+    turno** partecipa ciascun iscritto. Le presenze restano a livello di
+    :class:`TrainingLessonAttendance`.
+
+    **Backward-compatible**: se per un'iscrizione non esiste alcuna riga, l'iscritto è
+    considerato assegnato a *tutte* le lezioni della sessione (comportamento storico,
+    nessun dato pregresso da migrare). Invariante applicativa (non vincolata a DB):
+    ``lezione.sessione_id == enrollment.sessione_id``.
+    """
+
+    enrollment = models.ForeignKey(
+        TrainingEnrollment, on_delete=models.CASCADE, related_name="turni",
+    )
+    lezione = models.ForeignKey(
+        TrainingLesson, on_delete=models.CASCADE, related_name="assegnazioni",
+    )
+    assegnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("enrollment", "lezione")]
+        verbose_name = "Assegnazione turno"
+        verbose_name_plural = "Assegnazioni turni"
+        indexes = [models.Index(fields=["lezione"])]
+
+    def __str__(self) -> str:
+        return f"iscr.{self.enrollment_id} → lez.{self.lezione_id}"
 
 
 # ─────────────────────────────────────────────────────────────

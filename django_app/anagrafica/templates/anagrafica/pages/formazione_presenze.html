@@ -41,6 +41,12 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         &nbsp;·&nbsp; {{ lezione.durata_ore }}h
         {% if lezione.docente_nome %}&nbsp;·&nbsp; {{ lezione.docente_nome }}{% endif %}
       </p>
+      {% if turno_filtrato %}
+      <p style="font-size:12px;color:#b45309;margin:6px 0 0;">
+        ⏱ Turno: elenco ristretto agli iscritti assegnati a questa lezione
+        ({{ righe|length }} di {{ n_totale_iscritti }}).
+      </p>
+      {% endif %}
     </div>
     <div style="display:flex;gap:8px;align-items:flex-start;">
       <a href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezione.pk %}" target="_blank" rel="noopener"

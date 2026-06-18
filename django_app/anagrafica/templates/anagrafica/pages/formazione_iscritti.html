@@ -53,7 +53,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
       {% if candidati_rinnovo %}
       <button class="hr-btn hr-btn-ghost"
               onclick="togglePanel('panel-rinnovo')"
-              title="Iscrivi in blocco i dipendenti con questo corso scaduto, in scadenza o mai frequentato">↻ Iscrivi da rinnovare ({{ candidati_rinnovo|length }})</button>
+              title="Candidati pertinenti al corso (scaduti, in scadenza o mai frequentati), con controllo prerequisiti">↻ Candidati ({{ candidati.idonei|length }})</button>
       {% endif %}
       <button class="hr-btn hr-btn-primary"
               onclick="togglePanel('panel-add-iscritto')">+ Aggiungi iscritto</button>
@@ -133,20 +133,23 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
   </div>
   {% endif %}
 
-  {# ── Panel candidati da rinnovare (bulk enroll) ──────────────────────────── #}
+  {# ── Panel candidati (idonei + non idonei) — bulk enroll ─────────────────── #}
   {% if is_editor and candidati_rinnovo %}
   <div id="panel-rinnovo" style="display:none;margin-bottom:16px;">
     <div class="hr-card" style="padding:16px 20px;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
-        <div style="font-size:13px;font-weight:700;color:#334155;">↻ Candidati al rinnovo di «{{ sessione.corso.titolo|truncatechars:50 }}»</div>
+        <div style="font-size:13px;font-weight:700;color:#334155;">↻ Candidati per «{{ sessione.corso.titolo|truncatechars:50 }}»</div>
         <div style="font-size:12px;color:#64748b;">
-          {{ candidati_rinnovo|length }} candidati · <strong>{{ n_rinnovo_pre }}</strong> da rinnovare pre-selezionati
+          {{ candidati.idonei|length }} idonei · <strong>{{ candidati.n_preselect }}</strong> da rinnovare pre-selezionati
+          {% if candidati.pool_filtrato %}<span title="Lista ristretta a chi è tenuto al corso (obbligo per mansione, area o ruolo)"> · filtrati per pertinenza</span>{% endif %}
         </div>
       </div>
       <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
         Dipendenti con questo corso <strong>scaduto</strong>, <strong>in scadenza</strong> o <strong>mai frequentato</strong>,
-        non ancora iscritti a questa edizione. Spunta chi vuoi iscrivere e conferma.
+        non ancora iscritti a questa edizione. Gli <strong>idonei</strong> rispettano i prerequisiti; chi non li rispetta
+        è elencato in fondo (iscrivibile solo forzando, con tracciamento).
       </p>
+      {% if candidati.idonei %}
       <form method="post" action="{% url 'anagrafica:formazione_iscrizione_bulk' sessione.pk %}">
         {% csrf_token %}
         <div style="overflow-x:auto;max-height:360px;border:1px solid #e2e8f0;border-radius:8px;">
@@ -160,12 +163,14 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               </tr>
             </thead>
             <tbody>
-              {% for c in candidati_rinnovo %}
+              {% for c in candidati.idonei %}
               <tr>
                 <td style="text-align:center;">
                   <input type="checkbox" class="rinnovo-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}>
                 </td>
-                <td style="font-weight:500;">{{ c.nome }}</td>
+                <td style="font-weight:500;">{{ c.nome }}
+                  {% if c.gia_iscritto_altrove %}<span class="fm-pill fm-pill-warning" style="font-size:10px;" title="Già iscritto ad altra edizione aperta dello stesso corso">altra edizione</span>{% endif %}
+                </td>
                 <td style="font-size:12px;">
                   {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
                   {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
@@ -183,6 +188,36 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
           <button type="submit" class="hr-btn hr-btn-primary">↻ Iscrivi selezionati</button>
         </div>
       </form>
+      {% else %}
+      <p style="font-size:12px;color:#94a3b8;margin:0;">Nessun candidato idoneo: tutti soddisfatti o con prerequisiti mancanti (vedi sotto).</p>
+      {% endif %}
+
+      {% if candidati.non_idonei %}
+      <div style="margin-top:14px;border-top:1px dashed #e2e8f0;padding-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:8px;">
+          ⚠ Non idonei — prerequisiti mancanti ({{ candidati.non_idonei|length }})
+        </div>
+        <table class="hr-table" style="margin:0;">
+          <tbody>
+            {% for c in candidati.non_idonei %}
+            <tr style="opacity:.9;">
+              <td style="font-weight:500;">{{ c.nome }}</td>
+              <td style="font-size:12px;color:#b45309;">manca: {{ c.prerequisiti_mancanti|join:", " }}</td>
+              <td style="text-align:right;width:140px;">
+                <form method="post" action="{% url 'anagrafica:formazione_iscrizione_add' sessione.pk %}" style="display:inline;"
+                      onsubmit="return confirm('Iscrivere {{ c.nome|escapejs }} forzando i prerequisiti mancanti? L\'operazione sarà tracciata.');">
+                  {% csrf_token %}
+                  <input type="hidden" name="legacy_anagrafica_id" value="{{ c.legacy_id }}">
+                  <input type="hidden" name="force" value="1">
+                  <button type="submit" class="hr-btn hr-btn-sm">Iscrivi comunque</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -205,6 +240,7 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
             <th>% Presenza</th>
             <th>Idoneo</th>
             <th>Completato il</th>
+            {% if lezioni %}<th>Turno</th>{% endif %}
             {% if is_editor %}<th>Azioni</th>{% endif %}
           </tr>
         </thead>
@@ -239,6 +275,12 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
               {% else %}<span class="fm-pill fm-pill-expired">✗</span>{% endif %}
             </td>
             <td style="font-size:12px;color:#475569;">{{ isc.data_completamento|date:"d-m-Y"|default:"—" }}</td>
+            {% if lezioni %}
+            <td style="font-size:12px;color:#475569;">
+              {% if isc.turni_espliciti %}<span class="fm-pill fm-pill-enrolled" title="Turni assegnati">{{ isc.turni_label }}</span>
+              {% else %}<span style="color:#94a3b8;">Tutte</span>{% endif %}
+            </td>
+            {% endif %}
             {% if is_editor %}
             <td>
               <button class="hr-btn hr-btn-sm"
@@ -265,9 +307,29 @@ body.theme-dark .fm-mini-grid td{color:#cbd5e1;border-color:#1e293b}
           {# ── Riga espandibile: griglia presenze per lezione ──────────────── #}
           {% if lezioni %}
           <tr id="expand-{{ isc.pk }}" class="fm-expand-row" style="display:none;">
-            <td colspan="{% if is_editor %}8{% else %}7{% endif %}"
+            <td colspan="{% if is_editor %}9{% else %}8{% endif %}"
                 style="background:#f8fafc;border-top:none;">
               <div style="padding:10px 16px 14px;">
+                {% if is_editor %}
+                {# ── Assegnazione turni (lezioni frequentate) ─────────────────── #}
+                <form method="post" action="{% url 'anagrafica:formazione_iscrizione_turni' sessione.pk isc.pk %}"
+                      style="margin:0 0 14px;">
+                  {% csrf_token %}
+                  <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;
+                              letter-spacing:.06em;margin-bottom:6px;">Turni — lezioni frequentate</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                    {% for lz, on in isc.turni_griglia %}
+                    <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;font-weight:400;">
+                      <input type="checkbox" name="lezioni_turno" value="{{ lz.pk }}" {% if on %}checked{% endif %}
+                             style="width:auto;cursor:pointer;">
+                      L{{ lz.numero }} · {{ lz.data|date:"d-m" }} {{ lz.ora_inizio|time:"H:i" }}
+                    </label>
+                    {% endfor %}
+                    <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Salva turni</button>
+                    <span style="font-size:11px;color:#94a3b8;">Nessuna spunta = tutte le lezioni</span>
+                  </div>
+                </form>
+                {% endif %}
                 <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;
                             letter-spacing:.06em;margin-bottom:8px;">Griglia presenze per lezione</div>
                 <table class="fm-mini-grid">

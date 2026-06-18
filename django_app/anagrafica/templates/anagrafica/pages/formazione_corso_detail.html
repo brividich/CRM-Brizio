@@ -437,6 +437,55 @@
   {% endif %}
 </div>
 
+{# ── Assegna dipendenti al corso (primo anello corso→sessione) ──────────── #}
+{% if is_editor %}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">➕ Assegna dipendenti al corso <span class="fm-count">{{ candidati_assegnazione|length }}</span></div>
+    <div class="muted" style="font-size:11px;">
+      {% if assegnazione_pool_filtrato %}Proposti i dipendenti tenuti al corso (obbligo per mansione, area o ruolo) non ancora a posto{% else %}Proposti i dipendenti con il corso scaduto, in scadenza o mai frequentato{% endif %}, non ancora assegnati. L'assegnazione li propone poi in cima ai candidati delle edizioni.
+    </div>
+  </div>
+  {% if candidati_assegnazione %}
+  <form method="post" action="{% url 'anagrafica:formazione_corso_assegna' corso.pk %}">
+    {% csrf_token %}
+    <div class="fm-table-wrap" style="max-height:340px;overflow:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;"><input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('.assegna-cb').forEach(function(c){c.checked=on;});"></th>
+            <th>Dipendente</th>
+            <th>Stato corso</th>
+            <th class="nowrap">Scadenza</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in candidati_assegnazione %}
+          <tr>
+            <td style="text-align:center;"><input type="checkbox" class="assegna-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}></td>
+            <td>{{ c.nome }}</td>
+            <td>
+              {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
+              {% elif c.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
+            </td>
+            <td class="nowrap muted">{{ c.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button type="submit" class="hr-btn hr-btn-primary">➕ Assegna selezionati al corso</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="fm-empty">Nessun dipendente da assegnare: i candidati pertinenti sono già assegnati o a posto.</div>
+  {% endif %}
+</div>
+{% endif %}
+
 {# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
 <div class="hr-card fm-section">
   <div class="fm-section-head">

@@ -91,6 +91,7 @@ from .models import (
 from .models_formazione import (
     AnagraficaFormazionePermission,
     AttestatoFormazioneConfig,
+    TrainingAssignment,
     TrainingAttachment,
     TrainingCertificate,
     TrainingCompletionRule,
@@ -9920,6 +9921,22 @@ def formazione_corso_detail(request, corso_id: int):
     version_form = TrainingCourseVersionForm()
     req_rule_form = TrainingRequirementRuleForm(initial={"corso": corso})
 
+    # Candidati all'assegnazione al corso (primo anello corso→sessione): idonei non
+    # ancora assegnati. Solo per editor (evita il calcolo in sola lettura).
+    candidati_assegnazione: list = []
+    assegnazione_pool_filtrato = False
+    if is_editor:
+        from .services.training_eligibility import candidati_corso
+        _res = candidati_corso(corso)
+        assegnazione_pool_filtrato = _res["pool_filtrato"]
+        _gia_assegnati = set(
+            TrainingAssignment.objects.filter(corso=corso)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+        candidati_assegnazione = [
+            c for c in _res["idonei"] if c["legacy_id"] not in _gia_assegnati
+        ]
+
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
         "prerequisiti": prerequisiti,
@@ -9939,6 +9956,8 @@ def formazione_corso_detail(request, corso_id: int):
         "req_rule_form": req_rule_form,
         "is_editor": is_editor,
         "tutti_corsi": TrainingCourse.objects.exclude(pk=corso_id).filter(is_active=True).order_by("titolo"),
+        "candidati_assegnazione": candidati_assegnazione,
+        "assegnazione_pool_filtrato": assegnazione_pool_filtrato,
     })
 
 
@@ -10113,6 +10132,50 @@ def formazione_corso_req_rule_delete(request, corso_id: int, rule_id: int):
     rule = get_object_or_404(TrainingRequirementRule, pk=rule_id, corso_id=corso_id)
     rule.delete()
     messages.success(request, "Regola rimossa.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_assegna(request, corso_id: int):
+    """Assegna in blocco dei dipendenti al corso (TrainingAssignment, stato ASSEGNATO).
+
+    Primo anello del ciclo corso→sessione: chi è assegnato al corso viene poi proposto
+    in cima ai candidati delle sue edizioni. Idempotente (unique_together corso×dip)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per assegnare corsi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id)
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    n_new = 0
+    for lid in ids:
+        _, created = TrainingAssignment.objects.get_or_create(
+            corso=corso, legacy_anagrafica_id=lid,
+            defaults={
+                "stato": "ASSEGNATO",
+                "piano": corso.piano,
+                "assigned_by": request.user,
+            },
+        )
+        if created:
+            n_new += 1
+    if n_new:
+        messages.success(request, f"{n_new} dipendenti assegnati al corso.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già assegnati al corso.")
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
 
@@ -10533,6 +10596,24 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
 
+    # Allineamento qualifica (competency management): se il corso rilascia/rinnova una
+    # qualifica e il completamento è idoneo, crea/aggiorna la DipendenteQualifica corrente
+    # collegandola al record (la prova formativa). Riusa la convenzione "una qualifica
+    # corrente per (dip, tipo), niente duplicati". Fail-safe: non deve bloccare il
+    # completamento.
+    try:
+        if corso.qualifica_id and record.idoneo:
+            qual, _ = _upsert_dipendente_qualifica(
+                record.legacy_anagrafica_id, corso.qualifica,
+                record.data_completamento, record.data_scadenza,
+                user=created_by,
+            )
+            if qual.record_formazione_id != record.pk:
+                qual.record_formazione = record
+                qual.save(update_fields=["record_formazione"])
+    except Exception:
+        logger.exception("Allineamento qualifica fallito per record %s", record.pk)
+
     # Archiviazione automatica dell'attestato nel box documenti del dipendente
     # (se abilitata da Impostazioni → Template attestato). Fail-safe: un errore
     # qui NON deve impedire la registrazione del completamento.
@@ -10613,6 +10694,10 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         for p in presenze_qs
     }
 
+    # Turni: a quali lezioni è assegnato ciascun iscritto (vuoto = tutte le lezioni).
+    from .services.training_turni import mappa_turni_sessione
+    turni_map = mappa_turni_sessione(sessione) if lezioni else {}
+
     nomi_map = _build_nomi_map()
     for i in iscrizioni:
         i.nome_dip = nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")
@@ -10622,14 +10707,26 @@ def formazione_sessione_iscritti(request, sessione_id: int):
             for lz in lezioni
         ]
         i.lezioni_presenze = list(zip(lezioni, presenze_griglia))
+        # Turni assegnati: set di lezione_id (vuoto = tutte). Lista parallela per la UI.
+        i.turni_ids = turni_map.get(i.pk, set())
+        i.turni_espliciti = bool(i.turni_ids)
+        i.turni_griglia = [(lz, lz.pk in i.turni_ids) for lz in lezioni]
+        i.turni_label = (
+            ", ".join(f"L{lz.numero}" for lz in lezioni if lz.pk in i.turni_ids)
+            if i.turni_espliciti else "Tutte"
+        )
 
-    # Lista dipendenti attivi per il form di iscrizione
+    # Lista dipendenti attivi per il form di iscrizione manuale
     dipendenti_attivi = _build_nomi_map()
 
-    # Candidati al rinnovo: chi ha questo corso scaduto/in scadenza/mai
-    # frequentato e non è ancora iscritto a questa edizione (solo per editor).
-    candidati_rinnovo = _candidati_rinnovo_corso(sessione.corso, sessione) if is_editor else []
-    n_rinnovo_pre = sum(1 for c in candidati_rinnovo if c["preselect"])
+    # Candidati all'iscrizione: motore di idoneità (pertinenza + scadenze + prerequisiti).
+    # Restituisce idonei (proponibili, pre-spuntati i rinnovi) e non idonei (prerequisiti
+    # mancanti, in coda e disabilitati). Solo per editor.
+    candidati = {"idonei": [], "non_idonei": [], "pool_filtrato": False, "n_preselect": 0}
+    if is_editor:
+        from .services.training_eligibility import candidati_corso
+        candidati = candidati_corso(sessione.corso, sessione=sessione)
+    candidati_rinnovo = candidati["idonei"] + candidati["non_idonei"]
 
     return render(request, "anagrafica/pages/formazione_iscritti.html", {
         "sessione":          sessione,
@@ -10638,8 +10735,9 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         "is_editor":         is_editor,
         "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: x[1]),
         "STATO_CHOICES":     TrainingEnrollment.STATO_CHOICES,
+        "candidati":         candidati,
         "candidati_rinnovo": candidati_rinnovo,
-        "n_rinnovo_pre":     n_rinnovo_pre,
+        "n_rinnovo_pre":     candidati["n_preselect"],
     })
 
 
@@ -10659,12 +10757,36 @@ def formazione_iscrizione_add(request, sessione_id: int):
         messages.error(request, "Selezionare un dipendente valido.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
+    # Enforcement *soft* dei prerequisiti: se mancano e non c'è forzatura esplicita,
+    # blocca con avviso; con force=1 procede ma traccia la deroga in audit.
+    from .services.training_eligibility import prerequisiti_mancanti
+    mancanti = prerequisiti_mancanti(sessione.corso, legacy_id)
+    force = request.POST.get("force") == "1"
+    if mancanti and not force:
+        nome = _build_nomi_map().get(legacy_id, f"#{legacy_id}")
+        messages.error(
+            request,
+            f'"{nome}" non soddisfa i prerequisiti del corso '
+            f'(manca: {", ".join(mancanti)}). Per iscriverlo comunque, conferma la forzatura.',
+        )
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    if mancanti and force:
+        _audit_safe(request, "formazione_iscrizione_forzata", "formazione", {
+            "sessione_id": sessione.pk, "legacy_id": legacy_id, "prerequisiti_mancanti": mancanti,
+        })
+
+    # Collega l'eventuale assegnazione a livello corso (TrainingAssignment).
+    assignment = TrainingAssignment.objects.filter(
+        corso=sessione.corso, legacy_anagrafica_id=legacy_id
+    ).first()
+
     _, created = TrainingEnrollment.objects.get_or_create(
         sessione=sessione,
         legacy_anagrafica_id=legacy_id,
         defaults={
             "stato": "ISCRITTO",
             "iscritto_da": request.user,
+            "assignment": assignment,
             "note": (request.POST.get("note") or "").strip(),
         },
     )
@@ -10735,11 +10857,22 @@ def formazione_iscrizione_bulk(request, sessione_id: int):
         messages.warning(request, "Nessun dipendente selezionato.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
+    # Collega alle assegnazioni a livello corso (TrainingAssignment), se presenti.
+    assegnazioni = {
+        a.legacy_anagrafica_id: a
+        for a in TrainingAssignment.objects.filter(
+            corso=sessione.corso, legacy_anagrafica_id__in=ids
+        )
+    }
     n_new = 0
     for lid in ids:
         _, created = TrainingEnrollment.objects.get_or_create(
             sessione=sessione, legacy_anagrafica_id=lid,
-            defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+            defaults={
+                "stato": "ISCRITTO",
+                "iscritto_da": request.user,
+                "assignment": assegnazioni.get(lid),
+            },
         )
         if created:
             n_new += 1
@@ -10747,6 +10880,34 @@ def formazione_iscrizione_bulk(request, sessione_id: int):
         messages.success(request, f"{n_new} dipendenti iscritti all'edizione di rinnovo.")
     else:
         messages.info(request, "I dipendenti selezionati erano già iscritti.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_turni(request, sessione_id: int, iscrizione_id: int):
+    """Imposta i turni (lezioni) di un'iscrizione = le lezioni selezionate.
+
+    Nessuna selezione ⇒ l'iscritto torna "su tutte le lezioni" (default storico).
+    Vedi :mod:`services.training_turni`."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire i turni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(
+        TrainingEnrollment, pk=iscrizione_id, sessione_id=sessione_id
+    )
+    lezione_ids: list[int] = []
+    for raw in request.POST.getlist("lezioni_turno"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lezione_ids.append(int(s))
+
+    from .services.training_turni import set_turni
+    set_turni(iscrizione, lezione_ids, user=request.user)
+    if lezione_ids:
+        messages.success(request, "Turni dell'iscritto aggiornati.")
+    else:
+        messages.success(request, "Turni rimossi: l'iscritto frequenta tutte le lezioni.")
     return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
 
@@ -10760,10 +10921,15 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
     lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
 
-    iscrizioni = list(
+    # Turni: mostra solo gli iscritti *attesi* a questa lezione (chi non ha turni
+    # espliciti vale per tutte le lezioni — fallback storico).
+    from .services.training_turni import iscritti_attesi_lezione
+    tutte_iscrizioni = list(
         TrainingEnrollment.objects.filter(sessione=sessione)
         .order_by("legacy_anagrafica_id")
     )
+    iscrizioni = iscritti_attesi_lezione(sessione, lezione, tutte_iscrizioni)
+    turno_filtrato = len(iscrizioni) != len(tutte_iscrizioni)
     ids = [i.legacy_anagrafica_id for i in iscrizioni]
     presenze_map = {
         p.legacy_anagrafica_id: p
@@ -10790,6 +10956,8 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
         "righe":      righe,
         "is_editor":  is_editor,
         "n_presenti": n_presenti,
+        "turno_filtrato": turno_filtrato,
+        "n_totale_iscritti": len(tutte_iscrizioni),
         "STATO_PRESENZA_CHOICES": TrainingLessonAttendance.STATO_PRESENZA_CHOICES,
         "allegati_lezione": allegati_lezione,
         "ATTACH_TIPI": TrainingAttachment.Tipo.choices,
@@ -10813,9 +10981,12 @@ def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
     sessione = get_object_or_404(TrainingSession.objects.select_related("corso", "corso__piano"), pk=sessione_id)
     lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
 
-    iscrizioni = list(
+    from .services.training_turni import iscritti_attesi_lezione
+    tutte_iscrizioni = list(
         TrainingEnrollment.objects.filter(sessione=sessione).order_by("legacy_anagrafica_id")
     )
+    # Solo gli iscritti attesi a questa lezione/turno (fallback: tutti).
+    iscrizioni = iscritti_attesi_lezione(sessione, lezione, tutte_iscrizioni)
     nomi_map = _build_nomi_map()
     righe = [
         {"n": idx, "nome": nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")}

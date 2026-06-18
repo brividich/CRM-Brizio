@@ -1947,7 +1947,7 @@ class FormazioneRinnovoTests(TestCase):
             reverse("anagrafica:formazione_sessione_iscritti", args=[sess.pk])
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Iscrivi da rinnovare")
+        self.assertContains(resp, "Candidati")
         self.assertContains(resp, "Riva Mara")
 
     def test_bulk_enroll_crea_iscrizioni(self):
@@ -1975,6 +1975,188 @@ class FormazioneRinnovoTests(TestCase):
         self.assertEqual(
             TrainingEnrollment.objects.filter(sessione=sess, legacy_anagrafica_id=701).count(), 1
         )
+
+
+class FormazioneFlussoTests(TestCase):
+    """Ciclo formazione: motore idoneità (pertinenza per mansione + prerequisiti soft),
+    assegnazione a livello corso, turni lezione, allineamento qualifica al completamento."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(
+            username="flu_admin", email="flu@x.local", password="x"
+        )
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) VALUES "
+                "(711, 'Anna', 'Verdi', 'Saldatore', 1), "
+                "(712, 'Bruno', 'Neri', 'Saldatore', 1), "
+                "(713, 'Carla', 'Blu', 'Impiegato', 1)"
+            )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def _piano(self):
+        from .models_formazione import TrainingPlan
+        return TrainingPlan.objects.create(codice="PF", nome="Piano F")
+
+    def _corso(self, piano, codice, titolo, **kw):
+        from .models_formazione import TrainingCourse
+        return TrainingCourse.objects.create(
+            piano=piano, codice=codice, titolo=titolo, durata_ore_teorica=8, **kw
+        )
+
+    # ── Pertinenza: la regola per mansione restringe il pool ai soli tenuti ──
+    def test_pertinenza_per_mansione(self):
+        from .models import Mansione
+        from .models_formazione import TrainingRequirementRule
+        from .services.training_eligibility import candidati_corso
+        piano = self._piano()
+        corso = self._corso(piano, "C1", "Corso saldatura")
+        mans = Mansione.objects.create(nome="Saldatore")
+        TrainingRequirementRule.objects.create(
+            corso=corso, mansione=mans, is_active=True, is_mandatory=True
+        )
+        res = candidati_corso(corso)
+        ids = {c["legacy_id"] for c in res["idonei"]}
+        self.assertTrue(res["pool_filtrato"])
+        self.assertEqual(ids, {711, 712})  # solo i saldatori, non l'impiegato 713
+
+    # ── Prerequisiti soft: chi non li ha è "non idoneo" con il motivo ────────
+    def test_prerequisito_rende_non_idoneo(self):
+        from datetime import date
+        from .models_formazione import (
+            TrainingCourseDependency, TrainingDeadline, TrainingEmployeeRecord,
+        )
+        from .services.training_eligibility import candidati_corso
+        piano = self._piano()
+        base = self._corso(piano, "BASE", "Base")
+        avz = self._corso(piano, "AVZ", "Avanzato")
+        TrainingCourseDependency.objects.create(
+            corso_principale=avz, prerequisito=base, obbligatorio=True
+        )
+        TrainingDeadline.objects.create(
+            corso=avz, legacy_anagrafica_id=711, stato_scadenza="SCADUTO", data_scadenza=date.today()
+        )
+        TrainingDeadline.objects.create(
+            corso=avz, legacy_anagrafica_id=712, stato_scadenza="SCADUTO", data_scadenza=date.today()
+        )
+        # 711 ha completato il BASE → idoneo; 712 no → non idoneo
+        TrainingEmployeeRecord.objects.create(
+            corso=base, legacy_anagrafica_id=711, data_completamento=date.today(), idoneo=True
+        )
+        res = candidati_corso(avz)
+        self.assertIn(711, {c["legacy_id"] for c in res["idonei"]})
+        non = [c for c in res["non_idonei"] if c["legacy_id"] == 712]
+        self.assertEqual(len(non), 1)
+        self.assertIn("Base", non[0]["prerequisiti_mancanti"])
+
+    # ── Add: bloccato senza force, consentito con force (deroga tracciata) ───
+    def test_iscrizione_add_soft_block_e_force(self):
+        from datetime import date
+        from .models_formazione import (
+            TrainingCourseDependency, TrainingEnrollment, TrainingSession,
+        )
+        piano = self._piano()
+        base = self._corso(piano, "BASE2", "Base2")
+        avz = self._corso(piano, "AVZ2", "Avz2")
+        TrainingCourseDependency.objects.create(
+            corso_principale=avz, prerequisito=base, obbligatorio=True
+        )
+        sess = TrainingSession.objects.create(
+            corso=avz, codice_sessione="SAVZ2", data_inizio=date.today(), data_fine=date.today()
+        )
+        self.client.post(
+            reverse("anagrafica:formazione_iscrizione_add", args=[sess.pk]),
+            {"legacy_anagrafica_id": "711"},
+        )
+        self.assertEqual(TrainingEnrollment.objects.filter(sessione=sess).count(), 0)
+        self.client.post(
+            reverse("anagrafica:formazione_iscrizione_add", args=[sess.pk]),
+            {"legacy_anagrafica_id": "711", "force": "1"},
+        )
+        self.assertEqual(
+            TrainingEnrollment.objects.filter(sessione=sess, legacy_anagrafica_id=711).count(), 1
+        )
+
+    # ── Assegnazione a livello corso (TrainingAssignment), idempotente ───────
+    def test_corso_assegna_crea_assignment(self):
+        from .models_formazione import TrainingAssignment
+        piano = self._piano()
+        corso = self._corso(piano, "CA", "Corso assegna")
+        resp = self.client.post(
+            reverse("anagrafica:formazione_corso_assegna", args=[corso.pk]),
+            {"dipendenti_selezionati": ["711", "712"]},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(TrainingAssignment.objects.filter(corso=corso).count(), 2)
+        self.client.post(
+            reverse("anagrafica:formazione_corso_assegna", args=[corso.pk]),
+            {"dipendenti_selezionati": ["711"]},
+        )
+        self.assertEqual(
+            TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=711).count(), 1
+        )
+
+    # ── Turni: assegnazione iscritto×lezione e filtro registro ───────────────
+    def test_turni_filtrano_iscritti_attesi(self):
+        from datetime import date, time
+        from .models_formazione import (
+            TrainingSession, TrainingLesson, TrainingEnrollment, TrainingEnrollmentLesson,
+        )
+        from .services.training_turni import iscritti_attesi_lezione, set_turni
+        piano = self._piano()
+        corso = self._corso(piano, "CT", "Corso turni")
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="STURNI", data_inizio=date.today(), data_fine=date.today()
+        )
+        lz_mat = TrainingLesson.objects.create(
+            sessione=sess, numero=1, data=date.today(),
+            ora_inizio=time(9, 0), ora_fine=time(13, 0), argomento="Mattina"
+        )
+        lz_pom = TrainingLesson.objects.create(
+            sessione=sess, numero=2, data=date.today(),
+            ora_inizio=time(14, 0), ora_fine=time(18, 0), argomento="Pomeriggio"
+        )
+        e1 = TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=711)
+        e2 = TrainingEnrollment.objects.create(sessione=sess, legacy_anagrafica_id=712)
+        # nessun turno → entrambi attesi a entrambe le lezioni (fallback storico)
+        self.assertEqual(len(iscritti_attesi_lezione(sess, lz_mat)), 2)
+        set_turni(e1, [lz_mat.pk])
+        set_turni(e2, [lz_pom.pk])
+        self.assertEqual({e.pk for e in iscritti_attesi_lezione(sess, lz_mat)}, {e1.pk})
+        self.assertEqual({e.pk for e in iscritti_attesi_lezione(sess, lz_pom)}, {e2.pk})
+        # endpoint turni: re-imposta e1 sul pomeriggio
+        self.client.post(
+            reverse("anagrafica:formazione_iscrizione_turni", args=[sess.pk, e1.pk]),
+            {"lezioni_turno": [str(lz_pom.pk)]},
+        )
+        self.assertTrue(TrainingEnrollmentLesson.objects.filter(enrollment=e1, lezione=lz_pom).exists())
+        self.assertFalse(TrainingEnrollmentLesson.objects.filter(enrollment=e1, lezione=lz_mat).exists())
+
+    # ── Allineamento qualifica al completamento del corso ────────────────────
+    def test_completamento_allinea_qualifica(self):
+        from datetime import date
+        from .models import DipendenteQualifica, TipoQualifica
+        from .models_formazione import TrainingSession, TrainingEnrollment
+        from .views import _crea_employee_record
+        piano = self._piano()
+        tipo = TipoQualifica.objects.create(nome="Patentino carrello", durata_mesi=60)
+        corso = self._corso(piano, "CQ", "Corso patentino", qualifica=tipo, validita_mesi=60)
+        sess = TrainingSession.objects.create(
+            corso=corso, codice_sessione="SQ", data_inizio=date.today(), data_fine=date.today()
+        )
+        enr = TrainingEnrollment.objects.create(
+            sessione=sess, legacy_anagrafica_id=711, stato="COMPLETATO",
+            idoneo=True, data_completamento=date.today(),
+        )
+        rec = _crea_employee_record(enr, self.admin)
+        self.assertIsNotNone(rec)
+        q = DipendenteQualifica.objects.filter(legacy_anagrafica_id=711, tipo=tipo).first()
+        self.assertIsNotNone(q)
+        self.assertEqual(q.record_formazione_id, rec.pk)
 
 
 # ---------------------------------------------------------------------------
