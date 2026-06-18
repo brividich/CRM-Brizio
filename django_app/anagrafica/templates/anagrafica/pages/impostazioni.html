@@ -2418,4 +2418,61 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
   }
 })();
 </script>
+
+<style>
+.imp-search-wrap{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+.imp-search-input{ max-width:340px; }
+.imp-search-info{ font-size:12px; color:#64748b; }
+</style>
+<script>
+/* Passata leggera Impostazioni — ricerca/filtro live per ogni tab con elenco.
+   Iniettata via JS: nessuna modifica al markup dei singoli tab (additiva, fail-safe). */
+(function () {
+  document.querySelectorAll('.imp-panel').forEach(function (panel) {
+    var lists = panel.querySelectorAll('.imp-list');
+    if (!lists.length) return;
+    var rows = panel.querySelectorAll('.imp-list .imp-row');
+    if (rows.length < 4) return;  // liste cortissime: niente filtro
+
+    var wrap = document.createElement('div');
+    wrap.className = 'imp-search-wrap';
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'imp-input imp-search-input';
+    input.placeholder = 'Filtra in questa sezione…';
+    input.setAttribute('aria-label', 'Filtra elenco');
+    var info = document.createElement('span');
+    info.className = 'imp-search-info';
+    wrap.appendChild(input);
+    wrap.appendChild(info);
+
+    var listCard = lists[0].closest('.imp-card') || lists[0];
+    listCard.parentNode.insertBefore(wrap, listCard);
+
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0, tot = 0;
+      lists.forEach(function (list) {
+        list.querySelectorAll('.imp-row').forEach(function (row) {
+          tot++;
+          var match = !q || (row.textContent || '').toLowerCase().indexOf(q) !== -1;
+          row.style.display = match ? '' : 'none';
+          if (match) shown++;
+        });
+      });
+      // Nascondi i titoli di categoria la cui lista non ha più righe visibili.
+      panel.querySelectorAll('.imp-cat-title').forEach(function (t) {
+        var nxt = t.nextElementSibling;
+        if (nxt && nxt.classList.contains('imp-list')) {
+          var vis = Array.prototype.some.call(nxt.querySelectorAll('.imp-row'), function (r) {
+            return r.style.display !== 'none';
+          });
+          t.style.display = vis ? '' : 'none';
+        }
+      });
+      info.textContent = q ? (shown + ' / ' + tot) : '';
+    });
+  });
+})();
+</script>
 {% endblock %}
