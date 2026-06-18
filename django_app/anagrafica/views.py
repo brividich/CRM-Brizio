@@ -10958,8 +10958,15 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
         data_rilascio = record.data_completamento
 
     try:
-        from .services.attestato_pdf import archivia_attestato_caricato
-        descr = "Attestato organizzatore" + (f" — {rilasciato_da}" if rilasciato_da else "")
+        from .services.attestato_pdf import archivia_attestato, archivia_attestato_caricato
+        # Copia interna NOVICROM: assicurane la presenza, così affianca l'esterno
+        # (storico completo nel box). Fail-safe: non deve bloccare l'archiviazione esterna.
+        try:
+            archivia_attestato(record, user=request.user)
+        except Exception:
+            logger.exception("Copia interna attestato non generata (record %s)", record.pk)
+        # Attestato esterno = principale (slot dedicato), collegato al certificato.
+        descr = "Attestato organizzatore esterno (principale)" + (f" — {rilasciato_da}" if rilasciato_da else "")
         doc = archivia_attestato_caricato(
             record, uploaded, user=request.user, force=True, mime=mime, descrizione=descr,
         )

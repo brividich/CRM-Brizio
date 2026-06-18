@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 # Tag di riferimento che lega il documento archiviato al completamento di origine
 # (idempotenza dell'archiviazione, senza GenericForeignKey).
 RIFERIMENTO_TIPO = "anagrafica.training_record"
+# Slot separato per l'attestato CARICATO dall'organizzatore esterno: deve affiancare
+# (non sostituire) la copia interna NOVICROM e resta quello "principale" del completamento.
+RIFERIMENTO_TIPO_EXT = "anagrafica.training_record_ext"
 
 
 # ---------------------------------------------------------------------------
@@ -730,11 +733,11 @@ def get_or_create_cartella_attestati(cfg=None):
 # Archiviazione nel box documenti
 # ---------------------------------------------------------------------------
 
-def _documento_esistente(record):
+def _documento_esistente(record, tipo_rif: str = RIFERIMENTO_TIPO):
     from anagrafica.models import DocumentoDipendente
     return (
         DocumentoDipendente.objects
-        .filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO, oggetto_riferimento_id=record.pk)
+        .filter(oggetto_riferimento_tipo=tipo_rif, oggetto_riferimento_id=record.pk)
         .order_by("-id")
         .first()
     )
@@ -811,16 +814,18 @@ def archivia_attestato_caricato(record, uploaded, *, user=None, force=False,
     """Archivia nel box documenti l'attestato *caricato* (rilasciato dall'organizzatore
     esterno del corso), invece di generarlo.
 
-    Crea un :class:`DocumentoDipendente` ``CERTIFICATO_FORMAZIONE`` legato al
-    completamento (stessa cartella/retention degli attestati generati). Idempotente
-    sul record: se esiste gia' un documento e ``force`` e' falso lo restituisce; con
-    ``force`` ne sostituisce il contenuto. Ritorna il documento.
+    Usa uno **slot dedicato** (``RIFERIMENTO_TIPO_EXT``) così da **affiancare** — non
+    sostituire — la copia interna NOVICROM (``RIFERIMENTO_TIPO``): entrambe restano nel
+    box, l'esterno è quello "principale". Crea un :class:`DocumentoDipendente`
+    ``CERTIFICATO_FORMAZIONE`` legato al completamento (stessa cartella/retention).
+    Idempotente sullo slot esterno: re-upload con ``force`` sostituisce il contenuto.
+    Ritorna il documento.
     """
     from pathlib import Path
 
     from anagrafica.models import DocumentoDipendente
 
-    esistente = _documento_esistente(record)
+    esistente = _documento_esistente(record, RIFERIMENTO_TIPO_EXT)
     if esistente and not force:
         return esistente
 
@@ -833,7 +838,7 @@ def archivia_attestato_caricato(record, uploaded, *, user=None, force=False,
     filename = f"Attestato_caricato_{record.legacy_anagrafica_id}_{record.pk}{suffix}"
     nome_orig = (getattr(uploaded, "name", "") or filename)[:255]
     mime = mime or getattr(uploaded, "content_type", "") or "application/octet-stream"
-    descr = descrizione or "Attestato rilasciato dall'organizzatore del corso (caricato)"
+    descr = descrizione or "Attestato organizzatore esterno (principale)"
     cartella = get_or_create_cartella_attestati()
 
     if esistente and force:
@@ -858,7 +863,7 @@ def archivia_attestato_caricato(record, uploaded, *, user=None, force=False,
         tipo_mime=mime,
         dimensione_bytes=len(data),
         descrizione=descr,
-        oggetto_riferimento_tipo=RIFERIMENTO_TIPO,
+        oggetto_riferimento_tipo=RIFERIMENTO_TIPO_EXT,
         oggetto_riferimento_id=record.pk,
         created_by=user if (user and getattr(user, "pk", None)) else None,
         created_by_display=(user.get_full_name() or user.username) if (user and getattr(user, "pk", None)) else "Sistema (auto)",

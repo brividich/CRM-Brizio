@@ -2243,6 +2243,19 @@ class FormazioneComplianceTests(TestCase):
         self.assertIsNotNone(cert)
         self.assertEqual(cert.rilasciato_da, "Ente X")
         self.assertIsNotNone(cert.file_attestato_id)
+        # L'esterno è il principale (collegato al certificato) e affianca la copia interna.
+        from anagrafica.models import DocumentoDipendente
+        from anagrafica.services.attestato_pdf import RIFERIMENTO_TIPO, RIFERIMENTO_TIPO_EXT
+        ext = DocumentoDipendente.objects.filter(
+            oggetto_riferimento_tipo=RIFERIMENTO_TIPO_EXT, oggetto_riferimento_id=rec.pk,
+        ).first()
+        self.assertIsNotNone(ext)
+        self.assertEqual(cert.file_attestato_id, ext.pk)  # esterno = principale
+        self.assertTrue(  # copia interna NOVICROM presente (storico completo)
+            DocumentoDipendente.objects.filter(
+                oggetto_riferimento_tipo=RIFERIMENTO_TIPO, oggetto_riferimento_id=rec.pk,
+            ).exists()
+        )
 
     # F4 — il registro firmato autocompila le presenze
     def test_registro_autocompila_presenze(self):
