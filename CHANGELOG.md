@@ -19,7 +19,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 
 
+
 ### Added
+
+- **ANAGRAFICA HR - Formazione: crea-al-volo (inline, modale) delle entità collegate nei form** (`django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/templates/anagrafica/partials/_quick_add.html` [nuovo], `.../pages/formazione_corso_form.html`, `.../pages/formazione_sessione_form.html`, `django_app/anagrafica/tests.py`): dai form di creazione **corso** e **sessione** si possono ora creare al volo le entità collegate senza lasciare la pagina — accanto ai select `piano`/`categoria`/`qualifica` (corso) e `docente` (sessione) compare un **«+ nuovo»** che apre una piccola **modale**; al salvataggio (fetch → endpoint JSON `formazione_quickadd_*`) la voce viene creata e **selezionata** senza ricaricare. Partial condiviso `_quick_add.html` (auto-aggancio ai select per nome, riusabile su qualsiasi form). Endpoint gated (editor), validazione minima (codice/nome + unicità). Test `test_quickadd_endpoints` + include nel form. Nessuna migration.
 
 - **ANAGRAFICA HR - Formazione: categoria (rischio) e qualifica (àncora) nel form di creazione/modifica corso** (`django_app/anagrafica/forms.py`, `django_app/anagrafica/tests.py`): `TrainingCourseForm` ora espone i due campi finora settabili solo via import/admin — **`categoria`** (`CategoriaCorso` → fattori di rischio, deriva la pertinenza) e **`qualifica`** (`TipoQualifica`, l'àncora competenza che guida tipo attestato e allineamento qualifica). Entrambi opzionali, queryset filtrati su attivi, con label «— Nessuna —». Nessun template da toccare (il form è reso genericamente). Test `test_corso_form_categoria_e_qualifica`. Nessuna migration.
 

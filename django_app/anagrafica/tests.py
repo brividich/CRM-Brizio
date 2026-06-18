@@ -2178,6 +2178,34 @@ class FormazioneFlussoTests(TestCase):
         self.assertEqual(corso.qualifica_id, tipo.pk)
         self.assertEqual(corso.codice, "CX1")  # clean_codice → maiuscolo
 
+    # Quick-add inline: endpoint JSON di creazione entità collegate
+    def test_quickadd_endpoints(self):
+        from .models import TipoQualifica
+        from .models_formazione import TrainingPlan
+        r = self.client.post(
+            reverse("anagrafica:formazione_quickadd_qualifica"),
+            {"nome": "Carrellista QA", "durata_mesi": "60"},
+        )
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(TipoQualifica.objects.filter(pk=data["id"], nome="Carrellista QA").exists())
+        r = self.client.post(
+            reverse("anagrafica:formazione_quickadd_piano"), {"codice": "qx", "nome": "Piano QA"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(TrainingPlan.objects.filter(codice="QX").exists())  # upper-cased
+        # validazione: piano senza nome → 400
+        r = self.client.post(reverse("anagrafica:formazione_quickadd_piano"), {"codice": "ZZ"})
+        self.assertEqual(r.status_code, 400)
+
+    # Il form corso include il quick-add (modale + endpoint nel JS)
+    def test_corso_form_include_quickadd(self):
+        r = self.client.get(reverse("anagrafica:formazione_corso_create"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "qa-modal")
+        self.assertContains(r, "formazione/quick-add/piano")
+
 
 class FormazioneComplianceTests(TestCase):
     """Compliance Accordo SR 2025 + flussi operativi: gating verifica finale e

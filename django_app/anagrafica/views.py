@@ -9820,6 +9820,73 @@ def formazione_corso_create(request):
     })
 
 
+# ── Quick-add inline (JSON) delle entità collegate dei form formazione ───────
+# Creano l'entità minimale e ritornano {ok, id, label} così la UI la appende al
+# <select> e la seleziona senza ricaricare. Gated dal permesso di modifica.
+
+@login_required
+@require_POST
+def formazione_quickadd_piano(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not codice or not nome:
+        return JsonResponse({"ok": False, "error": "Codice e nome sono obbligatori."}, status=400)
+    if TrainingPlan.objects.filter(codice=codice).exists():
+        return JsonResponse({"ok": False, "error": f"Esiste già un piano con codice {codice}."}, status=400)
+    p = TrainingPlan.objects.create(codice=codice, nome=nome, created_by=request.user)
+    return JsonResponse({"ok": True, "id": p.pk, "label": str(p)})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_categoria(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    from .models_rischi import CategoriaCorso
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not codice or not nome:
+        return JsonResponse({"ok": False, "error": "Codice e nome sono obbligatori."}, status=400)
+    if CategoriaCorso.objects.filter(codice=codice).exists():
+        return JsonResponse({"ok": False, "error": f"Esiste già una categoria con codice {codice}."}, status=400)
+    c = CategoriaCorso.objects.create(codice=codice, nome=nome)
+    return JsonResponse({"ok": True, "id": c.pk, "label": c.nome})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_qualifica(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    from .models import TipoQualifica
+    nome = (request.POST.get("nome") or "").strip()[:150]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    try:
+        durata = max(0, int(request.POST.get("durata_mesi") or 0))
+    except (TypeError, ValueError):
+        durata = 0
+    obj, _created = TipoQualifica.objects.get_or_create(nome=nome, defaults={"durata_mesi": durata})
+    return JsonResponse({"ok": True, "id": obj.pk, "label": obj.nome})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_docente(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    tipo = (request.POST.get("tipo") or "ESTERNO").strip().upper()
+    if tipo not in ("INTERNO", "ESTERNO"):
+        tipo = "ESTERNO"
+    d = TrainingInstructor.objects.create(nome=nome, tipo=tipo)
+    return JsonResponse({"ok": True, "id": d.pk, "label": d.nome})
+
+
 @login_required
 def formazione_corso_detail(request, corso_id: int):
     if not _can_view_formazione(request):
