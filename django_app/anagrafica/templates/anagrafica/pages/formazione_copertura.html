@@ -1,0 +1,139 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Copertura formativa | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {# ── Header ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Copertura
+      </div>
+      <h2 class="hr-pagehead-title">Copertura formativa &middot; gap obbligatori</h2>
+      <p class="hr-pagehead-desc">
+        Dipendenti <strong>non in regola</strong> con i corsi obbligatori (scaduto, in scadenza
+        o mai frequentato), per reparto e mansione. Chi è già a posto non compare.
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-ghost">↗ Scadenzario</a>
+    </div>
+  </div>
+
+  {# ── KPI ────────────────────────────────────────────────────────────────── #}
+  <div class="hr-metric-grid" style="margin-bottom:18px;">
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">👤</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Dipendenti con gap</span><span class="hr-metric-val">{{ n_dip }}</span>
+      </div><div class="hr-metric-sub">Almeno un obbligo non soddisfatto</div></div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⛔</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Gap totali</span><span class="hr-metric-val">{{ n_gap }}</span>
+      </div><div class="hr-metric-sub">Coppie dipendente × corso</div></div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">🔴</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Scaduti</span><span class="hr-metric-val">{{ n_scaduti }}</span>
+      </div><div class="hr-metric-sub">Da rinnovare con urgenza</div></div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">🆕</div>
+      <div class="hr-metric-body"><div class="hr-metric-top">
+        <span class="hr-metric-lbl">Mai frequentati</span><span class="hr-metric-val">{{ n_mai }}</span>
+      </div><div class="hr-metric-sub">Primo rilascio da pianificare</div></div>
+    </div>
+  </div>
+
+  {# ── Filtri ─────────────────────────────────────────────────────────────── #}
+  <div class="hr-card" style="padding:14px 18px;margin-bottom:16px;">
+    <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div class="fm-f">
+        <label>Reparto</label>
+        <select name="reparto" class="fm-input fm-select">
+          <option value="">Tutti</option>
+          {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fm-f">
+        <label>Corso obbligatorio</label>
+        <select name="corso" class="fm-input fm-select">
+          <option value="">Tutti</option>
+          {% for c in corsi %}<option value="{{ c.pk }}" {% if filtro_corso == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.titolo|truncatechars:50 }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fm-f">
+        <label>Stato</label>
+        <select name="stato" class="fm-input fm-select">
+          <option value="">Tutti</option>
+          <option value="SCADUTO" {% if filtro_stato == "SCADUTO" %}selected{% endif %}>Scaduto</option>
+          <option value="IN_SCADENZA_30" {% if filtro_stato == "IN_SCADENZA_30" %}selected{% endif %}>In scadenza ≤30gg</option>
+          <option value="IN_SCADENZA_90" {% if filtro_stato == "IN_SCADENZA_90" %}selected{% endif %}>In scadenza ≤90gg</option>
+          <option value="MAI_FREQUENTATO" {% if filtro_stato == "MAI_FREQUENTATO" %}selected{% endif %}>Mai frequentato</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="submit" class="hr-btn hr-btn-primary">Filtra</button>
+        <a href="{% url 'anagrafica:formazione_copertura' %}" class="hr-btn hr-btn-ghost">Azzera</a>
+      </div>
+    </form>
+  </div>
+
+  {# ── Tabella gap ────────────────────────────────────────────────────────── #}
+  <div class="hr-card">
+    <div class="hr-card-head"><div class="hr-card-title">📋 Gap formativi ({{ n_gap }})</div></div>
+    {% if righe %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th><th>Reparto</th><th>Mansione</th>
+            <th>Corso obbligatorio</th><th>Stato</th><th>Scadenza</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td style="font-weight:500;">
+              <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="color:inherit;text-decoration:none;">{{ r.nome }}</a>
+            </td>
+            <td style="font-size:12px;color:#475569;">{{ r.reparto }}</td>
+            <td style="font-size:12px;color:#475569;">{{ r.mansione }}</td>
+            <td style="font-size:12px;">
+              <a href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}" style="color:#3b82f6;text-decoration:none;">{{ r.corso.titolo|truncatechars:48 }}</a>
+            </td>
+            <td style="font-size:12px;">
+              {% if r.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif r.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
+              {% elif r.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#475569;">{{ r.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:24px 16px;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun gap formativo con i filtri correnti. {% if not corsi %}Nessun corso ha regole di obbligatorietà attive.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -283,6 +283,8 @@ urlpatterns = [
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────
     path("formazione/scadenzario/", views.formazione_scadenzario, name="formazione_scadenzario"),
+    # Copertura / gap formativo (chi manca quali corsi obbligatori, per reparto/mansione)
+    path("formazione/copertura/", views.formazione_copertura, name="formazione_copertura"),
 
     # ── Formazione HR — Plan (calendario eventi mese per mese) ──────────────
     path("formazione/plan/", views.formazione_plan, name="formazione_plan"),

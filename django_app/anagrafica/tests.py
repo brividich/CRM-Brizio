@@ -2279,6 +2279,21 @@ class FormazioneComplianceTests(TestCase):
         self.assertEqual(resp["Content-Type"], "application/pdf")
         self.assertTrue(resp.content[:5] == b"%PDF-")
 
+    # Gap-report: chi manca quali corsi obbligatori
+    def test_copertura_gap_report(self):
+        from .models_formazione import TrainingPlan, TrainingCourse, TrainingRequirementRule
+        piano = TrainingPlan.objects.create(codice="PG", nome="Piano G")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="CG", titolo="Corso obbligo", durata_ore_teorica=4,
+        )
+        TrainingRequirementRule.objects.create(
+            corso=corso, legacy_anagrafica_id=731, is_active=True, is_mandatory=True,
+        )
+        resp = self.client.get(reverse("anagrafica:formazione_copertura"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Corso obbligo")
+        self.assertContains(resp, "Test Dario")  # 731 = Dario Test (cognome nome)
+
 
 # ---------------------------------------------------------------------------
 # H5d — archiviazione attestato PDF nel box documenti del dipendente
