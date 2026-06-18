@@ -264,6 +264,7 @@ urlpatterns = [
     # ── Formazione HR — E-learning (micro-corsi: slide + quiz) ─────────────
     # Hub di gestione (autori/HR)
     path("formazione/elearning/", views.formazione_elearning_hub, name="formazione_elearning_hub"),
+    path("formazione/elearning/impostazioni/", views.formazione_elearning_settings, name="formazione_elearning_settings"),
     path("formazione/elearning/<int:corso_id>/gestione", views.formazione_elearning_manage, name="formazione_elearning_manage"),
     path("formazione/elearning/<int:corso_id>/pubblica", views.formazione_elearning_publish_toggle, name="formazione_elearning_publish_toggle"),
     path("formazione/elearning/<int:corso_id>/iscritti.csv", views.formazione_elearning_iscritti_csv, name="formazione_elearning_iscritti_csv"),

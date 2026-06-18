@@ -17,6 +17,7 @@ from .models import (
 )
 from .models_formazione import (
     AttestatoFormazioneConfig,
+    ElearningConfig,
     TrainingCourse,
     TrainingCompletionRule,
     TrainingCourseDependency,
@@ -488,6 +489,18 @@ class TrainingQuizOptionForm(forms.ModelForm):
             "testo":    forms.TextInput(attrs=_FM),
             "ordine":   forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "corretta": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+class ElearningConfigForm(forms.ModelForm):
+    class Meta:
+        model = ElearningConfig
+        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path"]
+        widgets = {
+            "quiz_punteggio_minimo_default": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
+            "validita_mesi_default":         forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "max_tentativi_quiz":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "libreoffice_path":              forms.TextInput(attrs=_FM),
         }
 
 

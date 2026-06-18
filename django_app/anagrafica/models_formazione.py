@@ -40,6 +40,7 @@ __all__ = [
     "TrainingQuizOption",
     "TrainingElearningEnrollment",
     "TrainingQuizAttempt",
+    "ElearningConfig",
 ]
 
 
@@ -1305,6 +1306,53 @@ class TrainingQuizAttempt(models.Model):
 # ─────────────────────────────────────────────────────────────
 from django.db.models.signals import post_delete  # noqa: E402
 from django.dispatch import receiver  # noqa: E402
+
+
+class ElearningConfig(models.Model):
+    """Singleton — impostazioni e default dei micro-corsi e-learning.
+
+    Pattern identico ad :class:`AttestatoFormazioneConfig`: una sola riga (pk=1),
+    modificabile dalle Impostazioni HR. I default vengono applicati ai nuovi corsi
+    e-learning; ``libreoffice_path`` è il fallback per la conversione PowerPoint."""
+
+    quiz_punteggio_minimo_default = models.PositiveSmallIntegerField(
+        default=70,
+        help_text="Percentuale minima del quiz proposta di default ai nuovi micro-corsi (0–100).",
+    )
+    validita_mesi_default = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Validità in mesi proposta di default (0 = una tantum, nessun rinnovo).",
+    )
+    max_tentativi_quiz = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Numero massimo di tentativi del quiz per dipendente (0 = illimitati).",
+    )
+    libreoffice_path = models.CharField(
+        max_length=400, blank=True, default="",
+        help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "
+                  "Vuoto = usa LIBREOFFICE_PATH/variabile d'ambiente o auto-rilevamento.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Impostazioni e-learning"
+        verbose_name_plural = "Impostazioni e-learning"
+
+    def __str__(self) -> str:
+        return "Impostazioni e-learning"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls) -> "ElearningConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 @receiver(post_delete, sender=TrainingSlide)

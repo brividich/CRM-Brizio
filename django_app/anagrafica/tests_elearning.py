@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .models_formazione import (
+    ElearningConfig,
     TrainingAssignment,
     TrainingCourse,
     TrainingElearningEnrollment,
@@ -294,3 +295,43 @@ class ElearningManageTests(TestCase):
         url = reverse("anagrafica:formazione_elearning_unassign", args=[self.corso.pk, a.pk])
         self.client.post(url)
         self.assertTrue(TrainingAssignment.objects.filter(pk=a.pk).exists())  # non rimossa
+
+
+class ElearningSettingsTests(TestCase):
+    """Scheda Impostazioni e-learning (singleton) + applicazione dei default."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_superuser("autore4", "a4@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+        self.piano = TrainingPlan.objects.create(codice="PS", nome="Piano")
+
+    def test_settings_get(self):
+        resp = self.client.get(reverse("anagrafica:formazione_elearning_settings"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_settings_save(self):
+        url = reverse("anagrafica:formazione_elearning_settings")
+        resp = self.client.post(url, {
+            "quiz_punteggio_minimo_default": "85",
+            "validita_mesi_default": "12",
+            "max_tentativi_quiz": "3",
+            "libreoffice_path": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        cfg = ElearningConfig.get_instance()
+        self.assertEqual(cfg.quiz_punteggio_minimo_default, 85)
+        self.assertEqual(cfg.validita_mesi_default, 12)
+        self.assertEqual(cfg.max_tentativi_quiz, 3)
+
+    def test_create_preset_usa_default(self):
+        cfg = ElearningConfig.get_instance()
+        cfg.quiz_punteggio_minimo_default = 90
+        cfg.validita_mesi_default = 24
+        cfg.save()
+        resp = self.client.get(reverse("anagrafica:formazione_corso_create") + "?elearning=1")
+        self.assertEqual(resp.status_code, 200)
+        init = resp.context["form"].initial
+        self.assertTrue(init.get("is_elearning"))
+        self.assertEqual(init.get("quiz_punteggio_minimo"), 90)
+        self.assertEqual(init.get("validita_mesi"), 24)

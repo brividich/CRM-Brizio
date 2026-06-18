@@ -36,6 +36,7 @@ from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
     AttestatoFormazioneConfigForm,
+    ElearningConfigForm,
     FiglioACaricoFormSet,
     DipendenteLegacyForm,
     TrainingCompletionRuleForm,
@@ -94,6 +95,7 @@ from .models import (
 from .models_formazione import (
     AnagraficaFormazionePermission,
     AttestatoFormazioneConfig,
+    ElearningConfig,
     TrainingAssignment,
     TrainingAttachment,
     TrainingCertificate,
@@ -9846,9 +9848,14 @@ def formazione_corso_create(request):
         initial = {}
         if request.GET.get("piano"):
             initial["piano"] = request.GET.get("piano")
-        # Preset "nuovo corso e-learning" dal hub di gestione e-learning
+        # Preset "nuovo corso e-learning" dal hub di gestione e-learning: applica i
+        # default configurati nelle Impostazioni e-learning.
         if request.GET.get("elearning") in ("1", "true", "on"):
+            cfg = ElearningConfig.get_instance()
             initial["is_elearning"] = True
+            initial["quiz_punteggio_minimo"] = cfg.quiz_punteggio_minimo_default
+            if cfg.validita_mesi_default:
+                initial["validita_mesi"] = cfg.validita_mesi_default
         form = TrainingCourseForm(initial=initial)
     return render(request, "anagrafica/pages/formazione_corso_form.html", {
         "form": form,
@@ -13334,6 +13341,34 @@ def formazione_elearning_unassign(request, corso_id: int, assignment_id: int):
     return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
 
 
+@login_required
+def formazione_elearning_settings(request):
+    """Impostazioni e-learning (singleton): default dei nuovi micro-corsi e percorso
+    LibreOffice per l'import PowerPoint. Gated dal permesso di modifica formazione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare le impostazioni e-learning.")
+        return redirect("anagrafica:formazione_elearning_hub")
+    cfg = ElearningConfig.get_instance()
+    if request.method == "POST":
+        form = ElearningConfigForm(request.POST, instance=cfg)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.updated_by = request.user
+            obj.save()
+            messages.success(request, "Impostazioni e-learning salvate.")
+            return redirect("anagrafica:formazione_elearning_settings")
+        messages.error(request, "Controlla i campi: " + form.errors.as_text())
+    else:
+        form = ElearningConfigForm(instance=cfg)
+    # Diagnostica LibreOffice (per l'import PowerPoint)
+    from .services.elearning_import import find_libreoffice
+    return render(request, "anagrafica/pages/formazione_elearning_settings.html", {
+        "form": form,
+        "cfg": cfg,
+        "libreoffice_trovato": find_libreoffice(),
+    })
+
+
 # -- AUTORE: gestione contenuti (slide + quiz) -------------------------------
 
 @login_required
@@ -13688,6 +13723,14 @@ def formazione_online_quiz(request, corso_id: int):
     if legacy_id is None:
         messages.error(request, "Il tuo profilo non e collegato all'anagrafica: il completamento non puo essere registrato. Contatta HR.")
         return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    # Limite tentativi (Impostazioni e-learning): blocca un nuovo invio se esaurito.
+    cfg_el = ElearningConfig.get_instance()
+    if cfg_el.max_tentativi_quiz:
+        _enr = TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).first()
+        if _enr and _enr.stato != "COMPLETATO" and (_enr.n_tentativi or 0) >= cfg_el.max_tentativi_quiz:
+            messages.error(request, f"Hai esaurito i tentativi disponibili per questo quiz ({cfg_el.max_tentativi_quiz}).")
+            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
 
     # -- Correzione -----------------------------------------------------------
     n_totali = len(domande)

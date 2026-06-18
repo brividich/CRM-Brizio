@@ -50,6 +50,7 @@ from .models_formazione import (
     TrainingQuizOption,
     TrainingElearningEnrollment,
     TrainingQuizAttempt,
+    ElearningConfig,
 )
 
 
@@ -337,6 +338,12 @@ class TrainingQuizAttemptAdmin(admin.ModelAdmin):
     list_filter = ("superato", "corso")
     search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
     readonly_fields = ("iniziato_il", "inviato_il", "risposte_json", "record", "utente")
+
+
+@admin.register(ElearningConfig)
+class ElearningConfigAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "updated_at")
+    readonly_fields = ("updated_at", "updated_by")
 
 
 # ─────────────────────────────────────────────────────────────

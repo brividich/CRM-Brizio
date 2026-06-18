@@ -26,6 +26,7 @@
       <div class="fmd-pagehead-actions">
         <a href="{% url 'anagrafica:formazione_online_catalog' %}" class="fmd-btn fmd-btn-ghost" target="_blank"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Vista discente</a>
         {% if is_editor %}
+        <a href="{% url 'anagrafica:formazione_elearning_settings' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni</a>
         <a href="{% url 'anagrafica:formazione_corso_create' %}?elearning=1" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo corso e-learning</a>
         {% endif %}
       </div>

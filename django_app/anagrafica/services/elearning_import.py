@@ -43,8 +43,16 @@ class ImportError_(Exception):
 
 
 def find_libreoffice() -> str | None:
-    """Risolve l'eseguibile LibreOffice (soffice). None se non trovato."""
-    cand = getattr(settings, "LIBREOFFICE_PATH", "") or os.environ.get("LIBREOFFICE_PATH", "")
+    """Risolve l'eseguibile LibreOffice (soffice). None se non trovato.
+
+    Ordine: Impostazioni e-learning (DB) → settings.LIBREOFFICE_PATH / env → percorsi
+    standard Windows/Linux."""
+    try:
+        from ..models_formazione import ElearningConfig
+        db_path = (ElearningConfig.get_instance().libreoffice_path or "").strip()
+    except Exception:
+        db_path = ""
+    cand = db_path or getattr(settings, "LIBREOFFICE_PATH", "") or os.environ.get("LIBREOFFICE_PATH", "")
     if cand and Path(cand).exists():
         return cand
     found = shutil.which("soffice") or shutil.which("soffice.exe")
