@@ -2988,6 +2988,15 @@ def ruolo_operativo_delete(request, ruolo_id: int):
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+    n_uso = ruolo.assegnazioni.count()
+    if n_uso:
+        if ruolo.is_active:
+            ruolo.is_active = False
+            ruolo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{ruolo.nome}" è in uso ({n_uso} assegnazioni): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{ruolo.nome}" ha {n_uso} assegnazioni: non eliminabile (già disattivo).')
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
     nome = ruolo.nome
     ruolo.delete()
     messages.success(request, f'Ruolo "{nome}" eliminato.')
@@ -5782,8 +5791,14 @@ def tipo_qualifica_delete(request, tipo_id: int):
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
-    if tipo.assegnazioni.exists():
-        messages.error(request, f'"{tipo.nome}" ha assegnazioni attive — non eliminabile.')
+    n_uso = tipo.assegnazioni.count()
+    if n_uso:
+        if tipo.is_active:
+            tipo.is_active = False
+            tipo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{tipo.nome}" è in uso ({n_uso} assegnazioni): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{tipo.nome}" ha {n_uso} assegnazioni: non eliminabile (già disattivo).')
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     nome = tipo.nome
@@ -7871,8 +7886,14 @@ def tipo_visita_medica_delete(request, tipo_id: int):
     if not ok:
         return resp
     tipo = get_object_or_404(TipoVisitaMedica, pk=tipo_id)
-    if tipo.visite.exists():
-        messages.error(request, f'"{tipo.nome}" ha visite registrate — non eliminabile.')
+    n_uso = tipo.visite.count()
+    if n_uso:
+        if tipo.is_active:
+            tipo.is_active = False
+            tipo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{tipo.nome}" è in uso ({n_uso} visite registrate): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{tipo.nome}" ha {n_uso} visite registrate: non eliminabile (già disattivo).')
         return _redirect_impostazioni("visite-mediche")
     nome = tipo.nome
     tipo.delete()
@@ -8668,7 +8689,12 @@ def cartella_documento_delete(request, cartella_id: int):
     cartella = get_object_or_404(CartellaDocumentoDipendente, pk=cartella_id)
     n_docs = cartella.documenti.count()
     if n_docs > 0:
-        messages.error(request, f"Impossibile eliminare: la cartella contiene {n_docs} documento/i. Spostali o disattiva la cartella.")
+        if cartella.attiva:
+            cartella.attiva = False
+            cartella.save(update_fields=["attiva"])
+            messages.warning(request, f"La cartella «{cartella.nome}» contiene {n_docs} documento/i: disattivata (non eliminata) per preservare lo storico. Riattivala dalla modifica.")
+        else:
+            messages.error(request, f"La cartella «{cartella.nome}» contiene {n_docs} documento/i: non eliminabile (già disattiva).")
         return _redirect_impostazioni("documenti")
     nome = cartella.nome
     cartella.delete()

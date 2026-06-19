@@ -1699,8 +1699,13 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                       {% csrf_token %}
                       <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la cartella «{{ c.nome }}»?')">Elimina</button>
                     </form>
+                    {% elif c.attiva %}
+                    <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="imp-btn imp-btn-ghost imp-btn-sm" title="Contiene {{ c.n_documenti }} documento/i: non eliminabile, ma puoi disattivarla" onclick="return confirm('La cartella «{{ c.nome }}» contiene {{ c.n_documenti }} documento/i e non può essere eliminata. Disattivarla (lo storico resta)?')">Disattiva</button>
+                    </form>
                     {% else %}
-                    <span title="Contiene {{ c.n_documenti }} documento/i — impossibile eliminare" style="font-size:11px;color:#94a3b8;padding:0 4px;">Non eliminabile</span>
+                    <span title="Cartella disattivata con {{ c.n_documenti }} documento/i" style="font-size:11px;color:#94a3b8;padding:0 4px;">Disattivata</span>
                     {% endif %}
                   </td>
                 </tr>
