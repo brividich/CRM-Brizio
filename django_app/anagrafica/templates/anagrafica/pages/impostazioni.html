@@ -1682,7 +1682,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <tbody>
                 {% for c in cartelle_documenti %}
                 <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
-                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">{% if c.livello %}<span style="display:inline-block;width:{% widthratio c.livello 1 20 %}px;"></span><span style="color:#94a3b8;">↳</span> {% endif %}📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
                   <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
                   <td style="padding:8px 10px;text-align:center;">
@@ -1764,9 +1764,18 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
 
             {# Form nuova cartella #}
             <div style="border-top:1px solid #e2e8f0;padding-top:16px;">
-              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
+              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella / sottocartella</div>
               <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
                 {% csrf_token %}
+                <div style="margin-bottom:10px;max-width:360px;">
+                  <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Cartella superiore</label>
+                  <select name="parent" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                    <option value="__root__">— Primo livello (nessuna) —</option>
+                    {% for c in cartelle_documenti %}
+                    <option value="{{ c.id }}">{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto auto;gap:10px;align-items:end;">
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>

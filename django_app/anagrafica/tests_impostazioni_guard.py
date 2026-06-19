@@ -65,6 +65,34 @@ class FolderRetentionTests(TestCase):
         self.assertEqual(doc.retention_until.year, date.today().year + 10)
 
 
+class SubfolderTests(TestCase):
+    """Sottocartelle documenti: creazione, unicità per livello, guardia eliminazione."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser("sub", "sub@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+
+    def test_crea_sottocartella(self):
+        root = CartellaDocumentoDipendente.objects.create(nome="HR")
+        self.client.post(reverse("anagrafica:cartella_documento_create"),
+                         {"nome": "Contratti", "parent": str(root.id), "ordine": "0", "retention_anni": "10"})
+        sub = CartellaDocumentoDipendente.objects.get(nome="Contratti")
+        self.assertEqual(sub.parent_id, root.id)
+
+    def test_stesso_nome_parent_diversi_ok(self):
+        a = CartellaDocumentoDipendente.objects.create(nome="A")
+        b = CartellaDocumentoDipendente.objects.create(nome="B")
+        CartellaDocumentoDipendente.objects.create(nome="2025", parent=a)
+        CartellaDocumentoDipendente.objects.create(nome="2025", parent=b)  # non deve sollevare
+        self.assertEqual(CartellaDocumentoDipendente.objects.filter(nome="2025").count(), 2)
+
+    def test_delete_bloccato_se_ha_figlie(self):
+        root = CartellaDocumentoDipendente.objects.create(nome="Radice")
+        CartellaDocumentoDipendente.objects.create(nome="Figlia", parent=root)
+        self.client.post(reverse("anagrafica:cartella_documento_delete", args=[root.id]))
+        self.assertTrue(CartellaDocumentoDipendente.objects.filter(pk=root.id).exists())  # non eliminata
+
+
 class DocumentMoveTests(TestCase):
     """Spostamento documento tra cartelle dall'archivio (container manager)."""
 
