@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Archivio documenti | Anagrafica HR{% endblock %}
 
@@ -83,7 +84,7 @@
               <th data-col="file" data-col-label="File" data-col-type="text" data-col-sortable="1" data-col-filterable="1">File</th>
               <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
               <th data-col="caricato" data-col-label="Caricato" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Caricato</th>
-              <th class="fmd-c" data-col="retention" data-col-label="Conservare fino al" data-col-type="date" data-col-sortable="1" title="Data limite GDPR">Scade</th>
+              <th class="fmd-c" data-col="retention" data-col-label="Conservare fino al" data-col-type="date" data-col-sortable="1">Scade{% info_hint "retention" %}</th>
               <th class="fmd-r">Azioni</th>
             </tr>
           </thead>

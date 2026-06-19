@@ -1811,6 +1811,22 @@ class SubnavCategoriaAnagrafica(models.Model):
     icona = models.CharField(max_length=20, blank=True, default="", help_text="Emoji o testo breve mostrato prima del nome.")
     ordine = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    # Destinazione del «pilastro»: se valorizzata, cliccando il testo della
+    # categoria si naviga a questa pagina (di norma la dashboard del sotto-modulo),
+    # mentre il caret/hover apre comunque il dropdown con gli altri collegamenti.
+    # Vuoto = categoria solo-dropdown (comportamento storico).
+    landing_url_type = models.CharField(
+        max_length=10,
+        choices=[("named", "URL Django (nome view)"), ("raw", "URL diretto (path o esterno)")],
+        default="named",
+    )
+    landing_url_value = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Nome view Django o path/URL della dashboard del sotto-modulo. "
+                  "Vuoto = la categoria è solo un dropdown senza pagina propria.",
+    )
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -1845,6 +1861,13 @@ class SubnavLinkAnagrafica(models.Model):
     )
     etichetta = models.CharField(max_length=80)
     icona = models.CharField(max_length=20, blank=True, default="")
+    gruppo = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text="Intestazione di sezione dentro il dropdown (facoltativa). "
+                  "Link con lo stesso gruppo vengono raggruppati in colonna nel mega-menu.",
+    )
     url_type = models.CharField(max_length=10, choices=UrlType.choices, default=UrlType.NAMED)
     url_value = models.CharField(
         max_length=255,

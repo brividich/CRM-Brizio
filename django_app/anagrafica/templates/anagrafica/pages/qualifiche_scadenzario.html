@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Scadenzario qualifiche | Anagrafica HR{% endblock %}
 
@@ -99,8 +100,8 @@
               <th class="fmd-nowrap">Conseguim.</th>
               <th class="fmd-nowrap">Scadenza</th>
               <th class="fmd-r">Giorni</th>
-              <th>Stato</th>
-              <th>Evidenza</th>
+              <th>Stato{% info_hint "qualifica_stato_rag" %}</th>
+              <th>Evidenza{% info_hint "qualifica_verifica" %}</th>
               <th>Azioni</th>
             </tr>
           </thead>

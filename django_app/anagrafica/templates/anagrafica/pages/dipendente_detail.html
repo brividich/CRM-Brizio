@@ -4,6 +4,7 @@
 {% block title %}{{ dip.cognome }} {{ dip.nome }} | Scheda dipendente{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
 <style>
 /* ── Anagrafica HR — scheda dipendente · restyle design-system (Fase A) ──────
    Palette/forma derivate dal prototipo `anagrafica_hr_dashboard_novicrom.jsx`.
@@ -1701,7 +1702,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               {% endif %}
               {% if q.storico.all|length > 1 %}
               <details class="dp-qual-dates" style="margin-top:4px;">
-                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }})</summary>
+                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }}){% info_hint "qualifica_storico" %}</summary>
                 <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:2px solid #e2e8f0;">
                   {% for s in q.storico.all %}
                   <div style="font-size:11px;color:#475569;">
@@ -1792,7 +1793,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <input type="text" name="note" class="dp-select" maxlength="255" placeholder="Note opzionali" style="width:100%;">
             </div>
             <div class="dp-qual-field" style="grid-column:1/-1;">
-              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 15 MB)</label>
+              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 15 MB){% info_hint "qualifica_evidenza" %}</label>
               <input type="file" name="documento" class="dp-select" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff" style="width:100%;">
             </div>
           </div>

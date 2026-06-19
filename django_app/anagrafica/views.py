@@ -8117,27 +8117,46 @@ def impostazioni(request):
     )
     # Rotte del modulo selezionabili nei link subnav (pagine GET senza parametri)
     subnav_route_choices = [
-        ("anagrafica:index", "Anagrafica HR — dashboard"),
-        ("anagrafica:dipendenti_list", "Dipendenti — elenco"),
-        ("anagrafica:dipendente_create", "Dipendenti — nuovo"),
-        ("anagrafica:dipendenti_report", "Dipendenti — report"),
-        ("anagrafica:retribuzioni_globale", "Analisi retribuzioni — vista globale"),
-        ("anagrafica:retribuzioni_import", "Retribuzioni — import CSV"),
-        ("anagrafica:contratti_import", "Contratti — import CSV"),
-        ("anagrafica:ratei_list", "Ratei ferie / permessi"),
-        ("anagrafica:scadenzario", "Scadenzario qualifiche e visite"),
-        ("anagrafica:organigramma", "Organigramma"),
-        ("anagrafica:conformita_report", "Conformità alla mansione"),
-        ("anagrafica:onboarding_list", "Onboarding — pratiche"),
-        ("anagrafica:visite_mediche_dashboard", "Visite mediche — dashboard"),
-        ("anagrafica:visite_mediche_nuova_sessione", "Visite mediche — nuova sessione"),
-        ("anagrafica:documenti_list", "Documenti dipendenti"),
-        ("anagrafica:ruoli_operativi_list", "Ruoli operativi — catalogo"),
-        ("anagrafica:mansioni_list", "Mansioni — catalogo"),
-        ("anagrafica:aree_list", "Reparti — catalogo"),
-        ("anagrafica:ruoli_aziendali_list", "Ruoli aziendali — catalogo"),
-        ("anagrafica:qualifiche_list", "Qualifiche — catalogo"),
-        ("anagrafica:widget_permissions", "Impostazioni widget dipendente"),
+        ("anagrafica:index", "Dashboard modulo (home)"),
+        ("anagrafica:scadenzario", "Scadenzario unificato (filtrabile)"),
+        # Persone
+        ("anagrafica:dipendenti_list", "Persone — elenco dipendenti"),
+        ("anagrafica:dipendente_create", "Persone — nuovo dipendente"),
+        ("anagrafica:ex_dipendenti_list", "Persone — ex dipendenti"),
+        ("anagrafica:organigramma", "Persone — organigramma"),
+        ("anagrafica:onboarding_list", "Persone — onboarding (pratiche)"),
+        ("anagrafica:documenti_list", "Persone — documenti"),
+        ("anagrafica:dipendenti_report", "Persone — report dipendenti"),
+        # Competenze (formazione + qualifiche)
+        ("anagrafica:formazione_dashboard", "Competenze — dashboard formazione"),
+        ("anagrafica:formazione_piani_list", "Competenze — piani formativi"),
+        ("anagrafica:formazione_corsi_list", "Competenze — corsi"),
+        ("anagrafica:formazione_sessioni_list", "Competenze — sessioni"),
+        ("anagrafica:formazione_istruttori_list", "Competenze — istruttori"),
+        ("anagrafica:formazione_elearning_hub", "Competenze — e-learning (hub)"),
+        ("anagrafica:formazione_online_catalog", "Competenze — corsi online"),
+        ("anagrafica:formazione_copertura", "Competenze — copertura / gap"),
+        ("anagrafica:qualifiche_dashboard", "Competenze — cruscotto qualifiche"),
+        ("anagrafica:qualifiche_list", "Competenze — catalogo qualifiche"),
+        ("anagrafica:qualifica_sessioni_list", "Competenze — sessioni di rinnovo"),
+        ("anagrafica:matrice_competenze", "Competenze — matrice competenze"),
+        # Compliance (salute & sicurezza)
+        ("anagrafica:sicurezza_hub", "Compliance — hub sicurezza"),
+        ("anagrafica:visite_mediche_dashboard", "Compliance — visite mediche"),
+        ("anagrafica:visite_mediche_nuova_sessione", "Compliance — visite, nuova sessione"),
+        ("anagrafica:conformita_report", "Compliance — conformità alla mansione"),
+        # Amministrazione (paghe & contratti)
+        ("anagrafica:retribuzioni_globale", "Amministrazione — analisi retribuzioni"),
+        ("anagrafica:retribuzioni_import", "Amministrazione — import retribuzioni"),
+        ("anagrafica:contratti_import", "Amministrazione — contratti"),
+        ("anagrafica:cedolini_import", "Amministrazione — cedolini"),
+        ("anagrafica:ratei_list", "Amministrazione — ratei ferie / ROL"),
+        # Cataloghi struttura / impostazioni
+        ("anagrafica:ruoli_operativi_list", "Catalogo — ruoli operativi"),
+        ("anagrafica:mansioni_list", "Catalogo — mansioni"),
+        ("anagrafica:aree_list", "Catalogo — reparti"),
+        ("anagrafica:ruoli_aziendali_list", "Catalogo — ruoli aziendali"),
+        ("anagrafica:widget_permissions", "Impostazioni — permessi widget"),
         ("anagrafica:impostazioni", "Impostazioni anagrafica"),
     ]
 
@@ -9228,7 +9247,14 @@ def subnav_categoria_create(request):
         ordine = int(ordine_raw)
     except (ValueError, TypeError):
         ordine = 0
-    SubnavCategoriaAnagrafica.objects.create(nome=nome, icona=icona, ordine=ordine)
+    landing_type = request.POST.get("landing_url_type") or "named"
+    if landing_type not in ("named", "raw"):
+        landing_type = "named"
+    landing_value = (request.POST.get("landing_url_value") or "").strip()[:255]
+    SubnavCategoriaAnagrafica.objects.create(
+        nome=nome, icona=icona, ordine=ordine,
+        landing_url_type=landing_type, landing_url_value=landing_value,
+    )
     messages.success(request, f"Categoria «{nome}» creata.")
     return _redirect_impostazioni("navigazione")
 
@@ -9247,6 +9273,10 @@ def subnav_categoria_edit(request, cat_id: int):
         cat.ordine = int(request.POST.get("ordine") or cat.ordine)
     except (ValueError, TypeError):
         pass
+    landing_type = request.POST.get("landing_url_type") or cat.landing_url_type
+    if landing_type in ("named", "raw"):
+        cat.landing_url_type = landing_type
+    cat.landing_url_value = (request.POST.get("landing_url_value") or "").strip()[:255]
     cat.save()
     messages.success(request, f"Categoria «{cat.nome}» aggiornata.")
     return _redirect_impostazioni("navigazione")
@@ -9277,6 +9307,7 @@ def subnav_link_create(request):
         return resp
     etichetta = (request.POST.get("etichetta") or "").strip()[:80]
     icona = (request.POST.get("icona") or "").strip()[:20]
+    gruppo = (request.POST.get("gruppo") or "").strip()[:40]
     url_type = request.POST.get("url_type") or "raw"
     if url_type not in ("named", "raw"):
         url_type = "raw"
@@ -9294,7 +9325,7 @@ def subnav_link_create(request):
     if cat_id_raw:
         cat = SubnavCategoriaAnagrafica.objects.filter(pk=cat_id_raw).first()
     SubnavLinkAnagrafica.objects.create(
-        etichetta=etichetta, icona=icona, url_type=url_type, url_value=url_value,
+        etichetta=etichetta, icona=icona, gruppo=gruppo, url_type=url_type, url_value=url_value,
         categoria=cat, apri_nuova_tab=apri_nuova_tab, ordine=ordine, is_sistema=False,
     )
     messages.success(request, f"Link «{etichetta}» aggiunto.")
@@ -9310,6 +9341,7 @@ def subnav_link_edit(request, link_id: int):
     link = get_object_or_404(SubnavLinkAnagrafica, pk=link_id)
     link.etichetta = (request.POST.get("etichetta") or "").strip()[:80] or link.etichetta
     link.icona = (request.POST.get("icona") or "").strip()[:20]
+    link.gruppo = (request.POST.get("gruppo") or "").strip()[:40]
     link.is_active = request.POST.get("is_active") == "1"
     link.apri_nuova_tab = request.POST.get("apri_nuova_tab") == "1"
     try:
