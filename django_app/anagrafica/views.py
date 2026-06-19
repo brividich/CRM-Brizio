@@ -8575,6 +8575,11 @@ def documenti_list(request):
     cartelle = list(CartellaDocumentoDipendente.objects.all())
     qs = DocumentoDipendente.objects.filter(tipo=DocumentoDipendente.Tipo.MANUALE).select_related("cartella", "created_by").order_by("-created_at")
 
+    # Cartelle riservate (solo_admin): visibili nell'archivio solo ai super-amministratori.
+    if not request.user.is_superuser:
+        cartelle = [c for c in cartelle if not c.solo_admin]
+        qs = qs.exclude(cartella__solo_admin=True)
+
     filtro_cartella = request.GET.get("cartella", "").strip()
     filtro_cerca = request.GET.get("q", "").strip()
     filtro_anno = request.GET.get("anno", "").strip()
@@ -8622,6 +8627,37 @@ def documenti_list(request):
     })
 
 
+@login_required
+@require_POST
+def documento_sposta_cartella(request, doc_id: int):
+    """Sposta un documento manuale in un'altra cartella (o «senza cartella»).
+
+    Gestione del container: stessa autorizzazione dell'archivio (HR/admin)."""
+    legacy_user = get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not (is_admin or _check_hr_permission(request)):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("anagrafica:documenti_list")
+    doc = get_object_or_404(
+        DocumentoDipendente, pk=doc_id, tipo=DocumentoDipendente.Tipo.MANUALE
+    )
+    target = (request.POST.get("cartella") or "").strip()
+    if target in ("", "__nessuna__"):
+        doc.cartella = None
+    else:
+        try:
+            doc.cartella = CartellaDocumentoDipendente.objects.get(pk=int(target))
+        except (CartellaDocumentoDipendente.DoesNotExist, ValueError, TypeError):
+            messages.error(request, "Cartella di destinazione non valida.")
+            return redirect("anagrafica:documenti_list")
+    doc.save(update_fields=["cartella"])
+    messages.success(request, "Documento spostato.")
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect("anagrafica:documenti_list")
+
+
 # ---------------------------------------------------------------------------
 # CRUD cartelle documenti (da impostazioni)
 # ---------------------------------------------------------------------------
@@ -8649,7 +8685,10 @@ def cartella_documento_create(request):
         retention = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
     except (ValueError, TypeError):
         retention = 10
-    CartellaDocumentoDipendente.objects.create(nome=nome, descrizione=descrizione, ordine=ordine, retention_anni=retention)
+    solo_admin = request.POST.get("solo_admin") == "1"
+    CartellaDocumentoDipendente.objects.create(
+        nome=nome, descrizione=descrizione, ordine=ordine, retention_anni=retention, solo_admin=solo_admin,
+    )
     messages.success(request, f"Cartella «{nome}» creata.")
     return _redirect_impostazioni("documenti")
 
@@ -8679,6 +8718,7 @@ def cartella_documento_edit(request, cartella_id: int):
     cartella.descrizione = descrizione
     cartella.ordine = ordine
     cartella.attiva = attiva
+    cartella.solo_admin = request.POST.get("solo_admin") == "1"
     try:
         cartella.retention_anni = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
     except (ValueError, TypeError):

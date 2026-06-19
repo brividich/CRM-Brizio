@@ -91,7 +91,7 @@
             {% for d in documenti %}
             <tr>
               <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}#documenti">{{ d.nome_dipendente }}</a></td>
-              <td>{% if d.cartella %}<span class="fmd-badge fmd-plain fmd-b-cyan">{{ d.cartella.nome }}</span>{% else %}<span class="fmd-badge fmd-plain fmd-b-grey">Senza cartella</span>{% endif %}</td>
+              <td>{% if d.cartella %}<span class="fmd-badge fmd-plain fmd-b-cyan">{{ d.cartella.nome }}</span>{% if d.cartella.solo_admin %} <span class="fmd-badge fmd-b-orange" title="Cartella riservata: visibile solo ai super-amministratori">Riservata</span>{% endif %}{% else %}<span class="fmd-badge fmd-plain fmd-b-grey">Senza cartella</span>{% endif %}</td>
               <td><svg class="fmd-ico" style="display:inline-block;vertical-align:-2px;color:var(--fmd-muted-2);"><use href="#i-doc"/></svg> {{ d.nome_originale }}</td>
               <td class="fmd-muted">{{ d.descrizione|default:"—" }}</td>
               <td class="fmd-nowrap fmd-muted" data-sort-value="{{ d.created_at|date:'Y-m-d' }}">
@@ -108,6 +108,17 @@
                 <div class="fmd-cat-actions">
                   <a href="{% url 'anagrafica:documento_download' d.id %}" class="fmd-btn-mini"><svg class="fmd-ico" style="display:inline-block;vertical-align:-2px;"><use href="#i-download"/></svg> Scarica</a>
                   {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:documento_sposta' d.id %}" style="display:inline-flex;gap:4px;align-items:center;">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <select name="cartella" class="fmd-select" style="padding:3px 6px;font-size:12px;max-width:150px;" title="Sposta in cartella" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+                      <option value="__nessuna__" {% if not d.cartella %}selected{% endif %}>— Senza cartella —</option>
+                      {% for c in cartelle %}
+                      <option value="{{ c.id }}" {% if d.cartella_id == c.id %}selected{% endif %}>{{ c.nome }}</option>
+                      {% endfor %}
+                    </select>
+                    <noscript><button type="submit" class="fmd-btn-mini">Sposta</button></noscript>
+                  </form>
                   <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
                     {% csrf_token %}
                     <button type="submit" class="fmd-btn-mini fmd-danger" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">Elimina</button>

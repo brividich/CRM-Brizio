@@ -63,3 +63,32 @@ class FolderRetentionTests(TestCase):
             file=SimpleUploadedFile("y.txt", b"y"),
         )
         self.assertEqual(doc.retention_until.year, date.today().year + 10)
+
+
+class DocumentMoveTests(TestCase):
+    """Spostamento documento tra cartelle dall'archivio (container manager)."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser("mover", "mv@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+
+    def test_sposta_documento_tra_cartelle(self):
+        c1 = CartellaDocumentoDipendente.objects.create(nome="A")
+        c2 = CartellaDocumentoDipendente.objects.create(nome="B")
+        doc = DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=1, tipo=DocumentoDipendente.Tipo.MANUALE, cartella=c1,
+            file=SimpleUploadedFile("z.txt", b"z"),
+        )
+        self.client.post(reverse("anagrafica:documento_sposta", args=[doc.id]), {"cartella": str(c2.id)})
+        doc.refresh_from_db()
+        self.assertEqual(doc.cartella_id, c2.id)
+
+    def test_sposta_documento_a_senza_cartella(self):
+        c1 = CartellaDocumentoDipendente.objects.create(nome="A")
+        doc = DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=1, tipo=DocumentoDipendente.Tipo.MANUALE, cartella=c1,
+            file=SimpleUploadedFile("z2.txt", b"z"),
+        )
+        self.client.post(reverse("anagrafica:documento_sposta", args=[doc.id]), {"cartella": "__nessuna__"})
+        doc.refresh_from_db()
+        self.assertIsNone(doc.cartella_id)

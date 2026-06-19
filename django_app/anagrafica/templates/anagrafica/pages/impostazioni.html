@@ -1682,7 +1682,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <tbody>
                 {% for c in cartelle_documenti %}
                 <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
-                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}</td>
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
                   <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
                   <td style="padding:8px 10px;text-align:center;">
@@ -1716,7 +1716,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <td colspan="7" style="padding:12px 10px;">
                     <form method="post" action="{% url 'anagrafica:cartella_documento_edit' c.id %}">
                       {% csrf_token %}
-                      <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px 100px auto;gap:10px;align-items:end;">
+                      <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px 100px 120px auto;gap:10px;align-items:end;">
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                           <input type="text" name="nome" value="{{ c.nome }}" required maxlength="100" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1740,6 +1740,13 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                             <option value="0" {% if not c.attiva %}selected{% endif %}>Disattiva</option>
                           </select>
                         </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                          <select name="solo_admin" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="0" {% if not c.solo_admin %}selected{% endif %}>No</option>
+                            <option value="1" {% if c.solo_admin %}selected{% endif %}>Sì</option>
+                          </select>
+                        </div>
                         <div style="display:flex;gap:6px;">
                           <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
                           <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='none';document.getElementById('cartella-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
@@ -1760,7 +1767,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
               <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
                 {% csrf_token %}
-                <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto;gap:10px;align-items:end;">
+                <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto auto;gap:10px;align-items:end;">
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                     <input type="text" name="nome" required maxlength="100" placeholder="es. Contratti" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1776,6 +1783,10 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
                     <input type="number" name="retention_anni" value="10" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                    <label style="display:flex;align-items:center;gap:6px;height:32px;font-size:13px;color:#64748b;"><input type="checkbox" name="solo_admin" value="1"> 🔒 sì</label>
                   </div>
                   <div>
                     <button type="submit" class="imp-btn imp-btn-primary">+ Crea cartella</button>

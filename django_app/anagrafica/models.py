@@ -1794,6 +1794,11 @@ class CartellaDocumentoDipendente(models.Model):
         help_text="Anni di conservazione GDPR per i documenti manuali di questa cartella "
                   "(impostazione del container; default 10). Applicata ai nuovi documenti.",
     )
+    solo_admin = models.BooleanField(
+        default=False,
+        help_text="Cartella riservata: nell'archivio i suoi documenti sono visibili solo ai "
+                  "super-amministratori (nascosti agli altri ruoli HR).",
+    )
 
     class Meta:
         ordering = ["ordine", "nome"]

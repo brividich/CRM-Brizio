@@ -109,6 +109,7 @@ urlpatterns = [
     path("documenti/", views.documenti_list, name="documenti_list"),
     path("documenti/<int:doc_id>/download", views.documento_dipendente_download, name="documento_download"),
     path("documenti/<int:doc_id>/delete", views.documento_dipendente_delete, name="documento_delete"),
+    path("documenti/<int:doc_id>/sposta", views.documento_sposta_cartella, name="documento_sposta"),
     path("dipendenti/<int:legacy_id>/documenti/upload", views.documento_dipendente_upload, name="documento_upload"),
 
     # Cartelle documenti — CRUD da impostazioni
