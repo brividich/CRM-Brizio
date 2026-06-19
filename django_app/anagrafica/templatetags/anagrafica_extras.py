@@ -98,6 +98,29 @@ GLOSSARIO_INFO = {
         "Semaforo di validità: Scaduta (rossa), in scadenza ≤30 o ≤60 giorni (arancio/ambra), "
         "Valida (verde), Permanente (senza scadenza)."
     ),
+    # Salute & Sicurezza / Conformità
+    "conformita": (
+        "Semaforo di idoneità alla mansione: aggrega formazione obbligatoria, visite "
+        "mediche, qualifiche e DPI → In regola (verde) / In scadenza (giallo) / Non "
+        "conforme (rosso) / N.D. (grigio = requisito mai registrato, non scaduto). "
+        "È un avviso tracciato, non un blocco operativo."
+    ),
+    "matrice_competenze": (
+        "Dipendenti × abilitazioni. Ogni cella: valido (verde) / in scadenza ≤60gg "
+        "(giallo) / scaduto (rosso) / mancante (—). Le colonne sono le qualifiche con "
+        "almeno un'assegnazione (competenze realmente in uso). Per audit ISO 45001."
+    ),
+    "livello_rischio": (
+        "Livello di rischio della mansione (Accordo Stato-Regioni): A = alto (16h) · "
+        "M = medio (12h) · B = basso (8h). Determina le ore della formazione lavoratori "
+        "e il rinnovo quinquennale."
+    ),
+    # Ratei
+    "ratei": (
+        "Saldi maturati da cedolino: Ferie, ROL (Riduzione Orario di Lavoro, ex permessi "
+        "retribuiti) ed Ex-festività (festività soppresse). Per ciascuno: maturato, goduto "
+        "e residuo."
+    ),
 }
 
 

@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Ratei Ferie / Permessi | Anagrafica HR{% endblock %}
 
@@ -82,7 +83,7 @@
     <div class="fmd-hero-inner">
       <div>
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Presenze e assenze</div>
-        <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ratei Ferie / Permessi</h1>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ratei Ferie / Permessi{% info_hint "ratei" %}</h1>
         <p class="fmd-sub">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
         <div class="fmd-hero-actions">
           <span class="fmd-pill {% if n_negativi %}fmd-pill-red{% else %}fmd-pill-grey{% endif %}">Ferie negative <span class="fmd-pn">{{ n_negativi }}</span></span>
