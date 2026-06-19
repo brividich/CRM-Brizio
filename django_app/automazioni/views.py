@@ -6172,8 +6172,10 @@ def settings_page(request):
                 giorni=posted_giorni,
                 email_visite=_string_value(request.POST.get("scadenze_email_visite")),
                 email_contratti=_string_value(request.POST.get("scadenze_email_contratti")),
+                email_qualifiche=_string_value(request.POST.get("scadenze_email_qualifiche")),
                 includi_visite=_bool_value(request.POST.get("scadenze_includi_visite")),
                 includi_contratti=_bool_value(request.POST.get("scadenze_includi_contratti")),
+                includi_qualifiche=_bool_value(request.POST.get("scadenze_includi_qualifiche")),
             )
             if saved:
                 messages.success(request, "Configurazione report scadenze salvata.")

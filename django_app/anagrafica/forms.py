@@ -16,6 +16,8 @@ from .models import (
     VisitaMedica,
 )
 from .models_formazione import (
+    AttestatoFormazioneConfig,
+    ElearningConfig,
     TrainingCourse,
     TrainingCompletionRule,
     TrainingCourseDependency,
@@ -28,6 +30,9 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSlide,
+    TrainingQuizQuestion,
+    TrainingQuizOption,
 )
 
 
@@ -241,6 +246,51 @@ _FM_NUMBER = {"class": "fm-input"}
 _FM_CHECK = {"class": "fm-check"}
 
 
+class AttestatoFormazioneConfigForm(forms.ModelForm):
+    """Testi/opzioni del template attestato di formazione (singleton),
+    modificabili da Impostazioni Anagrafica HR."""
+
+    class Meta:
+        model = AttestatoFormazioneConfig
+        fields = [
+            "intestazione_eyebrow", "sezione_label",
+            "titolo_partecipazione", "titolo_frequenza", "titolo_qualifica",
+            "formula_attestazione",
+            "firma_responsabile_label", "firma_dipendente_label",
+            "responsabile_default", "mostra_dati_personali",
+            "nota_legale", "logo_url", "pie_organizzazione",
+            "auto_salva_attestato", "cartella_attestati", "rigenera_se_esiste",
+        ]
+        widgets = {
+            "intestazione_eyebrow":     forms.TextInput(attrs=_FM),
+            "sezione_label":            forms.TextInput(attrs=_FM),
+            "titolo_partecipazione":    forms.TextInput(attrs=_FM),
+            "titolo_frequenza":         forms.TextInput(attrs=_FM),
+            "titolo_qualifica":         forms.TextInput(attrs=_FM),
+            "formula_attestazione":     forms.TextInput(attrs=_FM),
+            "firma_responsabile_label": forms.TextInput(attrs=_FM),
+            "firma_dipendente_label":   forms.TextInput(attrs=_FM),
+            "responsabile_default":     forms.TextInput(attrs={**_FM, "placeholder": "Es. Ing. Mario Rossi (RSPP)"}),
+            "mostra_dati_personali":    forms.CheckboxInput(attrs=_FM_CHECK),
+            "nota_legale":              forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 3}),
+            "logo_url":                 forms.URLInput(attrs={**_FM, "placeholder": "https://… (vuoto = logo predefinito)"}),
+            "pie_organizzazione":       forms.TextInput(attrs=_FM),
+            "auto_salva_attestato":     forms.CheckboxInput(attrs=_FM_CHECK),
+            "cartella_attestati":       forms.Select(attrs=_FM_SELECT),
+            "rigenera_se_esiste":       forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Solo cartelle attive; etichetta vuota = cartella predefinita on-demand.
+        from .models import CartellaDocumentoDipendente
+        self.fields["cartella_attestati"].queryset = (
+            CartellaDocumentoDipendente.objects.filter(attiva=True).order_by("ordine", "nome")
+        )
+        self.fields["cartella_attestati"].required = False
+        self.fields["cartella_attestati"].empty_label = "Predefinita («Attestati formazione»)"
+
+
 class TrainingPlanForm(forms.ModelForm):
     class Meta:
         model = TrainingPlan
@@ -271,13 +321,16 @@ class TrainingCourseForm(forms.ModelForm):
     class Meta:
         model = TrainingCourse
         fields = [
-            "piano", "codice", "titolo", "descrizione",
+            "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "costo_unitario",
+            "is_elearning", "quiz_punteggio_minimo",
             "stato", "note", "versione", "is_active",
         ]
         widgets = {
             "piano":              forms.Select(attrs=_FM_SELECT),
+            "categoria":          forms.Select(attrs=_FM_SELECT),
+            "qualifica":          forms.Select(attrs=_FM_SELECT),
             "codice":             forms.TextInput(attrs=_FM),
             "titolo":             forms.TextInput(attrs=_FM),
             "descrizione":        forms.Textarea(attrs=_FM_TEXTAREA),
@@ -285,6 +338,8 @@ class TrainingCourseForm(forms.ModelForm):
             "validita_mesi":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "obbligatorio":       forms.CheckboxInput(attrs=_FM_CHECK),
             "costo_unitario":     forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0"}),
+            "is_elearning":       forms.CheckboxInput(attrs=_FM_CHECK),
+            "quiz_punteggio_minimo": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "stato":              forms.Select(attrs=_FM_SELECT),
             "note":               forms.Textarea(attrs=_FM_TEXTAREA),
             "versione":           forms.TextInput(attrs=_FM),
@@ -294,6 +349,16 @@ class TrainingCourseForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["piano"].queryset = TrainingPlan.objects.filter(is_active=True).order_by("nome")
+        # Categoria di rischio (deriva i fattori → pertinenza) e qualifica àncora
+        # (competency management): entrambe opzionali, settabili in creazione/modifica.
+        from .models import TipoQualifica
+        from .models_rischi import CategoriaCorso
+        self.fields["categoria"].queryset = CategoriaCorso.objects.filter(is_active=True).order_by("nome")
+        self.fields["categoria"].required = False
+        self.fields["categoria"].empty_label = "— Nessuna (nessuna derivazione rischio) —"
+        self.fields["qualifica"].queryset = TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome")
+        self.fields["qualifica"].required = False
+        self.fields["qualifica"].empty_label = "— Nessuna (corso non legato a qualifica) —"
 
     def clean_codice(self):
         return (self.cleaned_data.get("codice") or "").strip().upper()
@@ -385,6 +450,57 @@ class TrainingCompletionRuleForm(forms.ModelForm):
             "valid_to":                    forms.DateInput(attrs=_FM_DATE),
             "note":                        forms.Textarea(attrs=_FM_TEXTAREA),
             "is_active":                   forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+# ── E-learning: slide e quiz dei micro-corsi ───────────────────────────────
+
+class TrainingSlideForm(forms.ModelForm):
+    class Meta:
+        model = TrainingSlide
+        fields = ["titolo", "ordine", "contenuto", "is_active"]
+        widgets = {
+            "titolo":    forms.TextInput(attrs=_FM),
+            "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "contenuto": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 10}),
+            "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+        help_texts = {
+            "contenuto": "Markdown: # titolo, **grassetto**, *corsivo*, liste con - , link [testo](https://…).",
+        }
+
+
+class TrainingQuizQuestionForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizQuestion
+        fields = ["testo", "ordine", "is_active"]
+        widgets = {
+            "testo":     forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 2}),
+            "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+class TrainingQuizOptionForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizOption
+        fields = ["testo", "ordine", "corretta"]
+        widgets = {
+            "testo":    forms.TextInput(attrs=_FM),
+            "ordine":   forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "corretta": forms.CheckboxInput(attrs=_FM_CHECK),
+        }
+
+
+class ElearningConfigForm(forms.ModelForm):
+    class Meta:
+        model = ElearningConfig
+        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path"]
+        widgets = {
+            "quiz_punteggio_minimo_default": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
+            "validita_mesi_default":         forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "max_tentativi_quiz":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "libreoffice_path":              forms.TextInput(attrs=_FM),
         }
 
 
@@ -486,6 +602,7 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
         fields = [
             "stato", "ore_frequentate",
             "percentuale_presenza", "idoneo",
+            "verifica_superata", "data_verifica",
             "esito_esame", "data_completamento", "note",
         ]
         widgets = {
@@ -493,6 +610,8 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
             "ore_frequentate":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0"}),
             "percentuale_presenza": forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.01", "min": "0", "max": "100"}),
             "idoneo":               forms.CheckboxInput(attrs=_FM_CHECK),
+            "verifica_superata":    forms.CheckboxInput(attrs=_FM_CHECK),
+            "data_verifica":        forms.DateInput(attrs=_FM_DATE),
             "esito_esame":          forms.TextInput(attrs=_FM),
             "data_completamento":   forms.DateInput(attrs=_FM_DATE),
             "note":                 forms.Textarea(attrs=_FM_TEXTAREA),

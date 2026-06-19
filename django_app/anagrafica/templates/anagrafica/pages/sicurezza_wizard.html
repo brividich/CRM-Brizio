@@ -1,0 +1,73 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Configurazione guidata | Salute e Sicurezza{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.wz { display:flex; flex-direction:column; gap:14px; }
+.wz-step { display:flex; gap:16px; align-items:flex-start; background:#fff; border:1px solid #e2e8f0;
+  border-radius:12px; padding:16px 18px; position:relative; }
+.wz-num { flex:none; width:34px; height:34px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-weight:800; font-size:15px; }
+.wz-num-ok { background:#dcfce7; color:#166534; }
+.wz-num-todo { background:#fef9c3; color:#854d0e; }
+.wz-num-info { background:#eff6ff; color:#1f87cd; }
+.wz-body { flex:1; min-width:0; }
+.wz-title { font-weight:800; font-size:15px; color:#0f172a; display:flex; align-items:center; gap:8px; }
+.wz-desc { font-size:13px; color:#64748b; margin-top:3px; line-height:1.5; }
+.wz-info { font-size:12px; color:#475569; margin-top:6px; font-weight:600; }
+.wz-badge { font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+.wz-badge-ok { background:#dcfce7; color:#166534; }
+.wz-badge-todo { background:#fef9c3; color:#854d0e; }
+.wz-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.wz-line { position:absolute; left:34px; top:54px; bottom:-14px; width:2px; background:#e2e8f0; }
+body.theme-dark .wz-step { background:var(--surface); border-color:var(--border); }
+body.theme-dark .wz-title { color:var(--text); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {% include "anagrafica/partials/_safety_subnav.html" with active="wizard" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-crumb">Salute e Sicurezza</a>
+        <span class="fm-crumb-sep">›</span> Configurazione guidata
+      </div>
+      <h2 class="hr-pagehead-title">🧭 Configurazione guidata</h2>
+      <p class="hr-pagehead-desc">Segui i passi in ordine: ogni mansione dichiara i requisiti e il sistema verifica l'idoneità dei dipendenti. Lo stato si aggiorna in base ai dati presenti.</p>
+    </div>
+  </div>
+
+  <div class="wz">
+    {% for s in steps %}
+    <div class="wz-step">
+      {% if not forloop.last %}<div class="wz-line"></div>{% endif %}
+      <div class="wz-num wz-num-{{ s.stato }}">{% if s.stato == 'ok' %}✓{% else %}{{ s.n }}{% endif %}</div>
+      <div class="wz-body">
+        <div class="wz-title">
+          {{ s.titolo }}
+          {% if s.stato == 'ok' %}<span class="wz-badge wz-badge-ok">Configurato</span>
+          {% elif s.stato == 'todo' %}<span class="wz-badge wz-badge-todo">Da fare</span>{% endif %}
+        </div>
+        <div class="wz-desc">{{ s.desc }}</div>
+        <div class="wz-info">{{ s.info }}</div>
+        <div class="wz-actions">
+          <a class="hr-btn hr-btn-primary hr-btn-sm" href="{{ s.url }}">{{ s.cta }} →</a>
+          {% if s.cta2 %}<a class="hr-btn hr-btn-outline hr-btn-sm" href="{{ s.url2 }}">{{ s.cta2 }} →</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

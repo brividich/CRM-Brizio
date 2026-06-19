@@ -7,7 +7,7 @@
 .fm-pill-missing{background:#f8fafc;color:#64748b;border:1px solid #e2e8f0}
 .fm-pill-expired{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
 .fm-pill-warning{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
-.fm-pill-enrolled{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.fm-pill-enrolled{background:#eff6ff;color:#1f87cd;border:1px solid #bfdbfe}
 .fm-toggle-btn{background:none;border:1px solid #d1d5db;border-radius:4px;padding:1px 6px;font-size:11px;cursor:pointer;color:#475569;min-width:22px;text-align:center;}
 .fm-expand-row>td{padding:0;}
 .fm-expand-inner{padding:10px 16px 14px;background:#f8fafc;}
@@ -36,8 +36,8 @@
     <div class="fm-kpi-card" data-fm-year="{{ fm_kpi_anno_corrente.anno }}" role="button" tabindex="0"
          title="Filtra lo storico per il {{ fm_kpi_anno_corrente.anno }}"
          style="text-align:center;padding:6px 14px;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;min-width:96px;cursor:pointer;">
-      <div style="font-size:20px;font-weight:800;color:#1d4ed8;">{{ fm_kpi_anno_corrente.n }}</div>
-      <div style="font-size:11px;color:#1d4ed8;margin-top:2px;font-weight:600;">Anno in corso ({{ fm_kpi_anno_corrente.anno }})</div>
+      <div style="font-size:20px;font-weight:800;color:#1f87cd;">{{ fm_kpi_anno_corrente.n }}</div>
+      <div style="font-size:11px;color:#1f87cd;margin-top:2px;font-weight:600;">Anno in corso ({{ fm_kpi_anno_corrente.anno }})</div>
       <div style="font-size:10px;color:#64748b;margin-top:1px;">{{ fm_kpi_anno_corrente.ore|floatformat:1 }}h</div>
     </div>
     {# Anni precedenti — totale + breakdown espandibile #}
@@ -46,7 +46,7 @@
       <button type="button" class="fm-prev-toggle" onclick="fmTogglePrevYears()"
               style="background:none;border:none;cursor:pointer;padding:0;width:100%;">
       {% endif %}
-        <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_kpi_precedenti_totale.n }}</div>
+        <div style="font-size:20px;font-weight:800;color:#0c2545;">{{ fm_kpi_precedenti_totale.n }}</div>
         <div style="font-size:11px;color:#64748b;margin-top:2px;font-weight:600;">
           Anni precedenti{% if fm_kpi_precedenti_per_anno %} <span id="fm-prev-caret">▾</span>{% endif %}
         </div>
@@ -56,7 +56,7 @@
       {% endif %}
     </div>
     <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
-      <div style="font-size:20px;font-weight:800;color:#12395f;">{{ fm_n_attestati }}</div>
+      <div style="font-size:20px;font-weight:800;color:#0c2545;">{{ fm_n_attestati }}</div>
       <div style="font-size:11px;color:#64748b;margin-top:2px;">Attestati</div>
     </div>
     <div style="text-align:center;padding:6px 14px;background:#f8fafc;border-radius:8px;min-width:80px;">
@@ -201,6 +201,12 @@
                     {% if rec.validity_months_snapshot %}{{ rec.validity_months_snapshot }} mesi{% else %}Una tantum{% endif %}</div>
                   {% if rec.note %}<div style="grid-column:1/-1;"><span style="color:#94a3b8;font-weight:600;">Note:</span> {{ rec.note }}</div>{% endif %}
                 </div>
+                <div style="margin-top:10px;text-align:right;">
+                  <a href="{% url 'anagrafica:attestato_formazione' rec.pk %}" target="_blank" rel="noopener"
+                     style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#002b5c;text-decoration:none;border:1px solid #cbd5e1;border-radius:6px;padding:4px 10px;background:#fff;">
+                    🖨 Genera attestato
+                  </a>
+                </div>
               </div>
             </td>
           </tr>
@@ -309,7 +315,7 @@ function fmTogglePrevYears() {
 {# Fallback per utenti senza accesso formazione #}
 <div class="dp-soon-card" data-tab="formazione">
   <div class="dp-soon-badge">Accesso limitato</div>
-  <div style="margin-top:10px;font-weight:800;font-size:15px;color:#12395f;">Corsi e percorsi formativi</div>
+  <div style="margin-top:10px;font-weight:800;font-size:15px;color:#0c2545;">Corsi e percorsi formativi</div>
   <div style="margin-top:5px;font-size:13px;color:#64748b;max-width:60ch;margin-left:auto;margin-right:auto;">
     Non hai i permessi per visualizzare la sezione formazione.
     Contatta un amministratore HR per richiedere l'accesso.

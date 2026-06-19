@@ -41,6 +41,20 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
         &nbsp;·&nbsp; {{ lezione.durata_ore }}h
         {% if lezione.docente_nome %}&nbsp;·&nbsp; {{ lezione.docente_nome }}{% endif %}
       </p>
+      {% if turno_filtrato %}
+      <p style="font-size:12px;color:#b45309;margin:6px 0 0;">
+        ⏱ Turno: elenco ristretto agli iscritti assegnati a questa lezione
+        ({{ righe|length }} di {{ n_totale_iscritti }}).
+      </p>
+      {% endif %}
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      {% if is_editor and righe %}
+      <button class="hr-btn hr-btn-ghost" onclick="toggleAutocompila()"
+              title="Spunta chi ha firmato ingresso/uscita sul registro caricato: le presenze si compilano da sole">✍ Autocompila dal registro</button>
+      {% endif %}
+      <a href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lezione.pk %}" target="_blank" rel="noopener"
+         class="hr-btn hr-btn-ghost">🖨 Stampa foglio firme</a>
     </div>
   </div>
 
@@ -87,6 +101,53 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
       </div>
     </div>
   </div>
+
+  {# ── Pannello autocompilazione dal registro firmato ──────────────────────── #}
+  {% if is_editor and righe %}
+  <div id="panel-autocompila" style="display:none;margin-bottom:16px;">
+    <div class="hr-card" style="padding:16px 20px;">
+      <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:4px;">✍ Autocompila presenze dal registro firmato</div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
+        Spunta, per ciascun iscritto atteso, le firme presenti sul <strong>registro caricato</strong>
+        (ingresso e/o uscita). Alla conferma le presenze vengono compilate: <strong>Presente</strong> se
+        entrambe le firme, <strong>Parziale</strong> se una sola. Chi non ha spunte non viene modificato.
+      </p>
+      <form method="post" action="{% url 'anagrafica:formazione_registro_autocompila' sessione.pk lezione.pk %}">
+        {% csrf_token %}
+        <div style="overflow-x:auto;max-height:360px;border:1px solid #e2e8f0;border-radius:8px;">
+          <table class="hr-table" style="margin:0;">
+            <thead>
+              <tr>
+                <th>Dipendente</th>
+                <th style="width:120px;text-align:center;">Firma ingresso</th>
+                <th style="width:120px;text-align:center;">Firma uscita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in righe %}
+              <tr>
+                <td style="font-weight:500;">{{ r.nome }}</td>
+                <td style="text-align:center;"><input type="checkbox" name="ingresso_{{ r.enrollment.legacy_anagrafica_id }}" value="1" checked></td>
+                <td style="text-align:center;"><input type="checkbox" name="uscita_{{ r.enrollment.legacy_anagrafica_id }}" value="1" checked></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button type="button" class="hr-btn hr-btn-ghost" onclick="toggleAutocompila()">Annulla</button>
+          <button type="submit" class="hr-btn hr-btn-primary">✍ Compila presenze</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+  function toggleAutocompila() {
+    var el = document.getElementById('panel-autocompila');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  </script>
+  {% endif %}
 
   {# ── Tabella presenze ────────────────────────────────────────────────────── #}
   <div class="hr-card">
@@ -229,6 +290,62 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
     <div style="padding:24px 16px;font-size:13px;color:#94a3b8;text-align:center;">
       Nessun dipendente iscritto a questa sessione.
     </div>
+    {% endif %}
+  </div>
+
+  {# ── Registro firme firmato (livello lezione) ────────────────────────────── #}
+  <div class="hr-card" style="margin-top:16px;">
+    <div class="hr-card-head">
+      <div class="hr-card-title">✍️ Registro firme firmato — Lezione {{ lezione.numero }}</div>
+      <span style="font-size:11px;color:#94a3b8;">Scansione del foglio firme di questa lezione</span>
+    </div>
+    {% if allegati_lezione %}
+    <div style="overflow-x:auto;">
+      <table class="hr-table">
+        <thead><tr><th>File</th><th>Tipo</th><th>Caricato</th>{% if is_editor %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for a in allegati_lezione %}
+          <tr>
+            <td><a href="{% url 'anagrafica:formazione_allegato_download' a.pk %}" style="color:#3b82f6;text-decoration:none;">{{ a.nome_originale }}</a></td>
+            <td style="font-size:12px;color:#475569;">{{ a.get_tipo_display }}</td>
+            <td style="font-size:12px;color:#475569;">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+            {% if is_editor %}
+            <td>
+              <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Eliminare l\'allegato?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:16px;font-size:13px;color:#94a3b8;text-align:center;">
+      Nessun registro firmato caricato per questa lezione.
+    </div>
+    {% endif %}
+    {% if is_editor %}
+    <form method="post" action="{% url 'anagrafica:formazione_allegato_upload' sessione.pk %}"
+          enctype="multipart/form-data"
+          style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:12px 16px;">
+      {% csrf_token %}
+      <input type="hidden" name="lezione_id" value="{{ lezione.pk }}">
+      <div class="fm-f" style="flex:1;min-width:240px;">
+        <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Carica registro firmato (PDF o scansione)</label>
+        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp" class="fm-input">
+      </div>
+      <div class="fm-f">
+        <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Tipo</label>
+        <select name="tipo" class="fm-input fm-select">
+          {% for val, lbl in ATTACH_TIPI %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="hr-btn hr-btn-primary">⬆ Carica</button>
+    </form>
     {% endif %}
   </div>
 

@@ -5,103 +5,77 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<style>
-.dl-folders { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); }
-.dl-folder {
-  display:flex; align-items:center; gap:11px; text-decoration:none;
-  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:13px 14px;
-  box-shadow:0 1px 2px rgba(15,23,42,.04); transition:transform .15s, box-shadow .15s, border-color .15s;
-}
-.dl-folder:hover { transform:translateY(-2px); box-shadow:0 10px 22px -14px rgba(15,23,42,.4); }
-.dl-folder.active { border-color:#12395f; box-shadow:0 0 0 3px rgba(31,92,145,.12); }
-.dl-folder-ico { width:38px; height:38px; flex-shrink:0; border-radius:12px; background:#eef2ff;
-  display:flex; align-items:center; justify-content:center; font-size:19px; }
-.dl-folder-name { font-weight:800; color:#12395f; font-size:14px; }
-.dl-folder-meta { font-size:12px; color:#64748b; margin-top:1px; }
-.dl-field { display:flex; flex-direction:column; gap:4px; }
-.dl-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.dl-input { border:1px solid #e2e8f0; border-radius:11px; padding:8px 11px; font-size:13px;
-  color:#0f172a; background:#fff; outline:none; box-sizing:border-box; }
-.dl-input:focus { border-color:#1f5c91; box-shadow:0 0 0 4px rgba(31,92,145,.12); }
-body.theme-dark .dl-folder { background:var(--surface); border-color:var(--border); }
-body.theme-dark .dl-folder-name { color:#93c5fd; }
-body.theme-dark .dl-folder-meta { color:var(--text-light); }
-body.theme-dark .dl-field label { color:var(--text-light); }
-body.theme-dark .dl-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <!-- Page header -->
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Archivio anagrafico documentale</div>
-      <h2 class="hr-pagehead-title">Documenti dei dipendenti</h2>
-      <p class="hr-pagehead-desc">Raccolta documentale organizzata per cartelle. Seleziona una cartella per filtrare, oppure usa la ricerca.</p>
-    </div>
-    {% if is_admin %}
-    <a href="{% url 'anagrafica:impostazioni' %}?tab=documenti" class="hr-btn hr-btn-outline">⚙️ Gestisci cartelle</a>
-    {% endif %}
-  </div>
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  {# --- Cartelle (raccolta) --- #}
-  <div class="dl-folders">
-    <a class="dl-folder{% if not filtro_cartella %} active{% endif %}"
-       href="?{% if filtro_cerca %}q={{ filtro_cerca|urlencode }}&{% endif %}{% if filtro_anno %}anno={{ filtro_anno|urlencode }}{% endif %}">
-      <div class="dl-folder-ico">🗂️</div>
-      <div><div class="dl-folder-name">Tutti i documenti</div><div class="dl-folder-meta">Nessun filtro cartella</div></div>
-    </a>
-    {% for c in cartelle %}
-    <a class="dl-folder{% if filtro_cartella == c.id|stringformat:'s' %} active{% endif %}"
-       href="?cartella={{ c.id }}{% if filtro_cerca %}&q={{ filtro_cerca|urlencode }}{% endif %}{% if filtro_anno %}&anno={{ filtro_anno|urlencode }}{% endif %}">
-      <div class="dl-folder-ico">📁</div>
-      <div><div class="dl-folder-name">{{ c.nome }}</div><div class="dl-folder-meta">{{ c.descrizione|default:"Cartella documenti" }}</div></div>
-    </a>
-    {% endfor %}
-    <a class="dl-folder{% if filtro_cartella == '__nessuna__' %} active{% endif %}"
-       href="?cartella=__nessuna__{% if filtro_cerca %}&q={{ filtro_cerca|urlencode }}{% endif %}{% if filtro_anno %}&anno={{ filtro_anno|urlencode }}{% endif %}">
-      <div class="dl-folder-ico">📄</div>
-      <div><div class="dl-folder-name">Senza cartella</div><div class="dl-folder-meta">Documenti non classificati</div></div>
-    </a>
-  </div>
-
-  {# --- Filtri --- #}
-  <form method="get" class="hr-card hr-card-pad" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-    <input type="hidden" name="cartella" value="{{ filtro_cartella }}">
-    <div class="dl-field" style="flex:1;min-width:200px;">
-      <label>Cerca dipendente / file</label>
-      <input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Nome, cognome, file…" class="dl-input">
-    </div>
-    <div class="dl-field" style="min-width:130px;">
-      <label>Anno</label>
-      <select name="anno" class="dl-input" aria-label="Filtra per anno">
-        <option value="">Tutti</option>
-        {% for a in anni_disponibili %}
-          <option value="{{ a }}" {% if filtro_anno == a|stringformat:"s" %}selected{% endif %}>{{ a }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button type="submit" class="hr-btn hr-btn-primary">Filtra</button>
-      <a href="{% url 'anagrafica:documenti_list' %}" class="hr-btn hr-btn-ghost">Reset</a>
-    </div>
-  </form>
-
-  {# --- Tabella documenti --- #}
-  <div class="hr-card">
-    <div class="hr-card-head">
-      <div class="hr-card-title">📄 Documenti</div>
-      <div style="font-size:12px;color:#94a3b8;">
-        {{ documenti|length }} documento/i{% if documenti|length == 500 %} · limite 500, restringi con i filtri{% endif %}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Archivio documentale</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>Documenti dei dipendenti</h1>
+        <p class="fmd-ph-sub">Raccolta documentale organizzata per cartelle. Seleziona una cartella per filtrare, oppure usa la ricerca.</p>
       </div>
+      {% if is_admin %}
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:impostazioni' %}?tab=documenti" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-gear"/></svg>Gestisci cartelle</a>
+      </div>
+      {% endif %}
     </div>
-    {% if documenti %}
-      <div style="overflow-x:auto;">
-        <table class="hr-table" data-table-id="anagrafica.documenti.list">
+
+    {# ── Cartelle ───────────────────────────────────────────────────────── #}
+    <div class="fmd-folders">
+      <a class="fmd-folder{% if not filtro_cartella %} fmd-on{% endif %}"
+         href="?{% if filtro_cerca %}q={{ filtro_cerca|urlencode }}&{% endif %}{% if filtro_anno %}anno={{ filtro_anno|urlencode }}{% endif %}">
+        <span class="fmd-folder-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
+        <span><span class="fmd-folder-t">Tutti i documenti</span><span class="fmd-folder-m">Nessun filtro cartella</span></span>
+      </a>
+      {% for c in cartelle %}
+      <a class="fmd-folder{% if filtro_cartella == c.id|stringformat:'s' %} fmd-on{% endif %}"
+         href="?cartella={{ c.id }}{% if filtro_cerca %}&q={{ filtro_cerca|urlencode }}{% endif %}{% if filtro_anno %}&anno={{ filtro_anno|urlencode }}{% endif %}">
+        <span class="fmd-folder-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span>
+        <span><span class="fmd-folder-t">{{ c.nome }}</span><span class="fmd-folder-m">{{ c.descrizione|default:"Cartella documenti" }}</span></span>
+      </a>
+      {% endfor %}
+      <a class="fmd-folder{% if filtro_cartella == '__nessuna__' %} fmd-on{% endif %}"
+         href="?cartella=__nessuna__{% if filtro_cerca %}&q={{ filtro_cerca|urlencode }}{% endif %}{% if filtro_anno %}&anno={{ filtro_anno|urlencode }}{% endif %}">
+        <span class="fmd-folder-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
+        <span><span class="fmd-folder-t">Senza cartella</span><span class="fmd-folder-m">Non classificati</span></span>
+      </a>
+    </div>
+
+    {# ── Filtri ─────────────────────────────────────────────────────────── #}
+    <section class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-filterbar" style="grid-template-columns:1fr 180px auto auto;">
+        <input type="hidden" name="cartella" value="{{ filtro_cartella }}">
+        <div class="fmd-filtf"><label>Cerca dipendente / file</label><input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Nome, cognome, file…"></div>
+        <div class="fmd-filtf"><label>Anno</label>
+          <select name="anno" aria-label="Filtra per anno">
+            <option value="">Tutti</option>
+            {% for a in anni_disponibili %}<option value="{{ a }}" {% if filtro_anno == a|stringformat:"s" %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
+        <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:documenti_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
+      </form>
+    </section>
+
+    {# ── Tabella documenti ──────────────────────────────────────────────── #}
+    <section class="fmd-panel">
+      <div class="fmd-toolbar" style="border-bottom:1px solid var(--fmd-line-soft);">
+        <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-doc"/></svg>Documenti</div>
+        <span class="fmd-spacer"></span>
+        <span class="fmd-block-aside">{{ documenti|length }} documento/i{% if documenti|length == 500 %} · limite 500, restringi con i filtri{% endif %}</span>
+      </div>
+      {% if documenti %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="anagrafica.documenti.list">
           <thead>
             <tr>
               <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
@@ -109,56 +83,63 @@ body.theme-dark .dl-input { background:var(--surface-alt); border-color:var(--bo
               <th data-col="file" data-col-label="File" data-col-type="text" data-col-sortable="1" data-col-filterable="1">File</th>
               <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
               <th data-col="caricato" data-col-label="Caricato" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Caricato</th>
-              <th data-col="retention" data-col-label="Conservare fino al" data-col-type="date" data-col-sortable="1" title="Data limite GDPR">Scade</th>
-              <th style="text-align:right;">Azioni</th>
+              <th class="fmd-c" data-col="retention" data-col-label="Conservare fino al" data-col-type="date" data-col-sortable="1" title="Data limite GDPR">Scade</th>
+              <th class="fmd-r">Azioni</th>
             </tr>
           </thead>
           <tbody>
             {% for d in documenti %}
             <tr>
-              <td style="font-weight:700;">
-                <a href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}#documenti" style="color:#12395f;text-decoration:none;">{{ d.nome_dipendente }}</a>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_anagrafica_id %}#documenti">{{ d.nome_dipendente }}</a></td>
+              <td>{% if d.cartella %}<span class="fmd-badge fmd-plain fmd-b-cyan">{{ d.cartella.nome }}</span>{% if d.cartella.solo_admin %} <span class="fmd-badge fmd-b-orange" title="Cartella riservata: visibile solo ai super-amministratori">Riservata</span>{% endif %}{% else %}<span class="fmd-badge fmd-plain fmd-b-grey">Senza cartella</span>{% endif %}</td>
+              <td><svg class="fmd-ico" style="display:inline-block;vertical-align:-2px;color:var(--fmd-muted-2);"><use href="#i-doc"/></svg> {{ d.nome_originale }}</td>
+              <td class="fmd-muted">{{ d.descrizione|default:"—" }}</td>
+              <td class="fmd-nowrap fmd-muted" data-sort-value="{{ d.created_at|date:'Y-m-d' }}">
+                {{ d.created_at|date:"d-m-Y" }}{% if d.created_by_display %}<div class="fmd-cell-sub">{{ d.created_by_display }}</div>{% endif %}
               </td>
-              <td>{% if d.cartella %}<span class="hr-pill blue">📁 {{ d.cartella.nome }}</span>{% else %}<span class="hr-pill neutral">Senza cartella</span>{% endif %}</td>
-              <td>📄 {{ d.nome_originale }}</td>
-              <td style="color:#64748b;font-size:12px;">{{ d.descrizione|default:"—" }}</td>
-              <td style="color:#64748b;font-size:12px;white-space:nowrap;" data-sort-value="{{ d.created_at|date:'Y-m-d' }}">
-                {{ d.created_at|date:"d-m-Y" }}
-                {% if d.created_by_display %}<br><span style="color:#94a3b8;">{{ d.created_by_display }}</span>{% endif %}
-              </td>
-              <td style="font-size:12px;white-space:nowrap;" data-sort-value="{{ d.retention_until|date:'Y-m-d'|default:'' }}">
+              <td class="fmd-c fmd-nowrap" data-sort-value="{{ d.retention_until|date:'Y-m-d'|default:'' }}">
                 {% if d.retention_until %}
-                  <span style="color:{% if d.retention_until < today %}#b91c1c{% elif d.retention_until|date:'Y' < today_plus_1y %}#92400e{% else %}#64748b{% endif %};">
-                    {{ d.retention_until|date:"d-m-Y" }}
-                  </span>
-                {% else %}
-                  <span style="color:#cbd5e1;">—</span>
-                {% endif %}
+                  {% if d.retention_until < today %}<span class="fmd-badge fmd-b-red">{{ d.retention_until|date:"d-m-Y" }}</span>
+                  {% elif d.retention_until|date:'Y' < today_plus_1y %}<span class="fmd-badge fmd-b-amber">{{ d.retention_until|date:"d-m-Y" }}</span>
+                  {% else %}<span class="fmd-muted">{{ d.retention_until|date:"d-m-Y" }}</span>{% endif %}
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
-              <td style="text-align:right;white-space:nowrap;">
-                <a href="{% url 'anagrafica:documento_download' d.id %}" class="hr-btn hr-btn-outline hr-btn-sm">⬇ Scarica</a>
-                {% if is_admin %}
+              <td class="fmd-r">
+                <div class="fmd-cat-actions">
+                  <a href="{% url 'anagrafica:documento_download' d.id %}" class="fmd-btn-mini"><svg class="fmd-ico" style="display:inline-block;vertical-align:-2px;"><use href="#i-download"/></svg> Scarica</a>
+                  {% if is_admin %}
+                  <form method="post" action="{% url 'anagrafica:documento_sposta' d.id %}" style="display:inline-flex;gap:4px;align-items:center;">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <select name="cartella" class="fmd-select" style="padding:3px 6px;font-size:12px;max-width:150px;" title="Sposta in cartella" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+                      <option value="__nessuna__" {% if not d.cartella %}selected{% endif %}>— Senza cartella —</option>
+                      {% for c in cartelle %}
+                      <option value="{{ c.id }}" {% if d.cartella_id == c.id %}selected{% endif %}>{{ c.nome }}</option>
+                      {% endfor %}
+                    </select>
+                    <noscript><button type="submit" class="fmd-btn-mini">Sposta</button></noscript>
+                  </form>
                   <form method="post" action="{% url 'anagrafica:documento_delete' d.id %}" style="display:inline;">
                     {% csrf_token %}
-                    <button type="submit" class="hr-btn hr-btn-sm" style="background:#fef2f2;color:#b91c1c;border-color:#fecaca;" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">🗑</button>
+                    <button type="submit" class="fmd-btn-mini fmd-danger" onclick="return confirm('Eliminare il documento {{ d.nome_originale }}?')">Elimina</button>
                   </form>
-                {% endif %}
+                  {% endif %}
+                </div>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    {% else %}
-      <div class="hr-empty">
-        Nessun documento trovato{% if filtro_cerca or filtro_cartella or filtro_anno %} con i filtri selezionati{% endif %}.
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-doc"/></svg></span>
+        <span class="fmd-et">Nessun documento trovato</span>
+        <span class="fmd-em">{% if filtro_cerca or filtro_cartella or filtro_anno %}Nessun risultato con i filtri selezionati.{% else %}L'archivio è vuoto.{% endif %}</span>
       </div>
-    {% endif %}
-  </div>
+      {% endif %}
+    </section>
 
-</div>
-{% endblock %}
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html). #}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

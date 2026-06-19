@@ -5,109 +5,108 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Formazione HR</div>
-      <h2 class="hr-pagehead-title">👨‍🏫 Istruttori / Formatori</h2>
-      <p class="hr-pagehead-desc">Catalogo docenti interni ed esterni.</p>
-    </div>
-    {% if is_editor %}
-    <div>
-      <button class="hr-btn hr-btn-primary"
-              onclick="document.getElementById('modal-crea-istr').style.display='flex'">
-        + Nuovo istruttore
-      </button>
-    </div>
-    {% endif %}
-  </div>
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  {# Filtri #}
-  <form method="get" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-    <input type="text" name="q" value="{{ q_search }}" placeholder="Cerca nome / ragione sociale…"
-           class="hr-filter-input" style="min-width:200px;">
-    <select name="tipo" class="hr-filter-select">
-      <option value="">Tutti</option>
-      {% for code, label in TIPO_CHOICES %}
-        <option value="{{ code }}" {% if filtro_tipo == code %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="hr-btn hr-btn-sm">Filtra</button>
-    <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="hr-btn hr-btn-sm hr-btn-ghost">Reset</a>
-  </form>
-
-  <div class="hr-card fm-section">
-    <div class="fm-section-head">
-      <div class="fm-section-title">👨‍🏫 Istruttori <span class="fm-count">{{ istruttori|length }}</span></div>
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Docenti</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-mic"/></svg>Docenti / Formatori <span class="fmd-count">{{ istruttori|length }}</span></h1>
+        <p class="fmd-ph-sub">Catalogo docenti interni ed esterni.</p>
+      </div>
+      {% if is_editor %}
+      <div class="fmd-pagehead-actions">
+        <button type="button" class="fmd-btn fmd-btn-primary" onclick="document.getElementById('modal-crea-istr').style.display='flex'">
+          <svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo istruttore
+        </button>
+      </div>
+      {% endif %}
     </div>
-    {% if istruttori %}
-    <div class="fm-table-wrap">
-      <table class="fm-table" data-table-id="formazione.istruttori.list">
-        <thead>
-          <tr>
-            <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome</th>
-            <th data-col="tipo" data-col-label="Tipo" data-col-type="select"
-                data-col-options='[["INTERNO","Interno"],["ESTERNO","Esterno / Provider"]]'
-                data-col-sortable="1" data-col-filterable="1">Tipo</th>
-            <th data-col="ragione_sociale" data-col-label="Ragione sociale" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ragione sociale</th>
-            <th data-col="email" data-col-label="Email" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email</th>
-            <th data-col="telefono" data-col-label="Telefono" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Telefono</th>
-            <th data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
-            <th class="nowrap">Azioni</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for i in istruttori %}
-          <tr>
-            <td style="font-weight:600;">{{ i.nome }}</td>
-            <td>
-              <span data-value="{{ i.tipo }}" style="display:none;">{{ i.tipo }}</span>
-              {% if i.tipo == "INTERNO" %}
-                <span class="fm-pill fm-pill-enrolled">Interno</span>
-              {% else %}
-                <span class="fm-pill fm-pill-missing">Esterno</span>
-              {% endif %}
-            </td>
-            <td class="muted">{{ i.ragione_sociale|default:"—" }}</td>
-            <td class="muted">{{ i.email|default:"—" }}</td>
-            <td class="muted">{{ i.telefono|default:"—" }}</td>
-            <td>{% if i.is_active %}<span class="fm-pill fm-pill-valid">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-            <td class="nowrap">
-              {% if is_editor %}
-              <button class="hr-btn hr-btn-sm"
-                      onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }})">
-                Modifica
-              </button>
-              <form method="post" action="{% url 'anagrafica:formazione_istruttore_delete' i.pk %}"
-                    style="display:inline;"
-                    onsubmit="return confirm('Eliminare istruttore «{{ i.nome|escapejs }}»?')">
-                {% csrf_token %}
-                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">Elimina</button>
-              </form>
-              {% endif %}
-            </td>
-          </tr>
+
+    <section class="fmd-panel">
+      <form method="get" class="fmd-toolbar">
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="text" name="q" value="{{ q_search }}" placeholder="Nome o ragione sociale…" autocomplete="off">
+        </span>
+        <select name="tipo" class="fmd-select" aria-label="Filtra per tipo">
+          <option value="">Tutti i tipi</option>
+          {% for code, label in TIPO_CHOICES %}
+            <option value="{{ code }}" {% if filtro_tipo == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="fm-empty" style="text-align:center;padding:32px;">
-      Nessun istruttore trovato.
-    </div>
-    {% endif %}
-  </div>
+        </select>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:formazione_istruttori_list' %}" class="fmd-btn fmd-btn-ghost">Reset</a>
+      </form>
 
-</div>
+      {% if istruttori %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="formazione.istruttori.list">
+          <thead>
+            <tr>
+              <th data-col="nome" data-col-label="Nome" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Nome</th>
+              <th data-col="tipo" data-col-label="Tipo" data-col-type="select"
+                  data-col-options='[["INTERNO","Interno"],["ESTERNO","Esterno / Provider"]]'
+                  data-col-sortable="1" data-col-filterable="1">Tipo</th>
+              <th data-col="ragione_sociale" data-col-label="Ragione sociale" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Ragione sociale</th>
+              <th data-col="email" data-col-label="Email" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Email</th>
+              <th data-col="telefono" data-col-label="Telefono" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Telefono</th>
+              <th class="fmd-c" data-col="attivo" data-col-label="Attivo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Attivo</th>
+              <th class="fmd-nowrap">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in istruttori %}
+            <tr>
+              <td><span style="font-weight:700;color:var(--fmd-navy);">{{ i.nome }}</span></td>
+              <td>
+                <span data-value="{{ i.tipo }}" style="display:none;">{{ i.tipo }}</span>
+                {% if i.tipo == "INTERNO" %}<span class="fmd-badge fmd-b-cyan">Interno</span>
+                {% else %}<span class="fmd-badge fmd-b-violet">Esterno</span>{% endif %}
+              </td>
+              <td class="fmd-muted">{{ i.ragione_sociale|default:"—" }}</td>
+              <td class="fmd-muted">{{ i.email|default:"—" }}</td>
+              <td class="fmd-muted">{{ i.telefono|default:"—" }}</td>
+              <td class="fmd-c">{% if i.is_active %}<span class="fmd-badge fmd-b-green">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-nowrap">
+                {% if is_editor %}
+                <button type="button" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;"
+                        onclick="openEditModal({{ i.pk }}, '{{ i.tipo }}', '{{ i.nome|escapejs }}', '{{ i.ragione_sociale|escapejs }}', '{{ i.email|escapejs }}', '{{ i.telefono|escapejs }}', {{ i.legacy_anagrafica_id|default:'null' }}, {{ i.is_active|yesno:'true,false' }})">
+                  Modifica
+                </button>
+                <form method="post" action="{% url 'anagrafica:formazione_istruttore_delete' i.pk %}" style="display:inline;"
+                      onsubmit="return confirm('Eliminare istruttore «{{ i.nome|escapejs }}»?')">
+                  {% csrf_token %}
+                  <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;color:#c53030;">Elimina</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-mic"/></svg></span>
+        <span class="fmd-et">Nessun istruttore trovato</span>
+        <span class="fmd-em">Modifica i filtri oppure aggiungi un docente.</span>
+      </div>
+      {% endif %}
+    </section>
 
-{# ── Modal crea istruttore ────────────────────────────────────────────────── #}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
+{# ── Modali (logica invariata) ───────────────────────────────────────────── #}
 {% if is_editor %}
 <div id="modal-crea-istr" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
@@ -120,15 +119,14 @@
       {% csrf_token %}
       {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
-        <button type="button" class="hr-btn hr-btn-ghost"
+        <button type="button" class="fmd-btn fmd-btn-ghost"
                 onclick="document.getElementById('modal-crea-istr').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Crea</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Crea</button>
       </div>
     </form>
   </div>
 </div>
 
-{# ── Modal modifica istruttore ────────────────────────────────────────────── #}
 <div id="modal-edit-istr" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
   <div style="background:#fff;border-radius:12px;padding:28px 32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
@@ -138,13 +136,11 @@
     </div>
     <form id="form-edit-istr" method="post" action="">
       {% csrf_token %}
-      <div id="edit-istr-fields">
-        {# popolato via JS #}
-      </div>
+      <div id="edit-istr-fields">{# popolato via JS #}</div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
-        <button type="button" class="hr-btn hr-btn-ghost"
+        <button type="button" class="fmd-btn fmd-btn-ghost"
                 onclick="document.getElementById('modal-edit-istr').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
+        <button type="submit" class="fmd-btn fmd-btn-primary">Salva</button>
       </div>
     </form>
   </div>

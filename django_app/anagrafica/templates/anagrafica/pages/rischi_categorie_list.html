@@ -13,11 +13,13 @@
 {% block content %}
 <div class="hr-shell">
 
+  {% include "anagrafica/partials/_safety_subnav.html" with active="categorie" %}
+
   <div class="hr-pagehead">
     <div>
       <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
-        &rsaquo; Safety &rsaquo; Categorie Corso
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-crumb">Salute e Sicurezza</a>
+        <span class="fm-crumb-sep">›</span> Categorie Corso
       </div>
       <h2 class="hr-pagehead-title">🏷 Categorie Corso</h2>
       <p class="hr-pagehead-desc">

@@ -14,6 +14,7 @@ from .models import (
     OffboardingPratica,
     OffboardingTask,
     OnboardingOffboardingCampo,
+    QualificaSessione,
     StoricoContratto,
     TipologiaContratto,
     TipoVisitaMedica,
@@ -44,6 +45,12 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSlide,
+    TrainingQuizQuestion,
+    TrainingQuizOption,
+    TrainingElearningEnrollment,
+    TrainingQuizAttempt,
+    ElearningConfig,
 )
 
 
@@ -99,6 +106,15 @@ class VoceRetributivaInline(admin.TabularInline):
 
     def has_add_permission(self, request, obj=None):
         return False
+
+
+@admin.register(QualificaSessione)
+class QualificaSessioneAdmin(admin.ModelAdmin):
+    list_display = ("tipo", "data_conseguimento", "data_scadenza", "ente", "created_by", "created_at")
+    list_filter = ("tipo__categoria", "tipo", "data_conseguimento")
+    search_fields = ("tipo__nome", "ente", "note")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+    date_hierarchy = "data_conseguimento"
 
 
 @admin.register(ImportazioneRetributiva)
@@ -262,11 +278,72 @@ class TrainingPlanAdmin(admin.ModelAdmin):
 
 @admin.register(TrainingCourse)
 class TrainingCourseAdmin(admin.ModelAdmin):
-    list_display = ("codice", "titolo", "piano", "categoria", "durata_ore_teorica", "validita_mesi", "obbligatorio", "stato", "is_active")
-    list_filter = ("stato", "obbligatorio", "is_active", "piano", "categoria")
+    list_display = ("codice", "titolo", "piano", "categoria", "durata_ore_teorica", "validita_mesi", "obbligatorio", "is_elearning", "stato", "is_active")
+    list_filter = ("stato", "obbligatorio", "is_elearning", "is_active", "piano", "categoria")
     search_fields = ("codice", "titolo")
     readonly_fields = ("created_at", "updated_at", "created_by")
     autocomplete_fields = ("categoria",)
+
+
+# ─────────────────────────────────────────────────────────────
+# E-learning — Slide / Quiz / Iscrizioni / Tentativi
+# ─────────────────────────────────────────────────────────────
+
+@admin.register(TrainingSlide)
+class TrainingSlideAdmin(admin.ModelAdmin):
+    list_display = ("corso", "ordine", "titolo", "is_immagine", "is_active", "updated_at")
+    list_filter = ("is_active", "corso")
+    search_fields = ("titolo", "contenuto", "corso__codice", "corso__titolo")
+    list_editable = ("ordine",)
+    readonly_fields = ("created_at", "updated_at", "created_by")
+
+    @admin.display(boolean=True, description="Immagine")
+    def is_immagine(self, obj):
+        return obj.is_immagine
+
+
+class TrainingQuizOptionInline(admin.TabularInline):
+    model = TrainingQuizOption
+    extra = 2
+    fields = ("ordine", "testo", "corretta")
+
+
+@admin.register(TrainingQuizQuestion)
+class TrainingQuizQuestionAdmin(admin.ModelAdmin):
+    list_display = ("corso", "ordine", "testo", "is_active")
+    list_filter = ("is_active", "corso")
+    search_fields = ("testo", "corso__codice", "corso__titolo")
+    list_editable = ("ordine",)
+    inlines = [TrainingQuizOptionInline]
+
+
+@admin.register(TrainingQuizOption)
+class TrainingQuizOptionAdmin(admin.ModelAdmin):
+    list_display = ("domanda", "ordine", "testo", "corretta")
+    list_filter = ("corretta",)
+    search_fields = ("testo", "domanda__testo")
+
+
+@admin.register(TrainingElearningEnrollment)
+class TrainingElearningEnrollmentAdmin(admin.ModelAdmin):
+    list_display = ("legacy_anagrafica_id", "corso", "stato", "ultima_slide_ordine", "best_punteggio_pct", "n_tentativi", "data_completamento")
+    list_filter = ("stato", "corso")
+    search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
+    readonly_fields = ("data_iscrizione", "updated_at", "record_completamento")
+
+
+@admin.register(TrainingQuizAttempt)
+class TrainingQuizAttemptAdmin(admin.ModelAdmin):
+    list_display = ("legacy_anagrafica_id", "corso", "punteggio_pct", "n_corrette", "n_totali", "superato", "inviato_il")
+    list_filter = ("superato", "corso")
+    search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
+    readonly_fields = ("iniziato_il", "inviato_il", "risposte_json", "record", "utente")
+
+
+@admin.register(ElearningConfig)
+class ElearningConfigAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "updated_at")
+    readonly_fields = ("updated_at", "updated_by")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -282,6 +359,7 @@ class FattoreRischioAdmin(admin.ModelAdmin):
     )
     list_filter = ("categoria", "is_active", "richiede_formazione", "richiede_visita_medica", "richiede_dpi")
     search_fields = ("codice", "nome", "descrizione")
+    filter_horizontal = ("tipi_visita", "categorie_dpi")
     readonly_fields = ("created_at", "updated_at")
 
 

@@ -35,8 +35,10 @@
         {% else %}<span class="fm-pill fm-pill-expired">Annullata</span>{% endif %}
       </p>
     </div>
-    {% if is_editor %}
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" class="hr-btn hr-btn-ghost"
+         title="Iscritti, presenze e attestati">👥 Iscritti & presenze</a>
+      {% if is_editor %}
       <button class="hr-btn hr-btn-primary"
               onclick="document.getElementById('modal-edit-sessione').style.display='flex'">
         Modifica sessione
@@ -46,8 +48,8 @@
         {% csrf_token %}
         <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
       </form>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
@@ -119,6 +121,7 @@
             <th class="num" data-col="durata" data-col-label="Durata" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Durata</th>
             <th data-col="argomento" data-col-label="Argomento" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Argomento</th>
             <th data-col="docente" data-col-label="Docente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente</th>
+            <th class="nowrap">Presenze / Registro</th>
             {% if is_editor %}<th class="nowrap">Azioni</th>{% endif %}
           </tr>
         </thead>
@@ -132,6 +135,18 @@
             <td class="num muted">{{ lz.durata_ore }}h</td>
             <td>{{ lz.argomento }}</td>
             <td class="muted">{{ lz.docente_nome|default:lz.docente|default:"—" }}</td>
+            <td class="nowrap">
+              <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_lezione_presenze' sessione.pk lz.pk %}"
+                 title="Registra/vedi presenze">📋 Presenze{% if lz.n_presenze %} ({{ lz.n_presenze }}){% endif %}</a>
+              <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_lezione_registro' sessione.pk lz.pk %}"
+                 target="_blank" rel="noopener" title="Foglio firme stampabile">🖨 Foglio firme</a>
+              {% if lz.allegati_list %}
+                {% for a in lz.allegati_list %}
+                <a class="hr-btn hr-btn-sm hr-btn-outline" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}"
+                   title="{{ a.nome_originale }}">✅ Registro firmato</a>
+                {% endfor %}
+              {% endif %}
+            </td>
             {% if is_editor %}
             <td class="nowrap">
               <button class="hr-btn hr-btn-sm"
@@ -207,6 +222,65 @@
         </div>
       </form>
     </div>
+    {% endif %}
+  </div>
+
+  {# ── Registro firme firmato (livello sessione) ─────────────────────────── #}
+  <div class="hr-card fm-section">
+    <div class="fm-section-head">
+      <div class="fm-section-title">✍️ Registro firme firmato
+        <span class="fm-count">{{ allegati_sessione|length }}</span>
+      </div>
+      <span class="muted" style="font-size:11px;">Scansione del foglio firme dell'intera sessione</span>
+    </div>
+    <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
+      Stampa il foglio firme dalle singole lezioni (colonna «Foglio firme»), raccogli le firme in aula,
+      poi ricarica qui la scansione firmata. Per il registro di una <strong>singola lezione</strong> usa la
+      pagina <em>Presenze</em> della lezione.
+    </div>
+    {% if allegati_sessione %}
+    <div class="fm-table-wrap">
+      <table class="fm-table">
+        <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
+        <tbody>
+          {% for a in allegati_sessione %}
+          <tr>
+            <td><a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a></td>
+            <td class="muted">{{ a.get_tipo_display }}</td>
+            <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+            <td class="nowrap">
+              {% if is_editor %}
+              <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Eliminare l\'allegato «{{ a.nome_originale|escapejs }}»?')">
+                {% csrf_token %}
+                <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty">Nessun registro firmato caricato per la sessione.</div>
+    {% endif %}
+    {% if is_editor %}
+    <form method="post" action="{% url 'anagrafica:formazione_allegato_upload' sessione.pk %}"
+          enctype="multipart/form-data" class="fm-inline-form" style="align-items:flex-end;">
+      {% csrf_token %}
+      <div class="fm-f" style="flex:1;min-width:240px;">
+        <label>Carica registro firmato (PDF o scansione)</label>
+        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp">
+      </div>
+      <div class="fm-f">
+        <label>Tipo</label>
+        <select name="tipo">
+          {% for val, lbl in ATTACH_TIPI %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">⬆ Carica</button>
+    </form>
     {% endif %}
   </div>
 

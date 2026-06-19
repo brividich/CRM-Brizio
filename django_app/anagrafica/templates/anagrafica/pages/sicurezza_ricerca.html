@@ -1,0 +1,59 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Ricerca sicurezza | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Safety</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-search"/></svg>Ricerca sicurezza</h1>
+          <p class="fmd-sub">Cerca in mansioni di rischio, dipendenti (idoneità), qualifiche di sicurezza e fattori di rischio.</p>
+        </div>
+      </div>
+    </section>
+
+    {# ── Barra di ricerca live ──────────────────────────────────────────── #}
+    <div class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" action="{% url 'anagrafica:sicurezza_ricerca' %}" class="fmd-toolbar" role="search">
+        <span class="fmd-search">
+          <svg class="fmd-ico"><use href="#i-search"/></svg>
+          <input type="search" name="q" value="{{ q }}" autofocus
+                 placeholder="Cerca mansioni di rischio, dipendenti, qualifiche di sicurezza, fattori di rischio…"
+                 autocomplete="off" aria-label="Cerca nell'area sicurezza"
+                 hx-get="{% url 'anagrafica:sicurezza_ricerca' %}"
+                 hx-trigger="keyup changed delay:300ms, search"
+                 hx-target="#sic-results"
+                 hx-swap="innerHTML"
+                 hx-push-url="true"
+                 hx-indicator="#sic-spinner">
+        </span>
+        <span id="sic-spinner" class="htmx-indicator fmd-block-aside">Ricerca…</span>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fmd-btn fmd-btn-ghost">Cruscotto</a>
+      </form>
+    </div>
+
+    {# ── Risultati (aggiornati live via HTMX) ───────────────────────────── #}
+    <div id="sic-results">
+      {% include "anagrafica/partials/_safety_search_results.html" %}
+    </div>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

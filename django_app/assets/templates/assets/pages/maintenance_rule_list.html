@@ -175,14 +175,14 @@
     </div>
   </article>
 
-  <article class="mr-card">
-    <div class="mr-card-head">
+  <details class="mr-card as-collapse as-collapse--cap" open>
+    <summary class="mr-card-head">
       <div>
         <h2>Elenco regole</h2>
-        <p>Ogni regola definisce una policy standard per categoria asset; gli override per singolo asset non sono ancora parte di questo step.</p>
+        <p>Ogni regola definisce una policy standard per categoria asset; gli override per singolo asset non sono ancora parte di questo step. Clicca una riga per modificarla.</p>
       </div>
-    </div>
-    <div class="mr-card-body">
+    </summary>
+    <div class="mr-card-body as-collapse-body">
       {% if rule_rows %}
         <div class="mr-table-wrap">
           <table class="mr-table">
@@ -197,7 +197,7 @@
             </thead>
             <tbody>
               {% for row in rule_rows %}
-                <tr>
+                <tr data-row-href="{{ row.edit_url }}">
                   <td>{{ row.rule.asset_category.label }}</td>
                   <td>
                     <strong>{{ row.rule.intervention_template.label }}</strong><br>
@@ -228,6 +228,6 @@
         <p class="mr-empty">Nessuna regola trovata con i filtri correnti.</p>
       {% endif %}
     </div>
-  </article>
+  </details>
 </section>
 {% endblock %}

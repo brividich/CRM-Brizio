@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Impostazioni e-learning | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:820px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_elearning_hub' %}">Gestione e-learning</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">Impostazioni</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>Impostazioni e-learning</h1>
+        <p class="fmd-ph-sub">Default applicati ai nuovi micro-corsi e opzioni di conversione PowerPoint.</p>
+      </div>
+    </div>
+
+    <form method="post" class="fmd-panel" id="el-settings-form">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>{% endif %}
+
+      {# ── Default nuovi corsi ──────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-cap"/></svg>
+          <span class="fmd-form-sec-t">Default nuovi micro-corsi</span>
+          <span class="fmd-form-sec-n">Precompilati alla creazione di un corso e-learning</span>
+        </div>
+        <div class="fmd-grid-3">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.quiz_punteggio_minimo_default %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.validita_mesi_default %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.max_tentativi_quiz %}
+        </div>
+      </div>
+
+      {# ── Import PowerPoint ────────────────────────────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-download"/></svg>
+          <span class="fmd-form-sec-t">Import PowerPoint (LibreOffice)</span>
+          <span class="fmd-form-sec-n">Necessario solo per convertire i .pptx; i PDF funzionano sempre</span>
+        </div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.libreoffice_path full=1 %}
+        </div>
+        <div style="margin-top:8px;">
+          {% if libreoffice_trovato %}
+          <span class="fmd-badge fmd-b-green">LibreOffice rilevato</span>
+          <span class="fmd-muted" style="font-size:12px;margin-left:6px;">{{ libreoffice_trovato }}</span>
+          {% else %}
+          <span class="fmd-badge fmd-b-amber">LibreOffice non rilevato</span>
+          <span class="fmd-muted" style="font-size:12px;margin-left:6px;">L'import .pptx non sarà disponibile finché non è installato/configurato. L'import PDF funziona comunque.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="fmd-form-foot">
+        <span class="fmd-form-hint">Le modifiche valgono per i corsi creati d'ora in poi (non retroattive).</span>
+        <span class="fmd-spacer"></span>
+        <a href="{% url 'anagrafica:formazione_elearning_hub' %}" class="fmd-btn fmd-btn-ghost">Indietro</a>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva impostazioni</button>
+      </div>
+    </form>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

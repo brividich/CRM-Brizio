@@ -11,8 +11,8 @@
 .cat-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .cat-sub   { font-size:13px; color:#64748b; margin-top:2px; }
 .cat-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.cat-btn-primary { background:#12395f; color:#fff; }
-.cat-btn-primary:hover { background:#0e2d4b; }
+.cat-btn-primary { background:#0c2545; color:#fff; }
+.cat-btn-primary:hover { background:#08142d; }
 .cat-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .cat-btn-ghost:hover { background:#e2e8f0; }
 .cat-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
@@ -38,12 +38,12 @@
 .cat-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:180px; }
 .cat-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .cat-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-input:focus { border-color:#1f5c91; background:#fff; }
+.cat-input:focus { border-color:#1f87cd; background:#fff; }
 .cat-select { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.cat-select:focus { border-color:#1f5c91; background:#fff; }
+.cat-select:focus { border-color:#1f87cd; background:#fff; }
 
 /* Area band — riga colorata per area aziendale */
-.area-band { background:#f0f7ff; border-left:4px solid var(--area-color, #1f5c91); }
+.area-band { background:#f0f7ff; border-left:4px solid var(--area-color, #1f87cd); }
 .area-band td { font-weight:700; color:#0f172a; padding:10px 16px; }
 .area-badge { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; }
 .area-badge-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
@@ -56,7 +56,7 @@
 /* Tabs */
 .hr-tabs { display:flex; gap:2px; border-bottom:2px solid #e2e8f0; margin-bottom:0; }
 .hr-tab { padding:10px 18px; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s,border-color .15s; }
-.hr-tab.active { color:#1f5c91; border-bottom-color:#1f5c91; }
+.hr-tab.active { color:#1f87cd; border-bottom-color:#1f87cd; }
 .hr-tab-panel { display:none; }
 .hr-tab-panel.active { display:block; }
 
@@ -266,7 +266,7 @@ body.theme-dark .cat-input, body.theme-dark .cat-select { background:var(--surfa
             </div>
             <div class="cat-field" style="flex:0;min-width:100px;">
               <label class="cat-label">Colore</label>
-              <input class="cat-input" type="color" name="colore" value="#1f5c91" style="padding:4px;height:37px;cursor:pointer;">
+              <input class="cat-input" type="color" name="colore" value="#1f87cd" style="padding:4px;height:37px;cursor:pointer;">
             </div>
             <div style="padding-bottom:1px;">
               <button type="submit" class="cat-btn cat-btn-primary">Crea area</button>

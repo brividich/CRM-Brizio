@@ -1,0 +1,342 @@
+{% extends "core/base.html" %}
+
+{% block title %}Template PDF | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.pdf-template-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+  max-width: 1080px;
+}
+.pdf-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.pdf-form-grid .full { grid-column: 1 / -1; }
+.pdf-color-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.pdf-color-row input[type="color"] {
+  width: 52px;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.pdf-logo-current {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.pdf-logo-current img {
+  width: 74px;
+  height: 42px;
+  object-fit: contain;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.pdf-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 13px;
+  color: var(--text);
+}
+.pdf-preview-sheet {
+  --pdf-primary: {{ pdf_primary_color }};
+  --pdf-accent: {{ pdf_accent_color }};
+  position: relative;
+  min-height: 475px;
+  padding: 28px 26px 30px;
+  border: 1px solid #d7dee8;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .10);
+}
+.pdf-preview-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--pdf-primary);
+}
+.pdf-preview-logo {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--pdf-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  overflow: hidden;
+}
+.pdf-preview-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+.pdf-preview-title {
+  min-width: 0;
+}
+.pdf-preview-title strong {
+  display: block;
+  color: #1e293b;
+  font-size: 16px;
+  line-height: 1.2;
+}
+.pdf-preview-title span,
+.pdf-preview-meta span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.pdf-preview-meta {
+  text-align: right;
+  white-space: nowrap;
+}
+.pdf-preview-body {
+  padding-top: 28px;
+}
+.pdf-preview-section {
+  height: 9px;
+  width: 38%;
+  margin-bottom: 12px;
+  border-radius: 99px;
+  background: var(--pdf-primary);
+}
+.pdf-preview-lines {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 22px;
+}
+.pdf-preview-lines span {
+  height: 8px;
+  border-radius: 99px;
+  background: #e2e8f0;
+}
+.pdf-preview-lines span:nth-child(2) { width: 86%; }
+.pdf-preview-lines span:nth-child(3) { width: 72%; }
+.pdf-preview-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pdf-preview-table div {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr .8fr;
+}
+.pdf-preview-table span {
+  min-height: 24px;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+.pdf-preview-table span:nth-child(3n) { border-right: 0; }
+.pdf-preview-table div:first-child span { background: var(--pdf-primary); }
+.pdf-preview-table div:nth-child(3) span { background: #f8fafc; }
+.pdf-preview-accent {
+  width: 44px;
+  height: 4px;
+  margin-top: 18px;
+  border-radius: 99px;
+  background: var(--pdf-accent);
+}
+.pdf-preview-footer {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 10px;
+}
+@media(max-width: 920px) {
+  .pdf-template-layout { grid-template-columns: 1fr; }
+}
+@media(max-width: 640px) {
+  .pdf-form-grid { grid-template-columns: 1fr; }
+  .pdf-preview-sheet { min-height: 430px; }
+  .pdf-preview-head { grid-template-columns: 44px minmax(0, 1fr); }
+  .pdf-preview-meta { grid-column: 1 / -1; text-align: left; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Template PDF" page_subtitle="Gestisci logo, colori e footer comuni dei PDF generati dal portale." %}
+
+  {% if messages %}
+    <div class="messages-wrap" style="margin-bottom:20px;">
+      {% for message in messages %}
+        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="pdf-template-layout">
+    <form class="card" method="post" action="{% url 'admin_portale:api_pdf_template_config_save' %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="card-head">
+        <div class="card-title">Grafica condivisa</div>
+        <span style="font-size:11px;color:var(--text-light);">Valori vuoti = branding portale</span>
+      </div>
+      <div class="card-body">
+        {% if pdf_logo_url %}
+          <div class="pdf-logo-current">
+            <img src="{{ pdf_logo_url }}" alt="Logo PDF corrente">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;">Logo PDF attivo</div>
+              <div style="font-size:11px;color:var(--text-light);word-break:break-all;">{{ pdf_logo_url }}</div>
+            </div>
+            <label class="pdf-option" style="flex-shrink:0;">
+              <input type="checkbox" name="clear_pdf_template_logo" value="1">
+              Rimuovi
+            </label>
+          </div>
+        {% endif %}
+
+        <div class="pdf-form-grid">
+          <div class="field full">
+            <label>Carica logo PDF <span style="font-weight:400;color:var(--text-light)">(PNG o JPG, max 1 MB)</span></label>
+            <input class="input" type="file" name="pdf_template_logo_file" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+          </div>
+
+          <div class="field full">
+            <label>Percorso logo PDF</label>
+            <input class="input" type="text" name="pdf_template_logo_url" value="{{ values.pdf_template_logo_url }}" placeholder="/media/pdf_template/logo.png">
+          </div>
+
+          <div class="field">
+            <label>Colore primario PDF</label>
+            <div class="pdf-color-row">
+              <input type="color" value="{{ pdf_primary_color }}" data-color-picker-for="pdfPrimaryText">
+              <input class="input" id="pdfPrimaryText" type="text" name="pdf_template_primary_color" value="{{ values.pdf_template_primary_color }}" placeholder="{{ pdf_primary_color }}">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Colore accento PDF</label>
+            <div class="pdf-color-row">
+              <input type="color" value="{{ pdf_accent_color }}" data-color-picker-for="pdfAccentText">
+              <input class="input" id="pdfAccentText" type="text" name="pdf_template_accent_color" value="{{ values.pdf_template_accent_color }}" placeholder="{{ pdf_accent_color }}">
+            </div>
+          </div>
+
+          <div class="field full">
+            <label>Testo footer</label>
+            <input class="input" type="text" name="pdf_template_footer_text" value="{{ values.pdf_template_footer_text }}" maxlength="120" placeholder="{{ theme.portal_name }}">
+          </div>
+
+          <label class="pdf-option">
+            <input type="hidden" name="pdf_template_show_generated_at" value="0">
+            <input type="checkbox" name="pdf_template_show_generated_at" value="1"{% if values.pdf_template_show_generated_at != "0" %} checked{% endif %}>
+            Mostra data/ora in intestazione
+          </label>
+
+          <label class="pdf-option">
+            <input type="hidden" name="pdf_template_show_page_number" value="0">
+            <input type="checkbox" name="pdf_template_show_page_number" value="1"{% if values.pdf_template_show_page_number != "0" %} checked{% endif %}>
+            Mostra numero pagina
+          </label>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;">
+          <button type="submit" class="btn btn-primary">Salva template PDF</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:pdf_template_preview' %}" target="_blank" rel="noopener">
+            Anteprima PDF
+          </a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:index' %}#configurazione">Torna ad Admin Portale</a>
+        </div>
+      </div>
+    </form>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Anteprima</div>
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:pdf_template_preview' %}" target="_blank" rel="noopener">Apri PDF</a>
+      </div>
+      <div class="card-body">
+        <div class="pdf-preview-sheet">
+          <div class="pdf-preview-head">
+            <div class="pdf-preview-logo">
+              {% if pdf_effective_logo_url %}
+                <img src="{{ pdf_effective_logo_url }}" alt="">
+              {% else %}
+                {{ theme.monogram }}
+              {% endif %}
+            </div>
+            <div class="pdf-preview-title">
+              <strong>REPORT PORTALE</strong>
+              <span>Sottotitolo report</span>
+            </div>
+            <div class="pdf-preview-meta">
+              <span>{{ theme.portal_name }}</span>
+              {% if values.pdf_template_show_generated_at != "0" %}<span>{{ pdf_preview_generated_at }}</span>{% endif %}
+            </div>
+          </div>
+          <div class="pdf-preview-body">
+            <div class="pdf-preview-section"></div>
+            <div class="pdf-preview-lines">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="pdf-preview-table">
+              <div><span></span><span></span><span></span></div>
+              <div><span></span><span></span><span></span></div>
+              <div><span></span><span></span><span></span></div>
+              <div><span></span><span></span><span></span></div>
+            </div>
+            <div class="pdf-preview-accent"></div>
+          </div>
+          <div class="pdf-preview-footer">
+            <span>{{ values.pdf_template_footer_text|default:theme.portal_name }}</span>
+            {% if values.pdf_template_show_page_number != "0" %}<span>Pagina 1</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.querySelectorAll("[data-color-picker-for]").forEach((picker) => {
+  const target = document.getElementById(picker.dataset.colorPickerFor);
+  if (!target) return;
+  picker.addEventListener("input", () => {
+    target.value = picker.value;
+  });
+});
+</script>
+{% endblock %}

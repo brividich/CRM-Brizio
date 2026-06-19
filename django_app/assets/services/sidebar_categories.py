@@ -29,6 +29,10 @@ LEGACY_BUTTON_CODES = [
     "prod_carroponti",
     "prod_macch_utensili",
     "prod_reports",
+    # Orfani della vecchia navigazione per asset_type: duplicavano le categorie
+    # (es. "Apparecchi di Presa e Sollevamento") con link /assets/dispositivi/?asset_type=...
+    "asset-infrastruttura",
+    "carroponti-e-paranchi",
 ]
 
 # Prefisso dei pulsanti generati automaticamente da questa logica.
@@ -105,16 +109,18 @@ def rebuild_category_sidebar(AssetCategory, AssetSidebarButton) -> tuple[int, in
 
     # Garantisce che i report restino raggiungibili: il vecchio gruppo che li
     # ospitava (asset_produzione/dispositivi_it) viene rimosso dal rebuild.
+    # Vivono nella sezione strumenti (OPERATIONS), separati dalla navigazione
+    # per categoria che resta in MAIN.
     AssetSidebarButton.objects.get_or_create(
         code="report_asset",
         defaults={
-            "section": SECTION_MAIN,
+            "section": "OPERATIONS",
             "parent": None,
             "label": "Report asset",
             "target_url": "django:assets:reports",
             "active_match": "/assets/reports/",
             "is_subitem": False,
-            "sort_order": 55,
+            "sort_order": 50,
             "is_visible": True,
         },
     )

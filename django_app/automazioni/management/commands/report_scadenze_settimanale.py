@@ -8,6 +8,7 @@ intercettare (nessun insert/update sul record genera l'evento alla scadenza):
   - Visite mediche (sorveglianza sanitaria) con data_scadenza nei prossimi N giorni
   - Contratti a tempo determinato (StoricoContratto.data_fine) nei prossimi N giorni
   - Periodi di prova (DipendenteAnagraficaAziendale.prova_data_fine) nei prossimi N giorni
+  - Qualifiche / abilitazioni (DipendenteQualifica.data_scadenza) nei prossimi N giorni
 
 Invia UNA email riepilogativa per categoria a referenti fissi configurabili via
 SiteConfig (fallback DEFAULT_FROM_EMAIL). Nessun dato sanitario di dettaglio: solo
@@ -176,12 +177,38 @@ def _raccogli_contratti(oggi, limite):
     return righe
 
 
+def _raccogli_qualifiche(oggi, limite):
+    """Qualifiche / abilitazioni con data_scadenza nella finestra [oggi, limite].
+
+    Coerente con visite/contratti: solo le scadenze *future* nei prossimi N giorni
+    (le già scadute sono gestite dallo scadenzario e dalla home "Cose da gestire").
+    """
+    from anagrafica.models import DipendenteQualifica
+
+    qs = (
+        DipendenteQualifica.objects
+        .filter(data_scadenza__isnull=False, data_scadenza__gte=oggi, data_scadenza__lte=limite)
+        .values("legacy_anagrafica_id", "data_scadenza", "tipo__nome")
+        .order_by("data_scadenza")
+    )
+    rows = list(qs)
+    nomi = _nominativi([r["legacy_anagrafica_id"] for r in rows])
+    return [
+        {
+            "dipendente": nomi.get(r["legacy_anagrafica_id"], f"#{r['legacy_anagrafica_id']}"),
+            "dettaglio": f"Qualifica — {r['tipo__nome'] or 'abilitazione'}",
+            "scadenza": r["data_scadenza"].strftime("%d-%m-%Y"),
+        }
+        for r in rows
+    ]
+
+
 @monitored_automation(
     job_code="automazioni_report_scadenze_settimanale",
     job_name="Report scadenze settimanale",
     module_name="automazioni",
     critical=False,
-    description="Check schedulato delle visite mediche e dei contratti in scadenza; invio email riepilogative ai referenti.",
+    description="Check schedulato di visite mediche, contratti e qualifiche in scadenza; invio email riepilogative ai referenti.",
     schedule_hint="Lunedi 06:00",
     expected_max_interval_minutes=60 * 24 * 8,
     expected_max_duration_seconds=120,
@@ -201,6 +228,7 @@ def _esegui_report(*, giorni: int | None, dry_run: bool, forza: bool) -> dict:
             "disattivato": True,
             "visite": {"sent": False, "reason": "report_disattivato", "count": 0, "to": []},
             "contratti": {"sent": False, "reason": "report_disattivato", "count": 0, "to": []},
+            "qualifiche": {"sent": False, "reason": "report_disattivato", "count": 0, "to": []},
             "monitoring_message": "[skip] report scadenze disattivato da Impostazioni.",
             "monitoring_payload": {"attivo": False, "dry_run": dry_run},
         }
@@ -238,21 +266,38 @@ def _esegui_report(*, giorni: int | None, dry_run: bool, forza: bool) -> dict:
     else:
         res_contratti = {"sent": False, "reason": "categoria_disattivata", "count": 0, "to": []}
 
+    if cfg.get("includi_qualifiche", True):
+        qualifiche = _raccogli_qualifiche(oggi, limite)
+        res_qualifiche = _invia(
+            destinatari=cfg.get("email_qualifiche", []),
+            section_label="Formazione / Qualifiche",
+            titolo="Qualifiche e abilitazioni in scadenza",
+            intro=f"Le seguenti qualifiche / abilitazioni risultano in scadenza nei prossimi {giorni_eff} giorni. "
+                  f"Pianificare per tempo rinnovi, corsi o sessioni di aggiornamento.",
+            righe=qualifiche,
+            dry_run=dry_run,
+        )
+    else:
+        res_qualifiche = {"sent": False, "reason": "categoria_disattivata", "count": 0, "to": []}
+
     return {
         "disattivato": False,
         "monitoring_message": (
             f"[{'dry-run' if dry_run else 'run'}] giorni={giorni_eff} "
             f"visite={res_visite.get('count', 0)}(sent={res_visite.get('sent')}) "
-            f"contratti={res_contratti.get('count', 0)}(sent={res_contratti.get('sent')})"
+            f"contratti={res_contratti.get('count', 0)}(sent={res_contratti.get('sent')}) "
+            f"qualifiche={res_qualifiche.get('count', 0)}(sent={res_qualifiche.get('sent')})"
         ),
         "monitoring_payload": {
             "giorni": giorni_eff,
             "dry_run": dry_run,
             "visite": res_visite,
             "contratti": res_contratti,
+            "qualifiche": res_qualifiche,
         },
         "visite": res_visite,
         "contratti": res_contratti,
+        "qualifiche": res_qualifiche,
     }
 
 
@@ -261,7 +306,7 @@ def _esegui_report(*, giorni: int | None, dry_run: bool, forza: bool) -> dict:
     job_name="Report scadenze settimanale",
     module_name="automazioni",
     critical=False,
-    description="Check schedulato delle visite mediche e dei contratti in scadenza; invio email riepilogative ai referenti.",
+    description="Check schedulato di visite mediche, contratti e qualifiche in scadenza; invio email riepilogative ai referenti.",
     schedule_hint="Lunedi 06:00",
     expected_max_interval_minutes=60 * 24 * 8,
     expected_max_duration_seconds=120,
@@ -307,8 +352,10 @@ class Command(BaseCommand):
 
         v = summary.get("visite", {})
         c = summary.get("contratti", {})
+        q = summary.get("qualifiche", {})
         mode = "dry-run" if dry_run else "run"
         self.stdout.write(
             f"[{mode}] visite: {v.get('count', 0)} (sent={v.get('sent')}, {v.get('reason', 'ok')}) | "
-            f"contratti: {c.get('count', 0)} (sent={c.get('sent')}, {c.get('reason', 'ok')})"
+            f"contratti: {c.get('count', 0)} (sent={c.get('sent')}, {c.get('reason', 'ok')}) | "
+            f"qualifiche: {q.get('count', 0)} (sent={q.get('sent')}, {q.get('reason', 'ok')})"
         )

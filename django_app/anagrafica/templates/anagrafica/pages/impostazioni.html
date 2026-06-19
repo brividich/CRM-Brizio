@@ -8,14 +8,22 @@
 /* ============================================================
    Pannello impostazioni anagrafica — UI a tabs verticali
    ============================================================ */
-#imp-root { display:flex; flex-direction:column; gap:18px; }
+#imp-root { display:flex; flex-direction:column; gap:18px; font-family:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 .imp-hero {
-  background:linear-gradient(135deg,#12395f 0%,#1f5c91 60%,#12395f 100%);
-  border-radius:16px; padding:24px 28px; color:#fff;
+  position:relative; overflow:hidden; color:#fff;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,138,31,.28), transparent 42%),
+    radial-gradient(circle at 2% 100%, rgba(31,135,205,.30), transparent 52%),
+    linear-gradient(135deg,#08142d 0%,#0c2545 55%,#1a3a66 100%);
+  padding:24px 28px;
+  clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
   display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
 }
-.imp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.imp-hero::after { content:""; position:absolute; top:0; left:0; width:26px; height:5px;
+  background:#ff8a1f; transform:translate(-3px,5px) rotate(-45deg); transform-origin:left center; }
+.imp-hero > * { position:relative; }
+.imp-hero-title { font-size:24px; font-weight:800; letter-spacing:-.02em; }
 .imp-hero-sub { font-size:13px; opacity:.85; margin-top:3px; }
 
 .imp-noperm {
@@ -37,7 +45,7 @@
   background:transparent; border:none; text-align:left; width:100%;
 }
 .imp-tab:hover { background:#f1f5f9; color:#0f172a; }
-.imp-tab.active { background:#12395f; color:#fff; }
+.imp-tab.active { background:#0c2545; color:#fff; }
 .imp-tab .imp-tab-icon { font-size:16px; width:18px; text-align:center; }
 .imp-tab .imp-tab-count { margin-left:auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#e2e8f0; color:#475569; }
 .imp-tab.active .imp-tab-count { background:rgba(255,255,255,.25); color:#fff; }
@@ -46,7 +54,7 @@
 .imp-panel { display:none; flex-direction:column; gap:16px; }
 .imp-panel.active { display:flex; }
 
-.imp-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; }
+.imp-card { background:#fff; border:1px solid #e6ebf3; border-radius:14px; padding:18px 22px; box-shadow:0 1px 3px rgba(12,37,69,.05), 0 6px 18px rgba(12,37,69,.045); }
 .imp-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
 .imp-card-title { font-size:15px; font-weight:800; color:#0f172a; }
 .imp-card-sub { font-size:12px; color:#64748b; margin-top:2px; }
@@ -59,13 +67,13 @@
   width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:9px; font-size:13px;
   background:#f8fafc; color:#0f172a; outline:none; box-sizing:border-box;
 }
-.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f5c91; background:#fff; }
+.imp-input:focus, .imp-select:focus, .imp-textarea:focus { border-color:#1f87cd; background:#fff; }
 .imp-textarea { resize:vertical; min-height:60px; }
 .imp-color { width:42px; height:36px; padding:2px; border-radius:8px; border:1px solid #d1d5db; cursor:pointer; }
 
 .imp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:12px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:background .15s; }
-.imp-btn-primary { background:#12395f; color:#fff; }
-.imp-btn-primary:hover { background:#0e2d4b; }
+.imp-btn-primary { background:#0c2545; color:#fff; }
+.imp-btn-primary:hover { background:#08142d; }
 .imp-btn-green { background:#16a34a; color:#fff; }
 .imp-btn-green:hover { background:#15803d; }
 .imp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
@@ -90,7 +98,7 @@
 .imp-dot { display:inline-block; width:10px; height:10px; border-radius:50%; vertical-align:middle; }
 
 .imp-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; }
-.imp-badge-blue { background:#dbeafe; color:#1d4ed8; }
+.imp-badge-blue { background:#dbeafe; color:#1f87cd; }
 .imp-badge-green { background:#dcfce7; color:#166534; }
 .imp-badge-gray { background:#f1f5f9; color:#475569; }
 .imp-badge-orange { background:#ffedd5; color:#c2410c; }
@@ -135,7 +143,7 @@
 body.theme-dark .imp-tabs { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-tab { color:var(--text-mid); }
 body.theme-dark .imp-tab:hover { background:var(--surface-alt); color:var(--text); }
-body.theme-dark .imp-tab.active { background:#1f5c91; color:#fff; }
+body.theme-dark .imp-tab.active { background:#1f87cd; color:#fff; }
 body.theme-dark .imp-tab .imp-tab-count { background:var(--surface-alt); color:var(--text-mid); }
 body.theme-dark .imp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .imp-card-title { color:var(--text); }
@@ -241,6 +249,9 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
       <button class="imp-tab" data-tab="permessi" type="button">
         <span class="imp-tab-icon">🔒</span> Permessi
       </button>
+      <a class="imp-tab" href="{% url 'anagrafica:formazione_elearning_settings' %}">
+        <span class="imp-tab-icon">🎓</span> E-learning
+      </a>
     </nav>
 
     <!-- Content -->
@@ -294,6 +305,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <div class="imp-row-name">{{ m.nome }}</div>
                     <div class="imp-row-meta">
                       {{ m.n_dipendenti|default:0 }} dipendenti
+                      · <a href="{% url 'anagrafica:mansione_requisiti' m.id %}" style="color:#1f87cd;text-decoration:none;font-weight:600;">🎯 Requisiti di rischio</a>
                       {% if not m.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                     </div>
                   </div>
@@ -469,6 +481,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div class="imp-card-title">Reparti</div>
               <div class="imp-card-sub">Catalogo dei reparti aziendali con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
             </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:organigramma' %}">Organigramma →</a>
           </div>
           {% if is_admin %}
           <form method="post" action="{% url 'anagrafica:area_create' %}" class="imp-add-form">
@@ -868,13 +881,14 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <div class="imp-row-main">
                     <div class="imp-row-name">{{ t.nome }}</div>
                     <div class="imp-row-meta">
-                      {{ t.n_assegnazioni|default:0 }} assegnazioni
+                      <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" style="color:#1f87cd;text-decoration:none;font-weight:600;" title="Apri la scheda: chi la possiede, corsi e sessioni collegati">{{ t.n_assegnazioni|default:0 }} assegnazioni →</a>
                       {% if t.durata_mesi %} · durata {{ t.durata_mesi }} mesi{% endif %}
                       {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                     </div>
                   </div>
                   {% if is_admin %}
                   <div class="imp-row-actions">
+                    <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" class="imp-btn imp-btn-ghost imp-btn-sm" title="Apri scheda qualifica">Apri →</a>
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="qual-edit-{{ t.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;"
                           onsubmit="return confirm('Eliminare la qualifica &quot;{{ t.nome|escapejs }}&quot;?');">
@@ -1171,7 +1185,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f5c91;">
+                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f87cd;">
                   <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
                 </label>
                 {% for ro in ruoli_operativi %}
@@ -1660,6 +1674,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Descrizione</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;" title="Anni di conservazione GDPR dei documenti manuali di questa cartella">Retention</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Documenti</th>
                   <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
                 </tr>
@@ -1667,32 +1682,41 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <tbody>
                 {% for c in cartelle_documenti %}
                 <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
-                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}</td>
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
                   <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
                   <td style="padding:8px 10px;text-align:center;">
                     {% if c.attiva %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
                     {% else %}<span style="color:#94a3b8;font-size:11px;">Disattiva</span>{% endif %}
                   </td>
-                  <td style="padding:8px 10px;text-align:center;color:#475569;">{{ c.n_documenti }}</td>
+                  <td style="padding:8px 10px;text-align:center;color:#64748b;font-size:12px;">{{ c.retention_anni }} anni</td>
+                  <td style="padding:8px 10px;text-align:center;color:#475569;">
+                    {% if c.n_documenti %}<a href="{% url 'anagrafica:documenti_list' %}?cartella={{ c.id }}" style="color:#1f87cd;font-weight:700;text-decoration:none;" title="Apri i documenti di questa cartella">{{ c.n_documenti }} →</a>{% else %}{{ c.n_documenti }}{% endif %}
+                  </td>
                   <td style="padding:8px 10px;text-align:right;">
+                    <a href="{% url 'anagrafica:documenti_list' %}?cartella={{ c.id }}" class="imp-btn imp-btn-ghost imp-btn-sm" title="Apri i documenti di questa cartella">Apri →</a>
                     <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='block';document.getElementById('cartella-row-{{ c.id }}').style.display='none';" class="imp-btn imp-btn-ghost imp-btn-sm">Modifica</button>
                     {% if c.n_documenti == 0 %}
                     <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}" style="display:inline;">
                       {% csrf_token %}
                       <button type="submit" class="imp-btn imp-btn-danger imp-btn-sm" onclick="return confirm('Eliminare la cartella «{{ c.nome }}»?')">Elimina</button>
                     </form>
+                    {% elif c.attiva %}
+                    <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="imp-btn imp-btn-ghost imp-btn-sm" title="Contiene {{ c.n_documenti }} documento/i: non eliminabile, ma puoi disattivarla" onclick="return confirm('La cartella «{{ c.nome }}» contiene {{ c.n_documenti }} documento/i e non può essere eliminata. Disattivarla (lo storico resta)?')">Disattiva</button>
+                    </form>
                     {% else %}
-                    <span title="Contiene {{ c.n_documenti }} documento/i — impossibile eliminare" style="font-size:11px;color:#94a3b8;padding:0 4px;">Non eliminabile</span>
+                    <span title="Cartella disattivata con {{ c.n_documenti }} documento/i" style="font-size:11px;color:#94a3b8;padding:0 4px;">Disattivata</span>
                     {% endif %}
                   </td>
                 </tr>
                 {# Form modifica inline #}
                 <tr id="cartella-edit-{{ c.id }}" style="display:none;background:#f8fafc;">
-                  <td colspan="6" style="padding:12px 10px;">
+                  <td colspan="7" style="padding:12px 10px;">
                     <form method="post" action="{% url 'anagrafica:cartella_documento_edit' c.id %}">
                       {% csrf_token %}
-                      <div style="display:grid;grid-template-columns:1fr 2fr 80px 100px auto;gap:10px;align-items:end;">
+                      <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px 100px 120px auto;gap:10px;align-items:end;">
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                           <input type="text" name="nome" value="{{ c.nome }}" required maxlength="100" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1706,10 +1730,21 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                           <input type="number" name="ordine" value="{{ c.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                         </div>
                         <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                          <input type="number" name="retention_anni" value="{{ c.retention_anni }}" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Stato</label>
                           <select name="attiva" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                             <option value="1" {% if c.attiva %}selected{% endif %}>Attiva</option>
                             <option value="0" {% if not c.attiva %}selected{% endif %}>Disattiva</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                          <select name="solo_admin" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            <option value="0" {% if not c.solo_admin %}selected{% endif %}>No</option>
+                            <option value="1" {% if c.solo_admin %}selected{% endif %}>Sì</option>
                           </select>
                         </div>
                         <div style="display:flex;gap:6px;">
@@ -1732,7 +1767,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
               <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
                 {% csrf_token %}
-                <div style="display:grid;grid-template-columns:1fr 2fr 80px auto;gap:10px;align-items:end;">
+                <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto auto;gap:10px;align-items:end;">
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                     <input type="text" name="nome" required maxlength="100" placeholder="es. Contratti" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1744,6 +1779,14 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
                     <input type="number" name="ordine" value="0" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                    <input type="number" name="retention_anni" value="10" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                    <label style="display:flex;align-items:center;gap:6px;height:32px;font-size:13px;color:#64748b;"><input type="checkbox" name="solo_admin" value="1"> 🔒 sì</label>
                   </div>
                   <div>
                     <button type="submit" class="imp-btn imp-btn-primary">+ Crea cartella</button>
@@ -2404,6 +2447,63 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
       });
     });
   }
+})();
+</script>
+
+<style>
+.imp-search-wrap{ display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+.imp-search-input{ max-width:340px; }
+.imp-search-info{ font-size:12px; color:#64748b; }
+</style>
+<script>
+/* Passata leggera Impostazioni — ricerca/filtro live per ogni tab con elenco.
+   Iniettata via JS: nessuna modifica al markup dei singoli tab (additiva, fail-safe). */
+(function () {
+  document.querySelectorAll('.imp-panel').forEach(function (panel) {
+    var lists = panel.querySelectorAll('.imp-list');
+    if (!lists.length) return;
+    var rows = panel.querySelectorAll('.imp-list .imp-row');
+    if (rows.length < 4) return;  // liste cortissime: niente filtro
+
+    var wrap = document.createElement('div');
+    wrap.className = 'imp-search-wrap';
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'imp-input imp-search-input';
+    input.placeholder = 'Filtra in questa sezione…';
+    input.setAttribute('aria-label', 'Filtra elenco');
+    var info = document.createElement('span');
+    info.className = 'imp-search-info';
+    wrap.appendChild(input);
+    wrap.appendChild(info);
+
+    var listCard = lists[0].closest('.imp-card') || lists[0];
+    listCard.parentNode.insertBefore(wrap, listCard);
+
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0, tot = 0;
+      lists.forEach(function (list) {
+        list.querySelectorAll('.imp-row').forEach(function (row) {
+          tot++;
+          var match = !q || (row.textContent || '').toLowerCase().indexOf(q) !== -1;
+          row.style.display = match ? '' : 'none';
+          if (match) shown++;
+        });
+      });
+      // Nascondi i titoli di categoria la cui lista non ha più righe visibili.
+      panel.querySelectorAll('.imp-cat-title').forEach(function (t) {
+        var nxt = t.nextElementSibling;
+        if (nxt && nxt.classList.contains('imp-list')) {
+          var vis = Array.prototype.some.call(nxt.querySelectorAll('.imp-row'), function (r) {
+            return r.style.display !== 'none';
+          });
+          t.style.display = vis ? '' : 'none';
+        }
+      });
+      info.textContent = q ? (shown + ' / ' + tot) : '';
+    });
+  });
 })();
 </script>
 {% endblock %}

@@ -1,29 +1,31 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Ratei Ferie / Permessi | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 <style>
 .rl-page { display:flex; flex-direction:column; gap:14px; }
 .rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
 .rl-btn-ghost { background:#f1f5f9; color:#334155; border-color:#e2e8f0; }
 .rl-btn-ghost:hover { background:#e2e8f0; }
-.rl-btn-primary { background:#12395f; color:#fff; }
-.rl-btn-primary:hover { background:#0e2d4b; }
+.rl-btn-primary { background:#0c2545; color:#fff; }
+.rl-btn-primary:hover { background:#08142d; }
 
 /* Filtri */
 .rl-filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:14px 18px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; box-shadow:0 1px 2px rgba(15,23,42,.04); }
 .rl-filter-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px; }
 .rl-filter-input { padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px; font-size:13px; min-width:180px; }
-.rl-filter-input:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+.rl-filter-input:focus { outline:none; border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 
 /* Multi-select dipendente */
 .rl-dip-wrap { position:relative; min-width:240px; max-width:320px; }
 .rl-dip-search { width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:7px 7px 0 0; font-size:13px; box-sizing:border-box; }
-.rl-dip-search:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+.rl-dip-search:focus { outline:none; border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 .rl-dip-select { width:100%; border:1px solid #cbd5e1; border-top:none; border-radius:0 0 7px 7px; font-size:13px; min-height:110px; max-height:160px; box-sizing:border-box; }
-.rl-dip-select:focus { outline:none; border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
+.rl-dip-select:focus { outline:none; border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,92,145,.14); }
 .rl-dip-hint { font-size:10px; color:#94a3b8; margin-top:3px; }
 
 /* Tabella */
@@ -50,7 +52,7 @@
 .rl-pager { display:flex; gap:6px; justify-content:center; padding:14px; flex-wrap:wrap; }
 .rl-page-btn { padding:5px 12px; border-radius:7px; border:1px solid #e2e8f0; font-size:13px; font-weight:600; color:#334155; background:#f8fafc; cursor:pointer; }
 .rl-page-btn:hover { background:#e2e8f0; }
-.rl-page-btn.active { background:#12395f; color:#fff; border-color:#12395f; cursor:default; }
+.rl-page-btn.active { background:#0c2545; color:#fff; border-color:#0c2545; cursor:default; }
 .rl-empty { padding:40px 24px; text-align:center; color:#94a3b8; font-size:14px; }
 
 /* AB1-D — semaforo allerta ferie */
@@ -71,22 +73,25 @@
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="rl-page">
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd rl-page">
 
-  <!-- Header -->
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Presenze e assenze</div>
-      <h2 class="hr-pagehead-title">📅 Ratei Ferie / Permessi</h2>
-      <p class="hr-pagehead-desc">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
-      <div class="rl-kpi-row">
-        <span class="rl-kpi {% if n_negativi %}red{% endif %}">Ferie negative <b>{{ n_negativi }}</b></span>
-        <span class="rl-kpi {% if n_accumulo %}amber{% endif %}">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <b>{{ n_accumulo }}</b></span>
-        <span class="rl-kpi">In allerta <b>{{ n_allerta }}</b></span>
+  {# ── Hero ───────────────────────────────────────────────────────────── #}
+  <section class="fmd-hero">
+    <div class="fmd-hero-bg" aria-hidden="true"></div>
+    <div class="fmd-hero-inner">
+      <div>
+        <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Presenze e assenze</div>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ratei Ferie / Permessi</h1>
+        <p class="fmd-sub">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.</p>
+        <div class="fmd-hero-actions">
+          <span class="fmd-pill {% if n_negativi %}fmd-pill-red{% else %}fmd-pill-grey{% endif %}">Ferie negative <span class="fmd-pn">{{ n_negativi }}</span></span>
+          <span class="fmd-pill {% if n_accumulo %}fmd-pill-amber{% else %}fmd-pill-grey{% endif %}">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <span class="fmd-pn">{{ n_accumulo }}</span></span>
+          <span class="fmd-pill fmd-pill-grey">In allerta <span class="fmd-pn">{{ n_allerta }}</span></span>
+        </div>
       </div>
     </div>
-    <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti</a>
-  </div>
+  </section>
 
   <!-- Filtri -->
   <form method="get" id="rl-filter-form" class="rl-filter-bar">
@@ -180,7 +185,7 @@
             <td class="rl-td-pin">
               {% if s.semaforo.tono != 'verde' %}<span class="rl-dot rl-dot-{{ s.semaforo.tono }}" title="{{ s.semaforo.motivo }}"></span>{% endif %}
               {% if s.legacy_anagrafica_id %}
-                <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f5c91;text-decoration:none;font-size:13px;font-weight:600;">
+                <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1f87cd;text-decoration:none;font-size:13px;font-weight:600;">
                   {{ s.nome_display }}
                 </a>
               {% else %}

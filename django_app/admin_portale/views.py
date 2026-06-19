@@ -33,7 +33,7 @@ from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, Q
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, Resolver404, get_resolver, resolve, reverse
 from django.utils import timezone
@@ -42,6 +42,8 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 from PIL import Image, UnidentifiedImageError
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, Spacer
 from werkzeug.security import generate_password_hash
 
 from config.env_config import get_first_env_value, load_env_file_values, primary_runtime_env_path, update_env_file_values
@@ -85,6 +87,16 @@ from core.navigation_registry import (
     restore_navigation_snapshot,
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
+from core.branding import get_portal_branding
+from core.pdf import (
+    PDF_TEMPLATE_DEFAULTS,
+    PdfTheme,
+    build_styles,
+    data_table,
+    header_footer_callback,
+    make_document,
+    section_heading,
+)
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from core.models import (
     AnagraficaRisposta,
@@ -10227,6 +10239,69 @@ def _delete_login_landing_files() -> None:
             continue
 
 
+_PDF_TEMPLATE_UPLOAD_DIR = "pdf_template"
+_PDF_TEMPLATE_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+_PDF_TEMPLATE_ALLOWED_MIMES = {"image/png", "image/jpeg"}
+_PDF_TEMPLATE_LOGO_MAX_BYTES = 1024 * 1024
+_HEX_COLOR_FIELD_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _clean_pdf_template_color(value: str, *, label: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    if not _HEX_COLOR_FIELD_RE.match(cleaned):
+        raise ValueError(f"{label}: usa un colore nel formato #RRGGBB.")
+    return cleaned.lower()
+
+
+def _clean_pdf_template_logo_url(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    if not cleaned.startswith("/media/"):
+        raise ValueError("Logo PDF: carica un file o usa un percorso /media/... PNG/JPG.")
+    if os.path.splitext(cleaned.split("?", 1)[0])[1].lower() not in _PDF_TEMPLATE_ALLOWED_EXTENSIONS:
+        raise ValueError("Logo PDF: sono ammessi solo file PNG o JPG.")
+    return cleaned
+
+
+def _clean_pdf_template_footer_text(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if len(cleaned) > 120:
+        raise ValueError("Testo footer PDF: massimo 120 caratteri.")
+    return cleaned
+
+
+def _delete_pdf_template_logo_files() -> None:
+    for ext in _PDF_TEMPLATE_ALLOWED_EXTENSIONS:
+        path = f"{_PDF_TEMPLATE_UPLOAD_DIR}/logo{ext}"
+        try:
+            if default_storage.exists(path):
+                default_storage.delete(path)
+        except Exception:
+            continue
+
+
+def _save_pdf_template_logo(uploaded_file) -> str:
+    validate_extension_and_mime(
+        uploaded_file,
+        allowed_extensions=_PDF_TEMPLATE_ALLOWED_EXTENSIONS,
+        allowed_mimes=_PDF_TEMPLATE_ALLOWED_MIMES,
+        max_bytes=_PDF_TEMPLATE_LOGO_MAX_BYTES,
+        label="Logo PDF",
+    )
+    raw_ext = os.path.splitext(uploaded_file.name)[1].lower()
+    ext = raw_ext if raw_ext in _PDF_TEMPLATE_ALLOWED_EXTENSIONS else ".png"
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+    _delete_pdf_template_logo_files()
+    saved_path = default_storage.save(f"{_PDF_TEMPLATE_UPLOAD_DIR}/logo{ext}", uploaded_file)
+    return default_storage.url(saved_path)
+
+
 @legacy_admin_required
 @require_GET
 def login_config(request):
@@ -10446,6 +10521,145 @@ def api_login_banner_delete(request):
     b.delete()
     _audit_safe(request, "login_banner_delete", "admin_portale", {"banner_id": banner_id})
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# TEMPLATE PDF — grafica condivisa dei report
+# ---------------------------------------------------------------------------
+
+
+@legacy_admin_required
+@require_GET
+def pdf_template_config(request):
+    values = SiteConfig.get_many(PDF_TEMPLATE_DEFAULTS)
+    branding = get_portal_branding()
+    theme = PdfTheme.from_branding()
+    effective_logo_url = str(values.get("pdf_template_logo_url") or "").strip() or branding.brand_logo_full
+    if not theme.logo_path:
+        effective_logo_url = ""
+    return render(
+        request,
+        "admin_portale/pages/pdf_template_config.html",
+        {
+            "values": values,
+            "theme": theme,
+            "pdf_logo_url": values.get("pdf_template_logo_url", ""),
+            "pdf_effective_logo_url": effective_logo_url,
+            "pdf_primary_color": theme.primary,
+            "pdf_accent_color": theme.accent,
+            "pdf_preview_generated_at": timezone.localtime().strftime("%d-%m-%Y %H:%M"),
+        },
+    )
+
+
+@legacy_admin_required
+@require_GET
+def pdf_template_preview(request):
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
+    buffer = BytesIO()
+    doc = make_document(buffer, title="Anteprima template PDF")
+
+    rows = [
+        [
+            Paragraph("Sezione", styles["table_header"]),
+            Paragraph("Elemento", styles["table_header"]),
+            Paragraph("Stato", styles["table_header"]),
+        ],
+        [Paragraph("Header", styles["cell"]), Paragraph("Logo o monogramma", styles["cell"]), Paragraph("Visibile", styles["cell"])],
+        [Paragraph("Palette", styles["cell"]), Paragraph(theme.primary, styles["cell"]), Paragraph("Applicata", styles["cell"])],
+        [Paragraph("Footer", styles["cell"]), Paragraph(theme.footer_text, styles["cell"]), Paragraph("Configurato", styles["cell"])],
+    ]
+
+    story = [
+        Paragraph("Anteprima template PDF", styles["title"]),
+        Paragraph(
+            "Documento sintetico per verificare intestazione, palette, contenuti tabellari e pi&egrave; di pagina.",
+            styles["body"],
+        ),
+        Spacer(1, 6 * mm),
+        *section_heading("Componenti grafici", theme, styles),
+        data_table(rows, theme, col_widths=[54 * mm, 78 * mm, 42 * mm], header=True),
+        Spacer(1, 8 * mm),
+        Paragraph(
+            "Questa anteprima usa dati dimostrativi e legge le impostazioni PDF salvate in Admin Portale.",
+            styles["body"],
+        ),
+    ]
+    draw = header_footer_callback(
+        theme,
+        title="ANTEPRIMA TEMPLATE PDF",
+        subtitle="Documento dimostrativo",
+    )
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = 'inline; filename="anteprima-template-pdf.pdf"'
+    return response
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_pdf_template_config_save(request):
+    changed = {}
+    try:
+        logo_url = request.POST.get("pdf_template_logo_url", "")
+        uploaded_logo = request.FILES.get("pdf_template_logo_file")
+        clear_logo = _normalize_checkbox_flag(request.POST.get("clear_pdf_template_logo")) == "1"
+        if clear_logo:
+            _delete_pdf_template_logo_files()
+            logo_url = ""
+        elif uploaded_logo:
+            logo_url = _save_pdf_template_logo(uploaded_logo)
+        else:
+            logo_url = _clean_pdf_template_logo_url(logo_url)
+
+        fields = {
+            "pdf_template_logo_url": (logo_url, "Logo specifico per intestazione PDF."),
+            "pdf_template_primary_color": (
+                _clean_pdf_template_color(
+                    request.POST.get("pdf_template_primary_color", ""),
+                    label="Colore primario PDF",
+                ),
+                "Colore primario specifico del template PDF.",
+            ),
+            "pdf_template_accent_color": (
+                _clean_pdf_template_color(
+                    request.POST.get("pdf_template_accent_color", ""),
+                    label="Colore accento PDF",
+                ),
+                "Colore accento specifico del template PDF.",
+            ),
+            "pdf_template_footer_text": (
+                _clean_pdf_template_footer_text(request.POST.get("pdf_template_footer_text", "")),
+                "Testo footer condiviso dei PDF.",
+            ),
+            "pdf_template_show_generated_at": (
+                _normalize_checkbox_flag(request.POST.get("pdf_template_show_generated_at")),
+                "Mostra data e ora di generazione nell'intestazione PDF.",
+            ),
+            "pdf_template_show_page_number": (
+                _normalize_checkbox_flag(request.POST.get("pdf_template_show_page_number")),
+                "Mostra numero pagina nel footer PDF.",
+            ),
+        }
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:pdf_template_config")
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:pdf_template_config")
+
+    current = SiteConfig.get_many(PDF_TEMPLATE_DEFAULTS)
+    for key, (value, description) in fields.items():
+        SiteConfig.set(key, value, description)
+        if current.get(key) != value:
+            changed[key] = value
+
+    _audit_safe(request, "pdf_template_config_save", "admin_portale", {"changed_keys": list(changed.keys())})
+    messages.success(request, "Template PDF salvato.")
+    return redirect("admin_portale:pdf_template_config")
 
 
 # ---------------------------------------------------------------------------

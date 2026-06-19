@@ -5,12 +5,13 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 <style>
 /* ── Chips filtro scadenze ───────────────────────────────── */
 .vm-chip { padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none;
   border:1px solid #e2e8f0; background:#f1f5f9; color:#475569; }
 .vm-chip:hover { background:#e2e8f0; }
-.vm-chip.active { background:#12395f; color:#fff; border-color:#12395f; }
+.vm-chip.active { background:#0c2545; color:#fff; border-color:#0c2545; }
 .vm-excel { padding:6px 12px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;
   border-radius:9px; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; }
 body.theme-dark .vm-chip { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
@@ -28,7 +29,7 @@ body.theme-dark .hr-collapse-btn:hover { background:var(--surface-alt); color:va
 /* ── Separatore raggruppamento per data ──────────────────── */
 .hr-table-group-sep td {
   padding:6px 14px; font-size:11px; font-weight:800; text-transform:uppercase;
-  letter-spacing:.06em; color:#1f5c91; background:#f0f6ff;
+  letter-spacing:.06em; color:#1f87cd; background:#f0f6ff;
   border-top:2px solid #dbeafe; border-bottom:1px solid #dbeafe;
 }
 body.theme-dark .hr-table-group-sep td {
@@ -46,7 +47,7 @@ body.theme-dark .hr-table-group-sep td {
   margin-right:6px; flex-shrink:0;
 }
 .tipo-row.tipo-active .tipo-toggle-ico {
-  transform:rotate(90deg); background:#dbeafe; color:#1f5c91;
+  transform:rotate(90deg); background:#dbeafe; color:#1f87cd;
 }
 body.theme-dark .tipo-row:hover td { background:rgba(31,92,145,.12) !important; }
 body.theme-dark .tipo-row.tipo-active td { background:rgba(31,92,145,.18) !important; }
@@ -63,7 +64,7 @@ body.theme-dark .tipo-detail-row > td { background:var(--surface-alt); border-co
   to   { opacity:1; transform:none; }
 }
 .tipo-detail-heading {
-  font-size:13px; font-weight:800; color:#12395f; margin-bottom:12px;
+  font-size:13px; font-weight:800; color:#0c2545; margin-bottom:12px;
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
 }
 body.theme-dark .tipo-detail-heading { color:#93c5fd; }
@@ -90,7 +91,7 @@ body.theme-dark .tipo-detail-col { background:var(--surface); border-color:var(-
   padding:7px 12px; font-size:12px; border-bottom:1px solid #f1f5f9;
 }
 .tipo-detail-dip:last-child { border-bottom:none; }
-.tipo-detail-dip a { color:#12395f; font-weight:700; text-decoration:none; min-width:0; flex:1; }
+.tipo-detail-dip a { color:#0c2545; font-weight:700; text-decoration:none; min-width:0; flex:1; }
 .tipo-detail-dip a:hover { text-decoration:underline; }
 .tipo-detail-empty { padding:14px; text-align:center; font-size:12px; color:#94a3b8; }
 body.theme-dark .tipo-detail-dip { border-color:var(--border); }
@@ -101,51 +102,37 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd hr-shell">
 
-  <!-- Page header -->
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Sorveglianza sanitaria</div>
-      <h2 class="hr-pagehead-title">Visite mediche</h2>
-      <p class="hr-pagehead-desc">Scadenze, copertura per tipologia e ultime visite registrate. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
+  {# ── Hero ───────────────────────────────────────────────────────────── #}
+  <section class="fmd-hero">
+    <div class="fmd-hero-bg" aria-hidden="true"></div>
+    <div class="fmd-hero-inner">
+      <div>
+        <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Sorveglianza sanitaria</div>
+        <h1><svg class="fmd-ico fmd-cap"><use href="#i-pill"/></svg>Visite mediche</h1>
+        <p class="fmd-sub">Scadenze, copertura per tipologia e ultime visite registrate. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
+        {% if can_manage %}
+        <div class="fmd-hero-actions">
+          <a class="fmd-btn-template" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Registra sessione</a>
+        </div>
+        {% endif %}
+      </div>
+      <div class="fmd-hero-side">
+        <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi_scadute }}</span><span class="fmd-lbl">Scadute</span></div>
+        <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi_totali }}</span><span class="fmd-lbl">Registrate</span></div>
+      </div>
     </div>
-    {% if can_manage %}
-    <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}" class="hr-btn hr-btn-primary">+ Registra sessione</a>
-    {% endif %}
-  </div>
+  </section>
 
   {# ── KPI ──────────────────────────────────────────────────────────────── #}
-  <div class="hr-metric-grid">
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⚠️</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Scadute</span><span class="hr-metric-val">{{ kpi_scadute }}</span></div>
-        <div class="hr-metric-sub">Da pianificare con priorità</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">🕑</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza ≤60g</span><span class="hr-metric-val">{{ kpi_in_scad }}</span></div>
-        <div class="hr-metric-sub">Visite in avvicinamento</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">🏥</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Visite registrate</span><span class="hr-metric-val">{{ kpi_totali }}</span></div>
-        <div class="hr-metric-sub">Totale a sistema</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico navy">📋</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Tipologie attive</span><span class="hr-metric-val">{{ kpi_tipi_attivi }}</span></div>
-        <div class="hr-metric-sub">Catalogo visite</div>
-      </div>
-    </div>
-  </div>
+  <section class="fmd-kpi fmd-k4">
+    <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da pianificare con priorità</div></div>
+    <div class="fmd-mtr fmd-t-yellow"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scad }}</span></div><div class="fmd-mtr-lbl">In scadenza ≤60g</div><div class="fmd-mtr-sub">Visite in avvicinamento</div></div>
+    <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ kpi_totali }}</span></div><div class="fmd-mtr-lbl">Visite registrate</div><div class="fmd-mtr-sub">Totale a sistema</div></div>
+    <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-pill"/></svg></span><span class="fmd-mtr-val">{{ kpi_tipi_attivi }}</span></div><div class="fmd-mtr-lbl">Tipologie attive</div><div class="fmd-mtr-sub">Catalogo visite</div></div>
+  </section>
 
   {# ── Scadute / in scadenza ─────────────────────────────────────────────── #}
   <div class="hr-card" id="card-scad">
@@ -179,7 +166,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
             <tr class="hr-table-group-sep"><td colspan="5">📅 {{ mese_group.grouper }}</td></tr>
             {% for v in mese_group.list %}
             <tr>
-              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#12395f;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
+              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
               <td>{{ v.tipo.nome }}</td>
               <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
               <td data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
@@ -359,7 +346,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
             {% for v in mese_group.list %}
             <tr>
               <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
-              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#12395f;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
+              <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
               <td>{{ v.tipo.nome }}</td>
               <td>{{ v.get_esito_display }}</td>
               <td>
@@ -369,7 +356,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
               </td>
               <td>
                 {% if v.referto_documento_id %}
-                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f5c91;font-weight:700;">📄 Scarica</a>
+                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f87cd;font-weight:700;">📄 Scarica</a>
                 {% else %}
                   <span style="color:#94a3b8;">—</span>
                 {% endif %}

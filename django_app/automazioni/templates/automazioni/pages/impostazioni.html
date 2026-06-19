@@ -185,9 +185,9 @@
                 {% endif %}
               </h2>
               <p class="ms-card-subtitle">
-                Invio automatico di un riepilogo email delle <strong>visite mediche</strong> e dei
-                <strong>contratti / periodi di prova</strong> in scadenza. Cadenza:
-                <strong>{{ scadenze_config.cadenza_label }}</strong>.
+                Invio automatico di un riepilogo email delle <strong>visite mediche</strong>, dei
+                <strong>contratti / periodi di prova</strong> e delle <strong>qualifiche / abilitazioni</strong>
+                in scadenza. Cadenza: <strong>{{ scadenze_config.cadenza_label }}</strong>.
               </p>
             </div>
           </div>
@@ -221,6 +221,10 @@
                   <input type="checkbox" name="scadenze_includi_contratti" value="1" {% if scadenze_config.includi_contratti %}checked{% endif %}>
                   Contratti e periodi di prova
                 </label>
+                <label class="ms-checkbox">
+                  <input type="checkbox" name="scadenze_includi_qualifiche" value="1" {% if scadenze_config.includi_qualifiche %}checked{% endif %}>
+                  Qualifiche e abilitazioni
+                </label>
               </div>
 
               <div class="ms-field">
@@ -236,6 +240,14 @@
                 <input id="scadenze_email_contratti" type="text"
                        name="scadenze_email_contratti" value="{{ scadenze_config.email_contratti_raw }}"
                        placeholder="personale@azienda.it">
+                <span class="ms-field-help">Una o più email separate da virgola. Vuoto = usa il mittente di sistema.</span>
+              </div>
+
+              <div class="ms-field">
+                <label for="scadenze_email_qualifiche">Destinatari qualifiche / abilitazioni</label>
+                <input id="scadenze_email_qualifiche" type="text"
+                       name="scadenze_email_qualifiche" value="{{ scadenze_config.email_qualifiche_raw }}"
+                       placeholder="formazione@azienda.it, rspp@azienda.it">
                 <span class="ms-field-help">Una o più email separate da virgola. Vuoto = usa il mittente di sistema.</span>
               </div>
 

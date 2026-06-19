@@ -254,13 +254,13 @@ body.theme-dark .mi-rule-label { color:#475569; }
 
   <!-- TAB: TEMPLATE E REGOLE ───────────────────────────────────────── -->
   {% if active_tab == 'templates' %}
-  <div class="mi-card">
-    <div class="mi-card-head">
+  <details class="mi-card as-collapse as-collapse--cap" open>
+    <summary class="mi-card-head">
       <span class="mi-card-title">Template di intervento</span>
       <a href="{{ url_templates_advanced }}" class="mi-link">Vista avanzata &middot; filtri</a>
       <a href="{% url 'assets:maintenance_template_create' %}" class="mi-new-btn">+ Nuovo template</a>
-    </div>
-    <div class="mi-table-wrap">
+    </summary>
+    <div class="mi-table-wrap as-collapse-body">
       <table class="mi-table">
         <thead><tr>
           <th scope="col" aria-label="Espandi"></th>
@@ -361,18 +361,18 @@ body.theme-dark .mi-rule-label { color:#475569; }
         {% endif %}
       </table>
     </div>
-  </div>
+  </details>
   {% endif %}
 
   <!-- TAB: REGOLE ATTIVE ───────────────────────────────────────────── -->
   {% if active_tab == 'rules' %}
-  <div class="mi-card">
-    <div class="mi-card-head">
+  <details class="mi-card as-collapse as-collapse--cap" open>
+    <summary class="mi-card-head">
       <span class="mi-card-title">Regole manutenzione attive</span>
       <a href="{{ url_rules_advanced }}" class="mi-link">Vista avanzata &middot; filtri</a>
       <a href="{% url 'assets:maintenance_rule_create' %}" class="mi-new-btn">+ Nuova regola</a>
-    </div>
-    <div class="mi-table-wrap">
+    </summary>
+    <div class="mi-table-wrap as-collapse-body">
       <table class="mi-table">
         <thead><tr>
           <th scope="col">Categoria asset</th>
@@ -385,7 +385,7 @@ body.theme-dark .mi-rule-label { color:#475569; }
         <tbody>
           {% if rule_qs %}
             {% for rule in rule_qs %}
-            <tr>
+            <tr data-row-href="{% url 'assets:maintenance_rule_edit' rule.id %}">
               <td>
                 <span class="mi-tag">{{ rule.asset_category.label }}</span>
               </td>
@@ -418,22 +418,22 @@ body.theme-dark .mi-rule-label { color:#475569; }
         </tbody>
       </table>
     </div>
-  </div>
+  </details>
   {% endif %}
 
   <!-- TAB: PIANO PER CATEGORIA ──────────────────────────────────────── -->
   {% if active_tab == 'piano' %}
-  <div class="mi-card">
-    <div class="mi-card-head">
+  <details class="mi-card as-collapse as-collapse--cap" open>
+    <summary class="mi-card-head">
       <span class="mi-card-title">Piano di manutenzione per categoria</span>
       <a href="{{ url_schedule }}" class="mi-link">Apri scadenzario operativo &rsaquo;</a>
-    </div>
+    </summary>
     <div class="mi-plan-intro">
       Salute della manutenzione programmata per categoria asset: regole <strong>a giorni</strong> e
       <strong>a contatore</strong> (ore/km/cicli, valutate sui contatori <code>AssetMeter</code> correnti).
       Da qui apri lo scadenzario operativo filtrato sulla categoria.
     </div>
-    <div class="mi-table-wrap">
+    <div class="mi-table-wrap as-collapse-body">
       <table class="mi-table">
         <thead><tr>
           <th scope="col">Categoria</th>
@@ -448,7 +448,7 @@ body.theme-dark .mi-rule-label { color:#475569; }
         <tbody>
           {% if plan_rows %}
             {% for r in plan_rows %}
-            <tr>
+            <tr data-row-href="{{ r.schedule_url }}">
               <td><strong>{{ r.category.label }}</strong></td>
               <td>
                 <span class="mi-badge">{{ r.rules_count }}</span>
@@ -478,7 +478,7 @@ body.theme-dark .mi-rule-label { color:#475569; }
         </tbody>
       </table>
     </div>
-  </div>
+  </details>
   {% endif %}
 
 </div>

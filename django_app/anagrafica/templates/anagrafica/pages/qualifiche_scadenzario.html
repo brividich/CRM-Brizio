@@ -1,0 +1,154 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Scadenzario qualifiche | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-alarm"/></svg>Scadenzario qualifiche</h1>
+          <p class="fmd-sub">Tutte le qualifiche e certificazioni dei dipendenti con stato di validità. I promemoria email sono gestiti dal <a href="{% url 'automazioni:automazioni_settings' %}" class="fmd-data-link">report scadenze (automazioni)</a>.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_dashboard' %}">
+              <svg class="fmd-ico"><use href="#i-cap"/></svg>Torna al cruscotto
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── Filtri ─────────────────────────────────────────────────────────── #}
+    <div class="fmd-panel" style="margin-bottom:16px;">
+      <form method="get" class="fmd-toolbar" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Stato
+          <select name="stato" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
+            <option value="" {% if filtro_stato == "" %}selected{% endif %}>Da gestire (scadute + ≤60gg)</option>
+            <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Solo scadute</option>
+            <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>In scadenza ≤30gg</option>
+            <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>In scadenza ≤60gg</option>
+            <option value="valide" {% if filtro_stato == "valide" %}selected{% endif %}>Solo valide</option>
+            <option value="tutte" {% if filtro_stato == "tutte" %}selected{% endif %}>Tutte</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Categoria
+          <select name="categoria" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
+            <option value="">Tutte</option>
+            {% for code, label in CATEGORIA_CHOICES %}
+            <option value="{{ code }}" {% if filtro_categoria == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Tipo
+          <select name="tipo" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;max-width:240px;">
+            <option value="">Tutti</option>
+            {% for t in tipi_opts %}
+            <option value="{{ t.id }}" {% if filtro_tipo == t.id|stringformat:"s" %}selected{% endif %}>{{ t.nome }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Reparto
+          <select name="reparto" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
+            <option value="">Tutti</option>
+            {% for r in reparti %}
+            <option value="{{ r }}" {% if filtro_reparto == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a class="fmd-btn fmd-btn-ghost"
+           href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}">
+          <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV
+        </a>
+      </form>
+    </div>
+
+    {# ── Tabella ────────────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Qualifiche <span class="fmd-count">{{ totale }}</span></div>
+        <div class="fmd-block-aside">
+          {{ counts.scaduta }} scadute · {{ counts.s30 }} ≤30gg · {{ counts.s60 }} ≤60gg · {{ counts.valida }} valide
+        </div>
+      </div>
+
+      {% if voci %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr>
+              <th>Dipendente</th>
+              <th>Reparto</th>
+              <th>Qualifica</th>
+              <th>Categoria</th>
+              <th>Ente</th>
+              <th class="fmd-nowrap">Conseguim.</th>
+              <th class="fmd-nowrap">Scadenza</th>
+              <th class="fmd-r">Giorni</th>
+              <th>Stato</th>
+              <th>Evidenza</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in voci %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">{{ v.dipendente }}</a>
+                <span class="fmd-code" style="margin-left:5px;">#{{ v.legacy_id }}</span>
+              </td>
+              <td class="fmd-muted">{{ v.reparto|default:"—" }}</td>
+              <td>{{ v.tipo_nome }}{% if v.numero %} <span class="fmd-code">{{ v.numero }}</span>{% endif %}{% if v.livello %} <span class="fmd-muted">· {{ v.livello }}</span>{% endif %}</td>
+              <td class="fmd-muted">{{ v.categoria }}</td>
+              <td class="fmd-muted">{{ v.ente|default:"—" }}</td>
+              <td class="fmd-nowrap fmd-muted">{% if v.data_conseguimento %}{{ v.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td class="fmd-nowrap fmd-muted">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+              <td class="fmd-r">
+                {% if v.giorni is None %}
+                  <span class="fmd-muted">—</span>
+                {% elif v.giorni < 0 %}
+                  <span class="fmd-num" style="color:#c53030;">{{ v.giorni }}gg</span>
+                {% elif v.giorni <= 30 %}
+                  <span class="fmd-num" style="color:#c2410c;">+{{ v.giorni }}gg</span>
+                {% else %}
+                  <span class="fmd-num fmd-muted">+{{ v.giorni }}gg</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if v.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>
+                {% elif v.stato == "s30" %}<span class="fmd-badge fmd-b-orange">≤30gg</span>
+                {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤60gg</span>
+                {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
+                {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
+              </td>
+              <td>
+                {% if v.verificata %}<span class="fmd-badge fmd-b-green">✓ Verif.</span>
+                {% elif v.ha_evidenza %}<span class="fmd-badge fmd-b-amber">Da verif.</span>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessuna qualifica corrisponde ai filtri selezionati.</div>
+      {% endif %}
+    </section>
+
+  </div>
+</div>
+{% endblock %}

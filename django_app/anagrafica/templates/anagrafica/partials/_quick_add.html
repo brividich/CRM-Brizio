@@ -1,0 +1,81 @@
+{# Quick-add inline (modale) per le entità collegate dei form formazione. #}
+{# Auto-aggancia un pulsante "+ nuovo" ai select in pagina (name piano/categoria/qualifica/docente), #}
+{# crea l'entità al volo via endpoint JSON e la appende+seleziona senza ricaricare. #}
+{# Richiede il tag csrf_token nella pagina che include questo partial. #}
+<div id="qa-modal" style="display:none;position:fixed;inset:0;z-index:1100;align-items:center;
+     justify-content:center;background:rgba(0,0,0,.4);">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;width:460px;max-width:95vw;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <strong id="qa-title" style="font-size:15px;color:#0c2545;">Nuovo</strong>
+      <button type="button" onclick="qaClose()" style="background:none;border:none;font-size:20px;cursor:pointer;">&times;</button>
+    </div>
+    <div id="qa-fields"></div>
+    <div id="qa-error" style="display:none;color:#b91c1c;font-size:12px;margin-top:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button type="button" class="hr-btn hr-btn-ghost" onclick="qaClose()">Annulla</button>
+      <button type="button" class="hr-btn hr-btn-primary" id="qa-save" onclick="qaSave()">Crea</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const CFG = {
+    piano:     {url: "{% url 'anagrafica:formazione_quickadd_piano' %}",     title: "Nuovo piano formativo",
+                fields: [{n:"codice",l:"Codice *",up:true},{n:"nome",l:"Nome *"}]},
+    categoria: {url: "{% url 'anagrafica:formazione_quickadd_categoria' %}", title: "Nuova categoria corso",
+                fields: [{n:"codice",l:"Codice *",up:true},{n:"nome",l:"Nome *"}]},
+    qualifica: {url: "{% url 'anagrafica:formazione_quickadd_qualifica' %}", title: "Nuova qualifica / abilitazione",
+                fields: [{n:"nome",l:"Nome *"},{n:"durata_mesi",l:"Validità (mesi, 0 = una tantum)",type:"number"}]},
+    docente:   {url: "{% url 'anagrafica:formazione_quickadd_docente' %}",   title: "Nuovo docente / formatore",
+                fields: [{n:"nome",l:"Nome *"}]},
+  };
+  let current = null;
+  const csrf = () => (document.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
+  window.qaClose = function(){ document.getElementById('qa-modal').style.display = 'none'; };
+  function qaOpen(key, select){
+    current = {key: key, select: select, cfg: CFG[key]};
+    document.getElementById('qa-title').textContent = CFG[key].title;
+    document.getElementById('qa-error').style.display = 'none';
+    document.getElementById('qa-fields').innerHTML = CFG[key].fields.map(function(f){
+      return '<div style="margin-bottom:10px;"><label style="font-size:12px;font-weight:600;color:#475569;'
+        + 'display:block;margin-bottom:4px;">' + f.l + '</label>'
+        + '<input data-qa="' + f.n + '" type="' + (f.type || 'text') + '" class="fm-input"'
+        + (f.up ? ' style="text-transform:uppercase;"' : '') + '></div>';
+    }).join('');
+    document.getElementById('qa-modal').style.display = 'flex';
+    const first = document.querySelector('#qa-fields input'); if (first) first.focus();
+  }
+  window.qaSave = async function(){
+    if (!current) return;
+    const body = new URLSearchParams();
+    body.append('csrfmiddlewaretoken', csrf());
+    document.querySelectorAll('#qa-fields input').forEach(function(i){ body.append(i.dataset.qa, (i.value || '').trim()); });
+    const btn = document.getElementById('qa-save'); btn.disabled = true;
+    try {
+      const r = await fetch(current.cfg.url, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body: body});
+      const data = await r.json();
+      if (!r.ok || !data.ok) { throw new Error(data.error || 'Errore durante la creazione.'); }
+      const opt = new Option(data.label, data.id, true, true);
+      current.select.add(opt);
+      current.select.dispatchEvent(new Event('change', {bubbles:true}));
+      qaClose();
+    } catch (e) {
+      const err = document.getElementById('qa-error'); err.textContent = e.message; err.style.display = 'block';
+    } finally { btn.disabled = false; }
+  };
+  document.addEventListener('DOMContentLoaded', function(){
+    Object.keys(CFG).forEach(function(key){
+      document.querySelectorAll('select[name="' + key + '"]').forEach(function(sel){
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'fmd-qa-add'; b.textContent = '+ nuovo';
+        {# stile self-contained: coerente su pagine fmd e legacy hr senza dipendere da framework #}
+        b.style.cssText = 'align-self:flex-start;margin-top:6px;padding:5px 11px;font:inherit;'
+          + 'font-size:11.5px;font-weight:700;line-height:1;color:#1565a8;background:#e8f3fb;'
+          + 'border:1px solid #bfdded;border-radius:7px;cursor:pointer;';
+        b.addEventListener('click', function(){ qaOpen(key, sel); });
+        sel.insertAdjacentElement('afterend', b);
+      });
+    });
+  });
+})();
+</script>

@@ -5,38 +5,52 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" style="color:#94a3b8;text-decoration:none;">Sessioni</a>
-        &rsaquo; {% if modo == "crea" %}Nuova{% else %}Modifica{% endif %}
-      </div>
-      <h2 class="hr-pagehead-title">{% if modo == "crea" %}Nuova sessione formativa{% else %}Modifica sessione{% endif %}</h2>
-    </div>
-  </div>
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:920px;">
 
-  <div class="hr-card">
-    <form method="post">
-      {% csrf_token %}
-      <div class="hr-card-pad" style="padding:20px 24px;">
-        {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
-        <div style="display:flex;gap:8px;margin-top:20px;">
-          <button type="submit" class="hr-btn hr-btn-primary">
-            {% if modo == "crea" %}Crea sessione{% else %}Salva modifiche{% endif %}
-          </button>
-          <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_sessioni_list' %}">Sessioni</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">{% if modo == "crea" %}Nuova{% else %}Modifica{% endif %}</span>
         </div>
+        <h1>
+          <svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cal-clock"/></svg>
+          {% if modo == "crea" %}Nuova sessione formativa{% else %}Modifica sessione{% endif %}
+        </h1>
+      </div>
+    </div>
+
+    <form method="post" class="fmd-panel">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
+      {% endif %}
+      <div class="fmd-form-sec">
+        {% include "anagrafica/partials/_fmd_form_fields.html" with form=form %}
+      </div>
+      <div class="fmd-form-foot">
+        <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
+        <span class="fmd-spacer"></span>
+        <a href="{% url 'anagrafica:formazione_sessioni_list' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        <button type="submit" class="fmd-btn fmd-btn-primary">
+          <svg class="fmd-ico"><use href="#i-check"/></svg>{% if modo == "crea" %}Crea sessione{% else %}Salva modifiche{% endif %}
+        </button>
       </div>
     </form>
-  </div>
 
-</div>
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
+{% include "anagrafica/partials/_quick_add.html" %}
 {% endblock %}

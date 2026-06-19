@@ -236,3 +236,12 @@ tools/db_documentazione.html
 # Non devono stare nel repository. Tenuti su disco ma fuori dal tracking.
 django_app/medical-examinations-people.xlsx
 docs/assets/Cartel1.ticket_import.csv
+Programmazione 2026 ASR.xlsx
+MOD.155 - VCD Verbale Consegna DPI Rev.2.pdf
+# Export/dati PROD e fogli di lavoro collaudo/manutenzione (non versionare)
+assets_prod.csv
+Causali manutenzione.xlsx
+movimenti collado.xlsx
+storico collaudo.xlsx
+docs/assets/riconciliazione_collaudo_macchine.xlsx
+docs/assets/riconciliazione_collaudo_macchine_PROD.xlsx

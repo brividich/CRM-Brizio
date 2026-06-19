@@ -21,8 +21,13 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | [11_FEATURE_BACKLOG.md](11_FEATURE_BACKLOG.md) | Backlog funzionalità pianificate (competitive analysis). Checklist di avanzamento per modulo con priorità e note tecniche. |
 | [12_AI_RUNTIME_TOOLS_TODOLIST.md](12_AI_RUNTIME_TOOLS_TODOLIST.md) | Piano dettagliato per estendere l'Assistente AI ai dati live del portale con tool runtime, ACL e audit metadata-only. |
 | [13_AI_GOVERNANCE.md](13_AI_GOVERNANCE.md) | Governance AI Fase 5: matrice campi consentiti/vietati per modulo, policy retention audit e FAQ, prompt di sistema, runbook operativo. |
+| [13_AI_GOVERNANCE_PREDICTIVE_POLICY.md](13_AI_GOVERNANCE_PREDICTIVE_POLICY.md) | Policy operativa Assistente AI: confini ACL server-side, niente salvataggi automatici di prompt/dati, tracciabilità via fonti o `tool:*`, funzioni predittive assistive ed esplicabili. |
 | [PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md](PIANO_ACL_FASE2_DISMISSIONE_LEGACY.md) | Piano operativo per chiudere il doppio sistema ACL (legacy+canonico): moduli interessati, procedura per modulo, trappola dei filtri `--app`/`--apps`, ordine e rischi. Autosufficiente per una nuova sessione. |
 | [CHECKLIST_ATTIVAZIONE_ACL_STRICT_PROD.md](CHECKLIST_ATTIVAZIONE_ACL_STRICT_PROD.md) | Checklist operativa per attivare `ACL_STRICT_CANONICAL` in prod (misura readiness, UAT, prod, rollback) e per la pulizia del codice legacy (≥ 2026-06-19). |
+| [ASSET_MAINTENANCE_PLAN.md](ASSET_MAINTENANCE_PLAN.md) | Diagnosi + roadmap a fasi del dominio Asset/Manutenzioni (dashboard → template → regole → viste → report): anelli rotti del ciclo di vita e ordine di intervento. |
+| [AUTOMATION_PACKAGE_REFERENCE.md](AUTOMATION_PACKAGE_REFERENCE.md) | Reference autonomo per generare file `.automation_package.json` importabili nel modulo Automazioni: struttura package, nodi, esempi. |
+| [RUNBOOK_PROD_DEPLOY_E_MAIL_ANOMALIE.md](RUNBOOK_PROD_DEPLOY_E_MAIL_ANOMALIE.md) | Topologia deploy PROD/TEST (server `pclogsys`, share `X:`/`Y:`) e runbook dell'incidente 401 sulla mail anomalie CC/CAR. |
+| [TABELLE_PERSONALIZZABILI.md](TABELLE_PERSONALIZZABILI.md) | Infrastruttura tabelle personalizzabili per-utente (`UserTablePreference`): sort/filtro/ricerca/visibilità/ordine per colonna, rollout client-side globale. |
 
 ## Rule Of Thumb
 

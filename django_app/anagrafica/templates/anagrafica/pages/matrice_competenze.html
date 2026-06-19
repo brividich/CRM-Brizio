@@ -1,0 +1,118 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Matrice competenze | Salute e Sicurezza{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.mc-wrap { overflow-x:auto; border:1px solid #e2e8f0; border-radius:8px; }
+.mc-table { border-collapse:collapse; font-size:12px; min-width:100%; }
+.mc-table th, .mc-table td { border:1px solid #eef2f7; padding:6px 8px; text-align:center; white-space:nowrap; }
+.mc-table thead th { background:#f8fafc; font-size:10.5px; font-weight:700; color:#475569;
+  position:sticky; top:0; z-index:2; }
+.mc-table th.mc-rot { height:120px; vertical-align:bottom; padding:4px; }
+.mc-table th.mc-rot > div { transform:rotate(-60deg); width:22px; }
+.mc-table th.mc-rot span { padding:2px 4px; }
+.mc-dip { text-align:left !important; position:sticky; left:0; background:#fff; z-index:1; font-weight:600; }
+.mc-dip small { color:#94a3b8; font-weight:400; }
+.mc-cell-valido { background:#dcfce7; color:#166534; font-weight:700; }
+.mc-cell-in_scadenza { background:#fef9c3; color:#854d0e; font-weight:700; }
+.mc-cell-scaduto { background:#fee2e2; color:#991b1b; font-weight:700; }
+.mc-cell-mancante { color:#cbd5e1; }
+.mc-dip a { color:#1f87cd; text-decoration:none; }
+.mc-dip a:hover { text-decoration:underline; }
+.mc-tabs { display:flex; flex-wrap:wrap; gap:6px; }
+.mc-tabs a { border:1px solid #e2e8f0; border-radius:999px; padding:6px 13px; font-size:13px; font-weight:700; color:#475569; text-decoration:none; background:#fff; }
+.mc-tabs a:hover { background:#f1f5f9; color:#0c2545; }
+.mc-tabs a.active { background:#0c2545; color:#fff; border-color:#0c2545; }
+.mc-tabs .cnt { opacity:.7; font-size:11px; font-weight:800; }
+.mc-legend { display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:12px; color:#475569; padding:11px 16px; border-bottom:1px solid #eef2f7; }
+.mc-legend .sw { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:middle; margin-right:5px; }
+body.theme-dark .mc-table thead th { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .mc-dip { background:var(--surface); }
+body.theme-dark .mc-tabs a { background:var(--surface); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .mc-tabs a:hover { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .mc-legend { color:var(--text-mid); border-color:var(--border); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  {% include "anagrafica/partials/_safety_subnav.html" with active="matrice" %}
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-crumb">Salute e Sicurezza</a>
+        <span class="fm-crumb-sep">›</span> Matrice competenze
+      </div>
+      <h2 class="hr-pagehead-title">📊 Matrice competenze</h2>
+      <p class="hr-pagehead-desc">Dipendenti × abilitazioni/qualifiche per audit ISO 45001: valido · in scadenza (≤60gg) · scaduto · non posseduto.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-outline" href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}{% if active_categoria %}categoria={{ active_categoria }}&{% endif %}format=csv">⬇ Esporta CSV</a>
+      <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
+    </div>
+  </div>
+
+  <nav class="mc-tabs" aria-label="Filtra competenze per categoria">
+    {% for code, label, count in tabs %}
+      <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}{% if code %}categoria={{ code }}{% endif %}" class="{% if active_categoria == code %}active{% endif %}">{{ label }} <span class="cnt">{{ count }}</span></a>
+    {% endfor %}
+  </nav>
+
+  <div class="hr-card" style="padding:12px 16px;">
+    <form method="get" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Reparto</label>
+        <select name="reparto" onchange="this.form.submit()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 11px;font-size:13px;">
+          <option value="">Tutti</option>
+          {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <span class="muted" style="font-size:12px;color:#94a3b8;">{{ totale }} dipendenti · {{ tipi|length }} competenze</span>
+    </form>
+  </div>
+
+  <div class="hr-card" style="padding:0;">
+    {% if righe and tipi %}
+    <div class="mc-legend">
+      <span><span class="sw" style="background:#dcfce7;"></span>✓ Valido</span>
+      <span><span class="sw" style="background:#fef9c3;"></span>⚠ In scadenza (≤60gg)</span>
+      <span><span class="sw" style="background:#fee2e2;"></span>✗ Scaduto</span>
+      <span><span class="sw" style="background:#f1f5f9;"></span>— Non posseduto</span>
+    </div>
+    <div class="mc-wrap">
+      <table class="mc-table">
+        <thead>
+          <tr>
+            <th class="mc-dip" style="text-align:left;">Dipendente</th>
+            {% for t in tipi %}<th class="mc-rot"><div><a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" title="{{ t.nome }} — apri scheda e pianifica rinnovo" style="color:inherit;text-decoration:none;">{{ t.nome|truncatechars:28 }}</a></div></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td class="mc-dip"><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.cognome }} {{ r.nome }}</a>{% if r.reparto %}<br><small>{{ r.reparto }}</small>{% endif %}</td>
+            {% for c in r.celle %}
+            <td class="mc-cell-{{ c.stato }}" title="{% if c.data %}scadenza {{ c.data|date:'d/m/Y' }}{% elif c.stato == 'valido' %}valido{% else %}non posseduto{% endif %}">
+              {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}⚠{% elif c.stato == 'scaduto' %}✗{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="fm-empty" style="padding:24px;">Nessun dato: servono dipendenti attivi e qualifiche assegnate (vedi import ASR o assegnazione manuale).</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

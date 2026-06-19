@@ -10,8 +10,8 @@
 .dc-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .dc-sub   { font-size:13px; color:#64748b; margin-top:2px; }
 .dc-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
-.dc-btn-primary { background:#12395f; color:#fff; }
-.dc-btn-primary:hover { background:#0e2d4b; }
+.dc-btn-primary { background:#0c2545; color:#fff; }
+.dc-btn-primary:hover { background:#08142d; }
 .dc-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
 .dc-btn-ghost:hover { background:#e2e8f0; }
 
@@ -36,7 +36,7 @@
   font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.07em;
   margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;
 }
-.dc-area-title::before { content:''; display:block; width:3px; height:14px; border-radius:2px; background:#1f5c91; }
+.dc-area-title::before { content:''; display:block; width:3px; height:14px; border-radius:2px; background:#1f87cd; }
 
 /* ── Griglia campi ── */
 .dc-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
@@ -46,11 +46,11 @@
 .dc-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
 .dc-label .dc-required { color:#ef4444; margin-left:2px; }
 .dc-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 11px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
-.dc-input:focus { border-color:#1f5c91; background:#fff; }
+.dc-input:focus { border-color:#1f87cd; background:#fff; }
 .dc-input.has-error { border-color:#ef4444; background:#fff5f5; }
 .dc-error { font-size:11px; color:#b91c1c; margin-top:2px; }
 .dc-checkrow { display:flex; align-items:center; gap:8px; font-size:13px; color:#334155; padding:4px 0; }
-.dc-checkrow input[type=checkbox] { width:15px; height:15px; accent-color:#1f5c91; cursor:pointer; }
+.dc-checkrow input[type=checkbox] { width:15px; height:15px; accent-color:#1f87cd; cursor:pointer; }
 
 /* ── Avvisi HR ── */
 .dc-hr-notice { display:flex; align-items:center; gap:8px; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; font-size:12px; font-weight:600; color:#92400e; margin-bottom:16px; }
@@ -68,7 +68,7 @@
 }
 .dc-field input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.dc-input):focus,
 .dc-field select:not(.dc-input):focus,
-.dc-field textarea:not(.dc-input):focus { border-color:#1f5c91; background:#fff; }
+.dc-field textarea:not(.dc-input):focus { border-color:#1f87cd; background:#fff; }
 
 /* ── Dark mode ── */
 body.theme-dark .dc-title { color:var(--text); }
@@ -583,6 +583,34 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
           </div>
         </div>
 
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Formazione sicurezza pregressa ── -->
+    {% if formazione_sicurezza_corsi %}
+    <div class="dc-card">
+      <div class="dc-card-head">
+        <div class="dc-card-title">🎓 Formazione sicurezza pregressa</div>
+        <div class="dc-card-sub">Dichiara i corsi di sicurezza già frequentati dal nuovo assunto (con la data). Verranno registrati nello storico e contribuiranno all'idoneità alla mansione.</div>
+      </div>
+      <div class="dc-card-body">
+        <table class="dc-table" style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Già fatto</th>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Corso</th>
+            <th style="text-align:left;font-size:12px;color:#64748b;">Data conseguimento</th>
+          </tr></thead>
+          <tbody>
+            {% for corso in formazione_sicurezza_corsi %}
+            <tr>
+              <td style="padding:4px 8px;"><input type="checkbox" name="fsic_corso" value="{{ corso.pk }}" title="Corso già frequentato: {{ corso.titolo }}" aria-label="Corso già frequentato: {{ corso.titolo }}"></td>
+              <td style="padding:4px 8px;font-size:13px;">{{ corso.titolo }}{% if corso.validita_mesi %} <span style="color:#94a3b8;">· validità {{ corso.validita_mesi }} mesi</span>{% endif %}</td>
+              <td style="padding:4px 8px;"><input type="date" name="fsic_data_{{ corso.pk }}" class="dc-input" style="max-width:170px;" title="Data conseguimento {{ corso.titolo }}" aria-label="Data conseguimento {{ corso.titolo }}"></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
     {% endif %}

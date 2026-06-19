@@ -1,0 +1,133 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Impostazioni attestato | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+  .att-cfg-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+  .att-cfg-grid .fm-form-field { min-width:0; }
+  @media (max-width:760px){ .att-cfg-grid { grid-template-columns:1fr; } }
+  .att-cfg-note {
+    margin:0 0 18px; padding:12px 16px; border-radius:10px;
+    background:#eff6ff; border:1px solid #dbeafe; color:#1e3a5f; font-size:13px; line-height:1.55;
+  }
+  .att-arch-stats { display:flex; flex-wrap:wrap; gap:14px; margin:0 0 16px; }
+  .att-stat { flex:1 1 130px; padding:12px 14px; border-radius:10px; background:#f8fafc; border:1px solid #e2e8f0; }
+  .att-stat .v { font-size:22px; font-weight:800; color:#0f172a; line-height:1.1; }
+  .att-stat .k { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-top:2px; }
+  .att-arch-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .att-arch-actions form { margin:0; }
+  .att-danger { color:#b91c1c; border-color:#fecaca !important; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:formazione_dashboard' %}" style="color:#94a3b8;text-decoration:none;">Formazione</a>
+        &rsaquo; Impostazioni attestato
+      </div>
+      <h2 class="hr-pagehead-title">🏅 Template attestato di formazione</h2>
+      <p class="hr-pagehead-desc">
+        Personalizza i testi fissi dell'attestato autogenerato (intestazioni, formule, etichette firma,
+        nota legale, logo) e il comportamento sui dati personali. L'attestato si genera dal singolo
+        completamento corso/qualifica.
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      {% if sample_record_id %}
+      <a href="{% url 'anagrafica:attestato_formazione' sample_record_id %}" target="_blank" rel="noopener"
+         class="hr-btn hr-btn-ghost">👁 Anteprima esempio</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="att-cfg-note">
+    Le modifiche valgono per <strong>tutti</strong> gli attestati generati d'ora in poi. I default
+    riproducono il foglio originale. Il <em>responsabile del corso</em> viene preso dal docente
+    della sessione; il valore qui sotto è usato solo come ripiego quando il corso non ha un docente.
+  </div>
+
+  <div class="hr-card">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      <div class="hr-card-pad" style="padding:20px 24px;">
+        <div class="att-cfg-grid">
+          {% include "anagrafica/partials/_fm_form_fields.html" with form=form %}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:18px;">
+          <button type="submit" class="hr-btn hr-btn-primary">Salva impostazioni</button>
+          <a href="{% url 'anagrafica:formazione_dashboard' %}" class="hr-btn hr-btn-ghost">Annulla</a>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {# ── Gestione archivio report (salvataggio automatico / cancellazione / export) ── #}
+  <div class="hr-card" style="margin-top:18px;">
+    <div class="hr-card-pad" style="padding:20px 24px;">
+      <h3 style="margin:0 0 4px;font-size:16px;font-weight:800;color:#0f172a;">🗂 Gestione report salvati</h3>
+      <p style="margin:0 0 16px;color:#64748b;font-size:13px;line-height:1.5;">
+        Gli attestati archiviati finiscono nel <strong>box documenti</strong> del dipendente, nella cartella
+        <strong>«{{ cfg.cartella_attestati.nome|default:cfg.CARTELLA_ATTESTATI_NOME }}»</strong> (uguale per tutti),
+        con conservazione GDPR e accesso protetto. Con il <strong>salvataggio automatico</strong> attivo, ogni
+        completamento corso ci salva l'attestato; in alternativa puoi generarli in blocco qui sotto.
+      </p>
+
+      <div class="att-arch-stats">
+        <div class="att-stat"><div class="v">{{ n_archiviati }}</div><div class="k">Attestati archiviati</div></div>
+        <div class="att-stat"><div class="v">{{ n_completamenti }}</div><div class="k">Completamenti totali</div></div>
+        <div class="att-stat"><div class="v">{{ n_mancanti }}</div><div class="k">Da archiviare</div></div>
+        <div class="att-stat">
+          <div class="v" style="font-size:14px;">{% if ultimo_archiviato %}{{ ultimo_archiviato|date:"d-m-Y H:i" }}{% else %}—{% endif %}</div>
+          <div class="k">Ultimo salvataggio</div>
+        </div>
+      </div>
+
+      <div class="att-arch-actions">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="backfill">
+          <button type="submit" class="hr-btn hr-btn-primary"
+                  {% if not n_mancanti %}disabled title="Nessun attestato da archiviare"{% endif %}>
+            ⬇ Genera e archivia attestati mancanti
+          </button>
+        </form>
+
+        <a href="{% url 'anagrafica:attestato_report_export' %}" class="hr-btn hr-btn-ghost">📄 Esporta CSV archivio</a>
+
+        <form method="post"
+              onsubmit="return confirm('Eliminare TUTTI gli {{ n_archiviati }} attestati archiviati dai box documenti? L\'operazione non è reversibile.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="purge">
+          <button type="submit" class="hr-btn hr-btn-ghost att-danger"
+                  {% if not n_archiviati %}disabled{% endif %}>
+            🗑 Svuota archivio
+          </button>
+        </form>
+      </div>
+
+      <p style="margin:14px 0 0;font-size:12px;color:#64748b;line-height:1.5;">
+        <strong>Conservazione GDPR:</strong>
+        {% if n_archiviati %}
+          {{ n_retention_vicina }} attestat{{ n_retention_vicina|pluralize:"o,i" }} con scadenza conservazione entro 90 giorni,
+          {{ n_retention_scaduta }} oltre il termine.
+          La pulizia effettiva (solo dipendenti cessati) è affidata al comando <code>cleanup_expired_documents</code>.
+        {% else %}
+          Nessun attestato archiviato: la retention si calcola al salvataggio (10 anni, D.Lgs. 81/2008).
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

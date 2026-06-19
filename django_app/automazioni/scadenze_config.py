@@ -16,8 +16,10 @@ KEY_ATTIVO = "scadenze_report_attivo"
 KEY_GIORNI = "scadenze_report_giorni"
 KEY_EMAIL_VISITE = "scadenze_email_sorveglianza_sanitaria"
 KEY_EMAIL_CONTRATTI = "scadenze_email_hr_personale"
+KEY_EMAIL_QUALIFICHE = "scadenze_email_qualifiche"
 KEY_INCLUDI_VISITE = "scadenze_includi_visite"
 KEY_INCLUDI_CONTRATTI = "scadenze_includi_contratti"
+KEY_INCLUDI_QUALIFICHE = "scadenze_includi_qualifiche"
 
 DEFAULT_GIORNI = 30
 GIORNI_MIN = 1
@@ -59,16 +61,20 @@ def get_scadenze_config() -> dict:
 
     email_visite_raw = SiteConfig.get(KEY_EMAIL_VISITE, "") or fallback_email
     email_contratti_raw = SiteConfig.get(KEY_EMAIL_CONTRATTI, "") or fallback_email
+    email_qualifiche_raw = SiteConfig.get(KEY_EMAIL_QUALIFICHE, "") or fallback_email
 
     return {
         "attivo": _parse_bool(SiteConfig.get(KEY_ATTIVO, ""), default=False),
         "giorni": giorni,
         "email_visite_raw": SiteConfig.get(KEY_EMAIL_VISITE, ""),
         "email_contratti_raw": SiteConfig.get(KEY_EMAIL_CONTRATTI, ""),
+        "email_qualifiche_raw": SiteConfig.get(KEY_EMAIL_QUALIFICHE, ""),
         "email_visite": _emails(email_visite_raw),
         "email_contratti": _emails(email_contratti_raw),
+        "email_qualifiche": _emails(email_qualifiche_raw),
         "includi_visite": _parse_bool(SiteConfig.get(KEY_INCLUDI_VISITE, ""), default=True),
         "includi_contratti": _parse_bool(SiteConfig.get(KEY_INCLUDI_CONTRATTI, ""), default=True),
+        "includi_qualifiche": _parse_bool(SiteConfig.get(KEY_INCLUDI_QUALIFICHE, ""), default=True),
         "cadenza_label": CADENZA_LABEL,
     }
 
@@ -81,6 +87,8 @@ def save_scadenze_config(
     email_contratti: str,
     includi_visite: bool,
     includi_contratti: bool,
+    email_qualifiche: str = "",
+    includi_qualifiche: bool = True,
 ) -> bool:
     """Persiste la configurazione in SiteConfig. Ritorna True se tutto salvato."""
     from core.models import SiteConfig
@@ -100,8 +108,12 @@ def save_scadenze_config(
                          "Report scadenze: destinatari visite mediche (sorveglianza sanitaria).")
     ok &= SiteConfig.set(KEY_EMAIL_CONTRATTI, str(email_contratti or "").strip(),
                          "Report scadenze: destinatari contratti / periodi di prova (HR).")
+    ok &= SiteConfig.set(KEY_EMAIL_QUALIFICHE, str(email_qualifiche or "").strip(),
+                         "Report scadenze: destinatari qualifiche / abilitazioni (formazione/HSE).")
     ok &= SiteConfig.set(KEY_INCLUDI_VISITE, "1" if includi_visite else "0",
                          "Report scadenze: includi le visite mediche.")
     ok &= SiteConfig.set(KEY_INCLUDI_CONTRATTI, "1" if includi_contratti else "0",
                          "Report scadenze: includi contratti e periodi di prova.")
+    ok &= SiteConfig.set(KEY_INCLUDI_QUALIFICHE, "1" if includi_qualifiche else "0",
+                         "Report scadenze: includi qualifiche e abilitazioni.")
     return ok

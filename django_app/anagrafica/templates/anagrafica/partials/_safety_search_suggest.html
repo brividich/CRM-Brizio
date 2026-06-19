@@ -1,0 +1,39 @@
+{% if q and totale %}
+<div class="fmd-suggest">
+  {% if risultati.mansioni %}<div class="fmd-suggest-cat">Mansioni di rischio</div>
+    {% for m in risultati.mansioni|slice:":5" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:mansione_requisiti' m.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ m.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{% if m.get_categoria_display %}{{ m.get_categoria_display }}{% endif %}{% if m.livello_rischio %} · Rischio {{ m.get_livello_rischio_display }}{% endif %}{% if m.n_esposizioni %} · {{ m.n_esposizioni }} fattor{{ m.n_esposizioni|pluralize:"e,i" }}{% endif %}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.dipendenti %}<div class="fmd-suggest-cat">Dipendenti</div>
+    {% for d in risultati.dipendenti|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ d.nome }}</span><span class="fmd-suggest-m">#{{ d.legacy_id }} · scheda &amp; idoneità</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.qualifiche %}<div class="fmd-suggest-cat">Qualifiche di sicurezza</div>
+    {% for t in risultati.qualifiche|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:tipo_qualifica_detail' t.pk %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ t.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ t.get_categoria_display }}{% if t.durata_mesi %} · valida {{ t.durata_mesi }} mesi{% endif %} · {{ t.n_assegnazioni }} assegnat{{ t.n_assegnazioni|pluralize:"o,i" }}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  {% if risultati.fattori %}<div class="fmd-suggest-cat">Fattori di rischio</div>
+    {% for f in risultati.fattori|slice:":4" %}
+    <a class="fmd-suggest-item" href="{% url 'anagrafica:fattori_rischio_list' %}">
+      <span class="fmd-suggest-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span>
+      <span class="fmd-suggest-body"><span class="fmd-suggest-t">{{ f.nome|truncatechars:54 }}</span><span class="fmd-suggest-m">{{ f.codice }} · {{ f.get_categoria_display }}{% if f.n_esposizioni %} · {{ f.n_esposizioni }} esposizion{{ f.n_esposizioni|pluralize:"e,i" }}{% endif %}</span></span>
+    </a>
+    {% endfor %}
+  {% endif %}
+  <a class="fmd-suggest-all" href="{% url 'anagrafica:sicurezza_ricerca' %}?q={{ q|urlencode }}">Vedi tutti i {{ totale }} risultati →</a>
+</div>
+{% elif q %}
+<div class="fmd-suggest"><div class="fmd-suggest-empty">Nessun risultato per «{{ q }}»</div></div>
+{% endif %}

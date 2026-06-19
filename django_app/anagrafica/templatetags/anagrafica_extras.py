@@ -10,6 +10,57 @@ register = template.Library()
 logger = logging.getLogger(__name__)
 
 
+@register.filter(name="strip_leading_emoji")
+def strip_leading_emoji(label):
+    """Rimuove eventuali emoji/simboli iniziali (e spazi) da un'etichetta,
+    così che — quando si mostra un'icona SVG — non resti anche l'emoji del
+    vecchio convenzionamento. Si ferma al primo carattere alfanumerico."""
+    s = label or ""
+    i = 0
+    n = len(s)
+    while i < n and not s[i].isalnum():
+        i += 1
+    cleaned = s[i:].strip()
+    return cleaned or s.strip()
+
+
+@register.filter(name="subnav_svg_icon")
+def subnav_svg_icon(label):
+    """Mappa l'etichetta di una voce subnav a un'icona line dello sprite
+    `_fm_icons.html` (id `#i-*`). Ritorna "" se nessuna corrispondenza
+    (la subnav mostra allora solo il testo). Best-effort per le etichette
+    standard del modulo Anagrafica HR."""
+    s = (label or "").strip().lower()
+    if not s:
+        return ""
+    rules = [
+        ("impostazion", "i-gear"),
+        ("dipendent", "i-users"),
+        ("retribuzion", "i-coins"),
+        ("analisi", "i-coins"),
+        ("ratei", "i-calendar"),
+        ("ferie", "i-calendar"),
+        ("visite", "i-pill"),
+        ("medic", "i-pill"),
+        ("sanitar", "i-pill"),
+        ("document", "i-doc"),
+        ("onboarding", "i-id"),
+        ("pratich", "i-id"),
+        ("scadenz", "i-alarm"),
+        ("sicurezza", "i-shield"),
+        ("salute", "i-shield"),
+        ("formazion", "i-cap"),
+        ("qualific", "i-cap"),
+        ("organigramma", "i-building"),
+        ("rubrica", "i-id"),
+        ("anagrafica", "i-grid"),
+    ]
+    for needle, icon in rules:
+        if needle in s:
+            return icon
+    return ""
+
+
 @register.filter(name="dictlookup")
 def dictlookup(value, key):
     """Lookup ``value[key]`` con coercion safe a int/str e default ''.

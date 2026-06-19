@@ -185,7 +185,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
 
   <!-- ===== SEZIONE 1: OdL APERTI ===== -->
   <div class="mc-section {% if wo_od %}urgent{% elif wo_rc %}warn{% endif %}">
-    <div class="mc-section-head">
+    <div class="mc-section-head mc-collapsible-head" data-mc-toggle="workorders">
       <h2>Ordini di lavoro aperti</h2>
       {% if wo_od %}<span class="mc-badge mc-badge-red">{{ wo_od }} in ritardo</span>{% endif %}
       {% if wo_rc %}<span class="mc-badge mc-badge-amber">{{ wo_rc }} recenti</span>{% endif %}
@@ -196,6 +196,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
       </div>
     </div>
 
+    <div id="mc-body-workorders" class="mc-collapsible-body">
     {% if wo_overdue or wo_recent %}
     <div class="mc-wo-grid">
       <!-- OdL IN RITARDO (> 21 giorni) -->
@@ -246,16 +247,17 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
     {% else %}
     <p class="mc-empty">Nessun ordine di lavoro aperto.</p>
     {% endif %}
+    </div>
   </div>
 
   <!-- ===== SEZIONE 2: SCADENZE AMMINISTRATIVE ===== -->
   <div class="mc-section {% if upcoming_deadlines %}warn{% endif %}">
-    <div class="mc-section-head mc-collapsible-head {% if not upcoming_deadlines %}collapsed{% endif %}" data-mc-toggle="deadlines">
+    <div class="mc-section-head mc-collapsible-head collapsed" data-mc-toggle="deadlines">
       <h2>Scadenze amministrative</h2>
       {% if upcoming_deadlines %}<span class="mc-badge mc-badge-amber">{{ ud }} nei prossimi 30 gg</span>{% else %}<span class="mc-badge mc-badge-green">nessuna imminente</span>{% endif %}
       <a href="{{ deadline_list_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
     </div>
-    <div id="mc-body-deadlines" class="mc-collapsible-body" {% if not upcoming_deadlines %}style="display:none"{% endif %}>
+    <div id="mc-body-deadlines" class="mc-collapsible-body" style="display:none">
       {% if upcoming_deadlines %}
       <div class="mc-table-wrap">
         <table class="mc-table">
@@ -264,7 +266,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
           </thead>
           <tbody>
             {% for d in upcoming_deadlines %}
-            <tr>
+            <tr data-row-href="{% url 'assets:asset_view' d.asset_id %}">
               <td><a href="{{ deadline_list_url }}?asset={{ d.asset_id }}">{{ d.title|truncatechars:55 }}</a></td>
               <td><span class="mc-tag">{{ d.asset.asset_tag }}</span> {{ d.asset.name|truncatechars:30 }}</td>
               <td><span class="mc-badge mc-badge-muted">{{ d.get_deadline_type_display }}</span></td>
@@ -289,12 +291,12 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
 
   <!-- ===== SEZIONE 3: VERIFICHE PERIODICHE ===== -->
   <div class="mc-section {% if upcoming_verifications %}warn{% endif %}">
-    <div class="mc-section-head mc-collapsible-head {% if not upcoming_verifications %}collapsed{% endif %}" data-mc-toggle="verifications">
+    <div class="mc-section-head mc-collapsible-head collapsed" data-mc-toggle="verifications">
       <h2>Verifiche periodiche</h2>
       {% if upcoming_verifications %}<span class="mc-badge mc-badge-amber">{{ uv }} nei prossimi 30 gg</span>{% else %}<span class="mc-badge mc-badge-green">nessuna imminente</span>{% endif %}
       <a href="{{ verifications_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
     </div>
-    <div id="mc-body-verifications" class="mc-collapsible-body" {% if not upcoming_verifications %}style="display:none"{% endif %}>
+    <div id="mc-body-verifications" class="mc-collapsible-body" style="display:none">
       {% if upcoming_verifications %}
       <div class="mc-table-wrap">
         <table class="mc-table">
@@ -303,7 +305,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
           </thead>
           <tbody>
             {% for v in upcoming_verifications %}
-            <tr>
+            <tr data-row-href="{{ verifications_url }}">
               <td>{{ v.name }}</td>
               <td><span class="mc-badge mc-badge-muted">ogni {{ v.frequency_months }} mesi</span></td>
               <td>
@@ -327,13 +329,13 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
   <!-- ===== SEZIONE 4: MACCHINE IN SCADENZA ===== -->
   {% if machines_overdue or machines_warning %}
   <div class="mc-section {% if machines_overdue %}urgent{% elif machines_warning %}warn{% endif %}">
-    <div class="mc-section-head mc-collapsible-head" data-mc-toggle="machines">
+    <div class="mc-section-head mc-collapsible-head collapsed" data-mc-toggle="machines">
       <h2>Macchine — manutenzione in scadenza</h2>
       {% if machines_overdue %}<span class="mc-badge mc-badge-red">{{ mo }} scadute</span>{% endif %}
       {% if machines_warning %}<span class="mc-badge mc-badge-amber">{{ mw }} imminenti (14 gg)</span>{% endif %}
       <a href="{{ work_machine_list_url }}" class="btn btn-sm mc-section-action" onclick="event.stopPropagation()">Vedi tutte</a>
     </div>
-    <div id="mc-body-machines" class="mc-collapsible-body">
+    <div id="mc-body-machines" class="mc-collapsible-body" style="display:none">
       <div class="mc-table-wrap">
         <table class="mc-table">
           <thead>
@@ -341,7 +343,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
           </thead>
           <tbody>
             {% for m in machines_overdue %}
-            <tr>
+            <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
               <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mc-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:40 }}</a></td>
               <td>{{ m.asset.reparto|default:"—" }}</td>
               <td class="mc-days-red">{{ m.next_maintenance_date|date:"d-m-Y" }}</td>
@@ -349,7 +351,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
             </tr>
             {% endfor %}
             {% for m in machines_warning %}
-            <tr>
+            <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
               <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mc-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:40 }}</a></td>
               <td>{{ m.asset.reparto|default:"—" }}</td>
               <td class="mc-days-amber">{{ m.next_maintenance_date|date:"d-m-Y" }}</td>
@@ -366,11 +368,11 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
   <!-- ===== SEZIONE 5: TICKET MAN ===== -->
   {% if man_tickets %}
   <div class="mc-section">
-    <div class="mc-section-head mc-collapsible-head" data-mc-toggle="tickets">
+    <div class="mc-section-head mc-collapsible-head collapsed" data-mc-toggle="tickets">
       <h2>Ticket manutenzione aperti</h2>
       <span class="mc-badge mc-badge-blue">{{ man_tickets|length }}</span>
     </div>
-    <div id="mc-body-tickets" class="mc-collapsible-body">
+    <div id="mc-body-tickets" class="mc-collapsible-body" style="display:none">
       <div class="mc-table-wrap">
         <table class="mc-table">
           <thead>
@@ -378,7 +380,7 @@ body.theme-dark .mc-tag { background:#1e3a5f; color:#93c5fd; }
           </thead>
           <tbody>
             {% for t in man_tickets %}
-            <tr>
+            <tr data-row-href="{% url 'tickets:detail' t.pk %}">
               <td class="mc-ticket-num">{{ t.pk }}</td>
               <td>{{ t.oggetto|default:t.descrizione|truncatechars:65 }}</td>
               <td>{% if t.data_apertura %}{{ t.data_apertura|date:"d-m-Y" }}{% else %}—{% endif %}</td>

@@ -1,0 +1,59 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ corso.titolo }} | Corsi online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:900px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">{{ corso.titolo }}</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ corso.titolo }}</h1>
+        {% if corso.descrizione %}<p class="fmd-ph-sub">{{ corso.descrizione }}</p>{% endif %}
+      </div>
+    </div>
+
+    {% if no_anagrafica %}
+    <div class="fmd-alert">
+      <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+      <span>Il tuo profilo non è collegato a un'anagrafica dipendente: puoi consultare le slide, ma il
+      completamento non verrà registrato. Contatta HR per il collegamento.</span>
+    </div>
+    {% endif %}
+
+    {% if not slides %}
+      <section class="fmd-panel">
+        <div class="fmd-empty">
+          <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-book"/></svg></span>
+          <span class="fmd-et">Corso non ancora disponibile</span>
+          <span class="fmd-em">Questo micro-corso non ha ancora slide pubblicate.</span>
+        </div>
+      </section>
+    {% else %}
+      <section class="fmd-panel" style="padding:24px;">
+        {# Target HTMX: la prima slide viene caricata al load, poi navigata avanti/indietro #}
+        <div id="fm-slide-target"
+             hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk slide_iniziale %}"
+             hx-trigger="load" hx-swap="innerHTML">
+          <div class="fmd-empty"><span class="fmd-et">Caricamento…</span></div>
+        </div>
+      </section>
+    {% endif %}
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

@@ -35,6 +35,8 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 from .forms import (
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
+    AttestatoFormazioneConfigForm,
+    ElearningConfigForm,
     FiglioACaricoFormSet,
     DipendenteLegacyForm,
     TrainingCompletionRuleForm,
@@ -48,6 +50,9 @@ from .forms import (
     TrainingPlanForm,
     TrainingRequirementRuleForm,
     TrainingSessionForm,
+    TrainingSlideForm,
+    TrainingQuizQuestionForm,
+    TrainingQuizOptionForm,
     VisitaMedicaForm,
 )
 from .models import (
@@ -80,6 +85,7 @@ from .models import (
     SaldoCedolino,
     StoricoContratto,
     TipologiaContratto,
+    QualificaSessione,
     TipoQualifica,
     TipoVisitaMedica,
     VisitaMedica,
@@ -88,6 +94,10 @@ from .models import (
 )
 from .models_formazione import (
     AnagraficaFormazionePermission,
+    AttestatoFormazioneConfig,
+    ElearningConfig,
+    TrainingAssignment,
+    TrainingAttachment,
     TrainingCertificate,
     TrainingCompletionRule,
     TrainingCourse,
@@ -104,6 +114,11 @@ from .models_formazione import (
     TrainingPlan,
     TrainingRequirementRule,
     TrainingSession,
+    TrainingSlide,
+    TrainingQuizQuestion,
+    TrainingQuizOption,
+    TrainingElearningEnrollment,
+    TrainingQuizAttempt,
 )
 from .services.dpi_ingresso import (
     RigaConsegnaIniziale,
@@ -114,6 +129,7 @@ from .services.dpi_ingresso import (
 from .services.visite import stato_visite, visite_storico
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
+from .services import mansionario as mansionario_service
 
 logger = logging.getLogger(__name__)
 
@@ -974,6 +990,30 @@ def dipendente_create(request):
                     except Exception:
                         logger.warning("Avvio onboarding automatico fallito per dipendente %s", new_id, exc_info=True)
 
+                # Formazione sicurezza pregressa dichiarata in preinserimento
+                if new_id:
+                    try:
+                        fsic_items: list[dict] = []
+                        for cid in request.POST.getlist("fsic_corso"):
+                            if not str(cid).isdigit():
+                                continue
+                            raw = (request.POST.get(f"fsic_data_{cid}") or "").strip()
+                            if not raw:
+                                continue
+                            try:
+                                from datetime import date as _date3
+                                fsic_items.append({"corso_id": int(cid), "data": _date3.fromisoformat(raw)})
+                            except ValueError:
+                                continue
+                        if fsic_items:
+                            n_fsic = onboarding_service.registra_formazione_pregressa(
+                                new_id, fsic_items, user=request.user
+                            )
+                            if n_fsic:
+                                messages.info(request, f"Registrati {n_fsic} corsi di formazione pregressa.")
+                    except Exception:
+                        logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
+
                 nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
@@ -993,6 +1033,13 @@ def dipendente_create(request):
     reparti_catalogo = list(
         Reparto.objects.filter(is_active=True).select_related("area_aziendale").order_by("nome")
     )
+    # Corsi di sicurezza per la dichiarazione "formazione pregressa" in preinserimento.
+    from .models_formazione import TrainingCourse
+    formazione_sicurezza_corsi = list(
+        TrainingCourse.objects
+        .filter(is_active=True, stato="ATTIVO", obbligatorio=True)
+        .order_by("titolo")
+    )
     return render(request, "anagrafica/pages/dipendente_create.html", {
         "legacy_form": legacy_form,
         "form_civile": form_civile,
@@ -1005,6 +1052,7 @@ def dipendente_create(request):
         "tipologie_contratto": list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")),
         "livelli_contrattuali": list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice")),
         "ruoli_operativi_catalogo": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")),
+        "formazione_sicurezza_corsi": formazione_sicurezza_corsi,
     })
 
 
@@ -1562,7 +1610,8 @@ def dipendente_detail(request, legacy_id: int):
     oggi = tz.localdate()
     qualifiche_dip = list(
         DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
-        .select_related("tipo")
+        .select_related("tipo", "record_formazione", "record_formazione__corso", "sessione")
+        .prefetch_related("storico")
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
@@ -2120,6 +2169,30 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         return redirect("anagrafica:dipendenti_list")
     dip = rows[0]
 
+    # Variante PDF server-side (stessa fonte dati): ?formato=pdf
+    formato = (request.GET.get("formato") or "").strip().lower()
+    if formato == "pdf":
+        from .services.attestato_pdf import build_libretto_pdf_bytes
+        try:
+            pdf = build_libretto_pdf_bytes(legacy_id)
+        except Exception:
+            logger.exception("Errore generazione PDF libretto %s", legacy_id)
+            messages.error(request, "Errore nella generazione del PDF del libretto.")
+            return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
+        try:
+            TrainingExportLog.objects.create(
+                tipo="STORICO_DIP",
+                filtri_json={"legacy_anagrafica_id": legacy_id, "formato": "libretto_pdf"},
+                righe_esportate=0,
+                generato_da=request.user,
+                ip_address=request.META.get("REMOTE_ADDR") or None,
+            )
+        except Exception:
+            logger.exception("Errore TrainingExportLog per libretto PDF")
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = f'inline; filename="libretto_formativo_{legacy_id}.pdf"'
+        return resp
+
     record_storici = list(
         TrainingEmployeeRecord.objects
         .filter(legacy_anagrafica_id=legacy_id)
@@ -2148,6 +2221,12 @@ def dipendente_libretto_formativo(request, legacy_id: int):
     except Exception:
         logger.exception("Errore registrazione TrainingExportLog per libretto formativo")
 
+    from .services.attestato_pdf import RIFERIMENTO_LIBRETTO
+    doc_libretto = (
+        DocumentoDipendente.objects
+        .filter(oggetto_riferimento_tipo=RIFERIMENTO_LIBRETTO, oggetto_riferimento_id=legacy_id)
+        .order_by("-id").first()
+    )
     return render(request, "anagrafica/pages/dipendente_libretto.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -2155,7 +2234,612 @@ def dipendente_libretto_formativo(request, legacy_id: int):
         "ore_totali": ore_totali,
         "obblighi": obblighi,
         "oggi": oggi,
+        "can_edit": _can_edit_formazione(request),
+        "doc_libretto": doc_libretto,
     })
+
+
+@login_required
+@require_POST
+def libretto_salva_box(request, legacy_id: int):
+    """Genera e salva (manualmente) il libretto formativo PDF nel box del dipendente.
+
+    Un solo libretto per dipendente: la copia viene sostituita ad ogni salvataggio
+    (è una fotografia aggiornata del curriculum). Gated dal permesso di modifica.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare il libretto.")
+        return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
+    from .services.attestato_pdf import archivia_libretto
+    try:
+        doc = archivia_libretto(legacy_id, user=request.user)
+        messages.success(request, f"Libretto formativo archiviato nel box ({doc.nome_originale}).")
+    except Exception:
+        logger.exception("Archiviazione libretto fallita per %s", legacy_id)
+        messages.error(request, "Errore durante l'archiviazione del libretto.")
+    return redirect("anagrafica:dipendente_libretto_formativo", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Attestato di formazione — foglio A4 autogenerato (layout email NOVICROM HUB)
+# ---------------------------------------------------------------------------
+
+@login_required
+def attestato_formazione(request, record_id: int):
+    """Attestato autogenerato per un singolo completamento corso.
+
+    Foglio A4 stampabile nello stile delle email NOVICROM HUB (header navy con
+    logo + banda arancio). Vale per corsi, qualifiche e formazione interna
+    generica ("altro"): il tipo viene derivato dalla qualifica àncora del corso.
+    Riporta i dati del corso e del dipendente e due blocchi firma —
+    Responsabile del corso e Dipendente. Nulla viene scritto: l'attestato si
+    autogenera dal record di completamento (campi snapshot per stabilità
+    storica). La generazione è tracciata in `TrainingExportLog` (tipo ATTESTATO).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+
+    record = get_object_or_404(
+        TrainingEmployeeRecord.objects.select_related(
+            "corso", "corso__piano", "corso__qualifica",
+            "sessione", "sessione__docente",
+        ),
+        pk=record_id,
+    )
+
+    # Derivazione condivisa con il builder PDF (tipo, responsabile, nominativo,
+    # sede, numero, dati anagrafici) — un'unica fonte di verità.
+    from .services.attestato_pdf import build_attestato_context, _documento_esistente
+    ctx = build_attestato_context(record)
+    legacy_id = ctx["legacy_id"]
+
+    # Variante "stampa": layout sobrio a basso consumo d'inchiostro (B/N),
+    # mantenendo la versione a colori come default.
+    stile = (request.GET.get("stile") or "").strip().lower()
+    is_stampa = stile == "stampa"
+    template_name = (
+        "anagrafica/pages/attestato_formazione_stampa.html" if is_stampa
+        else "anagrafica/pages/attestato_formazione.html"
+    )
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO",
+            filtri_json={
+                "record_id": record.pk,
+                "legacy_anagrafica_id": legacy_id,
+                "formato": "attestato_stampa_html" if is_stampa else "attestato_html",
+            },
+            righe_esportate=1,
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore registrazione TrainingExportLog per attestato record %s", record_id)
+
+    return render(request, template_name, {
+        **ctx,
+        "stile": stile,
+        "can_edit": _can_edit_formazione(request),
+        "doc_archiviato": _documento_esistente(record),
+    })
+
+
+@login_required
+def attestato_impostazioni(request):
+    """Impostazioni del template attestato di formazione (singleton).
+
+    Gestione dei testi fissi (intestazioni, formule, etichette firma, nota
+    legale, logo) e del toggle privacy dei dati personali, da Impostazioni
+    Anagrafica HR. Gated dallo stesso permesso di modifica della formazione.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare le impostazioni della formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+
+    from .services.attestato_pdf import RIFERIMENTO_TIPO, archivia_attestato
+
+    cfg = AttestatoFormazioneConfig.get_instance()
+    form = AttestatoFormazioneConfigForm(instance=cfg)
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "save").strip()
+
+        # ── Azioni di gestione archivio report ───────────────────────────
+        if action == "backfill":
+            # Genera e archivia gli attestati mancanti per i completamenti
+            # esistenti (idempotente, bounded). Fail-safe per singolo record.
+            mancanti = list(
+                TrainingEmployeeRecord.objects.exclude(
+                    pk__in=DocumentoDipendente.objects.filter(
+                        oggetto_riferimento_tipo=RIFERIMENTO_TIPO
+                    ).values_list("oggetto_riferimento_id", flat=True)
+                ).order_by("-data_completamento", "-id")[:500]
+            )
+            ok = err = 0
+            for rec in mancanti:
+                try:
+                    archivia_attestato(rec, cfg=cfg, user=request.user)
+                    ok += 1
+                except Exception:
+                    err += 1
+                    logger.exception("Backfill attestato fallito per record %s", rec.pk)
+            messages.success(
+                request,
+                f"Archiviazione completata: {ok} attestati generati"
+                + (f", {err} errori" if err else "")
+                + (". Limite di 500 per esecuzione: rilancia se restano completamenti." if len(mancanti) >= 500 else "."),
+            )
+            return redirect("anagrafica:attestato_impostazioni")
+
+        if action == "purge":
+            qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+            n = qs.count()
+            for doc in qs:
+                try:
+                    doc.file.delete(save=False)
+                except Exception:
+                    logger.warning("File attestato non eliminabile (doc %s)", doc.pk, exc_info=True)
+            qs.delete()
+            try:
+                from core.audit import log_action
+                log_action(request, "ATTESTATI_ARCHIVIO_PURGE", "anagrafica", {"eliminati": n})
+            except Exception:
+                logger.warning("Audit ATTESTATI_ARCHIVIO_PURGE fallito", exc_info=True)
+            messages.success(request, f"Archivio attestati svuotato: {n} documenti eliminati.")
+            return redirect("anagrafica:attestato_impostazioni")
+
+        # ── Salvataggio impostazioni (default) ───────────────────────────
+        form = AttestatoFormazioneConfigForm(request.POST, instance=cfg)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.updated_by = request.user
+            obj.save()
+            messages.success(request, "Impostazioni attestato salvate.")
+            return redirect("anagrafica:attestato_impostazioni")
+        messages.error(request, "Controlla i campi evidenziati.")
+
+    # Statistiche archivio (per la sezione "Gestione report salvati").
+    from datetime import date as _date, timedelta as _timedelta
+    arch_qs = DocumentoDipendente.objects.filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+    n_archiviati = arch_qs.count()
+    ultimo = arch_qs.order_by("-created_at").values_list("created_at", flat=True).first()
+    n_completamenti = TrainingEmployeeRecord.objects.count()
+
+    # Stato conservazione GDPR (retention_until calcolata su DocumentoDipendente).
+    # Il command `cleanup_expired_documents` elimina solo i doc scaduti di cessati.
+    _oggi = _date.today()
+    n_retention_scaduta = arch_qs.filter(retention_until__lt=_oggi).count()
+    n_retention_vicina = arch_qs.filter(
+        retention_until__gte=_oggi, retention_until__lte=_oggi + _timedelta(days=90)
+    ).count()
+
+    # Record di esempio per il pulsante "anteprima" (il più recente disponibile).
+    sample = TrainingEmployeeRecord.objects.order_by("-data_completamento", "-id").first()
+    return render(request, "anagrafica/pages/attestato_impostazioni.html", {
+        "form": form,
+        "cfg": cfg,
+        "sample_record_id": sample.pk if sample else None,
+        "n_archiviati": n_archiviati,
+        "n_completamenti": n_completamenti,
+        "n_mancanti": max(0, n_completamenti - n_archiviati),
+        "ultimo_archiviato": ultimo,
+        "n_retention_scaduta": n_retention_scaduta,
+        "n_retention_vicina": n_retention_vicina,
+    })
+
+
+@login_required
+@require_POST
+def attestato_salva_box(request, record_id: int):
+    """Genera e salva (manualmente) l'attestato nel box documenti del dipendente.
+
+    Pulsante «💾 Salva nel box» dalla pagina attestato. Forza la rigenerazione
+    così l'utente ottiene sempre la versione aggiornata. Gated dal permesso di
+    modifica formazione (scrive nello spazio documenti del dipendente).
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare gli attestati.")
+        return redirect("anagrafica:attestato_formazione", record_id=record_id)
+
+    record = get_object_or_404(TrainingEmployeeRecord, pk=record_id)
+    from .services.attestato_pdf import archivia_attestato
+    try:
+        doc = archivia_attestato(record, user=request.user, force=True)
+        messages.success(
+            request,
+            f"Attestato archiviato nel box del dipendente ({doc.nome_originale}).",
+        )
+    except Exception:
+        logger.exception("Archiviazione manuale attestato fallita per record %s", record_id)
+        messages.error(request, "Errore durante l'archiviazione dell'attestato.")
+    return redirect("anagrafica:attestato_formazione", record_id=record_id)
+
+
+@login_required
+def attestato_report_export(request):
+    """Esporta in CSV l'elenco degli attestati archiviati (riepilogo audit).
+
+    Gated dal permesso di visualizzazione formazione. Nessun dato sanitario;
+    contiene riferimento dipendente, corso e metadati del documento.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:attestato_impostazioni")
+
+    import csv
+    from .services.attestato_pdf import RIFERIMENTO_TIPO
+
+    nomi_map = _build_nomi_map()
+    docs = list(
+        DocumentoDipendente.objects
+        .filter(oggetto_riferimento_tipo=RIFERIMENTO_TIPO)
+        .select_related("cartella")
+        .order_by("-created_at")[:5000]
+    )
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="attestati_archiviati.csv"'
+    response.write("﻿")  # BOM per Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow([
+        "Documento ID", "Dipendente", "ID anagrafica", "Record completamento",
+        "Cartella", "Nome file", "Dimensione (KB)", "Archiviato il", "Conservare fino al",
+    ])
+    for d in docs:
+        writer.writerow([
+            d.pk,
+            nomi_map.get(d.legacy_anagrafica_id, f"#{d.legacy_anagrafica_id}"),
+            d.legacy_anagrafica_id,
+            d.oggetto_riferimento_id or "",
+            d.cartella.nome if d.cartella else "",
+            d.nome_originale,
+            round((d.dimensione_bytes or 0) / 1024, 1),
+            d.created_at.strftime("%d-%m-%Y %H:%M") if d.created_at else "",
+            d.retention_until.strftime("%d-%m-%Y") if d.retention_until else "",
+        ])
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO",
+            filtri_json={"formato": "archivio_csv", "righe": len(docs)},
+            righe_esportate=len(docs),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export archivio attestati")
+    return response
+
+
+@login_required
+@require_POST
+def formazione_sessione_attestati(request, sessione_id: int):
+    """Genera e archivia nel box gli attestati di tutti i completati della sessione.
+
+    Comodo a fine edizione: un click produce gli attestati PDF di tutti i
+    `TrainingEmployeeRecord` della sessione e li salva nel box documenti
+    (idempotente). Gated dal permesso di modifica formazione.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per archiviare gli attestati.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    records = list(TrainingEmployeeRecord.objects.filter(sessione=sessione))
+    from .services.attestato_pdf import archivia_attestato
+
+    ok = err = 0
+    for rec in records:
+        try:
+            archivia_attestato(rec, user=request.user)
+            ok += 1
+        except Exception:
+            err += 1
+            logger.exception(
+                "Archiviazione attestato sessione %s record %s fallita", sessione_id, rec.pk
+            )
+
+    if not records:
+        messages.info(
+            request,
+            "Nessun completamento registrato per questa sessione: nessun attestato da archiviare.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Attestati archiviati nel box: {ok}" + (f", {err} errori" if err else "") + ".",
+        )
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+# ---------------------------------------------------------------------------
+# Allegati formazione: registro firme firmato (sessione / lezione) e materiale
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def formazione_allegato_upload(request, sessione_id: int):
+    """Carica un allegato (registro firme firmato/materiale) di sessione o lezione.
+
+    Storage privato fuori webroot. Se ``lezione_id`` è valorizzato l'allegato è
+    legato alla singola lezione, altrimenti all'intera sessione. Gated dal
+    permesso di modifica formazione. Foglio firme = dato personale: come gli
+    altri documenti HR, scaricabile solo dalla view protetta.
+    """
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per caricare allegati.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    lezione = None
+    lezione_raw = (request.POST.get("lezione_id") or "").strip()
+    if lezione_raw.isdigit():
+        lezione = TrainingLesson.objects.filter(pk=int(lezione_raw), sessione=sessione).first()
+
+    tipo = (request.POST.get("tipo") or TrainingAttachment.Tipo.REGISTRO_FIRMATO).strip()
+    if tipo not in TrainingAttachment.Tipo.values:
+        tipo = TrainingAttachment.Tipo.REGISTRO_FIRMATO
+
+    def _back():
+        if lezione is not None:
+            return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione.pk)
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "Seleziona un file da caricare.")
+        return _back()
+
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
+        return _back()
+    if uploaded.size > _MAX_DOC_SIZE:
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        return _back()
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        return _back()
+
+    att = TrainingAttachment(
+        sessione=sessione,
+        lezione=lezione,
+        tipo=tipo,
+        nome_originale=uploaded.name[:255],
+        tipo_mime=mime,
+        dimensione_bytes=uploaded.size,
+        descrizione=(request.POST.get("descrizione") or "").strip()[:300],
+        created_by=request.user,
+        created_by_display=request.user.get_full_name() or request.user.username,
+    )
+    att.file = uploaded
+    att.save()
+
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_UPLOAD", "anagrafica", {
+            "attachment_id": att.pk, "sessione_id": sessione_id,
+            "lezione_id": lezione.pk if lezione else None, "tipo": tipo,
+            "nome_originale": att.nome_originale,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_UPLOAD fallito", exc_info=True)
+
+    messages.success(request, f"Allegato «{att.nome_originale}» caricato.")
+    return _back()
+
+
+@login_required
+@require_POST
+def formazione_allegato_delete(request, attachment_id: int):
+    att = get_object_or_404(TrainingAttachment.objects.select_related("sessione", "lezione"), pk=attachment_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare allegati.")
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=att.sessione_id)
+    sessione_id = att.sessione_id
+    lezione_id = att.lezione_id
+    nome = att.nome_originale
+    att.delete()
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_ELIMINATO", "anagrafica", {
+            "attachment_id": attachment_id, "sessione_id": sessione_id,
+            "lezione_id": lezione_id, "nome_originale": nome,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_ELIMINATO fallito", exc_info=True)
+    messages.success(request, "Allegato eliminato.")
+    if lezione_id:
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+def formazione_allegato_download(request, attachment_id: int):
+    """Scarica un allegato formazione dallo storage privato (ACL + audit)."""
+    if not _can_view_formazione(request):
+        return HttpResponse(status=403)
+    att = get_object_or_404(TrainingAttachment, pk=attachment_id)
+    if not att.file:
+        return HttpResponse("File non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_DOWNLOAD", "anagrafica", {
+            "attachment_id": att.pk, "tipo": att.tipo,
+            "sessione_id": att.sessione_id, "lezione_id": att.lezione_id,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = att.file.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    resp = FileResponse(fh, as_attachment=True, filename=att.nome_originale or f"allegato_{att.pk}.bin")
+    if att.tipo_mime:
+        resp["Content-Type"] = att.tipo_mime
+    return resp
+
+
+# ---------------------------------------------------------------------------
+# Report rapidi del corso (CSV iscritti, attestati ZIP, fogli firme PDF)
+# ---------------------------------------------------------------------------
+
+@login_required
+def formazione_corso_report_iscritti_csv(request, corso_id: int):
+    """CSV dei dipendenti del corso (aggregato su tutte le sessioni)."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+
+    from collections import defaultdict
+    agg = defaultdict(lambda: {"n_sessioni": 0, "stati": set(), "data": None, "idoneo": None, "n_compl": 0, "perc": None})
+    for e in TrainingEnrollment.objects.filter(sessione__corso=corso).values(
+        "legacy_anagrafica_id", "stato", "percentuale_presenza"
+    ):
+        a = agg[e["legacy_anagrafica_id"]]
+        a["n_sessioni"] += 1
+        a["stati"].add(e["stato"])
+        if e["percentuale_presenza"] is not None:
+            a["perc"] = e["percentuale_presenza"]
+    for r in TrainingEmployeeRecord.objects.filter(corso=corso).order_by("-data_completamento").values(
+        "legacy_anagrafica_id", "data_completamento", "idoneo"
+    ):
+        a = agg[r["legacy_anagrafica_id"]]
+        a["n_compl"] += 1
+        if a["data"] is None:
+            a["data"] = r["data_completamento"]
+            a["idoneo"] = r["idoneo"]
+
+    nomi = _build_nomi_map()
+    _prio = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
+
+    import csv
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="corso_{corso.codice}_iscritti.csv"'
+    response.write("﻿")
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(["Dipendente", "ID anagrafica", "Stato", "Sessioni", "Completamenti",
+                     "% presenza", "Idoneo", "Ultimo completamento"])
+    for lid, a in sorted(agg.items(), key=lambda kv: nomi.get(kv[0], f"#{kv[0]}").casefold()):
+        stato = next((s for s in _prio if s in a["stati"]), next(iter(a["stati"]), ""))
+        writer.writerow([
+            nomi.get(lid, f"#{lid}"), lid, stato, a["n_sessioni"], a["n_compl"],
+            a["perc"] if a["perc"] is not None else "",
+            "" if a["idoneo"] is None else ("Sì" if a["idoneo"] else "No"),
+            a["data"].strftime("%d-%m-%Y") if a["data"] else "",
+        ])
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="CORSI", filtri_json={"corso_id": corso.pk, "formato": "iscritti_csv"},
+            righe_esportate=len(agg), generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export iscritti corso")
+    return response
+
+
+@login_required
+def formazione_corso_attestati_zip(request, corso_id: int):
+    """ZIP con gli attestati PDF di tutti i completamenti idonei del corso."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare gli attestati.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+
+    import io
+    import zipfile
+    from .services.attestato_pdf import build_attestato_pdf_bytes, build_attestato_context
+
+    records = list(
+        TrainingEmployeeRecord.objects
+        .filter(corso=corso)
+        .select_related("corso", "corso__piano", "corso__qualifica", "sessione", "sessione__docente")
+        .order_by("-data_completamento", "-id")
+    )
+    if not records:
+        messages.info(request, "Nessun completamento da esportare per questo corso.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    nomi = _build_nomi_map()
+    buf = io.BytesIO()
+    ok = err = 0
+    used_names: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rec in records:
+            try:
+                pdf = build_attestato_pdf_bytes(rec)
+                try:
+                    numero = build_attestato_context(rec)["numero_display"]
+                except Exception:
+                    numero = f"FORM-{rec.pk:05d}"
+                nome_dip = nomi.get(rec.legacy_anagrafica_id, f"dip{rec.legacy_anagrafica_id}")
+                base = f"{numero}_{nome_dip}".replace("/", "-").replace(" ", "_")[:120]
+                fname = f"{base}.pdf"
+                i = 2
+                while fname in used_names:
+                    fname = f"{base}_{i}.pdf"
+                    i += 1
+                used_names.add(fname)
+                zf.writestr(fname, pdf)
+                ok += 1
+            except Exception:
+                err += 1
+                logger.exception("Attestato ZIP corso %s record %s fallito", corso_id, rec.pk)
+
+    if not ok:
+        messages.error(request, "Generazione attestati fallita per tutti i record.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ATTESTATO", filtri_json={"corso_id": corso.pk, "formato": "attestati_zip", "ok": ok, "err": err},
+            righe_esportate=ok, generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog export attestati ZIP")
+
+    resp = HttpResponse(buf.getvalue(), content_type="application/zip")
+    resp["Content-Disposition"] = f'attachment; filename="attestati_{corso.codice}.zip"'
+    return resp
+
+
+@login_required
+def formazione_corso_registri_pdf(request, corso_id: int):
+    """PDF del foglio firme (vuoto) di tutte le lezioni del corso."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per generare i report.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    from .services.attestato_pdf import build_registri_corso_pdf_bytes
+    try:
+        pdf = build_registri_corso_pdf_bytes(corso)
+    except Exception:
+        logger.exception("Errore generazione fogli firme corso %s", corso_id)
+        messages.error(request, "Errore nella generazione dei fogli firme.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA", filtri_json={"corso_id": corso.pk, "formato": "fogli_firme_corso_pdf"},
+            righe_esportate=0, generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog fogli firme corso")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="fogli_firme_{corso.codice}.pdf"'
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -2305,6 +2989,15 @@ def ruolo_operativo_delete(request, ruolo_id: int):
         return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
 
     ruolo = get_object_or_404(RuoloOperativo, pk=ruolo_id)
+    n_uso = ruolo.assegnazioni.count()
+    if n_uso:
+        if ruolo.is_active:
+            ruolo.is_active = False
+            ruolo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{ruolo.nome}" è in uso ({n_uso} assegnazioni): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{ruolo.nome}" ha {n_uso} assegnazioni: non eliminabile (già disattivo).')
+        return _back_to_caller(request, "anagrafica:ruoli_operativi_list")
     nome = ruolo.nome
     ruolo.delete()
     messages.success(request, f'Ruolo "{nome}" eliminato.')
@@ -2387,6 +3080,42 @@ def _registra_cambiamento(
     )
 
 
+def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=None) -> None:
+    """All'assegnazione di una nuova mansione, ricalcola l'idoneità e notifica
+    (email, fail-open) i requisiti mancanti/scaduti a caporeparto + RSPP/HR.
+    Nessun dato clinico: le visite restano in forma generica."""
+    try:
+        stato = conformita_service.stato_conformita(legacy_id, mansione=mansione_nome)
+        idn = stato.get("idoneita", {})
+        gap = list(idn.get("scaduti", [])) + list(idn.get("mancanti", []))
+        if idn.get("esito") not in ("warn", "ko") or not gap:
+            return
+        from core.email_utils import send_hub_mail
+        from .services.onboarding import _caporeparto_emails
+        from .services.reminders import get_reminder_recipients
+        reparto = (dip.get("reparto") or "").strip()
+        nome = f"{dip.get('cognome', '')} {dip.get('nome', '')}".strip() or f"#{legacy_id}"
+        dest = sorted(set(
+            get_reminder_recipients("idoneita_reminder_emails") + _caporeparto_emails(reparto)
+        ))
+        if not dest:
+            return
+        send_hub_mail(
+            subject=f"[Idoneità] {nome} → mansione «{mansione_nome}»: requisiti da verificare",
+            body_text=(
+                f"{nome}{(' — reparto ' + reparto) if reparto else ''} è stato assegnato alla "
+                f"mansione «{mansione_nome}».\n\nRequisiti della mansione ancora da soddisfare:\n- "
+                + "\n- ".join(gap)
+            ),
+            recipients=dest, title="Idoneità alla mansione",
+            email_type="Anagrafica HR", section_label="Idoneità", fail_silently=True,
+        )
+    except Exception:
+        logger.warning("Notifica gap idoneità (cambio mansione) fallita per %s", legacy_id, exc_info=True)
+
+
+@login_required
+@require_POST
 def dipendente_mansione_set(request, legacy_id: int):
     legacy_user = get_legacy_user(request.user)
     if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
@@ -2424,6 +3153,9 @@ def dipendente_mansione_set(request, legacy_id: int):
             request.user,
         )
         messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
+        # E: cambio mansione → ricalcola idoneità e notifica i requisiti mancanti
+        if mansione_nome and mansione_nome.casefold() != mansione_vecchia.casefold():
+            _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
     except Exception:
         logger.exception("Errore aggiornamento mansione dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento della mansione.")
@@ -2974,6 +3706,74 @@ def dipendente_rimetti_in_forza(request, legacy_id: int):
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
+def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scadenza,
+                                 *, note="", user=None, sessione=None,
+                                 numero=None, livello=None, ente=None,
+                                 documento=None, documento_nome=None, origine=None):
+    """Crea o aggiorna la qualifica corrente di un dipendente per un tipo.
+
+    Convenzione (come ``import_asr``): una sola ``DipendenteQualifica`` corrente
+    per (dipendente, tipo), aggiornata al rinnovo — niente duplicati. Lo storico
+    dei rinnovi vive nelle ``QualificaSessione`` collegate. Ritorna (obj, created).
+
+    I campi Fase 2 (``numero``/``livello``/``ente``/``documento``) sono opzionali:
+    vengono scritti solo se passati esplicitamente (None = non toccare), così gli
+    altri chiamanti (import ASR, sessioni) restano invariati.
+    """
+    if data_scadenza is None and tipo.durata_mesi and data_conseguimento:
+        from anagrafica.models import _add_months
+        data_scadenza = _add_months(data_conseguimento, tipo.durata_mesi)
+    obj = (
+        DipendenteQualifica.objects
+        .filter(legacy_anagrafica_id=legacy_id, tipo=tipo)
+        .order_by("-data_conseguimento", "-id").first()
+    )
+    created = obj is None
+    if obj is None:
+        obj = DipendenteQualifica(legacy_anagrafica_id=legacy_id, tipo=tipo)
+    obj.data_conseguimento = data_conseguimento
+    obj.data_scadenza = data_scadenza
+    if note:
+        obj.note = note[:255]
+    if numero is not None:
+        obj.numero = numero[:100]
+    if livello is not None:
+        obj.livello = livello[:80]
+    if ente is not None:
+        obj.ente = ente[:200]
+    if documento is not None:
+        obj.documento = documento
+        obj.documento_nome_originale = (documento_nome or getattr(documento, "name", "") or "")[:255]
+        # Un nuovo documento richiede una nuova verifica HR.
+        obj.verificata = False
+        obj.verificata_da = None
+        obj.verificata_il = None
+    if sessione is not None:
+        obj.sessione = sessione
+    if user is not None:
+        obj.assegnato_da = user
+    obj.save()
+
+    # Storico append-only (Fase 2c): una riga per rilascio/rinnovo. Dedup contro
+    # l'ultima riga identica (evita doppioni su re-import idempotenti).
+    from anagrafica.models import DipendenteQualificaStorico
+    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente)
+    last = None if created else obj.storico.order_by("-id").first()
+    if last is None or (last.data_conseguimento, last.data_scadenza, last.numero, last.ente) != snap:
+        if sessione is not None:
+            org = DipendenteQualificaStorico.Origine.SESSIONE
+        else:
+            org = origine or DipendenteQualificaStorico.Origine.MANUALE
+        DipendenteQualificaStorico.objects.create(
+            qualifica=obj,
+            data_conseguimento=obj.data_conseguimento,
+            data_scadenza=obj.data_scadenza,
+            numero=obj.numero, livello=obj.livello, ente=obj.ente,
+            note=(note or "")[:255], origine=org, registrato_da=user,
+        )
+    return obj, created
+
+
 @login_required
 @require_POST
 def dipendente_qualifica_add(request, legacy_id: int):
@@ -3012,16 +3812,35 @@ def dipendente_qualifica_add(request, legacy_id: int):
             data_scadenza = data_conseguimento + timedelta(days=tipo.durata_mesi * 30)
 
     note = (request.POST.get("note") or "").strip()[:255]
+    numero = (request.POST.get("numero") or "").strip()[:100]
+    livello = (request.POST.get("livello") or "").strip()[:80]
+    ente = (request.POST.get("ente") or "").strip()[:200]
 
-    DipendenteQualifica.objects.create(
-        legacy_anagrafica_id=legacy_id,
-        tipo=tipo,
-        data_conseguimento=data_conseguimento,
-        data_scadenza=data_scadenza,
-        note=note,
-        assegnato_da=request.user,
+    # Evidenza documentale opzionale (storage privato). Validazione estensione/dimensione.
+    documento = request.FILES.get("documento")
+    documento_nome = None
+    if documento:
+        from pathlib import Path as _Path
+        allowed = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff"}
+        suffix = _Path(documento.name or "").suffix.lower()
+        if suffix not in allowed:
+            messages.error(request, "Formato evidenza non ammesso (usa PDF o immagine).")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        if documento.size > 15 * 1024 * 1024:
+            messages.error(request, "Evidenza troppo grande (max 15 MB).")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        documento_nome = documento.name
+
+    _, created = _upsert_dipendente_qualifica(
+        legacy_id, tipo, data_conseguimento, data_scadenza,
+        note=note, user=request.user,
+        numero=numero, livello=livello, ente=ente,
+        documento=documento or None, documento_nome=documento_nome,
     )
-    messages.success(request, f'Qualifica "{tipo.nome}" aggiunta.')
+    messages.success(
+        request,
+        f'Qualifica "{tipo.nome}" {"aggiunta" if created else "aggiornata (rinnovo)"}.',
+    )
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -3037,6 +3856,60 @@ def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
     nome = qualifica.tipo.nome
     qualifica.delete()
     messages.success(request, f'Qualifica "{nome}" rimossa.')
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+def dipendente_qualifica_evidenza(request, legacy_id: int, q_id: int):
+    """Serve l'evidenza documentale di una qualifica da storage privato (fuori
+    webroot). ACL: admin legacy / superuser / HR (può contenere dati personali)."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        return HttpResponse(status=403)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
+    if not q.documento:
+        return HttpResponse("Evidenza non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(
+            request, "QUALIFICA_EVIDENZA_DOWNLOAD", "anagrafica",
+            {"qualifica_id": q.pk, "tipo": q.tipo.nome, "legacy_id": legacy_id},
+        )
+    except Exception:
+        logger.warning("Audit QUALIFICA_EVIDENZA_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = q.documento.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    return FileResponse(
+        fh, as_attachment=True,
+        filename=q.documento_nome_originale or f"qualifica_{q.pk}.bin",
+    )
+
+
+@login_required
+@require_POST
+def dipendente_qualifica_verifica(request, legacy_id: int, q_id: int):
+    """Toggle del flag «verificata» (controllo HR dell'evidenza). ACL: admin/HR."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        messages.error(request, "Permessi insufficienti per verificare la qualifica.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
+    if q.verificata:
+        q.verificata = False
+        q.verificata_da = None
+        q.verificata_il = None
+        msg = f'Verifica rimossa da "{q.tipo.nome}".'
+    else:
+        from django.utils import timezone as _tz
+        q.verificata = True
+        q.verificata_da = request.user
+        q.verificata_il = _tz.now()
+        msg = f'Qualifica "{q.tipo.nome}" contrassegnata come verificata.'
+    q.save(update_fields=["verificata", "verificata_da", "verificata_il"])
+    messages.success(request, msg)
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -4208,8 +5081,19 @@ def dipendenti_report(request):
 def mansioni_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    can_view_requisiti = _can_view_formazione(request)
 
-    mansioni = list(Mansione.objects.all().order_by("nome"))
+    filtro_rischio = (request.GET.get("rischio") or "").strip().upper()
+    if filtro_rischio not in dict(Mansione.LIVELLO_RISCHIO_CHOICES):
+        filtro_rischio = ""
+    solo_rischio = request.GET.get("solo_rischio") == "1"
+    q_text = (request.GET.get("q") or "").strip()
+
+    mansioni = list(
+        Mansione.objects.all()
+        .order_by("nome")
+        .prefetch_related("visite_richieste", "dpi_richiesti")
+    )
 
     # Conta dipendenti per mansione dal DB legacy
     mansione_counts: dict[str, int] = {}
@@ -4228,6 +5112,29 @@ def mansioni_list(request):
 
     for m in mansioni:
         m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
+        # Contatori requisiti (usano la cache di prefetch_related → nessuna query extra)
+        m.n_visite = len(m.visite_richieste.all())
+        try:
+            m.n_dpi = len(m.dpi_richiesti.all())
+        except Exception:
+            m.n_dpi = 0
+        m.livello_label = m.get_livello_rischio_display() if m.livello_rischio else ""
+        m.is_rischio = bool(m.livello_rischio or m.n_dpi or m.n_visite)
+
+    n_rischio_tot = sum(1 for m in mansioni if m.is_rischio)
+
+    # Filtri (livello rischio, solo mansioni di rischio, ricerca nome)
+    def _match(m) -> bool:
+        if q_text and q_text.casefold() not in m.nome.casefold():
+            return False
+        if filtro_rischio and m.livello_rischio != filtro_rischio:
+            return False
+        if solo_rischio and not m.is_rischio:
+            return False
+        return True
+
+    if filtro_rischio or solo_rischio or q_text:
+        mansioni = [m for m in mansioni if _match(m)]
 
     # Raggruppa per categoria nell'ordine definito
     cat_order = [c for c, _ in Mansione.CATEGORIA_CHOICES]
@@ -4256,8 +5163,15 @@ def mansioni_list(request):
         "mansioni": mansioni,
         "mansioni_grouped": grouped,
         "is_admin": is_admin,
+        "can_view_requisiti": can_view_requisiti,
         "mansioni_suggerite": mansioni_suggerite,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
+        "LIVELLO_RISCHIO_CHOICES": Mansione.LIVELLO_RISCHIO_CHOICES,
+        "filtro_rischio": filtro_rischio,
+        "solo_rischio": solo_rischio,
+        "q_text": q_text,
+        "n_rischio_tot": n_rischio_tot,
+        "n_visibili": len(mansioni),
     })
 
 
@@ -4274,6 +5188,8 @@ def mansione_create(request):
         messages.error(request, "Il nome della mansione è obbligatorio.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
+    _lr = (request.POST.get("livello_rischio") or "").strip().upper()
+    _lr = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
     _, created = Mansione.objects.get_or_create(
         nome__iexact=nome,
         defaults={
@@ -4281,6 +5197,7 @@ def mansione_create(request):
             "categoria": (request.POST.get("categoria") or "").strip()[:20],
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
+            "livello_rischio": _lr,
         },
     )
     if created:
@@ -4304,10 +5221,12 @@ def mansione_edit(request, mansione_id: int):
         messages.error(request, "Il nome della mansione è obbligatorio.")
         return _back_to_caller(request, "anagrafica:mansioni_list")
 
+    _lr = (request.POST.get("livello_rischio") or "").strip().upper()
     mansione.nome = nome
     mansione.categoria = (request.POST.get("categoria") or "").strip()[:20]
     mansione.descrizione = (request.POST.get("descrizione") or "").strip()
     mansione.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    mansione.livello_rischio = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
     mansione.is_active = request.POST.get("is_active") == "1"
     mansione.save()
     messages.success(request, f'Mansione "{mansione.nome}" aggiornata.')
@@ -4327,6 +5246,68 @@ def mansione_delete(request, mansione_id: int):
     mansione.delete()
     messages.success(request, f'Mansione "{nome}" eliminata.')
     return _back_to_caller(request, "anagrafica:mansioni_list")
+
+
+@login_required
+def mansione_requisiti(request, mansione_id: int):
+    """Profilo "mansione di rischio": DPI / visite / formazione richiesti.
+
+    GET mostra i requisiti **diretti** (modificabili) della mansione, quelli
+    **ereditati** dai fattori di rischio esposti (read-only) e il riepilogo dei
+    requisiti effettivi (unione). POST salva i M2M diretti ``dpi_richiesti`` e
+    ``visite_richieste``. Gate: visualizzazione/edit formazione (dominio Safety).
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per i requisiti mansione.")
+        return redirect("anagrafica:index")
+    is_editor = _can_edit_formazione(request)
+    mansione = get_object_or_404(Mansione, pk=mansione_id)
+
+    if request.method == "POST":
+        if not is_editor:
+            messages.error(request, "Permessi insufficienti per modificare i requisiti.")
+            return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
+        _lr = (request.POST.get("livello_rischio") or "").strip().upper()
+        mansione.livello_rischio = _lr if _lr in dict(Mansione.LIVELLO_RISCHIO_CHOICES) else ""
+        mansione.save(update_fields=["livello_rischio"])
+        visite_ids = [int(v) for v in request.POST.getlist("visite_richieste") if str(v).isdigit()]
+        mansione.visite_richieste.set(
+            TipoVisitaMedica.objects.filter(pk__in=visite_ids, is_active=True)
+        )
+        try:
+            from dpi.models import CategoriaDPI
+            dpi_ids = [int(v) for v in request.POST.getlist("dpi_richiesti") if str(v).isdigit()]
+            mansione.dpi_richiesti.set(CategoriaDPI.objects.filter(pk__in=dpi_ids, is_active=True))
+        except Exception:
+            logger.warning("Salvataggio DPI mansione fallito (modulo dpi?)", exc_info=True)
+        messages.success(request, f'Requisiti della mansione "{mansione.nome}" aggiornati.')
+        return redirect("anagrafica:mansione_requisiti", mansione_id=mansione.pk)
+
+    # Requisiti effettivi (unione diretti + ereditati) per il riepilogo.
+    requisiti = mansionario_service.requisiti_mansione(mansione)
+
+    # Cataloghi per i selettori dei requisiti diretti.
+    visite_opts = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+    sel_visite_ids = set(mansione.visite_richieste.values_list("pk", flat=True))
+    dpi_opts: list = []
+    sel_dpi_ids: set[int] = set()
+    try:
+        from dpi.models import CategoriaDPI
+        dpi_opts = list(CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"))
+        sel_dpi_ids = set(mansione.dpi_richiesti.values_list("pk", flat=True))
+    except Exception:
+        dpi_opts = []
+
+    return render(request, "anagrafica/pages/mansione_requisiti.html", {
+        "mansione": mansione,
+        "is_editor": is_editor,
+        "requisiti": requisiti,
+        "visite_opts": visite_opts,
+        "sel_visite_ids": sel_visite_ids,
+        "dpi_opts": dpi_opts,
+        "sel_dpi_ids": sel_dpi_ids,
+        "livello_choices": Mansione.LIVELLO_RISCHIO_CHOICES,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -4668,8 +5649,18 @@ def qualifiche_list(request):
     legacy_user = get_legacy_user(request.user)
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
+    # Catalogo unico, viste filtrate per categoria: la pagina è la "casa" delle
+    # qualifiche (modulo Formazione) ma può aprirsi già filtrata (es. Salute e
+    # Sicurezza → ?categoria=SICUREZZA).
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    cat_filter = (request.GET.get("categoria") or "").strip().upper()
+    if cat_filter not in valid_cats:
+        cat_filter = ""
+
     tipi = list(
-        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni")).order_by("categoria", "nome")
+        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni"))
+        .prefetch_related("corsi")  # corso(i) che rilasciano la qualifica (Step 3)
+        .order_by("categoria", "nome")
     )
 
     oggi = tz.localdate()
@@ -4732,6 +5723,17 @@ def qualifiche_list(request):
         if items:
             tipi_grouped.append((cat_code, cat_labels_q[cat_code], items))
 
+    # Barra tab "Tutte + categorie" con conteggi (sempre su tutto il catalogo).
+    tabs = [("", "Tutte", len(tipi))]
+    for cat_code in cat_order_q:
+        tabs.append((cat_code, cat_labels_q[cat_code],
+                     sum(1 for t in tipi if t.categoria == cat_code)))
+
+    # Vista filtrata: restringe gruppi e scadenze alla categoria selezionata.
+    if cat_filter:
+        tipi_grouped = [g for g in tipi_grouped if g[0] == cat_filter]
+        scadenze = [s for s in scadenze if s["tipo_categoria"] == cat_filter]
+
     return render(request, "anagrafica/pages/qualifiche_list.html", {
         "tipi": tipi,
         "tipi_grouped": tipi_grouped,
@@ -4740,6 +5742,345 @@ def qualifiche_list(request):
         "oggi": oggi,
         "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
         "tipi_suggeriti": tipi_suggeriti,
+        "tabs": tabs,
+        "active_categoria": cat_filter,
+        "active_categoria_label": cat_labels_q.get(cat_filter, ""),
+        "is_safety_view": cat_filter == TipoQualifica.CAT_SICUREZZA,
+    })
+
+
+def _classifica_scadenza_qualifica(data_scadenza, oggi, soglia_30, soglia_60):
+    """Stato RAG di una qualifica in base alla scadenza. Fonte unica per
+    cruscotto e scadenzario dedicato (coerente con matrice/scadenzario unificato)."""
+    if data_scadenza is None:
+        return ("permanente", "Permanente")
+    if data_scadenza < oggi:
+        return ("scaduta", "Scaduta")
+    if data_scadenza <= soglia_30:
+        return ("s30", "In scadenza ≤30gg")
+    if data_scadenza <= soglia_60:
+        return ("s60", "In scadenza ≤60gg")
+    return ("valida", "Valida")
+
+
+@login_required
+def qualifiche_dashboard(request):
+    """Cruscotto Qualifiche & Certificazioni — vista trasversale di sola lettura.
+
+    AGGREGA (non duplica) i tre modelli sorgente — ``TipoQualifica``,
+    ``DipendenteQualifica``, ``QualificaSessione`` — le stesse fonti usate da
+    Formazione, ``matrice_competenze``, ``conformita_report`` e dalla scheda
+    dipendente: qualsiasi rilascio/rinnovo fatto altrove si riflette qui.
+
+    Le scadenze (promemoria email) restano gestite dal modulo automazioni
+    (report settimanale + pacchetto ``au12``): il cruscotto le mostra e linka
+    alla loro configurazione, non le ridefinisce.
+    """
+    from datetime import timedelta
+    from collections import OrderedDict
+    from django.utils import timezone as _tz
+
+    oggi = _tz.localdate()
+    soglia_30 = oggi + timedelta(days=30)
+    soglia_60 = oggi + timedelta(days=60)
+    is_admin = request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+
+    tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
+
+    quals = list(DipendenteQualifica.objects.select_related("tipo").all())
+    n_valide = n_scadute = n_s30 = n_s60 = n_permanenti = 0
+    n_con_evidenza = n_da_verificare = 0
+    dipendenti_ids: set[int] = set()
+    cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+    dist_cat = {c: 0 for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+
+    # Timeline scadenze prossimi 12 mesi
+    buckets: "OrderedDict[tuple[int, int], int]" = OrderedDict()
+    yy, mm = oggi.year, oggi.month
+    for _ in range(12):
+        buckets[(yy, mm)] = 0
+        mm += 1
+        if mm > 12:
+            mm, yy = 1, yy + 1
+    primo_del_mese = oggi.replace(day=1)
+
+    for q in quals:
+        dipendenti_ids.add(q.legacy_anagrafica_id)
+        if q.tipo.categoria in dist_cat:
+            dist_cat[q.tipo.categoria] += 1
+        if q.documento:
+            n_con_evidenza += 1
+            if not q.verificata:
+                n_da_verificare += 1
+        d = q.data_scadenza
+        if d is None:
+            n_permanenti += 1
+            n_valide += 1
+        elif d < oggi:
+            n_scadute += 1
+        elif d <= soglia_30:
+            n_s30 += 1
+        elif d <= soglia_60:
+            n_s60 += 1
+        else:
+            n_valide += 1
+        if d and d >= primo_del_mese and (d.year, d.month) in buckets:
+            buckets[(d.year, d.month)] += 1
+
+    mesi_abbr = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+    max_n = max(buckets.values()) if buckets else 0
+    timeline = [
+        {"label": f"{mesi_abbr[m - 1]} {str(y)[2:]}", "n": n,
+         "pct": int(round(n / max_n * 100)) if max_n else 0}
+        for (y, m), n in buckets.items()
+    ]
+
+    distribuzione = [
+        {"code": c, "label": cat_labels[c], "n": dist_cat[c]}
+        for c, _ in TipoQualifica.CATEGORIA_CHOICES if dist_cat[c]
+    ]
+
+    # Top scadenze urgenti (scadute + ≤60gg)
+    nomi = _build_nomi_map()
+    urgenti = sorted(
+        (q for q in quals if q.data_scadenza is not None and q.data_scadenza <= soglia_60),
+        key=lambda q: q.data_scadenza,
+    )[:15]
+    scadenze_urgenti = []
+    for q in urgenti:
+        stato_code, stato_label = _classifica_scadenza_qualifica(q.data_scadenza, oggi, soglia_30, soglia_60)
+        scadenze_urgenti.append({
+            "legacy_id": q.legacy_anagrafica_id,
+            "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "tipo_nome": q.tipo.nome,
+            "categoria": q.tipo.get_categoria_display(),
+            "data_scadenza": q.data_scadenza,
+            "giorni": (q.data_scadenza - oggi).days,
+            "stato": stato_code,
+            "stato_label": stato_label,
+        })
+
+    # Prossime sessioni di rilascio/rinnovo collettivo
+    prossime_sessioni = list(
+        QualificaSessione.objects.select_related("tipo")
+        .filter(data_conseguimento__gte=oggi)
+        .order_by("data_conseguimento")[:8]
+    )
+
+    return render(request, "anagrafica/pages/qualifiche_dashboard.html", {
+        "oggi": oggi,
+        "is_admin": is_admin,
+        "tipi_attivi": tipi_attivi,
+        "tot_assegnazioni": len(quals),
+        "dipendenti_con_qualifica": len(dipendenti_ids),
+        "n_valide": n_valide,
+        "n_scadute": n_scadute,
+        "n_in_scadenza": n_s30 + n_s60,
+        "n_s30": n_s30,
+        "n_permanenti": n_permanenti,
+        "n_con_evidenza": n_con_evidenza,
+        "n_da_verificare": n_da_verificare,
+        "distribuzione": distribuzione,
+        "timeline": timeline,
+        "scadenze_urgenti": scadenze_urgenti,
+        "prossime_sessioni": prossime_sessioni,
+    })
+
+
+@login_required
+def qualifiche_scadenzario(request):
+    """Scadenzario dedicato alle sole qualifiche/certificazioni.
+
+    È lo ``scadenzario`` unificato ristretto alle qualifiche, ma più ricco:
+    filtri per stato / categoria / reparto / tipo ed export CSV. Legge le stesse
+    ``DipendenteQualifica`` di tutto il resto: nessun dato duplicato.
+    """
+    from datetime import timedelta
+    from django.utils import timezone as _tz
+
+    oggi = _tz.localdate()
+    soglia_30 = oggi + timedelta(days=30)
+    soglia_60 = oggi + timedelta(days=60)
+
+    filtro_stato = (request.GET.get("stato") or "").strip()      # scaduta/30/60/valide/tutte/""
+    filtro_cat = (request.GET.get("categoria") or "").strip().upper()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    if filtro_cat not in valid_cats:
+        filtro_cat = ""
+
+    dip_rows = fetch_anagrafica_rows(deduplicate=True)
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+
+    qs = DipendenteQualifica.objects.select_related("tipo")
+    if filtro_cat:
+        qs = qs.filter(tipo__categoria=filtro_cat)
+    if filtro_tipo.isdigit():
+        qs = qs.filter(tipo_id=int(filtro_tipo))
+
+    # Filtro stato lato DB
+    if filtro_stato == "scaduta":
+        qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lt=oggi)
+    elif filtro_stato == "30":
+        qs = qs.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
+    elif filtro_stato == "60":
+        qs = qs.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+    elif filtro_stato == "valide":
+        qs = qs.filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=soglia_60))
+    elif filtro_stato == "tutte":
+        pass
+    else:  # default: tutto ciò che richiede attenzione (scadute + ≤60gg)
+        qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lte=soglia_60)
+
+    qs = qs.order_by("data_scadenza", "tipo__nome")
+
+    nomi = _build_nomi_map()
+    voci: list[dict] = []
+    counts = {"scaduta": 0, "s30": 0, "s60": 0, "valida": 0, "permanente": 0}
+    for q in qs:
+        dip = dip_map.get(q.legacy_anagrafica_id, {})
+        reparto = str(dip.get("reparto") or "").strip()
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        stato_code, stato_label = _classifica_scadenza_qualifica(q.data_scadenza, oggi, soglia_30, soglia_60)
+        counts[stato_code] = counts.get(stato_code, 0) + 1
+        voci.append({
+            "legacy_id": q.legacy_anagrafica_id,
+            "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "reparto": reparto,
+            "tipo_nome": q.tipo.nome,
+            "tipo_id": q.tipo_id,
+            "categoria": q.tipo.get_categoria_display(),
+            "numero": q.numero,
+            "livello": q.livello,
+            "ente": q.ente,
+            "data_conseguimento": q.data_conseguimento,
+            "data_scadenza": q.data_scadenza,
+            "giorni": (q.data_scadenza - oggi).days if q.data_scadenza else None,
+            "stato": stato_code,
+            "stato_label": stato_label,
+            "ha_evidenza": bool(q.documento),
+            "verificata": q.verificata,
+            "note": q.note,
+        })
+
+    if export_csv:
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria", "N°", "Livello",
+                         "Ente", "Conseguimento", "Scadenza", "Giorni", "Stato",
+                         "Evidenza", "Verificata"])
+        for v in voci:
+            writer.writerow([
+                v["dipendente"], v["reparto"], v["tipo_nome"], v["categoria"],
+                v["numero"], v["livello"], v["ente"],
+                v["data_conseguimento"].strftime("%d/%m/%Y") if v["data_conseguimento"] else "",
+                v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
+                v["giorni"] if v["giorni"] is not None else "",
+                v["stato_label"],
+                "Sì" if v["ha_evidenza"] else "No",
+                "Sì" if v["verificata"] else "No",
+            ])
+        return resp
+
+    reparti = sorted({str(r.get("reparto") or "").strip() for r in dip_rows if str(r.get("reparto") or "").strip()})
+    tipi_opts = list(TipoQualifica.objects.order_by("categoria", "nome").values("id", "nome"))
+
+    return render(request, "anagrafica/pages/qualifiche_scadenzario.html", {
+        "oggi": oggi,
+        "voci": voci,
+        "counts": counts,
+        "totale": len(voci),
+        "filtro_stato": filtro_stato,
+        "filtro_categoria": filtro_cat,
+        "filtro_reparto": filtro_reparto,
+        "filtro_tipo": filtro_tipo,
+        "reparti": reparti,
+        "tipi_opts": tipi_opts,
+        "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
+    })
+
+
+@login_required
+def tipo_qualifica_detail(request, tipo_id: int):
+    """Dettaglio di una singola qualifica/abilitazione: chi la possiede (con
+    stato), corsi collegati, sessioni di rinnovo, e la formazione collegata
+    (sessioni corso, lezioni, attestati/completamenti) — modello qualifica àncora.
+    """
+    from datetime import timedelta
+    from django.utils import timezone as _tz
+    from .models_formazione import TrainingSession, TrainingEmployeeRecord, TrainingLesson
+
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
+    is_admin = _qualifiche_can_edit(request)
+    oggi = _tz.localdate()
+    soglia = oggi + timedelta(days=60)
+
+    corsi = list(tipo.corsi.select_related("piano").order_by("titolo"))
+    corso_ids = [c.id for c in corsi]
+
+    nomi = _build_nomi_map()
+    holders: list[dict] = []
+    n_scaduti = n_scadenza = 0
+    for q in (DipendenteQualifica.objects.filter(tipo=tipo)
+              .select_related("record_formazione", "record_formazione__corso", "sessione")
+              .order_by("data_scadenza", "id")):
+        if q.data_scadenza is None:
+            stato = "valida"
+        elif q.data_scadenza < oggi:
+            stato = "scaduta"; n_scaduti += 1
+        elif q.data_scadenza <= soglia:
+            stato = "in_scadenza"; n_scadenza += 1
+        else:
+            stato = "valida"
+        holders.append({
+            "q": q, "stato": stato,
+            "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+        })
+    _ord = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
+    holders.sort(key=lambda h: (_ord.get(h["stato"], 9), h["nome"].casefold()))
+
+    sessioni = list(
+        QualificaSessione.objects.filter(tipo=tipo)
+        .annotate(n_part=Count("qualifiche")).order_by("-data_conseguimento", "-id")
+    )
+
+    corso_sessioni: list = []
+    attestati_recenti: list = []
+    n_attestati = n_lezioni = 0
+    if corso_ids:
+        corso_sessioni = list(
+            TrainingSession.objects.filter(corso_id__in=corso_ids)
+            .select_related("corso")
+            .annotate(n_lezioni=Count("lezioni", distinct=True),
+                      n_iscritti=Count("iscrizioni", distinct=True))
+            .order_by("-data_inizio")[:30]
+        )
+        n_lezioni = TrainingLesson.objects.filter(sessione__corso_id__in=corso_ids).count()
+        rec_qs = (TrainingEmployeeRecord.objects.filter(corso_id__in=corso_ids)
+                  .select_related("corso").order_by("-data_completamento", "-id"))
+        n_attestati = rec_qs.count()
+        for r in rec_qs[:30]:
+            attestati_recenti.append({
+                "r": r, "nome": nomi.get(r.legacy_anagrafica_id, f"#{r.legacy_anagrafica_id}"),
+            })
+
+    return render(request, "anagrafica/pages/tipo_qualifica_detail.html", {
+        "tipo": tipo,
+        "is_admin": is_admin,
+        "corsi": corsi,
+        "holders": holders,
+        "n_holders": len(holders),
+        "n_scaduti": n_scaduti,
+        "n_scadenza": n_scadenza,
+        "sessioni": sessioni,
+        "corso_sessioni": corso_sessioni,
+        "attestati_recenti": attestati_recenti,
+        "n_attestati": n_attestati,
+        "n_lezioni": n_lezioni,
     })
 
 
@@ -4817,14 +6158,289 @@ def tipo_qualifica_delete(request, tipo_id: int):
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
-    if tipo.assegnazioni.exists():
-        messages.error(request, f'"{tipo.nome}" ha assegnazioni attive — non eliminabile.')
+    n_uso = tipo.assegnazioni.count()
+    if n_uso:
+        if tipo.is_active:
+            tipo.is_active = False
+            tipo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{tipo.nome}" è in uso ({n_uso} assegnazioni): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{tipo.nome}" ha {n_uso} assegnazioni: non eliminabile (già disattivo).')
         return _back_to_caller(request, "anagrafica:qualifiche_list")
 
     nome = tipo.nome
     tipo.delete()
     messages.success(request, f'Tipo qualifica "{nome}" eliminato.')
     return _back_to_caller(request, "anagrafica:qualifiche_list")
+
+
+# ---------------------------------------------------------------------------
+# Sessioni di rinnovo qualifica — rilascio/rinnovo collettivo "a sessioni"
+# (speculare alle sessioni corsi; pattern batch come le visite mediche)
+# ---------------------------------------------------------------------------
+
+def _qualifiche_can_edit(request) -> bool:
+    return request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+
+
+def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
+    """Dipendenti (in forza) che detengono già la qualifica, con lo stato di
+    rinnovo: scaduta / in scadenza (≤90gg) / valida. I nuovi rilasci si
+    aggiungono dal picker. Pre-seleziona scadute e in scadenza."""
+    from datetime import timedelta
+    soglia = oggi + timedelta(days=90)
+    ultima_per_id: dict[int, "DipendenteQualifica"] = {}
+    for q in (DipendenteQualifica.objects.filter(tipo=tipo)
+              .order_by("legacy_anagrafica_id", "-data_conseguimento", "-id")):
+        ultima_per_id.setdefault(q.legacy_anagrafica_id, q)
+    nomi = _build_nomi_map()
+    cessati = _cessati_legacy_ids()
+    out: list[dict] = []
+    for lid, q in ultima_per_id.items():
+        if lid in cessati:
+            continue
+        if q.data_scadenza is None:
+            status = "valida"
+        elif q.data_scadenza < oggi:
+            status = "scaduta"
+        elif q.data_scadenza <= soglia:
+            status = "in_scadenza"
+        else:
+            status = "valida"
+        out.append({
+            "legacy_id": lid, "nome": nomi.get(lid, f"#{lid}"),
+            "ultima": q, "status": status,
+            "preselect": status in ("scaduta", "in_scadenza"),
+        })
+    order = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
+    out.sort(key=lambda c: (order.get(c["status"], 9), c["nome"].casefold()))
+    return out
+
+
+@login_required
+def qualifica_sessioni_list(request):
+    qs = QualificaSessione.objects.select_related("tipo").annotate(n_part=Count("qualifiche"))
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    q_text = (request.GET.get("q") or "").strip()
+    if filtro_tipo.isdigit():
+        qs = qs.filter(tipo_id=int(filtro_tipo))
+    if q_text:
+        qs = qs.filter(Q(tipo__nome__icontains=q_text) | Q(ente__icontains=q_text))
+    sessioni = list(qs.order_by("-data_conseguimento", "-id"))
+    # Tipi con almeno una sessione, per il filtro a tendina.
+    tipi_con_sessioni = list(
+        TipoQualifica.objects.filter(sessioni__isnull=False).distinct().order_by("nome")
+    )
+    return render(request, "anagrafica/pages/qualifica_sessioni_list.html", {
+        "sessioni": sessioni,
+        "is_admin": _qualifiche_can_edit(request),
+        "tipi_con_sessioni": tipi_con_sessioni,
+        "filtro_tipo": filtro_tipo,
+        "q_text": q_text,
+    })
+
+
+@login_required
+def qualifica_sessione_create(request):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Non hai i permessi per creare sessioni di rinnovo.")
+        return redirect("anagrafica:qualifiche_list")
+
+    from datetime import date as _date
+    from django.utils import timezone as _tz
+    from django.db import transaction
+
+    oggi = _tz.localdate()
+    tipi = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
+
+    # ---- Step 2: salva la sessione e i record dei partecipanti ----------
+    if request.method == "POST" and request.POST.get("step") == "2":
+        try:
+            tipo = TipoQualifica.objects.get(pk=request.POST.get("tipo_id", "").strip(), is_active=True)
+        except (TipoQualifica.DoesNotExist, ValueError):
+            messages.error(request, "Tipo qualifica non valido.")
+            return redirect("anagrafica:qualifica_sessione_create")
+        try:
+            data_cons = _date.fromisoformat(request.POST.get("data_conseguimento", "").strip())
+        except (ValueError, TypeError):
+            messages.error(request, "Data conseguimento non valida.")
+            return redirect("anagrafica:qualifica_sessione_create")
+        data_scad = None
+        ds_raw = (request.POST.get("data_scadenza") or "").strip()
+        if ds_raw:
+            try:
+                data_scad = _date.fromisoformat(ds_raw)
+            except (ValueError, TypeError):
+                data_scad = None
+        ente = (request.POST.get("ente") or "").strip()[:200]
+        note = (request.POST.get("note") or "").strip()
+
+        ids: list[int] = []
+        seen: set[int] = set()
+        raw = list(request.POST.getlist("dipendenti_selezionati"))
+        raw += [x for x in (request.POST.get("extra_ids") or "").split(",")]
+        for s in raw:
+            s = str(s).strip()
+            if s.isdigit():
+                lid = int(s)
+                if lid > 0 and lid not in seen:
+                    seen.add(lid)
+                    ids.append(lid)
+        if not ids:
+            messages.warning(request, "Nessun dipendente selezionato.")
+            return redirect("anagrafica:qualifica_sessione_create")
+
+        with transaction.atomic():
+            sess = QualificaSessione.objects.create(
+                tipo=tipo, data_conseguimento=data_cons, data_scadenza=data_scad,
+                ente=ente, note=note, created_by=request.user,
+            )
+            scad_eff = sess.scadenza_effettiva
+            for lid in ids:
+                _upsert_dipendente_qualifica(
+                    lid, tipo, data_cons, scad_eff, user=request.user, sessione=sess,
+                )
+        messages.success(
+            request,
+            f'Sessione «{tipo.nome}» del {data_cons:%d/%m/%Y}: {len(ids)} qualifiche registrate/rinnovate.',
+        )
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sess.id)
+
+    # ---- Pagina unica (GET) — form + candidati caricati dinamicamente ----
+    # Se arriva ?tipo=<id> (da scadenzario / dettaglio qualifica / matrice) la
+    # tabella candidati è renderizzata subito lato server (deep-link no-JS);
+    # altrimenti si popola via HTMX al cambio del tipo nel select.
+    pre_tipo = None
+    pre_tipo_id = (request.GET.get("tipo") or "").strip()
+    if pre_tipo_id.isdigit():
+        pre_tipo = TipoQualifica.objects.filter(pk=int(pre_tipo_id), is_active=True).first()
+    candidati = _build_candidati_qualifica(pre_tipo, oggi) if pre_tipo else []
+    n_pre = sum(1 for c in candidati if c["preselect"])
+    return render(request, "anagrafica/pages/qualifica_sessione_create.html", {
+        "tipi": tipi, "oggi": oggi,
+        "pre_tipo": pre_tipo, "candidati": candidati, "n_pre": n_pre,
+        "dipendenti_picker": _dipendenti_picker_rows(),
+    })
+
+
+@login_required
+def qualifica_sessione_candidati(request):
+    """Partial HTMX: tabella dei candidati (chi detiene già la qualifica, con
+    stato di rinnovo) per il tipo selezionato. Popola dinamicamente la pagina di
+    creazione sessione senza ricaricarla."""
+    if not _qualifiche_can_edit(request):
+        return HttpResponse(status=403)
+    from django.utils import timezone as _tz
+    raw = (request.GET.get("tipo") or request.GET.get("tipo_id") or "").strip()
+    tipo = None
+    if raw.isdigit():
+        tipo = TipoQualifica.objects.filter(pk=int(raw), is_active=True).first()
+    candidati = _build_candidati_qualifica(tipo, _tz.localdate()) if tipo else []
+    n_pre = sum(1 for c in candidati if c["preselect"])
+    return render(request, "anagrafica/pages/_qualifica_candidati.html", {
+        "tipo": tipo, "candidati": candidati, "n_pre": n_pre,
+    })
+
+
+@login_required
+def qualifica_sessione_detail(request, sessione_id: int):
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    nomi = _build_nomi_map()
+    rows = [
+        {"q": q, "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}")}
+        for q in sess.qualifiche.all()
+    ]
+    rows.sort(key=lambda r: r["nome"].casefold())
+    is_admin = _qualifiche_can_edit(request)
+    return render(request, "anagrafica/pages/qualifica_sessione_detail.html", {
+        "sess": sess,
+        "rows": rows,
+        "is_admin": is_admin,
+        "dipendenti_picker": _dipendenti_picker_rows() if is_admin else [],
+    })
+
+
+@login_required
+@require_POST
+def qualifica_sessione_partecipante_add(request, sessione_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    try:
+        lid = int(request.POST.get("legacy_id") or 0)
+    except (ValueError, TypeError):
+        lid = 0
+    if lid > 0:
+        _upsert_dipendente_qualifica(
+            lid, sess.tipo, sess.data_conseguimento, sess.scadenza_effettiva,
+            user=request.user, sessione=sess,
+        )
+        messages.success(request, "Partecipante aggiunto alla sessione.")
+    else:
+        messages.error(request, "Dipendente non valido.")
+    return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def qualifica_sessione_partecipante_remove(request, sessione_id: int, q_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, sessione_id=sessione_id)
+    # Stacca dalla sessione (la qualifica corrente del dipendente resta).
+    q.sessione = None
+    q.save(update_fields=["sessione"])
+    messages.success(request, "Partecipante rimosso dalla sessione (qualifica conservata).")
+    return redirect("anagrafica:qualifica_sessione_detail", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def qualifica_sessione_delete(request, sessione_id: int):
+    if not _qualifiche_can_edit(request):
+        messages.error(request, "Permessi insufficienti.")
+        return redirect("anagrafica:qualifica_sessioni_list")
+    sess = get_object_or_404(QualificaSessione, pk=sessione_id)
+    # SET_NULL: le qualifiche dei dipendenti restano, perdono solo il legame.
+    sess.delete()
+    messages.success(request, "Sessione eliminata (qualifiche dei dipendenti conservate).")
+    return redirect("anagrafica:qualifica_sessioni_list")
+
+
+@login_required
+def qualifica_sessione_report_csv(request, sessione_id: int):
+    """Esporta in CSV i partecipanti di una sessione di qualifica/abilitazione."""
+    sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
+    nomi = _build_nomi_map()
+    rows = sorted(
+        sess.qualifiche.all(),
+        key=lambda q: nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}").casefold(),
+    )
+
+    import csv
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    fname = f"sessione_qualifica_{sess.tipo.nome}_{sess.data_conseguimento:%Y%m%d}.csv".replace(" ", "_")
+    response["Content-Disposition"] = f'attachment; filename="{fname}"'
+    response.write("﻿")
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(["Qualifica", "Ente", "Conseguimento", "Scadenza sessione"])
+    writer.writerow([
+        sess.tipo.nome, sess.ente or "",
+        sess.data_conseguimento.strftime("%d-%m-%Y") if sess.data_conseguimento else "",
+        sess.scadenza_effettiva.strftime("%d-%m-%Y") if sess.scadenza_effettiva else "",
+    ])
+    writer.writerow([])
+    writer.writerow(["Dipendente", "ID anagrafica", "Conseguimento", "Scadenza"])
+    for q in rows:
+        writer.writerow([
+            nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            q.legacy_anagrafica_id,
+            q.data_conseguimento.strftime("%d-%m-%Y") if q.data_conseguimento else "",
+            q.data_scadenza.strftime("%d-%m-%Y") if q.data_scadenza else "",
+        ])
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -5195,6 +6811,7 @@ def scadenzario(request):
                 "nome":         str(dip.get("nome") or "").strip(),
                 "reparto":      reparto,
                 "tipo_nome":    q.tipo.nome,
+                "tipo_id":      q.tipo_id,
                 "categoria":    q.tipo.get_categoria_display(),
                 "data_scadenza": q.data_scadenza,
                 "giorni":       delta,
@@ -5397,6 +7014,7 @@ def scadenzario(request):
         "totale":        len(voci),
         "can_view_formazione": can_view_formazione,
         "can_view_contratti": can_view_contratti,
+        "is_qual_admin": _qualifiche_can_edit(request),
         "fm_n_scaduti":  fm_n_scaduti,
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
@@ -6416,12 +8034,24 @@ def impostazioni(request):
     except Exception:
         pass
 
-    # --- Cartelle documenti ---
-    cartelle_documenti = list(
+    # --- Cartelle documenti (ordinate ad albero: parent → figlie, con livello) ---
+    _cartelle_all = list(
         CartellaDocumentoDipendente.objects
         .annotate(n_documenti=Count("documenti"))
         .order_by("ordine", "nome")
     )
+    _cartelle_by_parent: dict = {}
+    for _c in _cartelle_all:
+        _cartelle_by_parent.setdefault(_c.parent_id, []).append(_c)
+    cartelle_documenti: list = []
+
+    def _walk_cartelle(parent_id, livello):
+        for _c in _cartelle_by_parent.get(parent_id, []):
+            _c.livello = livello
+            cartelle_documenti.append(_c)
+            _walk_cartelle(_c.id, livello + 1)
+
+    _walk_cartelle(None, 0)
 
     # --- Subnav navigazione ---
     subnav_categorie = list(SubnavCategoriaAnagrafica.objects.order_by("ordine", "nome"))
@@ -6635,8 +8265,14 @@ def tipo_visita_medica_delete(request, tipo_id: int):
     if not ok:
         return resp
     tipo = get_object_or_404(TipoVisitaMedica, pk=tipo_id)
-    if tipo.visite.exists():
-        messages.error(request, f'"{tipo.nome}" ha visite registrate — non eliminabile.')
+    n_uso = tipo.visite.count()
+    if n_uso:
+        if tipo.is_active:
+            tipo.is_active = False
+            tipo.save(update_fields=["is_active"])
+            messages.warning(request, f'"{tipo.nome}" è in uso ({n_uso} visite registrate): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
+        else:
+            messages.error(request, f'"{tipo.nome}" ha {n_uso} visite registrate: non eliminabile (già disattivo).')
         return _redirect_impostazioni("visite-mediche")
     nome = tipo.nome
     tipo.delete()
@@ -7318,6 +8954,11 @@ def documenti_list(request):
     cartelle = list(CartellaDocumentoDipendente.objects.all())
     qs = DocumentoDipendente.objects.filter(tipo=DocumentoDipendente.Tipo.MANUALE).select_related("cartella", "created_by").order_by("-created_at")
 
+    # Cartelle riservate (solo_admin): visibili nell'archivio solo ai super-amministratori.
+    if not request.user.is_superuser:
+        cartelle = [c for c in cartelle if not c.solo_admin]
+        qs = qs.exclude(cartella__solo_admin=True)
+
     filtro_cartella = request.GET.get("cartella", "").strip()
     filtro_cerca = request.GET.get("q", "").strip()
     filtro_anno = request.GET.get("anno", "").strip()
@@ -7365,6 +9006,37 @@ def documenti_list(request):
     })
 
 
+@login_required
+@require_POST
+def documento_sposta_cartella(request, doc_id: int):
+    """Sposta un documento manuale in un'altra cartella (o «senza cartella»).
+
+    Gestione del container: stessa autorizzazione dell'archivio (HR/admin)."""
+    legacy_user = get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+    if not (is_admin or _check_hr_permission(request)):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("anagrafica:documenti_list")
+    doc = get_object_or_404(
+        DocumentoDipendente, pk=doc_id, tipo=DocumentoDipendente.Tipo.MANUALE
+    )
+    target = (request.POST.get("cartella") or "").strip()
+    if target in ("", "__nessuna__"):
+        doc.cartella = None
+    else:
+        try:
+            doc.cartella = CartellaDocumentoDipendente.objects.get(pk=int(target))
+        except (CartellaDocumentoDipendente.DoesNotExist, ValueError, TypeError):
+            messages.error(request, "Cartella di destinazione non valida.")
+            return redirect("anagrafica:documenti_list")
+    doc.save(update_fields=["cartella"])
+    messages.success(request, "Documento spostato.")
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect("anagrafica:documenti_list")
+
+
 # ---------------------------------------------------------------------------
 # CRUD cartelle documenti (da impostazioni)
 # ---------------------------------------------------------------------------
@@ -7385,11 +9057,29 @@ def cartella_documento_create(request):
         ordine = int(ordine_raw)
     except (ValueError, TypeError):
         ordine = 0
-    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome).exists():
-        messages.error(request, f"Esiste già una cartella con nome «{nome}».")
+    # Cartella superiore (sottocartella) opzionale
+    parent = None
+    parent_raw = (request.POST.get("parent") or "").strip()
+    if parent_raw and parent_raw not in ("0", "__root__"):
+        try:
+            parent = CartellaDocumentoDipendente.objects.get(pk=int(parent_raw))
+        except (CartellaDocumentoDipendente.DoesNotExist, ValueError, TypeError):
+            parent = None
+    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome, parent=parent).exists():
+        dove = f" in «{parent.nome}»" if parent else " di primo livello"
+        messages.error(request, f"Esiste già una cartella «{nome}»{dove}.")
         return _redirect_impostazioni("documenti")
-    CartellaDocumentoDipendente.objects.create(nome=nome, descrizione=descrizione, ordine=ordine)
-    messages.success(request, f"Cartella «{nome}» creata.")
+    try:
+        retention = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
+    except (ValueError, TypeError):
+        retention = 10
+    solo_admin = request.POST.get("solo_admin") == "1"
+    CartellaDocumentoDipendente.objects.create(
+        nome=nome, parent=parent, descrizione=descrizione, ordine=ordine,
+        retention_anni=retention, solo_admin=solo_admin,
+    )
+    dove = f" in «{parent.nome}»" if parent else ""
+    messages.success(request, f"Cartella «{nome}»{dove} creata.")
     return _redirect_impostazioni("documenti")
 
 
@@ -7407,8 +9097,8 @@ def cartella_documento_edit(request, cartella_id: int):
     if not nome:
         messages.error(request, "Il nome della cartella è obbligatorio.")
         return _redirect_impostazioni("documenti")
-    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome).exclude(pk=cartella_id).exists():
-        messages.error(request, f"Esiste già un'altra cartella con nome «{nome}».")
+    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome, parent=cartella.parent).exclude(pk=cartella_id).exists():
+        messages.error(request, f"Esiste già un'altra cartella «{nome}» nello stesso livello.")
         return _redirect_impostazioni("documenti")
     try:
         ordine = int(ordine_raw)
@@ -7418,6 +9108,11 @@ def cartella_documento_edit(request, cartella_id: int):
     cartella.descrizione = descrizione
     cartella.ordine = ordine
     cartella.attiva = attiva
+    cartella.solo_admin = request.POST.get("solo_admin") == "1"
+    try:
+        cartella.retention_anni = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
+    except (ValueError, TypeError):
+        pass
     cartella.save()
     messages.success(request, f"Cartella «{nome}» aggiornata.")
     return _redirect_impostazioni("documenti")
@@ -7430,9 +9125,18 @@ def cartella_documento_delete(request, cartella_id: int):
     if not ok:
         return resp
     cartella = get_object_or_404(CartellaDocumentoDipendente, pk=cartella_id)
+    n_figlie = cartella.figlie.count()
+    if n_figlie > 0:
+        messages.error(request, f"La cartella «{cartella.nome}» contiene {n_figlie} sottocartella/e: eliminale o spostale prima.")
+        return _redirect_impostazioni("documenti")
     n_docs = cartella.documenti.count()
     if n_docs > 0:
-        messages.error(request, f"Impossibile eliminare: la cartella contiene {n_docs} documento/i. Spostali o disattiva la cartella.")
+        if cartella.attiva:
+            cartella.attiva = False
+            cartella.save(update_fields=["attiva"])
+            messages.warning(request, f"La cartella «{cartella.nome}» contiene {n_docs} documento/i: disattivata (non eliminata) per preservare lo storico. Riattivala dalla modifica.")
+        else:
+            messages.error(request, f"La cartella «{cartella.nome}» contiene {n_docs} documento/i: non eliminabile (già disattiva).")
         return _redirect_impostazioni("documenti")
     nome = cartella.nome
     cartella.delete()
@@ -8304,6 +10008,7 @@ def formazione_dashboard(request):
 
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
         "oggi": oggi,
+        "can_edit_formazione": _can_edit_formazione(request),
         "kpi_dipendenti_formazione": kpi_dipendenti_formazione,
         "kpi_scaduti": kpi_scaduti,
         "kpi_in_scadenza_30": kpi_in_scadenza_30,
@@ -8312,6 +10017,102 @@ def formazione_dashboard(request):
         "kpi_corsi_attivi": kpi_corsi_attivi,
         "scadenze_urgenti": scadenze_raw,
         "deadline_cache_empty": deadline_cache_empty,
+    })
+
+
+@login_required
+def formazione_ricerca(request):
+    """Ricerca globale formazione: corsi, sessioni, piani, qualifiche,
+    dipendenti (libretto) e attestati. Un'unica casella dalla dashboard.
+
+    Best-effort, limitata in righe: serve a "saltare" velocemente all'entità,
+    non è un motore full-text. Gated dal permesso di visualizzazione formazione.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    q = (request.GET.get("q") or "").strip()
+    risultati: dict[str, list] = {
+        "corsi": [], "sessioni": [], "piani": [], "qualifiche": [],
+        "dipendenti": [], "attestati": [],
+    }
+    totale = 0
+    if q:
+        ql = q.lower()
+
+        from django.db.models import Count as _Count, Prefetch as _Prefetch
+        # Edizioni + lezioni precaricate per il sottoelenco espandibile,
+        # sia in pagina risultati sia nella tendina (no query N+1).
+        risultati["corsi"] = list(
+            TrainingCourse.objects.select_related("piano")
+            .filter(Q(titolo__icontains=q) | Q(codice__icontains=q))
+            .annotate(n_sessioni=_Count("sessioni", distinct=True))
+            .prefetch_related(
+                _Prefetch(
+                    "sessioni",
+                    queryset=TrainingSession.objects.prefetch_related("lezioni").order_by("-data_inizio"),
+                )
+            )
+            .order_by("titolo")[:25]
+        )
+        risultati["piani"] = list(
+            TrainingPlan.objects.filter(Q(nome__icontains=q) | Q(codice__icontains=q))
+            .annotate(n_corsi=_Count("corsi", distinct=True))
+            .order_by("nome")[:25]
+        )
+        risultati["sessioni"] = list(
+            TrainingSession.objects.select_related("corso")
+            .filter(Q(codice_sessione__icontains=q) | Q(corso__titolo__icontains=q) | Q(sede__icontains=q))
+            .annotate(n_iscritti=_Count("iscrizioni", distinct=True))
+            .order_by("-data_inizio")[:25]
+        )
+        risultati["qualifiche"] = list(
+            TipoQualifica.objects.filter(Q(nome__icontains=q) | Q(descrizione__icontains=q))
+            .annotate(n_assegnazioni=_Count("assegnazioni", distinct=True))
+            .order_by("nome")[:25]
+        )
+
+        # Dipendenti per nome → link al libretto formativo.
+        nomi = _build_nomi_map()
+        dip_match = [
+            {"legacy_id": lid, "nome": nome}
+            for lid, nome in nomi.items() if ql in nome.lower()
+        ]
+        dip_match.sort(key=lambda d: d["nome"].casefold())
+        risultati["dipendenti"] = dip_match[:25]
+
+        # Attestati: per nome dipendente o titolo corso (snapshot).
+        matched_ids = [d["legacy_id"] for d in dip_match]
+        rec_qs = TrainingEmployeeRecord.objects.filter(
+            Q(course_title_snapshot__icontains=q)
+            | Q(course_code_snapshot__icontains=q)
+            | Q(legacy_anagrafica_id__in=matched_ids)
+        ).order_by("-data_completamento")[:25]
+        att = []
+        for r in rec_qs:
+            att.append({
+                "record": r,
+                "nome": nomi.get(r.legacy_anagrafica_id, f"#{r.legacy_anagrafica_id}"),
+            })
+        risultati["attestati"] = att
+
+        totale = sum(len(v) for v in risultati.values())
+
+    # Ricerca live: su richiesta HTMX rende solo il frammento dei risultati;
+    # con ?suggest=1 (casella nella dashboard) rende la tendina compatta.
+    if request.headers.get("HX-Request"):
+        template = (
+            "anagrafica/partials/_formazione_search_suggest.html"
+            if request.GET.get("suggest")
+            else "anagrafica/partials/_formazione_search_results.html"
+        )
+    else:
+        template = "anagrafica/pages/formazione_ricerca.html"
+    return render(request, template, {
+        "q": q,
+        "risultati": risultati,
+        "totale": totale,
     })
 
 
@@ -8512,12 +10313,129 @@ def formazione_corso_create(request):
             messages.success(request, f'Corso "{corso.titolo}" creato.')
             return redirect("anagrafica:formazione_corso_detail", corso_id=corso.pk)
     else:
-        initial_piano = request.GET.get("piano")
-        form = TrainingCourseForm(initial={"piano": initial_piano} if initial_piano else {})
+        initial = {}
+        if request.GET.get("piano"):
+            initial["piano"] = request.GET.get("piano")
+        # Preset "nuovo corso e-learning" dal hub di gestione e-learning: applica i
+        # default configurati nelle Impostazioni e-learning.
+        if request.GET.get("elearning") in ("1", "true", "on"):
+            cfg = ElearningConfig.get_instance()
+            initial["is_elearning"] = True
+            initial["quiz_punteggio_minimo"] = cfg.quiz_punteggio_minimo_default
+            if cfg.validita_mesi_default:
+                initial["validita_mesi"] = cfg.validita_mesi_default
+        form = TrainingCourseForm(initial=initial)
     return render(request, "anagrafica/pages/formazione_corso_form.html", {
         "form": form,
         "modo": "crea",
     })
+
+
+# ── Quick-add inline (JSON) delle entità collegate dei form formazione ───────
+# Creano l'entità minimale e ritornano {ok, id, label} così la UI la appende al
+# <select> e la seleziona senza ricaricare. Gated dal permesso di modifica.
+
+@login_required
+@require_POST
+def formazione_quickadd_piano(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not codice or not nome:
+        return JsonResponse({"ok": False, "error": "Codice e nome sono obbligatori."}, status=400)
+    if TrainingPlan.objects.filter(codice=codice).exists():
+        return JsonResponse({"ok": False, "error": f"Esiste già un piano con codice {codice}."}, status=400)
+    p = TrainingPlan.objects.create(codice=codice, nome=nome, created_by=request.user)
+    return JsonResponse({"ok": True, "id": p.pk, "label": str(p)})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_categoria(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    from .models_rischi import CategoriaCorso
+    codice = (request.POST.get("codice") or "").strip().upper()[:20]
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not codice or not nome:
+        return JsonResponse({"ok": False, "error": "Codice e nome sono obbligatori."}, status=400)
+    if CategoriaCorso.objects.filter(codice=codice).exists():
+        return JsonResponse({"ok": False, "error": f"Esiste già una categoria con codice {codice}."}, status=400)
+    c = CategoriaCorso.objects.create(codice=codice, nome=nome)
+    return JsonResponse({"ok": True, "id": c.pk, "label": c.nome})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_qualifica(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    from .models import TipoQualifica
+    nome = (request.POST.get("nome") or "").strip()[:150]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    try:
+        durata = max(0, int(request.POST.get("durata_mesi") or 0))
+    except (TypeError, ValueError):
+        durata = 0
+    obj, _created = TipoQualifica.objects.get_or_create(nome=nome, defaults={"durata_mesi": durata})
+    return JsonResponse({"ok": True, "id": obj.pk, "label": obj.nome})
+
+
+@login_required
+@require_POST
+def formazione_quickadd_docente(request):
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False, "error": "Permesso negato."}, status=403)
+    nome = (request.POST.get("nome") or "").strip()[:200]
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Il nome è obbligatorio."}, status=400)
+    tipo = (request.POST.get("tipo") or "ESTERNO").strip().upper()
+    if tipo not in ("INTERNO", "ESTERNO"):
+        tipo = "ESTERNO"
+    d = TrainingInstructor.objects.create(nome=nome, tipo=tipo)
+    return JsonResponse({"ok": True, "id": d.pk, "label": d.nome})
+
+
+@login_required
+def formazione_corso_codice_suggest(request):
+    """Suggerisce un codice corso UNIVOCO a partire dal titolo (JSON).
+
+    Base: alfanumerico maiuscolo del titolo (iniziali delle parole se lungo);
+    se già usato accoda un progressivo. Usato dal form corso per precompilare il
+    codice quando l'utente non lo digita."""
+    if not _can_edit_formazione(request):
+        return JsonResponse({"ok": False}, status=403)
+    import re
+    titolo = (request.GET.get("titolo") or "").strip()
+    parole = re.findall(r"[A-Za-z0-9]+", titolo)
+    if not parole:
+        base = "CORSO"
+    elif len("".join(parole)) <= 8:
+        base = "".join(parole).upper()
+    else:
+        base = ("".join(p[0] for p in parole).upper() or parole[0].upper())
+    base = (base or "CORSO")[:12]
+    codice, i = base, 1
+    while TrainingCourse.objects.filter(codice=codice).exists():
+        i += 1
+        codice = f"{base}-{i}"[:30]
+    return JsonResponse({"ok": True, "codice": codice})
+
+
+@login_required
+def formazione_qualifica_durata(request):
+    """Durata (mesi) di una TipoQualifica (JSON): il form corso preimposta la
+    validità del corso da quella della qualifica àncora selezionata."""
+    if not _can_view_formazione(request):
+        return JsonResponse({"ok": False}, status=403)
+    from .models import TipoQualifica
+    try:
+        q = TipoQualifica.objects.get(pk=int(request.GET.get("id") or 0))
+    except (TipoQualifica.DoesNotExist, TypeError, ValueError):
+        return JsonResponse({"ok": False}, status=404)
+    return JsonResponse({"ok": True, "durata_mesi": q.durata_mesi or 0})
 
 
 @login_required
@@ -8621,6 +10539,22 @@ def formazione_corso_detail(request, corso_id: int):
     version_form = TrainingCourseVersionForm()
     req_rule_form = TrainingRequirementRuleForm(initial={"corso": corso})
 
+    # Candidati all'assegnazione al corso (primo anello corso→sessione): idonei non
+    # ancora assegnati. Solo per editor (evita il calcolo in sola lettura).
+    candidati_assegnazione: list = []
+    assegnazione_pool_filtrato = False
+    if is_editor:
+        from .services.training_eligibility import candidati_corso
+        _res = candidati_corso(corso)
+        assegnazione_pool_filtrato = _res["pool_filtrato"]
+        _gia_assegnati = set(
+            TrainingAssignment.objects.filter(corso=corso)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+        candidati_assegnazione = [
+            c for c in _res["idonei"] if c["legacy_id"] not in _gia_assegnati
+        ]
+
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
         "prerequisiti": prerequisiti,
@@ -8640,6 +10574,8 @@ def formazione_corso_detail(request, corso_id: int):
         "req_rule_form": req_rule_form,
         "is_editor": is_editor,
         "tutti_corsi": TrainingCourse.objects.exclude(pk=corso_id).filter(is_active=True).order_by("titolo"),
+        "candidati_assegnazione": candidati_assegnazione,
+        "assegnazione_pool_filtrato": assegnazione_pool_filtrato,
     })
 
 
@@ -8814,6 +10750,50 @@ def formazione_corso_req_rule_delete(request, corso_id: int, rule_id: int):
     rule = get_object_or_404(TrainingRequirementRule, pk=rule_id, corso_id=corso_id)
     rule.delete()
     messages.success(request, "Regola rimossa.")
+    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_assegna(request, corso_id: int):
+    """Assegna in blocco dei dipendenti al corso (TrainingAssignment, stato ASSEGNATO).
+
+    Primo anello del ciclo corso→sessione: chi è assegnato al corso viene poi proposto
+    in cima ai candidati delle sue edizioni. Idempotente (unique_together corso×dip)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per assegnare corsi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id)
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    n_new = 0
+    for lid in ids:
+        _, created = TrainingAssignment.objects.get_or_create(
+            corso=corso, legacy_anagrafica_id=lid,
+            defaults={
+                "stato": "ASSEGNATO",
+                "piano": corso.piano,
+                "assigned_by": request.user,
+            },
+        )
+        if created:
+            n_new += 1
+    if n_new:
+        messages.success(request, f"{n_new} dipendenti assegnati al corso.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già assegnati al corso.")
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
 
@@ -8994,6 +10974,27 @@ def formazione_sessione_detail(request, sessione_id: int):
     lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
     n_iscritti = sessione.iscrizioni.count()
 
+    # Presenze registrate per lezione (1 query aggregata).
+    presenze_per_lezione = {
+        row["lezione_id"]: row["n"]
+        for row in (
+            TrainingLessonAttendance.objects
+            .filter(lezione__sessione=sessione)
+            .values("lezione_id")
+            .annotate(n=Count("id"))
+        )
+    }
+    # Allegati (registro firmato / materiale): livello sessione + per-lezione.
+    allegati = list(sessione.allegati.select_related("lezione").order_by("-created_at"))
+    allegati_sessione = [a for a in allegati if a.lezione_id is None]
+    allegati_per_lezione: dict[int, list] = {}
+    for a in allegati:
+        if a.lezione_id is not None:
+            allegati_per_lezione.setdefault(a.lezione_id, []).append(a)
+    for lz in lezioni:
+        lz.n_presenze = presenze_per_lezione.get(lz.pk, 0)
+        lz.allegati_list = allegati_per_lezione.get(lz.pk, [])
+
     edit_form   = TrainingSessionForm(instance=sessione)
     lezione_form = TrainingLessonForm(sessione=sessione)
 
@@ -9004,6 +11005,8 @@ def formazione_sessione_detail(request, sessione_id: int):
         "edit_form":    edit_form,
         "lezione_form": lezione_form,
         "is_editor":    is_editor,
+        "allegati_sessione": allegati_sessione,
+        "ATTACH_TIPI":  TrainingAttachment.Tipo.choices,
     })
 
 
@@ -9142,6 +11145,47 @@ def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | Non
     return round(ore_effettive / ore_totali * 100, 2)
 
 
+def _ricalcola_presenza_enrollment(enrollment: TrainingEnrollment) -> None:
+    """Ricalcola e salva ore_frequentate e percentuale_presenza dell'iscrizione dalle
+    presenze registrate su tutte le lezioni della sessione."""
+    perc = _calcola_percentuale_presenza(enrollment)
+    ore = sum(
+        float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
+        for lz, pr in [
+            (lz, TrainingLessonAttendance.objects.filter(
+                lezione=lz, legacy_anagrafica_id=enrollment.legacy_anagrafica_id
+            ).first())
+            for lz in enrollment.sessione.lezioni.all()
+        ]
+        if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
+    )
+    enrollment.ore_frequentate = round(ore, 2)
+    enrollment.percentuale_presenza = perc
+    enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+
+
+def _motivi_blocco_completamento(iscrizione: TrainingEnrollment) -> list[str]:
+    """Motivi che impediscono un completamento *conforme* (Accordo Stato-Regioni 2025),
+    secondo la regola di superamento del corso: verifica finale non superata e/o
+    frequenza sotto la soglia minima. Lista vuota = nessun blocco (o nessuna regola)."""
+    corso = iscrizione.sessione.corso
+    try:
+        regola = corso.regola_superamento
+    except TrainingCompletionRule.DoesNotExist:
+        return []
+    motivi: list[str] = []
+    if regola.richiede_esame_finale and iscrizione.verifica_superata is not True:
+        motivi.append("verifica finale di apprendimento non superata o non registrata")
+    soglia = regola.presenza_minima_percentuale or 0
+    if soglia:
+        perc = iscrizione.percentuale_presenza
+        if perc is None:
+            perc = _calcola_percentuale_presenza(iscrizione)
+        if perc is not None and float(perc) < float(soglia):
+            motivi.append(f"frequenza {float(perc):.0f}% inferiore al minimo richiesto ({soglia}%)")
+    return motivi
+
+
 def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> TrainingEmployeeRecord | None:
     """Crea TrainingEmployeeRecord con tutti i campi snapshot al completamento.
 
@@ -9211,7 +11255,74 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
     except NotImplementedError:
         pass  # PATCH-06 implementerà il ricalcolo completo
 
+    # Allineamento qualifica (competency management): se il corso rilascia/rinnova una
+    # qualifica e il completamento è idoneo, crea/aggiorna la DipendenteQualifica corrente
+    # collegandola al record (la prova formativa). Riusa la convenzione "una qualifica
+    # corrente per (dip, tipo), niente duplicati". Fail-safe: non deve bloccare il
+    # completamento.
+    try:
+        if corso.qualifica_id and record.idoneo:
+            qual, _ = _upsert_dipendente_qualifica(
+                record.legacy_anagrafica_id, corso.qualifica,
+                record.data_completamento, record.data_scadenza,
+                user=created_by,
+            )
+            if qual.record_formazione_id != record.pk:
+                qual.record_formazione = record
+                qual.save(update_fields=["record_formazione"])
+    except Exception:
+        logger.exception("Allineamento qualifica fallito per record %s", record.pk)
+
+    # Archiviazione automatica dell'attestato nel box documenti del dipendente
+    # (se abilitata da Impostazioni → Template attestato). Fail-safe: un errore
+    # qui NON deve impedire la registrazione del completamento.
+    try:
+        from .models_formazione import AttestatoFormazioneConfig
+        cfg = AttestatoFormazioneConfig.get_instance()
+        if cfg.auto_salva_attestato:
+            from .services.attestato_pdf import archivia_attestato
+            archivia_attestato(record, cfg=cfg, user=created_by)
+    except Exception:
+        logger.exception("Archiviazione automatica attestato fallita per record %s", record.pk)
+
     return record
+
+
+def _candidati_rinnovo_corso(corso, sessione=None) -> list[dict]:
+    """Dipendenti da (ri)formare per un corso, dalla cache scadenze
+    (`TrainingDeadline`): scaduti / in scadenza / mai frequentati, esclusi i
+    cessati e chi è già iscritto alla sessione. Pre-seleziona scaduti e in
+    scadenza (il "mai frequentato" è incluso ma non pre-spuntato: è un primo
+    rilascio, non un rinnovo). Specchio di `_build_candidati_qualifica`."""
+    rilevanti = ["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO"]
+    deadlines = list(
+        TrainingDeadline.objects.filter(corso=corso, stato_scadenza__in=rilevanti)
+        .order_by("data_scadenza", "legacy_anagrafica_id")
+    )
+    iscritti_ids: set[int] = set()
+    if sessione is not None:
+        iscritti_ids = set(
+            TrainingEnrollment.objects.filter(sessione=sessione)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+    nomi = _build_nomi_map()
+    cessati = _cessati_legacy_ids()
+    out: list[dict] = []
+    for d in deadlines:
+        lid = d.legacy_anagrafica_id
+        if lid in cessati or lid in iscritti_ids:
+            continue
+        out.append({
+            "legacy_id": lid,
+            "nome": nomi.get(lid, f"#{lid}"),
+            "stato": d.stato_scadenza,
+            "stato_label": d.get_stato_scadenza_display(),
+            "data_scadenza": d.data_scadenza,
+            "preselect": d.stato_scadenza in ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"),
+        })
+    order = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
+    out.sort(key=lambda c: (order.get(c["stato"], 9), c["nome"].casefold()))
+    return out
 
 
 @login_required
@@ -9242,6 +11353,10 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         for p in presenze_qs
     }
 
+    # Turni: a quali lezioni è assegnato ciascun iscritto (vuoto = tutte le lezioni).
+    from .services.training_turni import mappa_turni_sessione
+    turni_map = mappa_turni_sessione(sessione) if lezioni else {}
+
     nomi_map = _build_nomi_map()
     for i in iscrizioni:
         i.nome_dip = nomi_map.get(i.legacy_anagrafica_id, f"#{i.legacy_anagrafica_id}")
@@ -9251,9 +11366,26 @@ def formazione_sessione_iscritti(request, sessione_id: int):
             for lz in lezioni
         ]
         i.lezioni_presenze = list(zip(lezioni, presenze_griglia))
+        # Turni assegnati: set di lezione_id (vuoto = tutte). Lista parallela per la UI.
+        i.turni_ids = turni_map.get(i.pk, set())
+        i.turni_espliciti = bool(i.turni_ids)
+        i.turni_griglia = [(lz, lz.pk in i.turni_ids) for lz in lezioni]
+        i.turni_label = (
+            ", ".join(f"L{lz.numero}" for lz in lezioni if lz.pk in i.turni_ids)
+            if i.turni_espliciti else "Tutte"
+        )
 
-    # Lista dipendenti attivi per il form di iscrizione
+    # Lista dipendenti attivi per il form di iscrizione manuale
     dipendenti_attivi = _build_nomi_map()
+
+    # Candidati all'iscrizione: motore di idoneità (pertinenza + scadenze + prerequisiti).
+    # Restituisce idonei (proponibili, pre-spuntati i rinnovi) e non idonei (prerequisiti
+    # mancanti, in coda e disabilitati). Solo per editor.
+    candidati = {"idonei": [], "non_idonei": [], "pool_filtrato": False, "n_preselect": 0}
+    if is_editor:
+        from .services.training_eligibility import candidati_corso
+        candidati = candidati_corso(sessione.corso, sessione=sessione)
+    candidati_rinnovo = candidati["idonei"] + candidati["non_idonei"]
 
     return render(request, "anagrafica/pages/formazione_iscritti.html", {
         "sessione":          sessione,
@@ -9262,6 +11394,9 @@ def formazione_sessione_iscritti(request, sessione_id: int):
         "is_editor":         is_editor,
         "dipendenti_attivi": sorted(dipendenti_attivi.items(), key=lambda x: x[1]),
         "STATO_CHOICES":     TrainingEnrollment.STATO_CHOICES,
+        "candidati":         candidati,
+        "candidati_rinnovo": candidati_rinnovo,
+        "n_rinnovo_pre":     candidati["n_preselect"],
     })
 
 
@@ -9281,12 +11416,36 @@ def formazione_iscrizione_add(request, sessione_id: int):
         messages.error(request, "Selezionare un dipendente valido.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
+    # Enforcement *soft* dei prerequisiti: se mancano e non c'è forzatura esplicita,
+    # blocca con avviso; con force=1 procede ma traccia la deroga in audit.
+    from .services.training_eligibility import prerequisiti_mancanti
+    mancanti = prerequisiti_mancanti(sessione.corso, legacy_id)
+    force = request.POST.get("force") == "1"
+    if mancanti and not force:
+        nome = _build_nomi_map().get(legacy_id, f"#{legacy_id}")
+        messages.error(
+            request,
+            f'"{nome}" non soddisfa i prerequisiti del corso '
+            f'(manca: {", ".join(mancanti)}). Per iscriverlo comunque, conferma la forzatura.',
+        )
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    if mancanti and force:
+        _audit_safe(request, "formazione_iscrizione_forzata", "formazione", {
+            "sessione_id": sessione.pk, "legacy_id": legacy_id, "prerequisiti_mancanti": mancanti,
+        })
+
+    # Collega l'eventuale assegnazione a livello corso (TrainingAssignment).
+    assignment = TrainingAssignment.objects.filter(
+        corso=sessione.corso, legacy_anagrafica_id=legacy_id
+    ).first()
+
     _, created = TrainingEnrollment.objects.get_or_create(
         sessione=sessione,
         legacy_anagrafica_id=legacy_id,
         defaults={
             "stato": "ISCRITTO",
             "iscritto_da": request.user,
+            "assignment": assignment,
             "note": (request.POST.get("note") or "").strip(),
         },
     )
@@ -9311,14 +11470,143 @@ def formazione_iscrizione_edit(request, sessione_id: int, iscrizione_id: int):
     form = TrainingEnrollmentEditForm(request.POST, instance=iscrizione)
     if form.is_valid():
         iscrizione = form.save()
-        # Se diventa COMPLETATO per la prima volta, crea il record storico
+        # Se diventa COMPLETATO per la prima volta: gating conformità (Accordo SR 2025).
         if iscrizione.stato == "COMPLETATO" and stato_precedente != "COMPLETATO":
+            force = request.POST.get("force") == "1"
+            motivi = _motivi_blocco_completamento(iscrizione)
+            if motivi and not force:
+                # Conserva i dati inseriti ma non avanza lo stato.
+                iscrizione.stato = stato_precedente
+                iscrizione.save(update_fields=["stato"])
+                messages.error(
+                    request,
+                    "Completamento bloccato: " + "; ".join(motivi)
+                    + ". Conferma la forzatura per registrarlo comunque.",
+                )
+                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+            if motivi and force:
+                _audit_safe(request, "formazione_completamento_forzato", "formazione", {
+                    "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk, "motivi": motivi,
+                })
             _crea_employee_record(iscrizione, request.user)
         messages.success(request, "Iscrizione aggiornata.")
     else:
         for field_errors in form.errors.values():
             for err in field_errors:
                 messages.error(request, err)
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione_id: int):
+    """Carica l'attestato dell'organizzatore esterno e **chiude il corso** per l'iscritto:
+    porta l'iscrizione a COMPLETATO, crea il record storico, archivia il file nel box
+    documenti (CERTIFICATO_FORMAZIONE) e registra il TrainingCertificate. Rispetta il
+    gating conformità (verifica/frequenza), forzabile con force=1 (tracciato)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(
+        TrainingEnrollment.objects.select_related("sessione", "sessione__corso"),
+        pk=iscrizione_id, sessione_id=sessione_id,
+    )
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "Seleziona l'attestato da caricare.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    if uploaded.size > _MAX_DOC_SIZE:
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 20 MB.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    force = request.POST.get("force") == "1"
+    # Gating conformità (se non già completata)
+    if iscrizione.stato != "COMPLETATO":
+        motivi = _motivi_blocco_completamento(iscrizione)
+        if motivi and not force:
+            messages.error(
+                request,
+                "Chiusura bloccata: " + "; ".join(motivi)
+                + ". Conferma la forzatura per chiudere comunque.",
+            )
+            return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+        if motivi and force:
+            _audit_safe(request, "formazione_completamento_forzato", "formazione", {
+                "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk,
+                "motivi": motivi, "via": "attestato_caricato",
+            })
+        from django.utils import timezone as _tz
+        if not iscrizione.data_completamento:
+            iscrizione.data_completamento = _tz.localdate()
+        if iscrizione.idoneo is None:
+            iscrizione.idoneo = True
+        iscrizione.stato = "COMPLETATO"
+        iscrizione.save(update_fields=["stato", "idoneo", "data_completamento"])
+
+    record = _crea_employee_record(iscrizione, request.user)
+    if record is None:
+        record = getattr(iscrizione, "record_completamento", None)
+    if record is None:
+        messages.error(request, "Impossibile registrare il completamento.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    rilasciato_da = (request.POST.get("rilasciato_da") or "").strip()[:200]
+    numero = (request.POST.get("numero_attestato") or "").strip()[:100]
+    data_rilascio = None
+    raw = (request.POST.get("data_rilascio") or "").strip()
+    if raw:
+        try:
+            data_rilascio = date.fromisoformat(raw)
+        except ValueError:
+            data_rilascio = None
+    if data_rilascio is None:
+        data_rilascio = record.data_completamento
+
+    try:
+        from .services.attestato_pdf import archivia_attestato, archivia_attestato_caricato
+        # Copia interna NOVICROM: assicurane la presenza, così affianca l'esterno
+        # (storico completo nel box). Fail-safe: non deve bloccare l'archiviazione esterna.
+        try:
+            archivia_attestato(record, user=request.user)
+        except Exception:
+            logger.exception("Copia interna attestato non generata (record %s)", record.pk)
+        # Attestato esterno = principale (slot dedicato), collegato al certificato.
+        descr = "Attestato organizzatore esterno (principale)" + (f" — {rilasciato_da}" if rilasciato_da else "")
+        doc = archivia_attestato_caricato(
+            record, uploaded, user=request.user, force=True, mime=mime, descrizione=descr,
+        )
+        TrainingCertificate.objects.update_or_create(
+            record=record,
+            defaults={
+                "legacy_anagrafica_id": record.legacy_anagrafica_id,
+                "numero_attestato": numero,
+                "data_rilascio": data_rilascio,
+                "rilasciato_da": rilasciato_da,
+                "file_attestato": doc,
+                "created_by": request.user,
+            },
+        )
+        _audit_safe(request, "formazione_attestato_caricato", "formazione", {
+            "sessione_id": sessione_id, "iscrizione_id": iscrizione.pk,
+            "record_id": record.pk, "documento_id": doc.pk,
+        })
+        messages.success(request, "Attestato caricato e corso chiuso: completamento registrato e archiviato.")
+    except Exception:
+        logger.exception("Upload attestato organizzatore fallito (iscrizione %s)", iscrizione.pk)
+        messages.error(request, "Errore durante l'archiviazione dell'attestato.")
     return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
 
@@ -9335,6 +11623,83 @@ def formazione_iscrizione_delete(request, sessione_id: int, iscrizione_id: int):
 
 
 @login_required
+@require_POST
+def formazione_iscrizione_bulk(request, sessione_id: int):
+    """Iscrive in blocco i dipendenti selezionati (candidati al rinnovo del
+    corso) a questa edizione. Idempotente: chi è già iscritto viene saltato."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le iscrizioni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+
+    ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+    # Collega alle assegnazioni a livello corso (TrainingAssignment), se presenti.
+    assegnazioni = {
+        a.legacy_anagrafica_id: a
+        for a in TrainingAssignment.objects.filter(
+            corso=sessione.corso, legacy_anagrafica_id__in=ids
+        )
+    }
+    n_new = 0
+    for lid in ids:
+        _, created = TrainingEnrollment.objects.get_or_create(
+            sessione=sessione, legacy_anagrafica_id=lid,
+            defaults={
+                "stato": "ISCRITTO",
+                "iscritto_da": request.user,
+                "assignment": assegnazioni.get(lid),
+            },
+        )
+        if created:
+            n_new += 1
+    if n_new:
+        messages.success(request, f"{n_new} dipendenti iscritti all'edizione di rinnovo.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già iscritti.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
+@require_POST
+def formazione_iscrizione_turni(request, sessione_id: int, iscrizione_id: int):
+    """Imposta i turni (lezioni) di un'iscrizione = le lezioni selezionate.
+
+    Nessuna selezione ⇒ l'iscritto torna "su tutte le lezioni" (default storico).
+    Vedi :mod:`services.training_turni`."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire i turni.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    iscrizione = get_object_or_404(
+        TrainingEnrollment, pk=iscrizione_id, sessione_id=sessione_id
+    )
+    lezione_ids: list[int] = []
+    for raw in request.POST.getlist("lezioni_turno"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lezione_ids.append(int(s))
+
+    from .services.training_turni import set_turni
+    set_turni(iscrizione, lezione_ids, user=request.user)
+    if lezione_ids:
+        messages.success(request, "Turni dell'iscritto aggiornati.")
+    else:
+        messages.success(request, "Turni rimossi: l'iscritto frequenta tutte le lezioni.")
+    return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+
+
+@login_required
 def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
     if not _can_view_formazione(request):
         messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
@@ -9344,10 +11709,15 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
     lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
 
-    iscrizioni = list(
+    # Turni: mostra solo gli iscritti *attesi* a questa lezione (chi non ha turni
+    # espliciti vale per tutte le lezioni — fallback storico).
+    from .services.training_turni import iscritti_attesi_lezione
+    tutte_iscrizioni = list(
         TrainingEnrollment.objects.filter(sessione=sessione)
         .order_by("legacy_anagrafica_id")
     )
+    iscrizioni = iscritti_attesi_lezione(sessione, lezione, tutte_iscrizioni)
+    turno_filtrato = len(iscrizioni) != len(tutte_iscrizioni)
     ids = [i.legacy_anagrafica_id for i in iscrizioni]
     presenze_map = {
         p.legacy_anagrafica_id: p
@@ -9366,14 +11736,62 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
 
     n_presenti = sum(1 for r in righe if r["presenza"] is not None)
 
+    allegati_lezione = list(lezione.allegati.order_by("-created_at"))
+
     return render(request, "anagrafica/pages/formazione_presenze.html", {
         "sessione":   sessione,
         "lezione":    lezione,
         "righe":      righe,
         "is_editor":  is_editor,
         "n_presenti": n_presenti,
+        "turno_filtrato": turno_filtrato,
+        "n_totale_iscritti": len(tutte_iscrizioni),
         "STATO_PRESENZA_CHOICES": TrainingLessonAttendance.STATO_PRESENZA_CHOICES,
+        "allegati_lezione": allegati_lezione,
+        "ATTACH_TIPI": TrainingAttachment.Tipo.choices,
     })
+
+
+@login_required
+def formazione_lezione_registro(request, sessione_id: int, lezione_id: int):
+    """Foglio firme (registro presenze) di una lezione, in **PDF**.
+
+    Veste UNIFICATA del portale (reportlab via `core/pdf`), identica ai fogli firme di
+    corso e del fascicolo: intestazione corso/sessione/lezione, tabella nominativi +
+    colonne firma ingresso/uscita, righe vuote di scorta e firma docente. Turno-aware
+    (elenca gli iscritti attesi alla lezione). Tracciato in `TrainingExportLog`.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    sessione = get_object_or_404(TrainingSession.objects.select_related("corso", "corso__piano"), pk=sessione_id)
+    lezione  = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    # Foglio firme PDF nella veste UNICA del portale (la stessa dei fogli firme di
+    # corso e del fascicolo): riusa il builder reportlab condiviso, turno-aware
+    # (elenca gli iscritti attesi a questa lezione, fallback tutti).
+    from .services.attestato_pdf import build_registro_lezione_pdf_bytes
+    pdf = build_registro_lezione_pdf_bytes(lezione)
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={
+                "sessione_id": sessione.pk,
+                "lezione_id": lezione.pk,
+                "formato": "foglio_firme_pdf",
+            },
+            righe_esportate=sessione.iscrizioni.count(),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog per foglio firme lezione %s", lezione_id)
+
+    fname = f"Foglio_firme_{sessione.codice_sessione}_L{lezione.numero}.pdf".replace("/", "-").replace(" ", "_")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
 
 
 @login_required
@@ -9408,21 +11826,7 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
             enrollment = TrainingEnrollment.objects.get(
                 sessione_id=sessione_id, legacy_anagrafica_id=legacy_id
             )
-            perc = _calcola_percentuale_presenza(enrollment)
-            # Somma ore presenziate in tutte le lezioni
-            ore = sum(
-                float(pr.ore_effettive) if pr.ore_effettive else lz.durata_ore
-                for lz, pr in [
-                    (lz, TrainingLessonAttendance.objects.filter(
-                        lezione=lz, legacy_anagrafica_id=legacy_id
-                    ).first())
-                    for lz in enrollment.sessione.lezioni.all()
-                ]
-                if pr and pr.stato_presenza in ("PRESENTE", "PARZIALE")
-            )
-            enrollment.ore_frequentate  = round(ore, 2)
-            enrollment.percentuale_presenza = perc
-            enrollment.save(update_fields=["ore_frequentate", "percentuale_presenza"])
+            _ricalcola_presenza_enrollment(enrollment)
         except TrainingEnrollment.DoesNotExist:
             pass
 
@@ -9432,6 +11836,94 @@ def formazione_presenza_set(request, sessione_id: int, lezione_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+@require_POST
+def formazione_registro_autocompila(request, sessione_id: int, lezione_id: int):
+    """Autocompila le presenze di una lezione dal **registro firme** firmato.
+
+    Per ogni iscritto *atteso* alla lezione (rispetta i turni) imposta firma
+    ingresso/uscita in base ai campi spuntati nel modulo (= "a seconda dei campi
+    firmati"), lo stato presenza (PRESENTE se entrambe, PARZIALE se una sola),
+    ``signature_status=FIRMATO`` / ``signature_method=UPLOAD`` / ``signed_at``, e
+    ricalcola ore/percentuale dell'iscrizione. Gli iscritti senza alcuna firma
+    spuntata non vengono toccati.
+    """
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per gestire le presenze.")
+        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id)
+    lezione = get_object_or_404(TrainingLesson, pk=lezione_id, sessione=sessione)
+
+    from django.utils import timezone as _tz
+    from .services.training_turni import iscritti_attesi_lezione
+
+    attesi = iscritti_attesi_lezione(sessione, lezione)
+    now = _tz.now()
+    n = 0
+    toccati: list[TrainingEnrollment] = []
+    for e in attesi:
+        lid = e.legacy_anagrafica_id
+        ing = request.POST.get(f"ingresso_{lid}") == "1"
+        usc = request.POST.get(f"uscita_{lid}") == "1"
+        if not ing and not usc:
+            continue  # nessuna firma: non sovrascrive una presenza eventualmente già registrata
+        att, _ = TrainingLessonAttendance.objects.get_or_create(
+            lezione=lezione, legacy_anagrafica_id=lid,
+            defaults={"registrato_da": request.user},
+        )
+        att.firma_ingresso = ing
+        att.firma_uscita = usc
+        att.signature_status = "FIRMATO"
+        att.signature_method = "UPLOAD"
+        att.signed_at = now
+        att.stato_presenza = "PRESENTE" if (ing and usc) else "PARZIALE"
+        att.registrato_da = request.user
+        att.save()
+        toccati.append(e)
+        n += 1
+
+    for e in toccati:
+        _ricalcola_presenza_enrollment(e)
+
+    if n:
+        _audit_safe(request, "formazione_registro_autocompila", "formazione", {
+            "sessione_id": sessione_id, "lezione_id": lezione_id, "iscritti": n,
+        })
+        messages.success(request, f"Presenze autocompilate dal registro per {n} iscritti.")
+    else:
+        messages.info(request, "Nessuna firma selezionata: nessuna presenza modificata.")
+    return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
+
+
+@login_required
+def formazione_sessione_fascicolo(request, sessione_id: int):
+    """Fascicolo formativo dell'edizione in PDF (progettazione + programma + partecipanti
+    ed esiti + relazione): documento unico per la tracciabilità Accordo SR 2025."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+    sessione = get_object_or_404(
+        TrainingSession.objects.select_related("corso", "corso__piano", "docente"),
+        pk=sessione_id,
+    )
+    from .services.attestato_pdf import build_fascicolo_sessione_pdf_bytes
+    pdf = build_fascicolo_sessione_pdf_bytes(sessione)
+    try:
+        TrainingExportLog.objects.create(
+            tipo="REPORT_FIRMA",
+            filtri_json={"sessione_id": sessione.pk, "formato": "fascicolo_edizione"},
+            righe_esportate=sessione.iscrizioni.count(),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR") or None,
+        )
+    except Exception:
+        logger.exception("Errore TrainingExportLog fascicolo sessione %s", sessione_id)
+    fname = f"Fascicolo_{sessione.codice_sessione}.pdf".replace("/", "-").replace(" ", "_")
+    resp = HttpResponse(pdf, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="{fname}"'
+    return resp
 
 
 @login_required
@@ -9502,6 +11994,102 @@ def formazione_scadenzario(request):
         "is_cache_empty": is_cache_empty,
         "totale":        len(scadenze),
         "STATO_SCADENZA_CHOICES": TrainingDeadline.STATO_SCADENZA_CHOICES,
+        "is_editor":     _can_edit_formazione(request),
+    })
+
+
+@login_required
+def formazione_copertura(request):
+    """Report «copertura / gap formativo»: per i corsi *obbligatori* (bersaglio di una
+    regola di obbligo attiva) elenca i dipendenti **non in regola** (corso scaduto, in
+    scadenza o mai frequentato), con reparto e mansione. Riusa il motore di idoneità
+    (`candidati_corso`, che restituisce proprio i candidati = chi non è già a posto).
+    Filtri GET: reparto, corso, stato."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per visualizzare la sezione formazione.")
+        return redirect("anagrafica:index")
+
+    from .services.training_eligibility import candidati_corso
+
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_corso   = (request.GET.get("corso") or "").strip()
+    filtro_stato   = (request.GET.get("stato") or "").strip()
+
+    # Corsi obbligatori: bersaglio di una regola attiva e obbligatoria (corso o piano).
+    corso_ids = set(
+        TrainingRequirementRule.objects
+        .filter(is_active=True, is_mandatory=True, corso__isnull=False)
+        .values_list("corso_id", flat=True)
+    )
+    piano_ids = set(
+        TrainingRequirementRule.objects
+        .filter(is_active=True, is_mandatory=True, piano__isnull=False)
+        .values_list("piano_id", flat=True)
+    )
+    if piano_ids:
+        corso_ids |= set(
+            TrainingCourse.objects.filter(piano_id__in=piano_ids, is_active=True)
+            .values_list("id", flat=True)
+        )
+    corsi_all = list(
+        TrainingCourse.objects.filter(id__in=corso_ids, is_active=True).order_by("titolo")
+    )
+    corsi_iter = (
+        [c for c in corsi_all if str(c.pk) == filtro_corso] if filtro_corso.isdigit() else corsi_all
+    )
+
+    # Mappa reparto/mansione per dipendente (accessor legacy canonico).
+    rep_map: dict[int, dict] = {}
+    try:
+        for r in fetch_anagrafica_rows():
+            try:
+                lid = int(r.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            rep_map[lid] = {
+                "reparto": (r.get("reparto") or "").strip(),
+                "mansione": (r.get("mansione") or "").strip(),
+            }
+    except Exception:
+        logger.exception("Errore lookup reparti per copertura formativa")
+
+    _ord = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
+    righe = []
+    for corso in corsi_iter:
+        res = candidati_corso(corso)
+        for c in res["idonei"] + res["non_idonei"]:
+            if filtro_stato and c["stato"] != filtro_stato:
+                continue
+            info = rep_map.get(c["legacy_id"], {})
+            reparto = info.get("reparto", "")
+            if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+                continue
+            righe.append({
+                "legacy_id": c["legacy_id"],
+                "nome": c["nome"],
+                "reparto": reparto or "—",
+                "mansione": info.get("mansione", "") or "—",
+                "corso": corso,
+                "stato": c["stato"],
+                "stato_label": c["stato_label"],
+                "data_scadenza": c["data_scadenza"],
+            })
+    righe.sort(key=lambda r: (r["reparto"].casefold(), r["nome"].casefold(), _ord.get(r["stato"], 9)))
+
+    reparti = sorted({v["reparto"] for v in rep_map.values() if v.get("reparto")})
+
+    return render(request, "anagrafica/pages/formazione_copertura.html", {
+        "righe": righe,
+        "corsi": corsi_all,
+        "reparti": reparti,
+        "n_dip": len({r["legacy_id"] for r in righe}),
+        "n_gap": len(righe),
+        "n_scaduti": sum(1 for r in righe if r["stato"] == "SCADUTO"),
+        "n_mai": sum(1 for r in righe if r["stato"] == "MAI_FREQUENTATO"),
+        "filtro_reparto": filtro_reparto,
+        "filtro_corso": filtro_corso,
+        "filtro_stato": filtro_stato,
+        "is_editor": _can_edit_formazione(request),
     })
 
 
@@ -9856,14 +12444,35 @@ def fattori_rischio_list(request):
         FattoreRischio.objects
         .annotate(n_categorie=Count("categorie_corso", distinct=True),
                   n_esposizioni=Count("esposizioni", distinct=True))
+        .prefetch_related("tipi_visita", "categorie_dpi")
         .order_by("categoria", "nome")
     )
+    # Id selezionati per il modale di modifica JS (requisiti generati dal fattore).
+    for f in fattori:
+        f.sel_visite_ids = [t.pk for t in f.tipi_visita.all()]
+        f.sel_dpi_ids = [c.pk for c in f.categorie_dpi.all()]
+
+    visite_opts = list(
+        TipoVisitaMedica.objects.filter(is_active=True).order_by("nome").values("id", "nome")
+    )
+    dpi_opts: list[dict] = []
+    try:
+        from dpi.models import CategoriaDPI
+        dpi_opts = list(
+            CategoriaDPI.objects.filter(is_active=True)
+            .order_by("order_index", "nome").values("id", "nome")
+        )
+    except Exception:
+        dpi_opts = []
+
     form = FattoreRischioForm()
     return render(request, "anagrafica/pages/rischi_fattori_list.html", {
         "fattori":   fattori,
         "form":      form,
         "is_editor": is_editor,
         "CATEGORIA_CHOICES": FattoreRischio.CATEGORIA_CHOICES,
+        "visite_opts": visite_opts,
+        "dpi_opts":    dpi_opts,
     })
 
 
@@ -10141,13 +12750,323 @@ def dipendente_conformita_panel(request, legacy_id: int):
     ``include_visite_dettaglio``.
     """
     can_view_visite = _can_view_visite_mediche(request)
+    mansione_nome = (
+        AnagraficaDipendente.objects
+        .filter(id=legacy_id).values_list("mansione", flat=True).first()
+    ) or ""
     stato = conformita_service.stato_conformita(
-        legacy_id, include_visite_dettaglio=can_view_visite
+        legacy_id,
+        include_visite_dettaglio=can_view_visite,
+        mansione=mansione_nome,
+    )
+    mansione_obj = (
+        Mansione.objects.filter(nome__iexact=mansione_nome.strip()).only("id").first()
+        if mansione_nome else None
     )
     return render(request, "anagrafica/partials/conformita_panel.html", {
         "legacy_id": legacy_id,
         "stato": stato,
+        "mansione_nome": mansione_nome,
+        "mansione_id": mansione_obj.id if mansione_obj else None,
         "can_view_visite": can_view_visite,
+    })
+
+
+@login_required
+def dipendente_verbale_dpi(request, legacy_id: int):
+    """Verbale di consegna DPI (MOD.155) precompilato con i DPI richiesti dalla
+    mansione del dipendente. Pagina stampabile (``window.print()``) da firmare;
+    riusa i requisiti del resolver mansionario, niente record di consegna creati."""
+    from django.utils import timezone
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+    mansione_nome = str(dip.get("mansione") or "").strip()
+    requisiti = (
+        mansionario_service.requisiti_per_nome_mansione(mansione_nome)
+        if mansione_nome else mansionario_service.requisiti_vuoti()
+    )
+    nome = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    return render(request, "anagrafica/pages/verbale_dpi.html", {
+        "dip": dip,
+        "nome": nome,
+        "mansione": mansione_nome,
+        "reparto": str(dip.get("reparto") or "").strip(),
+        "dpi": requisiti["dpi"],
+        "oggi": timezone.localdate(),
+    })
+
+
+@login_required
+def sicurezza_hub(request):
+    """Cruscotto "Sicurezza & Idoneità": numeri chiave e collegamenti a tutte le
+    sezioni correlate (fattori, esposizioni, mansioni di rischio, conformità,
+    catalogo DPI), così le pagine non risultano isolate. Le metriche di idoneità
+    (aggregate, non nominative) sono mostrate solo con permesso HR.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per il cruscotto sicurezza.")
+        return redirect("anagrafica:index")
+    can_hr = _check_hr_permission(request)
+
+    n_mansioni = Mansione.objects.filter(is_active=True).count()
+    n_mansioni_rischio = (
+        Mansione.objects.filter(is_active=True)
+        .filter(Q(dpi_richiesti__isnull=False) | Q(visite_richieste__isnull=False)
+                | ~Q(livello_rischio=""))
+        .distinct().count()
+    )
+
+    idoneita_kpi = None
+    if can_hr:
+        dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+        dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+        mansioni_per_legacy = {
+            lid: str(d.get("mansione") or "").strip()
+            for lid, d in dip_map.items() if str(d.get("mansione") or "").strip()
+        }
+        stati = conformita_service.stato_conformita_batch(
+            list(dip_map), mansioni_per_legacy=mansioni_per_legacy
+        )
+        c = {"ok": 0, "warn": 0, "ko": 0, "na": 0}
+        for s in stati.values():
+            e = s.get("idoneita", {}).get("esito", "na")
+            c[e] = c.get(e, 0) + 1
+        idoneita_kpi = {
+            "idonei": c["ok"], "riserve": c["warn"], "non_idonei": c["ko"],
+            "valutati": c["ok"] + c["warn"] + c["ko"],
+        }
+
+    return render(request, "anagrafica/pages/sicurezza_hub.html", {
+        "can_hr": can_hr,
+        "n_mansioni": n_mansioni,
+        "n_mansioni_rischio": n_mansioni_rischio,
+        "idoneita_kpi": idoneita_kpi,
+    })
+
+
+@login_required
+def sicurezza_ricerca(request):
+    """Ricerca dell'area Sicurezza & Idoneità: mansioni di rischio, dipendenti
+    (idoneità), qualifiche di sicurezza e fattori di rischio. Speculare alla
+    ricerca globale formazione, ma con le categorie pertinenti alla safety.
+    Gated dallo stesso permesso del cruscotto sicurezza.
+    """
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per il cruscotto sicurezza.")
+        return redirect("anagrafica:index")
+
+    from .models_rischi import FattoreRischio
+
+    q = (request.GET.get("q") or "").strip()
+    risultati: dict[str, list] = {
+        "mansioni": [], "dipendenti": [], "qualifiche": [], "fattori": [],
+    }
+    totale = 0
+    if q:
+        ql = q.lower()
+
+        from django.db.models import Count as _Count
+        risultati["mansioni"] = list(
+            Mansione.objects.filter(is_active=True)
+            .filter(Q(nome__icontains=q) | Q(descrizione__icontains=q))
+            .annotate(n_esposizioni=_Count("esposizioni_rischio", distinct=True))
+            .order_by("nome")[:25]
+        )
+        risultati["qualifiche"] = list(
+            TipoQualifica.objects.filter(categoria=TipoQualifica.CAT_SICUREZZA)
+            .filter(Q(nome__icontains=q) | Q(descrizione__icontains=q))
+            .annotate(n_assegnazioni=_Count("assegnazioni", distinct=True))
+            .order_by("nome")[:25]
+        )
+        risultati["fattori"] = list(
+            FattoreRischio.objects.filter(
+                Q(nome__icontains=q) | Q(codice__icontains=q) | Q(descrizione__icontains=q)
+            ).annotate(n_esposizioni=_Count("esposizioni", distinct=True))
+            .order_by("nome")[:25]
+        )
+
+        nomi = _build_nomi_map()
+        dip_match = [
+            {"legacy_id": lid, "nome": nome}
+            for lid, nome in nomi.items() if ql in nome.lower()
+        ]
+        dip_match.sort(key=lambda d: d["nome"].casefold())
+        risultati["dipendenti"] = dip_match[:25]
+
+        totale = sum(len(v) for v in risultati.values())
+
+    # Ricerca live: su richiesta HTMX rende solo il frammento dei risultati;
+    # con ?suggest=1 (casella nella dashboard) rende la tendina compatta.
+    if request.headers.get("HX-Request"):
+        template = (
+            "anagrafica/partials/_safety_search_suggest.html"
+            if request.GET.get("suggest")
+            else "anagrafica/partials/_safety_search_results.html"
+        )
+    else:
+        template = "anagrafica/pages/sicurezza_ricerca.html"
+    return render(request, template, {
+        "q": q,
+        "risultati": risultati,
+        "totale": totale,
+    })
+
+
+@login_required
+def sicurezza_wizard(request):
+    """Configurazione guidata della "mansione di rischio": passi in ordine, con
+    stato (fatto/da fare) calcolato dai dati reali e CTA verso ogni sezione.
+    Rende esplicito il flusso e collega le sezioni tra loro."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la guida sicurezza.")
+        return redirect("anagrafica:index")
+
+    n_mansioni_rischio = (
+        Mansione.objects.filter(is_active=True)
+        .filter(Q(dpi_richiesti__isnull=False) | Q(visite_richieste__isnull=False)
+                | ~Q(livello_rischio=""))
+        .distinct().count()
+    )
+    try:
+        from dpi.models import CategoriaDPI
+        n_dpi = CategoriaDPI.objects.filter(is_active=True).count()
+    except Exception:
+        n_dpi = 0
+    n_visite = TipoVisitaMedica.objects.filter(is_active=True).count()
+
+    steps = [
+        {
+            "n": 1, "titolo": "Cataloghi di base",
+            "desc": "Verifica che esistano le categorie DPI e le tipologie di visita medica da assegnare alle mansioni.",
+            "stato": "ok" if (n_dpi or n_visite) else "todo",
+            "info": f"{n_dpi} categorie DPI · {n_visite} tipi visita",
+            "url": reverse("dpi:impostazioni"), "cta": "Catalogo DPI",
+            "url2": reverse("anagrafica:impostazioni") + "?tab=visite", "cta2": "Tipi visita",
+        },
+        {
+            "n": 2, "titolo": "Requisiti delle mansioni",
+            "desc": "Su ogni mansione imposta il livello di rischio e i requisiti (DPI, visite, formazione). Il rischio è dedotto dalla mansione e dai DPI associati.",
+            "stato": "ok" if n_mansioni_rischio else "todo",
+            "info": f"{n_mansioni_rischio} mansioni di rischio configurate",
+            "url": reverse("anagrafica:mansioni_list"), "cta": "Mansioni di rischio",
+        },
+        {
+            "n": 3, "titolo": "Verifica idoneità",
+            "desc": "Controlla il semaforo di idoneità di ogni dipendente: requisiti mancanti (avviso) o scaduti (non idoneo). Vedi anche la matrice competenze.",
+            "stato": "info",
+            "info": "Report trasversale su tutto il personale",
+            "url": reverse("anagrafica:conformita_report"), "cta": "Apri conformità",
+        },
+    ]
+    return render(request, "anagrafica/pages/sicurezza_wizard.html", {"steps": steps})
+
+
+@login_required
+def matrice_competenze(request):
+    """Matrice **dipendenti × competenze/abilitazioni** (qualifiche) per audit ISO 45001.
+
+    Celle: valido / in scadenza (≤60gg) / scaduto / mancante. Colonne = i
+    ``TipoQualifica`` con almeno un'assegnazione (competenze realmente in uso,
+    incl. quelle importate dall'ASR). Filtro reparto + export CSV.
+    Accesso: ``_check_hr_permission`` (vista trasversale sul personale).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per la matrice competenze.")
+        return redirect("anagrafica:index")
+
+    from datetime import timedelta
+    from django.utils import timezone
+    ensure_anagrafica_schema()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    cat_filter = (request.GET.get("categoria") or "").strip().upper()
+    if cat_filter not in valid_cats:
+        cat_filter = ""
+    oggi = timezone.localdate()
+    soglia = oggi + timedelta(days=60)
+
+    dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    legacy_ids = list(dip_map.keys())
+
+    # Colonne = TipoQualifica con almeno un'assegnazione; tab per categoria.
+    cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+    tipi_all = list(
+        TipoQualifica.objects.annotate(_n=Count("assegnazioni"))
+        .filter(_n__gt=0).order_by("categoria", "nome")
+    )
+    tabs = [("", "Tutte", len(tipi_all))]
+    for cat_code, cat_lbl in TipoQualifica.CATEGORIA_CHOICES:
+        n = sum(1 for t in tipi_all if t.categoria == cat_code)
+        if n:
+            tabs.append((cat_code, cat_lbl, n))
+    tipi = [t for t in tipi_all if not cat_filter or t.categoria == cat_filter]
+    tipo_ids = [t.id for t in tipi]
+    q_map: dict[tuple[int, int], DipendenteQualifica] = {}
+    for q in DipendenteQualifica.objects.filter(
+        legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids
+    ):
+        q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
+
+    def _stato(q):
+        if q is None:
+            return "mancante"
+        if q.data_scadenza is None:
+            return "valido"
+        if q.data_scadenza < oggi:
+            return "scaduto"
+        if q.data_scadenza <= soglia:
+            return "in_scadenza"
+        return "valido"
+
+    righe: list[dict] = []
+    for lid, dip in dip_map.items():
+        reparto = str(dip.get("reparto") or "").strip()
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        celle = []
+        for t in tipi:
+            q = q_map.get((lid, t.id))
+            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None})
+        righe.append({
+            "legacy_id": lid,
+            "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": reparto,
+            "celle": celle,
+        })
+    righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
+    reparti = sorted({r["reparto"] for r in righe if r["reparto"]})
+
+    if export_csv:
+        _LAB = {"valido": "OK", "in_scadenza": "In scadenza", "scaduto": "SCADUTO", "mancante": "—"}
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="matrice_competenze.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto"] + [t.nome for t in tipi])
+        for r in righe:
+            cells = []
+            for c in r["celle"]:
+                lab = _LAB.get(c["stato"], c["stato"])
+                if c["data"]:
+                    lab = f"{lab} {c['data']:%d/%m/%Y}"
+                cells.append(lab)
+            writer.writerow([f"{r['cognome']} {r['nome']}".strip(), r["reparto"]] + cells)
+        return resp
+
+    return render(request, "anagrafica/pages/matrice_competenze.html", {
+        "tipi": tipi,
+        "righe": righe,
+        "reparti": reparti,
+        "filtro_reparto": filtro_reparto,
+        "totale": len(righe),
+        "tabs": tabs,
+        "active_categoria": cat_filter,
+        "active_categoria_label": cat_labels.get(cat_filter, ""),
     })
 
 
@@ -10168,14 +13087,30 @@ def conformita_report(request):
 
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     filtro_esito = (request.GET.get("esito") or "").strip()
+    filtro_idoneita = (request.GET.get("idoneita") or "").strip()
+    filtro_mansione = (request.GET.get("mansione") or "").strip()
     export_csv = request.GET.get("format") == "csv"
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
     legacy_ids = list(dip_map.keys())
 
+    # Mappa nome mansione → id (per collegare ogni riga alla sua pagina Requisiti).
+    mansioni_map = {
+        m.nome.casefold(): m.id
+        for m in Mansione.objects.filter(is_active=True).only("id", "nome")
+    }
+
+    mansioni_per_legacy = {
+        lid: str(dip.get("mansione") or "").strip()
+        for lid, dip in dip_map.items()
+        if str(dip.get("mansione") or "").strip()
+    }
+
     stati = conformita_service.stato_conformita_batch(
-        legacy_ids, include_visite_dettaglio=can_view_visite
+        legacy_ids,
+        include_visite_dettaglio=can_view_visite,
+        mansioni_per_legacy=mansioni_per_legacy,
     )
 
     _ORDINE_ESITO = {
@@ -10191,16 +13126,25 @@ def conformita_report(request):
         reparto = str(dip.get("reparto") or "").strip()
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
             continue
+        mansione_nome = str(dip.get("mansione") or "").strip()
+        if filtro_mansione and mansione_nome.casefold() != filtro_mansione.casefold():
+            continue
         stato = stati.get(legacy_id, {"complessivo": conformita_service.ESITO_NA})
         complessivo = stato.get("complessivo", conformita_service.ESITO_NA)
         if filtro_esito and complessivo != filtro_esito:
             continue
+        idoneita = stato.get("idoneita", {"esito": conformita_service.ESITO_NA})
+        if filtro_idoneita and idoneita.get("esito") != filtro_idoneita:
+            continue
         righe.append({
             "legacy_id": legacy_id,
+            "mansione_id": mansioni_map.get(mansione_nome.casefold()),
             "cognome": str(dip.get("cognome") or f"ID {legacy_id}").strip(),
             "nome": str(dip.get("nome") or "").strip(),
             "reparto": reparto,
+            "mansione": str(dip.get("mansione") or "").strip(),
             "complessivo": complessivo,
+            "idoneita": idoneita,
             "formazione": stato.get("formazione", na),
             "visite": stato.get("visite", na),
             "qualifiche": stato.get("qualifiche", na),
@@ -10228,18 +13172,29 @@ def conformita_report(request):
             conformita_service.ESITO_KO: "Non conforme",
             conformita_service.ESITO_NA: "Nessun requisito",
         }
+        _LABEL_IDN = {
+            conformita_service.ESITO_OK: "Idoneo",
+            conformita_service.ESITO_WARN: "Idoneo con riserve",
+            conformita_service.ESITO_KO: "Non idoneo",
+            conformita_service.ESITO_NA: "Non valutabile",
+        }
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="conformita_anagrafica.csv"'
         writer = csv.writer(resp, delimiter=";")
         writer.writerow([
-            "Dipendente", "Reparto", "Conformità",
-            "Formazione", "Visite mediche", "Qualifiche", "DPI",
+            "Dipendente", "Reparto", "Mansione", "Conformità", "Idoneità mansione",
+            "Requisiti da soddisfare", "Formazione", "Visite mediche", "Qualifiche", "DPI",
         ])
         for r in righe:
+            idn = r["idoneita"]
+            da_soddisfare = "; ".join(list(idn.get("scaduti", [])) + list(idn.get("mancanti", [])))
             writer.writerow([
                 f"{r['cognome']} {r['nome']}".strip(),
                 r["reparto"],
+                r["mansione"],
                 _LABEL.get(r["complessivo"], r["complessivo"]),
+                _LABEL_IDN.get(idn.get("esito"), idn.get("esito")),
+                da_soddisfare,
                 _LABEL.get(r["formazione"]["esito"], r["formazione"]["esito"]),
                 _LABEL.get(r["visite"]["esito"], r["visite"]["esito"]),
                 _LABEL.get(r["qualifiche"]["esito"], r["qualifiche"]["esito"]),
@@ -10260,6 +13215,8 @@ def conformita_report(request):
         "reparti": reparti,
         "filtro_reparto": filtro_reparto,
         "filtro_esito": filtro_esito,
+        "filtro_idoneita": filtro_idoneita,
+        "filtro_mansione": filtro_mansione,
         "can_view_visite": can_view_visite,
     })
 
@@ -10491,3 +13448,838 @@ def onboarding_annulla(request, pratica_id: int):
     })
     messages.success(request, "Pratica onboarding annullata.")
     return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+
+# ============================================================================
+# FORMAZIONE HR — E-LEARNING: MICRO-CORSI INTERNI (slide + quiz)
+# ============================================================================
+# Layer self-service sopra TrainingCourse (is_elearning=True). Distinzione ruoli
+# via ACL formazione esistente:
+#   - DISCENTE  -> @login_required (fruisce i corsi pubblicati, traccia solo i propri dati)
+#   - AUTORE    -> _can_edit_formazione (crea/modifica slide e quiz)
+#   - HR/ADMIN  -> _can_view_formazione (report completamenti gia esistenti)
+# Identita discente = legacy_anagrafica_id (convenzione del modulo).
+
+
+def _current_legacy_anagrafica_id(request) -> int | None:
+    """Risolve il legacy_anagrafica_id del dipendente collegato all'utente loggato.
+
+    Catena: utente Django -> Profile.legacy_user_id (UtenteLegacy) -> AnagraficaDipendente
+    (utente_id). Ritorna None se l'utente non e collegato a un'anagrafica."""
+    legacy_user = get_legacy_user(request.user)
+    if not legacy_user:
+        return None
+    try:
+        ana = AnagraficaDipendente.objects.filter(utente_id=legacy_user.id).only("id").first()
+    except Exception:
+        logger.debug("Impossibile risolvere anagrafica per utente legacy %s", getattr(legacy_user, "id", None))
+        return None
+    return int(ana.id) if ana else None
+
+
+def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
+    """Crea un TrainingEmployeeRecord storicizzato per il superamento di un micro-corso
+    e-learning, riusando la tabella audit esistente (niente duplicazione).
+
+    Allinea la qualifica e invalida/ricalcola la cache scadenze, come il flusso d'aula
+    (`_crea_employee_record`)."""
+    from django.utils import timezone as _tz
+    oggi = _tz.localdate()
+    data_scadenza = _add_months(oggi, corso.validita_mesi) if corso.validita_mesi else None
+
+    record = TrainingEmployeeRecord.objects.create(
+        corso=corso,
+        sessione=None,
+        enrollment=None,
+        legacy_anagrafica_id=legacy_id,
+        data_completamento=oggi,
+        ore_frequentate=corso.durata_ore_teorica or 0,
+        percentuale_presenza=None,
+        idoneo=True,
+        data_scadenza=data_scadenza,
+        # Snapshot storici (immutabili)
+        course_code_snapshot=corso.codice,
+        course_title_snapshot=corso.titolo,
+        course_version_snapshot=corso.versione,
+        plan_code_snapshot=corso.piano.codice if corso.piano_id else "",
+        plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
+        duration_hours_snapshot=corso.durata_ore_teorica,
+        validity_months_snapshot=corso.validita_mesi,
+        completion_rule_snapshot_json={"modalita": "ELEARNING", "quiz_minimo_pct": corso.quiz_punteggio_minimo},
+        session_code_snapshot="",
+        teacher_name_snapshot="",
+        completion_calculation_snapshot_json={
+            "modalita": "ELEARNING",
+            "quiz_punteggio_pct": str(attempt.punteggio_pct),
+            "quiz_corrette": attempt.n_corrette,
+            "quiz_totali": attempt.n_totali,
+            "quiz_minimo_pct": corso.quiz_punteggio_minimo,
+        },
+    )
+
+    # Invalida cache scadenze e tenta ricalcolo immediato (fail-safe come il flusso d'aula)
+    TrainingDeadline.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).update(needs_refresh=True)
+    try:
+        from .services.training_deadline_service import refresh_deadlines
+        refresh_deadlines(legacy_id=legacy_id, corso_id=corso.pk)
+    except NotImplementedError:
+        pass
+    except Exception:
+        logger.exception("Refresh scadenze e-learning fallito per dip=%s corso=%s", legacy_id, corso.pk)
+
+    # Allineamento qualifica (competency management), fail-safe
+    try:
+        if corso.qualifica_id and record.idoneo:
+            qual, _ = _upsert_dipendente_qualifica(
+                legacy_id, corso.qualifica, record.data_completamento, record.data_scadenza, user=created_by,
+            )
+            if qual.record_formazione_id != record.pk:
+                qual.record_formazione = record
+                qual.save(update_fields=["record_formazione"])
+    except Exception:
+        logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
+
+    # Archiviazione automatica dell'attestato nella cartella documenti del dipendente
+    # (stesso flusso dei corsi d'aula: cartella «Attestati formazione» o quella scelta
+    # in Impostazioni → Template attestato). Fail-safe: non deve bloccare il completamento.
+    try:
+        cfg = AttestatoFormazioneConfig.get_instance()
+        if cfg.auto_salva_attestato:
+            from .services.attestato_pdf import archivia_attestato
+            archivia_attestato(record, cfg=cfg, user=created_by)
+    except Exception:
+        logger.exception("Archiviazione automatica attestato e-learning fallita per record %s", record.pk)
+
+    return record
+
+
+# -- GESTIONE E-LEARNING: hub autori/HR --------------------------------------
+
+def _elearning_salute(n_slide: int, n_domande: int, n_invalid: int) -> tuple[str, str]:
+    """Classifica lo stato di salute di un micro-corso e-learning (codice, etichetta)."""
+    if n_slide == 0:
+        return ("CRIT", "Senza slide")
+    if n_domande == 0:
+        return ("INFO", "Senza quiz")
+    if n_invalid:
+        return ("WARN", "Quiz incompleto")
+    return ("OK", "Pronto")
+
+
+def _elearning_iscritti_rows(corso):
+    """Righe «iscritti & esiti» di un micro-corso: nome dipendente + avanzamento + esito."""
+    enrollments = list(TrainingElearningEnrollment.objects.filter(corso=corso))
+    nomi = _build_nomi_map() if enrollments else {}
+    rows = []
+    for e in enrollments:
+        rows.append({
+            "legacy_id": e.legacy_anagrafica_id,
+            "nome": nomi.get(e.legacy_anagrafica_id, f"#{e.legacy_anagrafica_id}"),
+            "stato": e.stato,
+            "stato_disp": e.get_stato_display(),
+            "avanzamento": f"{e.ultima_slide_ordine}/{e.n_slide_totali}" if e.n_slide_totali else "—",
+            "best": e.best_punteggio_pct,
+            "n_tentativi": e.n_tentativi,
+            "data_completamento": e.data_completamento,
+        })
+    rows.sort(key=lambda x: x["nome"].lower())
+    return rows
+
+
+@login_required
+def formazione_elearning_hub(request):
+    """Hub di gestione dei micro-corsi e-learning (autori/HR): elenco corsi con stato di
+    salute (slide/quiz), iscritti e completati, e azioni rapide."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la sezione formazione.")
+        return redirect("anagrafica:index")
+    from django.db.models import Count, Q
+    corsi = list(
+        TrainingCourse.objects.filter(is_elearning=True)
+        .select_related("piano")
+        .prefetch_related("quiz_domande__opzioni")
+        .annotate(
+            n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
+            n_domande=Count("quiz_domande", filter=Q(quiz_domande__is_active=True), distinct=True),
+            n_iscritti=Count("iscrizioni_elearning", distinct=True),
+            n_completati=Count("iscrizioni_elearning", filter=Q(iscrizioni_elearning__stato="COMPLETATO"), distinct=True),
+        )
+        .order_by("-is_active", "stato", "titolo")
+    )
+    tot = {"corsi": len(corsi), "pubblicati": 0, "iscritti": 0, "completati": 0, "problemi": 0}
+    rows = []
+    for c in corsi:
+        n_invalid = sum(
+            1 for d in c.quiz_domande.all()
+            if d.is_active and not any(o.corretta for o in d.opzioni.all())
+        )
+        salute = _elearning_salute(c.n_slide, c.n_domande, n_invalid)
+        if c.stato == "ATTIVO" and c.is_active:
+            tot["pubblicati"] += 1
+        tot["iscritti"] += c.n_iscritti
+        tot["completati"] += c.n_completati
+        if salute[0] in ("CRIT", "WARN"):
+            tot["problemi"] += 1
+        rows.append({"corso": c, "n_invalid": n_invalid, "salute": salute})
+    return render(request, "anagrafica/pages/formazione_elearning_hub.html", {
+        "rows": rows,
+        "tot": tot,
+        "is_editor": _can_edit_formazione(request),
+    })
+
+
+@login_required
+def formazione_elearning_manage(request, corso_id: int):
+    """Cabina di regia di un singolo micro-corso e-learning: contenuti, iscritti & esiti,
+    stato di pubblicazione ed export — tutto in un'unica pagina."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per la sezione formazione.")
+        return redirect("anagrafica:index")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    slides = list(corso.slides.filter(is_active=True))
+    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+    n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+    salute = _elearning_salute(len(slides), len(domande), n_invalid)
+
+    iscritti = _elearning_iscritti_rows(corso)
+    counts = {"iscritti": len(iscritti), "in_corso": 0, "completati": 0, "non_superato": 0}
+    for r in iscritti:
+        if r["stato"] == "COMPLETATO":
+            counts["completati"] += 1
+        elif r["stato"] == "NON_SUPERATO":
+            counts["non_superato"] += 1
+        elif r["stato"] == "IN_CORSO":
+            counts["in_corso"] += 1
+
+    is_editor = _can_edit_formazione(request)
+
+    # Assegnazioni (obbligo) del corso + pool dipendenti assegnabili per il picker.
+    assegnazioni = list(TrainingAssignment.objects.filter(corso=corso))
+    nomi = _build_nomi_map() if (assegnazioni or is_editor) else {}
+    for a in assegnazioni:
+        a.nome = nomi.get(a.legacy_anagrafica_id, f"#{a.legacy_anagrafica_id}")
+    assegnazioni.sort(key=lambda a: (a.nome or "").lower())
+    assegnabili = []
+    if is_editor:
+        assegnati_ids = {a.legacy_anagrafica_id for a in assegnazioni}
+        attivi_ids = set(
+            DipendenteAnagraficaAziendale.objects
+            .filter(data_cessazione__isnull=True)
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
+        for lid in sorted(attivi_ids):
+            if lid not in assegnati_ids and lid in nomi:
+                assegnabili.append({"legacy_id": lid, "nome": nomi[lid]})
+        assegnabili.sort(key=lambda x: x["nome"].lower())
+
+    return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
+        "corso": corso,
+        "is_editor": is_editor,
+        "n_slide": len(slides),
+        "n_domande": len(domande),
+        "n_invalid": n_invalid,
+        "salute": salute,
+        "iscritti": iscritti,
+        "counts": counts,
+        "pubblicato": corso.stato == "ATTIVO" and corso.is_active,
+        "assegnazioni": assegnazioni,
+        "assegnabili": assegnabili,
+    })
+
+
+@login_required
+@require_POST
+def formazione_elearning_publish_toggle(request, corso_id: int):
+    """Pubblica/ritira un micro-corso. La pubblicazione è bloccata se mancano le slide o
+    il quiz ha domande senza risposta corretta (controllo qualità centralizzato)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_hub")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    if corso.stato == "ATTIVO":
+        corso.stato = "BOZZA"
+        corso.save(update_fields=["stato", "updated_at"])
+        messages.info(request, "Corso ritirato (bozza): non più visibile ai discenti.")
+    else:
+        n_slide = corso.slides.filter(is_active=True).count()
+        domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+        n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+        if n_slide == 0:
+            messages.error(request, "Impossibile pubblicare: aggiungi almeno una slide.")
+        elif domande and n_invalid:
+            messages.error(request, "Impossibile pubblicare: il quiz ha domande senza risposta corretta. Completa le domande o disattivale.")
+        else:
+            corso.stato = "ATTIVO"
+            corso.is_active = True
+            corso.save(update_fields=["stato", "is_active", "updated_at"])
+            messages.success(request, "Corso pubblicato: ora visibile in «Corsi online».")
+    # Ritorna alla pagina di provenienza interna, altrimenti alla cabina di regia
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+@login_required
+def formazione_elearning_iscritti_csv(request, corso_id: int):
+    """Export CSV di iscritti ed esiti del micro-corso (audit). Tracciato in TrainingExportLog."""
+    if not _can_view_formazione(request):
+        messages.error(request, "Non hai i permessi per esportare i report.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    rows = _elearning_iscritti_rows(corso)
+
+    resp = HttpResponse(content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="elearning_{corso.codice}_iscritti.csv"'
+    resp.write("﻿")  # BOM per apertura corretta in Excel
+    writer = csv.writer(resp, delimiter=";")
+    writer.writerow(["Dipendente", "ID", "Stato", "Avanzamento slide", "Miglior punteggio %", "Tentativi", "Data completamento"])
+    for r in rows:
+        writer.writerow([
+            r["nome"], r["legacy_id"], r["stato_disp"], r["avanzamento"],
+            r["best"] if r["best"] is not None else "", r["n_tentativi"],
+            r["data_completamento"] or "",
+        ])
+    try:
+        TrainingExportLog.objects.create(
+            tipo="ISCRITTI",
+            filtri_json={"modalita": "ELEARNING", "corso": corso.codice},
+            righe_esportate=len(rows),
+            generato_da=request.user,
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+    except Exception:
+        logger.warning("Audit export e-learning iscritti fallito", exc_info=True)
+    return resp
+
+
+@login_required
+@require_POST
+def formazione_elearning_assign(request, corso_id: int):
+    """Assegna (obbligo) il micro-corso a uno o più dipendenti: crea TrainingAssignment
+    e richiama l'hook notifica (predisposto, invio non attivo). Idempotente."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per assegnare corsi.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse.objects.select_related("piano"), pk=corso_id, is_elearning=True)
+
+    ids, seen = [], set()
+    for raw in request.POST.getlist("dipendenti_selezionati"):
+        s = str(raw).strip()
+        if s.isdigit():
+            lid = int(s)
+            if lid > 0 and lid not in seen:
+                seen.add(lid)
+                ids.append(lid)
+    if not ids:
+        messages.warning(request, "Nessun dipendente selezionato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+    due = None
+    raw_due = (request.POST.get("due_date") or "").strip()
+    if raw_due:
+        from datetime import datetime as _dt
+        try:
+            due = _dt.strptime(raw_due, "%Y-%m-%d").date()
+        except ValueError:
+            due = None
+
+    from .services.elearning_notifications import notify_corso_assegnato
+    n_new = 0
+    for lid in ids:
+        obj, created = TrainingAssignment.objects.get_or_create(
+            corso=corso, legacy_anagrafica_id=lid,
+            defaults={"stato": "ASSEGNATO", "piano": corso.piano, "due_date": due, "assigned_by": request.user},
+        )
+        if created:
+            n_new += 1
+            try:
+                notify_corso_assegnato(corso.pk, lid)
+            except Exception:
+                logger.debug("Hook notifica assegnazione e-learning fallito", exc_info=True)
+    if n_new:
+        messages.success(request, f"{n_new} dipendente/i assegnato/i al corso.")
+    else:
+        messages.info(request, "I dipendenti selezionati erano già assegnati.")
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_elearning_unassign(request, corso_id: int, assignment_id: int):
+    """Rimuove un'assegnazione non ancora completata."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+    a = get_object_or_404(TrainingAssignment, pk=assignment_id, corso_id=corso_id)
+    if a.stato == "COMPLETATO":
+        messages.error(request, "Non puoi rimuovere un'assegnazione già completata.")
+    else:
+        a.delete()
+        messages.success(request, "Assegnazione rimossa.")
+    return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+@login_required
+def formazione_elearning_settings(request):
+    """Impostazioni e-learning (singleton): default dei nuovi micro-corsi e percorso
+    LibreOffice per l'import PowerPoint. Gated dal permesso di modifica formazione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare le impostazioni e-learning.")
+        return redirect("anagrafica:formazione_elearning_hub")
+    cfg = ElearningConfig.get_instance()
+    if request.method == "POST":
+        form = ElearningConfigForm(request.POST, instance=cfg)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.updated_by = request.user
+            obj.save()
+            messages.success(request, "Impostazioni e-learning salvate.")
+            return redirect("anagrafica:formazione_elearning_settings")
+        messages.error(request, "Controlla i campi: " + form.errors.as_text())
+    else:
+        form = ElearningConfigForm(instance=cfg)
+    # Diagnostica LibreOffice (per l'import PowerPoint)
+    from .services.elearning_import import find_libreoffice
+    return render(request, "anagrafica/pages/formazione_elearning_settings.html", {
+        "form": form,
+        "cfg": cfg,
+        "libreoffice_trovato": find_libreoffice(),
+    })
+
+
+# -- AUTORE: gestione contenuti (slide + quiz) -------------------------------
+
+@login_required
+def formazione_corso_elearning(request, corso_id: int):
+    """Pagina autore: gestione slide e quiz di un micro-corso e-learning."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare i contenuti e-learning.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    slides = list(corso.slides.all())
+    domande = list(corso.quiz_domande.prefetch_related("opzioni").all())
+    # Segnala le domande attive senza alcuna opzione corretta: sarebbero impossibili da
+    # superare e vengono escluse dal quiz del discente finché non si completa l'autoring.
+    n_domande_incomplete = 0
+    for d in domande:
+        d.senza_corretta = d.is_active and not any(o.corretta for o in d.opzioni.all())
+        if d.senza_corretta:
+            n_domande_incomplete += 1
+    return render(request, "anagrafica/pages/formazione_corso_elearning.html", {
+        "corso": corso,
+        "slides": slides,
+        "domande": domande,
+        "n_domande_incomplete": n_domande_incomplete,
+        "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}),
+        "question_form": TrainingQuizQuestionForm(initial={"ordine": (domande[-1].ordine + 1) if domande else 1}),
+    })
+
+
+@login_required
+@require_POST
+def formazione_slide_save(request, corso_id: int):
+    """Crea o aggiorna una slide. slide_id vuoto = creazione."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    slide_id = request.POST.get("slide_id")
+    instance = get_object_or_404(TrainingSlide, pk=slide_id, corso=corso) if slide_id else None
+    form = TrainingSlideForm(request.POST, instance=instance)
+    if form.is_valid():
+        slide = form.save(commit=False)
+        slide.corso = corso
+        if not slide.pk:
+            slide.created_by = request.user
+        slide.save()
+        messages.success(request, f'Slide "{slide.titolo}" salvata.')
+    else:
+        messages.error(request, "Errore nel salvataggio della slide: " + form.errors.as_text())
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_slide_delete(request, corso_id: int, slide_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    slide = get_object_or_404(TrainingSlide, pk=slide_id, corso_id=corso_id)
+    slide.delete()
+    messages.success(request, "Slide eliminata.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_slide_import(request, corso_id: int):
+    """Importa slide da un file PowerPoint/PDF: una slide-immagine per pagina."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    f = request.FILES.get("file")
+    if not f:
+        messages.error(request, "Nessun file selezionato.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    # Limite dimensione (50 MB) per evitare upload abnormi
+    if f.size and f.size > 50 * 1024 * 1024:
+        messages.error(request, "File troppo grande (massimo 50 MB).")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    from .services.elearning_import import importa_slides_da_file, ImportError_
+    try:
+        n = importa_slides_da_file(corso, f, user=request.user)
+        messages.success(request, f"Importate {n} slide da «{f.name}».")
+    except ImportError_ as e:
+        messages.error(request, str(e))
+    except Exception:
+        logger.exception("Import slide e-learning fallito per corso %s", corso_id)
+        messages.error(request, "Import non riuscito: errore imprevisto nella conversione.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+def formazione_slide_image(request, slide_id: int):
+    """Serve inline l'immagine di una slide dallo storage privato.
+
+    Accesso: editor formazione, oppure qualsiasi utente autenticato se il corso è un
+    e-learning pubblicato (così il discente vede le slide-immagine nel player)."""
+    slide = get_object_or_404(TrainingSlide.objects.select_related("corso"), pk=slide_id)
+    corso = slide.corso
+    pubblicato = corso.is_elearning and corso.is_active and corso.stato == "ATTIVO"
+    if not (_can_edit_formazione(request) or pubblicato):
+        return HttpResponse(status=403)
+    if not slide.immagine:
+        return HttpResponse("Immagine non disponibile.", status=404)
+    from django.http import FileResponse
+    try:
+        fh = slide.immagine.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("Immagine non trovata sul server.", status=404)
+    resp = FileResponse(fh, content_type="image/png")
+    resp["Content-Disposition"] = f'inline; filename="slide_{slide.pk}.png"'
+    resp["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
+@login_required
+@require_POST
+def formazione_question_save(request, corso_id: int):
+    """Crea o aggiorna una domanda del quiz."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    q_id = request.POST.get("question_id")
+    instance = get_object_or_404(TrainingQuizQuestion, pk=q_id, corso=corso) if q_id else None
+    form = TrainingQuizQuestionForm(request.POST, instance=instance)
+    if form.is_valid():
+        q = form.save(commit=False)
+        q.corso = corso
+        q.save()
+        messages.success(request, "Domanda salvata.")
+    else:
+        messages.error(request, "Errore nella domanda: " + form.errors.as_text())
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_question_delete(request, corso_id: int, question_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    q = get_object_or_404(TrainingQuizQuestion, pk=question_id, corso_id=corso_id)
+    q.delete()
+    messages.success(request, "Domanda eliminata.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_option_save(request, corso_id: int, question_id: int):
+    """Aggiunge/aggiorna un'opzione di risposta a una domanda."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    domanda = get_object_or_404(TrainingQuizQuestion, pk=question_id, corso_id=corso_id)
+    opt_id = request.POST.get("option_id")
+    instance = get_object_or_404(TrainingQuizOption, pk=opt_id, domanda=domanda) if opt_id else None
+    form = TrainingQuizOptionForm(request.POST, instance=instance)
+    if form.is_valid():
+        opt = form.save(commit=False)
+        opt.domanda = domanda
+        opt.save()
+        messages.success(request, "Opzione salvata.")
+    else:
+        messages.error(request, "Errore nell'opzione: " + form.errors.as_text())
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_option_delete(request, corso_id: int, option_id: int):
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    opt = get_object_or_404(TrainingQuizOption, pk=option_id, domanda__corso_id=corso_id)
+    opt.delete()
+    messages.success(request, "Opzione eliminata.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+# -- DISCENTE: catalogo, player slide (HTMX), quiz ---------------------------
+
+@login_required
+def formazione_online_catalog(request):
+    """Catalogo dei micro-corsi e-learning pubblicati, con il mio stato per ciascuno."""
+    legacy_id = _current_legacy_anagrafica_id(request)
+    corsi = list(
+        TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO")
+        .select_related("piano", "categoria")
+        .order_by("titolo")
+    )
+    iscrizioni = {}
+    assegnazioni = {}
+    if legacy_id:
+        iscrizioni = {
+            e.corso_id: e
+            for e in TrainingElearningEnrollment.objects.filter(
+                legacy_anagrafica_id=legacy_id, corso__in=corsi
+            )
+        }
+        assegnazioni = {
+            a.corso_id: a
+            for a in TrainingAssignment.objects.filter(
+                legacy_anagrafica_id=legacy_id, corso__in=corsi
+            )
+        }
+    cards = []
+    for c in corsi:
+        e = iscrizioni.get(c.pk)
+        a = assegnazioni.get(c.pk)
+        # «Da fare» = assegnato (obbligo) e non ancora completato
+        assegnato_da_fare = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO") and (e is None or e.stato != "COMPLETATO")
+        cards.append({
+            "corso": c,
+            "stato": e.stato if e else None,
+            "best_pct": e.best_punteggio_pct if e else None,
+            "n_slide": c.slides.filter(is_active=True).count(),
+            "n_domande": c.quiz_domande.filter(is_active=True).count(),
+            "assegnato": bool(a),
+            "assegnato_da_fare": assegnato_da_fare,
+            "due_date": a.due_date if a else None,
+        })
+    # Ordina: prima i corsi assegnati da completare, poi gli altri (per titolo)
+    cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["corso"].titolo.lower()))
+    return render(request, "anagrafica/pages/formazione_online_catalog.html", {
+        "cards": cards,
+        "no_anagrafica": legacy_id is None,
+        "is_editor": _can_edit_formazione(request),
+    })
+
+
+def _enrollment_corrente(corso, legacy_id):
+    """Ritorna (creandola se serve) l'iscrizione e-learning del discente al corso."""
+    n_slide = corso.slides.filter(is_active=True).count()
+    enr, _created = TrainingElearningEnrollment.objects.get_or_create(
+        corso=corso, legacy_anagrafica_id=legacy_id,
+        defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide},
+    )
+    if enr.n_slide_totali != n_slide:
+        enr.n_slide_totali = n_slide
+        enr.save(update_fields=["n_slide_totali"])
+    return enr
+
+
+@login_required
+def formazione_online_player(request, corso_id: int):
+    """Apre il player del micro-corso: iscrive il discente (se non gia) e mostra la
+    prima slide (o quella piu avanti gia vista)."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    if not (corso.is_active and corso.stato == "ATTIVO") and not _can_edit_formazione(request):
+        messages.error(request, "Corso non disponibile.")
+        return redirect("anagrafica:formazione_online_catalog")
+    legacy_id = _current_legacy_anagrafica_id(request)
+    slides = list(corso.slides.filter(is_active=True))
+    enr = None
+    slide_iniziale = slides[0].ordine if slides else 1
+    if legacy_id and slides:
+        enr = _enrollment_corrente(corso, legacy_id)
+        ordini = [s.ordine for s in slides]
+        if enr.ultima_slide_ordine in ordini:
+            slide_iniziale = enr.ultima_slide_ordine
+    return render(request, "anagrafica/pages/formazione_online_player.html", {
+        "corso": corso,
+        "slides": slides,
+        "n_slide": len(slides),
+        "slide_iniziale": slide_iniziale,
+        "enrollment": enr,
+        "no_anagrafica": legacy_id is None,
+        "n_domande": corso.quiz_domande.filter(is_active=True).count(),
+    })
+
+
+@login_required
+def formazione_online_slide(request, corso_id: int, ordine: int):
+    """Partial HTMX: rende la slide <ordine> del corso e aggiorna l'avanzamento.
+
+    Ritorna il partial quando chiamata via HTMX, altrimenti reindirizza al player."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    slides = list(corso.slides.filter(is_active=True))
+    if not slides:
+        if request.headers.get("HX-Request"):
+            return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
+        return redirect("anagrafica:formazione_online_catalog")
+
+    ordini = [s.ordine for s in slides]
+    pos = ordini.index(ordine) if ordine in ordini else 0
+    slide = slides[pos]
+
+    from .services.elearning_markdown import render_markdown
+    contenuto_html = render_markdown(slide.contenuto)
+
+    # Avanzamento (solo se il discente e tracciabile)
+    legacy_id = _current_legacy_anagrafica_id(request)
+    if legacy_id:
+        enr = _enrollment_corrente(corso, legacy_id)
+        campi = []
+        if slide.ordine > enr.ultima_slide_ordine:
+            enr.ultima_slide_ordine = slide.ordine
+            campi.append("ultima_slide_ordine")
+        if enr.stato == "ISCRITTO":
+            enr.stato = "IN_CORSO"
+            campi.append("stato")
+        if campi:
+            enr.save(update_fields=campi + ["updated_at"])
+
+    ctx = {
+        "corso": corso,
+        "slide": slide,
+        "contenuto_html": contenuto_html,
+        "indice": pos + 1,
+        "n_slide": len(slides),
+        "ordine_prec": ordini[pos - 1] if pos > 0 else None,
+        "ordine_succ": ordini[pos + 1] if pos < len(slides) - 1 else None,
+        "is_ultima": pos == len(slides) - 1,
+        "n_domande": corso.quiz_domande.filter(is_active=True).count(),
+        "progress_pct": round((pos + 1) / len(slides) * 100),
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "anagrafica/partials/_formazione_online_slide.html", ctx)
+    return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+
+@login_required
+def formazione_online_quiz(request, corso_id: int):
+    """Quiz finale del micro-corso: GET mostra le domande, POST corregge, scrive il
+    tentativo (audit) e — al superamento — il record di completamento storicizzato."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
+    legacy_id = _current_legacy_anagrafica_id(request)
+
+    if not domande:
+        messages.info(request, "Questo corso non ha ancora un quiz finale.")
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    # Solo domande "valide" (almeno un'opzione corretta): una domanda senza risposta
+    # corretta sarebbe impossibile da indovinare e bloccherebbe il superamento, quindi
+    # viene esclusa dal quiz finché l'autore non la completa (segnalata in pagina autore).
+    domande = [d for d in domande if any(o.corretta for o in d.opzioni.all())]
+    if not domande:
+        messages.info(request, "Il quiz non è ancora pronto: nessuna domanda ha una risposta corretta configurata.")
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    if request.method != "POST":
+        return render(request, "anagrafica/pages/formazione_online_quiz.html", {
+            "corso": corso,
+            "domande": domande,
+            "no_anagrafica": legacy_id is None,
+            "esito": None,
+        })
+
+    if legacy_id is None:
+        messages.error(request, "Il tuo profilo non e collegato all'anagrafica: il completamento non puo essere registrato. Contatta HR.")
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    # Limite tentativi (Impostazioni e-learning): blocca un nuovo invio se esaurito.
+    cfg_el = ElearningConfig.get_instance()
+    if cfg_el.max_tentativi_quiz:
+        _enr = TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).first()
+        if _enr and _enr.stato != "COMPLETATO" and (_enr.n_tentativi or 0) >= cfg_el.max_tentativi_quiz:
+            messages.error(request, f"Hai esaurito i tentativi disponibili per questo quiz ({cfg_el.max_tentativi_quiz}).")
+            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+
+    # -- Correzione -----------------------------------------------------------
+    n_totali = len(domande)
+    n_corrette = 0
+    risposte_snapshot = []
+    for d in domande:
+        scelte = set(int(x) for x in request.POST.getlist(f"q_{d.pk}") if str(x).isdigit())
+        corrette = set(o.pk for o in d.opzioni.all() if o.corretta)
+        giusta = bool(corrette) and scelte == corrette
+        if giusta:
+            n_corrette += 1
+        risposte_snapshot.append({
+            "domanda_id": d.pk,
+            "domanda": d.testo,
+            "scelte": sorted(scelte),
+            "corrette": sorted(corrette),
+            "giusta": giusta,
+        })
+
+    from decimal import Decimal
+    punteggio = Decimal(str(round(n_corrette / n_totali * 100, 2))) if n_totali else Decimal("0")
+    superato = punteggio >= corso.quiz_punteggio_minimo
+
+    with transaction.atomic():
+        enr = _enrollment_corrente(corso, legacy_id)
+        attempt = TrainingQuizAttempt.objects.create(
+            corso=corso,
+            enrollment=enr,
+            legacy_anagrafica_id=legacy_id,
+            punteggio_pct=punteggio,
+            n_corrette=n_corrette,
+            n_totali=n_totali,
+            superato=superato,
+            risposte_json={"risposte": risposte_snapshot},
+            utente=request.user,
+        )
+        enr.n_tentativi = (enr.n_tentativi or 0) + 1
+        if enr.best_punteggio_pct is None or punteggio > enr.best_punteggio_pct:
+            enr.best_punteggio_pct = punteggio
+        campi = ["n_tentativi", "best_punteggio_pct", "updated_at"]
+        if superato and enr.stato != "COMPLETATO":
+            from django.utils import timezone as _tz
+            enr.stato = "COMPLETATO"
+            enr.data_completamento = _tz.localdate()
+            campi += ["stato", "data_completamento"]
+            if not enr.record_completamento_id:
+                record = _crea_record_completamento_elearning(corso, legacy_id, attempt, request.user)
+                enr.record_completamento = record
+                attempt.record = record
+                attempt.save(update_fields=["record"])
+                campi.append("record_completamento")
+            # Chiude eventuali assegnazioni (obbligo) aperte per questo corso/dipendente
+            TrainingAssignment.objects.filter(
+                corso=corso, legacy_anagrafica_id=legacy_id,
+            ).exclude(stato="COMPLETATO").update(stato="COMPLETATO")
+        elif not superato and enr.stato != "COMPLETATO":
+            enr.stato = "NON_SUPERATO"
+            campi.append("stato")
+        enr.save(update_fields=list(dict.fromkeys(campi)))
+
+    return render(request, "anagrafica/pages/formazione_online_quiz.html", {
+        "corso": corso,
+        "domande": domande,
+        "no_anagrafica": False,
+        "esito": {
+            "superato": superato,
+            "punteggio": punteggio,
+            "n_corrette": n_corrette,
+            "n_totali": n_totali,
+            "minimo": corso.quiz_punteggio_minimo,
+            "risposte": risposte_snapshot,
+        },
+    })

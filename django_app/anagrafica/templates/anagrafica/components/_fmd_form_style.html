@@ -1,0 +1,69 @@
+{# Stili form (creazione/modifica) per il design Formazione .fmd — self-contained. #}
+{# Usa le variabili di formazione_design.css con fallback: funziona anche da solo. #}
+{# Includere nel blocco extra_head DOPO formazione_design.css. #}
+<style>
+/* ── Card form ────────────────────────────────────────────── */
+.fmd-form-sec{ padding:18px 22px 20px; border-top:1px solid var(--fmd-line-soft,#eef2f7); }
+.fmd-form-sec:first-child{ border-top:none; }
+.fmd-form-sec-h{ display:flex; align-items:center; gap:9px; margin-bottom:15px; }
+.fmd-form-sec-h .fmd-ico{ font-size:16px; color:var(--fmd-cyan,#1f87cd); }
+.fmd-form-sec-t{ font-family:var(--fmd-mono,ui-monospace,Consolas,monospace); font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--fmd-navy,#0c2545); }
+.fmd-form-sec-n{ margin-left:auto; font-size:11.5px; font-weight:600; color:var(--fmd-muted-2,#94a3b8); }
+
+/* ── Griglia campi ────────────────────────────────────────── */
+.fmd-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px 18px; }
+.fmd-grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:15px 18px; }
+.fmd-col-full{ grid-column:1 / -1; }
+/* I campi con textarea o select multipla occupano l'intera riga (progressive enhancement) */
+.fmd-grid .fmd-field:has(textarea),
+.fmd-grid-3 .fmd-field:has(textarea),
+.fmd-grid .fmd-field:has(select[multiple]),
+.fmd-grid-3 .fmd-field:has(select[multiple]){ grid-column:1 / -1; }
+
+/* ── Campo singolo ────────────────────────────────────────── */
+.fmd-field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+.fmd-field > label{ font-family:var(--fmd-mono,ui-monospace,Consolas,monospace); font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--fmd-muted,#6b7a90); }
+.fmd-req{ color:var(--fmd-orange,#ff8a1f); font-style:normal; margin-left:3px; }
+.fmd-field input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.fmd-field select,
+.fmd-field textarea{
+  width:100%; min-height:38px; border:1px solid var(--fmd-line,#e7edf3); border-radius:8px;
+  padding:8px 11px; font:inherit; font-size:13px; color:var(--fmd-ink,#2d3a55); background:#fff;
+  outline:none; transition:border-color .15s, box-shadow .15s; box-sizing:border-box;
+}
+.fmd-field textarea{ min-height:76px; resize:vertical; line-height:1.5; }
+.fmd-field input:focus, .fmd-field select:focus, .fmd-field textarea:focus{
+  border-color:var(--fmd-cyan,#1f87cd); box-shadow:0 0 0 3px rgba(31,135,205,.12);
+}
+.fmd-field input::placeholder, .fmd-field textarea::placeholder{ color:var(--fmd-muted-2,#94a3b8); }
+.fmd-field-err input, .fmd-field-err select, .fmd-field-err textarea{ border-color:#e0736b; }
+.fmd-fhelp{ font-size:11px; color:var(--fmd-muted-2,#94a3b8); line-height:1.45; }
+.fmd-ferr{ font-size:11px; font-weight:600; color:#c53030; }
+/* campo precompilato dall'assist (codice / validità) */
+.fmd-field input.fmd-autofill{ background:#f0f9ff; border-color:#bfdded; }
+
+/* ── Opzioni / checkbox ───────────────────────────────────── */
+.fmd-checks{ display:flex; flex-wrap:wrap; gap:10px; }
+.fmd-check{ display:inline-flex; align-items:center; gap:9px; padding:9px 13px; border:1px solid var(--fmd-line,#e7edf3); border-radius:9px; background:#fafbfd; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--fmd-ink,#2d3a55); transition:border-color .15s, background .15s; }
+.fmd-check:hover{ border-color:#cfd9ea; }
+.fmd-check input[type=checkbox], .fmd-check input[type=radio]{ width:16px; height:16px; margin:0; accent-color:var(--fmd-cyan,#1f87cd); flex:0 0 auto; }
+
+/* ── Footer azioni ────────────────────────────────────────── */
+.fmd-form-foot{ display:flex; align-items:center; justify-content:flex-end; gap:9px; padding:16px 22px; border-top:1px solid var(--fmd-line,#e7edf3); background:#fafbfd; }
+.fmd-form-foot .fmd-spacer{ flex:1; }
+.fmd-form-hint{ font-size:11.5px; color:var(--fmd-muted-2,#94a3b8); }
+
+/* ── Modale (crea piano / form generici) ──────────────────── */
+.fmd-modal{ position:fixed; inset:0; z-index:1000; display:none; align-items:flex-start; justify-content:center; background:rgba(8,20,45,.46); padding:42px 16px; overflow-y:auto; }
+.fmd-modal-card{ background:#fff; border-radius:16px; width:640px; max-width:96vw; box-shadow:0 30px 70px rgba(8,20,45,.4); overflow:hidden; }
+.fmd-modal-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px; border-bottom:1px solid var(--fmd-line-soft,#eef2f7); }
+.fmd-modal-head strong{ font-size:16px; font-weight:800; color:var(--fmd-navy,#0c2545); }
+.fmd-modal-x{ background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--fmd-muted-2,#94a3b8); }
+.fmd-modal-x:hover{ color:var(--fmd-navy,#0c2545); }
+.fmd-modal-body{ padding:20px 22px; max-height:64vh; overflow-y:auto; }
+.fmd-modal-foot{ display:flex; justify-content:flex-end; gap:9px; padding:14px 22px; border-top:1px solid var(--fmd-line-soft,#eef2f7); background:#fafbfd; }
+
+@media (max-width:720px){
+  .fmd-grid, .fmd-grid-3{ grid-template-columns:1fr; }
+}
+</style>

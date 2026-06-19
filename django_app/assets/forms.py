@@ -2714,6 +2714,27 @@ class WorkOrderCloseForm(forms.Form):
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
     intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, label="Durata intervento (minuti)")
     downtime_minutes = forms.IntegerField(required=False, min_value=0, label="Fermo impianto (minuti)")
+    labor_cost_eur = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label="Costo manodopera (EUR)",
+    )
+    materials_cost_eur = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label="Costo materiali (EUR)",
+    )
+    cost_eur = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label="Costo totale override (EUR)",
+    )
     assigned_to = forms.ModelChoiceField(required=False, queryset=None, label="Assegnato a")
     executed_by = forms.ModelChoiceField(required=False, queryset=None, label="Eseguito da")
     assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
@@ -2748,6 +2769,7 @@ class WorkOrderCloseForm(forms.Form):
         self.fields["assigned_to"].help_text = "Manutentore assegnato all'intervento."
         self.fields["executed_by"].queryset = user_qs
         self.fields["executed_by"].help_text = "Chi ha fisicamente eseguito il lavoro."
+        self.fields["cost_eur"].help_text = "Opzionale: se compilato sostituisce la somma manodopera + materiali."
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
 

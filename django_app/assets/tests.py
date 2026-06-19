@@ -22,7 +22,7 @@ from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from types import SimpleNamespace
 from PIL import Image
 
@@ -45,6 +45,7 @@ from .maintenance import (
     build_maintenance_schedule_rows,
     meter_schedule_payload,
     resolve_asset_maintenance_rules,
+    sync_workorder_maintenance_state,
 )
 from .services.asset_catalog_import import AssetCatalogImporter
 from .models import (
@@ -66,6 +67,7 @@ from .models import (
     AssetLabelTemplate,
     AssetListLayout,
     AssetListOption,
+    AssetMaintenanceBudget,
     AssetMaintenanceRuleState,
     AssetMeter,
     AssetCalendarEvent,
@@ -86,6 +88,7 @@ from .models import (
     WorkOrder,
     WorkOrderAttachment,
     WorkOrderChecklist,
+    WorkOrderLog,
 )
 
 User = get_user_model()
@@ -412,6 +415,23 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Inventario asset")
         self.assertContains(response, 'data-col-toggle="name" checked', html=False)
 
+    def test_asset_list_export_pdf_returns_shared_template_pdf(self):
+        Asset.objects.create(
+            asset_tag="PDF-001",
+            name="Asset export PDF",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            reparto="CN5",
+            source_key="manual-export-pdf-shared-template",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:asset_list_export"), {"format": "pdf"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response["Content-Type"].startswith("application/pdf"))
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        self.assertGreater(len(response.content), 800)
+
     def test_assets_list_persists_table_layout_server_side(self):
         self.client.force_login(self.user)
         response = self.client.post(
@@ -577,6 +597,56 @@ class AssetsRoutingTests(TestCase):
         self.assertTrue(active_parent["expanded"])
         self.assertTrue(active_parent["children"][0]["active"])
 
+    def test_asset_sidebar_category_active_match_is_exact(self):
+        AssetSidebarButton.objects.all().delete()
+        cmm_parent = AssetSidebarButton.objects.create(
+            code="catnav-root-cmm",
+            section=AssetSidebarButton.SECTION_MAIN,
+            label="CMM",
+            target_url="django:assets:asset_list?asset_category=608&rows={rows}",
+            active_match="asset_category=608",
+            sort_order=20,
+        )
+        AssetSidebarButton.objects.create(
+            code="catnav-cmm-controllo",
+            section=AssetSidebarButton.SECTION_MAIN,
+            parent=cmm_parent,
+            label="Controllo",
+            target_url="django:assets:asset_list?asset_category=608&rows={rows}",
+            active_match="asset_category=608",
+            sort_order=2000,
+        )
+        novicrom_parent = AssetSidebarButton.objects.create(
+            code="catnav-root-novicrom",
+            section=AssetSidebarButton.SECTION_MAIN,
+            label="Costruzioni Novicrom",
+            target_url="django:assets:asset_list?asset_category=6&rows={rows}",
+            active_match="asset_category=6",
+            sort_order=21,
+        )
+        AssetSidebarButton.objects.create(
+            code="catnav-novicrom-blsd",
+            section=AssetSidebarButton.SECTION_MAIN,
+            parent=novicrom_parent,
+            label="Bls d",
+            target_url="django:assets:asset_list?asset_category=60&rows={rows}",
+            active_match="asset_category=60",
+            sort_order=2100,
+        )
+
+        active_request = self.factory.get(
+            reverse("assets:asset_list"),
+            {"asset_category": "608", "rows": "25"},
+        )
+        active_request.user = self.user
+        groups = asset_views._build_sidebar_groups(active_request)
+        items = {item["label"]: item for item in groups[0]["items"]}
+
+        self.assertTrue(items["CMM"]["expanded"])
+        self.assertTrue(items["CMM"]["children"][0]["active"])
+        self.assertFalse(items["Costruzioni Novicrom"]["expanded"])
+        self.assertFalse(items["Costruzioni Novicrom"]["children"][0]["active"])
+
     def test_asset_sidebar_template_renders_collapsible_groups(self):
         AssetSidebarButton.objects.all().delete()
         parent = AssetSidebarButton.objects.create(
@@ -601,10 +671,21 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:asset_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'data-as-nav-group data-as-nav-key', html=False)
-        self.assertContains(response, 'class="as-nav-children"', html=False)
+        self.assertContains(response, 'data-li-nav-group', html=False)
+        self.assertContains(response, 'class="li-nav-children"', html=False)
         self.assertContains(response, 'aria-expanded="false"', html=False)
+        self.assertContains(response, "localStorage.removeItem(storageKey)", html=False)
+        self.assertContains(response, "closeOtherGroups", html=False)
+        self.assertNotContains(response, "localStorage.setItem(storageKey", html=False)
         self.assertContains(response, "Macchine CNC")
+
+        shell_response = self.client.get(reverse("assets:asset_dashboard"))
+        self.assertEqual(shell_response.status_code, 200)
+        self.assertContains(shell_response, 'data-as-nav-group data-as-nav-key', html=False)
+        self.assertContains(shell_response, 'class="as-nav-children"', html=False)
+        self.assertContains(shell_response, "localStorage.removeItem(storageKey)", html=False)
+        self.assertContains(shell_response, "closeOtherGroups", html=False)
+        self.assertNotContains(shell_response, "localStorage.setItem(storageKey", html=False)
 
     def test_work_machine_list_200_when_logged(self):
         asset = Asset.objects.create(
@@ -671,6 +752,88 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'type="month"', html=False)
         self.assertContains(response, f'value="{timezone.localdate().strftime("%Y-%m")}"', html=False)
+
+    def test_reports_dashboard_shows_pm_compliance_and_budget_vs_actual(self):
+        today = timezone.localdate()
+        category = AssetCategory.objects.create(
+            code="cnc-report-kpi",
+            label="CNC report KPI",
+            base_asset_type=Asset.TYPE_CNC,
+            is_active=True,
+        )
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="pm-report-kpi",
+            label="Tagliando report KPI",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=30,
+            warning_days=5,
+        )
+        asset_ok = Asset.objects.create(
+            asset_tag="CNC-RPT-OK",
+            name="Centro report in linea",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=category,
+            status=Asset.STATUS_IN_USE,
+        )
+        asset_overdue = Asset.objects.create(
+            asset_tag="CNC-RPT-KO",
+            name="Centro report scaduto",
+            asset_type=Asset.TYPE_CNC,
+            asset_category=category,
+            status=Asset.STATUS_IN_USE,
+        )
+        AssetMaintenanceRuleState.objects.create(
+            asset=asset_ok,
+            base_rule=rule,
+            last_execution_date=today - timedelta(days=10),
+        )
+        AssetMaintenanceRuleState.objects.create(
+            asset=asset_overdue,
+            base_rule=rule,
+            last_execution_date=today - timedelta(days=45),
+        )
+        AssetMaintenanceBudget.objects.create(
+            asset_category=category,
+            year=today.year,
+            budget_eur=Decimal("1000.00"),
+        )
+        WorkOrder.objects.create(
+            asset=asset_ok,
+            maintenance_rule=rule,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_DONE,
+            title="Tagliando report KPI chiuso",
+            closed_at=timezone.now(),
+            cost_eur=Decimal("250.00"),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:reports") + "?scope=production")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pm_kpi"]["compliance_pct"], 50.0)
+        self.assertEqual(response.context["budget_kpi"]["budget_total"], Decimal("1000.00"))
+        self.assertEqual(response.context["budget_kpi"]["actual_total"], Decimal("250.00"))
+        self.assertContains(response, "PM compliance")
+        self.assertContains(response, "Budget vs actual per categoria")
+        self.assertContains(response, "CNC report KPI")
+        self.assertContains(response, "EUR")
+        self.assertContains(
+            response,
+            f'href="{reverse("assets:maintenance_schedule")}?status=due"',
+            html=False,
+        )
+        self.assertContains(response, "OdL categoria")
+        self.assertEqual(
+            response.context["budget_rows"][0]["workorders_url"],
+            f'{reverse("assets:wo_list")}?status={WorkOrder.STATUS_DONE}&category={category.id}',
+        )
 
     def test_admin_can_create_periodic_verification_with_supplier_and_assets(self):
         admin = User.objects.create_superuser(
@@ -3370,6 +3533,77 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Gestione template report")
         self.assertContains(response, "Nuovo template")
         self.assertContains(response, "Report gestiti")
+        self.assertContains(response, 'class="rta-form-stack"', html=False)
+        self.assertContains(response, 'class="rta-card is-form"', html=False)
+        self.assertContains(response, 'aria-label="Form report"', html=False)
+        self.assertContains(response, "max-width: 1180px", html=False)
+        self.assertContains(response, "width: min(100%, 920px)", html=False)
+
+    def test_maintenance_pages_share_section_navigation(self):
+        admin = User.objects.create_superuser(
+            username="asset-section-nav-admin",
+            email="asset-section-nav@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(admin)
+
+        hub_response = self.client.get(reverse("assets:maintenance_hub"))
+        self.assertEqual(hub_response.status_code, 200)
+        self.assertContains(hub_response, 'class="as-section-nav"', html=False)
+        self.assertContains(hub_response, 'aria-label="Manutenzione"', html=False)
+        self.assertContains(hub_response, ">Assets<", html=False)
+        self.assertContains(hub_response, ">Manutenzione<", html=False)
+        self.assertContains(
+            hub_response,
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_hub")}" aria-current="page">Da fare</a>',
+            html=False,
+        )
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_schedule")}">Scadenzario</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:report_template_admin")}">Template report</a>', html=False)
+        self.assertContains(
+            hub_response,
+            f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',
+            html=False,
+        )
+        self.assertContains(
+            hub_response,
+            f'href="{reverse("assets:wo_list")}?export=1" data-as-section-action="export-workorders">Esporta OdL</a>',
+            html=False,
+        )
+        self.assertContains(
+            hub_response,
+            f'href="{reverse("assets:maintenance_impostazioni")}" data-as-section-action="settings">Impostazioni</a>',
+            html=False,
+        )
+
+        schedule_response = self.client.get(reverse("assets:maintenance_schedule"))
+        self.assertEqual(schedule_response.status_code, 200)
+        self.assertContains(
+            schedule_response,
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_schedule")}" aria-current="page">Scadenzario</a>',
+            html=False,
+        )
+
+        workorders_response = self.client.get(reverse("assets:wo_list"))
+        self.assertEqual(workorders_response.status_code, 200)
+        self.assertContains(
+            workorders_response,
+            f'class="as-section-tab active" href="{reverse("assets:wo_list")}" aria-current="page">Interventi</a>',
+            html=False,
+        )
+        self.assertContains(workorders_response, 'params.get("create") === "1"', html=False)
+        self.assertContains(workorders_response, 'openDialog("woCreateDlg")', html=False)
+        self.assertContains(workorders_response, 'params.get("export") === "1"', html=False)
+        self.assertContains(workorders_response, 'openDialog("woExportDlg")', html=False)
+
+        report_templates_response = self.client.get(reverse("assets:report_template_admin"))
+        self.assertEqual(report_templates_response.status_code, 200)
+        self.assertContains(
+            report_templates_response,
+            f'class="as-section-tab active" href="{reverse("assets:report_template_admin")}" aria-current="page">Template report</a>',
+            html=False,
+        )
 
     def test_superuser_can_create_custom_report_definition(self):
         admin = User.objects.create_superuser(
@@ -4418,6 +4652,56 @@ class WorkOrderFlowTests(TestCase):
             status=Asset.STATUS_IN_USE,
         )
 
+    def test_workorder_list_exposes_new_intervention_selector(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:wo_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "+ Nuovo intervento")
+        self.assertContains(response, 'name="asset"')
+        self.assertContains(response, 'class="wo-create-dialog"', html=False)
+        self.assertContains(response, "data-wo-create-search", html=False)
+        self.assertContains(response, "data-wo-asset-option", html=False)
+        self.assertContains(response, self.asset.asset_tag)
+
+    def test_global_workorder_create_redirects_to_selected_asset_form(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:wo_create"),
+            {"asset": str(self.asset.id), "kind": WorkOrder.KIND_CORRECTIVE},
+        )
+
+        expected_url = (
+            f"{reverse('assets:wo_create', args=[self.asset.id])}"
+            f"?kind={WorkOrder.KIND_CORRECTIVE}&source=workorder_list"
+        )
+        self.assertRedirects(response, expected_url, fetch_redirect_response=False)
+
+    def test_workorder_create_from_list_uses_compact_ui_and_back_link(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {"source": "workorder_list", "kind": WorkOrder.KIND_CORRECTIVE},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["workorder_back_url"], reverse("assets:wo_list"))
+        self.assertContains(response, "Lista interventi")
+        self.assertContains(response, "Torna agli interventi")
+        self.assertContains(response, "Dati intervento")
+        self.assertContains(response, 'class="wof-form-body"', html=False)
+        self.assertContains(response, 'class="wof-context"', html=False)
+        self.assertContains(response, ".as-main > .as-top", html=False)
+        self.assertContains(response, "max-width: 1180px", html=False)
+        self.assertContains(response, 'class="wof-section wof-section--main"', html=False)
+        self.assertContains(response, 'class="wof-section wof-section--notes"', html=False)
+        self.assertContains(response, 'class="wof-section wof-section--attachments"', html=False)
+        self.assertNotContains(response, 'class="wof-side-card"', html=False)
+        self.assertContains(response, ">+<", html=False)
+
     def test_preventive_workorder_uses_periodic_verification_supplier_and_attachment(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Fornitore Manutenzione Srl",
@@ -4745,6 +5029,236 @@ class WorkOrderFlowTests(TestCase):
         workorder.refresh_from_db()
         self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
         self.assertContains(response, "fornitore diverso")
+
+    def test_close_workorder_records_costs_assignee_and_attachments(self):
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Chiusura con costi",
+        )
+        upload = SimpleUploadedFile("chiusura.pdf", b"%PDF-1.4 close", content_type="application/pdf")
+        self.client.force_login(self.user)
+
+        with _workspace_temporary_directory("assets-wo-close-") as media_root, override_settings(MEDIA_ROOT=media_root):
+            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                response = self.client.post(
+                    reverse("assets:wo_close", args=[workorder.id]),
+                    {
+                        "status": WorkOrder.STATUS_DONE,
+                        "resolution": "Sostituito componente e verificato riavvio.",
+                        "intervention_duration_minutes": "45",
+                        "downtime_minutes": "12",
+                        "labor_cost_eur": "80.50",
+                        "materials_cost_eur": "19.50",
+                        "cost_eur": "",
+                        "assigned_to": str(self.user.id),
+                        "executed_by": str(self.user.id),
+                        "assistance_contract": "",
+                        "log_note": "Report finale allegato.",
+                        "close_attachments": upload,
+                    },
+                )
+
+        self.assertRedirects(response, reverse("assets:wo_view", args=[workorder.id]), fetch_redirect_response=False)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(workorder.labor_cost_eur, Decimal("80.50"))
+        self.assertEqual(workorder.materials_cost_eur, Decimal("19.50"))
+        self.assertEqual(workorder.resolved_total_cost_eur, Decimal("100.00"))
+        self.assertEqual(workorder.cost_eur, Decimal("100.00"))
+        self.assertEqual(workorder.assigned_to, self.user)
+        self.assertEqual(workorder.executed_by, self.user)
+        self.assertEqual(WorkOrderAttachment.objects.filter(work_order=workorder).count(), 1)
+        self.assertTrue(WorkOrderLog.objects.filter(work_order=workorder, note__icontains="Allegati caricati: 1").exists())
+
+    def _create_operational_workorder(self):
+        assigned = User.objects.create_user(
+            username="tech.operativo",
+            email="tech.operativo@example.com",
+            password="secret123",
+            first_name="Mario",
+            last_name="Rossi",
+        )
+        category = AssetCategory.objects.create(
+            code="wo-operativo",
+            label="Categoria Operativa",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.reparto = "MAN"
+        self.asset.save(update_fields=["asset_category", "reparto"])
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Service Registro Srl",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        contract = AssistanceContract.objects.create(
+            supplier=supplier,
+            asset=self.asset,
+            title="Contratto registro manutenzione",
+            contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+            start_date=timezone.localdate() - timedelta(days=20),
+        )
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            supplier=supplier,
+            assistance_contract=contract,
+            covered_by_contract=True,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            status=WorkOrder.STATUS_DONE,
+            assigned_to=assigned,
+            executed_by=self.user,
+            title="Tagliando operativo registro",
+            description="Intervento periodico filtrabile.",
+            resolution="Completato senza anomalie.",
+            intervention_duration_minutes=45,
+            downtime_minutes=10,
+            labor_cost_eur=Decimal("50.00"),
+            materials_cost_eur=Decimal("70.00"),
+            cost_eur=Decimal("120.00"),
+            closed_at=timezone.now(),
+        )
+        other_asset = Asset.objects.create(
+            asset_tag="IT-000999",
+            name="Asset fuori filtro",
+            asset_type=Asset.TYPE_SERVER,
+            status=Asset.STATUS_IN_USE,
+            reparto="OFF",
+        )
+        WorkOrder.objects.create(
+            asset=other_asset,
+            kind=WorkOrder.KIND_CORRECTIVE,
+            origin=WorkOrder.ORIGIN_MANUAL,
+            status=WorkOrder.STATUS_OPEN,
+            title="Intervento fuori filtro",
+        )
+        return workorder, category, assigned, contract
+
+    def test_workorder_list_filters_show_operational_columns(self):
+        workorder, category, assigned, contract = self._create_operational_workorder()
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:wo_list"),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "origin": WorkOrder.ORIGIN_PERIODIC,
+                "coverage": "covered",
+                "reparto": "MAN",
+                "category": str(category.id),
+                "assigned": str(assigned.id),
+                "q": "Tagliando",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Registro interventi")
+        self.assertContains(response, 'class="wo-filter-summary"', html=False)
+        self.assertContains(response, "Ricerca: Tagliando")
+        self.assertContains(response, "Stato: Chiusa")
+        self.assertContains(response, "Origine: Periodica")
+        self.assertContains(response, "Copertura: Con contratto")
+        self.assertContains(response, "Reparto: MAN")
+        self.assertContains(response, "Categoria: Categoria Operativa")
+        self.assertContains(response, "Responsabile: Mario Rossi")
+        self.assertContains(response, "Rimuovi tutti")
+        self.assertContains(response, f"#{workorder.id} - Tagliando operativo registro")
+        self.assertContains(response, self.asset.asset_tag)
+        self.assertContains(response, "Categoria Operativa")
+        self.assertContains(response, "Mario Rossi")
+        self.assertContains(response, "Coperto")
+        self.assertContains(response, contract.title)
+        self.assertContains(response, "Costi")
+        self.assertContains(response, "EUR")
+        self.assertEqual(list(response.context["workorders"])[0].resolved_total_cost_eur, Decimal("120.00"))
+        status_chip = next(chip for chip in response.context["active_filter_chips"] if chip["label"] == "Stato")
+        self.assertNotIn("status=", status_chip["remove_url"])
+        self.assertIn("origin=PERIODIC", status_chip["remove_url"])
+        self.assertNotContains(response, "Intervento fuori filtro")
+
+        age_response = self.client.get(
+            reverse("assets:wo_list"),
+            {"status": WorkOrder.STATUS_OPEN, "open_age": "21"},
+        )
+        self.assertEqual(age_response.status_code, 200)
+        self.assertContains(age_response, '<option value="21" selected>21 giorni</option>', html=False)
+        self.assertContains(age_response, "Aperti da: 21 giorni")
+
+    def test_workorder_export_uses_filtered_scope_and_operational_columns(self):
+        workorder, category, assigned, contract = self._create_operational_workorder()
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:workorder_list_export"),
+            {
+                "format": "xlsx",
+                "scope": "filtered",
+                "origin": WorkOrder.ORIGIN_PERIODIC,
+                "coverage": "covered",
+                "reparto": "MAN",
+                "category": str(category.id),
+                "assigned": str(assigned.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(io.BytesIO(response.content), read_only=True)
+        sheet = workbook.active
+        headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+        row = [cell.value for cell in next(sheet.iter_rows(min_row=2, max_row=2))]
+        row_by_header = dict(zip(headers, row))
+        self.assertEqual(row_by_header["Asset Tag"], self.asset.asset_tag)
+        self.assertEqual(row_by_header["Titolo"], workorder.title)
+        self.assertEqual(row_by_header["Contratto"], contract.title)
+        self.assertEqual(row_by_header["Coperto da contratto"], "Si")
+        self.assertEqual(row_by_header["Costo manodopera"], "50.00")
+        self.assertEqual(row_by_header["Costo materiali"], "70.00")
+        self.assertEqual(row_by_header["Costo totale"], "120.00")
+
+    def test_maintenance_hub_shows_critical_rule_rows(self):
+        category = AssetCategory.objects.create(
+            code="hub-rule-critical",
+            label="Categoria Hub",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.reparto = "MAN"
+        self.asset.save(update_fields=["asset_category", "reparto"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="hub-rule-critical-template",
+            label="Controllo hub critico",
+            asset_category=category,
+        )
+        MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            warning_days=15,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:maintenance_hub"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["maintenance_rule_counts"]["missing"], 1)
+        self.assertContains(response, "Regole manutenzione critiche")
+        self.assertContains(response, self.asset.asset_tag)
+        self.assertContains(response, "Controllo hub critico")
+        self.assertContains(response, "Prima esecuzione")
+        self.assertContains(response, "Imposta prima esecuzione")
+        self.assertContains(
+            response,
+            f'href="{reverse("assets:wo_list")}?status={WorkOrder.STATUS_OPEN}"',
+            html=False,
+        )
+        self.assertContains(response, 'href="?tab=scadenzario&amp;sub=scadenze"', html=False)
+        self.assertContains(
+            response,
+            f'href="{reverse("assets:maintenance_schedule")}?status=due"',
+            html=False,
+        )
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -5235,6 +5749,43 @@ class AssetMeterScheduleTests(TestCase):
         self._set_meter(100)
         call_command("generate_scheduled_workorders", stdout=io.StringIO())
         self.assertFalse(WorkOrder.objects.filter(asset=self.asset, maintenance_rule=self.rule).exists())
+
+    def test_workorder_close_snapshots_current_meter_value(self):
+        self._set_meter(520)
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=self.rule,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="Tagliando ore - CNC-MTR-001",
+        )
+
+        workorder.close(status=WorkOrder.STATUS_DONE, resolution="Eseguito.")
+
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.meter_value_at_close, Decimal("520.00"))
+
+    def test_sync_snapshots_meter_value_for_recorded_execution(self):
+        meter = self._set_meter(520)
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=self.rule,
+            origin=WorkOrder.ORIGIN_PERIODIC,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_DONE,
+            title="Tagliando ore registrato",
+            closed_at=timezone.now(),
+        )
+
+        sync_workorder_maintenance_state(workorder)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.meter_value_at_close, Decimal("520.00"))
+
+        AssetMeter.objects.filter(pk=meter.pk).update(current_value=540)
+        row = self._rows()[0]
+        self.assertEqual(row["schedule_status"], "upcoming")
+        self.assertEqual(row["meter_remaining"], 480.0)
 
 
 class PeriodicVerificationConvergenceTests(TestCase):
@@ -5982,7 +6533,8 @@ class AssetMaintenanceStepThreeTests(TestCase):
     def test_schedule_and_asset_detail_show_contextual_suggestions(self):
         self.client.force_login(self.admin)
 
-        schedule_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
+        # status=all per includere le righe "senza storico" (la vista default "Attive" le nasconde)
+        schedule_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}&status=all")
         self.assertEqual(schedule_response.status_code, 200)
         self.assertContains(schedule_response, "Imposta prima esecuzione")
         self.assertContains(schedule_response, "Verifica copertura")
@@ -7166,9 +7718,22 @@ class CategorySidebarTests(TestCase):
             code="dispositivi_it", section=AssetSidebarButton.SECTION_MAIN, label="Dispositivi IT"
         )
 
+        # Il conteggio atteso e' derivato dal DB: oltre alle categorie create
+        # qui, le migration possono seminare radici (es. "Novicrom" dalla 0073).
+        # Il contratto del rebuild e' "un gruppo per radice attiva, una voce per
+        # figlia attiva", quindi confrontiamo con i conteggi reali.
+        expected_groups = AssetCategory.objects.filter(
+            parent__isnull=True, is_active=True
+        ).count()
+        expected_items = AssetCategory.objects.filter(
+            parent__isnull=False, is_active=True
+        ).count()
+
         groups, items = rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
-        self.assertEqual(groups, 2)  # Information Technology + HVAC
-        self.assertEqual(items, 3)   # PC, Server, Bruciatori
+        self.assertEqual(groups, expected_groups)
+        self.assertEqual(items, expected_items)
+        self.assertGreaterEqual(groups, 2)  # almeno Information Technology + HVAC
+        self.assertGreaterEqual(items, 3)   # almeno PC, Server, Bruciatori
 
         self.assertFalse(AssetSidebarButton.objects.filter(code="dispositivi_it").exists())
         root_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{self.root.id}")
@@ -7302,3 +7867,191 @@ class PlantLayoutOpenTicketsTests(TestCase):
         from assets.views import _open_tickets_by_asset
 
         self.assertEqual(_open_tickets_by_asset([]), {})
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ImportCollaudoHistoryTests(TestCase):
+    """Import storico collaudo -> WorkOrder storici, guidato dal foglio di riconciliazione."""
+
+    STORICO_HEADER = [
+        "Data Pianif.", "Dt.Ult.Coll.", "Cod. Test", "Descrizione Test di Collaudo",
+        "C.di Lav.", "Descrizione Centro di Lavoro", "Macc.Ut.",
+        "Descrizione Macchina Utensile", "Codice Ciclo di Collaudo", "Commento",
+    ]
+
+    def _storico(self, path, rows):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(self.STORICO_HEADER)
+        for r in rows:
+            ws.append(r)
+        wb.save(path)
+
+    def _mapping(self, path, rows):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Centro", "Macc.Ut.", "CONFERMA (tag / NUOVO / SALTA)"])
+        for r in rows:
+            ws.append(r)
+        wb.save(path)
+
+    def _seed(self):
+        asset = Asset.objects.create(asset_tag="TEST-DM3", name="DM3", asset_type=Asset.TYPE_CNC)
+        MaintenanceInterventionTemplate.objects.create(code="caus-09", label="Cambio Olio")
+        MaintenanceInterventionTemplate.objects.create(code="caus-24", label="Cinematica")
+        return asset
+
+    def _rows(self):
+        # 2 righe macchina confermata, 1 macchina non confermata, 1 centro formazione
+        return [
+            [date(2030, 1, 1), date(2020, 1, 1), "09", "Cambio Olio", "CN5", "Centri CN5",
+             "203", "DM3 - DMC 85", "C1", "Anno 2020"],
+            [date(2030, 6, 1), date(2020, 6, 1), "24", "Cinematica", "CN5", "Centri CN5",
+             "203", "DM3 - DMC 85", "C2", "A: ROSSI MARIO; BIANCHI LUIGI"],
+            [date(2030, 1, 1), date(2020, 1, 1), "09", "Cambio Olio", "CN5", "Centri CN5",
+             "999", "Macchina non confermata", "C3", ""],
+            [date(2026, 1, 1), date(2021, 1, 1), "A11", "Corso Esterno", "919",
+             "*** AMBIENTE E SICUREZZA ***", "01", "Accordo Stato Regioni", "C4", "A: TIZIO CAIO"],
+        ]
+
+    def test_import_crea_odl_storici_solo_per_macchine_confermate(self):
+        asset = self._seed()
+        with _workspace_temporary_directory("collaudo-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"], ["CN5", "999", ""]])
+
+            out = io.StringIO()
+            call_command("import_collaudo_history", storico=str(storico), mapping=str(mapping),
+                         commit=True, stdout=out)
+
+            wos = list(WorkOrder.objects.filter(asset=asset).order_by("opened_at"))
+            self.assertEqual(len(wos), 2)  # solo la macchina confermata 203, non la 999 ne il centro 919
+            self.assertTrue(all(w.status == WorkOrder.STATUS_DONE for w in wos))
+            self.assertTrue(all(w.origin == WorkOrder.ORIGIN_PERIODIC for w in wos))
+            self.assertEqual(wos[0].opened_at.year, 2020)
+            self.assertEqual(wos[0].kind, WorkOrder.KIND_PREVENTIVE)  # causale numerica
+            # commento sanificato: la lista presenze "A: ..." viene tagliata
+            self.assertNotIn("ROSSI MARIO", wos[1].notes)
+
+    def test_import_idempotente(self):
+        asset = self._seed()
+        with _workspace_temporary_directory("collaudo-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"]])
+
+            for _ in range(2):
+                call_command("import_collaudo_history", storico=str(storico), mapping=str(mapping),
+                             commit=True, stdout=io.StringIO())
+
+            self.assertEqual(WorkOrder.objects.filter(asset=asset).count(), 2)
+
+    def test_dry_run_non_scrive(self):
+        asset = self._seed()
+        with _workspace_temporary_directory("collaudo-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"]])
+
+            out = io.StringIO()
+            call_command("import_collaudo_history", storico=str(storico), mapping=str(mapping),
+                         dry_run=True, stdout=out)
+
+            self.assertEqual(WorkOrder.objects.filter(asset=asset).count(), 0)
+            self.assertIn("DRY-RUN", out.getvalue())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class DeriveCollaudoRulesTests(TestCase):
+    """Derivazione MaintenanceRule + AssetMaintenanceRuleState dalle frequenze dello storico."""
+
+    STORICO_HEADER = [
+        "Data Pianif.", "Dt.Ult.Coll.", "Cod. Test", "Descrizione Test di Collaudo",
+        "C.di Lav.", "Descrizione Centro di Lavoro", "Macc.Ut.",
+        "Descrizione Macchina Utensile", "Codice Ciclo di Collaudo", "Commento",
+    ]
+
+    def _storico(self, path, rows):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(self.STORICO_HEADER)
+        for r in rows:
+            ws.append(r)
+        wb.save(path)
+
+    def _mapping(self, path, rows):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Centro", "Macc.Ut.", "CONFERMA (tag / NUOVO / SALTA)"])
+        for r in rows:
+            ws.append(r)
+        wb.save(path)
+
+    def _seed(self):
+        cat = AssetCategory.objects.create(code="cnc-test", label="Macchine CNC Test")
+        asset = Asset.objects.create(
+            asset_tag="TEST-DM3", name="DM3", asset_type=Asset.TYPE_CNC, asset_category=cat,
+        )
+        MaintenanceInterventionTemplate.objects.create(code="caus-09", label="Cambio Olio")
+        return cat, asset
+
+    def _rows(self):
+        # due esecuzioni a 182 giorni di gap (Data Pianif - Dt.Ult.) => frequenza semestrale
+        return [
+            [date(2020, 7, 1), date(2020, 1, 1), "09", "Cambio Olio", "CN5", "Centri CN5",
+             "203", "DM3", "C1", ""],
+            [date(2020, 12, 30), date(2020, 7, 1), "09", "Cambio Olio", "CN5", "Centri CN5",
+             "203", "DM3", "C2", ""],
+        ]
+
+    def test_deriva_regola_e_stato(self):
+        cat, asset = self._seed()
+        with _workspace_temporary_directory("rules-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"]])
+
+            call_command("derive_collaudo_rules", storico=str(storico), mapping=str(mapping),
+                         commit=True, stdout=io.StringIO())
+
+            rule = MaintenanceRule.objects.get(asset_category=cat, intervention_template__code="caus-09")
+            self.assertEqual(rule.threshold_type, MaintenanceRule.THRESHOLD_DAYS)
+            self.assertEqual(rule.threshold_value, 182)  # snappato a semestrale
+            state = AssetMaintenanceRuleState.objects.get(asset=asset, base_rule=rule)
+            self.assertEqual(state.last_execution_date, date(2020, 7, 1))  # ultima esecuzione
+
+    def test_idempotente(self):
+        cat, asset = self._seed()
+        with _workspace_temporary_directory("rules-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"]])
+
+            for _ in range(2):
+                call_command("derive_collaudo_rules", storico=str(storico), mapping=str(mapping),
+                             commit=True, stdout=io.StringIO())
+
+            self.assertEqual(MaintenanceRule.objects.filter(asset_category=cat).count(), 1)
+            self.assertEqual(AssetMaintenanceRuleState.objects.filter(asset=asset).count(), 1)
+
+    def test_dry_run_non_scrive(self):
+        cat, asset = self._seed()
+        with _workspace_temporary_directory("rules-") as d:
+            storico = Path(d) / "storico.xlsx"
+            mapping = Path(d) / "map.xlsx"
+            self._storico(storico, self._rows())
+            self._mapping(mapping, [["CN5", "203", "TEST-DM3"]])
+
+            out = io.StringIO()
+            call_command("derive_collaudo_rules", storico=str(storico), mapping=str(mapping),
+                         dry_run=True, stdout=out)
+
+            self.assertEqual(MaintenanceRule.objects.filter(asset_category=cat).count(), 0)
+            self.assertEqual(AssetMaintenanceRuleState.objects.filter(asset=asset).count(), 0)
+            self.assertIn("DRY-RUN", out.getvalue())

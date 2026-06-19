@@ -5,260 +5,148 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<style>
-/* ── Filtri scadenzario ─────────────────────────────────────────────────── */
-.sc-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
-.sc-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
-.sc-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
-.sc-select {
-  border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px;
-  font-size:13px; color:#0f172a; background:#f8fafc; outline:none;
-  width:100%; font-family:inherit;
-}
-.sc-select:focus { border-color:#1f5c91; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
-/* ── Status pill ────────────────────────────────────────────────────────── */
-.sc-pill-scaduta { background:#fee2e2; color:#b91c1c; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-pill-30      { background:#ffedd5; color:#9a3412; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-pill-60      { background:#fef9c3; color:#854d0e; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-badge-q { background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-badge-v { background:#f3e8ff; color:#6b21a8; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-badge-f { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-.sc-badge-c { background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; display:inline-block; }
-/* ── Dark mode ──────────────────────────────────────────────────────────── */
-body.theme-dark .sc-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .sc-field label { color:var(--text-light); }
-body.theme-dark .sc-pill-scaduta { background:rgba(185,28,28,.25); color:#fca5a5; }
-body.theme-dark .sc-pill-30      { background:rgba(154,52,18,.25); color:#fdba74; }
-body.theme-dark .sc-pill-60      { background:rgba(133,77,14,.25); color:#fde68a; }
-body.theme-dark .sc-badge-q { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .sc-badge-v { background:rgba(107,33,168,.2); color:#d8b4fe; }
-body.theme-dark .sc-badge-f { background:rgba(22,101,52,.25); color:#86efac; }
-body.theme-dark .sc-badge-c { background:rgba(146,64,14,.25); color:#fcd34d; }
-</style>
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:20px;">
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  {% include "anagrafica/components/flash_messages.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
 
-  <!-- Page header -->
-  <div class="hr-pagehead">
-    <div>
-      <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
-      <h1 class="hr-pagehead-title">Scadenzario</h1>
-      <p class="hr-pagehead-desc">Qualifiche, visite mediche, formazione obbligatoria e contratti scaduti o in scadenza nei prossimi 60 giorni.</p>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      {% if can_view_contratti %}<a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità mansione</a>{% endif %}
-      <a class="hr-btn hr-btn-outline" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv">⬇ Esporta CSV</a>
-      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
-    </div>
-  </div>
+    {% include "anagrafica/components/flash_messages.html" %}
 
-  <!-- KPI -->
-  <div class="hr-metric-grid">
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⚠️</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Scadute</span><span class="hr-metric-val">{{ n_scadute }}</span></div>
-        <div class="hr-metric-sub">Da rinnovare subito</div>
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Scadenzario</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-alarm"/></svg>Scadenzario HR generale</h1>
+        <p class="fmd-ph-sub">Qualifiche, visite mediche, formazione obbligatoria e contratti scaduti o in scadenza nei prossimi 60 giorni.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if can_view_contratti %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità mansione</a>{% endif %}
+        <a class="fmd-btn fmd-btn-ghost" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV</a>
       </div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">⏰</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Entro 30 giorni</span><span class="hr-metric-val">{{ n_30gg }}</span></div>
-        <div class="hr-metric-sub">Prossima scadenza</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">📅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Entro 60 giorni</span><span class="hr-metric-val">{{ n_60gg }}</span></div>
-        <div class="hr-metric-sub">Pianificazione</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">📋</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Totale</span><span class="hr-metric-val">{{ totale }}</span></div>
-        <div class="hr-metric-sub">Con filtri attivi</div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Filtri -->
-  <div class="hr-card">
-    <form method="get" action="">
-      <div class="sc-filters">
-        <div class="sc-field">
-          <label for="sc-tipo">Tipo</label>
-          <select id="sc-tipo" name="tipo" class="sc-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_tipo %}selected{% endif %}>Tutti</option>
-            <option value="qualifica" {% if filtro_tipo == "qualifica" %}selected{% endif %}>Solo qualifiche</option>
-            {% if can_view_visite %}
-            <option value="visita" {% if filtro_tipo == "visita" %}selected{% endif %}>Solo visite mediche</option>
-            {% endif %}
-            {% if can_view_formazione %}
-            <option value="formazione" {% if filtro_tipo == "formazione" %}selected{% endif %}>Solo formazione obbligatoria</option>
-            {% endif %}
-            {% if can_view_contratti %}
-            <option value="contratto" {% if filtro_tipo == "contratto" %}selected{% endif %}>Solo contratti / prova</option>
-            {% endif %}
-          </select>
-        </div>
-        <div class="sc-field">
-          <label for="sc-stato">Stato</label>
-          <select id="sc-stato" name="stato" class="sc-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_stato %}selected{% endif %}>Scadute + entro 60gg</option>
-            <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Solo scadute</option>
-            <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
-            <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
-          </select>
-        </div>
+    {# ── KPI ────────────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi fmd-k4">
+      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da rinnovare subito</div></div>
+      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div><div class="fmd-mtr-lbl">Entro 30 giorni</div><div class="fmd-mtr-sub">Priorità alta</div></div>
+      <div class="fmd-mtr fmd-t-yellow"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock3"/></svg></span><span class="fmd-mtr-val">{{ n_60gg }}</span></div><div class="fmd-mtr-lbl">Entro 60 giorni</div><div class="fmd-mtr-sub">Pianificazione</div></div>
+      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ totale }}</span></div><div class="fmd-mtr-lbl">Totale</div><div class="fmd-mtr-sub">Con filtri attivi</div></div>
+    </section>
+
+    {# ── Tabella + filtri ───────────────────────────────────────────────── #}
+    <section class="fmd-panel">
+      <form method="get" action="" class="fmd-toolbar">
+        <select name="tipo" class="fmd-select" aria-label="Filtra per tipo" onchange="this.form.submit()">
+          <option value="" {% if not filtro_tipo %}selected{% endif %}>Tutti i tipi</option>
+          <option value="qualifica" {% if filtro_tipo == "qualifica" %}selected{% endif %}>Solo qualifiche</option>
+          {% if can_view_visite %}<option value="visita" {% if filtro_tipo == "visita" %}selected{% endif %}>Solo visite mediche</option>{% endif %}
+          {% if can_view_formazione %}<option value="formazione" {% if filtro_tipo == "formazione" %}selected{% endif %}>Solo formazione obbligatoria</option>{% endif %}
+          {% if can_view_contratti %}<option value="contratto" {% if filtro_tipo == "contratto" %}selected{% endif %}>Solo contratti / prova</option>{% endif %}
+        </select>
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato" onchange="this.form.submit()">
+          <option value="" {% if not filtro_stato %}selected{% endif %}>Scadute + entro 60gg</option>
+          <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Solo scadute</option>
+          <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
+          <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+        </select>
         {% if reparti %}
-        <div class="sc-field">
-          <label for="sc-reparto">Reparto</label>
-          <select id="sc-reparto" name="reparto" class="sc-select" onchange="this.form.submit()">
-            <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti</option>
-            {% for r in reparti %}
-            <option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>
+        <select name="reparto" class="fmd-select" aria-label="Filtra per reparto" onchange="this.form.submit()">
+          <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti i reparti</option>
+          {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        <a href="{% url 'anagrafica:scadenzario' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
+      </form>
+
+      {% if page_obj.object_list %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-table-id="anagrafica.scadenzario">
+          <thead>
+            <tr>
+              <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+              <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
+              <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
+              <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
+              <th class="fmd-nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+              <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in page_obj.object_list %}
+            <tr>
+              <td>
+                <div class="fmd-person">
+                  <span class="fmd-avatar{% if v.scaduta %}" style="background:#fff5f5;color:#c53030;{% endif %}">{{ v.cognome|slice:":1" }}{{ v.nome|slice:":1" }}</span>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">{{ v.cognome }} {{ v.nome }}</a>
+                </div>
+              </td>
+              <td>{% if v.reparto %}<span class="fmd-badge fmd-b-cyan">{{ v.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td>
+                {% if v.kind == "qualifica" %}<span class="fmd-badge fmd-plain fmd-b-cyan">Qualifica</span>
+                {% elif v.kind == "formazione" %}<span class="fmd-badge fmd-plain fmd-b-orange">Formazione</span>
+                {% elif v.kind == "contratto" %}<span class="fmd-badge fmd-plain fmd-b-grey">Contratto</span>
+                {% else %}<span class="fmd-badge fmd-plain fmd-b-violet">Visita medica</span>{% endif %}
+              </td>
+              <td style="font-weight:600;color:var(--fmd-navy);">
+                {{ v.tipo_nome }}
+                {% if v.kind == "qualifica" and is_qual_admin and v.tipo_id %}
+                  <a href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ v.tipo_id }}" title="Crea una sessione di rinnovo" style="margin-left:8px;font-size:11px;font-weight:700;color:var(--fmd-cyan);text-decoration:none;white-space:nowrap;">↻ Rinnova</a>
+                {% endif %}
+              </td>
+              <td class="fmd-nowrap fmd-num" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
+              <td>
+                {% if v.scaduta %}<span class="fmd-badge fmd-b-red">Scaduta da {{ v.giorni|stringformat:"d"|slice:"1:" }}gg</span>
+                {% elif v.giorni <= 30 %}<span class="fmd-badge fmd-b-orange">{{ v.giorni }}gg</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">{{ v.giorni }}gg</span>{% endif %}
+              </td>
+            </tr>
             {% endfor %}
-          </select>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} scadenze{% if not can_view_visite %} · visite mediche non visibili col tuo accesso{% endif %}</span>
+        {% if page_obj.has_other_pages %}
+        <div class="fmd-pager">
+          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
+          <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
+          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
         </div>
         {% endif %}
-        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
-          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
-          <a href="{% url 'anagrafica:scadenzario' %}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
-        </div>
       </div>
-    </form>
-  </div>
 
-  <!-- Tabella risultati -->
-  <div class="hr-card">
-    <div class="hr-card-head">
-      <div>
-        <span class="hr-card-title">Risultati</span>
-        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;">{{ totale }}</span>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge"><svg class="fmd-ico"><use href="#i-check"/></svg></span>
+        <span class="fmd-et">Nessuna scadenza trovata</span>
+        <span class="fmd-em">Nessun risultato con i filtri selezionati.</span>
       </div>
-      {% if not can_view_visite %}
-      <div style="font-size:12px;color:#94a3b8;">Le visite mediche non sono visibili con il tuo livello di accesso.</div>
       {% endif %}
-    </div>
+    </section>
 
-    {% if page_obj.object_list %}
-    <div style="overflow-x:auto;">
-      <table class="hr-table" data-table-id="anagrafica.scadenzario">
-        <thead>
-          <tr>
-            <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-            <th data-col="reparto" data-col-label="Reparto" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Reparto</th>
-            <th data-col="tipo" data-col-label="Tipo" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Tipo</th>
-            <th data-col="descrizione" data-col-label="Descrizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Descrizione</th>
-            <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
-            <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for v in page_obj.object_list %}
-          <tr>
-            <td>
-              <a href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}" style="font-weight:700;color:#12395f;text-decoration:none;">
-                {{ v.cognome }} {{ v.nome }}
-              </a>
-            </td>
-            <td>
-              {% if v.reparto %}<span class="hr-pill blue">{{ v.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}
-            </td>
-            <td>
-              {% if v.kind == "qualifica" %}
-                <span class="sc-badge-q">🎓 Qualifica</span>
-              {% elif v.kind == "formazione" %}
-                <span class="sc-badge-f">📚 Formazione</span>
-              {% elif v.kind == "contratto" %}
-                <span class="sc-badge-c">📄 Contratto</span>
-              {% else %}
-                <span class="sc-badge-v">🏥 Visita</span>
-              {% endif %}
-            </td>
-            <td style="font-weight:600;color:#1e293b;">{{ v.tipo_nome }}</td>
-            <td style="white-space:nowrap;color:#64748b;font-variant-numeric:tabular-nums;" data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
-            <td>
-              {% if v.scaduta %}
-                <span class="sc-pill-scaduta">Scaduta da {{ v.giorni|stringformat:"d"|slice:"1:" }}gg</span>
-              {% elif v.giorni <= 30 %}
-                <span class="sc-pill-30">⏰ {{ v.giorni }}gg</span>
-              {% else %}
-                <span class="sc-pill-60">{{ v.giorni }}gg</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    {% if page_obj.has_other_pages %}
-    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
-      {% if page_obj.has_previous %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
-      {% endif %}
-      <span style="font-size:13px;color:#64748b;">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-        <a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}" class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
-      {% endif %}
-    </div>
+    {# ── Sezione formazione ─────────────────────────────────────────────── #}
+    {% if can_view_formazione %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cap"/></svg>Scadenzario formazione</div>
+        <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="fmd-mtr-link">Apri scadenzario formazione <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span class="fmd-pill fmd-pill-red"><span class="fmd-pn">{{ fm_n_scaduti }}</span> Scaduti</span>
+        <span class="fmd-pill fmd-pill-orange"><span class="fmd-pn">{{ fm_n_30gg }}</span> Entro 30gg</span>
+        <span class="fmd-pill fmd-pill-amber"><span class="fmd-pn">{{ fm_n_90gg }}</span> Entro 90gg</span>
+        {% if fm_is_cache_empty %}<span class="fmd-pill fmd-pill-grey">Cache formazione vuota — refresh_training_deadlines --all</span>{% endif %}
+      </div>
+    </section>
     {% endif %}
 
-    {% else %}
-    <div class="hr-empty">
-      <div style="font-size:32px;margin-bottom:8px;">✅</div>
-      Nessuna scadenza trovata con i filtri selezionati.
-    </div>
-    {% endif %}
-  </div>
-
-  {# ── Sezione Formazione (se abilitata) ──────────────────────────────────── #}
-  {% if can_view_formazione %}
-  <div class="hr-card">
-    <div class="hr-card-head">
-      <div class="hr-card-title">🎓 Scadenzario formazione</div>
-      <a href="{% url 'anagrafica:formazione_scadenzario' %}" class="hr-btn hr-btn-sm hr-btn-outline">
-        Apri scadenzario formazione →
-      </a>
-    </div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px;">
-      <div style="text-align:center;padding:8px 16px;background:#fef2f2;border-radius:8px;min-width:80px;">
-        <div style="font-size:20px;font-weight:800;color:#b91c1c;">{{ fm_n_scaduti }}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Scaduti</div>
-      </div>
-      <div style="text-align:center;padding:8px 16px;background:#fffbeb;border-radius:8px;min-width:80px;">
-        <div style="font-size:20px;font-weight:800;color:#92400e;">{{ fm_n_30gg }}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Entro 30gg</div>
-      </div>
-      <div style="text-align:center;padding:8px 16px;background:#fff7ed;border-radius:8px;min-width:80px;">
-        <div style="font-size:20px;font-weight:800;color:#c2410c;">{{ fm_n_90gg }}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">Entro 90gg</div>
-      </div>
-      {% if fm_is_cache_empty %}
-      <div style="padding:8px 16px;background:#f8fafc;border-radius:8px;font-size:12px;color:#94a3b8;display:flex;align-items:center;">
-        Cache scadenze formazione vuota — eseguire
-        <code style="margin-left:6px;font-size:11px;background:#f1f5f9;padding:1px 4px;border-radius:4px;">
-          manage.py refresh_training_deadlines --all
-        </code>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-</div>
-{% endblock %}
-
-{% block extra_scripts %}
-{# Tabella agganciata automaticamente da fm-table-enhanced.js (caricato in base.html). #}
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
 {% endblock %}

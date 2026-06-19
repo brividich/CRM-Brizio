@@ -31,6 +31,7 @@ WORKORDER_SOURCE_ASSET = "asset_detail"
 WORKORDER_SOURCE_SCHEDULE = "maintenance_schedule"
 WORKORDER_SOURCE_RULES = "maintenance_rules"
 WORKORDER_SOURCE_REPORTS = "maintenance_reports"
+WORKORDER_SOURCE_LIST = "workorder_list"
 
 WORKORDER_SOURCE_LABELS = {
     WORKORDER_SOURCE_MANUAL: "Apertura manuale",
@@ -38,6 +39,7 @@ WORKORDER_SOURCE_LABELS = {
     WORKORDER_SOURCE_SCHEDULE: "Prossime manutenzioni",
     WORKORDER_SOURCE_RULES: "Regole manutenzione asset",
     WORKORDER_SOURCE_REPORTS: "Report manutenzione",
+    WORKORDER_SOURCE_LIST: "Lista interventi",
 }
 
 
@@ -210,9 +212,38 @@ def upsert_asset_maintenance_rule_state(
     return state
 
 
+def _snapshot_workorder_meter_value_at_close(workorder: WorkOrder) -> None:
+    if (
+        workorder.meter_value_at_close is not None
+        or not workorder.maintenance_rule_id
+        or not workorder.asset_id
+    ):
+        return
+    meter_type = {
+        MaintenanceRule.THRESHOLD_HOURS: AssetMeter.METER_HOURS,
+        MaintenanceRule.THRESHOLD_KM: AssetMeter.METER_KM,
+        MaintenanceRule.THRESHOLD_CYCLES: AssetMeter.METER_CYCLES,
+    }.get(workorder.maintenance_rule.threshold_type)
+    if not meter_type:
+        return
+    meter = (
+        AssetMeter.objects
+        .filter(asset_id=workorder.asset_id, meter_type=meter_type)
+        .only("current_value")
+        .first()
+    )
+    if meter is None:
+        return
+    workorder.meter_value_at_close = meter.current_value
+    WorkOrder.objects.filter(pk=workorder.pk, meter_value_at_close__isnull=True).update(
+        meter_value_at_close=meter.current_value
+    )
+
+
 def sync_workorder_maintenance_state(workorder: WorkOrder | None) -> AssetMaintenanceRuleState | None:
     if workorder is None or workorder.status != WorkOrder.STATUS_DONE or not workorder.maintenance_rule_id or not workorder.asset_id:
         return None
+    _snapshot_workorder_meter_value_at_close(workorder)
     closed_at = workorder.closed_at or timezone.now()
     executed_on = timezone.localtime(closed_at).date() if timezone.is_aware(closed_at) else closed_at.date()
     return upsert_asset_maintenance_rule_state(

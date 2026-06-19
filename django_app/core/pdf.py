@@ -40,7 +40,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Table, TableStyle
 
-from core.branding import _mix_hex_color, get_portal_branding
+from core.branding import _mix_hex_color, _normalize_bool, _normalize_hex_color, get_portal_branding
+from core.models import SiteConfig
 
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,15 @@ _MUTED = "#64748b"
 _LABEL = "#94a3b8"
 _BORDER = "#e2e8f0"
 _ROW_ALT = "#f8fafc"
+
+PDF_TEMPLATE_DEFAULTS: dict[str, str] = {
+    "pdf_template_logo_url": "",
+    "pdf_template_primary_color": "",
+    "pdf_template_accent_color": "",
+    "pdf_template_footer_text": "",
+    "pdf_template_show_generated_at": "1",
+    "pdf_template_show_page_number": "1",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -101,29 +111,52 @@ class PdfTheme:
     border: str
     row_alt: str
     portal_name: str
+    footer_text: str
     monogram: str
     logo_path: str | None
+    show_generated_at: bool
+    show_page_number: bool
 
     @classmethod
     def from_branding(cls) -> "PdfTheme":
         """Costruisce il tema dal branding portale (una sola query)."""
         b = get_portal_branding()
+        pdf_values = SiteConfig.get_many(PDF_TEMPLATE_DEFAULTS)
         portal_name = (b.portal_name or "").strip() or getattr(
             settings, "INSTANCE_NAME", "NOVICROM HUB"
         )
+        primary = _normalize_hex_color(
+            pdf_values.get("pdf_template_primary_color", ""),
+            b.brand_primary_color,
+        )
+        accent = _normalize_hex_color(
+            pdf_values.get("pdf_template_accent_color", ""),
+            b.brand_accent_color,
+        )
+        logo_url = str(pdf_values.get("pdf_template_logo_url") or "").strip() or b.brand_logo_full
+        footer_text = str(pdf_values.get("pdf_template_footer_text") or "").strip() or portal_name
         return cls(
-            primary=b.brand_primary_color,
-            primary_mid=b.brand_primary_mid_color,
-            accent=b.brand_accent_color,
-            accent_light=b.brand_accent_light_color,
+            primary=primary,
+            primary_mid=_mix_hex_color(primary, "#ffffff", 0.14),
+            accent=accent,
+            accent_light=_mix_hex_color(accent, "#ffffff", 0.9),
             text=_TEXT,
             muted=_MUTED,
             label=_LABEL,
             border=_BORDER,
             row_alt=_ROW_ALT,
             portal_name=portal_name,
+            footer_text=footer_text,
             monogram=b.monogram,
-            logo_path=_resolve_logo_path(b.brand_logo_full),
+            logo_path=_resolve_logo_path(logo_url),
+            show_generated_at=_normalize_bool(
+                pdf_values.get("pdf_template_show_generated_at", "1"),
+                True,
+            ),
+            show_page_number=_normalize_bool(
+                pdf_values.get("pdf_template_show_page_number", "1"),
+                True,
+            ),
         )
 
     # Scorciatoie a ``colors.HexColor`` per i punti che lavorano con reportlab.
@@ -247,6 +280,97 @@ def make_document(
     )
 
 
+def draw_canvas_header(
+    canv,
+    *,
+    theme: PdfTheme,
+    page_width: float,
+    page_height: float,
+    left_margin: float,
+    right_margin: float,
+    title: str,
+    subtitle: str = "",
+    right_title: str | None = None,
+    right_subtitle: str = "",
+) -> float:
+    """Draw the shared report header on a raw reportlab canvas.
+
+    Returns the suggested Y coordinate where page content can start.
+    """
+    right = page_width - right_margin
+    box = 12 * mm
+    box_top = page_height - 12 * mm
+    box_y = box_top - box
+    drawn_logo = False
+    if theme.logo_path:
+        try:
+            canv.drawImage(
+                theme.logo_path,
+                left_margin,
+                box_y,
+                width=box,
+                height=box,
+                preserveAspectRatio=True,
+                mask="auto",
+                anchor="sw",
+            )
+            drawn_logo = True
+        except Exception:
+            logger.warning("Logo PDF non disegnabile: %s", theme.logo_path, exc_info=True)
+    if not drawn_logo:
+        canv.setFillColor(theme.c_primary())
+        canv.roundRect(left_margin, box_y, box, box, 2 * mm, fill=1, stroke=0)
+        canv.setFillColor(colors.white)
+        canv.setFont("Helvetica-Bold", 11)
+        canv.drawCentredString(left_margin + box / 2, box_y + box / 2 - 4, theme.monogram)
+
+    text_x = left_margin + box + 5 * mm
+    canv.setFillColor(theme.c_text())
+    canv.setFont("Helvetica-Bold", 14)
+    canv.drawString(text_x, box_top - 5 * mm, title)
+    if subtitle:
+        canv.setFillColor(theme.c_muted())
+        canv.setFont("Helvetica", 9)
+        canv.drawString(text_x, box_top - 9.5 * mm, subtitle)
+
+    canv.setFillColor(theme.c_muted())
+    canv.setFont("Helvetica-Bold", 9)
+    canv.drawRightString(right, box_top - 5 * mm, right_title or theme.portal_name)
+    if right_subtitle and theme.show_generated_at:
+        canv.setFont("Helvetica", 8)
+        canv.drawRightString(right, box_top - 9.5 * mm, right_subtitle)
+
+    line_y = box_y - 2.5 * mm
+    canv.setStrokeColor(theme.c_primary())
+    canv.setLineWidth(1.2)
+    canv.line(left_margin, line_y, right, line_y)
+    return line_y - 6 * mm
+
+
+def draw_canvas_footer(
+    canv,
+    *,
+    theme: PdfTheme,
+    page_width: float,
+    left_margin: float,
+    right_margin: float,
+    baseline_y: float,
+    page_number: int | None = None,
+    right_text: str = "",
+) -> None:
+    """Draw the shared report footer on a raw reportlab canvas."""
+    right = page_width - right_margin
+    canv.setStrokeColor(theme.c_border())
+    canv.setLineWidth(0.4)
+    canv.line(left_margin, baseline_y + 3 * mm, right, baseline_y + 3 * mm)
+    canv.setFillColor(theme.c_muted())
+    canv.setFont("Helvetica", 7.5)
+    canv.drawString(left_margin, baseline_y, theme.footer_text)
+    footer_right = f"Pagina {page_number}" if page_number is not None and theme.show_page_number else right_text
+    if footer_right:
+        canv.drawRightString(right, baseline_y, footer_right)
+
+
 def header_footer_callback(theme: PdfTheme, *, title: str, subtitle: str = ""):
     """Ritorna un callback ``onPage`` che disegna header e footer standard.
 
@@ -259,59 +383,26 @@ def header_footer_callback(theme: PdfTheme, *, title: str, subtitle: str = ""):
     def _draw(canv, doc):
         canv.saveState()
         page_w, page_h = doc.pagesize
-        left = doc.leftMargin
-        right = page_w - doc.rightMargin
-
-        # --- Header -------------------------------------------------------
-        box = 12 * mm
-        box_top = page_h - 12 * mm
-        box_y = box_top - box
-        drawn_logo = False
-        if theme.logo_path:
-            try:
-                canv.drawImage(
-                    theme.logo_path, left, box_y, width=box, height=box,
-                    preserveAspectRatio=True, mask="auto", anchor="sw",
-                )
-                drawn_logo = True
-            except Exception:
-                logger.warning("Logo PDF non disegnabile: %s", theme.logo_path, exc_info=True)
-        if not drawn_logo:
-            canv.setFillColor(theme.c_primary())
-            canv.roundRect(left, box_y, box, box, 2 * mm, fill=1, stroke=0)
-            canv.setFillColor(colors.white)
-            canv.setFont("Helvetica-Bold", 11)
-            canv.drawCentredString(left + box / 2, box_y + box / 2 - 4, theme.monogram)
-
-        text_x = left + box + 5 * mm
-        canv.setFillColor(theme.c_text())
-        canv.setFont("Helvetica-Bold", 14)
-        canv.drawString(text_x, box_top - 5 * mm, title)
-        if subtitle:
-            canv.setFillColor(theme.c_muted())
-            canv.setFont("Helvetica", 9)
-            canv.drawString(text_x, box_top - 9.5 * mm, subtitle)
-
-        canv.setFillColor(theme.c_muted())
-        canv.setFont("Helvetica-Bold", 9)
-        canv.drawRightString(right, box_top - 5 * mm, theme.portal_name)
-        canv.setFont("Helvetica", 8)
-        canv.drawRightString(right, box_top - 9.5 * mm, now_str)
-
-        # linea accent sotto l'header
-        canv.setStrokeColor(theme.c_primary())
-        canv.setLineWidth(1.2)
-        canv.line(left, box_y - 2.5 * mm, right, box_y - 2.5 * mm)
-
-        # --- Footer -------------------------------------------------------
-        fy = FOOTER_HEIGHT - 4 * mm
-        canv.setStrokeColor(theme.c_border())
-        canv.setLineWidth(0.4)
-        canv.line(left, fy + 3 * mm, right, fy + 3 * mm)
-        canv.setFillColor(theme.c_muted())
-        canv.setFont("Helvetica", 7.5)
-        canv.drawString(left, fy, theme.portal_name)
-        canv.drawRightString(right, fy, f"Pagina {doc.page}")
+        draw_canvas_header(
+            canv,
+            theme=theme,
+            page_width=page_w,
+            page_height=page_h,
+            left_margin=doc.leftMargin,
+            right_margin=doc.rightMargin,
+            title=title,
+            subtitle=subtitle,
+            right_subtitle=now_str,
+        )
+        draw_canvas_footer(
+            canv,
+            theme=theme,
+            page_width=page_w,
+            left_margin=doc.leftMargin,
+            right_margin=doc.rightMargin,
+            baseline_y=FOOTER_HEIGHT - 4 * mm,
+            page_number=doc.page,
+        )
 
         canv.restoreState()
 

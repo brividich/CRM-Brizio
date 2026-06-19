@@ -10,7 +10,7 @@
 .mh-kpis {
   display:grid;
   gap:10px;
-  grid-template-columns:repeat(5, minmax(0, 1fr));
+  grid-template-columns:repeat(6, minmax(0, 1fr));
 }
 .mh-kpi {
   border:1px solid #dbe1ea;
@@ -20,6 +20,14 @@
   display:flex;
   flex-direction:column;
   gap:4px;
+  color:inherit;
+  text-decoration:none;
+  transition:transform .12s, box-shadow .12s, border-color .12s;
+}
+.mh-kpi:hover {
+  border-color:#93c5fd;
+  box-shadow:0 10px 24px rgba(37,99,235,.10);
+  transform:translateY(-1px);
 }
 .mh-kpi-label {
   font-size:var(--fs-xs);
@@ -537,31 +545,41 @@ body.theme-dark .sc-card-head {
 
   <!-- ═══ KPI ═════════════════════════════════════════════════════════════ -->
   <div class="mh-kpis">
-    <div class="mh-kpi {% if wo_overdue %}red{% elif wo_recent %}amber{% elif wo_total %}blue{% else %}green{% endif %}">
+    <a class="mh-kpi {% if wo_overdue %}red{% elif wo_recent %}amber{% elif wo_total %}blue{% else %}green{% endif %}" href="{{ url_wo_open }}">
       <span class="mh-kpi-label">Interventi aperti</span>
       <span class="mh-kpi-value">{{ wo_total }}</span>
       <span class="mh-kpi-sub">{% if wo_overdue|length %}{{ wo_overdue|length }} in ritardo{% elif wo_recent|length %}{{ wo_recent|length }} recenti{% else %}nessun ritardo{% endif %}</span>
-    </div>
-    <div class="mh-kpi {% if overdue_deadlines_count %}red{% elif upcoming_deadlines_count %}amber{% else %}green{% endif %}">
+    </a>
+    <a class="mh-kpi {% if overdue_deadlines_count %}red{% elif upcoming_deadlines_count %}amber{% else %}green{% endif %}" href="{{ url_hub_scadenze }}">
       <span class="mh-kpi-label">Scadenze amm.</span>
       <span class="mh-kpi-value">{{ upcoming_deadlines_count }}</span>
       <span class="mh-kpi-sub">entro 30gg{% if overdue_deadlines_count %} · {{ overdue_deadlines_count }} scadute{% endif %}</span>
-    </div>
-    <div class="mh-kpi {% if overdue_verifications_count %}red{% elif upcoming_verifications_count %}amber{% else %}green{% endif %}">
+    </a>
+    <a class="mh-kpi {% if overdue_verifications_count %}red{% elif upcoming_verifications_count %}amber{% else %}green{% endif %}" href="{{ url_hub_verifiche }}">
       <span class="mh-kpi-label">Verifiche</span>
       <span class="mh-kpi-value">{{ upcoming_verifications_count }}</span>
       <span class="mh-kpi-sub">entro 30gg{% if overdue_verifications_count %} · {{ overdue_verifications_count }} scadute{% endif %}</span>
-    </div>
-    <div class="mh-kpi {% if contracts_expiring_count %}amber{% else %}green{% endif %}">
+    </a>
+    <a class="mh-kpi {% if contracts_expiring_count %}amber{% else %}green{% endif %}" href="{{ url_hub_contratti }}">
       <span class="mh-kpi-label">Contratti</span>
       <span class="mh-kpi-value">{{ contracts_count }}</span>
       <span class="mh-kpi-sub">attivi{% if contracts_expiring_count %} · {{ contracts_expiring_count }} in scadenza{% endif %}</span>
-    </div>
-    <div class="mh-kpi green">
+    </a>
+    <a class="mh-kpi {% if maintenance_rule_counts.overdue %}red{% elif maintenance_rule_counts.warning or maintenance_rule_counts.missing %}amber{% else %}green{% endif %}" href="{{ url_maintenance_schedule }}">
+      <span class="mh-kpi-label">Regole manut.</span>
+      <span class="mh-kpi-value">{{ maintenance_rule_critical_count }}</span>
+      <span class="mh-kpi-sub">
+        {% if maintenance_rule_counts.overdue %}{{ maintenance_rule_counts.overdue }} scadute
+        {% elif maintenance_rule_counts.warning %}{{ maintenance_rule_counts.warning }} in warning
+        {% elif maintenance_rule_counts.missing %}{{ maintenance_rule_counts.missing }} da avviare
+        {% else %}{{ rules_count }} attive{% endif %}
+      </span>
+    </a>
+    <a class="mh-kpi green" href="{{ url_wo_done }}">
       <span class="mh-kpi-label">Chiusi (30gg)</span>
       <span class="mh-kpi-value">{{ closed_recent_count }}</span>
       <span class="mh-kpi-sub">interventi completati</span>
-    </div>
+    </a>
   </div>
 
   <!-- ═══ TAB BAR PRINCIPALE ══════════════════════════════════════════════ -->
@@ -580,6 +598,9 @@ body.theme-dark .sc-card-head {
 
   {% if active_tab == 'da_fare' %}
   <!-- ═══════════════════════ TAB: DA FARE ════════════════════════════════ -->
+
+  <!-- Cruscotto operativo: cose da fare + segnalazioni arrivate -->
+  {% include "assets/pages/_operational_cockpit.html" %}
 
   <!-- Filtri -->
   <form method="get" class="mh-filters">
@@ -618,7 +639,7 @@ body.theme-dark .sc-card-head {
           {% if wo_overdue %}<span class="mh-card-head-badge mh-badge-red">{{ wo_overdue|length }} in ritardo</span>{% endif %}
           {% if wo_recent %}<span class="mh-card-head-badge mh-badge-amber">{{ wo_recent|length }} recenti</span>{% endif %}
           {% if not wo_overdue and not wo_recent and wo_total %}<span class="mh-card-head-badge mh-badge-green">{{ wo_total }} ok</span>{% endif %}
-          <a href="{{ url_wo_list }}" class="mh-card-head-link">Vedi tutti ›</a>
+          <a href="{{ url_wo_open }}" class="mh-card-head-link">Vedi aperti ›</a>
         </div>
         <div class="mh-card-body">
           {% if wo_overdue or wo_recent %}
@@ -706,6 +727,48 @@ body.theme-dark .sc-card-head {
       </div>
       {% endif %}
 
+      <!-- Regole manutenzione effettive -->
+      {% if maintenance_rule_rows %}
+      <div class="mh-card {% if maintenance_rule_counts.overdue %}is-urgent{% else %}is-warn{% endif %}">
+        <div class="mh-card-head">
+          <span class="mh-card-head-title">Regole manutenzione critiche</span>
+          {% if maintenance_rule_counts.overdue %}<span class="mh-card-head-badge mh-badge-red">{{ maintenance_rule_counts.overdue }} scadute</span>{% endif %}
+          {% if maintenance_rule_counts.warning %}<span class="mh-card-head-badge mh-badge-amber">{{ maintenance_rule_counts.warning }} in warning</span>{% endif %}
+          {% if maintenance_rule_counts.missing %}<span class="mh-card-head-badge mh-badge-muted">{{ maintenance_rule_counts.missing }} da avviare</span>{% endif %}
+          <a href="{{ url_maintenance_schedule }}" class="mh-card-head-link">Prossime manutenzioni &rsaquo;</a>
+        </div>
+        <div class="mh-card-body">
+          <div class="mh-mini-table-wrap">
+            <table class="mh-mini-table">
+              <thead><tr><th>Asset</th><th>Intervento</th><th>Stato</th><th>Azione</th></tr></thead>
+              <tbody>
+                {% for row in maintenance_rule_rows %}
+                <tr data-row-href="{{ row.asset_detail_url }}">
+                  <td>
+                    <a href="{{ row.asset_detail_url }}"><span class="mh-wo-tag">{{ row.asset.asset_tag }}</span> {{ row.asset.name|truncatechars:34 }}</a>
+                    <div class="mh-wo-meta">{{ row.asset.reparto|default:"-" }}{% if row.asset.asset_category %} &middot; {{ row.asset.asset_category.label }}{% endif %}</div>
+                  </td>
+                  <td>
+                    {{ row.effective_intervention_template.label|default:"Manutenzione programmata" }}
+                    <div class="mh-wo-meta">{{ row.effective_threshold_label }}{% if row.effective_threshold_value %}: {{ row.effective_threshold_value }}{% endif %}</div>
+                  </td>
+                  <td>
+                    {% if row.schedule_status == "overdue" %}<span class="sc-pill danger">Scaduta</span>
+                    {% elif row.schedule_status == "warning" %}<span class="sc-pill warn">In scadenza</span>
+                    {% elif row.schedule_status == "missing" %}<span class="sc-pill muted">Prima esecuzione</span>
+                    {% else %}<span class="sc-pill ok">Pianificata</span>{% endif %}
+                    <div class="mh-wo-meta">{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }} - {% endif %}{{ row.schedule_label }}</div>
+                  </td>
+                  <td><a href="{{ row.primary_action_url }}" class="mh-card-body-link">{{ row.primary_action_label }} &rsaquo;</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Macchine in scadenza -->
       {% if machines_overdue or machines_warning %}
       <div class="mh-card {% if machines_overdue %}is-urgent{% else %}is-warn{% endif %}">
@@ -721,7 +784,7 @@ body.theme-dark .sc-card-head {
               <thead><tr><th>Macchina</th><th>Reparto</th><th>Prossima manut.</th><th>Stato</th></tr></thead>
               <tbody>
                 {% for m in machines_overdue %}
-                <tr>
+                <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
                   <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mh-wo-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:34 }}</a></td>
                   <td>{{ m.asset.reparto|default:"—" }}</td>
                   <td><span class="mh-wo-age-red">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td>
@@ -729,7 +792,7 @@ body.theme-dark .sc-card-head {
                 </tr>
                 {% endfor %}
                 {% for m in machines_warning %}
-                <tr>
+                <tr data-row-href="{% url 'assets:asset_view' m.asset_id %}">
                   <td><a href="{% url 'assets:asset_view' m.asset_id %}"><span class="mh-wo-tag">{{ m.asset.asset_tag }}</span> {{ m.asset.name|truncatechars:34 }}</a></td>
                   <td>{{ m.asset.reparto|default:"—" }}</td>
                   <td><span class="mh-wo-age-amber">{{ m.next_maintenance_date|date:"d/m/Y" }}</span></td>
@@ -756,7 +819,7 @@ body.theme-dark .sc-card-head {
               <thead><tr><th>#</th><th>Oggetto</th><th>Aperto il</th><th>Assegnato a</th></tr></thead>
               <tbody>
                 {% for t in man_tickets %}
-                <tr>
+                <tr data-row-href="{% url 'tickets:detail' t.pk %}">
                   <td class="mh-wo-num">{{ t.pk }}</td>
                   <td>{{ t.oggetto|default:t.descrizione|truncatechars:60 }}</td>
                   <td>{% if t.data_apertura %}{{ t.data_apertura|date:"d/m/Y" }}{% else %}—{% endif %}</td>
@@ -770,7 +833,7 @@ body.theme-dark .sc-card-head {
       </div>
       {% endif %}
 
-      {% if not wo_overdue and not wo_recent and not urgent_items and not upcoming_items and not machines_overdue and not machines_warning and not man_tickets %}
+      {% if not wo_overdue and not wo_recent and not urgent_items and not upcoming_items and not maintenance_rule_rows and not machines_overdue and not machines_warning and not man_tickets %}
       <div class="mh-card">
         <div class="mh-card-head">
           <span class="mh-card-head-title">Niente in sospeso</span>
@@ -808,6 +871,13 @@ body.theme-dark .sc-card-head {
               <div class="mh-action-body">
                 <div>Scadenzario</div>
                 <div class="mh-action-sub">Verifiche · scadenze amm. · contratti</div>
+              </div>
+            </a>
+            <a href="{{ url_maintenance_schedule }}" class="mh-action-btn secondary">
+              <span class="mh-action-icon">M</span>
+              <div class="mh-action-body">
+                <div>Prossime manutenzioni</div>
+                <div class="mh-action-sub">Regole effettive per asset</div>
               </div>
             </a>
             <a href="{{ url_impostazioni }}" class="mh-action-btn secondary">
@@ -923,7 +993,7 @@ body.theme-dark .sc-card-head {
             </tr></thead>
             <tbody>
               {% for row in verif_rows %}
-              <tr>
+              <tr data-row-href="{{ url_verifications_full }}">
                 <td><strong>{{ row.v.name }}</strong></td>
                 <td class="sc-muted">{{ row.v.supplier|default:"—" }}</td>
                 <td class="sc-muted">{{ row.v.frequency_months }} mesi</td>
@@ -995,7 +1065,7 @@ body.theme-dark .sc-card-head {
             </tr></thead>
             <tbody>
               {% for row in deadline_rows %}
-              <tr>
+              <tr{% if row.d.asset %} data-row-href="{% url 'assets:asset_view' row.d.asset.id %}"{% endif %}>
                 <td><strong>{{ row.d.title }}</strong>{% if row.d.reference_code %} <span class="sc-muted">({{ row.d.reference_code }})</span>{% endif %}</td>
                 <td>
                   {% if row.d.asset %}
@@ -1053,7 +1123,7 @@ body.theme-dark .sc-card-head {
             </tr></thead>
             <tbody>
               {% for row in contract_rows %}
-              <tr>
+              <tr{% if row.c.asset %} data-row-href="{% url 'assets:asset_view' row.c.asset.id %}"{% endif %}>
                 <td>
                   <strong>{{ row.c.title }}</strong>
                   {% if row.c.code %}<span class="sc-cell-code">{{ row.c.code }}</span>{% endif %}

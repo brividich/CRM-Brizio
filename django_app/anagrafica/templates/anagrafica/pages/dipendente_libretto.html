@@ -16,8 +16,8 @@
       --muted-soft: #94a3b8;
       --line: #e2e8f0;
       --line-soft: #f1f5f9;
-      --primary: #1f5c91;
-      --primary-deep: #1d4ed8;
+      --primary: #1f87cd;
+      --primary-deep: #1f87cd;
       --accent: #b45309;
       --accent-soft: #fef3c7;
       --bg: #f8fafc;
@@ -49,7 +49,7 @@
       cursor: pointer; text-decoration: none;
     }
     .pb-actions a:hover, .pb-actions button:hover { background: rgba(255,255,255,.18); }
-    .pb-actions .pb-btn-print { background: #1d4ed8; border-color: #1d4ed8; }
+    .pb-actions .pb-btn-print { background: #1f87cd; border-color: #1f87cd; }
     .pb-actions .pb-btn-print:hover { background: #1e40af; }
 
     /* ── Foglio A4 ────────────────────────────────────────────── */
@@ -120,6 +120,13 @@
     .lb-pill-info    { background: #dbeafe; color: #1e40af; }
     .lb-pill-na      { background: var(--line-soft); color: var(--muted); }
 
+    .lb-att-link {
+      display: inline-block; margin-top: 3px;
+      font-size: 10.5px; font-weight: 700; color: var(--primary);
+      text-decoration: none; white-space: nowrap;
+    }
+    .lb-att-link:hover { text-decoration: underline; }
+
     /* ── Footer ──────────────────────────────────────────────── */
     .pb-footer {
       margin-top: 28px; padding-top: 12px;
@@ -143,6 +150,7 @@
     @media print {
       body { background: #fff; font-size: 11px; }
       .pb-actions { display: none !important; }
+      .lb-att-link { display: none !important; }
       .pb-sheet {
         max-width: none; margin: 0; padding: 0;
         border: none; box-shadow: none; border-radius: 0;
@@ -159,6 +167,18 @@
   <div class="pb-actions">
     <span class="pb-actions-title">Libretto formativo — {{ dip.cognome }} {{ dip.nome }}</span>
     <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" title="Apri scheda completa">← Scheda</a>
+    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}?formato=pdf" target="_blank" rel="noopener" title="Scarica il libretto come PDF generato dal portale">📄 PDF</a>
+    {% if can_edit %}
+    <form method="post" action="{% url 'anagrafica:libretto_salva_box' legacy_id %}" style="margin:0;display:inline;">
+      {% csrf_token %}
+      <button type="submit" title="Salva il libretto PDF nel box documenti del dipendente">
+        💾 {% if doc_libretto %}Riarchivia{% else %}Salva nel box{% endif %}
+      </button>
+    </form>
+    {% endif %}
+    {% if doc_libretto %}
+    <a href="{% url 'anagrafica:documento_download' doc_libretto.pk %}" target="_blank" rel="noopener" title="Apri il libretto archiviato nel box">👁 Copia archiviata</a>
+    {% endif %}
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
   </div>
 
@@ -278,9 +298,8 @@
               {% if r.attestato %}
                 <span class="lb-pill lb-pill-info">{% if r.attestato.numero_attestato %}n° {{ r.attestato.numero_attestato }}{% else %}rilasciato{% endif %}</span>
                 {% if r.attestato.rilasciato_da %}<div class="lb-muted" style="font-size:10.5px;">{{ r.attestato.rilasciato_da }}</div>{% endif %}
-              {% else %}
-                <span class="lb-pill lb-pill-na">—</span>
               {% endif %}
+              <a class="lb-att-link" href="{% url 'anagrafica:attestato_formazione' r.pk %}" target="_blank" rel="noopener">🖨 Attestato</a>
             </td>
           </tr>
           {% endfor %}

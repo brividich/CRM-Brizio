@@ -1,0 +1,202 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Contenuti e-learning · {{ corso.titolo }} | Formazione HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:960px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_corsi_list' %}">Corsi</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}">{{ corso.titolo }}</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">E-learning</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Contenuti e-learning</h1>
+        <p class="fmd-ph-sub">Slide e quiz del micro-corso. Le slide sono dati: ordinale con il campo «ordine».</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" class="fmd-btn fmd-btn-ghost" target="_blank">
+          <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima discente
+        </a>
+      </div>
+    </div>
+
+    {% if not corso.is_elearning %}
+    <div class="fmd-alert">
+      <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+      <span>Questo corso non è marcato come <strong>e-learning</strong>: i discenti non lo vedranno tra i corsi online.
+      Attiva «Micro-corso e-learning» nella <a href="{% url 'anagrafica:formazione_corso_edit' corso.pk %}">scheda corso</a>.</span>
+    </div>
+    {% endif %}
+
+    {# ════════════ SLIDE ════════════ #}
+    <section class="fmd-panel" style="padding:22px;">
+      <div class="fmd-block-title" style="margin-bottom:14px;">
+        <svg class="fmd-ico"><use href="#i-book"/></svg> Slide <span class="fmd-count">{{ slides|length }}</span>
+      </div>
+
+      {# Importa slide da PowerPoint / PDF: una slide-immagine per pagina #}
+      <form method="post" action="{% url 'anagrafica:formazione_slide_import' corso.pk %}" enctype="multipart/form-data" class="fm-import-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-download"/></svg> Importa da PowerPoint / PDF</div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Carica un <strong>.pptx</strong>, <strong>.ppt</strong>, <strong>.odp</strong> o <strong>.pdf</strong>: ogni pagina diventa una slide-immagine, accodata a quelle esistenti. (Il PowerPoint richiede LibreOffice sul server; il PDF funziona sempre.)</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="file" name="file" accept=".pptx,.ppt,.odp,.pdf" class="fm-input" required style="max-width:420px;">
+          <button type="submit" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa</button>
+        </div>
+      </form>
+
+      {% for s in slides %}
+      <form method="post" action="{% url 'anagrafica:formazione_slide_save' corso.pk %}" class="fm-edit-row">
+        {% csrf_token %}
+        <input type="hidden" name="slide_id" value="{{ s.pk }}">
+        <div class="fmd-grid">
+          <div class="fmd-field"><label>Ordine</label>
+            <input class="fm-input" type="number" name="ordine" value="{{ s.ordine }}" min="1" style="max-width:90px;"></div>
+          <div class="fmd-field fmd-col-full"><label>Titolo{% if s.is_immagine %} / didascalia{% endif %}</label>
+            <input class="fm-input" type="text" name="titolo" value="{{ s.titolo }}"></div>
+          {% if s.is_immagine %}
+          <div class="fmd-field fmd-col-full"><label>Slide importata (immagine)</label>
+            <img class="fm-slide-thumb" src="{% url 'anagrafica:formazione_slide_image' s.pk %}" alt="{{ s.titolo }}">
+            <input type="hidden" name="contenuto" value="">
+          </div>
+          {% else %}
+          <div class="fmd-field fmd-col-full"><label>Contenuto (Markdown)</label>
+            <textarea class="fm-input" name="contenuto" rows="6">{{ s.contenuto }}</textarea></div>
+          {% endif %}
+          <label class="fmd-check"><input type="checkbox" name="is_active" {% if s.is_active %}checked{% endif %}><span>Attiva</span></label>
+        </div>
+        <div class="fm-edit-row-actions">
+          <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:6px 12px;"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva</button>
+        </div>
+      </form>
+      <form method="post" action="{% url 'anagrafica:formazione_slide_delete' corso.pk s.pk %}" onsubmit="return confirm('Eliminare questa slide?');" style="margin:-6px 0 18px;">
+        {% csrf_token %}
+        <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Elimina slide</button>
+      </form>
+      {% empty %}
+      <p class="fmd-muted">Nessuna slide. Aggiungine una qui sotto.</p>
+      {% endfor %}
+
+      {# Aggiungi slide #}
+      <form method="post" action="{% url 'anagrafica:formazione_slide_save' corso.pk %}" class="fm-add-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Nuova slide</div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.ordine %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.titolo full=1 %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.contenuto full=1 %}
+        </div>
+        <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi slide</button>
+      </form>
+    </section>
+
+    {# ════════════ QUIZ ════════════ #}
+    <section class="fmd-panel" style="padding:22px;">
+      <div class="fmd-block-title" style="margin-bottom:14px;">
+        <svg class="fmd-ico"><use href="#i-check"/></svg> Domande quiz <span class="fmd-count">{{ domande|length }}</span>
+      </div>
+
+      {% if n_domande_incomplete %}
+      <div class="fmd-alert">
+        <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+        <span><strong>{{ n_domande_incomplete }}</strong> domanda/e attiva/e <strong>senza risposta corretta</strong>: vengono escluse dal quiz finché non spunti almeno un'opzione corretta. I discenti non le vedranno.</span>
+      </div>
+      {% endif %}
+
+      {% for d in domande %}
+      <div class="fm-q-card{% if d.senza_corretta %} fm-q-warn{% endif %}">
+        {% if d.senza_corretta %}<div class="fm-q-warnbar"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg> Nessuna risposta corretta selezionata — domanda esclusa dal quiz.</div>{% endif %}
+        <form method="post" action="{% url 'anagrafica:formazione_question_save' corso.pk %}" class="fm-edit-row">
+          {% csrf_token %}
+          <input type="hidden" name="question_id" value="{{ d.pk }}">
+          <div class="fmd-grid">
+            <div class="fmd-field"><label>Ordine</label>
+              <input class="fm-input" type="number" name="ordine" value="{{ d.ordine }}" min="1" style="max-width:90px;"></div>
+            <div class="fmd-field fmd-col-full"><label>Domanda</label>
+              <textarea class="fm-input" name="testo" rows="2">{{ d.testo }}</textarea></div>
+            <label class="fmd-check"><input type="checkbox" name="is_active" {% if d.is_active %}checked{% endif %}><span>Attiva</span></label>
+          </div>
+          <div class="fm-edit-row-actions">
+            <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:6px 12px;">Salva domanda</button>
+          </div>
+        </form>
+
+        {# Opzioni #}
+        <div class="fm-opts">
+          {% for o in d.opzioni.all %}
+          <form method="post" action="{% url 'anagrafica:formazione_option_save' corso.pk d.pk %}" class="fm-opt-row">
+            {% csrf_token %}
+            <input type="hidden" name="option_id" value="{{ o.pk }}">
+            <input class="fm-input" type="number" name="ordine" value="{{ o.ordine }}" min="1" style="max-width:70px;">
+            <input class="fm-input" type="text" name="testo" value="{{ o.testo }}">
+            <label class="fmd-check" style="white-space:nowrap;"><input type="checkbox" name="corretta" {% if o.corretta %}checked{% endif %}><span>Corretta</span></label>
+            <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:formazione_option_delete' corso.pk o.pk %}" onsubmit="return confirm('Eliminare l\'opzione?');" class="fm-opt-del">
+            {% csrf_token %}
+            <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 8px;color:#c0392b;">✕</button>
+          </form>
+          {% endfor %}
+
+          {# Aggiungi opzione #}
+          <form method="post" action="{% url 'anagrafica:formazione_option_save' corso.pk d.pk %}" class="fm-opt-row fm-opt-add">
+            {% csrf_token %}
+            <input class="fm-input" type="number" name="ordine" value="{{ d.opzioni.count|add:1 }}" min="1" style="max-width:70px;">
+            <input class="fm-input" type="text" name="testo" placeholder="Nuova opzione di risposta…">
+            <label class="fmd-check" style="white-space:nowrap;"><input type="checkbox" name="corretta"><span>Corretta</span></label>
+            <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:4px 10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg></button>
+          </form>
+        </div>
+
+        <form method="post" action="{% url 'anagrafica:formazione_question_delete' corso.pk d.pk %}" onsubmit="return confirm('Eliminare la domanda e tutte le sue opzioni?');" style="margin-top:8px;">
+          {% csrf_token %}
+          <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;color:#c0392b;">Elimina domanda</button>
+        </form>
+      </div>
+      {% empty %}
+      <p class="fmd-muted">Nessuna domanda. Aggiungine una qui sotto.</p>
+      {% endfor %}
+
+      {# Aggiungi domanda #}
+      <form method="post" action="{% url 'anagrafica:formazione_question_save' corso.pk %}" class="fm-add-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Nuova domanda</div>
+        <div class="fmd-grid">
+          {% include "anagrafica/partials/_fmd_field.html" with field=question_form.ordine %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=question_form.testo full=1 %}
+        </div>
+        <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi domanda</button>
+        <p class="fmd-fhelp" style="margin-top:8px;">Dopo aver creato la domanda potrai aggiungere le opzioni di risposta e marcare quelle corrette.</p>
+      </form>
+    </section>
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
+<style>
+.fm-edit-row{ padding:0; }
+.fm-edit-row-actions{ margin:8px 0 4px; }
+.fm-add-box{ border:1px dashed #cbd5e1; border-radius:12px; padding:16px; background:#f8fafc; margin-top:8px; }
+.fm-q-card{ border:1px solid #e6ecf3; border-radius:12px; padding:16px; margin-bottom:16px; }
+.fm-opts{ margin-top:12px; padding-top:12px; border-top:1px dashed #e6ecf3; }
+.fm-opt-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.fm-opt-row input[type=text]{ flex:1; }
+.fm-opt-del{ display:inline; }
+.fm-opt-add{ margin-top:8px; }
+</style>
+{% endblock %}

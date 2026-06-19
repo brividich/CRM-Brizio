@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+### Admin Portale/Core - gestione template PDF
+
+- **[feat/ux/test] `admin_portale/views.py`, `admin_portale/urls.py`, `admin_portale/templates/admin_portale/pages/pdf_template_config.html`, `admin_portale/templates/admin_portale/pages/index.html`, `core/pdf.py`, `admin_portale/tests.py`**: nuova pagina `/admin-portale/pdf-template/` nella sezione Configurazione dell'Admin Portale per gestire la grafica comune dei PDF: logo PNG/JPG, colori primario/accento, testo footer e toggle data/ora + numero pagina. La schermata include il pulsante **Anteprima PDF**, collegato a `/admin-portale/pdf-template/preview/`, che apre inline un PDF dimostrativo reale generato con il template salvato. Le preferenze sono salvate in `SiteConfig` con chiavi `pdf_template_*`; `PdfTheme.from_branding()` le applica ai PDF centralizzati con fallback al branding portale. Aggiunte regressioni su render pagina, salvataggio, anteprima PDF e applicazione al tema PDF. Nessuna nuova dipendenza, nessuna modifica ad ACL, permessi, settings o routing globale.
+
+### Anagrafica HR - Import ASR: fase Formazione (corsi + sessioni partecipate)
+
+- **[feat/test] `anagrafica/management/commands/import_asr.py`, `anagrafica/tests.py`**: `import_asr` ora, oltre alle **qualifiche** (lato Salute e Sicurezza), popola una fase **Formazione**: per Corso Lavoratori e abilitazioni crea/**riusa** un `TrainingCourse` con match per titolo (no doppioni; nuovi nel piano "Sicurezza"/categoria "Sicurezza ASR") e importa le **sessioni partecipate** (`TrainingSession` + `TrainingEnrollment` + `TrainingEmployeeRecord` con scadenza). Idempotente, dry-run di default; flag `--no-qualifiche`/`--no-corsi`. Stessa competenza gestibile in due punti (Formazione + Salute e Sicurezza) senza duplicare i dati. Il file ASR **non contiene visite mediche** (verificato): restano manuali. 3 nuove regressioni. Nessuna modifica a modelli/ACL/routing.
+
+### Assets - sotto-navigazione manutenzione e registro OdL
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/base_shell.html`, `assets/templates/assets/pages/maintenance_hub.html`, `reports_dashboard.html`, `workorder_list.html`, `assets/tests.py`**: le sezioni operative di manutenzione, scadenzario, interventi, report, template report e impostazioni usano ora una sotto-nav comune renderizzata dalla shell Assets, con breadcrumb `Assets / Manutenzione / ...`, tab `Da fare`, `Scadenzario`, `Interventi`, `Report`, `Template report`, `Impostazioni` e azioni rapide `Nuovo intervento`, `Esporta OdL`, `Impostazioni`. La lista OdL apre i dialog da query `?create=1`/`?export=1` e riepiloga i filtri attivi in chip rimovibili. KPI hub/report e righe budget categoria portano a scadenzario o registro OdL gia filtrati; il filtro anzianita apertura include anche `21 giorni`. La logica di attivazione e' centralizzata in `_assets_section_nav`; regressione dedicata su hub, scadenzario, lista OdL, gestione template report, chip filtri e deep-link. Nessuna modifica a dati, ACL, permessi, URL o routing.
+
+### Assets - form template report centrato
+
+- **[ux/test] `assets/templates/assets/pages/report_template_admin.html`, `assets/tests.py`**: `/assets/reports/manage/` centra i form di gestione report in uno stack da data-entry (`rta-form-stack`) con larghezza massima controllata, card form dedicate e layout a due colonne; la lista dei report resta separata sotto, senza occupare lo stesso blocco operativo. Aggiunta regressione sul render delle classi e dei vincoli di centratura. Nessuna modifica a dati, ACL, permessi, URL o routing.
+
+### Anagrafica HR - Mansioni di rischio: setup DPI/visite visibile, nav non doppia
+
+- **[fix/ux/test] `anagrafica/views.py`, `anagrafica/templates/anagrafica/pages/mansioni_list.html`, `.../pages/mansione_requisiti.html`, `.../partials/_safety_subnav.html`, `anagrafica/migrations/0044_impostazioni_no_mansioni_highlight.py` [nuovo], `anagrafica/tests.py`**: tre fix sulla pagina **Mansioni di rischio**. (1) Tolta la **doppia evidenziazione** top-nav (Salute e Sicurezza + Impostazioni): `mansioni_list` rimosso dagli `active_view_names` di Impostazioni (mig. `0044`); resta raggiungibile dalla tab Mansioni di Impostazioni. (2) Aggiunti i **contatori DPI/visite** e il badge livello di rischio su ogni card (calcolati con `prefetch_related`). (3) Promosso il link "Requisiti" da badge grigio a **pulsante primario «⚙️ Requisiti · DPI · visite»**; aggiunto il **livello di rischio (ASR)** ai form crea/modifica mansione + link ai Requisiti dalla modale; ripulita la pagina Requisiti dai riferimenti ai "fattori ereditati" e aggiunto empty-state visite. Regressione dedicata in `SicurezzaHubTests`. Nessuna modifica ad ACL, permessi o routing globale.
+
+### Core/Assets - template PDF condiviso
+
+- **[ux/test] `core/pdf.py`, `assets/views.py`, `assets/tests.py`**: `core.pdf` espone ora helper canvas riutilizzabili per header/footer standard con logo o monogramma, branding portale, palette e paginazione. Gli export PDF tabellari Assets (`Inventario asset`, `Interventi / Work Orders`, `Macchine di lavoro`) usano il template comune con `make_document`, `header_footer_callback` e `data_table`; anche report PDF scheda asset e report mensile manutenzioni macchine usano tema/header/footer condivisi invece di hardcode grafici locali. Aggiunta regressione sull'export PDF asset. Nessuna modifica a dati, ACL, permessi, URL, routing globale o dipendenze.
+
+### Assets - manutenzione operativa e registro interventi
+
+- **[ux/feat/test] `assets/forms.py`, `assets/models.py`, `assets/views.py`, `assets/templates/assets/pages/maintenance_hub.html`, `workorder_list.html`, `workorder_close.html`, `workorder_detail.html`, `assets/tests.py`**: `/assets/manutenzione/` mostra nel tab **Da fare** anche le regole manutenzione effettive che richiedono attenzione (scadute, in warning o senza prima esecuzione), con azione diretta verso creazione OdL o baseline asset. `/assets/workorders/` espone filtri operativi aggiuntivi e una tabella registro con asset/reparto/categoria, responsabili, copertura, tempi e costi; l'export XLSX/PDF usa lo stesso perimetro filtrato. La chiusura OdL registra costi manodopera/materiali/totale, responsabili e allegati finali. Nessuna migration, nessuna nuova dipendenza, nessuna modifica ad ACL, permessi o routing globale.
+
+### Assets - form nuovo intervento
+
+- **[ux/test] `assets/maintenance.py`, `assets/views.py`, `assets/templates/assets/pages/workorder_form.html`, `assets/tests.py`**: `/assets/workorders/new/<id>/?source=workorder_list` riconosce l'origine **Lista interventi**, mostra il ritorno coerente a `/assets/workorders/` e usa una UI da data-entry: la search/topbar della shell viene nascosta su questa pagina, l'header modulo e' ridotto, non ci sono hero/card contesto grandi, resta solo una striscia asset bassa e il form usa un layout compatto a due colonne fino a 1180px, con dati principali a sinistra e note/allegati a destra. Aggiunta regressione dedicata sul render da lista. Nessuna migration, nessuna modifica ad ACL, permessi o routing globale.
+
+### Assets - interventi da lista
+
+- **[ux/test] `assets/views.py`, `assets/templates/assets/pages/workorder_list.html`, `assets/tests.py`**: `/assets/workorders/` mostra ora il pulsante **+ Nuovo intervento** nella toolbar. Il dialog e' centrato, con backdrop e ricerca live su tag/nome/reparto; la scelta asset invia alla route esistente `assets:wo_create`. La view accetta `asset=<id>` e reindirizza al form gia supportato `/assets/workorders/new/<id>/`, preservando parametri come `kind`. Aggiunte regressioni su CTA/dialog ricercabile e redirect. Nessuna migration, nessuna modifica ad ACL, permessi o routing globale.
+
+### Assets - sidebar categorie
+
+- **[fix/test] `assets/views.py`, `assets/templates/assets/base_shell.html`, `assets/templates/assets/pages/asset_list.html`, `assets/tests.py`**: la sidebar Assets ora valuta `active_match` di tipo query string (`asset_category=<id>`, `asset_type=<code>`) con confronto esatto sui parametri GET, non come semplice sottostringa del path. Risolto il falso active quando una categoria ha ID prefisso di un'altra, per esempio `asset_category=60` che si attivava anche su `asset_category=608`. Rimossa anche la persistenza `localStorage` dei gruppi aperti: shell Assets e inventario usano comportamento accordion e cancellano lo stato legacy, evitando che dopo navigazioni come `/assets/workorders/` restino aperti molti gruppi.
+
+### Assets - reportistica manutenzione
+
+- **[feat/test] `assets/services/maintenance_kpi.py`, `assets/views.py`, `assets/templates/assets/pages/reports_dashboard.html`, `assets/tests.py`**: `/assets/reports/` mostra ora KPI manutentivi piu operativi: PM compliance delle regole preventive, budget usato nell'anno corrente e tabella Budget vs actual per categoria con stato in linea/attenzione/oltre budget/budget mancante. Il nuovo servizio read-only `build_maintenance_report_kpis` aggrega scadenzario e costi degli OdL chiusi riusando `AssetMaintenanceBudget`, senza creare dati. Aggiunta regressione sulla dashboard report.
+
+### Anagrafica HR - Mansione di rischio + idoneità alla mansione
+
+- **[feat] `anagrafica/models.py`, `models_rischi.py`, `migrations/0041_*`, `services/mansionario.py` (nuovo), `services/conformita.py`, `services/onboarding.py`, `forms.py`, `views.py`, `urls.py`, `admin.py`, template mansione_requisiti/mansioni_list/rischi_fattori_list/conformita_report/dipendente_create/conformita_panel, `tests.py`**: la `Mansione` diventa l'hub che dichiara i requisiti DPI/Formazione/Visite (M2M diretti + ereditati dai `FattoreRischio` via esposizioni — completa PATCH-RISK-03). Resolver unico `mansionario.py`; lente `idoneita` in `conformita` (mancante=avviso, scaduto=ko, nessuna mansione=na, **nessun blocco**, privacy visite invariata). UI: pagina Requisiti mansione, M2M nel form fattore, riga idoneità in scheda + colonna/filtro/CSV nel report. Onboarding: task derivati dalla mansione (fallback legacy) + notifiche email AMM/caporeparto (fail-open) + formazione sicurezza pregressa in preinserimento. Suite `MansionarioIdoneitaTests` + `OnboardingMansioneRischioTests`.
+
+### Assets - manutenzioni a contatore
+
+- **[fix/test] `assets/models.py`, `assets/maintenance.py`, `assets/tests.py`**: gli OdL collegati a regole manutentive a contatore (`HOURS/KM/CYCLES`) salvano automaticamente `meter_value_at_close` dal relativo `AssetMeter` alla chiusura o alla sincronizzazione di un'esecuzione registrata. Scadenzario e generatore ripartono dal valore dell'ultimo intervento invece che da zero. Aggiunte regressioni dedicate.
+
 ### Assets - stile cockpit esteso al modulo
 
 - **[ux] `assets/templates/assets/base_shell.html`, `assets/templates/assets/pages/asset_dashboard.html`, `asset_list.html`, `maintenance_hub.html`, `work_machine_list.html`, `work_machine_dashboard.html`, `device_list.html`**: esteso alle pagine principali del modulo Assets lo stile cockpit gia applicato alla scheda singolo asset. La shell comune aggiorna sidebar, ricerca, header pagina, pulsanti, campi e tabelle; dashboard, inventario, hub manutenzione, elenco macchine, dashboard officina e dispositivi IT ricevono KPI/card con accenti laterali, ombre leggere, radius piu compatti e header meno pesanti. Solo template/CSS, nessuna modifica a view, dati, ACL, permessi, URL o routing.

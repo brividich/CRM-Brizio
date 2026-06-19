@@ -64,6 +64,7 @@ def send_hub_mail(
     preheader: str = "",
     from_email: str | None = None,
     connection=None,
+    attachments: list | None = None,
     fail_silently: bool = False,
 ) -> int:
     """
@@ -71,6 +72,8 @@ def send_hub_mail(
 
     body_html_fragment: frammento HTML del corpo (senza <html>/<body>).
                         Se omesso, body_text viene convertito automaticamente in HTML.
+    attachments: lista opzionale di tuple ``(filename, content, mimetype)`` allegate
+                 al messaggio (es. un invito calendario .ics).
     """
     if not from_email:
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
@@ -94,4 +97,10 @@ def send_hub_mail(
         connection=connection,
     )
     msg.attach_alternative(html_body, "text/html")
+    for att in (attachments or []):
+        try:
+            filename, content, mimetype = att
+            msg.attach(filename, content, mimetype)
+        except Exception:
+            pass
     return msg.send(fail_silently=fail_silently)

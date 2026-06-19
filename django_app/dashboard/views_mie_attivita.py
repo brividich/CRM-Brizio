@@ -131,6 +131,41 @@ def _my_dpi(legacy_user_id) -> list[dict]:
     return out
 
 
+def _my_elearning(request) -> list[dict]:
+    """Micro-corsi e-learning assegnati (obbligo) all'utente e non ancora completati."""
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not legacy_user:
+        return []
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        from anagrafica.models_formazione import TrainingAssignment
+
+        ana = AnagraficaDipendente.objects.filter(utente_id=legacy_user.id).only("id").first()
+        if not ana:
+            return []
+        qs = (
+            TrainingAssignment.objects.filter(
+                legacy_anagrafica_id=ana.id,
+                corso__is_elearning=True, corso__is_active=True, corso__stato="ATTIVO",
+            )
+            .exclude(stato__in=("COMPLETATO", "ESONERATO"))
+            .select_related("corso")
+            .order_by("due_date")[:15]
+        )
+    except Exception:
+        return []
+    out = []
+    for a in qs:
+        out.append({
+            "code": a.corso.codice,
+            "title": a.corso.titolo,
+            "meta": ("Scadenza " + a.due_date.isoformat()) if a.due_date else "Da completare",
+            "status": a.get_stato_display(),
+            "url": _safe_url("anagrafica:formazione_online_player", a.corso_id),
+        })
+    return out
+
+
 def _my_procedure(request_user) -> list[dict]:
     """Procedure ancora da leggere/confermare assegnate all'utente corrente."""
     if not getattr(request_user, "is_authenticated", False):
@@ -160,6 +195,57 @@ def _my_procedure(request_user) -> list[dict]:
             "url": url,
         })
     return out
+
+
+def _safety_scadenze(request) -> list[dict] | None:
+    """Qualifiche/abilitazioni scadute o in scadenza (≤60gg) da gestire.
+
+    Vista **gestionale** (gated dal permesso formazione/HR): ritorna ``None`` se
+    l'utente non ha il permesso (la sezione non viene mostrata). Query leggera; i
+    nomi dipendente sono risolti solo per i pochi item mostrati. Le visite mediche
+    (dato sanitario) sono escluse di proposito; il conteggio idoneità "non idonei"
+    resta sul cruscotto Safety (calcolo batch più pesante).
+    """
+    try:
+        from anagrafica.views import _can_view_formazione
+        if not _can_view_formazione(request):
+            return None
+    except Exception:
+        return None
+    try:
+        from datetime import timedelta
+        from django.utils import timezone
+        from anagrafica.models import DipendenteQualifica
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+
+        oggi = timezone.localdate()
+        soglia = oggi + timedelta(days=60)
+        qs = list(
+            DipendenteQualifica.objects.select_related("tipo")
+            .filter(data_scadenza__isnull=False, data_scadenza__lte=soglia)
+            .order_by("data_scadenza")[:10]
+        )
+        nomi: dict[int, str] = {}
+        ids = list({q.legacy_anagrafica_id for q in qs})
+        if ids:
+            for r in fetch_anagrafica_rows(ids=ids):
+                rid = int(r.get("id") or 0)
+                if rid:
+                    nomi[rid] = f"{r.get('cognome', '')} {r.get('nome', '')}".strip()
+        url = _safe_url("anagrafica:scadenzario") + "?tipo=qualifica"
+        out = []
+        for q in qs:
+            scaduta = q.data_scadenza < oggi
+            out.append({
+                "code": f"Q-{q.id}",
+                "title": q.tipo.nome,
+                "meta": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+                "status": "Scaduta" if scaduta else "In scadenza",
+                "url": url,
+            })
+        return out
+    except Exception:
+        return []
 
 
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
@@ -221,7 +307,30 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "all_url": _safe_url("dpi:dashboard"),
             "empty": "Nessuna richiesta DPI in corso.",
         },
+        {
+            "key": "elearning",
+            "label": "Corsi e-learning da completare",
+            "tone": "info",
+            "icon": "🎓",
+            "items": _my_elearning(request),
+            "all_url": _safe_url("anagrafica:formazione_online_catalog"),
+            "empty": "Nessun corso e-learning da completare.",
+        },
     ]
+
+    # Sezione Salute e Sicurezza (solo per chi gestisce formazione/HR).
+    safety_items = _safety_scadenze(request)
+    if safety_items is not None:
+        sections.append({
+            "key": "safety",
+            "label": "Salute e Sicurezza — scadenze qualifiche",
+            "tone": "warning",
+            "icon": "🛡",
+            "items": safety_items,
+            "all_url": _safe_url("anagrafica:scadenzario") + "?tipo=qualifica",
+            "empty": "Nessuna qualifica scaduta o in scadenza.",
+        })
+
     total = sum(len(s["items"]) for s in sections)
     return {"sections": sections, "total": total}
 

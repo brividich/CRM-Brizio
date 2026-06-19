@@ -1,0 +1,117 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Quiz · {{ corso.titolo }} | Corsi online{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=3">
+{% include "anagrafica/components/_fmd_form_style.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:840px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span>
+          <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}">{{ corso.titolo }}</a><span class="fmd-sep"> / </span>
+          <span class="fmd-cur">Quiz finale</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-check"/></svg>Quiz finale</h1>
+        <p class="fmd-ph-sub">Punteggio minimo per superare: <strong>{{ corso.quiz_punteggio_minimo }}%</strong>.</p>
+      </div>
+    </div>
+
+    {% if esito %}
+      {# ── Schermata esito ──────────────────────────────────────────────── #}
+      <section class="fmd-panel" style="padding:24px;">
+        {% if esito.superato %}
+        <div class="fmd-alert" style="border-color:#bbe6c8;border-left-color:#22a35a;background:linear-gradient(135deg,#edfaf0,#fff);">
+          <svg class="fmd-ico" style="color:#22a35a;"><use href="#i-award"/></svg>
+          <span><strong>Corso superato!</strong> Punteggio {{ esito.punteggio }}% ({{ esito.n_corrette }}/{{ esito.n_totali }} corrette).
+          Il completamento è stato registrato.</span>
+        </div>
+        {% else %}
+        <div class="fmd-alert">
+          <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+          <span><strong>Quiz non superato.</strong> Punteggio {{ esito.punteggio }}% ({{ esito.n_corrette }}/{{ esito.n_totali }} corrette),
+          minimo richiesto {{ esito.minimo }}%. Puoi ripassare le slide e riprovare.</span>
+        </div>
+        {% endif %}
+
+        <div class="fm-quiz-review">
+          {% for r in esito.risposte %}
+          <div class="fm-quiz-q {% if r.giusta %}is-ok{% else %}is-ko{% endif %}">
+            <div class="fm-quiz-q-h">
+              <svg class="fmd-ico"><use href="{% if r.giusta %}#i-check{% else %}#i-alert-cir{% endif %}"/></svg>
+              <span>{{ forloop.counter }}. {{ r.domanda }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="fmd-form-foot">
+          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_player' corso.pk %}">Rivedi le slide</a>
+          <span class="fmd-spacer"></span>
+          {% if not esito.superato %}
+          <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">Riprova il quiz</a>
+          {% else %}
+          <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna al catalogo</a>
+          {% endif %}
+        </div>
+      </section>
+
+    {% else %}
+      {# ── Form quiz ────────────────────────────────────────────────────── #}
+      {% if no_anagrafica %}
+      <div class="fmd-alert">
+        <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+        <span>Il tuo profilo non è collegato a un'anagrafica: l'esito non potrà essere registrato.</span>
+      </div>
+      {% endif %}
+
+      <form method="post" class="fmd-panel" style="padding:24px;">
+        {% csrf_token %}
+        <p class="fmd-muted" style="margin-top:0;">Seleziona <strong>tutte</strong> le risposte corrette per ciascuna domanda.</p>
+
+        {% for d in domande %}
+        <div class="fm-quiz-q">
+          <div class="fm-quiz-q-h"><span>{{ forloop.counter }}. {{ d.testo }}</span></div>
+          <div class="fm-quiz-opts">
+            {% for o in d.opzioni.all %}
+            <label class="fmd-check">
+              <input type="checkbox" name="q_{{ d.pk }}" value="{{ o.pk }}" class="fmd-check-input">
+              <span>{{ o.testo }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+
+        <div class="fmd-form-foot">
+          <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_player' corso.pk %}">Annulla</a>
+          <span class="fmd-spacer"></span>
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Invia risposte</button>
+        </div>
+      </form>
+    {% endif %}
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+
+<style>
+.fm-quiz-q{ padding:14px 16px; border:1px solid #e6ecf3; border-radius:12px; margin-bottom:12px; background:#fff; }
+.fm-quiz-q-h{ display:flex; align-items:flex-start; gap:9px; font-weight:700; color:var(--fmd-navy); }
+.fm-quiz-opts{ display:flex; flex-direction:column; gap:6px; margin-top:10px; padding-left:6px; }
+.fm-quiz-opts .fmd-check{ display:flex; align-items:center; gap:9px; font-weight:500; }
+.fm-quiz-q.is-ok{ border-left:4px solid #22a35a; }
+.fm-quiz-q.is-ko{ border-left:4px solid var(--fmd-orange); }
+</style>
+{% endblock %}

@@ -1212,10 +1212,66 @@ def _op_role_access_level_for_current_user(request, op_id: str) -> str:
     return _anomalie_role_access_level_for_codes(_op_role_codes_for_current_user(request, op_id))
 
 
+def _user_created_anomalia_on_op(request, op_id: str) -> bool:
+    """True se l'utente corrente ha creato almeno un'anomalia sull'OP (scope OWN)."""
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not legacy_user:
+        return False
+    op_title = _safe_text(op_id, 100)
+    if not op_title or not _has_table("anomalie"):
+        return False
+    if "created_by_user_id" not in (legacy_table_columns("anomalie") or set()):
+        return False
+    try:
+        rows = _fetch_all_dict(
+            "SELECT COUNT(*) AS n FROM anomalie "
+            "WHERE created_by_user_id = %s AND ex_op_nominativo = %s",
+            [legacy_user.id, op_title],
+        )
+        return bool(rows and int(rows[0].get("n") or 0) > 0)
+    except Exception:
+        return False
+
+
 def _can_view_anomalie_for_op(request, op_id: str) -> bool:
-    # Accesso in sola lettura: qualsiasi utente autenticato può consultare.
-    # I permessi di modifica restano vincolati a _can_edit_anomalie_for_op.
-    return bool(getattr(request.user, "is_authenticated", False))
+    """Visibilità in lettura delle anomalie di un OP.
+
+    Default storico: qualsiasi utente autenticato può consultare. Se però un
+    amministratore ha ristretto lo scope dell'utente (ASSIGNED / OWN_ANOMALIE),
+    la restrizione vale anche in lettura sul singolo OP, non solo sull'elenco:
+    senza questo lo scope sarebbe puramente cosmetico (qualunque utente potrebbe
+    leggere le anomalie di un OP qualsiasi passando op_id/op_item_id all'API).
+    I permessi di modifica restano vincolati a _can_edit_anomalie_for_op.
+    """
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False
+
+    scope = _request_anomalie_list_scope(request)
+    if scope == AnomalieListScope.ALL:
+        return True
+
+    # Scope ristretto: consentito solo se l'utente ha titolo sull'OP.
+    if _can_edit_anomalie_for_op(request, op_id):
+        return True
+    if _op_role_codes_for_current_user(request, op_id):
+        return True
+    if scope == AnomalieListScope.OWN_ANOMALIE and _user_created_anomalia_on_op(request, op_id):
+        return True
+    return False
+
+
+def _can_export_anomalie(request) -> bool:
+    """Export massivo riservato ad admin / utenti con EDIT_ALL.
+
+    L'export scarica fino a migliaia di righe in un colpo solo: a differenza
+    della consultazione (aperta), va ristretto a chi ha pieni diritti sul
+    modulo (superuser, admin legacy o livello accesso EDIT_ALL).
+    """
+    return _access_level_at_least(
+        _request_anomalie_global_access_level(request),
+        AnomalieAccessLevel.EDIT_ALL,
+    )
 
 
 def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
@@ -1724,6 +1780,14 @@ def api_db_anomalie(request):
     if not _has_table("anomalie"):
         return JsonResponse([], safe=False)
 
+    # Scope ristretto (ASSIGNED/OWN): lettura del singolo OP consentita solo se
+    # l'utente ha titolo. Per lo scope ALL (caso comune) si salta la verifica.
+    if _request_anomalie_list_scope(request) != AnomalieListScope.ALL:
+        op_row = _report_op_row(sp_item_id_int, None)
+        op_title = _safe_text((op_row or {}).get("title"), 100)
+        if not _can_view_anomalie_for_op(request, op_title):
+            return _json_error("Permesso negato", status=403)
+
     cols = legacy_table_columns("anomalie")
     rdc_col = ", numero_rdc" if "numero_rdc" in cols else ""
 
@@ -1799,6 +1863,9 @@ def api_anomalie(request):
                 op_title = _safe_text(op_rows[0].get("title"), 100)
         except Exception:
             op_title = ""
+
+    if not _can_view_anomalie_for_op(request, op_title or str(sp_item_id_int or "")):
+        return _json_error("Permesso negato", status=403)
 
     # Costruisce la WHERE: per lookup id (se presente) E/O per titolo OP.
     where_parts: list[str] = []
@@ -3041,8 +3108,9 @@ class _Echo:
 @login_required
 def export_anomalie_csv(request):
     """Scarica le anomalie in formato CSV."""
+    if not _can_export_anomalie(request):
+        return HttpResponse("Permesso negato.", status=403)
     if not _has_table("anomalie"):
-        from django.http import HttpResponse
         return HttpResponse("Tabella anomalie non disponibile.", status=503)
 
     cols = legacy_table_columns("anomalie")
@@ -3317,6 +3385,8 @@ def api_anomalie_ricerca(request):
 @login_required
 def export_anomalie_csv_filtrato(request):
     """Export CSV anomalie con filtri (da, a, avanzamento, capocommessa)."""
+    if not _can_export_anomalie(request):
+        return HttpResponse("Permesso negato.", status=403)
     if not _has_table("anomalie"):
         return HttpResponse("Tabella anomalie non disponibile.", status=503)
 
@@ -3525,6 +3595,28 @@ def _serialize_report_anomalia(row: dict) -> dict:
     return data
 
 
+def _render_op_report_pdf(request, context: dict) -> HttpResponse:
+    """Genera il PDF del report OP dal contesto già costruito per la resa HTML."""
+    try:
+        from anomalie.services.report_pdf import build_op_report_pdf_bytes
+
+        pdf_bytes = build_op_report_pdf_bytes(
+            context.get("op") or {},
+            context.get("report") or {},
+            context.get("anomalie") or [],
+            attachment_path_resolver=_attachment_file_path,
+        )
+    except Exception:
+        logger.exception("[anomalie] generazione report PDF fallita")
+        return HttpResponse("Generazione PDF non riuscita.", status=500)
+
+    op_id = str((context.get("op") or {}).get("id") or "OP").strip() or "OP"
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", op_id).strip("_") or "OP"
+    resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="report_{safe_name}.pdf"'
+    return resp
+
+
 @login_required
 def report_segnalazione_html(request):
     """Genera un report HTML stampabile per un OP e le sue anomalie collegate."""
@@ -3617,6 +3709,12 @@ def report_segnalazione_html(request):
         "anomalia": focus_anomalia or {"id": "", "seriale": "", "descrizione": ""},
         "allegati": focus_attachments,
     }
+
+    # Variante PDF: stessa fonte dati della resa HTML, veste sobria archiviabile.
+    # Ignora il template HTML personalizzato (il PDF usa il layout strutturato
+    # condiviso del portale, non il markup libero).
+    if str(request.GET.get("format") or "").strip().lower() == "pdf":
+        return _render_op_report_pdf(request, context)
 
     custom_tpl = _load_report_template()
     if custom_tpl:

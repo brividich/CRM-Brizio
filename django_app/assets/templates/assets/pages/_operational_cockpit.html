@@ -1,0 +1,241 @@
+{% comment %}
+Cruscotto operativo condiviso: "Cose da fare" + "Segnalazioni arrivate".
+Incluso sia nella Dashboard Assets (cruscotto) sia nel Centro Manutenzione (hub).
+
+Contesto richiesto (fornito dalle view):
+  cose_da_fare  – dict da assets.services.dashboard_kpi.get_cose_da_fare_overview()
+  segnalazioni  – dict da assets.services.dashboard_kpi.get_segnalazioni_overview()
+{% endcomment %}
+<style>
+.oc-cockpit { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+.oc-panel {
+  border:1px solid #dbe1ea; border-radius:12px; background:#fff; overflow:hidden;
+  display:flex; flex-direction:column; box-shadow:0 10px 24px rgba(15,23,42,.045);
+}
+.oc-panel-head {
+  display:flex; align-items:center; gap:10px; padding:13px 16px;
+  border-bottom:1px solid #eef2f7; background:linear-gradient(90deg,#f8fafc 0%,#fff 100%);
+}
+.oc-panel-icon { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.oc-todo .oc-panel-icon { background:#dbeafe; color:#1d4ed8; }
+.oc-seg  .oc-panel-icon { background:#fef3c7; color:#b45309; }
+.oc-panel-title { font-size:var(--fs-md); font-weight:800; color:#0f172a; flex:1; min-width:0; }
+.oc-panel-sub   { display:block; font-size:var(--fs-xs); font-weight:600; color:#94a3b8; margin-top:1px; }
+.oc-head-badge {
+  display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px;
+  padding:0 8px; border-radius:999px; font-size:var(--fs-xs); font-weight:900;
+}
+.oc-head-badge.red   { background:#fee2e2; color:#b91c1c; }
+.oc-head-badge.amber { background:#fef3c7; color:#92400e; }
+.oc-head-badge.green { background:#dcfce7; color:#15803d; }
+.oc-head-link { font-size:var(--fs-xs); color:#1d4ed8; font-weight:700; text-decoration:none; white-space:nowrap; }
+.oc-head-link:hover { text-decoration:underline; }
+
+.oc-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:14px 16px 6px; }
+.oc-seg .oc-stats { grid-template-columns:repeat(5,1fr); }
+.oc-stat {
+  display:flex; flex-direction:column; gap:2px; padding:9px 10px; border-radius:10px;
+  border:1px solid #eef2f7; background:#f8fafc; text-decoration:none; color:inherit; transition:background .12s, border-color .12s;
+}
+.oc-stat:hover { background:#eef4ff; border-color:#bfdbfe; }
+.oc-stat-val { font-size:1.5rem; font-weight:900; line-height:1; color:#0f172a; }
+.oc-stat-val.red   { color:#dc2626; }
+.oc-stat-val.amber { color:#d97706; }
+.oc-stat-val.green { color:#16a34a; }
+.oc-stat-val.blue  { color:#2563eb; }
+.oc-stat-label { font-size:var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#7e94b2; }
+
+.oc-prio { display:flex; gap:6px; flex-wrap:wrap; padding:4px 16px 0; }
+.oc-prio-chip { display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-xs); font-weight:700; padding:3px 9px; border-radius:999px; }
+.oc-prio-chip.URGENTE { background:#fee2e2; color:#b91c1c; }
+.oc-prio-chip.ALTA    { background:#ffedd5; color:#c2410c; }
+.oc-prio-chip.MEDIA   { background:#fef9c3; color:#854d0e; }
+.oc-prio-chip.BASSA   { background:#e2e8f0; color:#475569; }
+.oc-prio-chip b { font-weight:900; }
+
+.oc-list { list-style:none; margin:10px 0 0; padding:6px 10px 6px; display:grid; gap:4px; }
+.oc-item {
+  display:flex; align-items:center; gap:9px; padding:7px 9px; border:1px solid #f1f5f9;
+  border-radius:8px; text-decoration:none; color:inherit; transition:background .12s;
+}
+.oc-item:hover { background:#f8fafc; }
+.oc-item.is-overdue { border-color:#fca5a5; border-left:3px solid #dc2626; background:#fff9f9; }
+.oc-item.is-new     { border-left:3px solid #f59e0b; }
+.oc-item-body  { flex:1; min-width:0; }
+.oc-item-title { font-size:var(--fs-sm); font-weight:700; color:#1d4ed8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.oc-item-meta  { font-size:var(--fs-xs); color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.oc-tag   { font-family:monospace; font-weight:800; font-size:var(--fs-2xs); background:#eff6ff; color:#1d4ed8; padding:1px 5px; border-radius:4px; }
+.oc-pill  { font-size:var(--fs-2xs); font-weight:800; padding:1px 6px; border-radius:999px; white-space:nowrap; }
+.oc-pill.URGENTE { background:#fee2e2; color:#b91c1c; }
+.oc-pill.ALTA    { background:#ffedd5; color:#c2410c; }
+.oc-pill.MEDIA   { background:#fef9c3; color:#854d0e; }
+.oc-pill.BASSA   { background:#e2e8f0; color:#475569; }
+.oc-pill.new     { background:#fff7ed; color:#c2410c; }
+.oc-item-date { font-size:var(--fs-xs); font-weight:800; color:#94a3b8; white-space:nowrap; }
+.oc-item-date.red   { color:#dc2626; }
+.oc-item-date.amber { color:#d97706; }
+.oc-empty { padding:8px 16px 14px; color:#94a3b8; font-size:var(--fs-sm); }
+.oc-foot { margin-top:auto; padding:10px 16px; border-top:1px dashed #eef2f7; display:flex; gap:12px; flex-wrap:wrap; }
+.oc-foot-link { font-size:var(--fs-sm); font-weight:700; color:#1d4ed8; text-decoration:none; }
+.oc-foot-link:hover { text-decoration:underline; }
+.oc-foot-link.cta { color:#15803d; }
+
+@media (max-width:900px) { .oc-cockpit { grid-template-columns:1fr; } }
+@media (max-width:560px) { .oc-stats, .oc-seg .oc-stats { grid-template-columns:repeat(2,1fr); } }
+
+body.theme-dark .oc-panel { background:var(--surface); border-color:var(--border); box-shadow:none; }
+body.theme-dark .oc-panel-head { background:linear-gradient(90deg,rgba(255,255,255,.03) 0%,transparent 100%); border-color:var(--border); }
+body.theme-dark .oc-panel-title { color:var(--text); }
+body.theme-dark .oc-todo .oc-panel-icon { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .oc-seg  .oc-panel-icon { background:rgba(180,83,9,.25); color:#fcd34d; }
+body.theme-dark .oc-stat { background:rgba(255,255,255,.03); border-color:var(--border); }
+body.theme-dark .oc-stat:hover { background:rgba(29,78,216,.12); border-color:#1e40af; }
+body.theme-dark .oc-stat-val { color:var(--text); }
+body.theme-dark .oc-stat-val.red { color:#fca5a5; }
+body.theme-dark .oc-stat-val.amber { color:#fcd34d; }
+body.theme-dark .oc-stat-val.green { color:#86efac; }
+body.theme-dark .oc-stat-val.blue { color:#93c5fd; }
+body.theme-dark .oc-stat-label { color:var(--text-light); }
+body.theme-dark .oc-item { border-color:var(--border); }
+body.theme-dark .oc-item:hover { background:rgba(255,255,255,.04); }
+body.theme-dark .oc-item.is-overdue { background:rgba(185,28,28,.12); }
+body.theme-dark .oc-item-title { color:#93c5fd; }
+body.theme-dark .oc-item-meta { color:var(--text-light); }
+body.theme-dark .oc-tag { background:rgba(29,78,216,.25); color:#93c5fd; }
+body.theme-dark .oc-foot { border-color:var(--border); }
+body.theme-dark .oc-head-link, body.theme-dark .oc-foot-link { color:#93c5fd; }
+body.theme-dark .oc-foot-link.cta { color:#86efac; }
+</style>
+
+<section class="oc-cockpit" aria-label="Cruscotto cose da fare e segnalazioni">
+
+  {# ── Cose da fare ──────────────────────────────────────────────────── #}
+  <div class="oc-panel oc-todo">
+    <div class="oc-panel-head">
+      <span class="oc-panel-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </span>
+      <span class="oc-panel-title">Cose da fare
+        <span class="oc-panel-sub">Interventi e scadenze da gestire</span>
+      </span>
+      {% if cose_da_fare.total_urgent %}<span class="oc-head-badge red">{{ cose_da_fare.total_urgent }}</span>
+      {% elif cose_da_fare.wo_open %}<span class="oc-head-badge amber">{{ cose_da_fare.wo_open }}</span>
+      {% else %}<span class="oc-head-badge green">ok</span>{% endif %}
+      <a class="oc-head-link" href="{% url 'assets:wo_list' %}?status=OPEN">Tutti gli OdL ›</a>
+    </div>
+
+    <div class="oc-stats">
+      <a class="oc-stat" href="{% url 'assets:wo_list' %}?status=OPEN" title="Ordini di lavoro aperti">
+        <span class="oc-stat-val {% if cose_da_fare.wo_overdue %}amber{% else %}blue{% endif %}">{{ cose_da_fare.wo_open }}</span>
+        <span class="oc-stat-label">OdL aperti</span>
+      </a>
+      <a class="oc-stat" href="{% url 'assets:asset_administrative_deadline_list' %}?status=overdue" title="Scadenze amministrative scadute">
+        <span class="oc-stat-val {% if cose_da_fare.deadlines_overdue %}red{% else %}green{% endif %}">{{ cose_da_fare.deadlines_overdue }}</span>
+        <span class="oc-stat-label">Scad. scadute</span>
+      </a>
+      <a class="oc-stat" href="{% url 'assets:periodic_verifications' %}" title="Verifiche periodiche scadute">
+        <span class="oc-stat-val {% if cose_da_fare.verifiche_overdue %}red{% else %}green{% endif %}">{{ cose_da_fare.verifiche_overdue }}</span>
+        <span class="oc-stat-label">Verif. scadute</span>
+      </a>
+      <a class="oc-stat" href="{% url 'assets:asset_administrative_deadline_list' %}?status=warning" title="Scadenze entro 30 giorni">
+        <span class="oc-stat-val {% if cose_da_fare.deadlines_30 %}amber{% else %}green{% endif %}">{{ cose_da_fare.deadlines_30 }}</span>
+        <span class="oc-stat-label">Scad. 30gg</span>
+      </a>
+    </div>
+
+    {% if cose_da_fare.items %}
+    <ul class="oc-list">
+      {% for it in cose_da_fare.items %}
+      <li>
+        <a class="oc-item {% if it.is_overdue %}is-overdue{% endif %}" href="{% url 'assets:wo_view' it.id %}">
+          <div class="oc-item-body">
+            <div class="oc-item-title">{{ it.title|truncatechars:54 }}</div>
+            <div class="oc-item-meta">{% if it.asset_tag %}<span class="oc-tag">{{ it.asset_tag }}</span> {{ it.asset_name|truncatechars:30 }}{% else %}—{% endif %}{% if it.reparto %} · {{ it.reparto }}{% endif %}</div>
+          </div>
+          {% if it.opened_at %}<span class="oc-item-date {% if it.is_overdue %}red{% endif %}">{{ it.opened_at|date:"d/m" }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="oc-empty">Nessun intervento aperto.</p>
+    {% endif %}
+
+    <div class="oc-foot">
+      <a class="oc-foot-link cta" href="{% url 'assets:wo_create' %}">+ Nuovo intervento</a>
+      <a class="oc-foot-link" href="{% url 'assets:asset_administrative_deadline_list' %}">Scadenzario ›</a>
+    </div>
+  </div>
+
+  {# ── Segnalazioni arrivate ─────────────────────────────────────────── #}
+  <div class="oc-panel oc-seg">
+    <div class="oc-panel-head">
+      <span class="oc-panel-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </span>
+      <span class="oc-panel-title">Segnalazioni arrivate
+        <span class="oc-panel-sub">Ticket manutenzione dagli operatori</span>
+      </span>
+      {% if segnalazioni.nuove %}<span class="oc-head-badge amber">{{ segnalazioni.nuove }} nuove</span>
+      {% elif segnalazioni.open_total %}<span class="oc-head-badge red">{{ segnalazioni.open_total }}</span>
+      {% else %}<span class="oc-head-badge green">ok</span>{% endif %}
+      <a class="oc-head-link" href="{% url 'tickets:gestione_list' %}?tipo=MAN">Tutte ›</a>
+    </div>
+
+    <div class="oc-stats">
+      <a class="oc-stat" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=APERTA" title="Da prendere in carico">
+        <span class="oc-stat-val {% if segnalazioni.nuove %}amber{% else %}green{% endif %}">{{ segnalazioni.nuove }}</span>
+        <span class="oc-stat-label">Nuove</span>
+      </a>
+      <a class="oc-stat" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_CARICO" title="In carico">
+        <span class="oc-stat-val blue">{{ segnalazioni.in_carico }}</span>
+        <span class="oc-stat-label">In carico</span>
+      </a>
+      <a class="oc-stat" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_ATTESA" title="In attesa">
+        <span class="oc-stat-val blue">{{ segnalazioni.in_attesa }}</span>
+        <span class="oc-stat-label">In attesa</span>
+      </a>
+      <a class="oc-stat" href="{% url 'tickets:gestione_list' %}?tipo=MAN" title="Aperte con priorità alta/urgente o che incidono sulla sicurezza">
+        <span class="oc-stat-val {% if segnalazioni.urgenti %}red{% else %}green{% endif %}">{{ segnalazioni.urgenti }}</span>
+        <span class="oc-stat-label">Urgenti</span>
+      </a>
+      <a class="oc-stat" href="{% url 'tickets:gestione_list' %}?tipo=MAN" title="Arrivate negli ultimi 7 giorni">
+        <span class="oc-stat-val blue">{{ segnalazioni.recenti_7gg }}</span>
+        <span class="oc-stat-label">Ultimi 7gg</span>
+      </a>
+    </div>
+
+    {% if segnalazioni.by_priorita %}
+    <div class="oc-prio">
+      {% for p in segnalazioni.by_priorita %}
+      <span class="oc-prio-chip {{ p.code }}">{{ p.label }} <b>{{ p.count }}</b></span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if segnalazioni.items %}
+    <ul class="oc-list">
+      {% for s in segnalazioni.items %}
+      <li>
+        <a class="oc-item {% if s.is_new %}is-new{% endif %}" href="{% url 'tickets:detail' s.id %}">
+          <div class="oc-item-body">
+            <div class="oc-item-title">{% if s.incide_sicurezza %}&#9888; {% endif %}{{ s.titolo|truncatechars:50 }}</div>
+            <div class="oc-item-meta">{{ s.asset_label|truncatechars:40 }}{% if s.assegnato_a %} · {{ s.assegnato_a }}{% endif %}</div>
+          </div>
+          {% if s.is_new %}<span class="oc-pill new">Nuova</span>{% else %}<span class="oc-pill {{ s.priorita }}">{{ s.priorita_label }}</span>{% endif %}
+          <span class="oc-item-date">{{ s.created_at|date:"d/m" }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="oc-empty">Nessuna segnalazione aperta.</p>
+    {% endif %}
+
+    <div class="oc-foot">
+      <a class="oc-foot-link cta" href="{% url 'assets:asset_quick_report' %}">+ Segnala un problema</a>
+      <a class="oc-foot-link" href="{% url 'tickets:gestione_list' %}?tipo=MAN">Gestione ticket ›</a>
+    </div>
+  </div>
+
+</section>

@@ -681,3 +681,50 @@ class ScadenzeGlobaliTests(TestCase):
         self.assertEqual(items[0].source, SOURCE_DPI)
         self.assertEqual(items[0].titolo, "Guanti antitaglio")
         self.assertEqual(items[0].soggetto, "Mario Rossi")
+
+
+class CoseDaGestireSafetyTests(TestCase):
+    """La sezione Salute e Sicurezza (scadenze qualifiche) entra in "cose da gestire"
+    per chi ha il permesso formazione/HR."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from anagrafica.tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        cls.admin = get_user_model().objects.create_superuser(
+            username="cdg_admin", email="cdg@x.local", password="x"
+        )
+
+    def test_safety_section_con_qualifica_scaduta(self):
+        from datetime import timedelta
+        from django.db import connection
+        from django.test import RequestFactory
+        from django.utils import timezone
+        from anagrafica.models import TipoQualifica, DipendenteQualifica
+        from dashboard.views_mie_attivita import build_cose_da_gestire
+
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, mansione, attivo) "
+                "VALUES (9001, 'Aldo', 'Bianchi', '', 1)"
+            )
+        tipo = TipoQualifica.objects.create(
+            nome="Carrellista Home", categoria=TipoQualifica.CAT_SICUREZZA
+        )
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=9001, tipo=tipo,
+            data_scadenza=timezone.localdate() - timedelta(days=3),
+        )
+        req = RequestFactory().get("/")
+        req.user = self.admin
+        data = build_cose_da_gestire(req)
+        safety = next((s for s in data["sections"] if s["key"] == "safety"), None)
+        self.assertIsNotNone(safety)
+        self.assertIn("Carrellista Home", [i["title"] for i in safety["items"]])
+
+    def test_run_idoneita_digest_failsafe(self):
+        """Il task schedulato dell'idoneità è no-op (nessun errore) quando non ci
+        sono destinatari/mansioni configurati."""
+        from anagrafica.tasks import run_idoneita_digest
+        res = run_idoneita_digest()
+        self.assertTrue(res.get("ok"))

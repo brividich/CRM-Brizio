@@ -65,6 +65,10 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # CAPA: gating fail-closed dentro le view (gestore vs responsabile),
     # la middleware non deve bloccare per no_pulsante_match.
     "/capa/",
+    # Formazione e-learning — area discente (micro-corsi: catalogo, player, quiz):
+    # accessibile a tutti i dipendenti autenticati; il gating reale è dentro le view
+    # (@login_required + dati del solo dipendente collegato). Stesso schema di /capa/.
+    "/anagrafica/formazione/corsi-online/",
 )
 
 

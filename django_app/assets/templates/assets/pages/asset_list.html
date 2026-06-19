@@ -1775,32 +1775,39 @@ body.theme-dark .ch {
 /* Toggle sottomenu sidebar inventario (allineato a base_shell.html) */
 (function () {
   var storageKey = "assets_sidebar_open_groups_v1";
-  function readOpen() {
-    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); } catch (e) { return []; }
-  }
-  function writeOpen(list) {
-    try { localStorage.setItem(storageKey, JSON.stringify(list)); } catch (e) {}
-  }
-  function keyFor(group) {
-    var link = group.querySelector(".li-nav-parent .ma");
-    return (link ? link.textContent : "").trim().toLowerCase();
-  }
   document.addEventListener("DOMContentLoaded", function () {
-    var open = readOpen();
-    document.querySelectorAll("[data-li-nav-group]").forEach(function (group) {
-      var k = keyFor(group);
-      if (open.indexOf(k) !== -1) group.classList.add("open");
+    try { localStorage.removeItem(storageKey); } catch (e) {}
+    var groups = Array.prototype.slice.call(document.querySelectorAll("[data-li-nav-group]"));
+
+    function setGroupOpen(group, isOpen) {
       var btn = group.querySelector("[data-li-nav-toggle]");
+      group.classList.toggle("open", isOpen);
+      if (btn) {
+        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+    }
+
+    function closeOtherGroups(activeGroup) {
+      groups.forEach(function (group) {
+        if (group !== activeGroup) {
+          setGroupOpen(group, false);
+        }
+      });
+    }
+
+    groups.forEach(function (group) {
+      var btn = group.querySelector("[data-li-nav-toggle]");
+      if (btn) {
+        btn.setAttribute("aria-expanded", group.classList.contains("open") ? "true" : "false");
+      }
       if (!btn) return;
       btn.addEventListener("click", function (e) {
         e.preventDefault();
-        var isOpen = group.classList.toggle("open");
-        btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-        var list = readOpen();
-        var idx = list.indexOf(k);
-        if (isOpen && idx === -1) list.push(k);
-        if (!isOpen && idx !== -1) list.splice(idx, 1);
-        writeOpen(list);
+        var shouldOpen = !group.classList.contains("open");
+        if (shouldOpen) {
+          closeOtherGroups(group);
+        }
+        setGroupOpen(group, shouldOpen);
       });
     });
   });

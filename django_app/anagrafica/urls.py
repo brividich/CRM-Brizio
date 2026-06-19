@@ -24,10 +24,23 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
     # Stampa scheda dipendente completa (anagrafica civile + aziendale + dati bancari)
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
-    # Libretto formativo stampabile (storico corsi + obblighi correnti)
+    # Libretto formativo stampabile (storico corsi + obblighi correnti); ?formato=pdf per il PDF
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
+    # Salva (manualmente) il libretto formativo PDF nel box documenti del dipendente
+    path("dipendenti/<int:legacy_id>/libretto-formativo/salva-box", views.libretto_salva_box, name="libretto_salva_box"),
+    # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
+    path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
+    # Salva (manualmente) l'attestato PDF nel box documenti del dipendente
+    path("formazione/attestato/<int:record_id>/salva-box", views.attestato_salva_box, name="attestato_salva_box"),
+    # Impostazioni template attestato (testi/firme/logo/privacy) + gestione archivio — da Impostazioni HR
+    path("formazione/attestato-impostazioni/", views.attestato_impostazioni, name="attestato_impostazioni"),
+    # Export CSV dell'archivio attestati salvati
+    path("formazione/attestato-report-export/", views.attestato_report_export, name="attestato_report_export"),
+    # Genera e archivia in blocco gli attestati di tutti i completati di una sessione
+    path("formazione/sessioni/<int:sessione_id>/attestati/", views.formazione_sessione_attestati, name="formazione_sessione_attestati"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
+    path("dipendenti/<int:legacy_id>/verbale-dpi/", views.dipendente_verbale_dpi, name="dipendente_verbale_dpi"),
     path("dipendenti/<int:legacy_id>/ruoli/assegna", views.dipendente_ruolo_assegna, name="dipendente_ruolo_assegna"),
     path("dipendenti/<int:legacy_id>/ruoli/<int:assegnazione_id>/rimuovi", views.dipendente_ruolo_rimuovi, name="dipendente_ruolo_rimuovi"),
 
@@ -76,6 +89,8 @@ urlpatterns = [
     # Qualifiche dipendente
     path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
     path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/delete", views.dipendente_qualifica_delete, name="dipendente_qualifica_delete"),
+    path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/evidenza", views.dipendente_qualifica_evidenza, name="dipendente_qualifica_evidenza"),
+    path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/verifica", views.dipendente_qualifica_verifica, name="dipendente_qualifica_verifica"),
 
     # Dashboard globale visite mediche
     path("visite-mediche/", views.visite_mediche_dashboard, name="visite_mediche_dashboard"),
@@ -96,6 +111,7 @@ urlpatterns = [
     path("documenti/", views.documenti_list, name="documenti_list"),
     path("documenti/<int:doc_id>/download", views.documento_dipendente_download, name="documento_download"),
     path("documenti/<int:doc_id>/delete", views.documento_dipendente_delete, name="documento_delete"),
+    path("documenti/<int:doc_id>/sposta", views.documento_sposta_cartella, name="documento_sposta"),
     path("dipendenti/<int:legacy_id>/documenti/upload", views.documento_dipendente_upload, name="documento_upload"),
 
     # Cartelle documenti — CRUD da impostazioni
@@ -125,6 +141,7 @@ urlpatterns = [
     path("mansioni/", views.mansioni_list, name="mansioni_list"),
     path("mansioni/nuovo", views.mansione_create, name="mansione_create"),
     path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
+    path("mansioni/<int:mansione_id>/requisiti", views.mansione_requisiti, name="mansione_requisiti"),
     path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
@@ -144,9 +161,23 @@ urlpatterns = [
     path("ruoli-aziendali/<int:ruolo_id>/modifica", views.ruolo_aziendale_edit, name="ruolo_aziendale_edit"),
     path("ruoli-aziendali/<int:ruolo_id>/elimina", views.ruolo_aziendale_delete, name="ruolo_aziendale_delete"),
 
+    # Qualifiche & Certificazioni — cruscotto trasversale + scadenzario dedicato
+    path("qualifiche/cruscotto/", views.qualifiche_dashboard, name="qualifiche_dashboard"),
+    path("qualifiche/scadenzario/", views.qualifiche_scadenzario, name="qualifiche_scadenzario"),
+
     # Qualifiche catalogo + scadenze
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
+    # Sessioni di rinnovo (rilascio/rinnovo collettivo "a sessioni")
+    path("qualifiche/sessioni/", views.qualifica_sessioni_list, name="qualifica_sessioni_list"),
+    path("qualifiche/sessioni/nuova", views.qualifica_sessione_create, name="qualifica_sessione_create"),
+    path("qualifiche/sessioni/candidati", views.qualifica_sessione_candidati, name="qualifica_sessione_candidati"),
+    path("qualifiche/sessioni/<int:sessione_id>/", views.qualifica_sessione_detail, name="qualifica_sessione_detail"),
+    path("qualifiche/sessioni/<int:sessione_id>/report.csv", views.qualifica_sessione_report_csv, name="qualifica_sessione_report_csv"),
+    path("qualifiche/sessioni/<int:sessione_id>/elimina", views.qualifica_sessione_delete, name="qualifica_sessione_delete"),
+    path("qualifiche/sessioni/<int:sessione_id>/partecipante/aggiungi", views.qualifica_sessione_partecipante_add, name="qualifica_sessione_partecipante_add"),
+    path("qualifiche/sessioni/<int:sessione_id>/partecipante/<int:q_id>/rimuovi", views.qualifica_sessione_partecipante_remove, name="qualifica_sessione_partecipante_remove"),
+    path("qualifiche/<int:tipo_id>/", views.tipo_qualifica_detail, name="tipo_qualifica_detail"),
     path("qualifiche/<int:tipo_id>/modifica", views.tipo_qualifica_edit, name="tipo_qualifica_edit"),
     path("qualifiche/<int:tipo_id>/elimina", views.tipo_qualifica_delete, name="tipo_qualifica_delete"),
 
@@ -180,6 +211,10 @@ urlpatterns = [
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),
+    path("sicurezza/", views.sicurezza_hub, name="sicurezza_hub"),
+    path("sicurezza/ricerca/", views.sicurezza_ricerca, name="sicurezza_ricerca"),
+    path("sicurezza/guida/", views.sicurezza_wizard, name="sicurezza_wizard"),
+    path("sicurezza/matrice/", views.matrice_competenze, name="matrice_competenze"),
 
     # Onboarding strutturato (pratica + checklist, speculare a offboarding)
     path("onboarding/", views.onboarding_list, name="onboarding_list"),
@@ -191,6 +226,16 @@ urlpatterns = [
 
     # ── Formazione HR — Dashboard ──────────────────────────────────────────
     path("formazione/", views.formazione_dashboard, name="formazione_dashboard"),
+    # Ricerca globale formazione (corsi, sessioni, piani, qualifiche, dipendenti, attestati)
+    path("formazione/ricerca/", views.formazione_ricerca, name="formazione_ricerca"),
+    # Quick-add inline (JSON) entità collegate dei form (piano/categoria/qualifica/docente)
+    path("formazione/quick-add/piano", views.formazione_quickadd_piano, name="formazione_quickadd_piano"),
+    path("formazione/quick-add/categoria", views.formazione_quickadd_categoria, name="formazione_quickadd_categoria"),
+    path("formazione/quick-add/qualifica", views.formazione_quickadd_qualifica, name="formazione_quickadd_qualifica"),
+    path("formazione/quick-add/docente", views.formazione_quickadd_docente, name="formazione_quickadd_docente"),
+    # Assist form corso: codice suggerito univoco + durata qualifica (validità preimpostata)
+    path("formazione/corsi/codice-suggerito", views.formazione_corso_codice_suggest, name="formazione_corso_codice_suggest"),
+    path("formazione/qualifica-durata", views.formazione_qualifica_durata, name="formazione_qualifica_durata"),
 
     # ── Formazione HR — Piani formativi ────────────────────────────────────
     path("formazione/piani/", views.formazione_piani_list, name="formazione_piani_list"),
@@ -205,6 +250,10 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/", views.formazione_corso_detail, name="formazione_corso_detail"),
     path("formazione/corsi/<int:corso_id>/modifica", views.formazione_corso_edit, name="formazione_corso_edit"),
     path("formazione/corsi/<int:corso_id>/elimina", views.formazione_corso_delete, name="formazione_corso_delete"),
+    # Report rapidi del corso
+    path("formazione/corsi/<int:corso_id>/report/iscritti.csv", views.formazione_corso_report_iscritti_csv, name="formazione_corso_report_iscritti_csv"),
+    path("formazione/corsi/<int:corso_id>/report/attestati.zip", views.formazione_corso_attestati_zip, name="formazione_corso_attestati_zip"),
+    path("formazione/corsi/<int:corso_id>/report/fogli-firme.pdf", views.formazione_corso_registri_pdf, name="formazione_corso_registri_pdf"),
     # Prerequisiti
     path("formazione/corsi/<int:corso_id>/prerequisiti/add", views.formazione_corso_dep_add, name="formazione_corso_dep_add"),
     path("formazione/corsi/<int:corso_id>/prerequisiti/<int:dep_id>/rimuovi", views.formazione_corso_dep_delete, name="formazione_corso_dep_delete"),
@@ -216,6 +265,35 @@ urlpatterns = [
     # Regole obbligatorietà
     path("formazione/corsi/<int:corso_id>/regole-obbligo/add", views.formazione_corso_req_rule_add, name="formazione_corso_req_rule_add"),
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
+    # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
+    path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
+
+    # ── Formazione HR — E-learning (micro-corsi: slide + quiz) ─────────────
+    # Hub di gestione (autori/HR)
+    path("formazione/elearning/", views.formazione_elearning_hub, name="formazione_elearning_hub"),
+    path("formazione/elearning/impostazioni/", views.formazione_elearning_settings, name="formazione_elearning_settings"),
+    path("formazione/elearning/<int:corso_id>/gestione", views.formazione_elearning_manage, name="formazione_elearning_manage"),
+    path("formazione/elearning/<int:corso_id>/pubblica", views.formazione_elearning_publish_toggle, name="formazione_elearning_publish_toggle"),
+    path("formazione/elearning/<int:corso_id>/iscritti.csv", views.formazione_elearning_iscritti_csv, name="formazione_elearning_iscritti_csv"),
+    path("formazione/elearning/<int:corso_id>/assegna", views.formazione_elearning_assign, name="formazione_elearning_assign"),
+    path("formazione/elearning/<int:corso_id>/assegnazioni/<int:assignment_id>/rimuovi", views.formazione_elearning_unassign, name="formazione_elearning_unassign"),
+    # Autore (gestione contenuti)
+    path("formazione/corsi/<int:corso_id>/elearning/", views.formazione_corso_elearning, name="formazione_corso_elearning"),
+    path("formazione/corsi/<int:corso_id>/elearning/slide/salva", views.formazione_slide_save, name="formazione_slide_save"),
+    path("formazione/corsi/<int:corso_id>/elearning/slide/importa", views.formazione_slide_import, name="formazione_slide_import"),
+    path("formazione/corsi/<int:corso_id>/elearning/slide/<int:slide_id>/elimina", views.formazione_slide_delete, name="formazione_slide_delete"),
+    # Sotto il prefisso shared "corsi-online/" così il discente può caricarla inline
+    # (il gating reale è dentro la view).
+    path("formazione/corsi-online/slide/<int:slide_id>/immagine", views.formazione_slide_image, name="formazione_slide_image"),
+    path("formazione/corsi/<int:corso_id>/elearning/domande/salva", views.formazione_question_save, name="formazione_question_save"),
+    path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/elimina", views.formazione_question_delete, name="formazione_question_delete"),
+    path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/opzioni/salva", views.formazione_option_save, name="formazione_option_save"),
+    path("formazione/corsi/<int:corso_id>/elearning/opzioni/<int:option_id>/elimina", views.formazione_option_delete, name="formazione_option_delete"),
+    # Discente (fruizione)
+    path("formazione/corsi-online/", views.formazione_online_catalog, name="formazione_online_catalog"),
+    path("formazione/corsi-online/<int:corso_id>/", views.formazione_online_player, name="formazione_online_player"),
+    path("formazione/corsi-online/<int:corso_id>/slide/<int:ordine>", views.formazione_online_slide, name="formazione_online_slide"),
+    path("formazione/corsi-online/<int:corso_id>/quiz", views.formazione_online_quiz, name="formazione_online_quiz"),
 
     # ── Formazione HR — Istruttori ─────────────────────────────────────────
     path("formazione/istruttori/", views.formazione_istruttori_list, name="formazione_istruttori_list"),
@@ -236,15 +314,31 @@ urlpatterns = [
     # Presenze per lezione
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/", views.formazione_lezione_presenze, name="formazione_lezione_presenze"),
     path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/set", views.formazione_presenza_set, name="formazione_presenza_set"),
+    # Autocompila presenze dal registro firme firmato (firme ingresso/uscita -> DB)
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/presenze/da-registro", views.formazione_registro_autocompila, name="formazione_registro_autocompila"),
+    # Registro presenze lezione — foglio firme stampabile A4
+    path("formazione/sessioni/<int:sessione_id>/lezioni/<int:lezione_id>/registro/", views.formazione_lezione_registro, name="formazione_lezione_registro"),
+    # Allegati formazione (registro firme firmato / materiale): livello sessione o lezione
+    path("formazione/sessioni/<int:sessione_id>/allegati/upload", views.formazione_allegato_upload, name="formazione_allegato_upload"),
+    path("formazione/allegati/<int:attachment_id>/elimina", views.formazione_allegato_delete, name="formazione_allegato_delete"),
+    path("formazione/allegati/<int:attachment_id>/download", views.formazione_allegato_download, name="formazione_allegato_download"),
 
     # ── Formazione HR — Iscritti ────────────────────────────────────────────
     path("formazione/sessioni/<int:sessione_id>/iscritti/", views.formazione_sessione_iscritti, name="formazione_sessione_iscritti"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/add", views.formazione_iscrizione_add, name="formazione_iscrizione_add"),
+    path("formazione/sessioni/<int:sessione_id>/iscritti/rinnovo-bulk", views.formazione_iscrizione_bulk, name="formazione_iscrizione_bulk"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/modifica", views.formazione_iscrizione_edit, name="formazione_iscrizione_edit"),
+    path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/turni", views.formazione_iscrizione_turni, name="formazione_iscrizione_turni"),
+    # Carica attestato organizzatore esterno e chiudi il corso (completamento+archiviazione)
+    path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/attestato", views.formazione_iscrizione_attestato_upload, name="formazione_iscrizione_attestato_upload"),
     path("formazione/sessioni/<int:sessione_id>/iscritti/<int:iscrizione_id>/elimina", views.formazione_iscrizione_delete, name="formazione_iscrizione_delete"),
+    # Fascicolo formativo dell'edizione (progettazione+programma+esiti+relazione) in PDF
+    path("formazione/sessioni/<int:sessione_id>/fascicolo.pdf", views.formazione_sessione_fascicolo, name="formazione_sessione_fascicolo"),
 
     # ── Formazione HR — Scadenzario ─────────────────────────────────────────
     path("formazione/scadenzario/", views.formazione_scadenzario, name="formazione_scadenzario"),
+    # Copertura / gap formativo (chi manca quali corsi obbligatori, per reparto/mansione)
+    path("formazione/copertura/", views.formazione_copertura, name="formazione_copertura"),
 
     # ── Formazione HR — Plan (calendario eventi mese per mese) ──────────────
     path("formazione/plan/", views.formazione_plan, name="formazione_plan"),

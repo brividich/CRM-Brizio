@@ -417,12 +417,29 @@ class Mansione(models.Model):
         (CAT_ALTRO, "Altro"),
     ]
 
+    # Livello di rischio (Accordo Stato-Regioni): determina le ore della
+    # formazione generale/specifica lavoratori e il rinnovo quinquennale.
+    RISCHIO_BASSO = "B"
+    RISCHIO_MEDIO = "M"
+    RISCHIO_ALTO  = "A"
+    LIVELLO_RISCHIO_CHOICES = [
+        (RISCHIO_BASSO, "Basso (8h)"),
+        (RISCHIO_MEDIO, "Medio (12h)"),
+        (RISCHIO_ALTO,  "Alto (16h)"),
+    ]
+    ORE_PER_LIVELLO = {RISCHIO_BASSO: 8, RISCHIO_MEDIO: 12, RISCHIO_ALTO: 16}
+    RINNOVO_FORMAZIONE_MESI = 60  # ASR: aggiornamento ogni 5 anni
+
     nome = models.CharField(max_length=100, unique=True)
     categoria = models.CharField(
         max_length=20, choices=CATEGORIA_CHOICES, blank=True, default=""
     )
     descrizione = models.TextField(blank=True, default="")
     colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
+    livello_rischio = models.CharField(
+        max_length=1, choices=LIVELLO_RISCHIO_CHOICES, blank=True, default="",
+        help_text="Livello di rischio mansione (ASR): B=basso 8h, M=medio 12h, A=alto 16h.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -447,6 +464,11 @@ class Mansione(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+    @property
+    def ore_formazione_generale(self) -> int | None:
+        """Ore di formazione generale/specifica lavoratori in base al rischio."""
+        return self.ORE_PER_LIVELLO.get(self.livello_rischio)
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +508,17 @@ class TipoQualifica(models.Model):
         return self.nome
 
 
+def _dipendente_qualifica_evidenza_upload_to(instance, filename: str) -> str:
+    legacy_id = instance.legacy_anagrafica_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "certificato"
+    now = timezone.now()
+    return (
+        f"anagrafica/dipendenti/{legacy_id}/qualifiche/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
 class DipendenteQualifica(models.Model):
     """Qualifica/certificazione assegnata a un dipendente (via ID legacy anagrafica)."""
     legacy_anagrafica_id = models.IntegerField(db_index=True)
@@ -502,6 +535,53 @@ class DipendenteQualifica(models.Model):
         blank=True,
         related_name="qualifiche_assegnate",
     )
+    # Sessione di rilascio/rinnovo collettivo (opzionale): traccia in quale
+    # evento la qualifica è stata conseguita/rinnovata, come per i corsi.
+    sessione = models.ForeignKey(
+        "QualificaSessione",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="qualifiche",
+    )
+    # Evidenza formativa (competency management): il completamento del corso da
+    # cui deriva questa qualifica posseduta. Collega lo stato "competenza" alla
+    # sua prova; le date possono esserne derivate. Null = inserita a mano/import.
+    record_formazione = models.ForeignKey(
+        "anagrafica.TrainingEmployeeRecord",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="qualifiche_collegate",
+    )
+    # ── Fase 2: estremi del certificato/abilitazione (competency management) ──
+    numero = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Numero del certificato/patentino.",
+    )
+    livello = models.CharField(
+        max_length=80, blank=True, default="",
+        help_text="Livello/categoria (es. antincendio liv. 2).",
+    )
+    ente = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Ente/organismo che ha rilasciato l'abilitazione.",
+    )
+    # Evidenza documentale: storage privato fuori webroot, servita da view protetta.
+    documento = models.FileField(
+        upload_to=_dipendente_qualifica_evidenza_upload_to,
+        storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+        help_text="Scansione/PDF del certificato (evidenza).",
+    )
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
+    # Verifica HR dell'evidenza caricata.
+    verificata = models.BooleanField(default=False)
+    verificata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="qualifiche_verificate",
+    )
+    verificata_il = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -526,6 +606,96 @@ class DipendenteQualifica(models.Model):
         from datetime import timedelta
         oggi = timezone.localdate()
         return oggi <= self.data_scadenza <= oggi + timedelta(days=60)
+
+
+class QualificaSessione(models.Model):
+    """Sessione di rilascio/rinnovo collettivo di una qualifica/abilitazione.
+
+    Raggruppa il conferimento di una stessa ``TipoQualifica`` a più dipendenti
+    nella stessa data (es. corso carrellisti svolto il 14/06 da un ente). Ogni
+    partecipante genera/aggiorna una ``DipendenteQualifica`` collegata via FK.
+    Pattern speculare a ``TrainingSession`` (corsi) ma leggero: niente lezioni.
+    """
+    tipo = models.ForeignKey(TipoQualifica, on_delete=models.PROTECT, related_name="sessioni")
+    data_conseguimento = models.DateField()
+    data_scadenza = models.DateField(
+        null=True, blank=True,
+        help_text="Scadenza comune; se vuota è calcolata da durata_mesi del tipo.",
+    )
+    ente = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Ente/provider che ha erogato o rilasciato l'abilitazione.",
+    )
+    # Se la sessione coincide con una sessione corso (un solo evento, non due),
+    # il legame le tiene collegate: la sessione di rinnovo qualifica È l'edizione
+    # del corso che la rilascia. Null = sessione qualifica autonoma.
+    training_session = models.ForeignKey(
+        "anagrafica.TrainingSession",
+        on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="sessioni_qualifica",
+    )
+    note = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-data_conseguimento", "-id"]
+        verbose_name = "Sessione qualifica"
+        verbose_name_plural = "Sessioni qualifica"
+
+    def __str__(self) -> str:
+        return f"{self.tipo.nome} — {self.data_conseguimento}"
+
+    @property
+    def scadenza_effettiva(self):
+        """Scadenza esplicita oppure calcolata dal ``durata_mesi`` del tipo."""
+        if self.data_scadenza:
+            return self.data_scadenza
+        if self.tipo_id and self.tipo.durata_mesi:
+            return _add_months(self.data_conseguimento, self.tipo.durata_mesi)
+        return None
+
+
+class DipendenteQualificaStorico(models.Model):
+    """Storico append-only dei rilasci/rinnovi di una qualifica (Fase 2c).
+
+    Non sostituisce la fonte: la ``DipendenteQualifica`` resta lo stato corrente
+    (letta da matrice/conformità). Qui si accumula la cronologia (snapshot),
+    scritta dall'upsert a ogni rilascio/rinnovo, per audit e timeline.
+    """
+
+    class Origine(models.TextChoices):
+        MANUALE = "MANUALE", "Manuale"
+        SESSIONE = "SESSIONE", "Sessione di rinnovo"
+        IMPORT = "IMPORT", "Import"
+
+    qualifica = models.ForeignKey(
+        DipendenteQualifica, on_delete=models.CASCADE, related_name="storico",
+    )
+    data_conseguimento = models.DateField(null=True, blank=True)
+    data_scadenza = models.DateField(null=True, blank=True)
+    numero = models.CharField(max_length=100, blank=True, default="")
+    livello = models.CharField(max_length=80, blank=True, default="")
+    ente = models.CharField(max_length=200, blank=True, default="")
+    note = models.CharField(max_length=255, blank=True, default="")
+    origine = models.CharField(max_length=12, choices=Origine.choices, default=Origine.MANUALE)
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    registrato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data_conseguimento", "-id"]
+        verbose_name = "Storico qualifica dipendente"
+        verbose_name_plural = "Storico qualifiche dipendente"
+
+    def __str__(self) -> str:
+        return f"[{self.qualifica_id}] {self.data_conseguimento}"
 
 
 # ---------------------------------------------------------------------------
@@ -1692,17 +1862,34 @@ class CartellaDocumentoDipendente(models.Model):
     sono esclusi (``cartella=None``).
     """
 
-    nome = models.CharField(max_length=100, unique=True)
+    nome = models.CharField(max_length=100)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="figlie",
+        help_text="Cartella superiore. Vuoto = cartella di primo livello.",
+    )
     descrizione = models.CharField(max_length=300, blank=True, default="")
     ordine = models.PositiveSmallIntegerField(default=0, help_text="Ordinamento nella lista.")
     attiva = models.BooleanField(default=True, help_text="Se False non appare nel form di upload.")
+    retention_anni = models.PositiveSmallIntegerField(
+        default=10,
+        help_text="Anni di conservazione GDPR per i documenti manuali di questa cartella "
+                  "(impostazione del container; default 10). Applicata ai nuovi documenti.",
+    )
+    solo_admin = models.BooleanField(
+        default=False,
+        help_text="Cartella riservata: nell'archivio i suoi documenti sono visibili solo ai "
+                  "super-amministratori (nascosti agli altri ruoli HR).",
+    )
 
     class Meta:
         ordering = ["ordine", "nome"]
         verbose_name = "Cartella documenti dipendente"
         verbose_name_plural = "Cartelle documenti dipendente"
+        unique_together = [("parent", "nome")]
 
     def __str__(self) -> str:
+        if self.parent_id:
+            return f"{self.parent.nome} / {self.nome}"
         return self.nome
 
 
@@ -1811,6 +1998,14 @@ class DocumentoDipendente(models.Model):
     def save(self, *args, **kwargs):
         if self.retention_until is None and self.tipo:
             anni = self._RETENTION_ANNI.get(self.tipo, 10)
+            # Override per-cartella (container manager): i documenti manuali ereditano
+            # la retention configurata sulla cartella, se valorizzata.
+            if self.tipo == self.Tipo.MANUALE and self.cartella_id:
+                try:
+                    if self.cartella and self.cartella.retention_anni:
+                        anni = self.cartella.retention_anni
+                except Exception:
+                    pass
             # Per record già esistenti usa created_at; per i nuovi (pk non ancora
             # assegnato) created_at non è ancora scritto → usa date.today().
             base = self.created_at.date() if self.pk and self.created_at else date.today()

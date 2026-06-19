@@ -5,8 +5,13 @@ Non spostare, non rinominare senza aggiornare l'import nel file principale.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+from .storage import PrivateAnagraficaStorage
 
 __all__ = [
     "AnagraficaFormazionePermission",
@@ -22,11 +27,20 @@ __all__ = [
     "TrainingSession",
     "TrainingLesson",
     "TrainingEnrollment",
+    "TrainingEnrollmentLesson",
     "TrainingLessonAttendance",
     "TrainingEmployeeRecord",
     "TrainingCertificate",
     "TrainingDeadline",
     "TrainingExportLog",
+    "TrainingAttachment",
+    # E-learning (micro-corsi interni: slide + quiz)
+    "TrainingSlide",
+    "TrainingQuizQuestion",
+    "TrainingQuizOption",
+    "TrainingElearningEnrollment",
+    "TrainingQuizAttempt",
+    "ElearningConfig",
 ]
 
 
@@ -71,6 +85,118 @@ class AnagraficaFormazionePermission(models.Model):
     def get_instance(cls) -> "AnagraficaFormazionePermission":
         obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso_visualizzazione": cls.ACCESSO_ADMIN})
         return obj
+
+
+# ─────────────────────────────────────────────────────────────
+# ATTESTATO — configurazione template (singleton, da Impostazioni HR)
+# ─────────────────────────────────────────────────────────────
+
+class AttestatoFormazioneConfig(models.Model):
+    """Singleton — testi e opzioni del template attestato di formazione.
+
+    L'attestato si autogenera dal record di completamento: questo modello
+    permette di personalizzare le parti fisse (intestazioni, formule, etichette
+    firma, nota legale, logo) dalle Impostazioni Anagrafica HR, senza toccare il
+    template. I default replicano i testi originali del foglio.
+    """
+
+    NOTA_LEGALE_DEFAULT = (
+        "Documento valido ai fini della tracciabilità formativa interna, anche in "
+        "relazione agli obblighi di informazione, formazione e addestramento "
+        "previsti dal D.Lgs. 81/2008."
+    )
+
+    intestazione_eyebrow     = models.CharField(max_length=80, default="Formazione interna")
+    sezione_label            = models.CharField(max_length=120, default="NOVICROM HUB · Attestazione formativa")
+    titolo_partecipazione    = models.CharField(max_length=120, default="Attestato di partecipazione")
+    titolo_frequenza         = models.CharField(max_length=120, default="Attestato di frequenza")
+    titolo_qualifica         = models.CharField(max_length=120, default="Attestato di qualifica")
+    formula_attestazione     = models.CharField(max_length=200, default="Si attesta che")
+    firma_responsabile_label = models.CharField(max_length=80, default="Il Responsabile del corso")
+    firma_dipendente_label   = models.CharField(max_length=80, default="Il Dipendente")
+    responsabile_default     = models.CharField(
+        max_length=200, blank=True,
+        help_text="Nome stampato sotto la firma del responsabile quando il corso non ha un docente registrato.",
+    )
+    mostra_dati_personali    = models.BooleanField(
+        default=True,
+        help_text="Mostra C.F., luogo e data di nascita sull'attestato (utile per D.Lgs. 81/2008). "
+                  "Disattiva per minimizzazione GDPR.",
+    )
+    nota_legale              = models.TextField(default=NOTA_LEGALE_DEFAULT)
+    logo_url                 = models.URLField(
+        blank=True,
+        help_text="URL del logo in intestazione. Vuoto = logo NOVICROM HUB predefinito.",
+    )
+    pie_organizzazione       = models.CharField(
+        max_length=200, default="NOVICROM HUB · Portale interno · Costruzioni Novicrom S.r.l.",
+    )
+
+    # ── Archiviazione automatica nel box documenti del dipendente ──────────
+    # Nome della cartella virtuale (uguale per tutti i dipendenti) in cui
+    # confluiscono gli attestati. Creata on-demand se non esiste.
+    CARTELLA_ATTESTATI_NOME = "Attestati formazione"
+
+    auto_salva_attestato = models.BooleanField(
+        default=False,
+        help_text="Salva automaticamente l'attestato PDF nel box documenti del dipendente "
+                  "alla chiusura del corso (quando l'iscrizione passa a «Completato»).",
+    )
+    cartella_attestati = models.ForeignKey(
+        "anagrafica.CartellaDocumentoDipendente",
+        null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+        help_text="Cartella del box documenti in cui archiviare gli attestati. "
+                  "Vuoto = usa/crea la cartella predefinita «Attestati formazione».",
+    )
+    rigenera_se_esiste = models.BooleanField(
+        default=False,
+        help_text="Se attivo, rigenera e sovrascrive l'attestato già archiviato per lo stesso "
+                  "completamento. Se disattivo, l'archiviazione è idempotente (non duplica).",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Impostazioni attestato formazione"
+        verbose_name_plural = "Impostazioni attestato formazione"
+
+    def __str__(self) -> str:
+        return "Impostazioni attestato formazione"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls) -> "AttestatoFormazioneConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class AttestatoProtocolloCounter(models.Model):
+    """Contatore progressivo annuale del numero di protocollo degli attestati.
+
+    Una riga per anno; ``ultimo`` è l'ultimo numero assegnato. L'allocazione del
+    prossimo numero avviene in transazione con ``select_for_update`` per essere
+    sicura in concorrenza (vedi ``services.attestato_pdf.assegna_numero_protocollo``).
+    """
+
+    PREFISSO = "ATT"
+
+    anno   = models.PositiveSmallIntegerField(unique=True, db_index=True)
+    ultimo = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Contatore protocollo attestati"
+        verbose_name_plural = "Contatori protocollo attestati"
+
+    def __str__(self) -> str:
+        return f"{self.PREFISSO}-{self.anno}: {self.ultimo}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -138,6 +264,14 @@ class TrainingCourse(models.Model):
         on_delete=models.SET_NULL, related_name="corsi",
         help_text="Categoria che lega il corso ai fattori di rischio. Null = nessuna derivazione.",
     )
+    # La qualifica è l'àncora (competency management): un corso RILASCIA/RINNOVA
+    # una qualifica. Così corso, sessioni e completamenti restano collegati alla
+    # qualifica invece di esistere in parallelo. Null = corso non legato a qualifica.
+    qualifica          = models.ForeignKey(
+        "anagrafica.TipoQualifica", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="corsi",
+        help_text="Qualifica/abilitazione rilasciata o rinnovata da questo corso.",
+    )
     codice             = models.CharField(max_length=30, unique=True)
     titolo             = models.CharField(max_length=300)
     descrizione        = models.TextField(blank=True)
@@ -147,6 +281,17 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # ── E-learning (micro-corso interno: slide sequenziali + quiz finale) ─────
+    # Un corso e-learning si fruisce in autonomia dal portale: niente sessione
+    # d'aula, niente registro presenze. Gli altri corsi restano "d'aula".
+    is_elearning          = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Micro-corso e-learning: slide sequenziali + quiz finale, fruibile in autonomia.",
+    )
+    quiz_punteggio_minimo = models.PositiveSmallIntegerField(
+        default=70,
+        help_text="Percentuale minima di risposte corrette per superare il quiz finale (solo e-learning).",
+    )
     costo_unitario = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     stato          = models.CharField(max_length=15, choices=STATO_CHOICES, default="BOZZA")
     note           = models.TextField(blank=True)
@@ -558,6 +703,10 @@ class TrainingEnrollment(models.Model):
     percentuale_presenza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     idoneo               = models.BooleanField(null=True, blank=True)
     esito_esame          = models.CharField(max_length=100, blank=True)
+    # Verifica finale di apprendimento (Accordo Stato-Regioni 2025): obbligatoria per i
+    # corsi la cui regola di superamento ha richiede_esame_finale=True. Null = non registrata.
+    verifica_superata    = models.BooleanField(null=True, blank=True)
+    data_verifica        = models.DateField(null=True, blank=True)
     data_completamento   = models.DateField(null=True, blank=True)
     note                 = models.TextField(blank=True)
     iscritto_da          = models.ForeignKey(
@@ -578,6 +727,46 @@ class TrainingEnrollment(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] → {self.sessione.codice_sessione} ({self.stato})"
+
+
+# ─────────────────────────────────────────────────────────────
+# ASSEGNAZIONE TURNO (iscritto × lezione)
+# ─────────────────────────────────────────────────────────────
+
+class TrainingEnrollmentLesson(models.Model):
+    """Assegnazione di un iscritto a una specifica lezione/turno della sua sessione.
+
+    Una sessione può erogare lo stesso contenuto in più lezioni-turno (es. mattina
+    e pomeriggio, per la gestione dei turni di lavoro): questo modello dice **a quale
+    turno** partecipa ciascun iscritto. Le presenze restano a livello di
+    :class:`TrainingLessonAttendance`.
+
+    **Backward-compatible**: se per un'iscrizione non esiste alcuna riga, l'iscritto è
+    considerato assegnato a *tutte* le lezioni della sessione (comportamento storico,
+    nessun dato pregresso da migrare). Invariante applicativa (non vincolata a DB):
+    ``lezione.sessione_id == enrollment.sessione_id``.
+    """
+
+    enrollment = models.ForeignKey(
+        TrainingEnrollment, on_delete=models.CASCADE, related_name="turni",
+    )
+    lezione = models.ForeignKey(
+        TrainingLesson, on_delete=models.CASCADE, related_name="assegnazioni",
+    )
+    assegnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("enrollment", "lezione")]
+        verbose_name = "Assegnazione turno"
+        verbose_name_plural = "Assegnazioni turni"
+        indexes = [models.Index(fields=["lezione"])]
+
+    def __str__(self) -> str:
+        return f"iscr.{self.enrollment_id} → lez.{self.lezione_id}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -684,6 +873,12 @@ class TrainingEmployeeRecord(models.Model):
     validato_il = models.DateField(null=True, blank=True)
     note        = models.TextField(blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
+
+    # Numero di protocollo dell'attestato (progressivo per anno, es. ATT-2026-0001).
+    # Assegnato in modo lazy alla prima emissione/archiviazione dell'attestato e poi
+    # stabile (vedi services.attestato_pdf.assegna_numero_protocollo). Vuoto = non
+    # ancora emesso.
+    numero_protocollo = models.CharField(max_length=20, blank=True, default="", db_index=True)
 
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.
@@ -824,6 +1019,7 @@ class TrainingExportLog(models.Model):
         ("MATRICE",      "Matrice dipendente × corso"),
         ("KPI",          "Report KPI direzionale"),
         ("REPORT_FIRMA", "Report firma lezione PDF"),
+        ("ATTESTATO",    "Attestato di completamento"),
     ]
 
     tipo            = models.CharField(max_length=20, choices=TIPO_EXPORT_CHOICES)
@@ -843,3 +1039,331 @@ class TrainingExportLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()} — {self.generato_il}"
+
+
+# ─────────────────────────────────────────────────────────────
+# ALLEGATO SESSIONE / LEZIONE (registro firme firmato, materiale)
+# ─────────────────────────────────────────────────────────────
+
+def _training_attachment_upload_to(instance, filename: str) -> str:
+    sess_id = instance.sessione_id or "tmp"
+    livello = f"lez{instance.lezione_id}" if instance.lezione_id else "sessione"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "registro"
+    now = timezone.now()
+    return (
+        f"anagrafica/formazione/sessioni/{sess_id}/allegati/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{livello}_{stem}{suffix}"
+    )
+
+
+class TrainingAttachment(models.Model):
+    """Allegato di una sessione o di una singola lezione.
+
+    Uso principale: ricaricare il **registro firme firmato** (scansione del
+    foglio presenze raccolto in aula) a livello di lezione (``lezione`` valorizzato)
+    oppure dell'intera sessione (``lezione=None``). Storage privato fuori webroot
+    (:class:`PrivateAnagraficaStorage`), scaricabile solo dalla view protetta
+    ``anagrafica:formazione_allegato_download`` con ACL formazione + audit.
+
+    Il foglio firme contiene dati personali (nominativi + firme): conservarlo come
+    gli altri documenti HR, non esporlo su URL pubblico.
+    """
+
+    class Tipo(models.TextChoices):
+        REGISTRO_FIRMATO = "REGISTRO_FIRMATO", "Registro firme firmato"
+        MATERIALE = "MATERIALE", "Materiale didattico"
+        ALTRO = "ALTRO", "Altro"
+
+    sessione = models.ForeignKey(
+        TrainingSession, on_delete=models.CASCADE, related_name="allegati",
+    )
+    lezione = models.ForeignKey(
+        TrainingLesson, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="allegati",
+        help_text="Lezione di riferimento. Vuoto = allegato a livello di sessione.",
+    )
+    tipo = models.CharField(
+        max_length=20, choices=Tipo.choices, default=Tipo.REGISTRO_FIRMATO, db_index=True,
+    )
+    file = models.FileField(
+        upload_to=_training_attachment_upload_to,
+        storage=PrivateAnagraficaStorage(),
+    )
+    nome_originale   = models.CharField(max_length=255, blank=True, default="")
+    tipo_mime        = models.CharField(max_length=100, blank=True, default="")
+    dimensione_bytes = models.PositiveIntegerField(default=0)
+    descrizione      = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    created_by_display = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Allegato formazione"
+        verbose_name_plural = "Allegati formazione"
+        indexes = [
+            models.Index(fields=["sessione", "lezione"]),
+            models.Index(fields=["tipo"]),
+        ]
+
+    def __str__(self) -> str:
+        liv = f"lezione {self.lezione.numero}" if self.lezione_id else "sessione"
+        return f"[{self.get_tipo_display()}] {self.sessione.codice_sessione} — {liv}"
+
+
+# ═════════════════════════════════════════════════════════════
+# E-LEARNING — MICRO-CORSI INTERNI (slide sequenziali + quiz finale)
+# ═════════════════════════════════════════════════════════════
+# Modalità self-service, layer sopra TrainingCourse (corso con is_elearning=True).
+# Niente sessione/aula/presenze: le slide e le domande sono DATI, create da un
+# autore (anche non tecnico) dall'admin o dalla UI. Il completamento conforme
+# viene storicizzato su TrainingEmployeeRecord (audit qualità), riusando la
+# tabella già esistente invece di duplicarla.
+
+
+def _training_slide_upload_to(instance, filename: str) -> str:
+    corso_id = instance.corso_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:8] or ".png"
+    now = timezone.now()
+    return (
+        f"anagrafica/formazione/corsi/{corso_id}/slides/"
+        f"{now.strftime('%Y%m%d_%H%M%S')}_{now.microsecond}{suffix}"
+    )
+
+
+class TrainingSlide(models.Model):
+    """Slide di un micro-corso e-learning.
+
+    Le slide sono **dati** (non template hardcoded): un autore non tecnico le crea
+    e le ordina. Due tipi:
+    - **testo**: contenuto in Markdown reso lato server (``services.elearning_markdown``);
+    - **immagine**: una pagina importata da PowerPoint/PDF (``services.elearning_import``)
+      servita inline dalla view protetta ``formazione_slide_image``.
+    Se ``immagine`` è valorizzata la slide è di tipo immagine; ``titolo`` resta come
+    didascalia/etichetta di navigazione."""
+
+    corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="slides")
+    ordine     = models.PositiveSmallIntegerField(default=1, help_text="Posizione nella sequenza (1 = prima slide).")
+    titolo     = models.CharField(max_length=300)
+    contenuto  = models.TextField(blank=True, help_text="Contenuto in Markdown, reso lato server.")
+    immagine   = models.ImageField(
+        upload_to=_training_slide_upload_to, storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+        help_text="Slide-immagine (pagina importata da PPTX/PDF). Se valorizzata sostituisce il contenuto Markdown.",
+    )
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        # Niente unique_together su (corso, ordine): semplifica il riordino e evita
+        # i vincoli di indice univoco filtrato su SQL Server.
+        ordering = ["corso", "ordine", "id"]
+        verbose_name = "Slide e-learning"
+        verbose_name_plural = "Slide e-learning"
+        indexes = [models.Index(fields=["corso", "ordine"])]
+
+    @property
+    def is_immagine(self) -> bool:
+        return bool(self.immagine)
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · slide {self.ordine}: {self.titolo}"
+
+
+class TrainingQuizQuestion(models.Model):
+    """Domanda del quiz finale di un micro-corso e-learning."""
+
+    corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_domande")
+    ordine     = models.PositiveSmallIntegerField(default=1)
+    testo      = models.TextField()
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["corso", "ordine", "id"]
+        verbose_name = "Domanda quiz"
+        verbose_name_plural = "Domande quiz"
+        indexes = [models.Index(fields=["corso", "ordine"])]
+
+    def __str__(self) -> str:
+        return f"{self.corso.codice} · domanda {self.ordine}"
+
+
+class TrainingQuizOption(models.Model):
+    """Opzione di risposta di una domanda del quiz (almeno una corretta per domanda)."""
+
+    domanda  = models.ForeignKey(TrainingQuizQuestion, on_delete=models.CASCADE, related_name="opzioni")
+    ordine   = models.PositiveSmallIntegerField(default=1)
+    testo    = models.CharField(max_length=500)
+    corretta = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["domanda", "ordine", "id"]
+        verbose_name = "Opzione quiz"
+        verbose_name_plural = "Opzioni quiz"
+        indexes = [models.Index(fields=["domanda"])]
+
+    def __str__(self) -> str:
+        return f"{self.testo[:40]}{' ✓' if self.corretta else ''}"
+
+
+class TrainingElearningEnrollment(models.Model):
+    """Iscrizione di un dipendente a un micro-corso e-learning (self-service).
+
+    Distinta da :class:`TrainingEnrollment` (iscrizione a una *sessione d'aula*).
+    Traccia l'avanzamento sulle slide e il miglior esito del quiz. Il completamento
+    storicizzato per l'audit resta su :class:`TrainingEmployeeRecord`.
+
+    Identità discente = ``legacy_anagrafica_id`` (convenzione del modulo formazione)."""
+
+    STATO_CHOICES = [
+        ("ISCRITTO",     "Iscritto"),
+        ("IN_CORSO",     "In corso"),
+        ("COMPLETATO",   "Completato"),
+        ("NON_SUPERATO", "Non superato"),
+    ]
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="iscrizioni_elearning")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    stato                = models.CharField(max_length=15, choices=STATO_CHOICES, default="ISCRITTO")
+    data_iscrizione      = models.DateTimeField(auto_now_add=True)
+    ultima_slide_ordine  = models.PositiveSmallIntegerField(default=0, help_text="Avanzamento: ultima slide vista.")
+    n_slide_totali       = models.PositiveSmallIntegerField(default=0)
+    best_punteggio_pct   = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    n_tentativi          = models.PositiveSmallIntegerField(default=0)
+    data_completamento   = models.DateField(null=True, blank=True)
+    record_completamento = models.ForeignKey(
+        TrainingEmployeeRecord, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at           = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("corso", "legacy_anagrafica_id")]
+        verbose_name = "Iscrizione e-learning"
+        verbose_name_plural = "Iscrizioni e-learning"
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "stato"])]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} ({self.stato})"
+
+
+class TrainingQuizAttempt(models.Model):
+    """Tentativo (invio) del quiz finale di un micro-corso e-learning.
+
+    Storicizza ogni invio (audit qualità: chi, quando, esito, punteggio, risposte).
+    Il primo tentativo conforme genera un :class:`TrainingEmployeeRecord` collegato."""
+
+    corso                = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_tentativi")
+    enrollment           = models.ForeignKey(
+        TrainingElearningEnrollment, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="tentativi",
+    )
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    iniziato_il          = models.DateTimeField(null=True, blank=True)
+    inviato_il           = models.DateTimeField(auto_now_add=True)
+    punteggio_pct        = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    n_corrette           = models.PositiveSmallIntegerField(default=0)
+    n_totali             = models.PositiveSmallIntegerField(default=0)
+    superato             = models.BooleanField(default=False)
+    # Snapshot domande/opzioni scelte (audit: l'esito resta verificabile anche se il
+    # quiz viene poi modificato).
+    risposte_json        = models.JSONField(default=dict, blank=True)
+    record               = models.ForeignKey(
+        TrainingEmployeeRecord, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="quiz_tentativi",
+    )
+    utente               = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-inviato_il"]
+        verbose_name = "Tentativo quiz"
+        verbose_name_plural = "Tentativi quiz"
+        indexes = [
+            models.Index(fields=["legacy_anagrafica_id", "corso"]),
+            models.Index(fields=["corso", "superato"]),
+        ]
+
+    def __str__(self) -> str:
+        esito = "OK" if self.superato else "KO"
+        return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.punteggio_pct}% {esito}"
+
+
+# ─────────────────────────────────────────────────────────────
+# Pulizia file slide-immagine (evita file orfani nello storage)
+# ─────────────────────────────────────────────────────────────
+from django.db.models.signals import post_delete  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+
+class ElearningConfig(models.Model):
+    """Singleton — impostazioni e default dei micro-corsi e-learning.
+
+    Pattern identico ad :class:`AttestatoFormazioneConfig`: una sola riga (pk=1),
+    modificabile dalle Impostazioni HR. I default vengono applicati ai nuovi corsi
+    e-learning; ``libreoffice_path`` è il fallback per la conversione PowerPoint."""
+
+    quiz_punteggio_minimo_default = models.PositiveSmallIntegerField(
+        default=70,
+        help_text="Percentuale minima del quiz proposta di default ai nuovi micro-corsi (0–100).",
+    )
+    validita_mesi_default = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Validità in mesi proposta di default (0 = una tantum, nessun rinnovo).",
+    )
+    max_tentativi_quiz = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Numero massimo di tentativi del quiz per dipendente (0 = illimitati).",
+    )
+    libreoffice_path = models.CharField(
+        max_length=400, blank=True, default="",
+        help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "
+                  "Vuoto = usa LIBREOFFICE_PATH/variabile d'ambiente o auto-rilevamento.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Impostazioni e-learning"
+        verbose_name_plural = "Impostazioni e-learning"
+
+    def __str__(self) -> str:
+        return "Impostazioni e-learning"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls) -> "ElearningConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+@receiver(post_delete, sender=TrainingSlide)
+def _elimina_file_slide(sender, instance, **kwargs):
+    """Rimuove il file immagine dallo storage quando la slide viene eliminata.
+
+    Registrare il signal disabilita anche il fast-delete di Django per TrainingSlide,
+    così la pulizia avviene pure quando le slide sono cancellate a cascata (es. corso
+    eliminato). Fail-safe: un errore qui non deve bloccare l'eliminazione."""
+    if instance.immagine:
+        try:
+            instance.immagine.delete(save=False)
+        except Exception:
+            pass

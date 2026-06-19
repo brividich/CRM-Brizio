@@ -1,0 +1,314 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attestato — {{ nominativo }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --navy: #002b5c;       /* header email NOVICROM HUB */
+      --navy-soft: #c7d6e8;
+      --orange: #ff6b00;     /* banda accento email */
+      --ink: #182232;
+      --ink-soft: #334155;
+      --muted: #475569;
+      --muted-2: #64748b;
+      --muted-3: #94a3b8;
+      --line: #d8e1ec;
+      --line-soft: #eef3f8;
+      --bg: #eef3f8;          /* sfondo email */
+    }
+
+    body {
+      margin: 0;
+      font-family: "Outfit", Arial, Helvetica, sans-serif;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    /* ── Action bar (non stampata) ─────────────────────────────── */
+    .pb-actions {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 22px;
+      background: var(--navy); color: #fff;
+      box-shadow: 0 2px 12px rgba(15,23,42,.22);
+    }
+    .pb-actions-title { flex: 1; font-size: 13.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .pb-actions a, .pb-actions button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08);
+      color: #fff; font-size: 12.5px; font-weight: 700; font-family: inherit;
+      cursor: pointer; text-decoration: none;
+    }
+    .pb-actions a:hover, .pb-actions button:hover { background: rgba(255,255,255,.18); }
+    .pb-actions .pb-btn-print { background: var(--orange); border-color: var(--orange); }
+    .pb-actions .pb-btn-print:hover { background: #e85f00; }
+
+    /* ── Foglio certificato ────────────────────────────────────── */
+    .att-wrap { padding: 30px 14px 56px; }
+    .att-sheet {
+      max-width: 820px; margin: 0 auto;
+      background: #fff;
+      border-radius: 18px; overflow: hidden;
+      box-shadow: 0 18px 45px rgba(15,23,42,.16);
+    }
+
+    /* ── Header (stile email) ──────────────────────────────────── */
+    .att-head { background: var(--navy); padding: 22px 38px; }
+    .att-head-row { display: flex; align-items: center; gap: 16px; }
+    .att-logo { display: block; width: 210px; max-width: 210px; height: auto; }
+    .att-head-meta { margin-left: auto; text-align: right; }
+    .att-eyebrow {
+      color: var(--navy-soft); font-size: 10px; font-weight: 700;
+      letter-spacing: .09em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .att-badge {
+      display: inline-block; border: 1px solid rgba(255,255,255,.28); border-radius: 999px;
+      padding: 7px 13px; color: #fff; font-size: 12px; font-weight: 700;
+      background: rgba(255,255,255,.08); white-space: nowrap;
+    }
+    .att-stripe { height: 5px; background: var(--orange); }
+
+    /* ── Corpo ─────────────────────────────────────────────────── */
+    .att-body { padding: 32px 44px 26px; }
+    .att-section-label {
+      font-size: 12px; color: var(--muted-2); font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px;
+    }
+    .att-title {
+      margin: 0; color: var(--ink); font-size: 30px; line-height: 1.18;
+      font-weight: 800; letter-spacing: -0.01em;
+    }
+    .att-title-rule { width: 64px; height: 4px; background: var(--orange); border-radius: 3px; margin: 16px 0 22px; }
+
+    .att-attesta { color: var(--muted); font-size: 15px; margin: 0 0 6px; }
+    .att-name {
+      margin: 2px 0 4px; color: var(--navy); font-size: 26px; font-weight: 800;
+      letter-spacing: .01em;
+    }
+    .att-personal { color: var(--muted-2); font-size: 13px; margin: 0 0 18px; }
+    .att-personal b { color: var(--ink-soft); font-weight: 700; }
+    .att-intro { color: var(--muted); font-size: 15px; line-height: 1.62; margin: 0 0 8px; }
+    .att-course {
+      margin: 14px 0 6px; padding: 16px 20px;
+      background: var(--line-soft); border-left: 4px solid var(--navy); border-radius: 10px;
+    }
+    .att-course-title { color: var(--ink); font-size: 18px; font-weight: 800; line-height: 1.3; }
+    .att-course-sub { color: var(--muted-2); font-size: 12.5px; margin-top: 4px; }
+
+    /* ── Griglia dati ──────────────────────────────────────────── */
+    .att-facts {
+      margin: 22px 0 4px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+      background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    }
+    .att-fact { background: #fff; padding: 12px 18px; }
+    .att-fact-lbl {
+      font-size: 10px; font-weight: 700; color: var(--muted-2);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+    }
+    .att-fact-val { font-size: 14px; color: var(--ink); font-weight: 600; }
+    .att-fact-val .mono { font-variant-numeric: tabular-nums; }
+    .att-pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 700;
+    }
+    .att-pill-ok { background: #dcfce7; color: #166534; }
+    .att-pill-no { background: #fee2e2; color: #b91c1c; }
+    .att-pill-info { background: #dbeafe; color: #1e40af; }
+    .att-muted { color: var(--muted-3); font-weight: 500; font-style: italic; }
+
+    /* ── Firme ─────────────────────────────────────────────────── */
+    .att-signs {
+      margin: 34px 0 6px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 48px;
+    }
+    .att-sign-role {
+      font-size: 11px; font-weight: 700; color: var(--muted-2);
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 36px;
+    }
+    .att-sign-line { border-top: 1.5px solid var(--ink-soft); padding-top: 6px; }
+    .att-sign-name { font-size: 13.5px; font-weight: 700; color: var(--ink); min-height: 18px; }
+    .att-sign-hint { font-size: 10.5px; color: var(--muted-3); margin-top: 2px; }
+
+    /* ── Footer ────────────────────────────────────────────────── */
+    .att-divider { height: 1px; background: var(--line); margin: 26px 0 0; }
+    .att-foot { padding: 16px 44px 26px; }
+    .att-foot-note { margin: 0; color: var(--muted-2); font-size: 11.5px; line-height: 1.55; }
+    .att-caption {
+      text-align: center; color: var(--muted-3); font-size: 11px;
+      line-height: 1.45; padding: 16px 0 0;
+    }
+
+    /* ── Print ─────────────────────────────────────────────────── */
+    @page { size: A4; margin: 12mm 12mm; }
+    @media print {
+      body { background: #fff; }
+      .att-wrap { padding: 0; }
+      .pb-actions { display: none !important; }
+      .att-sheet {
+        max-width: none; margin: 0; border-radius: 0;
+        box-shadow: none;
+      }
+      .att-facts, .att-signs, .att-course { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Action bar (non stampata) -->
+  <div class="pb-actions">
+    <span class="pb-actions-title">Attestato — {{ nominativo }}</span>
+    {% if legacy_id %}
+    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}" title="Apri il libretto formativo">← Libretto</a>
+    {% endif %}
+    {% if can_edit %}
+    <a href="{% url 'anagrafica:attestato_impostazioni' %}" title="Personalizza il template dalle impostazioni HR">⚙ Template</a>
+    <form method="post" action="{% url 'anagrafica:attestato_salva_box' record.pk %}" style="margin:0;display:inline;">
+      {% csrf_token %}
+      <button type="submit" title="Salva il PDF nel box documenti del dipendente">
+        💾 {% if doc_archiviato %}Riarchivia{% else %}Salva nel box{% endif %}
+      </button>
+    </form>
+    {% endif %}
+    {% if doc_archiviato %}
+    <a href="{% url 'anagrafica:documento_download' doc_archiviato.pk %}" target="_blank" rel="noopener" title="Apri il PDF archiviato nel box documenti del dipendente">👁 Copia archiviata</a>
+    {% endif %}
+    <a href="{% url 'anagrafica:attestato_formazione' record.pk %}?stile=stampa" title="Versione sobria a basso consumo d'inchiostro">🖶 Versione stampa</a>
+    <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa / PDF</button>
+  </div>
+
+  <div class="att-wrap">
+    <article class="att-sheet">
+
+      <!-- Header stile email NOVICROM HUB -->
+      <header class="att-head">
+        <div class="att-head-row">
+          <img class="att-logo" src="{{ cfg.logo_url|default:'https://costruzioninovicrom.it/wp-content/uploads/2026/05/novicrmhub.png' }}" alt="NOVICROM HUB">
+          <div class="att-head-meta">
+            <div class="att-eyebrow">{{ cfg.intestazione_eyebrow|default:"Formazione interna" }}</div>
+            <span class="att-badge">Attestato n° {{ numero_display }}</span>
+          </div>
+        </div>
+      </header>
+      <div class="att-stripe"></div>
+
+      <!-- Corpo -->
+      <div class="att-body">
+        <div class="att-section-label">{{ cfg.sezione_label|default:"NOVICROM HUB · Attestazione formativa" }}</div>
+        <h1 class="att-title">{{ attestato_tipo }}</h1>
+        <div class="att-title-rule"></div>
+
+        <p class="att-attesta">{{ cfg.formula_attestazione|default:"Si attesta che" }}</p>
+        <div class="att-name">{{ nominativo }}</div>
+        {# Dati di nascita/CF mostrati solo se il toggle GDPR è attivo; matricola sempre. #}
+        {% if dip.matricola or cfg.mostra_dati_personali and dip.luogo_nascita or cfg.mostra_dati_personali and dip.data_nascita or cfg.mostra_dati_personali and dip.codice_fiscale %}
+        <p class="att-personal">
+          {% if cfg.mostra_dati_personali %}
+            {% if dip.luogo_nascita %}nato/a a <b>{{ dip.luogo_nascita }}</b>{% if dip.data_nascita %} il <b>{{ dip.data_nascita|date:"d-m-Y" }}</b>{% endif %} · {% endif %}
+            {% if dip.codice_fiscale %}C.F. <b>{{ dip.codice_fiscale }}</b>{% if dip.matricola %} · {% endif %}{% endif %}
+          {% endif %}
+          {% if dip.matricola %}Matricola <b>{{ dip.matricola }}</b>{% endif %}
+        </p>
+        {% endif %}
+
+        <p class="att-intro">
+          ha {% if record.idoneo %}frequentato e superato con esito positivo{% else %}frequentato{% endif %}
+          {% if qualifica %}il percorso di qualifica/abilitazione{% else %}il corso di formazione{% endif %}
+          interno qui di seguito indicato:
+        </p>
+
+        <div class="att-course">
+          <div class="att-course-title">{{ record.course_title_snapshot|default:corso.titolo|default:"Corso di formazione" }}</div>
+          <div class="att-course-sub">
+            {% with cod=record.course_code_snapshot|default:corso.codice %}{% if cod %}Codice {{ cod }}{% endif %}{% endwith %}
+            {% with piano=record.plan_name_snapshot|default:corso.piano.nome %}{% if piano %} · Piano: {{ piano }}{% endif %}{% endwith %}
+            {% if record.course_version_snapshot %} · Versione {{ record.course_version_snapshot }}{% endif %}
+          </div>
+        </div>
+
+        <!-- Griglia dati -->
+        <div class="att-facts">
+          <div class="att-fact">
+            <div class="att-fact-lbl">Data completamento</div>
+            <div class="att-fact-val mono">{{ record.data_completamento|date:"d F Y" }}</div>
+          </div>
+          <div class="att-fact">
+            <div class="att-fact-lbl">Durata</div>
+            <div class="att-fact-val mono">
+              {% if record.ore_frequentate %}{{ record.ore_frequentate|floatformat:"-2" }} ore{% else %}<span class="att-muted">non indicata</span>{% endif %}
+            </div>
+          </div>
+          <div class="att-fact">
+            <div class="att-fact-lbl">Esito</div>
+            <div class="att-fact-val">
+              {% if record.idoneo %}<span class="att-pill att-pill-ok">Idoneo</span>{% else %}<span class="att-pill att-pill-no">Non idoneo</span>{% endif %}
+              {% if record.percentuale_presenza %}<span class="att-fact-val" style="font-weight:500;color:var(--muted-2);"> · presenza {{ record.percentuale_presenza }}%</span>{% endif %}
+            </div>
+          </div>
+          <div class="att-fact">
+            <div class="att-fact-lbl">Validità</div>
+            <div class="att-fact-val mono">
+              {% if record.data_scadenza %}fino al {{ record.data_scadenza|date:"d-m-Y" }}{% else %}<span class="att-pill att-pill-info">Una tantum</span>{% endif %}
+            </div>
+          </div>
+          {% if qualifica %}
+          <div class="att-fact">
+            <div class="att-fact-lbl">Qualifica rilasciata</div>
+            <div class="att-fact-val">{{ qualifica.nome|default:qualifica }}</div>
+          </div>
+          {% endif %}
+          {% if sede_display %}
+          <div class="att-fact">
+            <div class="att-fact-lbl">Sessione / Sede</div>
+            <div class="att-fact-val" style="font-weight:600;">{{ sede_display }}</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Firme -->
+        <div class="att-signs">
+          <div>
+            <div class="att-sign-role">{{ cfg.firma_responsabile_label|default:"Il Responsabile del corso" }}</div>
+            <div class="att-sign-line">
+              <div class="att-sign-name">{{ responsabile|default:"&nbsp;" }}</div>
+              <div class="att-sign-hint">Timbro e firma</div>
+            </div>
+          </div>
+          <div>
+            <div class="att-sign-role">{{ cfg.firma_dipendente_label|default:"Il Dipendente" }}</div>
+            <div class="att-sign-line">
+              <div class="att-sign-name">{{ nominativo }}</div>
+              <div class="att-sign-hint">Firma per ricevuta</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="att-divider"></div>
+      <div class="att-foot">
+        <p class="att-foot-note">
+          Attestato generato automaticamente da NOVICROM HUB il {% now "d-m-Y H:i" %} (rif. {{ numero_display }}).
+          {{ cfg.nota_legale }}
+        </p>
+      </div>
+
+    </article>
+
+    <div class="att-caption">
+      {{ cfg.pie_organizzazione|default:"NOVICROM HUB · Portale interno · Costruzioni Novicrom S.r.l." }}
+    </div>
+  </div>
+
+</body>
+</html>

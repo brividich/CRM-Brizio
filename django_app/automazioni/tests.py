@@ -7989,10 +7989,22 @@ class ReportScadenzeSettimanaleTests(TestCase):
             attivo=True, giorni=30,
             email_visite="sorveglianza@test.local",
             email_contratti="hr@test.local",
-            includi_visite=True, includi_contratti=True,
+            email_qualifiche="formazione@test.local",
+            includi_visite=True, includi_contratti=True, includi_qualifiche=True,
         )
         params.update(over)
         save_scadenze_config(**params)
+
+    def _aggiungi_qualifica_in_scadenza(self, giorni=20):
+        """Crea una qualifica in scadenza fra `giorni` giorni (per i test qualifiche)."""
+        from anagrafica.models import DipendenteQualifica, TipoQualifica
+        tipo, _ = TipoQualifica.objects.get_or_create(
+            nome="Carrellista", defaults={"categoria": TipoQualifica.CAT_SICUREZZA},
+        )
+        return DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=9001, tipo=tipo,
+            data_scadenza=self.oggi + timedelta(days=giorni),
+        )
 
     @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
     def test_disattivo_non_invia(self, mock_email):
@@ -8015,7 +8027,36 @@ class ReportScadenzeSettimanaleTests(TestCase):
         self.assertEqual(out["visite"]["count"], 1)
         self.assertTrue(out["contratti"]["sent"])
         self.assertEqual(out["contratti"]["count"], 2)  # contratto + periodo di prova
+        # Nessuna qualifica nel setUp di base -> categoria attiva ma nulla da inviare.
+        self.assertEqual(out["qualifiche"]["reason"], "nessuna_scadenza")
         self.assertEqual(mock_email.call_count, 2)
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_qualifiche_in_scadenza_invia_email(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        self._aggiungi_qualifica_in_scadenza(giorni=20)  # dentro la finestra di 30gg
+        self._attiva()
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertTrue(out["qualifiche"]["sent"])
+        self.assertEqual(out["qualifiche"]["count"], 1)
+        self.assertEqual(out["qualifiche"]["to"], ["formazione@test.local"])
+        # Ora le tre categorie inviano: visite + contratti + qualifiche.
+        self.assertEqual(mock_email.call_count, 3)
+
+    @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
+    def test_qualifiche_categoria_disattivata_non_invia(self, mock_email):
+        from automazioni.management.commands.report_scadenze_settimanale import _esegui_report
+        mock_email.return_value = MagicMock(
+            attach_alternative=MagicMock(), send=MagicMock(return_value=1)
+        )
+        self._aggiungi_qualifica_in_scadenza(giorni=20)
+        self._attiva(includi_qualifiche=False)
+        out = _esegui_report(giorni=None, dry_run=False, forza=False)
+        self.assertEqual(out["qualifiche"]["reason"], "categoria_disattivata")
+        self.assertEqual(mock_email.call_count, 2)  # solo visite + contratti
 
     @patch("automazioni.management.commands.report_scadenze_settimanale.EmailMultiAlternatives")
     def test_categoria_disattivata_non_invia_quella_email(self, mock_email):

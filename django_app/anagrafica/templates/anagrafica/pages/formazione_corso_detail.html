@@ -6,81 +6,66 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div class="hr-shell">
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd hr-shell">
 
   {# ── Page header ─────────────────────────────────────────────────────────── #}
-  <div class="hr-pagehead">
+  <div class="fmd-pagehead">
     <div>
-      <div class="hr-pagehead-eyebrow">
-        <a href="{% url 'anagrafica:formazione_piani_list' %}" style="color:#94a3b8;text-decoration:none;">Piani</a>
-        &rsaquo;
-        <a href="{% url 'anagrafica:formazione_piano_detail' corso.piano.pk %}"
-           style="color:#94a3b8;text-decoration:none;">{{ corso.piano.codice }}</a>
-        &rsaquo; {{ corso.codice }}
+      <div class="fmd-crumb">
+        <a href="{% url 'anagrafica:formazione_piani_list' %}">Piani</a><span class="fmd-sep"> / </span>
+        <a href="{% url 'anagrafica:formazione_piano_detail' corso.piano.pk %}">{{ corso.piano.codice }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.codice }}</span>
       </div>
-      <h2 class="hr-pagehead-title">{{ corso.titolo }}</h2>
-      <p class="hr-pagehead-desc">
-        Piano: <strong>{{ corso.piano.nome }}</strong> &nbsp;·&nbsp;
-        Versione {{ corso.versione }} &nbsp;·&nbsp;
-        {% if corso.stato == "ATTIVO" %}<span class="fm-pill fm-pill-valid">Attivo</span>
-        {% elif corso.stato == "BOZZA" %}<span class="fm-pill fm-pill-missing">Bozza</span>
-        {% else %}<span class="fm-pill fm-pill-expired">Archiviato</span>{% endif %}
-        {% if corso.obbligatorio %}&nbsp;<span class="fm-pill fm-pill-enrolled">Obbligatorio</span>{% endif %}
+      <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>{{ corso.titolo }}</h1>
+      <p class="fmd-ph-sub">
+        Piano: <strong>{{ corso.piano.nome }}</strong> · Versione {{ corso.versione }} ·
+        {% if corso.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">Attivo</span>
+        {% elif corso.stato == "BOZZA" %}<span class="fmd-badge fmd-b-amber">Bozza</span>
+        {% else %}<span class="fmd-badge fmd-b-grey">Archiviato</span>{% endif %}
+        {% if corso.obbligatorio %} <span class="fmd-badge fmd-b-orange">Obbligatorio</span>{% endif %}
       </p>
     </div>
     {% if is_editor %}
-    <div style="display:flex;gap:8px;">
-      <button class="hr-btn hr-btn-primary"
-              onclick="document.getElementById('modal-edit-corso').style.display='flex'">
-        Modifica corso
-      </button>
+    <div class="fmd-pagehead-actions">
+      {% if corso.is_elearning %}
+      <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}"><svg class="fmd-ico"><use href="#i-cap"/></svg>Slide e quiz</a>
+      {% endif %}
+      <button type="button" class="fmd-btn fmd-btn-primary" onclick="document.getElementById('modal-edit-corso').style.display='flex'"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica corso</button>
       <form method="post" action="{% url 'anagrafica:formazione_corso_delete' corso.pk %}"
-            onsubmit="return confirm('Eliminare il corso «{{ corso.titolo|escapejs }}»? Operazione irreversibile.')">
+            onsubmit="return confirm('Eliminare il corso «{{ corso.titolo|escapejs }}»? Operazione irreversibile.')" style="display:inline;">
         {% csrf_token %}
-        <button type="submit" class="hr-btn hr-btn-danger">Elimina</button>
+        <button type="submit" class="fmd-btn fmd-btn-ghost" style="color:#c53030;">Elimina</button>
       </form>
     </div>
     {% endif %}
   </div>
 
   {# ── KPI mini ────────────────────────────────────────────────────────────── #}
-  <div class="hr-metric-grid" style="margin-bottom:20px;">
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">⏱</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Durata teorica</span>
-          <span class="hr-metric-val">{{ corso.durata_ore_teorica }}h</span>
-        </div>
-        <div class="hr-metric-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div>
-      </div>
+  <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+    <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ corso.durata_ore_teorica }}h</span></div><div class="fmd-mtr-lbl">Durata teorica</div><div class="fmd-mtr-sub">{% if corso.validita_mesi %}Rinnovo ogni {{ corso.validita_mesi }} mesi{% else %}Una tantum{% endif %}</div></div>
+    <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_sessioni }}</span></div><div class="fmd-mtr-lbl">Sessioni totali</div><div class="fmd-mtr-sub">Sessioni pianificate</div></div>
+    <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_completamenti }}</span></div><div class="fmd-mtr-lbl">Completamenti</div><div class="fmd-mtr-sub">Dipendenti con storico</div></div>
+  </section>
+
+  {# ── Report rapidi del corso ─────────────────────────────────────────────── #}
+  <section class="fmd-panel fmd-block" style="margin-bottom:16px;">
+    <div class="fmd-block-head">
+      <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-download"/></svg>Report del corso</div>
+      <div class="fmd-block-aside">Scarica al volo i documenti pronti</div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico navy">📅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Sessioni totali</span>
-          <span class="hr-metric-val">{{ n_sessioni }}</span>
-        </div>
-        <div class="hr-metric-sub">Sessioni pianificate</div>
-      </div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;">
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_report_iscritti_csv' corso.pk %}" title="Elenco dipendenti con stato, % presenza, idoneità (CSV)"><svg class="fmd-ico"><use href="#i-doc"/></svg>Elenco iscritti/completati (CSV)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_attestati_zip' corso.pk %}" title="ZIP con gli attestati PDF di tutti i completamenti"><svg class="fmd-ico"><use href="#i-award"/></svg>Attestati completati (ZIP)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_corso_registri_pdf' corso.pk %}" target="_blank" rel="noopener" title="Foglio firme di tutte le lezioni, pronto da firmare"><svg class="fmd-ico"><use href="#i-doc"/></svg>Fogli firme di tutte le lezioni (PDF)</a>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_scadenzario' %}?corso={{ corso.pk }}" title="Chi è in regola / scaduto / mai frequentato per questo corso"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Report conformità</a>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico green">✅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top">
-          <span class="hr-metric-lbl">Completamenti</span>
-          <span class="hr-metric-val">{{ n_completamenti }}</span>
-        </div>
-        <div class="hr-metric-sub">Dipendenti con storico</div>
-      </div>
-    </div>
-  </div>
+  </section>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
 
@@ -418,6 +403,55 @@
   <div class="fm-empty">Nessuna sessione registrata per questo corso.</div>
   {% endif %}
 </div>
+
+{# ── Assegna dipendenti al corso (primo anello corso→sessione) ──────────── #}
+{% if is_editor %}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">➕ Assegna dipendenti al corso <span class="fm-count">{{ candidati_assegnazione|length }}</span></div>
+    <div class="muted" style="font-size:11px;">
+      {% if assegnazione_pool_filtrato %}Proposti i dipendenti tenuti al corso (obbligo per mansione, area o ruolo) non ancora a posto{% else %}Proposti i dipendenti con il corso scaduto, in scadenza o mai frequentato{% endif %}, non ancora assegnati. L'assegnazione li propone poi in cima ai candidati delle edizioni.
+    </div>
+  </div>
+  {% if candidati_assegnazione %}
+  <form method="post" action="{% url 'anagrafica:formazione_corso_assegna' corso.pk %}">
+    {% csrf_token %}
+    <div class="fm-table-wrap" style="max-height:340px;overflow:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;"><input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('.assegna-cb').forEach(function(c){c.checked=on;});"></th>
+            <th>Dipendente</th>
+            <th>Stato corso</th>
+            <th class="nowrap">Scadenza</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in candidati_assegnazione %}
+          <tr>
+            <td style="text-align:center;"><input type="checkbox" class="assegna-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}></td>
+            <td>{{ c.nome }}</td>
+            <td>
+              {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
+              {% elif c.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
+            </td>
+            <td class="nowrap muted">{{ c.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button type="submit" class="hr-btn hr-btn-primary">➕ Assegna selezionati al corso</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="fm-empty">Nessun dipendente da assegnare: i candidati pertinenti sono già assegnati o a posto.</div>
+  {% endif %}
+</div>
+{% endif %}
 
 {# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
 <div class="hr-card fm-section">

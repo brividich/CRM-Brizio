@@ -13,7 +13,7 @@ from decimal import Decimal
 from html import escape
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urlsplit
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import requests
@@ -39,6 +39,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
 
 from admin_portale.decorators import legacy_admin_required
 from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
@@ -54,6 +55,15 @@ from core.module_branding import (
     resolve_module_logo,
 )
 from core.module_registry import resolve_module_label
+from core.pdf import (
+    PdfTheme,
+    build_styles,
+    data_table,
+    draw_canvas_footer,
+    draw_canvas_header,
+    header_footer_callback,
+    make_document,
+)
 from core.upload_mime import UploadMimeValidationError, safe_filename, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
@@ -143,6 +153,7 @@ from .services.dashboard_kpi import (
     get_maintenance_kpis_for_types,
     get_maintenance_performance_kpis,
 )
+from .services.maintenance_kpi import build_maintenance_report_kpis
 from .services.sidebar_categories import (
     category_sidebar_active_match as _service_category_sidebar_active_match,
     category_sidebar_target as _service_category_sidebar_target,
@@ -1567,73 +1578,35 @@ def _build_work_machine_maintenance_month_dataset(
 def _draw_work_machine_maintenance_month_report_header(
     pdf: canvas.Canvas,
     *,
+    theme: PdfTheme,
     page_width: float,
     page_height: float,
     dataset: dict[str, object],
     generated_at: datetime,
-    page_number: int,
 ) -> float:
     margin_x = 14 * mm
-    top_y = page_height - (10 * mm)
     reparto_filter = _clean_string(str(dataset.get("reparto_filter") or ""))
-    text_x = margin_x
-    header_content_bottom = top_y - 30
-
-    logo_path = _default_asset_label_logo_path()
-    if logo_path.exists():
-        try:
-            logo_reader = ImageReader(str(logo_path))
-            logo_width_px, logo_height_px = logo_reader.getSize()
-            target_logo_height = 13 * mm
-            target_logo_width = target_logo_height * (float(logo_width_px) / max(1.0, float(logo_height_px)))
-            logo_y = top_y - target_logo_height
-            pdf.drawImage(
-                logo_reader,
-                margin_x,
-                logo_y,
-                width=target_logo_width,
-                height=target_logo_height,
-                preserveAspectRatio=True,
-                mask="auto",
-            )
-            text_x = margin_x + target_logo_width + (7 * mm)
-            header_content_bottom = min(header_content_bottom, logo_y)
-        except Exception:
-            text_x = margin_x
-
-    pdf.setFillColor(HexColor("#1d4ed8"))
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(text_x, top_y - 3, "Example Organization")
-    pdf.setFillColor(HexColor("#0f172a"))
-    pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(text_x, top_y - 18, "Report manutenzioni macchine")
-
-    pdf.setFillColor(HexColor("#475569"))
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(
-        text_x,
-        top_y - 30,
-        f'Periodo: {dataset["month_label"]} ({dataset["period_label"]})',
-    )
-    pdf.drawRightString(
-        page_width - margin_x,
-        top_y - 4,
-        f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")} - Pagina {page_number}',
-    )
+    subtitle = f'Periodo: {dataset["month_label"]} ({dataset["period_label"]})'
     if reparto_filter:
-        pdf.drawRightString(page_width - margin_x, top_y - 18, f"Filtro reparto: {reparto_filter}")
+        subtitle = f"{subtitle} | Reparto: {reparto_filter}"
+    content_y = draw_canvas_header(
+        pdf,
+        theme=theme,
+        page_width=page_width,
+        page_height=page_height,
+        left_margin=margin_x,
+        right_margin=margin_x,
+        title="Report manutenzioni macchine",
+        subtitle=subtitle,
+        right_subtitle=f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")}',
+    )
 
-    line_y = min(header_content_bottom, top_y - 38) - (3 * mm)
-    pdf.setStrokeColor(HexColor("#cbd5e1"))
-    pdf.setLineWidth(1)
-    pdf.line(margin_x, line_y, page_width - margin_x, line_y)
-
-    cards_top = line_y - (5 * mm)
+    cards_top = content_y
     cards_height = 16 * mm
     cards_gap = 4 * mm
     cards_width = (page_width - (2 * margin_x) - (3 * cards_gap)) / 4
     cards = [
-        ("Totale mese", int(dataset.get("total_count") or 0), "#1d4ed8"),
+        ("Totale mese", int(dataset.get("total_count") or 0), theme.primary),
         ("Scadute", int(dataset.get("overdue_count") or 0), "#dc2626"),
         ("In soglia", int(dataset.get("warning_count") or 0), "#d97706"),
         ("Pianificate", int(dataset.get("ok_count") or 0), "#15803d"),
@@ -1641,14 +1614,14 @@ def _draw_work_machine_maintenance_month_report_header(
     for idx, (label, value, accent) in enumerate(cards):
         left = margin_x + idx * (cards_width + cards_gap)
         pdf.setFillColor(HexColor("#ffffff"))
-        pdf.setStrokeColor(HexColor("#dbe1ea"))
+        pdf.setStrokeColor(theme.c_border())
         pdf.roundRect(left, cards_top - cards_height, cards_width, cards_height, 6, fill=1, stroke=1)
         pdf.setFillColor(HexColor(accent))
         pdf.rect(left, cards_top - 4, cards_width, 4, fill=1, stroke=0)
-        pdf.setFillColor(HexColor("#64748b"))
+        pdf.setFillColor(theme.c_muted())
         pdf.setFont("Helvetica", 8)
         pdf.drawString(left + 10, cards_top - 15, label.upper())
-        pdf.setFillColor(HexColor("#0f172a"))
+        pdf.setFillColor(theme.c_text())
         pdf.setFont("Helvetica-Bold", 19)
         pdf.drawString(left + 10, cards_top - 31, str(value))
 
@@ -1658,31 +1631,37 @@ def _draw_work_machine_maintenance_month_report_header(
 def _draw_work_machine_maintenance_month_report_footer(
     pdf: canvas.Canvas,
     *,
+    theme: PdfTheme,
+    page_width: float,
     margin_x: float,
     bottom_limit: float,
-    total_width: float,
+    page_number: int,
 ) -> None:
-    pdf.setStrokeColor(HexColor("#e2e8f0"))
-    pdf.line(margin_x, bottom_limit, margin_x + total_width, bottom_limit)
-    pdf.setFillColor(HexColor("#64748b"))
-    pdf.setFont("Helvetica", 8)
-    pdf.drawString(margin_x, bottom_limit - 10, "Example Organization - Portale Asset")
-    pdf.drawRightString(margin_x + total_width, bottom_limit - 10, "Uso tecnico")
+    draw_canvas_footer(
+        pdf,
+        theme=theme,
+        page_width=page_width,
+        left_margin=margin_x,
+        right_margin=margin_x,
+        baseline_y=bottom_limit - 10,
+        page_number=page_number,
+    )
 
 
 def _draw_work_machine_maintenance_month_table_header(
     pdf: canvas.Canvas,
     *,
+    theme: PdfTheme,
     start_x: float,
     table_y: float,
     column_defs: list[tuple[str, float]],
 ) -> float:
     total_width = sum(width for _, width in column_defs)
     row_height = 10 * mm
-    pdf.setFillColor(HexColor("#f8fafc"))
-    pdf.setStrokeColor(HexColor("#e2e8f0"))
+    pdf.setFillColor(theme.c_primary())
+    pdf.setStrokeColor(theme.c_primary())
     pdf.rect(start_x, table_y - row_height, total_width, row_height, fill=1, stroke=1)
-    pdf.setFillColor(HexColor("#475569"))
+    pdf.setFillColor(HexColor("#ffffff"))
     pdf.setFont("Helvetica-Bold", 8)
 
     current_x = start_x
@@ -1695,6 +1674,7 @@ def _draw_work_machine_maintenance_month_table_header(
 def _draw_work_machine_maintenance_month_pdf(
     pdf: canvas.Canvas,
     *,
+    theme: PdfTheme,
     dataset: dict[str, object],
     generated_at: datetime,
 ) -> None:
@@ -1720,14 +1700,15 @@ def _draw_work_machine_maintenance_month_pdf(
     page_number = 1
     table_y = _draw_work_machine_maintenance_month_report_header(
         pdf,
+        theme=theme,
         page_width=page_width,
         page_height=page_height,
         dataset=dataset,
         generated_at=generated_at,
-        page_number=page_number,
     )
     table_y = _draw_work_machine_maintenance_month_table_header(
         pdf,
+        theme=theme,
         start_x=margin_x,
         table_y=table_y,
         column_defs=column_defs,
@@ -1736,7 +1717,7 @@ def _draw_work_machine_maintenance_month_pdf(
 
     rows = list(dataset.get("rows") or [])
     if not rows:
-        pdf.setFillColor(HexColor("#64748b"))
+        pdf.setFillColor(theme.c_muted())
         pdf.setFont("Helvetica", 11)
         pdf.drawString(
             margin_x,
@@ -1745,9 +1726,11 @@ def _draw_work_machine_maintenance_month_pdf(
         )
         _draw_work_machine_maintenance_month_report_footer(
             pdf,
+            theme=theme,
+            page_width=page_width,
             margin_x=margin_x,
             bottom_limit=bottom_limit,
-            total_width=total_width,
+            page_number=page_number,
         )
         return
 
@@ -1755,22 +1738,25 @@ def _draw_work_machine_maintenance_month_pdf(
         if current_y - row_height < bottom_limit:
             _draw_work_machine_maintenance_month_report_footer(
                 pdf,
+                theme=theme,
+                page_width=page_width,
                 margin_x=margin_x,
                 bottom_limit=bottom_limit,
-                total_width=total_width,
+                page_number=page_number,
             )
             pdf.showPage()
             page_number += 1
             table_y = _draw_work_machine_maintenance_month_report_header(
                 pdf,
+                theme=theme,
                 page_width=page_width,
                 page_height=page_height,
                 dataset=dataset,
                 generated_at=generated_at,
-                page_number=page_number,
             )
             table_y = _draw_work_machine_maintenance_month_table_header(
                 pdf,
+                theme=theme,
                 start_x=margin_x,
                 table_y=table_y,
                 column_defs=column_defs,
@@ -1781,7 +1767,7 @@ def _draw_work_machine_maintenance_month_pdf(
         machine = row["machine"]
         state = row["state"]
         pdf.setFillColor(HexColor("#ffffff" if index % 2 == 0 else "#fbfdff"))
-        pdf.setStrokeColor(HexColor("#eef2f7"))
+        pdf.setStrokeColor(theme.c_border())
         pdf.rect(margin_x, current_y - row_height, total_width, row_height, fill=1, stroke=1)
 
         values = [
@@ -1798,9 +1784,9 @@ def _draw_work_machine_maintenance_month_pdf(
         current_x = margin_x
         for value_idx, value in enumerate(values):
             width = column_defs[value_idx][1]
-            pdf.setFillColor(HexColor("#0f172a"))
+            pdf.setFillColor(theme.c_text())
             if value_idx == 4:
-                pdf.setFillColor(status_colors.get(str(state.get("status") or ""), HexColor("#0f172a")))
+                pdf.setFillColor(status_colors.get(str(state.get("status") or ""), theme.c_text()))
             pdf.setFont(font_name, font_size)
             pdf.drawString(
                 current_x + 6,
@@ -1819,9 +1805,11 @@ def _draw_work_machine_maintenance_month_pdf(
 
     _draw_work_machine_maintenance_month_report_footer(
         pdf,
+        theme=theme,
+        page_width=page_width,
         margin_x=margin_x,
         bottom_limit=bottom_limit,
-        total_width=total_width,
+        page_number=page_number,
     )
 
 
@@ -2095,6 +2083,7 @@ def _build_asset_report_snapshot(asset: Asset) -> dict[str, object]:
 def _draw_asset_report_pdf(
     pdf: canvas.Canvas,
     *,
+    theme: PdfTheme,
     asset: Asset,
     snapshot: dict[str, object],
     generated_at: datetime,
@@ -2109,37 +2098,31 @@ def _draw_asset_report_pdf(
 
     def draw_header() -> None:
         nonlocal current_y
-        pdf.setFillColor(HexColor("#0f172a"))
-        pdf.setFont("Helvetica-Bold", 18)
-        pdf.drawString(margin_x, page_height - (12 * mm), "Report asset")
-        pdf.setFillColor(HexColor("#475569"))
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(
-            margin_x,
-            page_height - (18 * mm),
-            f"{_coalesce_str(asset.asset_tag, '-')} - {_coalesce_str(asset.name, '-')}",
-        )
-        pdf.drawRightString(
-            page_width - margin_x,
-            page_height - (12 * mm),
-            f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")} - Pagina {page_number}',
-        )
+        subtitle = f"{_coalesce_str(asset.asset_tag, '-')} - {_coalesce_str(asset.name, '-')}"
         if template_name:
-            pdf.drawRightString(
-                page_width - margin_x,
-                page_height - (18 * mm),
-                f"Template report attivo: {template_name}",
-            )
-        pdf.setStrokeColor(HexColor("#dbe3ef"))
-        pdf.line(margin_x, page_height - (22 * mm), page_width - margin_x, page_height - (22 * mm))
-        current_y = page_height - (28 * mm)
+            subtitle = f"{subtitle} | Template: {template_name}"
+        current_y = draw_canvas_header(
+            pdf,
+            theme=theme,
+            page_width=page_width,
+            page_height=page_height,
+            left_margin=margin_x,
+            right_margin=margin_x,
+            title="Report asset",
+            subtitle=subtitle,
+            right_subtitle=f'Generato il {generated_at.strftime("%d-%m-%Y %H:%M")}',
+        )
 
     def draw_footer() -> None:
-        pdf.setStrokeColor(HexColor("#dbe3ef"))
-        pdf.line(margin_x, bottom_y + (4 * mm), page_width - margin_x, bottom_y + (4 * mm))
-        pdf.setFillColor(HexColor("#64748b"))
-        pdf.setFont("Helvetica", 8)
-        pdf.drawString(margin_x, bottom_y, "Example Organization - Portale Asset")
+        draw_canvas_footer(
+            pdf,
+            theme=theme,
+            page_width=page_width,
+            left_margin=margin_x,
+            right_margin=margin_x,
+            baseline_y=bottom_y,
+            page_number=page_number,
+        )
 
     def ensure_space(height_needed: float) -> None:
         nonlocal current_y, page_number
@@ -2155,7 +2138,7 @@ def _draw_asset_report_pdf(
         if not rows:
             return
         ensure_space(22)
-        pdf.setFillColor(HexColor("#1d4ed8"))
+        pdf.setFillColor(theme.c_primary())
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(margin_x, current_y, title)
         current_y -= 8
@@ -2165,12 +2148,12 @@ def _draw_asset_report_pdf(
         for key, value in rows:
             ensure_space(row_height + 4)
             pdf.setFillColor(HexColor("#ffffff"))
-            pdf.setStrokeColor(HexColor("#e5edf5"))
+            pdf.setStrokeColor(theme.c_border())
             pdf.roundRect(margin_x, current_y - row_height + 2, total_width, row_height + 2, 4, fill=1, stroke=1)
-            pdf.setFillColor(HexColor("#64748b"))
+            pdf.setFillColor(theme.c_muted())
             pdf.setFont("Helvetica-Bold", 8)
             pdf.drawString(margin_x + 6, current_y - 5, _truncate_pdf_text(pdf, key, font_name="Helvetica-Bold", font_size=8, max_width=key_width - 12))
-            pdf.setFillColor(HexColor("#0f172a"))
+            pdf.setFillColor(theme.c_text())
             pdf.setFont("Helvetica", 8.5)
             pdf.drawString(
                 margin_x + key_width,
@@ -2191,27 +2174,27 @@ def _draw_asset_report_pdf(
         if not rows:
             return
         ensure_space(28)
-        pdf.setFillColor(HexColor("#1d4ed8"))
+        pdf.setFillColor(theme.c_primary())
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(margin_x, current_y, title)
         current_y -= 8
         total_width = page_width - (margin_x * 2)
         col_width = total_width / max(1, len(headers))
-        pdf.setFillColor(HexColor("#f8fbff"))
-        pdf.setStrokeColor(HexColor("#dbe3ef"))
+        pdf.setFillColor(theme.c_primary())
+        pdf.setStrokeColor(theme.c_primary())
         pdf.rect(margin_x, current_y - 10, total_width, 12, fill=1, stroke=1)
         for idx, header in enumerate(headers):
-            pdf.setFillColor(HexColor("#64748b"))
+            pdf.setFillColor(HexColor("#ffffff"))
             pdf.setFont("Helvetica-Bold", 8)
             pdf.drawString(margin_x + (idx * col_width) + 4, current_y - 2, header.upper())
         current_y -= 14
         for row in rows:
             ensure_space(14)
             pdf.setFillColor(HexColor("#ffffff"))
-            pdf.setStrokeColor(HexColor("#eef2f7"))
+            pdf.setStrokeColor(theme.c_border())
             pdf.rect(margin_x, current_y - 9, total_width, 11, fill=1, stroke=1)
             for idx, value in enumerate(row):
-                pdf.setFillColor(HexColor("#0f172a"))
+                pdf.setFillColor(theme.c_text())
                 pdf.setFont("Helvetica", 8)
                 pdf.drawString(
                     margin_x + (idx * col_width) + 4,
@@ -5470,6 +5453,10 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
     active_match = _clean_string(button.active_match)
     full_path = request.get_full_path()
     if active_match:
+        if "=" in active_match and not active_match.startswith("/"):
+            active_qs = parse_qs(active_match.lstrip("?"), keep_blank_values=True)
+            if active_qs:
+                return all(request.GET.get(key, "") in values for key, values in active_qs.items())
         return active_match in full_path
 
     parsed = urlsplit(resolved_url)
@@ -6571,6 +6558,7 @@ def _assets_shell_context(
     display_label = resolve_module_label("assets", fallback="Assets", surface="display")
     return {
         "assets_sidebar_groups": _build_sidebar_groups(request, rows=rows),
+        "assets_section_nav": _assets_section_nav(request),
         "assets_shell_search_action": search_action or reverse("assets:asset_list"),
         "assets_shell_new_url": new_url or reverse("assets:asset_create"),
         "assets_shell_new_label": new_label or "+ Nuovo asset",
@@ -6578,6 +6566,111 @@ def _assets_shell_context(
         "can_gestione_admin": user_can_modulo_action(request, "assets", "admin_assets"),
         "assets_logo_url": logo_url,
         "assets_brand_label": display_label,
+    }
+
+
+def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
+    current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
+    if not current_route:
+        return None
+
+    route_to_item = {
+        "maintenance_hub": "todo",
+        "maintenance_todo": "todo",
+        "maintenance_schedule": "schedule",
+        "maintenance_scadenzario": "schedule",
+        "wo_list": "workorders",
+        "wo_view": "workorders",
+        "wo_create": "workorders",
+        "wo_close": "workorders",
+        "reports": "reports",
+        "report_template_admin": "report_templates",
+        "maintenance_impostazioni": "settings",
+        "maintenance_template_list": "settings",
+        "maintenance_template_create": "settings",
+        "maintenance_template_edit": "settings",
+        "maintenance_rule_list": "settings",
+        "maintenance_rule_create": "settings",
+        "maintenance_rule_edit": "settings",
+        "asset_maintenance_rule_list": "settings",
+        "asset_maintenance_rule_override_create": "settings",
+        "asset_maintenance_rule_override_edit": "settings",
+        "asset_maintenance_rule_override_reset": "settings",
+        "periodic_verifications": "settings",
+        "assistance_contract_list": "settings",
+    }
+    active_item = route_to_item.get(current_route)
+    if active_item is None:
+        return None
+
+    report_scope = _normalize_reports_scope(request.GET.get("scope"))
+    workorders_url = reverse("assets:wo_list")
+    settings_url = reverse("assets:maintenance_impostazioni")
+    items = [
+        {
+            "key": "todo",
+            "label": "Da fare",
+            "url": reverse("assets:maintenance_hub"),
+        },
+        {
+            "key": "schedule",
+            "label": "Scadenzario",
+            "url": reverse("assets:maintenance_schedule"),
+        },
+        {
+            "key": "workorders",
+            "label": "Interventi",
+            "url": workorders_url,
+        },
+        {
+            "key": "reports",
+            "label": "Report",
+            "url": f"{reverse('assets:reports')}?scope={report_scope}",
+        },
+        {
+            "key": "report_templates",
+            "label": "Template report",
+            "url": reverse("assets:report_template_admin"),
+        },
+        {
+            "key": "settings",
+            "label": "Impostazioni",
+            "url": settings_url,
+        },
+    ]
+    for item in items:
+        item["active"] = item["key"] == active_item
+
+    active_label = next((item["label"] for item in items if item["active"]), "Manutenzione")
+    return {
+        "label": "Manutenzione",
+        "active_label": active_label,
+        "items": items,
+        "breadcrumbs": [
+            {"label": "Assets", "url": reverse("assets:asset_dashboard")},
+            {"label": "Manutenzione", "url": reverse("assets:maintenance_hub")},
+            {"label": active_label, "url": ""},
+        ],
+        "actions": [
+            {
+                "key": "new-workorder",
+                "label": "+ Nuovo intervento",
+                "url": f"{workorders_url}?create=1",
+                "kind": "primary",
+            },
+            {
+                "key": "export-workorders",
+                "label": "Esporta OdL",
+                "url": f"{workorders_url}?export=1",
+                "kind": "secondary",
+            },
+            {
+                "key": "settings",
+                "label": "Impostazioni",
+                "url": settings_url,
+                "kind": "secondary",
+            },
+        ],
     }
 
 
@@ -11609,6 +11702,7 @@ def asset_maintenance_rule_override_reset(request: HttpRequest, asset_id: int, i
 
 def _maintenance_schedule_status_choices() -> list[tuple[str, str]]:
     return [
+        ("attive", "Attive (escludi senza storico)"),
         ("all", "Tutte"),
         ("due", "Solo da gestire"),
         ("overdue", "Scadute"),
@@ -11696,6 +11790,8 @@ def _maintenance_schedule_periodic_rows(
             due_date = verification.next_verification_date if isinstance(verification.next_verification_date, date) else None
             schedule = _periodic_verification_schedule_status(due_date=due_date, today=today)
             if status_filter == "due" and schedule["status"] not in {"overdue", "warning", "missing"}:
+                continue
+            if status_filter == "attive" and schedule["status"] == "missing":
                 continue
             if status_filter in {"overdue", "warning", "upcoming", "missing"} and schedule["status"] != status_filter:
                 continue
@@ -11907,7 +12003,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     selected_asset = None
     if selected_asset_id:
         selected_asset = Asset.objects.select_related("asset_category").filter(pk=selected_asset_id).first()
-    status_filter = _clean_string(request.GET.get("status")) or "all"
+    status_filter = _clean_string(request.GET.get("status")) or "attive"
     category_id = _as_int(request.GET.get("category"), default=0)
     reparto_filter = _clean_string(request.GET.get("reparto"))
     coverage_filter = _clean_string(request.GET.get("coverage")) or "all"
@@ -11936,6 +12032,13 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=asset_qs)
     primary_contract_by_asset_id: dict[int, AssistanceContract | None] = {}
     filtered_rows: list[dict[str, object]] = []
+    # Totali per i KPI (calcolati sul sottoinsieme che passa i filtri non-stato, cosi
+    # restano corretti anche quando la tabella e filtrata/snellita).
+    status_totals = {"overdue": 0, "warning": 0, "upcoming": 0, "missing": 0}
+    # Vista "Attive" (default): mostra solo cio che e azionabile a breve. Nasconde dalla
+    # tabella le "senza storico" e le pianificate oltre l'orizzonte, restando contate.
+    ATTIVE_HORIZON_DAYS = 90
+    attive_hidden_total = 0
     for row in schedule_rows:
         asset = row["asset"]
         if asset.id not in primary_contract_by_asset_id:
@@ -11970,10 +12073,8 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             source="maintenance_schedule",
         )
 
-        if status_filter == "due" and row["schedule_status"] not in {"overdue", "warning", "missing"}:
-            continue
-        if status_filter in {"overdue", "warning", "upcoming", "missing"} and row["schedule_status"] != status_filter:
-            continue
+        # Filtri non-stato prima (copertura/ricerca), cosi il conteggio "senza storico"
+        # riflette il sottoinsieme realmente pertinente.
         if coverage_filter == "covered" and not row["is_covered"]:
             continue
         if coverage_filter == "uncovered" and row["is_covered"]:
@@ -11988,6 +12089,24 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 row["effective_intervention_template"].label,
             ]
             if not any(q_value in _clean_string(chunk).casefold() for chunk in searchable_chunks):
+                continue
+        status_value = str(row["schedule_status"] or "")
+        if status_value in status_totals:
+            status_totals[status_value] += 1
+
+        # Filtro stato per la tabella.
+        if status_filter == "due" and status_value not in {"overdue", "warning", "missing"}:
+            continue
+        if status_filter in {"overdue", "warning", "upcoming", "missing"} and status_value != status_filter:
+            continue
+        if status_filter == "attive":
+            far_upcoming = (
+                status_value == "upcoming"
+                and isinstance(row.get("days_until_due"), int)
+                and row["days_until_due"] > ATTIVE_HORIZON_DAYS
+            )
+            if status_value == "missing" or far_upcoming:
+                attive_hidden_total += 1
                 continue
         filtered_rows.append(row)
 
@@ -12020,6 +12139,22 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
     schedule_execution_cutoff = _periodic_execution_window_cutoff(
         PERIODIC_EXECUTION_WINDOW_DEFAULT, today=schedule_today
     )
+    # Storico esecuzioni in batch: una sola query per tutte le righe visibili (evita N+1).
+    exec_pairs = {(row["asset"].id, row["base_rule"].id) for row in filtered_rows}
+    exec_by_pair: dict[tuple[int, int], list[dict[str, object]]] = defaultdict(list)
+    if exec_pairs:
+        exec_wo_qs = WorkOrder.objects.select_related("asset", "supplier").filter(
+            asset_id__in={pair[0] for pair in exec_pairs},
+            maintenance_rule_id__in={pair[1] for pair in exec_pairs},
+            status=WorkOrder.STATUS_DONE,
+        )
+        if schedule_execution_cutoff is not None:
+            exec_wo_qs = exec_wo_qs.filter(closed_at__date__gte=schedule_execution_cutoff)
+        for workorder in exec_wo_qs.order_by("-closed_at", "-id"):
+            key = (workorder.asset_id, workorder.maintenance_rule_id)
+            if key in exec_pairs and len(exec_by_pair[key]) < 5:
+                exec_by_pair[key].append(_serialize_execution_workorder(workorder))
+
     for row in filtered_rows:
         due_date = row.get("due_date")
         if isinstance(due_date, date):
@@ -12029,12 +12164,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         else:
             row["calendar_event_rows"] = []
         row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
-        row["execution_rows"] = _maintenance_rule_execution_rows(
-            asset_id=row["asset"].id,
-            base_rule_id=row["base_rule"].id,
-            cutoff_date=schedule_execution_cutoff,
-            limit=5,
-        )
+        row["execution_rows"] = exec_by_pair.get((row["asset"].id, row["base_rule"].id), [])
         row["execution_count"] = len(row["execution_rows"])
 
     reparto_options = [
@@ -12081,6 +12211,8 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             dl_status = "upcoming"
         if status_filter == "due" and dl_status not in {"overdue", "warning", "missing"}:
             continue
+        if status_filter == "attive" and dl_status == "missing":
+            continue
         if status_filter in {"overdue", "warning", "upcoming", "missing"} and dl_status != status_filter:
             continue
         admin_deadline_rows.append({
@@ -12111,10 +12243,12 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "schedule_total": len(filtered_rows),
             "periodic_schedule_rows": periodic_schedule_rows,
             "periodic_schedule_total": len(periodic_schedule_rows),
-            "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue") + periodic_overdue,
-            "warning_count": sum(1 for row in filtered_rows if row["schedule_status"] == "warning") + periodic_warning,
-            "upcoming_count": sum(1 for row in filtered_rows if row["schedule_status"] == "upcoming") + periodic_upcoming,
-            "missing_count": sum(1 for row in filtered_rows if row["schedule_status"] == "missing") + periodic_missing,
+            "overdue_count": status_totals["overdue"] + periodic_overdue,
+            "warning_count": status_totals["warning"] + periodic_warning,
+            "upcoming_count": status_totals["upcoming"] + periodic_upcoming,
+            "missing_count": status_totals["missing"] + periodic_missing,
+            "attive_hidden_total": attive_hidden_total,
+            "show_all_status_url": _query_url(request, status="all"),
             "covered_count": sum(1 for row in filtered_rows if row["is_covered"]),
             "uncovered_count": sum(1 for row in filtered_rows if not row["is_covered"]),
             "category_options": AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id"),
@@ -13064,47 +13198,46 @@ def work_machine_list(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 def _report_table_pdf(title: str, headers: list, rows: list) -> bytes:
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4, landscape as rl_landscape
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib.units import cm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-
+    theme = PdfTheme.from_branding()
+    styles = build_styles(theme)
     buf = io.BytesIO()
-    pagesize = rl_landscape(A4)
-    doc = SimpleDocTemplate(
-        buf, pagesize=pagesize,
-        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
-        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
-    )
-    styles = getSampleStyleSheet()
+    doc = make_document(buf, title=title, landscape=True)
     elements: list = []
-    elements.append(Paragraph(f"<b>{title}</b>", styles["Heading2"]))
     gen_date = timezone.localdate().strftime("%d-%m-%Y")
-    elements.append(Paragraph(f"Generato il {gen_date} — NOVICROM HUB", styles["Normal"]))
-    elements.append(Spacer(1, 0.4 * cm))
+
     if not rows:
-        elements.append(Paragraph("Nessun record.", styles["Normal"]))
+        elements.append(Paragraph("Nessun record.", styles["body"]))
     else:
-        page_w = pagesize[0] - 3 * cm
+        page_w = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
         col_w = page_w / max(len(headers), 1)
-        data = [headers] + rows
-        tbl = Table(data, colWidths=[col_w] * len(headers), repeatRows=1)
-        tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ]))
-        elements.append(tbl)
-    doc.build(elements)
+        table_rows = [
+            [Paragraph(escape(str(header)), styles["table_header"]) for header in headers],
+            *[
+                [
+                    Paragraph(
+                        escape(_coalesce_str(value, "")).replace("\n", "<br/>"),
+                        styles["cell"],
+                    )
+                    for value in row
+                ]
+                for row in rows
+            ],
+        ]
+        elements.append(
+            data_table(
+                table_rows,
+                theme,
+                col_widths=[col_w] * len(headers),
+                repeat_rows=1,
+                extra_style=[
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ],
+            )
+        )
+
+    draw = header_footer_callback(theme, title=title.upper(), subtitle=f"Generato il {gen_date}")
+    doc.build(elements, onFirstPage=draw, onLaterPages=draw)
     return buf.getvalue()
 
 
@@ -13218,22 +13351,41 @@ def asset_list_export(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 _WO_EXPORT_HEADERS = [
-    "ID", "Asset Tag", "Asset Nome", "Titolo", "Tipo", "Stato",
-    "Aperto il", "Chiuso il", "Descrizione",
+    "ID", "Asset Tag", "Asset Nome", "Reparto", "Categoria", "Titolo", "Tipo", "Origine", "Stato",
+    "Assegnato a", "Eseguito da", "Fornitore", "Contratto", "Coperto da contratto",
+    "Aperto il", "Chiuso il", "Durata min", "Fermo min", "Costo manodopera",
+    "Costo materiali", "Costo totale", "Descrizione", "Risoluzione",
 ]
 
 
 def _wo_export_row(wo: "WorkOrder") -> list:
+    asset = wo.asset if wo.asset_id else None
+    assigned = wo.assigned_to.get_full_name() or wo.assigned_to.username if wo.assigned_to_id else ""
+    executed = wo.executed_by.get_full_name() or wo.executed_by.username if wo.executed_by_id else ""
     return [
         str(wo.id),
-        wo.asset.asset_tag if wo.asset_id else "",
-        wo.asset.name if wo.asset_id else "",
+        asset.asset_tag if asset else "",
+        asset.name if asset else "",
+        asset.reparto if asset else "",
+        asset.asset_category.label if asset and asset.asset_category_id else "",
         wo.title or "",
         wo.get_kind_display(),
+        wo.get_origin_display(),
         wo.get_status_display(),
+        assigned,
+        executed,
+        str(wo.supplier) if wo.supplier_id else "",
+        wo.assistance_contract.title if wo.assistance_contract_id else "",
+        "Si" if wo.covered_by_contract else "No",
         wo.opened_at.strftime("%d-%m-%Y %H:%M") if wo.opened_at else "",
         wo.closed_at.strftime("%d-%m-%Y %H:%M") if wo.closed_at else "",
+        str(wo.intervention_duration_minutes or 0),
+        str(wo.downtime_minutes or 0),
+        str(wo.labor_cost_eur or ""),
+        str(wo.materials_cost_eur or ""),
+        str(wo.resolved_total_cost_eur or ""),
         wo.description or "",
+        wo.resolution or "",
     ]
 
 
@@ -13241,20 +13393,7 @@ def _wo_export_row(wo: "WorkOrder") -> list:
 def workorder_list_export(request: HttpRequest) -> HttpResponse:
     scope = request.GET.get("scope", "filtered")
     fmt = request.GET.get("format", "xlsx")
-    qs = WorkOrder.objects.select_related("asset").all()
-    if scope == "filtered":
-        status_f = _clean_string(request.GET.get("status"))
-        kind_f = _clean_string(request.GET.get("kind"))
-        q = _clean_string(request.GET.get("q"))
-        if status_f:
-            qs = qs.filter(status=status_f)
-        if kind_f:
-            qs = qs.filter(kind=kind_f)
-        if q:
-            qs = qs.filter(
-                Q(title__icontains=q) | Q(asset__asset_tag__icontains=q)
-                | Q(asset__name__icontains=q) | Q(description__icontains=q)
-            )
+    qs = _apply_workorder_list_filters(request.GET, include_filters=(scope == "filtered"))
     workorders = list(qs.order_by("-opened_at"))
     today = timezone.localdate().strftime("%Y%m%d")
     rows = [_wo_export_row(wo) for wo in workorders]
@@ -14548,24 +14687,191 @@ def _add_form_validation_errors(form, exc: ValidationError) -> None:
         form.add_error(None, error)
 
 
+def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
+    qs = (
+        WorkOrder.objects
+        .select_related(
+            "asset",
+            "asset__asset_category",
+            "periodic_verification",
+            "supplier",
+            "maintenance_rule",
+            "maintenance_rule__intervention_template",
+            "assistance_contract",
+            "assigned_to",
+            "executed_by",
+        )
+        .all()
+    )
+    if not include_filters:
+        return qs
+
+    status = _clean_string(get_params.get("status"))
+    kind = _clean_string(get_params.get("kind"))
+    origin = _clean_string(get_params.get("origin"))
+    coverage = _clean_string(get_params.get("coverage")) or "all"
+    reparto = _clean_string(get_params.get("reparto"))
+    category_id = _as_int(get_params.get("category"), default=0)
+    assigned_id = _as_int(get_params.get("assigned"), default=0)
+    open_age_days = _as_int(get_params.get("open_age"), default=0)
+    q = _clean_string(get_params.get("q"))
+
+    if status:
+        qs = qs.filter(status=status)
+    if kind:
+        qs = qs.filter(kind=kind)
+    if origin:
+        qs = qs.filter(origin=origin)
+    if coverage == "covered":
+        qs = qs.filter(covered_by_contract=True)
+    elif coverage == "uncovered":
+        qs = qs.filter(covered_by_contract=False)
+    if reparto:
+        qs = qs.filter(asset__reparto__iexact=reparto)
+    if category_id:
+        qs = qs.filter(asset__asset_category_id=category_id)
+    if assigned_id:
+        qs = qs.filter(Q(assigned_to_id=assigned_id) | Q(executed_by_id=assigned_id))
+    if open_age_days:
+        qs = qs.filter(
+            status=WorkOrder.STATUS_OPEN,
+            opened_at__lte=timezone.now() - timedelta(days=max(0, open_age_days)),
+        )
+    if q:
+        qs = qs.filter(
+            Q(title__icontains=q)
+            | Q(asset__asset_tag__icontains=q)
+            | Q(asset__internal_number__icontains=q)
+            | Q(asset__name__icontains=q)
+            | Q(asset__reparto__icontains=q)
+            | Q(asset__asset_category__label__icontains=q)
+            | Q(description__icontains=q)
+            | Q(resolution__icontains=q)
+            | Q(supplier__ragione_sociale__icontains=q)
+        )
+    return qs
+
+
+def _workorder_list_filter_remove_url(get_params, filter_key: str) -> str:
+    query = get_params.copy()
+    for key in (filter_key, "page", "create", "export"):
+        if key in query:
+            query.pop(key)
+    query_string = query.urlencode()
+    base_url = reverse("assets:wo_list")
+    return f"{base_url}?{query_string}" if query_string else base_url
+
+
+def _workorder_list_page_url(**filters) -> str:
+    query = {
+        key: str(value)
+        for key, value in filters.items()
+        if value not in (None, "", 0, "0", False)
+    }
+    base_url = reverse("assets:wo_list")
+    query_string = urlencode(query)
+    return f"{base_url}?{query_string}" if query_string else base_url
+
+
+def _workorder_list_filter_chips(
+    request: HttpRequest,
+    *,
+    status: str,
+    kind: str,
+    origin: str,
+    coverage: str,
+    reparto: str,
+    category_id: int,
+    assigned_id: int,
+    open_age_days: int,
+    q: str,
+    category_options,
+    user_options,
+) -> list[dict[str, str]]:
+    status_labels = dict(WorkOrder.STATUS_CHOICES)
+    kind_labels = dict(WorkOrder.KIND_CHOICES)
+    origin_labels = dict(WorkOrder.ORIGIN_CHOICES)
+    coverage_labels = {
+        "covered": "Con contratto",
+        "uncovered": "Senza contratto",
+    }
+    category_by_id = {category.id: category for category in category_options}
+    user_by_id = {user.id: user for user in user_options}
+    chips: list[dict[str, str]] = []
+
+    def add(filter_key: str, label: str, value: str) -> None:
+        value = _clean_string(value)
+        if not value:
+            return
+        chips.append(
+            {
+                "label": label,
+                "value": value,
+                "remove_url": _workorder_list_filter_remove_url(request.GET, filter_key),
+            }
+        )
+
+    if q:
+        add("q", "Ricerca", q)
+    if status:
+        add("status", "Stato", status_labels.get(status, status))
+    if kind:
+        add("kind", "Tipo", kind_labels.get(kind, kind))
+    if origin:
+        add("origin", "Origine", origin_labels.get(origin, origin))
+    if coverage in coverage_labels:
+        add("coverage", "Copertura", coverage_labels[coverage])
+    if reparto:
+        add("reparto", "Reparto", reparto)
+    if category_id:
+        category = category_by_id.get(category_id)
+        add("category", "Categoria", category.label if category else f"ID {category_id}")
+    if assigned_id:
+        user = user_by_id.get(assigned_id)
+        user_label = (user.get_full_name() or user.username) if user else f"ID {assigned_id}"
+        add("assigned", "Responsabile", user_label)
+    if open_age_days:
+        add("open_age", "Aperti da", f"{open_age_days} giorni")
+    return chips
+
+
 @login_required
 def workorder_list(request: HttpRequest) -> HttpResponse:
     status = _clean_string(request.GET.get("status"))
     kind = _clean_string(request.GET.get("kind"))
+    origin = _clean_string(request.GET.get("origin"))
+    coverage = _clean_string(request.GET.get("coverage")) or "all"
+    reparto = _clean_string(request.GET.get("reparto"))
+    category_id = _as_int(request.GET.get("category"), default=0)
+    assigned_id = _as_int(request.GET.get("assigned"), default=0)
+    open_age_days = _as_int(request.GET.get("open_age"), default=0)
     q = _clean_string(request.GET.get("q"))
 
-    workorders = WorkOrder.objects.select_related("asset", "periodic_verification", "supplier").all()
-    if status:
-        workorders = workorders.filter(status=status)
-    if kind:
-        workorders = workorders.filter(kind=kind)
-    if q:
-        workorders = workorders.filter(
-            Q(title__icontains=q)
-            | Q(asset__asset_tag__icontains=q)
-            | Q(asset__name__icontains=q)
-            | Q(description__icontains=q)
-        )
+    workorders = _apply_workorder_list_filters(request.GET).order_by("-opened_at", "-id")
+    reparto_options = list(
+        Asset.objects.exclude(reparto="")
+        .order_by("reparto")
+        .values_list("reparto", flat=True)
+        .distinct()
+    )
+    category_options = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user_options = list(User.objects.filter(is_active=True).order_by("last_name", "first_name", "username"))
+    active_filter_chips = _workorder_list_filter_chips(
+        request,
+        status=status,
+        kind=kind,
+        origin=origin,
+        coverage=coverage,
+        reparto=reparto,
+        category_id=category_id,
+        assigned_id=assigned_id,
+        open_age_days=open_age_days,
+        q=q,
+        category_options=category_options,
+        user_options=user_options,
+    )
 
     return render(
         request,
@@ -14575,9 +14881,25 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "workorders": workorders,
             "status_filter": status,
             "kind_filter": kind,
+            "origin_filter": origin,
+            "coverage_filter": coverage,
+            "reparto_filter": reparto,
+            "selected_category_id": category_id,
+            "assigned_filter": assigned_id,
+            "open_age_filter": open_age_days,
             "q_filter": q,
             "status_choices": WorkOrder.STATUS_CHOICES,
             "kind_choices": WorkOrder.KIND_CHOICES,
+            "origin_choices": WorkOrder.ORIGIN_CHOICES,
+            "reparto_options": reparto_options,
+            "category_options": category_options,
+            "user_options": user_options,
+            "active_filter_chips": active_filter_chips,
+            "workorder_create_asset_options": Asset.objects.exclude(status=Asset.STATUS_RETIRED).order_by(
+                "asset_tag",
+                "name",
+                "id",
+            ),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
@@ -14586,9 +14908,20 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
 @login_required
 def workorder_create(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if id is None:
+        selected_asset_id = _as_int(request.GET.get("asset") or request.POST.get("asset"), default=0)
+        if selected_asset_id:
+            query = request.GET.copy()
+            query.pop("asset", None)
+            query.setdefault("source", "workorder_list")
+            target_url = reverse("assets:wo_create", kwargs={"id": selected_asset_id})
+            query_string = query.urlencode()
+            return redirect(f"{target_url}?{query_string}" if query_string else target_url)
         return redirect("assets:wo_list")
     asset = get_object_or_404(Asset, pk=id)
     source = normalize_workorder_source(request.GET.get("source"))
+    back_to_list = source == "workorder_list"
+    workorder_back_url = reverse("assets:wo_list") if back_to_list else reverse("assets:asset_view", kwargs={"id": id})
+    workorder_back_label = "Torna agli interventi" if back_to_list else "Torna al dettaglio asset"
     prefill_payload = build_workorder_prefill_payload(
         asset=asset,
         base_rule_id=_as_int(request.GET.get("rule"), default=0),
@@ -14664,6 +14997,8 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             "page_title": f"Nuovo intervento - {asset.asset_tag}",
             "asset": asset,
             "form": form,
+            "workorder_back_url": workorder_back_url,
+            "workorder_back_label": workorder_back_label,
             "selected_rule_id": selected_rule_id,
             "initial_rule": initial_rule,
             "initial_contract": initial_contract,
@@ -14865,7 +15200,11 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
 
     if request.method == "POST":
         form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder)
-        if form.is_valid():
+        uploads, upload_errors = _validate_workorder_attachment_uploads(request, field_name="close_attachments")
+        form_is_valid = form.is_valid()
+        for error in upload_errors:
+            form.add_error(None, error)
+        if form_is_valid and not upload_errors:
             resolved_supplier = form.cleaned_data.get("resolved_supplier")
             if resolved_supplier is not None and workorder.supplier_id is None:
                 workorder.supplier = resolved_supplier
@@ -14881,9 +15220,9 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     resolution=form.cleaned_data.get("resolution") or "",
                     intervention_duration=form.cleaned_data.get("intervention_duration_minutes"),
                     downtime=form.cleaned_data.get("downtime_minutes"),
-                    labor_cost=None,
-                    materials_cost=None,
-                    cost=None,
+                    labor_cost=form.cleaned_data.get("labor_cost_eur"),
+                    materials_cost=form.cleaned_data.get("materials_cost_eur"),
+                    cost=form.cleaned_data.get("cost_eur"),
                     covered_by_contract=form.cleaned_data.get("covered_by_contract"),
                     assistance_contract=form.cleaned_data.get("assistance_contract"),
                 )
@@ -14896,6 +15235,13 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 closure_note = "Intervento chiuso." if workorder.status == WorkOrder.STATUS_DONE else "Intervento annullato."
                 if log_note:
                     closure_note = f"{closure_note} {log_note}"
+                if uploads:
+                    created_attachments = _save_workorder_attachments(
+                        workorder=workorder,
+                        uploads=uploads,
+                        user=request.user,
+                    )
+                    closure_note = f"{closure_note} Allegati caricati: {len(created_attachments)}."
                 WorkOrderLog.objects.create(
                     work_order=workorder,
                     note=closure_note,
@@ -14912,6 +15258,9 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 "status": WorkOrder.STATUS_DONE,
                 "intervention_duration_minutes": workorder.intervention_duration_minutes,
                 "downtime_minutes": workorder.downtime_minutes,
+                "labor_cost_eur": workorder.labor_cost_eur,
+                "materials_cost_eur": workorder.materials_cost_eur,
+                "cost_eur": workorder.cost_eur,
                 "assistance_contract": workorder.assistance_contract_id,
                 "covered_by_contract": workorder.covered_by_contract,
                 "assigned_to": workorder.assigned_to_id,
@@ -14939,6 +15288,8 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 is_covered=bool(workorder.covered_by_contract),
                 contract=workorder.assistance_contract,
             ),
+            "attachment_accept": _workorder_attachment_accept_attr(),
+            "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
@@ -15196,6 +15547,22 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     wo_overdue = [wo for wo in open_workorders if wo.opened_at and wo.opened_at.date() <= overdue_threshold]
     wo_recent  = [wo for wo in open_workorders if wo not in wo_overdue]
     wo_total   = len(open_workorders)
+    wo_open_url = _workorder_list_page_url(
+        status=WorkOrder.STATUS_OPEN,
+        reparto=reparto_filter,
+        assigned=assigned_filter,
+    )
+    wo_overdue_url = _workorder_list_page_url(
+        status=WorkOrder.STATUS_OPEN,
+        reparto=reparto_filter,
+        assigned=assigned_filter,
+        open_age=21,
+    )
+    wo_done_url = _workorder_list_page_url(
+        status=WorkOrder.STATUS_DONE,
+        reparto=reparto_filter,
+        assigned=assigned_filter,
+    )
 
     # ── KPI condivisi (count) ──────────────────────────────────────────────
     upcoming_deadlines_count = AssetAdministrativeDeadline.objects.filter(
@@ -15299,6 +15666,38 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     machines_overdue = [m for m in machines_due if m.next_maintenance_date <= today]
     machines_warning = [m for m in machines_due if m.next_maintenance_date > today]
 
+    # Regole manutenzione effettive: asset con baseline mancante,
+    # regole scadute o prossime, senza duplicare la logica dello scadenzario.
+    maintenance_rule_counts = {"overdue": 0, "warning": 0, "upcoming": 0, "missing": 0}
+    maintenance_rule_rows: list[dict[str, object]] = []
+    maintenance_asset_qs = Asset.objects.select_related("asset_category").filter(asset_category__isnull=False)
+    if reparto_filter:
+        maintenance_asset_qs = maintenance_asset_qs.filter(reparto__iexact=reparto_filter)
+    for row in build_day_based_maintenance_schedule_rows(asset_queryset=maintenance_asset_qs, today=today):
+        status = str(row.get("schedule_status") or "")
+        if status in maintenance_rule_counts:
+            maintenance_rule_counts[status] += 1
+        if status not in {"overdue", "warning", "missing"}:
+            continue
+        if len(maintenance_rule_rows) >= 12:
+            continue
+        asset = row["asset"]
+        primary_action = _maintenance_row_primary_action(
+            asset=asset,
+            base_rule=row["base_rule"],
+            schedule_status=status,
+            source="maintenance_schedule",
+        )
+        row["asset_detail_url"] = reverse("assets:asset_view", kwargs={"id": asset.id})
+        row["primary_action_label"] = primary_action["label"]
+        row["primary_action_url"] = primary_action["url"]
+        maintenance_rule_rows.append(row)
+    maintenance_rule_critical_count = (
+        maintenance_rule_counts["overdue"]
+        + maintenance_rule_counts["warning"]
+        + maintenance_rule_counts["missing"]
+    )
+
     # ── Ticket MAN aperti (integrazione modulo tickets) ────────────────────
     man_tickets = []
     try:
@@ -15365,11 +15764,21 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
     if scad_sub not in ("verifiche", "scadenze", "contratti"):
         scad_sub = "verifiche"
 
+    # ── Cruscotto operativo (cose da fare + segnalazioni arrivate) ─────────
+    from assets.services.dashboard_kpi import (
+        get_cose_da_fare_overview,
+        get_segnalazioni_overview,
+    )
+    cose_da_fare = get_cose_da_fare_overview(today=today)
+    segnalazioni = get_segnalazioni_overview(today=today)
+
     return render(
         request,
         "assets/pages/maintenance_hub.html",
         {
             **_assets_shell_context(request),
+            "cose_da_fare": cose_da_fare,
+            "segnalazioni": segnalazioni,
             "page_title": "Manutenzione",
             "today": today,
             "is_admin": is_admin,
@@ -15398,6 +15807,9 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             "upcoming_items": upcoming_items,
             "machines_overdue": machines_overdue,
             "machines_warning": machines_warning,
+            "maintenance_rule_rows": maintenance_rule_rows,
+            "maintenance_rule_counts": maintenance_rule_counts,
+            "maintenance_rule_critical_count": maintenance_rule_critical_count,
             "man_tickets": man_tickets,
             "next7_items": next7_items[:12],
             # dati tab scadenzario
@@ -15415,7 +15827,14 @@ def maintenance_hub(request: HttpRequest) -> HttpResponse:
             "contracts_expiring": contracts_expiring_count,
             # URL
             "url_wo_list": reverse("assets:wo_list"),
+            "url_wo_open": wo_open_url,
+            "url_wo_overdue": wo_overdue_url,
+            "url_wo_done": wo_done_url,
             "url_wo_create": reverse("assets:wo_create"),
+            "url_hub_scadenze": "?tab=scadenzario&sub=scadenze",
+            "url_hub_verifiche": "?tab=scadenzario&sub=verifiche",
+            "url_hub_contratti": "?tab=scadenzario&sub=contratti",
+            "url_maintenance_schedule": _maintenance_schedule_page_url(status="due", reparto=reparto_filter),
             "url_impostazioni": reverse("assets:maintenance_impostazioni"),
             "url_verifications_full": _url_verifications,
             "url_deadlines_full": _url_deadlines,
@@ -15583,6 +16002,24 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
     report_asset_types = list(reports_context["asset_types"])
     scoped_asset_qs = Asset.objects.filter(asset_type__in=report_asset_types).select_related("asset_category")
     schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=scoped_asset_qs, today=today)
+    maintenance_report_kpis = build_maintenance_report_kpis(
+        asset_queryset=scoped_asset_qs,
+        schedule_rows=schedule_rows,
+        today=today,
+    )
+    pm_kpi = maintenance_report_kpis["pm"]
+    budget_kpi = maintenance_report_kpis["budget"]
+    budget_rows = []
+    for row in budget_kpi["rows"][:8]:
+        row = dict(row)
+        category = row.get("category")
+        category_id = getattr(category, "id", 0)
+        row["workorders_url"] = (
+            _workorder_list_page_url(status=WorkOrder.STATUS_DONE, category=category_id)
+            if category_id
+            else ""
+        )
+        budget_rows.append(row)
 
     open_workorders = WorkOrder.objects.select_related("asset", "supplier").filter(
         status=WorkOrder.STATUS_OPEN,
@@ -15749,7 +16186,14 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "warning_count": len(warning_rows),
             "upcoming_count": len(upcoming_rows),
             "missing_count": len(missing_rows),
-            "open_workorders_url": f"{reverse('assets:wo_list')}?status={quote(WorkOrder.STATUS_OPEN)}",
+            "pm_kpi": pm_kpi,
+            "budget_kpi": budget_kpi,
+            "budget_rows": budget_rows,
+            "open_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN),
+            "late_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN, open_age=30),
+            "done_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_DONE),
+            "maintenance_schedule_due_url": _maintenance_schedule_page_url(status="due"),
+            "maintenance_schedule_missing_url": _maintenance_schedule_page_url(status="missing"),
             "maintenance_month_rows": maintenance_month_dataset["rows"][:10],
             "maintenance_month_count": maintenance_month_dataset["total_count"],
             "maintenance_month_overdue_count": maintenance_month_dataset["overdue_count"],
@@ -15798,12 +16242,14 @@ def asset_report_pdf(request: HttpRequest, id: int | None = None) -> HttpRespons
     response["Content-Disposition"] = f'inline; filename="{asset.asset_tag or "asset"}-report.pdf"'
 
     buffer = io.BytesIO()
+    theme = PdfTheme.from_branding()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     pdf.setTitle(f'Report asset {asset.asset_tag}')
-    pdf.setAuthor("Portale Applicativo")
+    pdf.setAuthor(theme.portal_name)
     pdf.setSubject(f'Scheda PDF asset {asset.asset_tag}')
     _draw_asset_report_pdf(
         pdf,
+        theme=theme,
         asset=asset,
         snapshot=snapshot,
         generated_at=generated_at,
@@ -16057,12 +16503,13 @@ def work_machine_maintenance_month_pdf(request: HttpRequest) -> HttpResponse:
     response["Content-Disposition"] = f'inline; filename="{"_".join(filename_parts)}.pdf"'
 
     buffer = io.BytesIO()
+    theme = PdfTheme.from_branding()
     pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
     pdf.setTitle(f'Report manutenzioni macchine {dataset["month_label"]}')
-    pdf.setAuthor("Portale Applicativo")
+    pdf.setAuthor(theme.portal_name)
     pdf.setSubject(f'Macchine con manutenzione pianificata nel periodo {dataset["period_label"]}')
 
-    _draw_work_machine_maintenance_month_pdf(pdf, dataset=dataset, generated_at=generated_at)
+    _draw_work_machine_maintenance_month_pdf(pdf, theme=theme, dataset=dataset, generated_at=generated_at)
 
     pdf.showPage()
     pdf.save()
@@ -16702,6 +17149,11 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
             "wo_closed_month": 0, "has_data": False,
         }
 
+    # Cruscotto operativo (cose da fare + segnalazioni arrivate), condiviso con il Centro Manutenzione
+    from assets.services.dashboard_kpi import get_cose_da_fare_overview, get_segnalazioni_overview
+    cose_da_fare = get_cose_da_fare_overview(today=today)
+    segnalazioni = get_segnalazioni_overview(today=today)
+
     # Categorie asset attive (solo principali, per i link in cima)
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
     family_options = categories
@@ -16738,6 +17190,8 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "downtime_by_family": downtime_by_family,
         "fire_safety_kpis": fire_safety_kpis,
         "maintenance_perf": maintenance_perf,
+        "cose_da_fare": cose_da_fare,
+        "segnalazioni": segnalazioni,
         "branding": branding,
         "page_title": "Dashboard Assets",
     })
