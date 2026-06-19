@@ -1785,7 +1785,11 @@ class CartellaDocumentoDipendente(models.Model):
     sono esclusi (``cartella=None``).
     """
 
-    nome = models.CharField(max_length=100, unique=True)
+    nome = models.CharField(max_length=100)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="figlie",
+        help_text="Cartella superiore. Vuoto = cartella di primo livello.",
+    )
     descrizione = models.CharField(max_length=300, blank=True, default="")
     ordine = models.PositiveSmallIntegerField(default=0, help_text="Ordinamento nella lista.")
     attiva = models.BooleanField(default=True, help_text="Se False non appare nel form di upload.")
@@ -1804,8 +1808,11 @@ class CartellaDocumentoDipendente(models.Model):
         ordering = ["ordine", "nome"]
         verbose_name = "Cartella documenti dipendente"
         verbose_name_plural = "Cartelle documenti dipendente"
+        unique_together = [("parent", "nome")]
 
     def __str__(self) -> str:
+        if self.parent_id:
+            return f"{self.parent.nome} / {self.nome}"
         return self.nome
 
 
