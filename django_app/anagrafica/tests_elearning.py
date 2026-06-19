@@ -335,3 +335,33 @@ class ElearningSettingsTests(TestCase):
         self.assertTrue(init.get("is_elearning"))
         self.assertEqual(init.get("quiz_punteggio_minimo"), 90)
         self.assertEqual(init.get("validita_mesi"), 24)
+
+
+class ElearningAttestatoArchiveTests(TestCase):
+    """Al completamento di un micro-corso l'attestato viene archiviato nella cartella
+    documenti del dipendente (come per i corsi d'aula), se l'auto-salvataggio è attivo."""
+
+    def test_completamento_elearning_archivia_attestato(self):
+        from anagrafica import views as anag_views
+        from anagrafica.models import DocumentoDipendente
+        from anagrafica.models_formazione import AttestatoFormazioneConfig, TrainingQuizAttempt
+
+        cfg = AttestatoFormazioneConfig.get_instance()
+        cfg.auto_salva_attestato = True
+        cfg.save()
+
+        piano = TrainingPlan.objects.create(codice="PATT", nome="Piano")
+        corso = TrainingCourse.objects.create(
+            piano=piano, codice="ELATT", titolo="Sicurezza base", durata_ore_teorica=Decimal("1.0"),
+            is_elearning=True, stato="ATTIVO",
+        )
+        att = TrainingQuizAttempt.objects.create(
+            corso=corso, legacy_anagrafica_id=777, punteggio_pct=Decimal("90"),
+            n_corrette=9, n_totali=10, superato=True,
+        )
+        anag_views._crea_record_completamento_elearning(corso, 777, att, None)
+        self.assertTrue(
+            DocumentoDipendente.objects.filter(
+                legacy_anagrafica_id=777, tipo=DocumentoDipendente.Tipo.CERTIFICATO_FORMAZIONE,
+            ).exists()
+        )

@@ -13145,6 +13145,17 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     except Exception:
         logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
 
+    # Archiviazione automatica dell'attestato nella cartella documenti del dipendente
+    # (stesso flusso dei corsi d'aula: cartella «Attestati formazione» o quella scelta
+    # in Impostazioni → Template attestato). Fail-safe: non deve bloccare il completamento.
+    try:
+        cfg = AttestatoFormazioneConfig.get_instance()
+        if cfg.auto_salva_attestato:
+            from .services.attestato_pdf import archivia_attestato
+            archivia_attestato(record, cfg=cfg, user=created_by)
+    except Exception:
+        logger.exception("Archiviazione automatica attestato e-learning fallita per record %s", record.pk)
+
     return record
 
 
