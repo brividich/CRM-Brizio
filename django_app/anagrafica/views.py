@@ -1611,7 +1611,7 @@ def dipendente_detail(request, legacy_id: int):
     qualifiche_dip = list(
         DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
         .select_related("tipo", "record_formazione", "record_formazione__corso", "sessione")
-        .prefetch_related("storico")
+        .prefetch_related("storico", "tipo__corsi")
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
@@ -5852,6 +5852,7 @@ def qualifiche_dashboard(request):
         scadenze_urgenti.append({
             "legacy_id": q.legacy_anagrafica_id,
             "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "tipo_id": q.tipo_id,
             "tipo_nome": q.tipo.nome,
             "categoria": q.tipo.get_categoria_display(),
             "data_scadenza": q.data_scadenza,

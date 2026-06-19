@@ -32,9 +32,10 @@ qualifica corrente (numero/livello/ente via `data-*`), imposta `data_conseguimen
 e lascia ricalcolare la scadenza da `durata_mesi`. Solo front-end (nessuna migration), il
 modello regge già tutto.
 
-**Follow-up (non fatto, opzionale):** scorciatoia diretta dallo scadenzario/cruscotto e,
-per le qualifiche legate a un corso, proposta di iscrizione/edizione di rinnovo (riuso del
-flusso formazione). Per ora dallo scadenzario si raggiunge la scheda dal nome dipendente.
+**Follow-up ✅ FATTO:** scadenzario e «scadenze urgenti» del cruscotto hanno una colonna
+**Azioni** con «↻ Rinnova» (deep-link `?rinnova=<tipo_id>` → la scheda auto-apre il form
+prefillato). Nella scheda, per le qualifiche legate a un corso (`TipoQualifica.corsi`),
+link «📚 Iscrivi a un'edizione …» verso il dettaglio corso.
 
 ---
 

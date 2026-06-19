@@ -1255,6 +1255,17 @@ class ImpersonationFlowTests(TestCase):
         self.assertEqual(entry.legacy_user_id, self.admin_legacy.id)
         self.assertEqual(entry.dettaglio["_impersonation"]["impersonated_legacy_user_id"], self.target_legacy.id)
 
+    def test_log_action_accepts_string_dettaglio(self):
+        """``dettaglio`` come stringa non rompe più l'audit (regressione: prima
+        ``dict("...")`` sollevava ValueError e l'audit veniva perso)."""
+        request = self.factory.get("/")
+        _attach_session(request)
+        request.user = self.admin_user
+        request.legacy_user = self.admin_legacy
+        log_action(request, "probe_string_dettaglio", "core", "evidenza scaricata")
+        entry = AuditLog.objects.get(azione="probe_string_dettaglio")
+        self.assertEqual(entry.dettaglio, {"dettaglio": "evidenza scaricata"})
+
 
 class SafeTimedRotatingFileHandlerTests(TestCase):
     def test_emit_falls_back_to_plain_write_when_rollover_file_is_locked(self):

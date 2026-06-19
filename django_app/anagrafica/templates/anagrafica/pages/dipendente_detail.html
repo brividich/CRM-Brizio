@@ -1712,6 +1712,11 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
                 </div>
               </details>
               {% endif %}
+              {% if is_admin %}{% for corso in q.tipo.corsi.all|slice:":1" %}
+              <div class="dp-qual-dates" style="margin-top:4px;">
+                <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-decoration:none;">📚 Iscrivi a un'edizione di «{{ corso.titolo|truncatechars:30 }}»</a>
+              </div>
+              {% endfor %}{% endif %}
               {% if q.record_formazione %}
                 <div class="dp-qual-dates" style="margin-top:4px;">
                   <span style="background:#ecfeff;color:#155e75;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
@@ -1728,7 +1733,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             </div>
             {% if is_admin %}
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }}, this)" data-numero="{{ q.numero }}" data-livello="{{ q.livello }}" data-ente="{{ q.ente }}" title="Rinnova questa qualifica (estremi precompilati)">↻ Rinnova</button>
+                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }}, this)" data-tipo="{{ q.tipo_id }}" data-numero="{{ q.numero }}" data-livello="{{ q.livello }}" data-ente="{{ q.ente }}" title="Rinnova questa qualifica (estremi precompilati)">↻ Rinnova</button>
                 <form method="post" action="{% url 'anagrafica:dipendente_qualifica_verifica' legacy_id q.id %}" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs" title="{% if q.verificata %}Rimuovi verifica HR{% else %}Segna come verificata (controllo HR){% endif %}">{% if q.verificata %}✓ Verificata{% else %}Verifica{% endif %}</button>
@@ -1809,6 +1814,12 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           }
           if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
         }
+        document.addEventListener('DOMContentLoaded', function(){
+          var p=new URLSearchParams(location.search).get('rinnova');
+          if(!p) return;
+          var btn=document.querySelector('button[data-tipo="'+p+'"]');
+          if(btn){ btn.click(); }
+        });
         </script>
       </div>
       {% elif is_admin and not tipi_qualifica %}
