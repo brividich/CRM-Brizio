@@ -1666,7 +1666,16 @@ def dipendente_detail(request, legacy_id: int):
         if not can_view_visite:
             qs_doc = qs_doc.exclude(tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
         documenti_dipendente = list(qs_doc.order_by("-created_at")[:100])
-        cartelle_documenti = list(CartellaDocumentoDipendente.objects.filter(attiva=True).order_by("ordine", "nome"))
+        # Scheletro cartelle: solo quelle applicabili al dipendente (targeting per
+        # reparto/ruoli operativi; cartella senza targeting = universale).
+        from .models import DipendenteAnagraficaAziendale as _Az, DipendenteRuoloOperativo as _RO
+        _area_nome = (_Az.objects.filter(legacy_anagrafica_id=legacy_id).values_list("area", flat=True).first() or "")
+        _ruoli_ids = set(_RO.objects.filter(legacy_anagrafica_id=legacy_id).values_list("ruolo_id", flat=True))
+        cartelle_documenti = [
+            c for c in CartellaDocumentoDipendente.objects
+            .filter(attiva=True).prefetch_related("reparti", "ruoli_operativi").order_by("ordine", "nome")
+            if c.si_applica(_area_nome, _ruoli_ids)
+        ]
     except Exception:
         logger.exception("Errore caricamento documenti per dipendente %s", legacy_id)
 
@@ -8079,10 +8088,15 @@ def impostazioni(request):
     _cartelle_all = list(
         CartellaDocumentoDipendente.objects
         .annotate(n_documenti=Count("documenti"))
+        .prefetch_related("reparti", "ruoli_operativi")
         .order_by("ordine", "nome")
     )
     _cartelle_by_parent: dict = {}
     for _c in _cartelle_all:
+        # Targeting: id selezionati (per i multiselect del form) + flag "mirata"
+        _c.reparti_ids = {r.id for r in _c.reparti.all()}
+        _c.ruoli_ids = {r.id for r in _c.ruoli_operativi.all()}
+        _c.is_mirata = bool(_c.reparti_ids or _c.ruoli_ids)
         _cartelle_by_parent.setdefault(_c.parent_id, []).append(_c)
     cartelle_documenti: list = []
 
@@ -9155,6 +9169,15 @@ def cartella_documento_edit(request, cartella_id: int):
     except (ValueError, TypeError):
         pass
     cartella.save()
+    # Targeting (visibilità mirata): reparti + ruoli operativi. Vuoto = universale.
+    def _ids(name):
+        out = []
+        for raw in request.POST.getlist(name):
+            if str(raw).strip().isdigit():
+                out.append(int(raw))
+        return out
+    cartella.reparti.set(_ids("reparti_ids"))
+    cartella.ruoli_operativi.set(_ids("ruoli_ids"))
     messages.success(request, f"Cartella «{nome}» aggiornata.")
     return _redirect_impostazioni("documenti")
 

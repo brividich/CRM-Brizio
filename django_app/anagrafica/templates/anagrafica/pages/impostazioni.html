@@ -1682,7 +1682,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <tbody>
                 {% for c in cartelle_documenti %}
                 <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
-                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">{% if c.livello %}<span style="display:inline-block;width:{% widthratio c.livello 1 20 %}px;"></span><span style="color:#94a3b8;">↳</span> {% endif %}📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">{% if c.livello %}<span style="display:inline-block;width:{% widthratio c.livello 1 20 %}px;"></span><span style="color:#94a3b8;">↳</span> {% endif %}📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}{% if c.is_mirata %} <span class="imp-badge" style="background:#e0f2fe;color:#0369a1;" title="Visibile solo a reparti/ruoli selezionati">🎯 mirata</span>{% endif %}</td>
                   <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
                   <td style="padding:8px 10px;text-align:center;">
@@ -1750,6 +1750,21 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <div style="display:flex;gap:6px;">
                           <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
                           <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='none';document.getElementById('cartella-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                      {# Targeting: a chi è visibile la cartella (vuoto = tutti) #}
+                      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Visibile ai reparti <span style="text-transform:none;font-weight:400;color:#94a3b8;">(vuoto = tutti)</span></label>
+                          <select name="reparti_ids" multiple size="4" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            {% for r in aree %}<option value="{{ r.id }}" {% if r.id in c.reparti_ids %}selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Visibile ai ruoli operativi <span style="text-transform:none;font-weight:400;color:#94a3b8;">(vuoto = tutti)</span></label>
+                          <select name="ruoli_ids" multiple size="4" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            {% for ro in ruoli_operativi %}<option value="{{ ro.id }}" {% if ro.id in c.ruoli_ids %}selected{% endif %}>{{ ro.nome }}</option>{% endfor %}
+                          </select>
                         </div>
                       </div>
                     </form>

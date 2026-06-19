@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **ANAGRAFICA HR - Documenti: targeting cartelle per reparto / ruolo operativo** (`django_app/anagrafica/migrations/0068_cartella_targeting.py` [nuovo], `django_app/anagrafica/views.py`, `django_app/anagrafica/templates/anagrafica/pages/impostazioni.html`, `django_app/anagrafica/tests_impostazioni_guard.py`): una cartella documenti può ora essere **mirata** a specifici **reparti** e/o **ruoli operativi** (M2M sul modello, già presente; qui aggiunti **migration**, enforcement, UI e test). Vuoto = universale (comportamento attuale). Nella scheda dipendente lo **scheletro cartelle è filtrato** mostrando solo quelle applicabili (`CartellaDocumentoDipendente.si_applica()` su reparto-testo + ruoli, prefetch per evitare N+1). In Impostazioni → Documenti, il form di modifica cartella ha due **multiselect** «Visibile ai reparti / ai ruoli operativi» e la riga mostra il badge **🎯 mirata**. Test (`TargetingTests`): universale sempre applicabile, match reparto case-insensitive, match ruolo. 13/13 verdi.
+
 ### Fixed
 
 - **CORE · Audit trail: `log_action` con `dettaglio` stringa non scriveva più il log (bug latente diffuso)** (`django_app/core/audit.py`, `django_app/core/tests.py`): la firma è `log_action(request, azione, modulo, dettaglio: dict|None)` e internamente faceva `dict(dettaglio or {})`. Le ~40 call-site storiche che passano una **stringa** come 4° argomento (in `dpi`, `rilevazione_incidenti`, `admin_portale`, `rentri`, `diario_preposto`, `anagrafica`) provocavano `ValueError: dictionary update sequence element…`, **assorbito dal `try/except`** → l'azione **non veniva registrata** in `AuditLog` (audit perso silenziosamente). Fix **alla sorgente** (una sola modifica, retro-compatibile, ripara tutte le chiamate presenti e future senza toccarle): `dettaglio` ora è tollerante al tipo — `dict` usato com'è, `str` incapsulata in `{"dettaglio": ...}`, `None`/vuoto → `{}`. Type hint aggiornato a `dict | str | None`. Test di regressione `test_log_action_accepts_string_dettaglio`.
