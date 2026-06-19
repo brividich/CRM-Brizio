@@ -1789,6 +1789,11 @@ class CartellaDocumentoDipendente(models.Model):
     descrizione = models.CharField(max_length=300, blank=True, default="")
     ordine = models.PositiveSmallIntegerField(default=0, help_text="Ordinamento nella lista.")
     attiva = models.BooleanField(default=True, help_text="Se False non appare nel form di upload.")
+    retention_anni = models.PositiveSmallIntegerField(
+        default=10,
+        help_text="Anni di conservazione GDPR per i documenti manuali di questa cartella "
+                  "(impostazione del container; default 10). Applicata ai nuovi documenti.",
+    )
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -1904,6 +1909,14 @@ class DocumentoDipendente(models.Model):
     def save(self, *args, **kwargs):
         if self.retention_until is None and self.tipo:
             anni = self._RETENTION_ANNI.get(self.tipo, 10)
+            # Override per-cartella (container manager): i documenti manuali ereditano
+            # la retention configurata sulla cartella, se valorizzata.
+            if self.tipo == self.Tipo.MANUALE and self.cartella_id:
+                try:
+                    if self.cartella and self.cartella.retention_anni:
+                        anni = self.cartella.retention_anni
+                except Exception:
+                    pass
             # Per record già esistenti usa created_at; per i nuovi (pk non ancora
             # assegnato) created_at non è ancora scritto → usa date.today().
             base = self.created_at.date() if self.pk and self.created_at else date.today()

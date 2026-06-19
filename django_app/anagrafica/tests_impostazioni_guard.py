@@ -4,9 +4,15 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from datetime import date
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 from .models import (
+    CartellaDocumentoDipendente,
     DipendenteQualifica,
     DipendenteRuoloOperativo,
+    DocumentoDipendente,
     RuoloOperativo,
     TipoQualifica,
 )
@@ -37,3 +43,23 @@ class DeleteGuardTests(TestCase):
         r.refresh_from_db()
         self.assertFalse(r.is_active)
         self.assertTrue(RuoloOperativo.objects.filter(pk=r.pk).exists())
+
+
+class FolderRetentionTests(TestCase):
+    """Container manager Documenti: i documenti manuali ereditano la retention della cartella."""
+
+    def test_documento_eredita_retention_cartella(self):
+        cart = CartellaDocumentoDipendente.objects.create(nome="Comunicazioni", retention_anni=2)
+        doc = DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=1, tipo=DocumentoDipendente.Tipo.MANUALE, cartella=cart,
+            file=SimpleUploadedFile("x.txt", b"x"),
+        )
+        self.assertIsNotNone(doc.retention_until)
+        self.assertEqual(doc.retention_until.year, date.today().year + 2)
+
+    def test_documento_senza_cartella_usa_default(self):
+        doc = DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=1, tipo=DocumentoDipendente.Tipo.MANUALE,
+            file=SimpleUploadedFile("y.txt", b"y"),
+        )
+        self.assertEqual(doc.retention_until.year, date.today().year + 10)

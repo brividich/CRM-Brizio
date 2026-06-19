@@ -1674,6 +1674,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Descrizione</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;" title="Anni di conservazione GDPR dei documenti manuali di questa cartella">Retention</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Documenti</th>
                   <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
                 </tr>
@@ -1688,6 +1689,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     {% if c.attiva %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
                     {% else %}<span style="color:#94a3b8;font-size:11px;">Disattiva</span>{% endif %}
                   </td>
+                  <td style="padding:8px 10px;text-align:center;color:#64748b;font-size:12px;">{{ c.retention_anni }} anni</td>
                   <td style="padding:8px 10px;text-align:center;color:#475569;">
                     {% if c.n_documenti %}<a href="{% url 'anagrafica:documenti_list' %}?cartella={{ c.id }}" style="color:#1f87cd;font-weight:700;text-decoration:none;" title="Apri i documenti di questa cartella">{{ c.n_documenti }} →</a>{% else %}{{ c.n_documenti }}{% endif %}
                   </td>
@@ -1711,10 +1713,10 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                 </tr>
                 {# Form modifica inline #}
                 <tr id="cartella-edit-{{ c.id }}" style="display:none;background:#f8fafc;">
-                  <td colspan="6" style="padding:12px 10px;">
+                  <td colspan="7" style="padding:12px 10px;">
                     <form method="post" action="{% url 'anagrafica:cartella_documento_edit' c.id %}">
                       {% csrf_token %}
-                      <div style="display:grid;grid-template-columns:1fr 2fr 80px 100px auto;gap:10px;align-items:end;">
+                      <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px 100px auto;gap:10px;align-items:end;">
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                           <input type="text" name="nome" value="{{ c.nome }}" required maxlength="100" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1726,6 +1728,10 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
                           <input type="number" name="ordine" value="{{ c.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                          <input type="number" name="retention_anni" value="{{ c.retention_anni }}" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                         </div>
                         <div>
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Stato</label>
@@ -1754,7 +1760,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
               <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
                 {% csrf_token %}
-                <div style="display:grid;grid-template-columns:1fr 2fr 80px auto;gap:10px;align-items:end;">
+                <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto;gap:10px;align-items:end;">
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
                     <input type="text" name="nome" required maxlength="100" placeholder="es. Contratti" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
@@ -1766,6 +1772,10 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Ordine</label>
                     <input type="number" name="ordine" value="0" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                    <input type="number" name="retention_anni" value="10" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                   </div>
                   <div>
                     <button type="submit" class="imp-btn imp-btn-primary">+ Crea cartella</button>

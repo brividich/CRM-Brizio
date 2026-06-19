@@ -8645,7 +8645,11 @@ def cartella_documento_create(request):
     if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome).exists():
         messages.error(request, f"Esiste già una cartella con nome «{nome}».")
         return _redirect_impostazioni("documenti")
-    CartellaDocumentoDipendente.objects.create(nome=nome, descrizione=descrizione, ordine=ordine)
+    try:
+        retention = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
+    except (ValueError, TypeError):
+        retention = 10
+    CartellaDocumentoDipendente.objects.create(nome=nome, descrizione=descrizione, ordine=ordine, retention_anni=retention)
     messages.success(request, f"Cartella «{nome}» creata.")
     return _redirect_impostazioni("documenti")
 
@@ -8675,6 +8679,10 @@ def cartella_documento_edit(request, cartella_id: int):
     cartella.descrizione = descrizione
     cartella.ordine = ordine
     cartella.attiva = attiva
+    try:
+        cartella.retention_anni = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
+    except (ValueError, TypeError):
+        pass
     cartella.save()
     messages.success(request, f"Cartella «{nome}» aggiornata.")
     return _redirect_impostazioni("documenti")
