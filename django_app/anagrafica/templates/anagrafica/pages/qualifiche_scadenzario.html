@@ -95,10 +95,12 @@
               <th>Reparto</th>
               <th>Qualifica</th>
               <th>Categoria</th>
+              <th>Ente</th>
               <th class="fmd-nowrap">Conseguim.</th>
               <th class="fmd-nowrap">Scadenza</th>
               <th class="fmd-r">Giorni</th>
               <th>Stato</th>
+              <th>Evidenza</th>
             </tr>
           </thead>
           <tbody>
@@ -109,8 +111,9 @@
                 <span class="fmd-code" style="margin-left:5px;">#{{ v.legacy_id }}</span>
               </td>
               <td class="fmd-muted">{{ v.reparto|default:"—" }}</td>
-              <td>{{ v.tipo_nome }}</td>
+              <td>{{ v.tipo_nome }}{% if v.numero %} <span class="fmd-code">{{ v.numero }}</span>{% endif %}{% if v.livello %} <span class="fmd-muted">· {{ v.livello }}</span>{% endif %}</td>
               <td class="fmd-muted">{{ v.categoria }}</td>
+              <td class="fmd-muted">{{ v.ente|default:"—" }}</td>
               <td class="fmd-nowrap fmd-muted">{% if v.data_conseguimento %}{{ v.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
               <td class="fmd-nowrap fmd-muted">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
               <td class="fmd-r">
@@ -130,6 +133,11 @@
                 {% elif v.stato == "s60" %}<span class="fmd-badge fmd-b-amber">≤60gg</span>
                 {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
                 {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
+              </td>
+              <td>
+                {% if v.verificata %}<span class="fmd-badge fmd-b-green">✓ Verif.</span>
+                {% elif v.ha_evidenza %}<span class="fmd-badge fmd-b-amber">Da verif.</span>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
             </tr>
             {% endfor %}

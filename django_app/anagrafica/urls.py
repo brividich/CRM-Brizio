@@ -89,6 +89,8 @@ urlpatterns = [
     # Qualifiche dipendente
     path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
     path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/delete", views.dipendente_qualifica_delete, name="dipendente_qualifica_delete"),
+    path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/evidenza", views.dipendente_qualifica_evidenza, name="dipendente_qualifica_evidenza"),
+    path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/verifica", views.dipendente_qualifica_verifica, name="dipendente_qualifica_verifica"),
 
     # Dashboard globale visite mediche
     path("visite-mediche/", views.visite_mediche_dashboard, name="visite_mediche_dashboard"),

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -83,3 +84,85 @@ class QualificheCruscottoTests(TestCase):
         body = resp.content.decode("utf-8-sig")
         self.assertIn("Patentino carrellista", body)
         self.assertIn("Rossi Mario", body)
+        self.assertIn("Ente", body)  # header colonna Fase 2
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class QualificheFase2Tests(TestCase):
+    """Fase 2a: estremi certificato (n°/livello/ente), evidenza, verifica HR."""
+
+    def setUp(self):
+        _ensure_anagrafica_table()
+        _ensure_utenti_table()
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM anagrafica_dipendenti")
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (id, nome, cognome, reparto, attivo) "
+                "VALUES (1, 'Mario', 'Rossi', 'Produzione', 1)"
+            )
+        self.user = User.objects.create_superuser(
+            username="qual-f2", email="qual-f2@example.com", password="pass12345",
+        )
+        self.tipo = TipoQualifica.objects.create(
+            nome="Antincendio", categoria=TipoQualifica.CAT_SICUREZZA, durata_mesi=60,
+        )
+        self.client.force_login(self.user)
+
+    def test_add_con_estremi_e_evidenza(self):
+        pdf = SimpleUploadedFile("cert.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        resp = self.client.post(
+            reverse("anagrafica:dipendente_qualifica_add", args=[1]),
+            {
+                "tipo_id": self.tipo.id,
+                "data_conseguimento": "2026-01-10",
+                "numero": "AB-999",
+                "livello": "liv. 2",
+                "ente": "Vigili del Fuoco",
+                "note": "",
+                "documento": pdf,
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=1, tipo=self.tipo)
+        self.assertEqual(q.numero, "AB-999")
+        self.assertEqual(q.livello, "liv. 2")
+        self.assertEqual(q.ente, "Vigili del Fuoco")
+        self.assertTrue(q.documento)
+        self.assertFalse(q.verificata)
+        # Evidenza scaricabile (storage privato, view protetta)
+        ev = self.client.get(reverse("anagrafica:dipendente_qualifica_evidenza", args=[1, q.id]))
+        self.assertEqual(ev.status_code, 200)
+
+    def test_add_rifiuta_formato_non_ammesso(self):
+        bad = SimpleUploadedFile("malware.exe", b"MZ", content_type="application/octet-stream")
+        self.client.post(
+            reverse("anagrafica:dipendente_qualifica_add", args=[1]),
+            {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10", "documento": bad},
+        )
+        self.assertFalse(DipendenteQualifica.objects.filter(legacy_anagrafica_id=1).exists())
+
+    def test_verifica_toggle(self):
+        q = DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=1, tipo=self.tipo, data_conseguimento=date(2026, 1, 1),
+        )
+        # Attiva verifica
+        self.client.post(reverse("anagrafica:dipendente_qualifica_verifica", args=[1, q.id]))
+        q.refresh_from_db()
+        self.assertTrue(q.verificata)
+        self.assertEqual(q.verificata_da_id, self.user.id)
+        self.assertIsNotNone(q.verificata_il)
+        # Toggle off
+        self.client.post(reverse("anagrafica:dipendente_qualifica_verifica", args=[1, q.id]))
+        q.refresh_from_db()
+        self.assertFalse(q.verificata)
+        self.assertIsNone(q.verificata_da_id)
+
+    def test_dashboard_kpi_da_verificare(self):
+        pdf = SimpleUploadedFile("c.pdf", b"%PDF-1.4", content_type="application/pdf")
+        q = DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=1, tipo=self.tipo, data_conseguimento=date(2026, 1, 1),
+            documento=pdf,
+        )
+        resp = self.client.get(reverse("anagrafica:qualifiche_dashboard"))
+        self.assertEqual(resp.context["n_con_evidenza"], 1)
+        self.assertEqual(resp.context["n_da_verificare"], 1)

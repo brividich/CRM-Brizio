@@ -210,9 +210,18 @@ Contenuto del **Cruscotto** (implementato):
 > (il discorso formativo resta lì); il cruscotto è una vista trasversale aggiuntiva,
 > non li sostituisce.
 
-**Fase 2 (futura)**: evidenza documentale certificato (allegato), campi n°/livello/ente,
-rinnovo guidato, storico rinnovi, verifica HR. Valutare se i nuovi campi vanno propagati
-anche a scheda dipendente / matrice (single-source).
+**✅ Fase 2a IMPLEMENTATA** (migration `0065`, additiva): su `DipendenteQualifica`
+campi `numero` / `livello` / `ente` + **evidenza documentale** `documento` (storage
+privato fuori webroot, download protetto `dipendente_qualifica_evidenza` ACL admin/HR +
+audit) + **verifica HR** `verificata`/`verificata_da`/`verificata_il` (toggle
+`dipendente_qualifica_verifica`). Compilabili dal form «Aggiungi qualifica» (scheda
+dipendente, multipart); cruscotto KPI «Da verificare»; scadenzario colonne Ente/Evidenza/
+Verifica + CSV. I campi vivono sulla stessa `DipendenteQualifica` (single-source: visibili
+anche a matrice/conformità/scheda).
+
+**Fase 2b/c (futura)**: rinnovo guidato (da scadenza → sessione/iscrizione precompilata),
+storico rinnovi esplicito (catena invece di sovrascrittura). Da valutare l'impatto sulla
+convenzione attuale "una DipendenteQualifica corrente per (dipendente, tipo)".
 
 ### 6. Paghe & Contratti — categoria/dropdown
 | ordine | etichetta | name (`anagrafica:`) |

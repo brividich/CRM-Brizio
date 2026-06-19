@@ -1682,8 +1682,23 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
                 {% else %}
                   <span style="color:#94a3b8;">Nessuna scadenza</span>
                 {% endif %}
+                {% if q.numero %}<span>N° <strong>{{ q.numero }}</strong></span>{% endif %}
+                {% if q.livello %}<span>Livello: <strong>{{ q.livello }}</strong></span>{% endif %}
+                {% if q.ente %}<span>Ente: <strong>{{ q.ente }}</strong></span>{% endif %}
                 {% if q.note %}<span>{{ q.note }}</span>{% endif %}
               </div>
+              {% if q.documento or q.verificata %}
+              <div class="dp-qual-dates" style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                {% if q.documento and is_admin %}
+                  <a href="{% url 'anagrafica:dipendente_qualifica_evidenza' legacy_id q.id %}" style="background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-decoration:none;">📎 Evidenza</a>
+                {% endif %}
+                {% if q.verificata %}
+                  <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;" title="Verificata{% if q.verificata_il %} il {{ q.verificata_il|date:'d-m-Y' }}{% endif %}">✓ Verificata</span>
+                {% elif q.documento %}
+                  <span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">Da verificare</span>
+                {% endif %}
+              </div>
+              {% endif %}
               {% if q.record_formazione %}
                 <div class="dp-qual-dates" style="margin-top:4px;">
                   <span style="background:#ecfeff;color:#155e75;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
@@ -1701,6 +1716,10 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             {% if is_admin %}
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
                 <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }})" title="Rinnova questa qualifica">↻ Rinnova</button>
+                <form method="post" action="{% url 'anagrafica:dipendente_qualifica_verifica' legacy_id q.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs" title="{% if q.verificata %}Rimuovi verifica HR{% else %}Segna come verificata (controllo HR){% endif %}">{% if q.verificata %}✓ Verificata{% else %}Verifica{% endif %}</button>
+                </form>
                 <form method="post" action="{% url 'anagrafica:dipendente_qualifica_delete' legacy_id q.id %}" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Rimuovere la qualifica {{ q.tipo.nome }}?')">🗑 Rimuovi</button>
@@ -1718,7 +1737,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
         <button type="button" onclick="(function(btn){var panel=document.getElementById('qualifica-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Aggiungi qualifica':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Aggiungi qualifica</button>
         <div id="qualifica-form-panel" style="display:none;margin-top:10px;">
-        <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}">
+        <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
@@ -1739,8 +1758,24 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <input type="date" name="data_scadenza" class="dp-select" style="width:100%;">
             </div>
             <div class="dp-qual-field">
+              <label class="dp-qual-label">N° certificato</label>
+              <input type="text" name="numero" class="dp-select" maxlength="100" placeholder="es. AB12345" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Livello</label>
+              <input type="text" name="livello" class="dp-select" maxlength="80" placeholder="es. liv. 2" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Ente rilasciante</label>
+              <input type="text" name="ente" class="dp-select" maxlength="200" placeholder="Organismo/ente" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
               <label class="dp-qual-label">Note</label>
               <input type="text" name="note" class="dp-select" maxlength="255" placeholder="Note opzionali" style="width:100%;">
+            </div>
+            <div class="dp-qual-field" style="grid-column:1/-1;">
+              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 15 MB)</label>
+              <input type="file" name="documento" class="dp-select" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff" style="width:100%;">
             </div>
           </div>
           <div style="margin-top:10px;">

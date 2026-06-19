@@ -508,6 +508,17 @@ class TipoQualifica(models.Model):
         return self.nome
 
 
+def _dipendente_qualifica_evidenza_upload_to(instance, filename: str) -> str:
+    legacy_id = instance.legacy_anagrafica_id or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "certificato"
+    now = timezone.now()
+    return (
+        f"anagrafica/dipendenti/{legacy_id}/qualifiche/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
 class DipendenteQualifica(models.Model):
     """Qualifica/certificazione assegnata a un dipendente (via ID legacy anagrafica)."""
     legacy_anagrafica_id = models.IntegerField(db_index=True)
@@ -543,6 +554,34 @@ class DipendenteQualifica(models.Model):
         blank=True,
         related_name="qualifiche_collegate",
     )
+    # ── Fase 2: estremi del certificato/abilitazione (competency management) ──
+    numero = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Numero del certificato/patentino.",
+    )
+    livello = models.CharField(
+        max_length=80, blank=True, default="",
+        help_text="Livello/categoria (es. antincendio liv. 2).",
+    )
+    ente = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Ente/organismo che ha rilasciato l'abilitazione.",
+    )
+    # Evidenza documentale: storage privato fuori webroot, servita da view protetta.
+    documento = models.FileField(
+        upload_to=_dipendente_qualifica_evidenza_upload_to,
+        storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+        help_text="Scansione/PDF del certificato (evidenza).",
+    )
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
+    # Verifica HR dell'evidenza caricata.
+    verificata = models.BooleanField(default=False)
+    verificata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="qualifiche_verificate",
+    )
+    verificata_il = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

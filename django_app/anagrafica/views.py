@@ -3706,12 +3706,18 @@ def dipendente_rimetti_in_forza(request, legacy_id: int):
 
 
 def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scadenza,
-                                 *, note="", user=None, sessione=None):
+                                 *, note="", user=None, sessione=None,
+                                 numero=None, livello=None, ente=None,
+                                 documento=None, documento_nome=None):
     """Crea o aggiorna la qualifica corrente di un dipendente per un tipo.
 
     Convenzione (come ``import_asr``): una sola ``DipendenteQualifica`` corrente
     per (dipendente, tipo), aggiornata al rinnovo — niente duplicati. Lo storico
     dei rinnovi vive nelle ``QualificaSessione`` collegate. Ritorna (obj, created).
+
+    I campi Fase 2 (``numero``/``livello``/``ente``/``documento``) sono opzionali:
+    vengono scritti solo se passati esplicitamente (None = non toccare), così gli
+    altri chiamanti (import ASR, sessioni) restano invariati.
     """
     if data_scadenza is None and tipo.durata_mesi and data_conseguimento:
         from anagrafica.models import _add_months
@@ -3728,6 +3734,19 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
     obj.data_scadenza = data_scadenza
     if note:
         obj.note = note[:255]
+    if numero is not None:
+        obj.numero = numero[:100]
+    if livello is not None:
+        obj.livello = livello[:80]
+    if ente is not None:
+        obj.ente = ente[:200]
+    if documento is not None:
+        obj.documento = documento
+        obj.documento_nome_originale = (documento_nome or getattr(documento, "name", "") or "")[:255]
+        # Un nuovo documento richiede una nuova verifica HR.
+        obj.verificata = False
+        obj.verificata_da = None
+        obj.verificata_il = None
     if sessione is not None:
         obj.sessione = sessione
     if user is not None:
@@ -3774,10 +3793,30 @@ def dipendente_qualifica_add(request, legacy_id: int):
             data_scadenza = data_conseguimento + timedelta(days=tipo.durata_mesi * 30)
 
     note = (request.POST.get("note") or "").strip()[:255]
+    numero = (request.POST.get("numero") or "").strip()[:100]
+    livello = (request.POST.get("livello") or "").strip()[:80]
+    ente = (request.POST.get("ente") or "").strip()[:200]
+
+    # Evidenza documentale opzionale (storage privato). Validazione estensione/dimensione.
+    documento = request.FILES.get("documento")
+    documento_nome = None
+    if documento:
+        from pathlib import Path as _Path
+        allowed = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff"}
+        suffix = _Path(documento.name or "").suffix.lower()
+        if suffix not in allowed:
+            messages.error(request, "Formato evidenza non ammesso (usa PDF o immagine).")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        if documento.size > 15 * 1024 * 1024:
+            messages.error(request, "Evidenza troppo grande (max 15 MB).")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        documento_nome = documento.name
 
     _, created = _upsert_dipendente_qualifica(
         legacy_id, tipo, data_conseguimento, data_scadenza,
         note=note, user=request.user,
+        numero=numero, livello=livello, ente=ente,
+        documento=documento or None, documento_nome=documento_nome,
     )
     messages.success(
         request,
@@ -3798,6 +3837,60 @@ def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
     nome = qualifica.tipo.nome
     qualifica.delete()
     messages.success(request, f'Qualifica "{nome}" rimossa.')
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+def dipendente_qualifica_evidenza(request, legacy_id: int, q_id: int):
+    """Serve l'evidenza documentale di una qualifica da storage privato (fuori
+    webroot). ACL: admin legacy / superuser / HR (può contenere dati personali)."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        return HttpResponse(status=403)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
+    if not q.documento:
+        return HttpResponse("Evidenza non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(
+            request, "QUALIFICA_EVIDENZA_DOWNLOAD", "anagrafica",
+            {"qualifica_id": q.pk, "tipo": q.tipo.nome, "legacy_id": legacy_id},
+        )
+    except Exception:
+        logger.warning("Audit QUALIFICA_EVIDENZA_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = q.documento.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    return FileResponse(
+        fh, as_attachment=True,
+        filename=q.documento_nome_originale or f"qualifica_{q.pk}.bin",
+    )
+
+
+@login_required
+@require_POST
+def dipendente_qualifica_verifica(request, legacy_id: int, q_id: int):
+    """Toggle del flag «verificata» (controllo HR dell'evidenza). ACL: admin/HR."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        messages.error(request, "Permessi insufficienti per verificare la qualifica.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    q = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
+    if q.verificata:
+        q.verificata = False
+        q.verificata_da = None
+        q.verificata_il = None
+        msg = f'Verifica rimossa da "{q.tipo.nome}".'
+    else:
+        from django.utils import timezone as _tz
+        q.verificata = True
+        q.verificata_da = request.user
+        q.verificata_il = _tz.now()
+        msg = f'Qualifica "{q.tipo.nome}" contrassegnata come verificata.'
+    q.save(update_fields=["verificata", "verificata_da", "verificata_il"])
+    messages.success(request, msg)
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
@@ -5677,6 +5770,7 @@ def qualifiche_dashboard(request):
 
     quals = list(DipendenteQualifica.objects.select_related("tipo").all())
     n_valide = n_scadute = n_s30 = n_s60 = n_permanenti = 0
+    n_con_evidenza = n_da_verificare = 0
     dipendenti_ids: set[int] = set()
     cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
     dist_cat = {c: 0 for c, _ in TipoQualifica.CATEGORIA_CHOICES}
@@ -5695,6 +5789,10 @@ def qualifiche_dashboard(request):
         dipendenti_ids.add(q.legacy_anagrafica_id)
         if q.tipo.categoria in dist_cat:
             dist_cat[q.tipo.categoria] += 1
+        if q.documento:
+            n_con_evidenza += 1
+            if not q.verificata:
+                n_da_verificare += 1
         d = q.data_scadenza
         if d is None:
             n_permanenti += 1
@@ -5761,6 +5859,8 @@ def qualifiche_dashboard(request):
         "n_in_scadenza": n_s30 + n_s60,
         "n_s30": n_s30,
         "n_permanenti": n_permanenti,
+        "n_con_evidenza": n_con_evidenza,
+        "n_da_verificare": n_da_verificare,
         "distribuzione": distribuzione,
         "timeline": timeline,
         "scadenze_urgenti": scadenze_urgenti,
@@ -5834,11 +5934,16 @@ def qualifiche_scadenzario(request):
             "tipo_nome": q.tipo.nome,
             "tipo_id": q.tipo_id,
             "categoria": q.tipo.get_categoria_display(),
+            "numero": q.numero,
+            "livello": q.livello,
+            "ente": q.ente,
             "data_conseguimento": q.data_conseguimento,
             "data_scadenza": q.data_scadenza,
             "giorni": (q.data_scadenza - oggi).days if q.data_scadenza else None,
             "stato": stato_code,
             "stato_label": stato_label,
+            "ha_evidenza": bool(q.documento),
+            "verificata": q.verificata,
             "note": q.note,
         })
 
@@ -5846,15 +5951,19 @@ def qualifiche_scadenzario(request):
         resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
         writer = csv.writer(resp, delimiter=";")
-        writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria",
-                         "Conseguimento", "Scadenza", "Giorni", "Stato"])
+        writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria", "N°", "Livello",
+                         "Ente", "Conseguimento", "Scadenza", "Giorni", "Stato",
+                         "Evidenza", "Verificata"])
         for v in voci:
             writer.writerow([
                 v["dipendente"], v["reparto"], v["tipo_nome"], v["categoria"],
+                v["numero"], v["livello"], v["ente"],
                 v["data_conseguimento"].strftime("%d/%m/%Y") if v["data_conseguimento"] else "",
                 v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
                 v["giorni"] if v["giorni"] is not None else "",
                 v["stato_label"],
+                "Sì" if v["ha_evidenza"] else "No",
+                "Sì" if v["verificata"] else "No",
             ])
         return resp
 

@@ -71,6 +71,12 @@
         <div class="fmd-mtr-lbl">Tipi a catalogo</div>
         <div class="fmd-mtr-sub">Sicurezza · Professionali · Gestionali</div>
       </a>
+      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_da_verificare }}</span></div>
+        <div class="fmd-mtr-lbl">Da verificare (HR)</div>
+        <div class="fmd-mtr-sub">{{ n_con_evidenza }} con evidenza caricata</div>
+      </a>
     </section>
 
     {# ── Aree del modulo ────────────────────────────────────────────────── #}
