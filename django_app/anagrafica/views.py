@@ -1611,6 +1611,7 @@ def dipendente_detail(request, legacy_id: int):
     qualifiche_dip = list(
         DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
         .select_related("tipo", "record_formazione", "record_formazione__corso", "sessione")
+        .prefetch_related("storico")
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
@@ -3708,7 +3709,7 @@ def dipendente_rimetti_in_forza(request, legacy_id: int):
 def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scadenza,
                                  *, note="", user=None, sessione=None,
                                  numero=None, livello=None, ente=None,
-                                 documento=None, documento_nome=None):
+                                 documento=None, documento_nome=None, origine=None):
     """Crea o aggiorna la qualifica corrente di un dipendente per un tipo.
 
     Convenzione (come ``import_asr``): una sola ``DipendenteQualifica`` corrente
@@ -3752,6 +3753,24 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
     if user is not None:
         obj.assegnato_da = user
     obj.save()
+
+    # Storico append-only (Fase 2c): una riga per rilascio/rinnovo. Dedup contro
+    # l'ultima riga identica (evita doppioni su re-import idempotenti).
+    from anagrafica.models import DipendenteQualificaStorico
+    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente)
+    last = None if created else obj.storico.order_by("-id").first()
+    if last is None or (last.data_conseguimento, last.data_scadenza, last.numero, last.ente) != snap:
+        if sessione is not None:
+            org = DipendenteQualificaStorico.Origine.SESSIONE
+        else:
+            org = origine or DipendenteQualificaStorico.Origine.MANUALE
+        DipendenteQualificaStorico.objects.create(
+            qualifica=obj,
+            data_conseguimento=obj.data_conseguimento,
+            data_scadenza=obj.data_scadenza,
+            numero=obj.numero, livello=obj.livello, ente=obj.ente,
+            note=(note or "")[:255], origine=org, registrato_da=user,
+        )
     return obj, created
 
 

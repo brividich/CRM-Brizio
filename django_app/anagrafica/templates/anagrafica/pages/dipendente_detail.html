@@ -1699,6 +1699,19 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
                 {% endif %}
               </div>
               {% endif %}
+              {% if q.storico.all|length > 1 %}
+              <details class="dp-qual-dates" style="margin-top:4px;">
+                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }})</summary>
+                <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:2px solid #e2e8f0;">
+                  {% for s in q.storico.all %}
+                  <div style="font-size:11px;color:#475569;">
+                    {% if s.data_conseguimento %}<strong>{{ s.data_conseguimento|date:"d-m-Y" }}</strong>{% else %}—{% endif %}{% if s.data_scadenza %} → {{ s.data_scadenza|date:"d-m-Y" }}{% endif %}{% if s.ente %} · {{ s.ente }}{% endif %}{% if s.numero %} · n° {{ s.numero }}{% endif %}
+                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
               {% if q.record_formazione %}
                 <div class="dp-qual-dates" style="margin-top:4px;">
                   <span style="background:#ecfeff;color:#155e75;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
@@ -1715,7 +1728,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             </div>
             {% if is_admin %}
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }})" title="Rinnova questa qualifica">↻ Rinnova</button>
+                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }}, this)" data-numero="{{ q.numero }}" data-livello="{{ q.livello }}" data-ente="{{ q.ente }}" title="Rinnova questa qualifica (estremi precompilati)">↻ Rinnova</button>
                 <form method="post" action="{% url 'anagrafica:dipendente_qualifica_verifica' legacy_id q.id %}" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs" title="{% if q.verificata %}Rimuovi verifica HR{% else %}Segna come verificata (controllo HR){% endif %}">{% if q.verificata %}✓ Verificata{% else %}Verifica{% endif %}</button>
@@ -1759,15 +1772,15 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">N° certificato</label>
-              <input type="text" name="numero" class="dp-select" maxlength="100" placeholder="es. AB12345" style="width:100%;">
+              <input type="text" name="numero" id="qual-add-numero" class="dp-select" maxlength="100" placeholder="es. AB12345" style="width:100%;">
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Livello</label>
-              <input type="text" name="livello" class="dp-select" maxlength="80" placeholder="es. liv. 2" style="width:100%;">
+              <input type="text" name="livello" id="qual-add-livello" class="dp-select" maxlength="80" placeholder="es. liv. 2" style="width:100%;">
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Ente rilasciante</label>
-              <input type="text" name="ente" class="dp-select" maxlength="200" placeholder="Organismo/ente" style="width:100%;">
+              <input type="text" name="ente" id="qual-add-ente" class="dp-select" maxlength="200" placeholder="Organismo/ente" style="width:100%;">
             </div>
             <div class="dp-qual-field">
               <label class="dp-qual-label">Note</label>
@@ -1784,11 +1797,16 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
         </form>
         </div>
         <script>
-        function rinnovaQualifica(tipoId){
+        function rinnovaQualifica(tipoId, btn){
           var panel=document.getElementById('qualifica-form-panel');
           if(panel){ panel.style.display='block'; }
           var sel=document.getElementById('qual-add-tipo'); if(sel){ sel.value=String(tipoId); }
-          var d=document.getElementById('qual-add-data'); if(d && !d.value){ d.value=new Date().toISOString().slice(0,10); }
+          var d=document.getElementById('qual-add-data'); if(d){ d.value=new Date().toISOString().slice(0,10); }
+          if(btn && btn.dataset){
+            var num=document.getElementById('qual-add-numero'); if(num){ num.value=btn.dataset.numero||''; }
+            var lev=document.getElementById('qual-add-livello'); if(lev){ lev.value=btn.dataset.livello||''; }
+            var ent=document.getElementById('qual-add-ente'); if(ent){ ent.value=btn.dataset.ente||''; }
+          }
           if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
         }
         </script>

@@ -157,6 +157,18 @@ class QualificheFase2Tests(TestCase):
         self.assertFalse(q.verificata)
         self.assertIsNone(q.verificata_da_id)
 
+    def test_storico_rilascio_e_rinnovo_con_dedup(self):
+        url = reverse("anagrafica:dipendente_qualifica_add", args=[1])
+        # Rilascio
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2024-01-10"})
+        # Rinnovo (nuova data) → seconda riga di storico
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10"})
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=1, tipo=self.tipo)
+        self.assertEqual(q.storico.count(), 2)
+        # Re-post identico → dedup, niente nuova riga
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10"})
+        self.assertEqual(q.storico.count(), 2)
+
     def test_dashboard_kpi_da_verificare(self):
         pdf = SimpleUploadedFile("c.pdf", b"%PDF-1.4", content_type="application/pdf")
         q = DipendenteQualifica.objects.create(

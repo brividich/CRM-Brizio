@@ -660,6 +660,44 @@ class QualificaSessione(models.Model):
         return None
 
 
+class DipendenteQualificaStorico(models.Model):
+    """Storico append-only dei rilasci/rinnovi di una qualifica (Fase 2c).
+
+    Non sostituisce la fonte: la ``DipendenteQualifica`` resta lo stato corrente
+    (letta da matrice/conformità). Qui si accumula la cronologia (snapshot),
+    scritta dall'upsert a ogni rilascio/rinnovo, per audit e timeline.
+    """
+
+    class Origine(models.TextChoices):
+        MANUALE = "MANUALE", "Manuale"
+        SESSIONE = "SESSIONE", "Sessione di rinnovo"
+        IMPORT = "IMPORT", "Import"
+
+    qualifica = models.ForeignKey(
+        DipendenteQualifica, on_delete=models.CASCADE, related_name="storico",
+    )
+    data_conseguimento = models.DateField(null=True, blank=True)
+    data_scadenza = models.DateField(null=True, blank=True)
+    numero = models.CharField(max_length=100, blank=True, default="")
+    livello = models.CharField(max_length=80, blank=True, default="")
+    ente = models.CharField(max_length=200, blank=True, default="")
+    note = models.CharField(max_length=255, blank=True, default="")
+    origine = models.CharField(max_length=12, choices=Origine.choices, default=Origine.MANUALE)
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    registrato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data_conseguimento", "-id"]
+        verbose_name = "Storico qualifica dipendente"
+        verbose_name_plural = "Storico qualifiche dipendente"
+
+    def __str__(self) -> str:
+        return f"[{self.qualifica_id}] {self.data_conseguimento}"
+
+
 # ---------------------------------------------------------------------------
 # Aree aziendali (raggruppamento di alto livello: es. "Produzione", "Uffici")
 # ---------------------------------------------------------------------------
