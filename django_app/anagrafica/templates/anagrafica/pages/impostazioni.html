@@ -481,6 +481,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <div class="imp-card-title">Reparti</div>
               <div class="imp-card-sub">Catalogo dei reparti aziendali con caporeparto assegnato (selezionato dalla lista dipendenti)</div>
             </div>
+            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:organigramma' %}">Organigramma →</a>
           </div>
           {% if is_admin %}
           <form method="post" action="{% url 'anagrafica:area_create' %}" class="imp-add-form">
@@ -880,13 +881,14 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <div class="imp-row-main">
                     <div class="imp-row-name">{{ t.nome }}</div>
                     <div class="imp-row-meta">
-                      {{ t.n_assegnazioni|default:0 }} assegnazioni
+                      <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" style="color:#1f87cd;text-decoration:none;font-weight:600;" title="Apri la scheda: chi la possiede, corsi e sessioni collegati">{{ t.n_assegnazioni|default:0 }} assegnazioni →</a>
                       {% if t.durata_mesi %} · durata {{ t.durata_mesi }} mesi{% endif %}
                       {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                     </div>
                   </div>
                   {% if is_admin %}
                   <div class="imp-row-actions">
+                    <a href="{% url 'anagrafica:tipo_qualifica_detail' t.id %}" class="imp-btn imp-btn-ghost imp-btn-sm" title="Apri scheda qualifica">Apri →</a>
                     <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm" data-modal="qual-edit-{{ t.id }}">Modifica</button>
                     <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;"
                           onsubmit="return confirm('Eliminare la qualifica &quot;{{ t.nome|escapejs }}&quot;?');">
@@ -1686,8 +1688,11 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     {% if c.attiva %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
                     {% else %}<span style="color:#94a3b8;font-size:11px;">Disattiva</span>{% endif %}
                   </td>
-                  <td style="padding:8px 10px;text-align:center;color:#475569;">{{ c.n_documenti }}</td>
+                  <td style="padding:8px 10px;text-align:center;color:#475569;">
+                    {% if c.n_documenti %}<a href="{% url 'anagrafica:documenti_list' %}?cartella={{ c.id }}" style="color:#1f87cd;font-weight:700;text-decoration:none;" title="Apri i documenti di questa cartella">{{ c.n_documenti }} →</a>{% else %}{{ c.n_documenti }}{% endif %}
+                  </td>
                   <td style="padding:8px 10px;text-align:right;">
+                    <a href="{% url 'anagrafica:documenti_list' %}?cartella={{ c.id }}" class="imp-btn imp-btn-ghost imp-btn-sm" title="Apri i documenti di questa cartella">Apri →</a>
                     <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='block';document.getElementById('cartella-row-{{ c.id }}').style.display='none';" class="imp-btn imp-btn-ghost imp-btn-sm">Modifica</button>
                     {% if c.n_documenti == 0 %}
                     <form method="post" action="{% url 'anagrafica:cartella_documento_delete' c.id %}" style="display:inline;">
