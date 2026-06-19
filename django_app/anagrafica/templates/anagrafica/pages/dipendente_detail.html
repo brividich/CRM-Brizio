@@ -1706,7 +1706,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
                   {% for s in q.storico.all %}
                   <div style="font-size:11px;color:#475569;">
                     {% if s.data_conseguimento %}<strong>{{ s.data_conseguimento|date:"d-m-Y" }}</strong>{% else %}—{% endif %}{% if s.data_scadenza %} → {{ s.data_scadenza|date:"d-m-Y" }}{% endif %}{% if s.ente %} · {{ s.ente }}{% endif %}{% if s.numero %} · n° {{ s.numero }}{% endif %}
-                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>
+                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>{% if s.documento and is_admin %} · <a href="{% url 'anagrafica:dipendente_qualifica_storico_evidenza' legacy_id q.id s.id %}" title="Scarica l'evidenza di questo rinnovo" style="color:#065f46;text-decoration:none;font-weight:700;">📎 Evidenza</a>{% endif %}
                   </div>
                   {% endfor %}
                 </div>

@@ -3757,9 +3757,14 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
     # Storico append-only (Fase 2c): una riga per rilascio/rinnovo. Dedup contro
     # l'ultima riga identica (evita doppioni su re-import idempotenti).
     from anagrafica.models import DipendenteQualificaStorico
-    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente)
+    doc_name = getattr(obj.documento, "name", "") or ""
+    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente, doc_name)
     last = None if created else obj.storico.order_by("-id").first()
-    if last is None or (last.data_conseguimento, last.data_scadenza, last.numero, last.ente) != snap:
+    last_snap = None if last is None else (
+        last.data_conseguimento, last.data_scadenza, last.numero, last.ente,
+        getattr(last.documento, "name", "") or "",
+    )
+    if last_snap != snap:
         if sessione is not None:
             org = DipendenteQualificaStorico.Origine.SESSIONE
         else:
@@ -3769,6 +3774,8 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
             data_conseguimento=obj.data_conseguimento,
             data_scadenza=obj.data_scadenza,
             numero=obj.numero, livello=obj.livello, ente=obj.ente,
+            documento=(obj.documento or None),
+            documento_nome_originale=obj.documento_nome_originale,
             note=(note or "")[:255], origine=org, registrato_da=user,
         )
     return obj, created
@@ -3885,6 +3892,39 @@ def dipendente_qualifica_evidenza(request, legacy_id: int, q_id: int):
     return FileResponse(
         fh, as_attachment=True,
         filename=q.documento_nome_originale or f"qualifica_{q.pk}.bin",
+    )
+
+
+@login_required
+def dipendente_qualifica_storico_evidenza(request, legacy_id: int, q_id: int, storico_id: int):
+    """Serve l'evidenza documentale storicizzata di un rinnovo (storage privato).
+    ACL: admin legacy / superuser / HR (come l'evidenza corrente)."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        return HttpResponse(status=403)
+    from anagrafica.models import DipendenteQualificaStorico
+    s = get_object_or_404(
+        DipendenteQualificaStorico, pk=storico_id,
+        qualifica_id=q_id, qualifica__legacy_anagrafica_id=legacy_id,
+    )
+    if not s.documento:
+        return HttpResponse("Evidenza non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(
+            request, "QUALIFICA_STORICO_EVIDENZA_DOWNLOAD", "anagrafica",
+            {"storico_id": s.pk, "qualifica_id": q_id, "legacy_id": legacy_id},
+        )
+    except Exception:
+        logger.warning("Audit QUALIFICA_STORICO_EVIDENZA_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = s.documento.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    return FileResponse(
+        fh, as_attachment=True,
+        filename=s.documento_nome_originale or f"qualifica_storico_{s.pk}.bin",
     )
 
 

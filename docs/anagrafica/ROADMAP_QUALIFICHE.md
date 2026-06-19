@@ -53,6 +53,14 @@ La `DipendenteQualifica` resta **la fonte unica dello stato corrente**:
 visibile nella scheda dipendente sotto ogni qualifica (`<details>` "↻ Storico rinnovi (N)",
 mostrato quando ci sono ≥2 eventi).
 
+**Evidenza storicizzata (migration `0067`):** ogni riga di storico conserva anche il **file**
+dell'evidenza di quel rinnovo (`documento`/`documento_nome_originale`), associato
+condividendo il path del file corrente (nessuna copia fisica). Così quando un rinnovo
+successivo sovrascrive l'evidenza del record corrente, il file precedente resta
+referenziato dallo storico. Download via `dipendente_qualifica_storico_evidenza`
+(ACL admin/HR + audit); link «📎 Evidenza» per riga nella timeline. Il dedup dello storico
+considera anche il nome file.
+
 *(Opzione 2 — più record con "corrente=ultimo valido" — scartata: avrebbe toccato
 matrice/conformità/upsert/import ovunque, rischio alto senza benefici aggiuntivi.)*
 

@@ -660,12 +660,28 @@ class QualificaSessione(models.Model):
         return None
 
 
+def _dipendente_qualifica_storico_upload_to(instance, filename: str) -> str:
+    legacy_id = getattr(getattr(instance, "qualifica", None), "legacy_anagrafica_id", None) or "tmp"
+    suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
+    stem = Path(filename or "").stem[:80] or "certificato"
+    now = timezone.now()
+    return (
+        f"anagrafica/dipendenti/{legacy_id}/qualifiche/storico/"
+        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{stem}{suffix}"
+    )
+
+
 class DipendenteQualificaStorico(models.Model):
     """Storico append-only dei rilasci/rinnovi di una qualifica (Fase 2c).
 
     Non sostituisce la fonte: la ``DipendenteQualifica`` resta lo stato corrente
     (letta da matrice/conformità). Qui si accumula la cronologia (snapshot),
     scritta dall'upsert a ogni rilascio/rinnovo, per audit e timeline.
+
+    Conserva anche l'**evidenza documentale** di quel momento: alla riga viene
+    associato il file corrente (stesso path, nessuna copia fisica); così quando
+    il record corrente viene sovrascritto da un rinnovo successivo, il file
+    precedente resta referenziato qui e non si perde.
     """
 
     class Origine(models.TextChoices):
@@ -681,6 +697,13 @@ class DipendenteQualificaStorico(models.Model):
     numero = models.CharField(max_length=100, blank=True, default="")
     livello = models.CharField(max_length=80, blank=True, default="")
     ente = models.CharField(max_length=200, blank=True, default="")
+    documento = models.FileField(
+        upload_to=_dipendente_qualifica_storico_upload_to,
+        storage=PrivateAnagraficaStorage(),
+        null=True, blank=True,
+        help_text="Evidenza documentale di questo rilascio/rinnovo (storicizzata).",
+    )
+    documento_nome_originale = models.CharField(max_length=255, blank=True, default="")
     note = models.CharField(max_length=255, blank=True, default="")
     origine = models.CharField(max_length=12, choices=Origine.choices, default=Origine.MANUALE)
     registrato_da = models.ForeignKey(
@@ -1880,6 +1903,16 @@ class CartellaDocumentoDipendente(models.Model):
         help_text="Cartella riservata: nell'archivio i suoi documenti sono visibili solo ai "
                   "super-amministratori (nascosti agli altri ruoli HR).",
     )
+    # Targeting (visibilità mirata): se valorizzato, la cartella fa parte dello scheletro
+    # documentale SOLO per i dipendenti che corrispondono. Vuoto = universale.
+    reparti = models.ManyToManyField(
+        "Reparto", blank=True, related_name="cartelle_documenti",
+        help_text="Reparti a cui si applica la cartella. Vuoto = tutti i reparti.",
+    )
+    ruoli_operativi = models.ManyToManyField(
+        "RuoloOperativo", blank=True, related_name="cartelle_documenti",
+        help_text="Ruoli operativi a cui si applica la cartella. Vuoto = tutti i ruoli.",
+    )
 
     class Meta:
         ordering = ["ordine", "nome"]
@@ -1891,6 +1924,20 @@ class CartellaDocumentoDipendente(models.Model):
         if self.parent_id:
             return f"{self.parent.nome} / {self.nome}"
         return self.nome
+
+    def si_applica(self, area_nome: str, ruoli_ids: set) -> bool:
+        """True se la cartella è applicabile a un dipendente con quel reparto (testo) e
+        quei ruoli operativi. Senza targeting = universale. Richiede ``reparti`` e
+        ``ruoli_operativi`` prefetchati dal chiamante per evitare query N+1."""
+        reparti = list(self.reparti.all())
+        ruoli = list(self.ruoli_operativi.all())
+        if not reparti and not ruoli:
+            return True
+        if reparti and area_nome and any((r.nome or "").strip().lower() == area_nome.strip().lower() for r in reparti):
+            return True
+        if ruoli and ruoli_ids and any(r.id in ruoli_ids for r in ruoli):
+            return True
+        return False
 
 
 # ---------------------------------------------------------------------------
