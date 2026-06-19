@@ -159,6 +159,10 @@ urlpatterns = [
     path("ruoli-aziendali/<int:ruolo_id>/modifica", views.ruolo_aziendale_edit, name="ruolo_aziendale_edit"),
     path("ruoli-aziendali/<int:ruolo_id>/elimina", views.ruolo_aziendale_delete, name="ruolo_aziendale_delete"),
 
+    # Qualifiche & Certificazioni — cruscotto trasversale + scadenzario dedicato
+    path("qualifiche/cruscotto/", views.qualifiche_dashboard, name="qualifiche_dashboard"),
+    path("qualifiche/scadenzario/", views.qualifiche_scadenzario, name="qualifiche_scadenzario"),
+
     # Qualifiche catalogo + scadenze
     path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
     path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),

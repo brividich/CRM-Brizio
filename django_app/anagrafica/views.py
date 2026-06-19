@@ -5637,6 +5637,245 @@ def qualifiche_list(request):
     })
 
 
+def _classifica_scadenza_qualifica(data_scadenza, oggi, soglia_30, soglia_60):
+    """Stato RAG di una qualifica in base alla scadenza. Fonte unica per
+    cruscotto e scadenzario dedicato (coerente con matrice/scadenzario unificato)."""
+    if data_scadenza is None:
+        return ("permanente", "Permanente")
+    if data_scadenza < oggi:
+        return ("scaduta", "Scaduta")
+    if data_scadenza <= soglia_30:
+        return ("s30", "In scadenza ≤30gg")
+    if data_scadenza <= soglia_60:
+        return ("s60", "In scadenza ≤60gg")
+    return ("valida", "Valida")
+
+
+@login_required
+def qualifiche_dashboard(request):
+    """Cruscotto Qualifiche & Certificazioni — vista trasversale di sola lettura.
+
+    AGGREGA (non duplica) i tre modelli sorgente — ``TipoQualifica``,
+    ``DipendenteQualifica``, ``QualificaSessione`` — le stesse fonti usate da
+    Formazione, ``matrice_competenze``, ``conformita_report`` e dalla scheda
+    dipendente: qualsiasi rilascio/rinnovo fatto altrove si riflette qui.
+
+    Le scadenze (promemoria email) restano gestite dal modulo automazioni
+    (report settimanale + pacchetto ``au12``): il cruscotto le mostra e linka
+    alla loro configurazione, non le ridefinisce.
+    """
+    from datetime import timedelta
+    from collections import OrderedDict
+    from django.utils import timezone as _tz
+
+    oggi = _tz.localdate()
+    soglia_30 = oggi + timedelta(days=30)
+    soglia_60 = oggi + timedelta(days=60)
+    is_admin = request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))
+
+    tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
+
+    quals = list(DipendenteQualifica.objects.select_related("tipo").all())
+    n_valide = n_scadute = n_s30 = n_s60 = n_permanenti = 0
+    dipendenti_ids: set[int] = set()
+    cat_labels = dict(TipoQualifica.CATEGORIA_CHOICES)
+    dist_cat = {c: 0 for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+
+    # Timeline scadenze prossimi 12 mesi
+    buckets: "OrderedDict[tuple[int, int], int]" = OrderedDict()
+    yy, mm = oggi.year, oggi.month
+    for _ in range(12):
+        buckets[(yy, mm)] = 0
+        mm += 1
+        if mm > 12:
+            mm, yy = 1, yy + 1
+    primo_del_mese = oggi.replace(day=1)
+
+    for q in quals:
+        dipendenti_ids.add(q.legacy_anagrafica_id)
+        if q.tipo.categoria in dist_cat:
+            dist_cat[q.tipo.categoria] += 1
+        d = q.data_scadenza
+        if d is None:
+            n_permanenti += 1
+            n_valide += 1
+        elif d < oggi:
+            n_scadute += 1
+        elif d <= soglia_30:
+            n_s30 += 1
+        elif d <= soglia_60:
+            n_s60 += 1
+        else:
+            n_valide += 1
+        if d and d >= primo_del_mese and (d.year, d.month) in buckets:
+            buckets[(d.year, d.month)] += 1
+
+    mesi_abbr = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+    max_n = max(buckets.values()) if buckets else 0
+    timeline = [
+        {"label": f"{mesi_abbr[m - 1]} {str(y)[2:]}", "n": n,
+         "pct": int(round(n / max_n * 100)) if max_n else 0}
+        for (y, m), n in buckets.items()
+    ]
+
+    distribuzione = [
+        {"code": c, "label": cat_labels[c], "n": dist_cat[c]}
+        for c, _ in TipoQualifica.CATEGORIA_CHOICES if dist_cat[c]
+    ]
+
+    # Top scadenze urgenti (scadute + ≤60gg)
+    nomi = _build_nomi_map()
+    urgenti = sorted(
+        (q for q in quals if q.data_scadenza is not None and q.data_scadenza <= soglia_60),
+        key=lambda q: q.data_scadenza,
+    )[:15]
+    scadenze_urgenti = []
+    for q in urgenti:
+        stato_code, stato_label = _classifica_scadenza_qualifica(q.data_scadenza, oggi, soglia_30, soglia_60)
+        scadenze_urgenti.append({
+            "legacy_id": q.legacy_anagrafica_id,
+            "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "tipo_nome": q.tipo.nome,
+            "categoria": q.tipo.get_categoria_display(),
+            "data_scadenza": q.data_scadenza,
+            "giorni": (q.data_scadenza - oggi).days,
+            "stato": stato_code,
+            "stato_label": stato_label,
+        })
+
+    # Prossime sessioni di rilascio/rinnovo collettivo
+    prossime_sessioni = list(
+        QualificaSessione.objects.select_related("tipo")
+        .filter(data_conseguimento__gte=oggi)
+        .order_by("data_conseguimento")[:8]
+    )
+
+    return render(request, "anagrafica/pages/qualifiche_dashboard.html", {
+        "oggi": oggi,
+        "is_admin": is_admin,
+        "tipi_attivi": tipi_attivi,
+        "tot_assegnazioni": len(quals),
+        "dipendenti_con_qualifica": len(dipendenti_ids),
+        "n_valide": n_valide,
+        "n_scadute": n_scadute,
+        "n_in_scadenza": n_s30 + n_s60,
+        "n_s30": n_s30,
+        "n_permanenti": n_permanenti,
+        "distribuzione": distribuzione,
+        "timeline": timeline,
+        "scadenze_urgenti": scadenze_urgenti,
+        "prossime_sessioni": prossime_sessioni,
+    })
+
+
+@login_required
+def qualifiche_scadenzario(request):
+    """Scadenzario dedicato alle sole qualifiche/certificazioni.
+
+    È lo ``scadenzario`` unificato ristretto alle qualifiche, ma più ricco:
+    filtri per stato / categoria / reparto / tipo ed export CSV. Legge le stesse
+    ``DipendenteQualifica`` di tutto il resto: nessun dato duplicato.
+    """
+    from datetime import timedelta
+    from django.utils import timezone as _tz
+
+    oggi = _tz.localdate()
+    soglia_30 = oggi + timedelta(days=30)
+    soglia_60 = oggi + timedelta(days=60)
+
+    filtro_stato = (request.GET.get("stato") or "").strip()      # scaduta/30/60/valide/tutte/""
+    filtro_cat = (request.GET.get("categoria") or "").strip().upper()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_tipo = (request.GET.get("tipo") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+    valid_cats = {c for c, _ in TipoQualifica.CATEGORIA_CHOICES}
+    if filtro_cat not in valid_cats:
+        filtro_cat = ""
+
+    dip_rows = fetch_anagrafica_rows(deduplicate=True)
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+
+    qs = DipendenteQualifica.objects.select_related("tipo")
+    if filtro_cat:
+        qs = qs.filter(tipo__categoria=filtro_cat)
+    if filtro_tipo.isdigit():
+        qs = qs.filter(tipo_id=int(filtro_tipo))
+
+    # Filtro stato lato DB
+    if filtro_stato == "scaduta":
+        qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lt=oggi)
+    elif filtro_stato == "30":
+        qs = qs.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_30)
+    elif filtro_stato == "60":
+        qs = qs.filter(data_scadenza__gte=oggi, data_scadenza__lte=soglia_60)
+    elif filtro_stato == "valide":
+        qs = qs.filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gt=soglia_60))
+    elif filtro_stato == "tutte":
+        pass
+    else:  # default: tutto ciò che richiede attenzione (scadute + ≤60gg)
+        qs = qs.filter(data_scadenza__isnull=False, data_scadenza__lte=soglia_60)
+
+    qs = qs.order_by("data_scadenza", "tipo__nome")
+
+    nomi = _build_nomi_map()
+    voci: list[dict] = []
+    counts = {"scaduta": 0, "s30": 0, "s60": 0, "valida": 0, "permanente": 0}
+    for q in qs:
+        dip = dip_map.get(q.legacy_anagrafica_id, {})
+        reparto = str(dip.get("reparto") or "").strip()
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        stato_code, stato_label = _classifica_scadenza_qualifica(q.data_scadenza, oggi, soglia_30, soglia_60)
+        counts[stato_code] = counts.get(stato_code, 0) + 1
+        voci.append({
+            "legacy_id": q.legacy_anagrafica_id,
+            "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "reparto": reparto,
+            "tipo_nome": q.tipo.nome,
+            "tipo_id": q.tipo_id,
+            "categoria": q.tipo.get_categoria_display(),
+            "data_conseguimento": q.data_conseguimento,
+            "data_scadenza": q.data_scadenza,
+            "giorni": (q.data_scadenza - oggi).days if q.data_scadenza else None,
+            "stato": stato_code,
+            "stato_label": stato_label,
+            "note": q.note,
+        })
+
+    if export_csv:
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="scadenzario_qualifiche.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto", "Qualifica", "Categoria",
+                         "Conseguimento", "Scadenza", "Giorni", "Stato"])
+        for v in voci:
+            writer.writerow([
+                v["dipendente"], v["reparto"], v["tipo_nome"], v["categoria"],
+                v["data_conseguimento"].strftime("%d/%m/%Y") if v["data_conseguimento"] else "",
+                v["data_scadenza"].strftime("%d/%m/%Y") if v["data_scadenza"] else "",
+                v["giorni"] if v["giorni"] is not None else "",
+                v["stato_label"],
+            ])
+        return resp
+
+    reparti = sorted({str(r.get("reparto") or "").strip() for r in dip_rows if str(r.get("reparto") or "").strip()})
+    tipi_opts = list(TipoQualifica.objects.order_by("categoria", "nome").values("id", "nome"))
+
+    return render(request, "anagrafica/pages/qualifiche_scadenzario.html", {
+        "oggi": oggi,
+        "voci": voci,
+        "counts": counts,
+        "totale": len(voci),
+        "filtro_stato": filtro_stato,
+        "filtro_categoria": filtro_cat,
+        "filtro_reparto": filtro_reparto,
+        "filtro_tipo": filtro_tipo,
+        "reparti": reparti,
+        "tipi_opts": tipi_opts,
+        "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
+    })
+
+
 @login_required
 def tipo_qualifica_detail(request, tipo_id: int):
     """Dettaglio di una singola qualifica/abilitazione: chi la possiede (con
@@ -7667,12 +7906,24 @@ def impostazioni(request):
     except Exception:
         pass
 
-    # --- Cartelle documenti ---
-    cartelle_documenti = list(
+    # --- Cartelle documenti (ordinate ad albero: parent → figlie, con livello) ---
+    _cartelle_all = list(
         CartellaDocumentoDipendente.objects
         .annotate(n_documenti=Count("documenti"))
         .order_by("ordine", "nome")
     )
+    _cartelle_by_parent: dict = {}
+    for _c in _cartelle_all:
+        _cartelle_by_parent.setdefault(_c.parent_id, []).append(_c)
+    cartelle_documenti: list = []
+
+    def _walk_cartelle(parent_id, livello):
+        for _c in _cartelle_by_parent.get(parent_id, []):
+            _c.livello = livello
+            cartelle_documenti.append(_c)
+            _walk_cartelle(_c.id, livello + 1)
+
+    _walk_cartelle(None, 0)
 
     # --- Subnav navigazione ---
     subnav_categorie = list(SubnavCategoriaAnagrafica.objects.order_by("ordine", "nome"))
@@ -8678,8 +8929,17 @@ def cartella_documento_create(request):
         ordine = int(ordine_raw)
     except (ValueError, TypeError):
         ordine = 0
-    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome).exists():
-        messages.error(request, f"Esiste già una cartella con nome «{nome}».")
+    # Cartella superiore (sottocartella) opzionale
+    parent = None
+    parent_raw = (request.POST.get("parent") or "").strip()
+    if parent_raw and parent_raw not in ("0", "__root__"):
+        try:
+            parent = CartellaDocumentoDipendente.objects.get(pk=int(parent_raw))
+        except (CartellaDocumentoDipendente.DoesNotExist, ValueError, TypeError):
+            parent = None
+    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome, parent=parent).exists():
+        dove = f" in «{parent.nome}»" if parent else " di primo livello"
+        messages.error(request, f"Esiste già una cartella «{nome}»{dove}.")
         return _redirect_impostazioni("documenti")
     try:
         retention = max(1, min(99, int((request.POST.get("retention_anni") or "10").strip())))
@@ -8687,9 +8947,11 @@ def cartella_documento_create(request):
         retention = 10
     solo_admin = request.POST.get("solo_admin") == "1"
     CartellaDocumentoDipendente.objects.create(
-        nome=nome, descrizione=descrizione, ordine=ordine, retention_anni=retention, solo_admin=solo_admin,
+        nome=nome, parent=parent, descrizione=descrizione, ordine=ordine,
+        retention_anni=retention, solo_admin=solo_admin,
     )
-    messages.success(request, f"Cartella «{nome}» creata.")
+    dove = f" in «{parent.nome}»" if parent else ""
+    messages.success(request, f"Cartella «{nome}»{dove} creata.")
     return _redirect_impostazioni("documenti")
 
 
@@ -8707,8 +8969,8 @@ def cartella_documento_edit(request, cartella_id: int):
     if not nome:
         messages.error(request, "Il nome della cartella è obbligatorio.")
         return _redirect_impostazioni("documenti")
-    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome).exclude(pk=cartella_id).exists():
-        messages.error(request, f"Esiste già un'altra cartella con nome «{nome}».")
+    if CartellaDocumentoDipendente.objects.filter(nome__iexact=nome, parent=cartella.parent).exclude(pk=cartella_id).exists():
+        messages.error(request, f"Esiste già un'altra cartella «{nome}» nello stesso livello.")
         return _redirect_impostazioni("documenti")
     try:
         ordine = int(ordine_raw)
@@ -8735,6 +8997,10 @@ def cartella_documento_delete(request, cartella_id: int):
     if not ok:
         return resp
     cartella = get_object_or_404(CartellaDocumentoDipendente, pk=cartella_id)
+    n_figlie = cartella.figlie.count()
+    if n_figlie > 0:
+        messages.error(request, f"La cartella «{cartella.nome}» contiene {n_figlie} sottocartella/e: eliminale o spostale prima.")
+        return _redirect_impostazioni("documenti")
     n_docs = cartella.documenti.count()
     if n_docs > 0:
         if cartella.attiva:

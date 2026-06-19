@@ -1,0 +1,252 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Qualifiche & Certificazioni | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=2">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {# ── Hero ───────────────────────────────────────────────────────────── #}
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Qualifiche</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Qualifiche &amp; Certificazioni</h1>
+          <p class="fmd-sub">Punto unico di raccolta, gestione e controllo delle qualifiche e certificazioni aziendali. Aggregazione live delle stesse fonti usate da Formazione e Salute&amp;Sicurezza. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_scadenzario' %}">
+              <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenzario qualifiche
+            </a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile">
+            <span class="fmd-corner"></span>
+            <span class="fmd-bignum">{{ tot_assegnazioni }}</span>
+            <span class="fmd-lbl">Qualifiche registrate</span>
+          </div>
+          <div class="fmd-hero-tile fmd-alt">
+            <span class="fmd-corner"></span>
+            <span class="fmd-bignum">{{ dipendenti_con_qualifica }}</span>
+            <span class="fmd-lbl">Dipendenti coinvolti</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
+    <section class="fmd-kpi">
+      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_valide }}</span></div>
+        <div class="fmd-mtr-lbl">Valide</div>
+        <div class="fmd-mtr-sub">Di cui {{ n_permanenti }} senza scadenza</div>
+      </a>
+      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
+        <div class="fmd-mtr-lbl">In scadenza ≤60gg</div>
+        <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
+      </a>
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div>
+        <div class="fmd-mtr-lbl">Scadute</div>
+        <div class="fmd-mtr-sub">Da rinnovare con priorità</div>
+      </a>
+      <a class="fmd-mtr fmd-t-cyan" href="{% url 'anagrafica:qualifiche_list' %}" style="text-decoration:none;">
+        <span class="fmd-ribbon"></span>
+        <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span><span class="fmd-mtr-val">{{ tipi_attivi }}</span></div>
+        <div class="fmd-mtr-lbl">Tipi a catalogo</div>
+        <div class="fmd-mtr-sub">Sicurezza · Professionali · Gestionali</div>
+      </a>
+    </section>
+
+    {# ── Aree del modulo ────────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Aree del modulo</div>
+        <div class="fmd-block-aside">Le pagine sono già esistenti: il cruscotto le mette insieme</div>
+      </div>
+      <div class="fmd-areas">
+        <a class="fmd-area" href="{% url 'anagrafica:qualifiche_list' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-cap"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Catalogo qualifiche</span><span class="fmd-area-desc">Tipi · categorie · validità</span></span>
+        </a>
+        <a class="fmd-area" href="{% url 'anagrafica:qualifiche_scadenzario' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-alarm"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Scadenzario qualifiche</span><span class="fmd-area-desc">Scadute · ≤30gg · ≤60gg · export</span></span>
+        </a>
+        <a class="fmd-area" href="{% url 'anagrafica:matrice_competenze' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Matrice qualifiche</span><span class="fmd-area-desc">Dipendenti × abilitazioni (ISO 45001)</span></span>
+        </a>
+        <a class="fmd-area" href="{% url 'anagrafica:qualifica_sessioni_list' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Sessioni di rinnovo</span><span class="fmd-area-desc">Rilascio/rinnovo collettivo</span></span>
+        </a>
+        <a class="fmd-area" href="{% url 'anagrafica:conformita_report' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Conformità / idoneità</span><span class="fmd-area-desc">Gap qualifiche obbligatorie per mansione</span></span>
+        </a>
+        <a class="fmd-area" href="{% url 'automazioni:automazioni_settings' %}">
+          <span class="fmd-area-ic"><svg class="fmd-ico"><use href="#i-gear"/></svg></span>
+          <span class="fmd-area-body"><span class="fmd-area-title">Promemoria scadenze</span><span class="fmd-area-desc">Report email settimanale (modulo automazioni)</span></span>
+        </a>
+      </div>
+    </section>
+
+    <div class="fmd-grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+
+      {# ── Distribuzione per categoria ──────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Distribuzione per categoria</div>
+        </div>
+        {% if distribuzione %}
+        <div style="display:flex;flex-direction:column;gap:12px;padding:4px 2px;">
+          {% for d in distribuzione %}
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:#475569;margin-bottom:4px;">
+              <span>{{ d.label }}</span><span class="fmd-num">{{ d.n }}</span>
+            </div>
+            <div style="height:10px;background:#eef3f8;border-radius:6px;overflow:hidden;">
+              <div style="height:100%;width:{% widthratio d.n tot_assegnazioni 100 %}%;background:#1f87cd;border-radius:6px;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="fmd-empty">Nessuna qualifica registrata.</div>
+        {% endif %}
+      </section>
+
+      {# ── Timeline scadenze 12 mesi ────────────────────────────────────── #}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>Scadenze prossimi 12 mesi</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:130px;padding:8px 2px 0;">
+          {% for t in timeline %}
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end;" title="{{ t.label }}: {{ t.n }}">
+            <span class="fmd-num" style="font-size:11px;color:#64748b;">{{ t.n }}</span>
+            <div style="width:100%;background:{% if t.n %}#f59e0b{% else %}#eef3f8{% endif %};border-radius:5px 5px 0 0;height:{% if t.pct %}{{ t.pct }}{% else %}3{% endif %}%;min-height:3px;"></div>
+            <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">{{ t.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+    </div>
+
+    {# ── Scadenze urgenti ───────────────────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title">
+          <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenze urgenti
+          {% if scadenze_urgenti %}<span class="fmd-count">{{ scadenze_urgenti|length }}</span>{% endif %}
+        </div>
+        <div class="fmd-block-aside">Scadute e in scadenza ≤60gg (top 15)</div>
+      </div>
+
+      {% if scadenze_urgenti %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr>
+              <th>Dipendente</th>
+              <th>Qualifica</th>
+              <th>Categoria</th>
+              <th class="fmd-nowrap">Scadenza</th>
+              <th class="fmd-r">Giorni</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in scadenze_urgenti %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}"
+                   title="Vai alla scheda dipendente">{{ d.dipendente }}</a>
+                <span class="fmd-code" style="margin-left:5px;">#{{ d.legacy_id }}</span>
+              </td>
+              <td>{{ d.tipo_nome }}</td>
+              <td class="fmd-muted">{{ d.categoria }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ d.data_scadenza|date:"d-m-Y" }}</td>
+              <td class="fmd-r">
+                {% if d.giorni < 0 %}
+                  <span class="fmd-num" style="color:#c53030;">{{ d.giorni }}gg</span>
+                {% elif d.giorni <= 30 %}
+                  <span class="fmd-num" style="color:#c2410c;">+{{ d.giorni }}gg</span>
+                {% else %}
+                  <span class="fmd-num fmd-muted">+{{ d.giorni }}gg</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if d.stato == "scaduta" %}
+                  <span class="fmd-badge fmd-b-red">Scaduta</span>
+                {% elif d.stato == "s30" %}
+                  <span class="fmd-badge fmd-b-orange">≤30gg</span>
+                {% else %}
+                  <span class="fmd-badge fmd-b-amber">≤60gg</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="fmd-tfoot">
+        <span class="fmd-info">Anteprima dei 15 record più urgenti.</span>
+        <a href="{% url 'anagrafica:qualifiche_scadenzario' %}" class="fmd-btn fmd-btn-ghost">
+          Vedi scadenzario completo <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
+        </a>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni. 🎉</div>
+      {% endif %}
+    </section>
+
+    {# ── Prossime sessioni di rinnovo ───────────────────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Prossime sessioni di rinnovo</div>
+        <div class="fmd-block-aside"><a href="{% url 'anagrafica:qualifica_sessioni_list' %}" class="fmd-data-link">Tutte le sessioni</a></div>
+      </div>
+      {% if prossime_sessioni %}
+      <div class="fmd-tablewrap" style="margin:0 -22px;">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Qualifica</th><th>Data</th><th>Ente</th><th class="fmd-r">Partecipanti</th></tr>
+          </thead>
+          <tbody>
+            {% for s in prossime_sessioni %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' s.pk %}">{{ s.tipo.nome }}</a></td>
+              <td class="fmd-nowrap fmd-muted">{{ s.data_conseguimento|date:"d-m-Y" }}</td>
+              <td class="fmd-muted">{{ s.ente|default:"—" }}</td>
+              <td class="fmd-r fmd-num">{{ s.qualifiche.count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">Nessuna sessione di rinnovo pianificata.</div>
+      {% endif %}
+    </section>
+
+  </div>
+</div>
+{% endblock %}
