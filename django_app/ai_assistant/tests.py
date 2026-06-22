@@ -21,6 +21,9 @@ from .tools import RuntimeContext, _merge_contexts, build_runtime_context
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
 class AiAssistantTests(TestCase):
     def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()  # isola il throttle per-utente tra i test
         self.user = get_user_model().objects.create_superuser(
             username="ai.admin",
             email="ai.admin@example.local",
@@ -64,6 +67,79 @@ class AiAssistantTests(TestCase):
         self.assertEqual(response.json()["message"], "Risposta sintetica.")
         self.assertEqual(response.json()["sources"], ["README.md > ai_assistant"])
         mocked_chat.assert_called_once()
+
+    def test_api_chat_is_rate_limited(self):
+        self.client.force_login(self.user)
+        with override_settings(OLLAMA_CHAT_RATE_LIMIT=1, OLLAMA_CHAT_RATE_WINDOW_SECONDS=60), patch(
+            "ai_assistant.views.build_runtime_context"
+        ) as mocked_context, patch("ai_assistant.views.chat_with_ollama") as mocked_chat:
+            mocked_context.return_value.text = ""
+            mocked_context.return_value.sources = ()
+            mocked_context.return_value.audit = {}
+            mocked_chat.return_value = OllamaChatResult(content="ok", model="llama3.1", done=True)
+            first = self.client.post(
+                reverse("ai_assistant:api_chat"),
+                data='{"message":"ciao"}',
+                content_type="application/json",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+            second = self.client.post(
+                reverse("ai_assistant:api_chat"),
+                data='{"message":"ciao"}',
+                content_type="application/json",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 429)
+        self.assertIn("Retry-After", second)
+        self.assertFalse(second.json()["ok"])
+
+    def test_api_chat_stream_emits_ndjson_events(self):
+        self.client.force_login(self.user)
+        with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
+            "ai_assistant.views.open_ollama_stream"
+        ) as mocked_open, patch("ai_assistant.views.iter_ollama_stream") as mocked_iter:
+            mocked_context.return_value.text = ""
+            mocked_context.return_value.sources = ()
+            mocked_context.return_value.audit = {}
+            mocked_open.return_value = (
+                object(),
+                {"model": "llama3.1", "provider": "ollama", "sources": (), "rag_context_chars": 0},
+            )
+            mocked_iter.return_value = iter(["Ciao", " mondo"])
+            response = self.client.post(
+                reverse("ai_assistant:api_chat_stream"),
+                data='{"message":"ciao"}',
+                content_type="application/json",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+            body = b"".join(response.streaming_content).decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/x-ndjson", response["Content-Type"])
+        events = [json.loads(line) for line in body.splitlines() if line.strip()]
+        self.assertEqual([evt["type"] for evt in events], ["delta", "delta", "done"])
+        self.assertEqual(events[0]["text"], "Ciao")
+        self.assertEqual(events[-1]["model"], "llama3.1")
+        self.assertIn("suggested_questions", events[-1])
+
+    def test_api_chat_stream_returns_502_on_setup_error(self):
+        self.client.force_login(self.user)
+        with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
+            "ai_assistant.views.open_ollama_stream",
+            side_effect=OllamaChatError("Ollama non raggiungibile."),
+        ):
+            mocked_context.return_value.text = ""
+            mocked_context.return_value.sources = ()
+            mocked_context.return_value.audit = {}
+            response = self.client.post(
+                reverse("ai_assistant:api_chat_stream"),
+                data='{"message":"ciao"}',
+                content_type="application/json",
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(response.status_code, 502)
+        self.assertFalse(response.json()["ok"])
 
     def test_chat_with_ollama_reports_openwebui_url_hint_on_405(self):
         with override_settings(
@@ -238,6 +314,222 @@ class AiAssistantTests(TestCase):
 
         self.assertIn("richieste ferie", context.text)
         self.assertTrue(any("knowledge.md" in source for source in context.sources))
+
+    def test_build_knowledge_context_ranks_relevant_document_first(self):
+        with tempfile.TemporaryDirectory(dir=settings.BASE_DIR) as tmpdir:
+            (Path(tmpdir) / "ferie.md").write_text(
+                "# Ferie\nLe richieste ferie e permessi si gestiscono dal modulo assenze del portale.",
+                encoding="utf-8",
+            )
+            (Path(tmpdir) / "ticket.md").write_text(
+                "# Ticket IT\nI guasti informatici si aprono dal modulo supporto tecnico.",
+                encoding="utf-8",
+            )
+
+            with override_settings(
+                OLLAMA_RAG_ENABLED=True,
+                OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
+                OLLAMA_RAG_MAX_CHUNKS=1,
+                OLLAMA_RAG_MAX_CONTEXT_CHARS=1000,
+                OLLAMA_RAG_CACHE_SECONDS=0,
+            ):
+                context = build_knowledge_context("come gestisco le ferie e i permessi?")
+
+        self.assertTrue(any("ferie.md" in source for source in context.sources))
+        self.assertFalse(any("ticket.md" in source for source in context.sources))
+
+    def test_wants_anagrafica_ratei_context_recognizes_phrasings(self):
+        from ai_assistant.tools import _wants_anagrafica_ratei_context
+
+        should_trigger = [
+            "elenca i dipendenti in ordine delle ferie piu elevate",
+            "chi ha piu ferie accumulate?",
+            "quante ferie ha Rossi?",
+            "primi 5 dipendenti per ferie residue",
+            "ferie rimanenti dei dipendenti",
+            "classifica ROL piu alti",
+            "ferie maturate non godute",
+        ]
+        for prompt in should_trigger:
+            self.assertTrue(_wants_anagrafica_ratei_context(prompt), prompt)
+
+        should_not_trigger = [
+            "chi e' assente in ferie domani?",
+            "elenco dipendenti del reparto produzione",
+            "quali sono i miei ticket aperti?",
+        ]
+        for prompt in should_not_trigger:
+            self.assertFalse(_wants_anagrafica_ratei_context(prompt), prompt)
+
+    def test_wants_asset_context_ignores_hr_deadline_queries(self):
+        from ai_assistant.tools import _wants_asset_context
+
+        # "ferie in scadenza" non e' una domanda sugli asset (scadenza e' generica)
+        self.assertFalse(_wants_asset_context("quali ferie sono in scadenza?"))
+        self.assertFalse(_wants_asset_context("permessi in scadenza dei dipendenti"))
+        # ma una domanda asset reale (con keyword) resta riconosciuta
+        self.assertTrue(_wants_asset_context("quali asset sono in scadenza?"))
+        self.assertTrue(_wants_asset_context("manutenzione del carroponte"))
+
+    def test_should_run_combines_keyword_and_semantic(self):
+        from ai_assistant.tools import _should_run
+
+        req = SimpleNamespace(ai_active_domains={"anagrafica"})
+        self.assertTrue(_should_run(req, "anagrafica", False))  # via semantica
+        self.assertTrue(_should_run(req, "tickets", True))      # via keyword
+        self.assertFalse(_should_run(req, "tickets", False))    # ne' l'uno ne' l'altro
+
+        req_no_attr = SimpleNamespace()
+        self.assertTrue(_should_run(req_no_attr, "tickets", True))
+        self.assertFalse(_should_run(req_no_attr, "tickets", False))
+
+    def test_semantic_routing_activates_domain_without_keyword(self):
+        from ai_assistant import tools
+
+        def fake_embed(texts):
+            vectors = []
+            for text in texts:
+                lowered = text.lower()
+                if any(w in lowered for w in ("ferie", "dipendent", "permess", "rol", "ratei", "anagrafic")):
+                    vectors.append([1.0, 0.0])
+                else:
+                    vectors.append([0.0, 1.0])
+            return vectors
+
+        tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
+        with override_settings(
+            OLLAMA_EMBED_ENABLED=True,
+            OLLAMA_EMBED_MODEL="test-embed",
+            OLLAMA_API_PROVIDER="ollama",
+            AI_TOOL_ROUTING_ENABLED=True,
+            AI_TOOL_ROUTING_THRESHOLD=0.7,
+            AI_TOOL_ROUTING_MARGIN=0.5,
+            AI_TOOL_ROUTING_TOP_K=2,
+        ), patch("ai_assistant.services._ollama_embed_texts", side_effect=fake_embed):
+            active = tools._semantic_active_domains(
+                "quanto tempo libero mi spetta ancora per le ferie quest'anno"
+            )
+        tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
+        self.assertIn("anagrafica", active)
+
+    def test_tokenize_folds_accents(self):
+        from ai_assistant.services import _tokenize
+
+        tokens = _tokenize("Qualità città produzione")
+        self.assertIn("qualita", tokens)
+        self.assertIn("citta", tokens)
+        self.assertIn("produzione", tokens)
+
+    def test_hybrid_retrieval_recovers_semantic_match(self):
+        """Con embeddings attivi, un documento pertinente ma senza match lessicale
+        viene comunque recuperato (BM25 da solo lo perderebbe)."""
+
+        def fake_embed(texts):
+            vectors = []
+            for text in texts:
+                lowered = text.lower()
+                if "permess" in lowered or "congedi" in lowered or "ferie" in lowered:
+                    vectors.append([1.0, 0.0])
+                else:
+                    vectors.append([0.0, 1.0])
+            return vectors
+
+        with tempfile.TemporaryDirectory(dir=settings.BASE_DIR) as tmpdir:
+            (Path(tmpdir) / "assenze.md").write_text(
+                "# Permessi e congedi\nGestione di permessi e congedi del personale dal portale.",
+                encoding="utf-8",
+            )
+            (Path(tmpdir) / "backup.md").write_text(
+                "# Backup server\nProcedura di backup notturno dei server e ripristino dati.",
+                encoding="utf-8",
+            )
+            with override_settings(
+                OLLAMA_RAG_ENABLED=True,
+                OLLAMA_EMBED_ENABLED=True,
+                OLLAMA_EMBED_MODEL="test-embed",
+                OLLAMA_EMBED_PERSIST=False,
+                OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
+                OLLAMA_RAG_MAX_CHUNKS=1,
+                OLLAMA_RAG_MAX_CONTEXT_CHARS=1000,
+                OLLAMA_RAG_CACHE_SECONDS=0,
+            ), patch("ai_assistant.services._ollama_embed_texts", side_effect=fake_embed):
+                context = build_knowledge_context("come gestisco le ferie?")
+
+        self.assertTrue(any("assenze.md" in source for source in context.sources))
+        self.assertFalse(any("backup.md" in source for source in context.sources))
+
+    def test_embeddings_failure_falls_back_to_bm25(self):
+        with tempfile.TemporaryDirectory(dir=settings.BASE_DIR) as tmpdir:
+            (Path(tmpdir) / "ferie.md").write_text(
+                "# Ferie\nLe richieste ferie si gestiscono dal modulo assenze del portale.",
+                encoding="utf-8",
+            )
+            with override_settings(
+                OLLAMA_RAG_ENABLED=True,
+                OLLAMA_EMBED_ENABLED=True,
+                OLLAMA_EMBED_MODEL="test-embed",
+                OLLAMA_EMBED_PERSIST=False,
+                OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
+                OLLAMA_RAG_MAX_CHUNKS=2,
+                OLLAMA_RAG_CACHE_SECONDS=0,
+            ), patch("ai_assistant.services._ollama_embed_texts", return_value=None):
+                context = build_knowledge_context("dove gestisco le richieste ferie?")
+
+        self.assertIn("richieste ferie", context.text)
+        self.assertTrue(any("ferie.md" in source for source in context.sources))
+
+    def test_chat_payload_includes_ollama_tuning(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"model":"llama3.1","message":{"content":"ok"},"done":true}'
+
+        with override_settings(
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OLLAMA_KEEP_ALIVE="45m",
+            OLLAMA_NUM_CTX=4096,
+            OLLAMA_NUM_PREDICT=512,
+            OLLAMA_RAG_ENABLED=False,
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+            chat_with_ollama("ciao")
+
+        payload = json.loads(mocked_urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(payload["keep_alive"], "45m")
+        self.assertEqual(payload["options"]["num_ctx"], 4096)
+        self.assertEqual(payload["options"]["num_predict"], 512)
+
+    def test_openwebui_payload_omits_native_tuning(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"model":"llama3.1","choices":[{"message":{"content":"ok"}}]}'
+
+        with override_settings(
+            OLLAMA_API_PROVIDER="openwebui",
+            OLLAMA_BASE_URL="http://10.0.0.34:3000",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OPENWEBUI_API_KEY="sk-test",
+            OLLAMA_KEEP_ALIVE="30m",
+            OLLAMA_NUM_CTX=4096,
+            OLLAMA_RAG_ENABLED=False,
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+            chat_with_ollama("ciao")
+
+        payload = json.loads(mocked_urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertNotIn("keep_alive", payload)
+        self.assertNotIn("options", payload)
 
     def test_build_knowledge_context_reads_curated_entries(self):
         AiKnowledgeEntry.objects.create(

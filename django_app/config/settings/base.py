@@ -232,7 +232,7 @@ READYZ_CHECKS_ENABLED = env_list("READYZ_CHECKS_ENABLED", [])
 OLLAMA_CHAT_ENABLED = env_bool("OLLAMA_CHAT_ENABLED", True)
 OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "llama3.1")
+OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")
 OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
 OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
 OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.2")
@@ -240,13 +240,47 @@ OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") o
 OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
 OLLAMA_RAG_SOURCE_PATHS = env_list("OLLAMA_RAG_SOURCE_PATHS", ["README.md", "docs/ai"])
-OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "2") or "2")
-OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "2000") or "2000")
+OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "4") or "4")
+OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "5000") or "5000")
 OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")
 OLLAMA_RAG_MAX_FILE_CHARS = int(env("OLLAMA_RAG_MAX_FILE_CHARS", "300000") or "300000")
 OLLAMA_RAG_MAX_DB_ENTRIES = int(env("OLLAMA_RAG_MAX_DB_ENTRIES", "200") or "200")
+# Parametri Okapi BM25 per il retrieval RAG (k1: saturazione TF, b: normalizzazione lunghezza).
+OLLAMA_RAG_BM25_K1 = float(env("OLLAMA_RAG_BM25_K1", "1.5") or "1.5")
+OLLAMA_RAG_BM25_B = float(env("OLLAMA_RAG_BM25_B", "0.75") or "0.75")
+# Overlap (caratteri) tra chunk consecutivi della stessa sezione: preserva il
+# contesto a cavallo del confine. 0 = nessun overlap.
+OLLAMA_RAG_CHUNK_OVERLAP_CHARS = int(env("OLLAMA_RAG_CHUNK_OVERLAP_CHARS", "150") or "150")
+# Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
+# di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
+# se non disponibile il retrieval resta BM25-only. Solo provider "ollama".
+OLLAMA_EMBED_ENABLED = env_bool("OLLAMA_EMBED_ENABLED", False)
+OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+OLLAMA_EMBED_TIMEOUT_SECONDS = int(env("OLLAMA_EMBED_TIMEOUT_SECONDS", "30") or "30")
+OLLAMA_EMBED_BATCH = int(env("OLLAMA_EMBED_BATCH", "16") or "16")
+OLLAMA_EMBED_PERSIST = env_bool("OLLAMA_EMBED_PERSIST", True)
+OLLAMA_EMBED_CACHE_TTL = int(env("OLLAMA_EMBED_CACHE_TTL", "2592000") or "2592000")
+# Fusione ibrida BM25 + semantica (Reciprocal Rank Fusion): k attenua i ranghi bassi.
+OLLAMA_RAG_HYBRID_RRF_K = int(env("OLLAMA_RAG_HYBRID_RRF_K", "60") or "60")
+# Routing semantico dei tool runtime: attiva i domini pertinenti per similarita'
+# embedding (additivo alle keyword). Soglia/margine calibrati su nomic-embed-text;
+# con un altro modello di embedding vanno ritarati. Richiede OLLAMA_EMBED_ENABLED.
+AI_TOOL_ROUTING_ENABLED = env_bool("AI_TOOL_ROUTING_ENABLED", True)
+AI_TOOL_ROUTING_THRESHOLD = float(env("AI_TOOL_ROUTING_THRESHOLD", "0.70") or "0.70")
+AI_TOOL_ROUTING_MARGIN = float(env("AI_TOOL_ROUTING_MARGIN", "0.04") or "0.04")
+AI_TOOL_ROUTING_TOP_K = int(env("AI_TOOL_ROUTING_TOP_K", "2") or "2")
+# Tuning runtime del modello chat (solo Ollama nativo). keep_alive tiene il modello
+# in memoria (primo token piu' veloce); num_ctx dimensiona la finestra di contesto
+# perche' contesto live + RAG non vengano troncati in silenzio; num_predict=0 -> nessun cap.
+OLLAMA_KEEP_ALIVE = env("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_NUM_CTX = int(env("OLLAMA_NUM_CTX", "16384") or "16384")
+OLLAMA_NUM_PREDICT = int(env("OLLAMA_NUM_PREDICT", "0") or "0")
+# Throttle per-utente delle richieste alla chat AI (protegge l'istanza Ollama e i
+# thread Waitress). 0 = disabilitato. Finestra fissa in secondi.
+OLLAMA_CHAT_RATE_LIMIT = int(env("OLLAMA_CHAT_RATE_LIMIT", "20") or "20")
+OLLAMA_CHAT_RATE_WINDOW_SECONDS = int(env("OLLAMA_CHAT_RATE_WINDOW_SECONDS", "60") or "60")
 OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS", "1800") or "1800")
 OLLAMA_CHAT_SYSTEM_PROMPT = env(
     "OLLAMA_CHAT_SYSTEM_PROMPT",
