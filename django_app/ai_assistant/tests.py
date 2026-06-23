@@ -14,7 +14,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import AiKnowledgeEntry
-from .services import OllamaChatError, OllamaChatResult, build_knowledge_context, build_ollama_messages, chat_with_ollama
+from .services import (
+    OllamaChatError,
+    OllamaChatResult,
+    build_knowledge_context,
+    build_ollama_messages,
+    chat_with_ollama,
+    warmup_ollama,
+)
 from .tools import RuntimeContext, _merge_contexts, build_runtime_context
 
 
@@ -227,6 +234,86 @@ class AiAssistantTests(TestCase):
                 chat_with_ollama("ciao")
 
         self.assertIn("Timeout dopo 60s", str(ctx.exception))
+
+    def test_warmup_ollama_preloads_native_model(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"model":"llama3.1","done":true,"done_reason":"load"}'
+
+        with override_settings(
+            OLLAMA_CHAT_ENABLED=True,
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OLLAMA_KEEP_ALIVE="30m",
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+            result = warmup_ollama()
+
+        request = mocked_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(request.full_url, "http://10.0.0.34:11434/api/generate")
+        self.assertEqual(payload["model"], "llama3.1")
+        self.assertEqual(payload["prompt"], "")
+        self.assertFalse(payload["stream"])
+        self.assertEqual(payload["keep_alive"], "30m")
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["loaded"])
+        self.assertFalse(result["skipped"])
+
+    def test_warmup_ollama_skips_openwebui_provider(self):
+        with override_settings(
+            OLLAMA_CHAT_ENABLED=True,
+            OLLAMA_API_PROVIDER="openwebui",
+            OLLAMA_BASE_URL="http://10.0.0.34:3000",
+            OLLAMA_CHAT_MODEL="llama3.1",
+        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+            result = warmup_ollama()
+
+        mocked_urlopen.assert_not_called()
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["skipped"])
+        self.assertIn("Open WebUI", result["message"])
+
+    def test_warmup_ollama_reports_timeout_without_raising(self):
+        with override_settings(
+            OLLAMA_CHAT_ENABLED=True,
+            OLLAMA_API_PROVIDER="ollama",
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OLLAMA_REQUEST_TIMEOUT_SECONDS=180,
+        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+            mocked_urlopen.side_effect = TimeoutError("timed out")
+            result = warmup_ollama(timeout=300)
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["skipped"])
+        self.assertIn("timeout dopo 300s", result["message"])
+
+    def test_run_warmup_ollama_task_delegates_to_service(self):
+        from ai_assistant.tasks import run_warmup_ollama
+
+        sentinel = {"ok": True, "skipped": False, "loaded": True, "message": "ok"}
+        with patch("ai_assistant.services.warmup_ollama", return_value=sentinel) as mocked:
+            result = run_warmup_ollama(timeout=300)
+
+        mocked.assert_called_once_with(timeout=300)
+        self.assertIs(result, sentinel)
+
+    def test_run_warmup_ollama_task_is_failsafe(self):
+        from ai_assistant.tasks import run_warmup_ollama
+
+        with patch("ai_assistant.services.warmup_ollama", side_effect=RuntimeError("boom")):
+            result = run_warmup_ollama()
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["skipped"])
+        self.assertIn("inatteso", result["message"])
 
     def test_chat_with_openwebui_uses_chat_completions_endpoint(self):
         class FakeResponse:

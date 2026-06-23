@@ -110,4 +110,18 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # Warmup del modello chat Ollama: pre-carica i pesi in memoria così la
+        # prima richiesta utente non paga il cold start (causa principale dei
+        # timeout «Timeout dopo Ns durante la risposta di Ollama»). Cadenza < del
+        # keep_alive (default 30m): ogni run rinnova il timer, il modello resta
+        # sempre caldo SENZA dover toccare l'.env. Fail-safe / no-op se l'AI è
+        # disabilitata o il provider è Open WebUI (keep_alive è primitiva Ollama).
+        "name": "ai_warmup_ollama",
+        "func": "ai_assistant.tasks.run_warmup_ollama",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 25,          # ogni 25 min (< keep_alive 30m)
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]

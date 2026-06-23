@@ -1025,3 +1025,102 @@ def iter_ollama_stream(response: Any, provider: str = "ollama"):
             response.close()
         except Exception:
             pass
+
+
+def warmup_ollama(*, timeout: int | None = None) -> dict[str, Any]:
+    """Pre-carica il modello chat in Ollama per azzerare il cold start.
+
+    Invia una richiesta di solo "load" all'API nativa di Ollama
+    (``/api/generate`` con prompt vuoto e ``stream`` disattivato): Ollama carica
+    il modello in memoria rispettando ``OLLAMA_KEEP_ALIVE`` e ritorna subito con
+    ``done_reason="load"`` SENZA generare token. Va richiamata da un job
+    schedulato a intervalli inferiori al keep_alive (es. ogni 25 min se
+    ``keep_alive=30m``) cosi' la prima richiesta utente non paga il caricamento.
+
+    Supportata solo per il provider nativo ``ollama`` (keep_alive/preload sono
+    primitive Ollama; Open WebUI non le espone): con ``openwebui`` ritorna
+    ``skipped``.
+
+    Non solleva eccezioni: cattura tutto e lo riporta nel dict di esito
+    (``ok``/``skipped``/``loaded``/``elapsed_ms``/``message``), cosi' e' usabile
+    in un cluster django-q senza farlo fallire.
+    """
+    base_url, provider, model, configured_timeout = _resolve_ollama_target()
+    started = time.monotonic()
+    result: dict[str, Any] = {
+        "ok": False,
+        "skipped": False,
+        "provider": provider,
+        "model": model,
+        "loaded": False,
+        "elapsed_ms": None,
+        "message": "",
+    }
+    if not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
+        result.update(skipped=True, message="Assistente AI disabilitato (OLLAMA_CHAT_ENABLED=False): warmup saltato.")
+        return result
+    if not base_url:
+        result.update(skipped=True, message="OLLAMA_BASE_URL non configurato: warmup saltato.")
+        return result
+    if not model:
+        result.update(skipped=True, message="OLLAMA_CHAT_MODEL non configurato: warmup saltato.")
+        return result
+    if provider == "openwebui":
+        result.update(
+            skipped=True,
+            message=(
+                "Warmup non supportato con provider Open WebUI: keep_alive/preload sono primitive "
+                "dell'API nativa di Ollama. Configura OLLAMA_API_PROVIDER=ollama per usare il warmup."
+            ),
+        )
+        return result
+
+    # Il warmup DEVE assorbire il caricamento del modello, percio' usa un timeout
+    # generoso e indipendente da quello (piu' stretto) delle richieste utente.
+    effective_timeout = int(timeout) if timeout else max(int(configured_timeout), 300)
+    keep_alive = str(getattr(settings, "OLLAMA_KEEP_ALIVE", "") or "").strip()
+    payload: dict[str, Any] = {"model": model, "prompt": "", "stream": False}
+    if keep_alive:
+        payload["keep_alive"] = keep_alive
+
+    request = urllib.request.Request(
+        f"{base_url}/api/generate",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=effective_timeout) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        hint = _ollama_endpoint_hint(base_url, http_status=exc.code)
+        result["message"] = f"Warmup fallito: Ollama ha risposto HTTP {exc.code}: {detail[:200]} {hint}"
+        return result
+    except (urllib.error.URLError, TimeoutError) as exc:
+        reason = getattr(exc, "reason", exc)
+        if isinstance(exc, TimeoutError) or isinstance(reason, TimeoutError):
+            result["message"] = (
+                f"Warmup: timeout dopo {effective_timeout}s mentre il modello '{model}' si caricava. "
+                "Su questo hardware il caricamento e' troppo lento: valuta un modello piu' piccolo/quantizzato "
+                "oppure aumenta il timeout con --timeout."
+            )
+        else:
+            result["message"] = f"Warmup fallito: Ollama non raggiungibile: {reason}"
+        return result
+    except OSError as exc:
+        result["message"] = f"Warmup fallito: errore di rete verso Ollama: {exc}"
+        return result
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = {}
+    done_reason = str(data.get("done_reason") or "").strip() if isinstance(data, dict) else ""
+    result["elapsed_ms"] = int((time.monotonic() - started) * 1000)
+    result["ok"] = True
+    result["loaded"] = True
+    detail = f" (done_reason={done_reason})" if done_reason else ""
+    keep_note = f", keep_alive={keep_alive}" if keep_alive else ""
+    result["message"] = f"Modello '{model}' pre-caricato in {result['elapsed_ms']} ms{detail}{keep_note}."
+    return result
