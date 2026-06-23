@@ -414,6 +414,23 @@ class AiAssistantTests(TestCase):
         for prompt in should_not_trigger:
             self.assertFalse(_wants_anagrafica_ratei_context(prompt), prompt)
 
+    def test_ratei_name_filter_ignores_ranking_words_and_metrics(self):
+        from ai_assistant.tools import _extract_ratei_name_filter
+
+        # Domande di classifica / metriche: NON devono estrarre un nominativo
+        # ("chi ha piu ferie" e' una classifica, "ROL" e' una metrica non un nome).
+        for prompt in (
+            "chi ha piu ferie residue",
+            "chi ha più ferie residue",
+            "chi ha meno permessi",
+            "classifica ROL residui",
+            "chi ha le ferie maturate piu alte",
+        ):
+            self.assertEqual(_extract_ratei_name_filter(prompt), "", prompt)
+
+        # Ma un lookup nominativo reale resta funzionante.
+        self.assertEqual(_extract_ratei_name_filter("quante ferie ha Rossi?"), "Rossi")
+
     def test_wants_asset_context_ignores_hr_deadline_queries(self):
         from ai_assistant.tools import _wants_asset_context
 

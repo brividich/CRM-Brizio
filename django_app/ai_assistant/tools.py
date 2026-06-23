@@ -467,6 +467,19 @@ _NAME_STOPWORDS = {
     # preposizioni e articoli che chiudono il nome
     "a", "al", "nel", "nella", "di", "da", "per", "in", "con", "su", "tra", "fra",
     "del", "della", "degli", "delle", "dei",
+    # comparativi / quantificatori / parole di classifica: non sono mai nomi
+    # ("chi ha piu ferie" e' una classifica, non il dipendente "piu").
+    "chi", "piu", "più", "meno", "maggiore", "maggiori", "minore", "minori",
+    "alto", "alti", "alta", "alte", "basso", "bassi", "bassa", "basse",
+    "elevato", "elevati", "elevata", "elevate", "tanto", "tanti", "tanta", "tante",
+    "molto", "molti", "molta", "molte", "poco", "pochi", "poca", "poche",
+    "quanti", "quante", "quanto", "primi", "prime", "classifica", "graduatoria",
+    "top", "elenco", "lista", "ordine",
+    # metriche/termini ratei: non sono nomi di dipendente (il fallback maiuscolo
+    # catturava "ROL" come nominativo).
+    "rol", "ratei", "rateo", "saldo", "saldi", "ex", "fest", "festivita",
+    "festività", "rimanenti", "rimanente", "accumulate", "accumulati", "maturate",
+    "maturati", "spettanti", "godute", "disponibili", "disponibile",
 }
 
 
