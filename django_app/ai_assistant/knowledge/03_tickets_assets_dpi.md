@@ -3,10 +3,12 @@
 ## Come apro una richiesta di assistenza (ticket)?
 
 Le richieste di assistenza si gestiscono dal modulo **Tickets**. Esistono due
-tipologie principali: **IT** (problemi informatici, postazioni, rete, software) e
-**Manutenzione (MAN)** (guasti a macchinari e impianti). Ogni ticket ha una
-priorità e uno stato (aperto, in lavorazione, risolto). All'assistente AI puoi
-chiedere "quali ticket urgenti sono aperti?" o "i miei ticket in attesa".
+tipologie principali: **IT** (problemi informatici, guasto del computer/PC,
+postazioni, rete, software, stampanti) e **Manutenzione (MAN)** (guasti a
+macchinari e impianti). Per segnalare un guasto apri un ticket del tipo
+corrispondente. Ogni ticket ha una priorità e uno stato (aperto, in lavorazione,
+risolto). All'assistente AI puoi chiedere "quali ticket urgenti sono aperti?" o
+"i miei ticket in attesa".
 
 ## Chi gestisce i ticket?
 

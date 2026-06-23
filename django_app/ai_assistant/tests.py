@@ -550,6 +550,15 @@ class AiAssistantTests(TestCase):
         self.assertEqual(summary["cases"], len(_RAG_GOLDEN))
         self.assertEqual(summary["recall_hits"], summary["cases"])
         self.assertGreater(summary["chunks_indexed"], 0)
+        # Metriche rank-aware: ordinamento sano (MRR alto) e nessun file KB scoperto.
+        self.assertIsNotNone(summary["mrr"])
+        self.assertGreaterEqual(summary["mrr"], 0.8)
+        self.assertGreaterEqual(summary["rank1_hits"], 1)
+        self.assertEqual(
+            summary["kb_files_uncovered"],
+            [],
+            msg="Ogni file di knowledge deve essere esercitato da almeno una golden RAG.",
+        )
 
     def test_wants_anagrafica_ratei_context_recognizes_phrasings(self):
         from ai_assistant.tools import _wants_anagrafica_ratei_context

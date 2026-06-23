@@ -4,8 +4,10 @@
 
 L'accesso avviene con le credenziali aziendali. Se è attiva l'autenticazione a due
 fattori (2FA/TOTP) viene chiesto anche un codice temporaneo generato dall'app di
-autenticazione. In caso di problemi di accesso o blocco dell'account conviene
-rivolgersi a un amministratore o al referente IT.
+autenticazione. Se hai dimenticato la password, l'account è bloccato o hai perso
+l'accesso al secondo fattore, conviene rivolgersi a un amministratore o al
+referente IT per il reset: la reimpostazione della password non si fa in
+autonomia dalla schermata di login.
 
 ## Non vedo un modulo o una voce di menu: perché?
 

@@ -95,6 +95,14 @@ _RAG_GOLDEN: tuple[tuple[str, frozenset[str]], ...] = (
     ("cosa significa near miss quasi infortunio?", frozenset({"08_glossario", "04_sicurezza_procedure_notizie"})),
     ("come accedo al portale con autenticazione a due fattori?", frozenset({"09_accesso_account"})),
     ("non vedo un modulo nel menu, perche'?", frozenset({"09_accesso_account", "01_portale_orientamento"})),
+    # Parafrasi colloquiali / sinonimi: esercitano la robustezza del retrieval BM25
+    # (accent-folding, sinonimi) sulle stesse aree, come le direbbe un utente reale.
+    ("quanti giorni di ferie mi restano?", frozenset({"02_assenze_ferie_permessi", "08_glossario"})),
+    ("come segnalo un guasto del computer?", frozenset({"03_tickets_assets_dpi"})),
+    ("quando scadono le mie abilitazioni?", frozenset({"05_anagrafica_qualifiche_formazione"})),
+    ("a chi e' in carico un'anomalia?", frozenset({"06_anomalie_produzione"})),
+    ("perche' ricevo email di promemoria dal portale?", frozenset({"07_tasks_automazioni"})),
+    ("ho dimenticato la password, cosa faccio?", frozenset({"09_accesso_account"})),
 )
 
 
@@ -267,29 +275,45 @@ class Command(BaseCommand):
 
         results = []
         hits = 0
+        reciprocal_ranks: list[float] = []
+        rank1 = 0
         for query, expected in cases:
             tokens = Counter(services._tokenize(query))
-            selected = services._select_chunk_indices(query, tokens, index)[:k]
+            ranked_full = services._select_chunk_indices(query, tokens, index)
+            selected = ranked_full[:k]
             retrieved = [
                 {"source": index.chunks[i].source, "title": index.chunks[i].title}
                 for i in selected
             ]
+            # Rank (1-based) del primo chunk con la fonte attesa nell'INTERA classifica:
+            # cattura le regressioni di ordinamento che il recall@k non vede (un file
+            # che scivola da rank 1 a rank 4 resta "hit" ma peggiora la risposta).
+            rank = None
+            if expected:
+                for position, i in enumerate(ranked_full, start=1):
+                    if any(frag in index.chunks[i].source for frag in expected):
+                        rank = position
+                        break
             recall_ok = None
             if expected:
-                recall_ok = any(
-                    any(frag in r["source"] for frag in expected) for r in retrieved
-                )
+                recall_ok = rank is not None and rank <= k
                 if recall_ok:
                     hits += 1
+                reciprocal_ranks.append(1.0 / rank if rank else 0.0)
+                if rank == 1:
+                    rank1 += 1
             results.append(
                 {
                     "query": query,
                     "expected": sorted(expected),
                     "retrieved": retrieved,
+                    "rank": rank,
                     "recall_ok": recall_ok,
                 }
             )
 
+        mrr = round(sum(reciprocal_ranks) / len(reciprocal_ranks), 3) if reciprocal_ranks else None
+        coverage = self._kb_golden_coverage() if not custom else None
         summary = {
             "mode": "rag",
             "rag_enabled": rag_enabled,
@@ -299,6 +323,9 @@ class Command(BaseCommand):
             "chunks_indexed": len(index.chunks),
             "cases": len(cases),
             "recall_hits": hits if not custom else None,
+            "mrr": mrr if not custom else None,
+            "rank1_hits": rank1 if not custom else None,
+            "kb_files_uncovered": coverage if not custom else None,
         }
 
         if as_json:
@@ -316,7 +343,8 @@ class Command(BaseCommand):
         self.stdout.write("-" * 78)
         for row in results:
             flag = "  " if row["recall_ok"] is None else ("OK" if row["recall_ok"] else "!!")
-            self.stdout.write(self._safe(f"[{flag}] {row['query']}"))
+            rank_txt = f" (rank {row['rank']})" if row["rank"] else (" (non trovata)" if row["expected"] else "")
+            self.stdout.write(self._safe(f"[{flag}] {row['query']}{rank_txt}"))
             if row["expected"]:
                 self.stdout.write(f"      attesa fonte tra: {row['expected']}")
             for r in row["retrieved"]:
@@ -327,10 +355,41 @@ class Command(BaseCommand):
                 )
         self.stdout.write("-" * 78)
         if not custom:
-            self.stdout.write(f"Recall@{k}: {hits}/{len(cases)} golden con fonte attesa recuperata.")
+            self.stdout.write(
+                f"Recall@{k}: {hits}/{len(cases)} | rank-1: {rank1}/{len(cases)} | "
+                f"MRR: {mrr}"
+            )
+            if coverage:
+                self.stdout.write(
+                    self.style.WARNING(
+                        "File KB non coperti da alcuna golden: " + ", ".join(coverage)
+                    )
+                )
         if not index.chunks:
             self.stdout.write(
                 self.style.WARNING(
                     "Nessun chunk indicizzato: verifica OLLAMA_RAG_ENABLED e OLLAMA_RAG_SOURCE_PATHS."
                 )
             )
+
+    def _kb_golden_coverage(self) -> list[str]:
+        """File .md della KB pacchettizzata non esercitati da alcuna golden RAG.
+
+        Guardia di completezza: se si aggiunge un file di knowledge senza una golden
+        che lo punti, resta non testato (retrieval mai verificato). README.md della
+        cartella e' meta-documentazione e non e' un bersaglio di risposta.
+        """
+        from pathlib import Path
+
+        kb_dir = Path(services.__file__).resolve().parent / "knowledge"
+        if not kb_dir.is_dir():
+            return []
+        expected_fragments = {frag for _q, expected in _RAG_GOLDEN for frag in expected}
+        uncovered: list[str] = []
+        for path in sorted(kb_dir.glob("*.md")):
+            if path.name.lower() == "readme.md":
+                continue
+            stem = path.stem
+            if not any(frag in stem or stem in frag for frag in expected_fragments):
+                uncovered.append(path.name)
+        return uncovered
