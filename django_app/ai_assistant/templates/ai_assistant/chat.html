@@ -416,6 +416,41 @@
 .ai-send:hover:not(:disabled) { opacity: .88; }
 .ai-send:disabled { opacity: .5; cursor: wait; }
 .ai-send-icon { font-size: 16px; }
+.ai-stop {
+  min-height: 44px;
+  min-width: 82px;
+  border: 1px solid #dc2626;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: var(--surface, #fff);
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-stop[hidden] { display: none; }
+.ai-stop:hover { background: #fef2f2; }
+.ai-actions {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 0 46px;
+}
+.ai-action-btn {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 3px 10px;
+  background: var(--surface, #fff);
+  color: var(--text-light, #475569);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.ai-action-btn:hover { background: #eef4ff; color: #1e40af; }
 .ai-learn {
   min-height: 44px;
   border: 1px solid #002b5c;
@@ -863,6 +898,9 @@ body.theme-dark .ai-segmented button.is-active {
         <button class="ai-send" type="submit" {% if not ollama_enabled %}disabled{% endif %}>
           <span class="ai-send-icon">&#x27A4;</span> Invia
         </button>
+        <button class="ai-stop" type="button" data-ai-stop hidden title="Ferma la generazione">
+          &#x25A0; Stop
+        </button>
         {% if can_manage_knowledge %}
           <button class="ai-learn" type="button" data-ai-learn disabled title="Salva ultima risposta nella FAQ AI">+ FAQ</button>
         {% endif %}
@@ -889,8 +927,10 @@ body.theme-dark .ai-segmented button.is-active {
   var input    = root.querySelector("[data-ai-input]");
   var log      = root.querySelector("[data-ai-log]");
   var sendBtn  = root.querySelector(".ai-send");
+  var stopBtn  = root.querySelector("[data-ai-stop]");
   var learnBtn = root.querySelector("[data-ai-learn]");
   var counter  = root.querySelector("[data-ai-counter]");
+  var currentAbort = null;
   var apiUrl   = root.dataset.apiUrl;
   var streamUrl = root.dataset.streamUrl;
   var saveUrl  = root.dataset.saveUrl;
@@ -1276,7 +1316,7 @@ body.theme-dark .ai-segmented button.is-active {
   /* ── Streaming NDJSON dall'endpoint /api/chat/stream/ ─────────── */
   /* Risolve con il testo accumulato + metadati. Rigetta con err.handled=true
      per gli errori funzionali (mostrali subito, niente fallback). */
-  async function sendStream(text, hist, bubble) {
+  async function sendStream(text, hist, bubble, signal) {
     var response = await fetch(streamUrl, {
       method: "POST",
       headers: {
@@ -1285,7 +1325,8 @@ body.theme-dark .ai-segmented button.is-active {
         "X-CSRFToken": csrf(),
         "X-Requested-With": "XMLHttpRequest"
       },
-      body: JSON.stringify({ message: text, history: hist, preferences: preferences })
+      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      signal: signal
     });
 
     if (!response.ok) {
@@ -1340,25 +1381,35 @@ body.theme-dark .ai-segmented button.is-active {
       }
     }
 
-    for (;;) {
-      var r = await reader.read();
-      if (r.done) break;
-      buffer += decoder.decode(r.value, { stream: true });
-      var idx;
-      while ((idx = buffer.indexOf("\n")) >= 0) {
-        handleLine(buffer.slice(0, idx));
-        buffer = buffer.slice(idx + 1);
+    var stopped = false;
+    try {
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        buffer += decoder.decode(r.value, { stream: true });
+        var idx;
+        while ((idx = buffer.indexOf("\n")) >= 0) {
+          handleLine(buffer.slice(0, idx));
+          buffer = buffer.slice(idx + 1);
+        }
+      }
+      if (buffer.trim()) handleLine(buffer);
+    } catch (readErr) {
+      if (readErr && readErr.name === "AbortError") {
+        stopped = true;  // l'utente ha premuto Stop: teniamo il parziale
+      } else {
+        throw readErr;
       }
     }
-    if (buffer.trim()) handleLine(buffer);
 
     finished = true;  // blocca eventuali render rAF in coda dopo finalize()
     renderAnswer(bubble, acc);
+    if (stopped) meta = Object.assign({ stopped: true }, meta);
     return { answer: acc, meta: meta };
   }
 
   /* ── Fallback non-streaming (endpoint classico /api/chat/) ───── */
-  async function sendNonStream(text, hist, bubble) {
+  async function sendNonStream(text, hist, bubble, signal) {
     var response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -1367,7 +1418,8 @@ body.theme-dark .ai-segmented button.is-active {
         "X-CSRFToken": csrf(),
         "X-Requested-With": "XMLHttpRequest"
       },
-      body: JSON.stringify({ message: text, history: hist, preferences: preferences })
+      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      signal: signal
     });
     var data = await window.portalReadJsonResponse(response);
     var answer = data.message || "";
@@ -1384,30 +1436,96 @@ body.theme-dark .ai-segmented button.is-active {
     };
   }
 
-  /* ── Main submit ────────────────────────────────────────────── */
-  form && form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    var text = (input.value || "").trim();
-    if (!text || sendBtn.disabled) return;
+  /* ── Stato generazione (toggle Invia/Stop) ──────────────────── */
+  function setGenerating(on) {
+    sendBtn.disabled = on;
+    if (stopBtn) stopBtn.hidden = !on;
+  }
 
-    input.value = "";
-    autoResize();
-    updateCounter();
-    appendUser(text);
-    remember("user", text);
+  /* ── Copia negli appunti (con fallback) ─────────────────────── */
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (_) { /* nessun metodo disponibile */ }
+  }
+  function copyText(text, btn) {
+    function done() {
+      var orig = btn.textContent;
+      btn.textContent = "Copiato";
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text);
+      done();
+    }
+  }
+
+  /* ── Barra azioni risposta (copia / rigenera) ───────────────── */
+  function renderActions(answerText) {
+    var bar = document.createElement("div");
+    bar.className = "ai-actions";
+    var copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "ai-action-btn";
+    copyBtn.textContent = "Copia";
+    copyBtn.addEventListener("click", function () { copyText(answerText, copyBtn); });
+    var regenBtn = document.createElement("button");
+    regenBtn.type = "button";
+    regenBtn.className = "ai-action-btn";
+    regenBtn.textContent = "Rigenera";
+    regenBtn.title = "Rigenera l'ultima risposta";
+    regenBtn.addEventListener("click", regenerate);
+    bar.appendChild(copyBtn);
+    bar.appendChild(regenBtn);
+    return bar;
+  }
+
+  function removeLastAnswerDom() {
+    var rows = log.querySelectorAll(".ai-row.bot");
+    if (!rows.length) return;
+    var el = rows[rows.length - 1];
+    while (el) {
+      var next = el.nextSibling;
+      if (el.parentNode) el.parentNode.removeChild(el);
+      el = next;
+    }
+  }
+
+  function regenerate() {
+    if (!lastPair || sendBtn.disabled) return;
+    var question = lastPair.question;
+    if (history.length && history[history.length - 1].role === "assistant") history.pop();
+    removeLastAnswerDom();
     lastPair = null;
-    msgCount += 1;
-    updateSessionChip();
     if (learnBtn) learnBtn.disabled = true;
-    sendBtn.disabled = true;
+    runAssistant(question, history.slice(0, -1));
+  }
 
+  /* ── Esecuzione di un turno assistente (usata da submit e rigenera) ── */
+  async function runAssistant(text, historyToSend) {
+    currentAbort = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var signal = currentAbort ? currentAbort.signal : undefined;
+    setGenerating(true);
     var typingParts = showTyping();
     var bubble = typingParts.bubble;
-    var historyToSend = history.slice(0, -1);
 
     function finalize(answer, meta) {
       meta = meta || {};
       bubble.className = "ai-bubble bot";
+      if (!answer && meta.stopped) {
+        bubble.innerHTML = '<span style="opacity:.6;">&#x23F9;&#xFE0F; Generazione interrotta.</span>';
+        scrollDown();
+        return;
+      }
       renderAnswer(bubble, answer);
 
       var sources = Array.isArray(meta.sources) ? meta.sources : [];
@@ -1428,7 +1546,10 @@ body.theme-dark .ai-segmented button.is-active {
       );
       if (suggEl) log.appendChild(suggEl);
 
-      if (answer) log.appendChild(renderFeedback(text, answer));
+      if (answer) {
+        log.appendChild(renderActions(answer));
+        log.appendChild(renderFeedback(text, answer));
+      }
 
       scrollDown();
       if (learnBtn && answer) learnBtn.disabled = false;
@@ -1444,7 +1565,7 @@ body.theme-dark .ai-segmented button.is-active {
     }
 
     try {
-      var streamed = await sendStream(text, historyToSend, bubble);
+      var streamed = await sendStream(text, historyToSend, bubble, signal);
       finalize(streamed.answer, streamed.meta);
     } catch (errStream) {
       if (errStream && errStream.handled) {
@@ -1452,18 +1573,40 @@ body.theme-dark .ai-segmented button.is-active {
       } else if (!bubble.dataset.streamed) {
         /* Streaming non disponibile (rete/proxy/browser): ripiega sull'endpoint classico */
         try {
-          var legacy = await sendNonStream(text, historyToSend, bubble);
+          var legacy = await sendNonStream(text, historyToSend, bubble, signal);
           finalize(legacy.answer, legacy.meta);
         } catch (errLegacy) {
-          fail(errLegacy && errLegacy.message);
+          if (!(errLegacy && errLegacy.name === "AbortError")) fail(errLegacy && errLegacy.message);
         }
       } else {
         fail(errStream && errStream.message);
       }
     } finally {
-      sendBtn.disabled = false;
+      setGenerating(false);
+      currentAbort = null;
       input.focus();
     }
+  }
+
+  stopBtn && stopBtn.addEventListener("click", function () {
+    if (currentAbort) { try { currentAbort.abort(); } catch (_) { /* gia' chiuso */ } }
+  });
+
+  /* ── Main submit ────────────────────────────────────────────── */
+  form && form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var text = (input.value || "").trim();
+    if (!text || sendBtn.disabled) return;
+
+    input.value = "";
+    autoResize();
+    updateCounter();
+    appendUser(text);
+    remember("user", text);
+    lastPair = null;
+    msgCount += 1;
+    updateSessionChip();
+    runAssistant(text, history.slice(0, -1));
   });
 
   /* ── Save to FAQ ────────────────────────────────────────────── */

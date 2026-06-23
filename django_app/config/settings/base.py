@@ -239,7 +239,12 @@ OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.2")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
 OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
-OLLAMA_RAG_SOURCE_PATHS = env_list("OLLAMA_RAG_SOURCE_PATHS", ["README.md", "docs/ai"])
+# KB curata in django_app/ai_assistant/knowledge: viaggia nel pacchetto (a
+# differenza di docs/, escluso dal deploy) ed e' la fonte RAG su file in prod.
+OLLAMA_RAG_SOURCE_PATHS = env_list(
+    "OLLAMA_RAG_SOURCE_PATHS",
+    ["README.md", "docs/ai", "django_app/ai_assistant/knowledge"],
+)
 OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "4") or "4")
 OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "5000") or "5000")
 OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")

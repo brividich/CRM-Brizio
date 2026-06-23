@@ -315,6 +315,18 @@ class AiAssistantTests(TestCase):
         self.assertIn("richieste ferie", context.text)
         self.assertTrue(any("knowledge.md" in source for source in context.sources))
 
+    def test_knowledge_base_folder_is_indexed(self):
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=["django_app/ai_assistant/knowledge"],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            context = build_knowledge_context("come richiedo ferie o permessi?")
+
+        self.assertTrue(any("knowledge" in source for source in context.sources))
+        self.assertIn("Assenze", context.text)
+
     def test_build_knowledge_context_ranks_relevant_document_first(self):
         with tempfile.TemporaryDirectory(dir=settings.BASE_DIR) as tmpdir:
             (Path(tmpdir) / "ferie.md").write_text(
@@ -411,6 +423,23 @@ class AiAssistantTests(TestCase):
             )
         tools._ROUTING_SEED_CACHE.update({"model": "", "vectors": None})
         self.assertIn("anagrafica", active)
+
+    def test_semantic_routing_does_not_bypass_acl(self):
+        """Un tool attivato SOLO dal routing semantico (nessuna keyword) deve
+        comunque applicare l'ACL interna e negare l'accesso se non autorizzato."""
+        request = SimpleNamespace(user=self.user, path="/assistente-ai/")
+        with patch("ai_assistant.tools._rank_domains", return_value=[("tasks", 0.9)]), patch(
+            "tasks.views._has_task_permission", return_value=False
+        ), override_settings(
+            AI_TOOL_ROUTING_THRESHOLD=0.7,
+            AI_TOOL_ROUTING_MARGIN=0.04,
+            AI_TOOL_ROUTING_TOP_K=2,
+        ):
+            context = build_runtime_context(request, "dammi un riepilogo generale per favore")
+
+        self.assertIn("tool:tasks:accesso-negato", context.sources)
+        self.assertTrue(context.audit["tools"])
+        self.assertFalse(context.audit["tools"][0]["allowed"])
 
     def test_tokenize_folds_accents(self):
         from ai_assistant.services import _tokenize

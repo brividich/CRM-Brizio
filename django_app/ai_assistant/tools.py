@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -3020,6 +3020,8 @@ _DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
         "quante ore di ferie permessi o ROL ha un dipendente",
         "classifica dei dipendenti per ferie o permessi maturati",
         "saldo ratei ferie permessi ex festivita",
+        "quanto tempo libero o quante ferie mi restano da prendere",
+        "giorni di ferie o permessi ancora da godere quest'anno",
     ),
     "anomalie": (
         "anomalie e non conformita' di produzione aperte",
@@ -3072,30 +3074,29 @@ def _domain_seed_vectors() -> dict[str, list[list[float]]] | None:
     return by_domain
 
 
-def _semantic_active_domains(prompt: str) -> set[str]:
-    """Domini semanticamente pertinenti alla domanda (soglia + margine dal top)."""
+def _rank_domains(prompt: str) -> list[tuple[str, float]]:
+    """Domini ordinati per similarita' semantica con la domanda.
+
+    Lista vuota se il routing e' disabilitato o gli embeddings non sono
+    disponibili (-> si usa solo il gate keyword).
+    """
     if not bool(getattr(settings, "AI_TOOL_ROUTING_ENABLED", True)):
-        return set()
+        return []
     from . import services
 
     if not services.embeddings_enabled():
-        return set()
+        return []
     text = (prompt or "").strip()
     if len(text) < 4:
-        return set()
+        return []
     seeds = _domain_seed_vectors()
     if not seeds:
-        return set()
+        return []
     query_vectors = services.embed_texts([text])
     if not query_vectors:
-        return set()
+        return []
     query_vec = query_vectors[0]
-
-    threshold = float(getattr(settings, "AI_TOOL_ROUTING_THRESHOLD", 0.70) or 0.70)
-    margin = float(getattr(settings, "AI_TOOL_ROUTING_MARGIN", 0.04) or 0.0)
-    top_k = max(1, int(getattr(settings, "AI_TOOL_ROUTING_TOP_K", 2) or 2))
-
-    scored = sorted(
+    return sorted(
         (
             (domain, max((services.cosine_similarity(query_vec, vec) for vec in vectors), default=0.0))
             for domain, vectors in seeds.items()
@@ -3103,14 +3104,28 @@ def _semantic_active_domains(prompt: str) -> set[str]:
         key=lambda kv: kv[1],
         reverse=True,
     )
-    if not scored or scored[0][1] < threshold:
+
+
+def _active_from_ranked(ranked: list[tuple[str, float]]) -> set[str]:
+    """Applica soglia + margine dal top + top-K al ranking dei domini."""
+    if not ranked:
         return set()
-    top_score = scored[0][1]
+    threshold = float(getattr(settings, "AI_TOOL_ROUTING_THRESHOLD", 0.70) or 0.70)
+    margin = float(getattr(settings, "AI_TOOL_ROUTING_MARGIN", 0.04) or 0.0)
+    top_k = max(1, int(getattr(settings, "AI_TOOL_ROUTING_TOP_K", 2) or 2))
+    top_score = ranked[0][1]
+    if top_score < threshold:
+        return set()
     return {
         domain
-        for domain, score in scored[:top_k]
+        for domain, score in ranked[:top_k]
         if score >= threshold and score >= top_score - margin
     }
+
+
+def _semantic_active_domains(prompt: str) -> set[str]:
+    """Domini semanticamente pertinenti alla domanda (soglia + margine dal top)."""
+    return _active_from_ranked(_rank_domains(prompt))
 
 
 def _should_run(request, domain_key: str, keyword_hit: bool) -> bool:
@@ -3124,9 +3139,12 @@ def _should_run(request, domain_key: str, keyword_hit: bool) -> bool:
 def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeContext:
     enriched = _enrich_prompt_with_history(prompt, history)
     try:
-        request.ai_active_domains = _semantic_active_domains(enriched)
+        ranked = _rank_domains(enriched)
+        active = _active_from_ranked(ranked)
     except Exception:
-        request.ai_active_domains = set()
+        ranked, active = [], set()
+    request.ai_active_domains = active
+
     contexts = _cross_domain_contexts(request, enriched)
     if contexts is None:
         contexts = []
@@ -3138,4 +3156,11 @@ def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeC
         unavailable_context = _unavailable_domain_context(request, enriched)
         if unavailable_context.text.strip():
             contexts.append(unavailable_context)
-    return _merge_contexts(contexts)
+
+    result = _merge_contexts(contexts)
+    routing_audit = {
+        "enabled": bool(ranked),
+        "active": sorted(active),
+        "scores": {domain: round(score, 3) for domain, score in ranked[:5]},
+    }
+    return replace(result, audit={**(result.audit or {}), "routing": routing_audit})

@@ -91,10 +91,14 @@ def _can_manage_knowledge(request) -> bool:
 def _runtime_audit_summary(runtime_audit: dict | None) -> dict:
     audit = runtime_audit or {}
     tools = audit.get("tools") if isinstance(audit.get("tools"), list) else []
+    routing = audit.get("routing") if isinstance(audit.get("routing"), dict) else {}
     base = {
         "runtime_context_chars": audit.get("context_chars") if isinstance(audit.get("context_chars"), int) else 0,
         "runtime_context_lines": audit.get("context_lines") if isinstance(audit.get("context_lines"), int) else 0,
         "runtime_context_truncated": bool(audit.get("truncated")),
+        "runtime_routing_enabled": bool(routing.get("enabled")),
+        "runtime_routing_active": routing.get("active") if isinstance(routing.get("active"), list) else [],
+        "runtime_routing_scores": routing.get("scores") if isinstance(routing.get("scores"), dict) else {},
     }
     if tools:
         return {
@@ -419,12 +423,18 @@ def api_chat_stream(request):
     def event_stream():
         chunks: list[str] = []
         stream_error = ""
+        error_type = ""
         try:
             for piece in iter_ollama_stream(stream, meta.get("provider", "ollama")):
                 chunks.append(piece)
                 yield _ndjson({"type": "delta", "text": piece})
-        except Exception as exc:  # noqa: BLE001 — convertiamo qualunque errore in evento
+        except OllamaChatError as exc:
+            # Messaggio funzionale pensato per l'utente/admin (no internals).
             stream_error = str(exc) or "Errore durante lo streaming della risposta."
+            error_type = "OllamaChatError"
+        except Exception as exc:  # noqa: BLE001 — non esporre dettagli interni al client
+            stream_error = "Errore durante lo streaming della risposta."
+            error_type = exc.__class__.__name__
 
         full_text = "".join(chunks).strip()
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -438,7 +448,7 @@ def api_chat_stream(request):
                     "model": meta.get("model") or model,
                     "prompt_chars": len(message),
                     "elapsed_ms": elapsed_ms,
-                    "error_type": "StreamError",
+                    "error_type": error_type or "StreamError",
                     "streamed": True,
                     **runtime_audit,
                 },
