@@ -556,6 +556,9 @@ def api_daily_brief(request):
                 _DAILY_BRIEF_PROMPT,
                 runtime_context=runtime_context.text,
                 user_preferences={"style": "sintetico", "show_limits": True},
+                # Timeout dedicato piu' corto: il brief non e' critico e non deve
+                # tenere occupato un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS.
+                timeout=int(getattr(settings, "OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", 45) or 45),
             )
             message = result.content
             model = result.model

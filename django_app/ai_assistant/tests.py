@@ -414,6 +414,40 @@ class AiAssistantTests(TestCase):
         for prompt in should_not_trigger:
             self.assertFalse(_wants_anagrafica_ratei_context(prompt), prompt)
 
+    def test_runtime_context_respects_configured_cap(self):
+        from ai_assistant.tools import RuntimeContext, _merge_contexts
+
+        big = RuntimeContext(
+            text="X" * 5000, sources=("tool:test",), audit={"tool": "t", "allowed": True}
+        )
+        with override_settings(AI_RUNTIME_CONTEXT_MAX_CHARS=500, AI_RUNTIME_CONTEXT_MAX_LINES=50):
+            merged = _merge_contexts([big])
+
+        self.assertLessEqual(len(merged.text), 500)
+        self.assertTrue(merged.audit["truncated"])
+        self.assertEqual(merged.audit["max_chars"], 500)
+
+    def test_chat_with_ollama_respects_timeout_override(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"model":"llama3.1","message":{"content":"ok"},"done":true}'
+
+        with override_settings(
+            OLLAMA_BASE_URL="http://10.0.0.34:11434",
+            OLLAMA_CHAT_MODEL="llama3.1",
+            OLLAMA_REQUEST_TIMEOUT_SECONDS=180,
+            OLLAMA_RAG_ENABLED=False,
+        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+            chat_with_ollama("ciao", timeout=12)
+
+        self.assertEqual(mocked_urlopen.call_args.kwargs.get("timeout"), 12)
+
     def test_ratei_name_filter_ignores_ranking_words_and_metrics(self):
         from ai_assistant.tools import _extract_ratei_name_filter
 

@@ -233,6 +233,9 @@ OLLAMA_CHAT_ENABLED = env_bool("OLLAMA_CHAT_ENABLED", True)
 # Widget "brief giornaliero personale" (generato dall'AI sui dati live ACL-filtrati,
 # on-demand con cache per-utente/giorno). Richiede OLLAMA_CHAT_ENABLED.
 OLLAMA_DAILY_BRIEF_ENABLED = env_bool("OLLAMA_DAILY_BRIEF_ENABLED", True)
+# Timeout dedicato (piu' corto) per il brief giornaliero: non e' critico e non
+# deve occupare un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS; degrada a fallback.
+OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS = int(env("OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", "45") or "45")
 OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")
@@ -279,6 +282,10 @@ AI_TOOL_ROUTING_ENABLED = env_bool("AI_TOOL_ROUTING_ENABLED", True)
 AI_TOOL_ROUTING_THRESHOLD = float(env("AI_TOOL_ROUTING_THRESHOLD", "0.70") or "0.70")
 AI_TOOL_ROUTING_MARGIN = float(env("AI_TOOL_ROUTING_MARGIN", "0.04") or "0.04")
 AI_TOOL_ROUTING_TOP_K = int(env("AI_TOOL_ROUTING_TOP_K", "2") or "2")
+# Tetto del contesto live iniettato nel modello: meno caratteri = prefill piu'
+# rapido (riduce la latenza/timeout sulle domande che attivano molti tool).
+AI_RUNTIME_CONTEXT_MAX_CHARS = int(env("AI_RUNTIME_CONTEXT_MAX_CHARS", "12000") or "12000")
+AI_RUNTIME_CONTEXT_MAX_LINES = int(env("AI_RUNTIME_CONTEXT_MAX_LINES", "160") or "160")
 # Tuning runtime del modello chat (solo Ollama nativo). keep_alive tiene il modello
 # in memoria (primo token piu' veloce); num_ctx dimensiona la finestra di contesto
 # perche' contesto live + RAG non vengano troncati in silenzio; num_predict=0 -> nessun cap.

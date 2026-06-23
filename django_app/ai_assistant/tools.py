@@ -2948,7 +2948,9 @@ def _merge_contexts(contexts: list[RuntimeContext]) -> RuntimeContext:
         if context.audit:
             audit_tools.append(context.audit)
     raw_text = "\n\n---\n\n".join(context.text.strip() for context in active)
-    text, truncated = _limit_runtime_text(raw_text)
+    max_chars = int(getattr(settings, "AI_RUNTIME_CONTEXT_MAX_CHARS", RUNTIME_CONTEXT_MAX_CHARS) or RUNTIME_CONTEXT_MAX_CHARS)
+    max_lines = int(getattr(settings, "AI_RUNTIME_CONTEXT_MAX_LINES", RUNTIME_CONTEXT_MAX_LINES) or RUNTIME_CONTEXT_MAX_LINES)
+    text, truncated = _limit_runtime_text(raw_text, max_chars, max_lines)
     return RuntimeContext(
         text=text,
         sources=tuple(sources),
@@ -2958,8 +2960,8 @@ def _merge_contexts(contexts: list[RuntimeContext]) -> RuntimeContext:
             "context_chars": len(text),
             "context_lines": len(text.splitlines()),
             "truncated": truncated,
-            "max_chars": RUNTIME_CONTEXT_MAX_CHARS,
-            "max_lines": RUNTIME_CONTEXT_MAX_LINES,
+            "max_chars": max_chars,
+            "max_lines": max_lines,
         },
     )
 

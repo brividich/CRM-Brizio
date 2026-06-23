@@ -791,11 +791,12 @@ def chat_with_ollama(
     *,
     runtime_context: str = "",
     user_preferences: dict[str, Any] | None = None,
+    timeout: int | None = None,
 ) -> OllamaChatResult:
     base_url = str(getattr(settings, "OLLAMA_BASE_URL", "") or "").strip().rstrip("/")
     provider = str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower()
     model = str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
-    timeout = int(getattr(settings, "OLLAMA_REQUEST_TIMEOUT_SECONDS", 60) or 60)
+    timeout = int(timeout) if timeout else int(getattr(settings, "OLLAMA_REQUEST_TIMEOUT_SECONDS", 60) or 60)
     if not base_url:
         raise OllamaChatError("OLLAMA_BASE_URL non configurato.")
     if not model:
