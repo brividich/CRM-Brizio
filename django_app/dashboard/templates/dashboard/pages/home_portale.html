@@ -81,6 +81,12 @@
     {% endfor %}
   </section>
 
+  {% if ai_daily_brief_enabled %}
+  <section class="hp-aibrief" aria-label="Brief AI del giorno">
+    {% include "ai_assistant/partials/daily_brief_widget.html" %}
+  </section>
+  {% endif %}
+
   <section class="hp-cockpit" aria-label="Le mie attività">
     <div class="hp-card" data-hp-section="card-cose-da-gestire">
       <header class="hp-card-h hp-collapsible-hdr">

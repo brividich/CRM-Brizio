@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
@@ -490,6 +491,107 @@ def api_chat_stream(request):
     response["Cache-Control"] = "no-cache, no-transform"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+_DAILY_BRIEF_QUERY = (
+    "cosa devo fare oggi? riepilogo personale delle mie attivita', scadenze e "
+    "cose da gestire di oggi nei moduli a cui ho accesso"
+)
+_DAILY_BRIEF_PROMPT = (
+    "Prepara il mio brief operativo personale di oggi basandoti ESCLUSIVAMENTE sul "
+    "contesto live. Elenca in massimo 6 punti, dal piu' importante, le cose che devo "
+    "gestire o sapere oggi (scadenze imminenti, attivita' o task in ritardo, ticket "
+    "urgenti, procedure o notizie da leggere/confermare, DPI o ferie rilevanti). "
+    "Una riga per punto, tono diretto e operativo, in italiano. Non inventare voci "
+    "non presenti nel contesto. Se non c'e' nulla di rilevante, dillo in una riga."
+)
+
+
+def _seconds_until_end_of_day() -> int:
+    now = timezone.localtime()
+    end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+    return max(60, int((end - now).total_seconds()))
+
+
+@login_required
+def api_daily_brief(request):
+    """Brief operativo personale del giorno, generato dall'AI sui dati live ACL-filtrati.
+
+    On-demand con cache per-utente/per-giorno (si genera alla prima apertura,
+    poi servito dalla cache). ``?refresh=1`` forza la rigenerazione (con throttle).
+    Fail-safe: se il modello non risponde, mostra comunque gli item grezzi.
+    """
+    if not bool(getattr(settings, "OLLAMA_DAILY_BRIEF_ENABLED", True)) or not bool(
+        getattr(settings, "OLLAMA_CHAT_ENABLED", True)
+    ):
+        return JsonResponse({"ok": False, "error": "Brief AI non disponibile."}, status=503)
+
+    user_id = getattr(request.user, "id", None) or "anon"
+    today = timezone.localdate().isoformat()
+    cache_key = f"ai_daily_brief:{user_id}:{today}"
+    force = request.GET.get("refresh") == "1"
+
+    if not force:
+        try:
+            cached = cache.get(cache_key)
+        except Exception:
+            cached = None
+        if isinstance(cached, dict) and cached.get("message"):
+            return JsonResponse({"ok": True, "cached": True, **cached})
+    else:
+        allowed, retry_after = _check_rate_limit(request)
+        if not allowed:
+            return _rate_limited_response(retry_after)
+
+    started = time.monotonic()
+    runtime_context = build_runtime_context(request, _DAILY_BRIEF_QUERY)
+    has_context = bool(runtime_context.text.strip())
+
+    model = ""
+    if not has_context:
+        message = "Per oggi non risultano attivita' o scadenze rilevanti da gestire nei tuoi moduli."
+    else:
+        try:
+            result = chat_with_ollama(
+                _DAILY_BRIEF_PROMPT,
+                runtime_context=runtime_context.text,
+                user_preferences={"style": "sintetico", "show_limits": True},
+            )
+            message = result.content
+            model = result.model
+        except OllamaChatError:
+            # Fail-safe: niente AI ma mostriamo comunque le fonti/segnali grezzi.
+            message = (
+                "Servizio AI non disponibile al momento. Apri «Mie attivita'» nel "
+                "portale per il riepilogo completo delle cose da gestire."
+            )
+
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    data = {
+        "message": message,
+        "model": model,
+        "generated_at": timezone.localtime().strftime("%H:%M"),
+        "sources": list(runtime_context.sources),
+    }
+    try:
+        cache.set(cache_key, data, timeout=_seconds_until_end_of_day())
+    except Exception:
+        pass
+
+    log_action(
+        request,
+        "ai_daily_brief",
+        "ai_assistant",
+        {
+            "model": model,
+            "response_chars": len(message),
+            "elapsed_ms": elapsed_ms,
+            "forced": force,
+            "had_context": has_context,
+            **_runtime_audit_summary(runtime_context.audit),
+        },
+    )
+    return JsonResponse({"ok": True, "cached": False, **data})
 
 
 @require_POST

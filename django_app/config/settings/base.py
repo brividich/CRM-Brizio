@@ -230,6 +230,9 @@ READYZ_CHECKS_ENABLED = env_list("READYZ_CHECKS_ENABLED", [])
 # Assistente AI locale via Ollama. La chiamata parte dal server Django verso
 # l'endpoint Ollama, mai dal browser dell'utente.
 OLLAMA_CHAT_ENABLED = env_bool("OLLAMA_CHAT_ENABLED", True)
+# Widget "brief giornaliero personale" (generato dall'AI sui dati live ACL-filtrati,
+# on-demand con cache per-utente/giorno). Richiede OLLAMA_CHAT_ENABLED.
+OLLAMA_DAILY_BRIEF_ENABLED = env_bool("OLLAMA_DAILY_BRIEF_ENABLED", True)
 OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")

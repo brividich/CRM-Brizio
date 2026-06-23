@@ -123,6 +123,47 @@ class AiAssistantTests(TestCase):
         self.assertEqual(events[-1]["model"], "llama3.1")
         self.assertIn("suggested_questions", events[-1])
 
+    def test_api_daily_brief_generates_and_caches(self):
+        self.client.force_login(self.user)
+        with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
+            "ai_assistant.views.chat_with_ollama"
+        ) as mocked_chat:
+            mocked_context.return_value.text = "DATI LIVE - 2 ticket urgenti aperti"
+            mocked_context.return_value.sources = ("tool:tickets:riepilogo",)
+            mocked_context.return_value.audit = {}
+            mocked_chat.return_value = OllamaChatResult(
+                content="- 2 ticket urgenti da gestire oggi", model="qwen2.5:14b-instruct", done=True
+            )
+            first = self.client.get(reverse("ai_assistant:api_daily_brief"))
+            second = self.client.get(reverse("ai_assistant:api_daily_brief"))
+
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.json()["ok"])
+        self.assertIn("ticket urgenti", first.json()["message"])
+        self.assertFalse(first.json()["cached"])
+        self.assertTrue(second.json()["cached"])
+        self.assertEqual(mocked_chat.call_count, 1)  # la seconda risposta arriva dalla cache
+
+    def test_api_daily_brief_handles_empty_context_without_llm(self):
+        self.client.force_login(self.user)
+        with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
+            "ai_assistant.views.chat_with_ollama"
+        ) as mocked_chat:
+            mocked_context.return_value.text = ""
+            mocked_context.return_value.sources = ()
+            mocked_context.return_value.audit = {}
+            response = self.client.get(reverse("ai_assistant:api_daily_brief"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("non risultano", response.json()["message"])
+        mocked_chat.assert_not_called()
+
+    def test_api_daily_brief_disabled_returns_503(self):
+        self.client.force_login(self.user)
+        with override_settings(OLLAMA_DAILY_BRIEF_ENABLED=False):
+            response = self.client.get(reverse("ai_assistant:api_daily_brief"))
+        self.assertEqual(response.status_code, 503)
+
     def test_api_chat_stream_returns_502_on_setup_error(self):
         self.client.force_login(self.user)
         with patch("ai_assistant.views.build_runtime_context") as mocked_context, patch(
