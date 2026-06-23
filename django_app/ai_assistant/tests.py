@@ -3,12 +3,14 @@ import tempfile
 import socket
 import urllib.error
 from datetime import date, timedelta
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -20,6 +22,7 @@ from .services import (
     build_knowledge_context,
     build_ollama_messages,
     chat_with_ollama,
+    clear_knowledge_cache,
     warmup_ollama,
 )
 from .tools import RuntimeContext, _merge_contexts, build_runtime_context
@@ -477,6 +480,76 @@ class AiAssistantTests(TestCase):
 
         self.assertTrue(any("ferie.md" in source for source in context.sources))
         self.assertFalse(any("ticket.md" in source for source in context.sources))
+
+    def test_new_curated_knowledge_files_are_retrievable(self):
+        """Le domande tipiche recuperano il file di knowledge curato atteso.
+
+        Guardia di regressione sui file aggiunti: se un titolo o un contenuto
+        cambia al punto da non rispondere piu' alla domanda canonica, il test
+        rompe. Sorgenti limitate alla KB pacchettizzata (come in produzione, dove
+        docs/ e' escluso dal pacchetto), retrieval BM25 deterministico.
+        """
+        cases = [
+            ("cosa sono le qualifiche e le abilitazioni?", "05_anagrafica_qualifiche_formazione"),
+            ("a cosa serve il modulo anomalie?", "06_anomalie_produzione"),
+            ("come funzionano le approvazioni automatiche?", "07_tasks_automazioni"),
+            ("cosa significa ROL?", "08_glossario"),
+            ("come accedo al portale con autenticazione a due fattori?", "09_accesso_account"),
+        ]
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=["django_app/ai_assistant/knowledge"],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            for question, expected_file in cases:
+                context = build_knowledge_context(question)
+                self.assertTrue(
+                    any(expected_file in source for source in context.sources),
+                    msg=f"'{question}' non recupera {expected_file}: fonti={context.sources}",
+                )
+
+    def test_curated_knowledge_base_is_among_effective_rag_sources(self):
+        """La KB curata pacchettizzata e' sempre tra le sorgenti RAG effettive.
+
+        Invariante critica: la knowledge base curata e' la fonte di conoscenza
+        canonica spedita con l'app. Un OLLAMA_RAG_SOURCE_PATHS stantio nell'.env
+        che la ometteva (bug reale: lasciava solo README.md in prod, dato che docs/
+        e' escluso dal pacchetto) ha reso la KB inutilizzata. Questo test legge il
+        valore EFFETTIVO (env o default) e fallisce se la KB non e' tra le sorgenti.
+        """
+        sources = [str(p) for p in settings.OLLAMA_RAG_SOURCE_PATHS]
+        self.assertTrue(
+            any("ai_assistant/knowledge" in s.replace("\\", "/") for s in sources),
+            msg=f"La KB curata non e' tra le sorgenti RAG effettive: {sources}",
+        )
+
+    def test_ai_eval_rag_command_reports_full_recall_on_curated_kb(self):
+        """L'harness `ai_eval --rag` gira senza crash e raggiunge recall pieno sulla KB.
+
+        Verifica end-to-end: comando, golden set RAG e knowledge base curata. Le
+        sorgenti sono limitate alla KB pacchettizzata; embeddings spenti -> BM25.
+        """
+        from ai_assistant.management.commands.ai_eval import _RAG_GOLDEN
+
+        out = StringIO()
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=["django_app/ai_assistant/knowledge"],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            call_command("ai_eval", "--rag", "--json", stdout=out)
+
+        payload = json.loads(out.getvalue())
+        summary = payload["summary"]
+        self.assertEqual(summary["mode"], "rag")
+        self.assertFalse(summary["embeddings_enabled"])
+        self.assertEqual(summary["cases"], len(_RAG_GOLDEN))
+        self.assertEqual(summary["recall_hits"], summary["cases"])
+        self.assertGreater(summary["chunks_indexed"], 0)
 
     def test_wants_anagrafica_ratei_context_recognizes_phrasings(self):
         from ai_assistant.tools import _wants_anagrafica_ratei_context

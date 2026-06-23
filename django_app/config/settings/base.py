@@ -245,11 +245,17 @@ OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.2")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
 OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
-# KB curata in django_app/ai_assistant/knowledge: viaggia nel pacchetto (a
-# differenza di docs/, escluso dal deploy) ed e' la fonte RAG su file in prod.
+# Sorgenti RAG su file: README + KB curata in django_app/ai_assistant/knowledge,
+# che viaggia nel pacchetto (a differenza di docs/, escluso dal deploy) ed e' la
+# fonte RAG su file in prod. docs/ai NON e' tra i default: contiene istruzioni
+# per gli agenti AI (in inglese) e architettura, non aiuto per l'utente finale, ed
+# essendo assente dal pacchetto in dev "soffocherebbe" la KB curata nel ranking
+# BM25 (misurato con `manage.py ai_eval --rag`). Cosi' dev e prod si comportano
+# uguale. Per reindicizzare docs/ai (es. assistente interno admin) basta impostare
+# esplicitamente OLLAMA_RAG_SOURCE_PATHS nell'.env.
 OLLAMA_RAG_SOURCE_PATHS = env_list(
     "OLLAMA_RAG_SOURCE_PATHS",
-    ["README.md", "docs/ai", "django_app/ai_assistant/knowledge"],
+    ["README.md", "django_app/ai_assistant/knowledge"],
 )
 OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "4") or "4")
 OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "5000") or "5000")
