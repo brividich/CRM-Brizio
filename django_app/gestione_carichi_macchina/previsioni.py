@@ -90,6 +90,8 @@ def prevedi_macchina(
     famiglia_id: int | None,
     freq_per_famiglia: dict[int, list],
     *,
+    fase: str | None = None,
+    freq_per_famiglia_fase: dict[tuple[int, str], list] | None = None,
     recency_per_coppia: dict[tuple[int, int], float] | None = None,
     carico_per_macchina: dict[int, float] | None = None,
     stato_per_macchina: dict[int, str] | None = None,
@@ -110,7 +112,15 @@ def prevedi_macchina(
 
     Tutti i termini sono in [0,1]; nessun LLM, ranking deterministico e spiegabile.
     """
-    items = freq_per_famiglia.get(famiglia_id) or []
+    # Affinita' per FASE (sgr/fin/rip/ass) quando disponibile: le fasi sono lavorazioni
+    # diverse, quindi la macchina giusta per la sgrossatura puo' non esserlo per la finitura.
+    # Si usa la frequenza per (famiglia, fase) se presente, altrimenti si ricade sulla
+    # frequenza per sola famiglia (retro-compatibile).
+    items = None
+    if fase and freq_per_famiglia_fase:
+        items = freq_per_famiglia_fase.get((famiglia_id, fase))
+    if not items:
+        items = freq_per_famiglia.get(famiglia_id) or []
     tot = sum(o for _m, o in items)
     base = [
         {"macchina_id": m, "occorrenze": o, "prob": round(o / tot, 3) if tot else 0.0}
@@ -168,6 +178,31 @@ def costruisci_indice_macchine() -> dict[int, list]:
     for a in MacchinaFamigliaAffinita.objects.all():
         freq[a.famiglia_id].append((a.macchina_id, a.occorrenze))
     return dict(freq)
+
+
+def costruisci_indice_macchine_fase() -> dict[tuple[int, str], list]:
+    """Frequenza per (famiglia, fase): (famiglia_id, fase) -> [(macchina_id, occ), ...].
+
+    Derivata dallo storico delle `Pianificazione` (che porta gia' famiglia + fase), quindi
+    senza migrazioni: cattura che sgrossatura/finitura/ripresa/assemblaggio vanno su macchine
+    diverse anche per la stessa famiglia.
+    """
+    from collections import defaultdict
+
+    from .models import Pianificazione
+
+    acc: dict[tuple[int, str], dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    qs = (
+        Pianificazione.objects.filter(famiglia_id__isnull=False)
+        .exclude(fase="")
+        .only("macchina_id", "famiglia_id", "fase")
+    )
+    for p in qs:
+        acc[(p.famiglia_id, p.fase)][p.macchina_id] += 1
+    return {
+        key: sorted(macs.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        for key, macs in acc.items()
+    }
 
 
 def costruisci_indice_recency(oggi: date | None = None, *, mezza_vita_giorni: int = 180) -> dict[tuple[int, int], float]:

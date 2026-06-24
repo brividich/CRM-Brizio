@@ -14,7 +14,7 @@
          hx-get="{% url 'gestione_carichi_macchina:cella_suggerimento' %}"
          hx-trigger="load, keyup changed delay:500ms"
          hx-target="#gcm-sugg-box" hx-swap="innerHTML"
-         hx-include="[name='macchina']">
+         hx-include="[name='macchina'],[name='fase']">
   <div class="gcm-row2">
     <input name="qta" type="number" min="0" placeholder="qta" value="{{ job.qta|default:'' }}">
     <input name="ore" type="number" min="0" step="0.5" placeholder="ore" value="{{ job.ore|default:'' }}">
@@ -25,7 +25,11 @@
         <option value="{{ val }}"{% if job and job.stato == val %} selected{% endif %}>{{ lbl }}</option>
       {% endfor %}
     </select>
-    <select name="fase">
+    <select name="fase"
+            hx-get="{% url 'gestione_carichi_macchina:cella_suggerimento' %}"
+            hx-trigger="change"
+            hx-target="#gcm-sugg-box" hx-swap="innerHTML"
+            hx-include="[name='testo'],[name='macchina']">
       {% for val, lbl in fase_choices %}
         <option value="{{ val }}"{% if job and job.fase == val %} selected{% endif %}>{{ lbl }}</option>
       {% endfor %}

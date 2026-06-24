@@ -676,21 +676,24 @@ def _famiglia_da_param(par: str):
     return None
 
 
-def _suggerimenti_macchina(fam) -> list[dict]:
+def _suggerimenti_macchina(fam, fase: str = "") -> list[dict]:
     from .models import Macchina
     from .previsioni import (
         costruisci_indice_carico,
         costruisci_indice_macchine,
+        costruisci_indice_macchine_fase,
         costruisci_indice_recency,
         costruisci_indice_stato,
         prevedi_macchina,
     )
 
-    # Suggerimento PESATO: affinita' storica + recency + carico attuale, escludendo
-    # le macchine in guasto/manutenzione. Mantiene prob/occorrenze per compatibilita'.
+    # Suggerimento PESATO: affinita' storica (per FASE quando indicata) + recency + carico
+    # attuale, escludendo le macchine in guasto/manutenzione. Mantiene prob/occorrenze.
     ranked = prevedi_macchina(
         fam.id,
         costruisci_indice_macchine(),
+        fase=fase or None,
+        freq_per_famiglia_fase=costruisci_indice_macchine_fase() if fase else None,
         recency_per_coppia=costruisci_indice_recency(),
         carico_per_macchina=costruisci_indice_carico(),
         stato_per_macchina=costruisci_indice_stato(),
@@ -755,9 +758,11 @@ def cella_suggerimento(request):
     fam = _match_famiglia(testo) if testo else None
     if not fam:
         return HttpResponse("")
-    righe = _righe_suggerimento_display(_suggerimenti_macchina(fam), macchina_corrente)
+    fase = (request.GET.get("fase") or "").strip()
+    righe = _righe_suggerimento_display(_suggerimenti_macchina(fam, fase=fase), macchina_corrente)
     ctx = {
         "famiglia": fam.nome,
+        "fase": fase,
         "righe": righe,
         "ha_corrente": bool(macchina_corrente),
         "corrente_in_lista": any(r["is_corrente"] for r in righe),

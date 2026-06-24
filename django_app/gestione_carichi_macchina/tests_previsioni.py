@@ -90,6 +90,18 @@ class PrevediMacchinaTest(SimpleTestCase):
         ranked = prevedi_macchina(1, freq, stato_per_macchina={10: "guasto"})
         self.assertEqual([r["macchina_id"] for r in ranked], [11])
 
+    def test_fase_cambia_il_ranking(self):
+        # Stessa famiglia, ma fasi diverse -> macchine diverse: sgr su m10, fin su m11.
+        freq = {1: [(10, 5), (11, 5)]}
+        per_fase = {(1, "sgr"): [(10, 9), (11, 1)], (1, "fin"): [(11, 9), (10, 1)]}
+        sgr = prevedi_macchina(1, freq, fase="sgr", freq_per_famiglia_fase=per_fase)
+        self.assertEqual([r["macchina_id"] for r in sgr], [10, 11])
+        fin = prevedi_macchina(1, freq, fase="fin", freq_per_famiglia_fase=per_fase)
+        self.assertEqual([r["macchina_id"] for r in fin], [11, 10])
+        # Fase senza storico -> fallback alla frequenza per sola famiglia.
+        fb = prevedi_macchina(1, freq, fase="rip", freq_per_famiglia_fase=per_fase)
+        self.assertEqual(sorted(r["macchina_id"] for r in fb), [10, 11])
+
     def test_recency_premia_storia_recente(self):
         # Stessa frequenza: vince la macchina con storia piu' recente.
         freq = {1: [(10, 5), (11, 5)]}

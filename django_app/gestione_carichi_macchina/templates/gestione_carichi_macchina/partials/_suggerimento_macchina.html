@@ -1,6 +1,6 @@
 {% if righe %}
 <div class="gcm-sugg">
-  <div class="gcm-sugg-h">Consigliate · {{ famiglia }}</div>
+  <div class="gcm-sugg-h">Consigliate · {{ famiglia }}{% if fase %} · fase {{ fase }}{% endif %}</div>
   {% for r in righe %}
     <div class="gcm-sugg-row{% if r.is_corrente %} cur{% endif %}"
          title="Score {{ r.score_pct }}% — storico {{ r.freq_pct }}%, recente {{ r.rec_pct }}%, macchina libera {{ r.lib_pct }}%{% if r.occorrenze %} · {{ r.occorrenze }} lavori storici{% endif %}{% if r.sat_pct is not None %} · saturazione {{ r.sat_pct }}%{% endif %}">
