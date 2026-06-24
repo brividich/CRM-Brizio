@@ -25,6 +25,15 @@ class SpiegaTest(SimpleTestCase):
         with patch("ai_assistant.services.chat_with_ollama", side_effect=RuntimeError("giu")):
             self.assertIsNone(spiega("prompt", "contesto"))
 
+    def test_pulisce_marker_fonte(self):
+        from .spiegazioni import _pulisci
+
+        self.assertEqual(
+            _pulisci("Consiglio: DM5 (26%). Tool:* Famiglia pezzo: gimbal."),
+            "Consiglio: DM5 (26%).",
+        )
+        self.assertEqual(_pulisci("Solo testo."), "Solo testo.")
+
     def test_contesto_cita_i_numeri(self):
         prompt, ctx = contesto_suggerimento_macchina(
             "gimbal", [{"codice": "DM3", "prob": 0.62, "occorrenze": 7, "macchina_id": 1}]

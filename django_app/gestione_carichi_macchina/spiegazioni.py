@@ -6,6 +6,16 @@ se l'AI è disabilitata o non risponde, si ritorna None e il chiamante mostra i 
 """
 from __future__ import annotations
 
+import re
+
+# Il gateway ai_assistant istruisce il modello a citare le fonti come "tool:*";
+# nella nostra spiegazione e' rumore: tagliamo la coda a partire da quel marker.
+_RE_FONTE_MARKER = re.compile(r"\btool\s*:\s*\*", re.IGNORECASE)
+
+
+def _pulisci(testo: str) -> str:
+    return _RE_FONTE_MARKER.split(testo, maxsplit=1)[0].strip()
+
 
 def llm_disponibile() -> bool:
     from django.conf import settings
@@ -23,7 +33,7 @@ def spiega(prompt: str, contesto: str, *, timeout: int = 30) -> str | None:
         return None
     try:
         res = chat_with_ollama(prompt, runtime_context=contesto, timeout=timeout)
-        return (getattr(res, "content", "") or "").strip() or None
+        return _pulisci(getattr(res, "content", "") or "") or None
     except Exception:
         # rete giù, modello assente, timeout, config mancante: mai propagare
         return None
