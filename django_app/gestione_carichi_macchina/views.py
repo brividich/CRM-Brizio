@@ -678,9 +678,23 @@ def _famiglia_da_param(par: str):
 
 def _suggerimenti_macchina(fam) -> list[dict]:
     from .models import Macchina
-    from .previsioni import costruisci_indice_macchine, prevedi_macchina
+    from .previsioni import (
+        costruisci_indice_carico,
+        costruisci_indice_macchine,
+        costruisci_indice_recency,
+        costruisci_indice_stato,
+        prevedi_macchina,
+    )
 
-    ranked = prevedi_macchina(fam.id, costruisci_indice_macchine())[:5]
+    # Suggerimento PESATO: affinita' storica + recency + carico attuale, escludendo
+    # le macchine in guasto/manutenzione. Mantiene prob/occorrenze per compatibilita'.
+    ranked = prevedi_macchina(
+        fam.id,
+        costruisci_indice_macchine(),
+        recency_per_coppia=costruisci_indice_recency(),
+        carico_per_macchina=costruisci_indice_carico(),
+        stato_per_macchina=costruisci_indice_stato(),
+    )[:5]
     macs = {
         m.id: m for m in
         Macchina.objects.filter(id__in=[r["macchina_id"] for r in ranked]).select_related("asset")
@@ -688,7 +702,9 @@ def _suggerimenti_macchina(fam) -> list[dict]:
     return [
         {"macchina_id": r["macchina_id"],
          "codice": macs[r["macchina_id"]].codice if r["macchina_id"] in macs else "",
-         "occorrenze": r["occorrenze"], "prob": r["prob"]}
+         "occorrenze": r["occorrenze"], "prob": r["prob"],
+         "score": r.get("score"), "saturazione": r.get("saturazione"),
+         "componenti": r.get("componenti")}
         for r in ranked
     ]
 

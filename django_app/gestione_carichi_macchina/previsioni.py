@@ -14,6 +14,13 @@ FONTE_STORICO = "storico"  # media storica famiglia x macchina (media)
 FONTE_FAMIGLIA = "famiglia"  # media storica della famiglia su qualunque macchina (bassa)
 FONTE_NESSUNA = "nessuno"
 
+# Pesi di default per lo scoring pesato del suggerimento macchina (Fase 2b).
+# freq = affinita' storica (segnale principale); recency = quanto e' recente quella
+# storia; carico = quanto la macchina e' libera ORA. Somma 1.0, tutti i termini in [0,1].
+PESI_SUGGERIMENTO_DEFAULT = {"freq": 0.5, "recency": 0.2, "carico": 0.3}
+# Stati che escludono una macchina dal suggerimento (non puo' prendere lavoro ora).
+_STATI_NON_DISPONIBILI = {"guasto", "manutenzione"}
+
 
 def prevedi_ore(
     *,
@@ -79,19 +86,75 @@ def costruisci_indici() -> tuple[dict, dict, dict]:
 
 
 # --- Fase 2: macchina piu' probabile per una famiglia/pezzo ----------------
-def prevedi_macchina(famiglia_id: int | None, freq_per_famiglia: dict[int, list]) -> list[dict]:
-    """Predice su quali macchine finisce, storicamente, un lavoro di una certa famiglia.
+def prevedi_macchina(
+    famiglia_id: int | None,
+    freq_per_famiglia: dict[int, list],
+    *,
+    recency_per_coppia: dict[tuple[int, int], float] | None = None,
+    carico_per_macchina: dict[int, float] | None = None,
+    stato_per_macchina: dict[int, str] | None = None,
+    pesi: dict[str, float] | None = None,
+) -> list[dict]:
+    """Predice su quali macchine conviene lavorare una certa famiglia.
 
     freq_per_famiglia: dict[famiglia_id] -> [(macchina_id, occorrenze), ...].
-    Ritorna lista ordinata per occorrenze: [{macchina_id, occorrenze, prob}].
+
+    Modalita' **storica** (default, retro-compatibile): senza segnali aggiuntivi
+    ordina per sola frequenza storica e ritorna [{macchina_id, occorrenze, prob}].
+
+    Modalita' **pesata** (se passi almeno uno tra recency/carico/stato): combina in
+    uno score esplicabile la frequenza storica (`prob`), la *recency* di quella storia
+    e quanto la macchina e' **libera ORA** (1 - saturazione); le macchine in
+    guasto/manutenzione sono **escluse** (non possono prendere lavoro). Aggiunge a ogni
+    voce `score`, `componenti` (freq/recency/carico_libero), `saturazione` e `stato`.
+
+    Tutti i termini sono in [0,1]; nessun LLM, ranking deterministico e spiegabile.
     """
     items = freq_per_famiglia.get(famiglia_id) or []
     tot = sum(o for _m, o in items)
-    out = [
+    base = [
         {"macchina_id": m, "occorrenze": o, "prob": round(o / tot, 3) if tot else 0.0}
         for m, o in items
     ]
-    out.sort(key=lambda x: (x["occorrenze"], x["macchina_id"]), reverse=True)
+
+    pesato = (
+        recency_per_coppia is not None
+        or carico_per_macchina is not None
+        or stato_per_macchina is not None
+    )
+    if not pesato:
+        base.sort(key=lambda x: (x["occorrenze"], x["macchina_id"]), reverse=True)
+        return base
+
+    w = {**PESI_SUGGERIMENTO_DEFAULT, **(pesi or {})}
+    rec = recency_per_coppia or {}
+    car = carico_per_macchina or {}
+    sta = stato_per_macchina or {}
+    out: list[dict] = []
+    for it in base:
+        m = it["macchina_id"]
+        stato = sta.get(m, "attiva")
+        if stato in _STATI_NON_DISPONIBILI:
+            continue  # vincolo rigido: macchina non disponibile ORA
+        s_freq = it["prob"]
+        s_rec = float(rec.get((m, famiglia_id), 0.0))
+        sat = float(car.get(m, 0.0))
+        s_load = max(0.0, 1.0 - sat)  # libera=1, satura/oltre capacita'=0
+        score = w["freq"] * s_freq + w["recency"] * s_rec + w["carico"] * s_load
+        out.append(
+            {
+                **it,
+                "score": round(score, 3),
+                "componenti": {
+                    "freq": round(s_freq, 3),
+                    "recency": round(s_rec, 3),
+                    "carico_libero": round(s_load, 3),
+                },
+                "saturazione": round(sat, 3),
+                "stato": stato,
+            }
+        )
+    out.sort(key=lambda x: (x["score"], x["occorrenze"], x["macchina_id"]), reverse=True)
     return out
 
 
@@ -105,6 +168,52 @@ def costruisci_indice_macchine() -> dict[int, list]:
     for a in MacchinaFamigliaAffinita.objects.all():
         freq[a.famiglia_id].append((a.macchina_id, a.occorrenze))
     return dict(freq)
+
+
+def costruisci_indice_recency(oggi: date | None = None, *, mezza_vita_giorni: int = 180) -> dict[tuple[int, int], float]:
+    """Recency score [0,1] per coppia (macchina, famiglia) da `ultima_data`.
+
+    Decadimento esponenziale con mezza vita `mezza_vita_giorni`: storia di oggi -> ~1,
+    storia di una mezza-vita fa -> 0.5, molto vecchia -> verso 0. Coppie senza data
+    semplicemente non compaiono (recency 0 a valle).
+    """
+    from .models import MacchinaFamigliaAffinita
+
+    oggi = oggi or date.today()
+    out: dict[tuple[int, int], float] = {}
+    qs = MacchinaFamigliaAffinita.objects.filter(ultima_data__isnull=False).only(
+        "macchina_id", "famiglia_id", "ultima_data"
+    )
+    for a in qs:
+        giorni = max(0, (oggi - a.ultima_data).days)
+        out[(a.macchina_id, a.famiglia_id)] = 0.5 ** (giorni / mezza_vita_giorni)
+    return out
+
+
+def costruisci_indice_carico(giorni: int = 14, *, oggi: date | None = None) -> dict[int, float]:
+    """Saturazione attuale per macchina (frazione: 1.0 = piena) sulla finestra `giorni`.
+
+    Usa le ore gia' pianificate (carico confermato) sulla finestra a partire da `oggi`,
+    cosi' un suggerimento non manda lavoro su una macchina gia' satura.
+    """
+    from .models import Macchina, Pianificazione
+    from .saturazione import calcola_saturazione
+
+    oggi = oggi or date.today()
+    finestra = [oggi + timedelta(days=i) for i in range(max(1, giorni))]
+    macchine = list(Macchina.objects.filter(attivo=True))
+    pians = list(
+        Pianificazione.objects.filter(data__range=(finestra[0], finestra[-1])).only("macchina_id", "ore")
+    )
+    sat = calcola_saturazione(macchine, pians, finestra)
+    return {mid: (v["perc"] / 100.0) for mid, v in sat["per_macchina"].items()}
+
+
+def costruisci_indice_stato() -> dict[int, str]:
+    """Stato di pianificazione per macchina (attiva/guasto/manutenzione)."""
+    from .models import Macchina
+
+    return {m.id: m.stato_pianificazione for m in Macchina.objects.all().only("id", "stato_pianificazione")}
 
 
 # --- Fase 3: rischio ritardo commessa --------------------------------------

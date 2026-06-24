@@ -69,6 +69,35 @@ class PrevediMacchinaTest(SimpleTestCase):
     def test_famiglia_assente(self):
         self.assertEqual(prevedi_macchina(99, {}), [])
 
+    def test_carico_penalizza_macchina_satura(self):
+        # m10 ha piu' storia (6 vs 4) ma e' satura; m11 e' libera.
+        freq = {1: [(10, 6), (11, 4)]}
+        # Senza segnali: vince la sola frequenza storica (m10).
+        storico = prevedi_macchina(1, freq)
+        self.assertEqual([r["macchina_id"] for r in storico], [10, 11])
+        # Con il carico attuale: la macchina libera (m11) supera quella satura (m10).
+        pesato = prevedi_macchina(
+            1, freq,
+            carico_per_macchina={10: 1.0, 11: 0.0},
+            stato_per_macchina={10: "attiva", 11: "attiva"},
+        )
+        self.assertEqual([r["macchina_id"] for r in pesato], [11, 10])
+        self.assertIn("score", pesato[0])
+        self.assertIn("componenti", pesato[0])
+
+    def test_stato_esclude_macchina_non_disponibile(self):
+        freq = {1: [(10, 6), (11, 4)]}
+        ranked = prevedi_macchina(1, freq, stato_per_macchina={10: "guasto"})
+        self.assertEqual([r["macchina_id"] for r in ranked], [11])
+
+    def test_recency_premia_storia_recente(self):
+        # Stessa frequenza: vince la macchina con storia piu' recente.
+        freq = {1: [(10, 5), (11, 5)]}
+        ranked = prevedi_macchina(
+            1, freq, recency_per_coppia={(10, 1): 1.0, (11, 1): 0.1}
+        )
+        self.assertEqual([r["macchina_id"] for r in ranked], [10, 11])
+
 
 class RischioRitardoTest(SimpleTestCase):
     def test_in_ritardo(self):
