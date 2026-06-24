@@ -20,7 +20,8 @@ from django_fsm import TransitionNotAllowed
 
 from . import constants as C
 from .forms import ApprovazioneForm, RigaMOD133FormSet, SpecificaForm
-from .models import MOD133, Specifica
+from .models import AzioneOFI, MOD133, RigaMOD133, Specifica
+from .ofi import approva_azione_ofi, crea_ofi_da_riga
 
 _INHERIT_FIELDS = ["codice", "titolo", "tipo", "fonte", "cliente", "tag",
                    "note", "commessa_ref", "famiglia_ref"]
@@ -74,10 +75,15 @@ def allegato_download(request, pk: int):
 def dettaglio(request, pk: int):
     spec = get_object_or_404(Specifica.objects.select_related("mod133"), pk=pk)
     mod = MOD133.objects.filter(specifica=spec).first()
+    azioni_ofi = (
+        AzioneOFI.objects.filter(riga_mod133__mod133=mod).select_related("approvatore", "riga_mod133")
+        if mod else []
+    )
     context = {
         "spec": spec,
         "mod": mod,
         "righe": mod.righe.all() if mod else [],
+        "azioni_ofi": azioni_ofi,
         "eventi": spec.eventi.all()[:50],
         "C": C,
     }
@@ -250,4 +256,38 @@ def mod133_approva(request, pk: int):
         messages.success(request, "Esito registrato.")
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Operazione non consentita: {exc}")
+    return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+# ---------------------------------------------------------------------------
+# F5 — OFI → MOD.174 + sotto-flusso documento CN
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def riga_genera_ofi(request, pk: int, riga_id: int):
+    """Genera l'OFI per una riga con impatto, SU CONFERMA (mai automatica)."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    riga = get_object_or_404(RigaMOD133, pk=riga_id, mod133__specifica=spec)
+    try:
+        azione = crea_ofi_da_riga(riga, attore=request.user)
+        messages.success(request, f"OFI {azione.ofi} generato per la riga «{riga.argomento}».")
+    except ValidationError as exc:
+        messages.error(request, f"Impossibile generare l'OFI: {exc.messages[0] if exc.messages else exc}")
+    return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+@login_required
+@require_POST
+def azione_ofi_approva(request, azione_id: int):
+    """Approva/respinge il sotto-flusso documento CN (modo da APPROVAZIONE_DOC_CN_MODE)."""
+    azione = get_object_or_404(
+        AzioneOFI.objects.select_related("riga_mod133__mod133__specifica"), pk=azione_id)
+    spec = azione.riga_mod133.mod133.specifica
+    esito = request.POST.get("esito", C.AZIONE_OFI_APPROVATA)
+    try:
+        approva_azione_ofi(azione, approvatore=request.user, esito=esito)
+        messages.success(request, f"Azione OFI {azione.ofi}: {azione.get_stato_display()}.")
+    except ValidationError as exc:
+        messages.error(request, f"Operazione non consentita: {exc.messages[0] if exc.messages else exc}")
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)

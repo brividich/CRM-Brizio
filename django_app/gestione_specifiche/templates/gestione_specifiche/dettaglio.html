@@ -71,10 +71,48 @@
         <td>{{ r.tag_processo|default:"—" }}</td>
         <td>{% if r.impatto_documenti %}✓{% endif %}</td>
         <td>{% if r.impatto_operativo %}✓{% endif %}</td>
-        <td>{% if r.genera_ofi %}✓{% endif %}</td>
+        <td>
+          {% if r.ofi %}<b>#{{ r.ofi }}</b>
+          {% elif r.genera_ofi and spec.stato == C.STATO_IN_VALIDITA %}
+            <form method="post" action="{% url 'gestione_specifiche:riga_genera_ofi' spec.pk r.pk %}" style="display:inline;">
+              {% csrf_token %}<button class="gs-btn gs-btn--ghost" type="submit" style="padding:3px 8px; min-height:0;">Genera OFI</button>
+            </form>
+          {% elif r.genera_ofi %}<span style="color:#b35b00;">in attesa</span>
+          {% else %}—{% endif %}
+        </td>
       </tr>
       {% empty %}
       <tr><td colspan="7" style="color:#6c84a6;">Nessuna riga.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if azioni_ofi %}
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Azioni OFI — documenti CN</h3>
+  <table class="gs-table">
+    <thead><tr><th>OFI</th><th>Documento CN</th><th>Tipo</th><th>Modo approvazione</th><th>Stato</th><th>Approvatore</th><th></th></tr></thead>
+    <tbody>
+      {% for a in azioni_ofi %}
+      <tr>
+        <td><b>#{{ a.ofi }}</b></td>
+        <td>{{ a.documento_cn|default:"—" }}</td>
+        <td>{{ a.tipo_azione|default:"—" }}</td>
+        <td>{{ a.get_modo_approvazione_display }}</td>
+        <td>{{ a.get_stato_display }}</td>
+        <td>{{ a.approvatore|default:"—" }}</td>
+        <td>
+          {% if a.stato != C.AZIONE_OFI_APPROVATA and a.stato != C.AZIONE_OFI_RESPINTA %}
+          <form method="post" action="{% url 'gestione_specifiche:azione_ofi_approva' a.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button name="esito" value="{{ C.AZIONE_OFI_APPROVATA }}" class="gs-btn gs-btn--primary" style="padding:3px 8px; min-height:0;">Approva</button>
+            <button name="esito" value="{{ C.AZIONE_OFI_RESPINTA }}" class="gs-btn" style="padding:3px 8px; min-height:0;">Respingi</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

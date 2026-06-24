@@ -12,7 +12,7 @@
 | F2 | Macchina a stati (django-fsm-2) + audit + test | fatto | 2026-06-24 |
 | F3 | Flusso MOD.133 (UI HTMX) | fatto | 2026-06-24 |
 | F4 | Timer/scheduling (django-q2) + notifiche | fatto | 2026-06-24 |
-| F5 | OFI → MOD.174 + sotto-flusso documento CN | todo | — |
+| F5 | OFI → MOD.174 + sotto-flusso documento CN | fatto | 2026-06-24 |
 | F6 | Distribuzione + tracciamento copie | todo | — |
 | F7 | Ricerca, API ninja, UI elenco/cruscotto + storico | todo | — |
 | F8 | Import storico + prospetto intake | todo | — |
@@ -81,6 +81,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## TEST
 
+- **F5** — `gestione_specifiche` **61/61 verdi** (+9 F5): creazione OFI su conferma, idempotenza, richiede genera_ofi, modo default da settings, 3 modi di approvazione (mod133_approver con guardia, car_flow, rdd_dedicato), respingi, flusso genera/approva via view + render sezione Azioni OFI.
 - **F4** — `gestione_specifiche` **52/52 verdi** (+9 F4): reminder 7gg (dopo/prima soglia, saltato se preso in carico o sospeso), escalation 14gg, verifica periodica scaduta + avanzamento 6 mesi, pausa/ripresa che sposta la scadenza (tempo attivo al netto della pausa). Clock mockato.
 - **F3** — `gestione_specifiche` **43/43 verdi** (+17 F3): incremento revisione, creazione/eredità revisione, avvio flow-down (crea MOD.133), formset righe + claim implicito, obbligatorietà condizionale documenti, add riga HTMX, flusso completo S1→S2→S3 da UI, guardia stesso-utente (resta S2), respingi→S8, render template GET (dettaglio/nuova/modifica/approva/compila/lista).
 - **F2** — `gestione_specifiche` **26/26 verdi** (9 F1 + 17 F2): happy path S1→S2→S3 + data_verifica, guardie esito/compilatore≠approvatore, superamento revisione automatico, sospendi/ripristina S2↔S5 e S3↔S5, annulla multi-sorgente, duplicato richiede master, errore_tecnico + ripristino, un-evento-per-transizione, TransitionNotAllowed, ACL nega utente senza permesso (superuser ok).
@@ -92,6 +93,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **[F2]** `feat(spec): [F2] macchina a stati django-fsm-2 + audit immutabile (post_transition)`
 - **[F3]** `feat(spec): [F3] flusso MOD.133 UI HTMX (creazione/revisione, formset, claim, approvazione)`
 - **[F4]** `feat(spec): [F4] timer/scheduling django-q2 + notifiche (reminder/escalation/verifica, pausa)`
+- **[F5]** `feat(spec): [F5] OFI→MOD.174 su conferma + sotto-flusso documento CN (3 modi)`
 
 ### NOTA GIT — file condivisi esclusi dai commit di fase
 `CHANGELOG.md` e `django_app/automazioni/schedules.py` contenevano già modifiche
