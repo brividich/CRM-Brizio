@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{% block title %}Distribuzione · {{ spec.codice }}{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Distribuzione — {{ spec.codice }}</h1>
+  <p>Canale, destinatari ed evidenza di presa visione. Per le copie cartacee si applica la regola con deroga giustificata.</p>
+</div>
+
+<form method="post" class="gs-card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div style="color:#b42318;">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="gs-grid">
+    <div><div class="lbl">Canale</div>{{ form.canale }}</div>
+    <div><div class="lbl">Copia cartacea</div>{{ form.cartacea }}</div>
+    <div><div class="lbl">Copie distribuite (questa rev.)</div>{{ form.n_copie_distribuite }}</div>
+    <div><div class="lbl">Copie ritirate (rev. prec.)</div>{{ form.n_copie_ritirate }}</div>
+    <div style="grid-column:1/-1;"><div class="lbl">Reparti destinatari</div>{{ form.destinatari }}</div>
+    <div style="grid-column:1/-1;{% if not deroga_richiesta %} display:none;{% endif %}">
+      <div class="lbl" style="color:#b35b00;">Giustificazione deroga copie (obbligatoria in caso di mancata corrispondenza)</div>
+      {{ form.deroga_giustificazione }}
+    </div>
+  </div>
+  <div class="gs-actions" style="margin-top:14px;">
+    <button class="gs-btn gs-btn--primary" type="submit">Registra distribuzione</button>
+    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}

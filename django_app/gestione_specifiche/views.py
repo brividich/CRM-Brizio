@@ -19,8 +19,9 @@ from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
 
 from . import constants as C
-from .forms import ApprovazioneForm, RigaMOD133FormSet, SpecificaForm
-from .models import AzioneOFI, MOD133, RigaMOD133, Specifica
+from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
+from .forms import ApprovazioneForm, DistribuzioneForm, RigaMOD133FormSet, SpecificaForm
+from .models import AzioneOFI, Distribuzione, MOD133, RigaMOD133, Specifica
 from .ofi import approva_azione_ofi, crea_ofi_da_riga
 
 _INHERIT_FIELDS = ["codice", "titolo", "tipo", "fonte", "cliente", "tag",
@@ -84,6 +85,7 @@ def dettaglio(request, pk: int):
         "mod": mod,
         "righe": mod.righe.all() if mod else [],
         "azioni_ofi": azioni_ofi,
+        "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),
         "eventi": spec.eventi.all()[:50],
         "C": C,
     }
@@ -291,3 +293,45 @@ def azione_ofi_approva(request, azione_id: int):
     except ValidationError as exc:
         messages.error(request, f"Operazione non consentita: {exc.messages[0] if exc.messages else exc}")
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+# ---------------------------------------------------------------------------
+# F6 — Distribuzione + tracciamento copie
+# ---------------------------------------------------------------------------
+
+@login_required
+def distribuzione_nuova(request, pk: int):
+    """Crea una distribuzione tracciata; per le cartacee applica la regola copie
+    (warning + deroga giustificata, no blocco rigido)."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    deroga_richiesta = False
+    if request.method == "POST":
+        form = DistribuzioneForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+            try:
+                dist = crea_distribuzione(
+                    spec, canale=cd["canale"], reparti=cd["destinatari"],
+                    cartacea=cd["cartacea"],
+                    n_copie_distribuite=cd.get("n_copie_distribuite") or 0,
+                    n_copie_ritirate=cd.get("n_copie_ritirate") or 0,
+                    deroga_giustificazione=cd.get("deroga_giustificazione", ""),
+                    attore=request.user,
+                )
+                if dist.deroga_giustificazione:
+                    messages.warning(request, "Distribuzione registrata CON deroga sulle copie.")
+                else:
+                    messages.success(request, "Distribuzione registrata.")
+                return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+            except DerogaCopieRichiesta as exc:
+                deroga_richiesta = True
+                messages.warning(
+                    request,
+                    f"Copie non corrispondenti: la revisione precedente aveva {exc.attese} copie "
+                    f"distribuite ma ne risultano {exc.ritirate} ritirate. Inserisci una "
+                    f"giustificazione di deroga per procedere.",
+                )
+    else:
+        form = DistribuzioneForm()
+    return render(request, "gestione_specifiche/distribuzione_form.html",
+                  {"spec": spec, "form": form, "deroga_richiesta": deroga_richiesta})

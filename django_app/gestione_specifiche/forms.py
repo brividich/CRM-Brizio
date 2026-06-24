@@ -79,3 +79,23 @@ class ChiusuraCompilazioneForm(forms.Form):
 class ApprovazioneForm(forms.Form):
     esito = forms.ChoiceField(choices=C.ESITO_CHOICES, widget=forms.Select(attrs=_TXT))
     note = forms.CharField(required=False, widget=forms.Textarea(attrs=_AREA))
+
+
+class DistribuzioneForm(forms.Form):
+    canale = forms.ChoiceField(choices=C.CANALE_CHOICES, widget=forms.Select(attrs=_TXT))
+    destinatari = forms.ModelMultipleChoiceField(
+        queryset=None, required=False, widget=forms.CheckboxSelectMultiple,
+        label="Reparti destinatari",
+    )
+    cartacea = forms.BooleanField(required=False, label="Copia cartacea")
+    n_copie_distribuite = forms.IntegerField(min_value=0, initial=0, required=False,
+                                             widget=forms.NumberInput(attrs={"class": "gs-input gs-input--num"}))
+    n_copie_ritirate = forms.IntegerField(min_value=0, initial=0, required=False,
+                                          widget=forms.NumberInput(attrs={"class": "gs-input gs-input--num"}))
+    deroga_giustificazione = forms.CharField(required=False, widget=forms.Textarea(attrs=_AREA),
+                                             label="Giustificazione deroga copie")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from anagrafica.models import Reparto
+        self.fields["destinatari"].queryset = Reparto.objects.filter(is_active=True).order_by("nome")

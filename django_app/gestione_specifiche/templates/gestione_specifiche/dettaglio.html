@@ -48,6 +48,7 @@
         </form>
       {% endif %}
     {% elif spec.stato == C.STATO_IN_VALIDITA %}
+      <a class="gs-btn gs-btn--accent" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}">Distribuisci</a>
       <a class="gs-btn" href="{% url 'gestione_specifiche:nuova' %}?da={{ spec.pk }}">Nuova revisione</a>
     {% endif %}
   </div>
@@ -112,6 +113,28 @@
           </form>
           {% endif %}
         </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if distribuzioni %}
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Distribuzioni</h3>
+  <table class="gs-table">
+    <thead><tr><th>Data</th><th>Canale</th><th>Destinatari</th><th>Presa visione</th><th>Cartacea</th><th>Copie dist./rit.</th><th>Deroga</th></tr></thead>
+    <tbody>
+      {% for d in distribuzioni %}
+      <tr>
+        <td>{{ d.data_distribuzione|date:"d/m/Y H:i"|default:"—" }}</td>
+        <td>{{ d.get_canale_display }}</td>
+        <td>{% for r in d.destinatari.all %}{{ r.nome }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+        <td>{% if d.presa_visione_richiesta %}richiesta{% else %}solo notifica{% endif %}</td>
+        <td>{% if d.cartacea %}✓{% endif %}</td>
+        <td>{{ d.n_copie_distribuite }} / {{ d.n_copie_ritirate }}</td>
+        <td>{% if d.deroga_giustificazione %}<span title="{{ d.deroga_giustificazione }}" style="color:#b35b00;">deroga</span>{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

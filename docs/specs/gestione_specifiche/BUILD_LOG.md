@@ -13,7 +13,7 @@
 | F3 | Flusso MOD.133 (UI HTMX) | fatto | 2026-06-24 |
 | F4 | Timer/scheduling (django-q2) + notifiche | fatto | 2026-06-24 |
 | F5 | OFI → MOD.174 + sotto-flusso documento CN | fatto | 2026-06-24 |
-| F6 | Distribuzione + tracciamento copie | todo | — |
+| F6 | Distribuzione + tracciamento copie | fatto | 2026-06-24 |
 | F7 | Ricerca, API ninja, UI elenco/cruscotto + storico | todo | — |
 | F8 | Import storico + prospetto intake | todo | — |
 | F9 | Copilota AI locale | todo | — |
@@ -81,6 +81,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## TEST
 
+- **F6** — `gestione_specifiche` **72/72 verdi** (+11 F6): regola copie (match/mismatch→deroga/con deroga procede), non-cartacea senza controllo, presa visione (default false / reparto-specifico / default reparto-nullo), evento+M2M+data, flusso via view (GET form, POST notifica, POST cartacea mismatch→deroga).
 - **F5** — `gestione_specifiche` **61/61 verdi** (+9 F5): creazione OFI su conferma, idempotenza, richiede genera_ofi, modo default da settings, 3 modi di approvazione (mod133_approver con guardia, car_flow, rdd_dedicato), respingi, flusso genera/approva via view + render sezione Azioni OFI.
 - **F4** — `gestione_specifiche` **52/52 verdi** (+9 F4): reminder 7gg (dopo/prima soglia, saltato se preso in carico o sospeso), escalation 14gg, verifica periodica scaduta + avanzamento 6 mesi, pausa/ripresa che sposta la scadenza (tempo attivo al netto della pausa). Clock mockato.
 - **F3** — `gestione_specifiche` **43/43 verdi** (+17 F3): incremento revisione, creazione/eredità revisione, avvio flow-down (crea MOD.133), formset righe + claim implicito, obbligatorietà condizionale documenti, add riga HTMX, flusso completo S1→S2→S3 da UI, guardia stesso-utente (resta S2), respingi→S8, render template GET (dettaglio/nuova/modifica/approva/compila/lista).
@@ -94,6 +95,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **[F3]** `feat(spec): [F3] flusso MOD.133 UI HTMX (creazione/revisione, formset, claim, approvazione)`
 - **[F4]** `feat(spec): [F4] timer/scheduling django-q2 + notifiche (reminder/escalation/verifica, pausa)`
 - **[F5]** `feat(spec): [F5] OFI→MOD.174 su conferma + sotto-flusso documento CN (3 modi)`
+- **[F6]** `feat(spec): [F6] distribuzione tracciata + regola copie cartacee con deroga`
 
 ### NOTA GIT — file condivisi esclusi dai commit di fase
 `CHANGELOG.md` e `django_app/automazioni/schedules.py` contenevano già modifiche

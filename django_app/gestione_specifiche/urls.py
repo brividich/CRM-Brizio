@@ -18,4 +18,5 @@ urlpatterns = [
     path("<int:pk>/mod133/approva/", views.mod133_approva, name="mod133_approva"),
     path("<int:pk>/mod133/riga/<int:riga_id>/genera-ofi/", views.riga_genera_ofi, name="riga_genera_ofi"),
     path("azione-ofi/<int:azione_id>/approva/", views.azione_ofi_approva, name="azione_ofi_approva"),
+    path("<int:pk>/distribuisci/", views.distribuzione_nuova, name="distribuzione_nuova"),
 ]
