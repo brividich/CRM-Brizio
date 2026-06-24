@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v2"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -45,7 +45,16 @@ _CANONICAL = {
 # Binding route -> permesso (esteso man mano che le rotte vengono aggiunte).
 _ROUTE_BINDINGS = {
     "gestione_specifiche:lista": PERM_VIEW,
+    "gestione_specifiche:dettaglio": PERM_VIEW,
     "gestione_specifiche:allegato_download": PERM_VIEW,
+    "gestione_specifiche:nuova": PERM_COMPILA,
+    "gestione_specifiche:modifica": PERM_COMPILA,
+    "gestione_specifiche:avvia_flow_down": PERM_APPROVA,
+    "gestione_specifiche:claim": PERM_CLAIM,
+    "gestione_specifiche:mod133_compila": PERM_COMPILA,
+    "gestione_specifiche:mod133_riga_add": PERM_COMPILA,
+    "gestione_specifiche:mod133_chiudi": PERM_COMPILA,
+    "gestione_specifiche:mod133_approva": PERM_APPROVA,
 }
 
 # Grant di default (CREATE-ONLY, l'admin può rifinire in /admin-portale/acl-canonico/).

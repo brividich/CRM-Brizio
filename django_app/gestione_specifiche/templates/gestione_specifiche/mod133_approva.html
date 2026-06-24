@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}
+{% block title %}Approva MOD.133 · {{ spec.codice }}{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Approvazione flow-down — {{ spec.codice }}</h1>
+  <p>Compilatore: {{ mod.compilatore|default:"—" }}. L'approvatore deve essere diverso dal compilatore.</p>
+</div>
+
+<form method="post" action="{% url 'gestione_specifiche:mod133_approva' spec.pk %}" class="gs-card">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div style="color:#b42318;">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="gs-grid">
+    <div><div class="lbl">Esito</div>{{ form.esito }}</div>
+    <div style="grid-column:1/-1;"><div class="lbl">Note</div>{{ form.note }}</div>
+  </div>
+  <div class="gs-actions" style="margin-top:14px;">
+    <button class="gs-btn gs-btn--primary" type="submit">Registra esito</button>
+    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}

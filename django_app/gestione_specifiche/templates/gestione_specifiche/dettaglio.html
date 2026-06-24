@@ -1,0 +1,93 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ spec.codice }} · Gestione Specifiche{% endblock %}
+
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>{{ spec.codice }}{% if spec.revisione %} · rev. {{ spec.revisione }}{% endif %}
+    &nbsp;<span class="gs-pill {{ spec.stato }}">{{ spec.get_stato_display }}</span></h1>
+  <p>{{ spec.titolo }}</p>
+</div>
+
+<div class="gs-card">
+  <div class="gs-grid">
+    <div><div class="lbl">Tipo</div><div class="val">{{ spec.get_tipo_display }}</div></div>
+    <div><div class="lbl">Fonte</div><div class="val">{{ spec.get_fonte_display }}</div></div>
+    <div><div class="lbl">Cliente</div><div class="val">{{ spec.cliente|default:"—" }}</div></div>
+    <div><div class="lbl">TAG</div><div class="val">{{ spec.tag|default:"—" }}</div></div>
+    <div><div class="lbl">Data inserimento</div><div class="val">{{ spec.data_inserimento|date:"d/m/Y H:i" }}</div></div>
+    <div><div class="lbl">Verifica periodica</div><div class="val">{{ spec.data_verifica|default:"—" }}</div></div>
+    {% if spec.revisione_precedente_id %}
+    <div><div class="lbl">Revisione precedente</div><div class="val">
+      <a href="{% url 'gestione_specifiche:dettaglio' spec.revisione_precedente_id %}">{{ spec.revisione_precedente }}</a></div></div>
+    {% endif %}
+    {% if spec.allegato %}
+    <div><div class="lbl">Allegato</div><div class="val">
+      <a href="{% url 'gestione_specifiche:allegato_download' spec.pk %}">Scarica</a></div></div>
+    {% endif %}
+  </div>
+  {% if spec.note %}<p style="margin-top:12px; color:#51607a;">{{ spec.note|linebreaksbr }}</p>{% endif %}
+
+  <div class="gs-actions">
+    <a class="gs-btn" href="{% url 'gestione_specifiche:lista' %}">← Elenco</a>
+    {% if spec.stato == C.STATO_BOZZA %}
+      <a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">Modifica metadati</a>
+      <form method="post" action="{% url 'gestione_specifiche:avvia_flow_down' spec.pk %}" style="display:inline;">
+        {% csrf_token %}<button class="gs-btn gs-btn--primary" type="submit">Avvia flow-down →</button>
+      </form>
+    {% elif spec.stato == C.STATO_FLOW_DOWN %}
+      <a class="gs-btn gs-btn--primary" href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">Compila MOD.133</a>
+      {% if mod and mod.data_chiusura_compilazione %}
+        <a class="gs-btn gs-btn--accent" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">Approva / Respingi</a>
+      {% else %}
+        <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}" style="display:inline;">
+          {% csrf_token %}<button class="gs-btn" type="submit">Chiudi compilazione</button>
+        </form>
+      {% endif %}
+    {% elif spec.stato == C.STATO_IN_VALIDITA %}
+      <a class="gs-btn" href="{% url 'gestione_specifiche:nuova' %}?da={{ spec.pk }}">Nuova revisione</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if mod %}
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">MOD.133 — flow-down requisiti</h3>
+  <div class="gs-grid" style="margin-bottom:12px;">
+    <div><div class="lbl">Compilatore</div><div class="val">{{ mod.compilatore|default:"— (non preso in carico)" }}</div></div>
+    <div><div class="lbl">Approvatore</div><div class="val">{{ mod.approvatore|default:"—" }}</div></div>
+    <div><div class="lbl">Esito</div><div class="val">{{ mod.get_esito_display|default:"—" }}</div></div>
+    <div><div class="lbl">Chiusura compilazione</div><div class="val">{{ mod.data_chiusura_compilazione|date:"d/m/Y H:i"|default:"—" }}</div></div>
+  </div>
+  <table class="gs-table">
+    <thead><tr><th>#</th><th>Argomento</th><th>Rif. §</th><th>TAG</th><th>Imp. doc</th><th>Imp. op</th><th>OFI</th></tr></thead>
+    <tbody>
+      {% for r in righe %}
+      <tr>
+        <td>{{ r.ordine }}</td><td>{{ r.argomento }}</td><td>{{ r.rif_paragrafo }}</td>
+        <td>{{ r.tag_processo|default:"—" }}</td>
+        <td>{% if r.impatto_documenti %}✓{% endif %}</td>
+        <td>{% if r.impatto_operativo %}✓{% endif %}</td>
+        <td>{% if r.genera_ofi %}✓{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="color:#6c84a6;">Nessuna riga.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Cronologia eventi</h3>
+  {% for e in eventi %}
+  <div class="gs-evt"><b>{{ e.timestamp|date:"d/m/Y H:i" }}</b> · {{ e.stato_da|default:"—" }} → <b>{{ e.stato_a }}</b>
+    · {{ e.trigger }}{% if e.attore %} · {{ e.attore }}{% endif %}</div>
+  {% empty %}
+  <p style="color:#6c84a6;">Nessun evento.</p>
+  {% endfor %}
+</div>
+{% endblock %}

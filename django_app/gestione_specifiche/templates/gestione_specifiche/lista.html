@@ -33,6 +33,7 @@
 </div>
 
 <div class="gs-toolbar">
+  <a href="{% url 'gestione_specifiche:nuova' %}" style="background:#0c2545; color:#fff; border-color:#0c2545;">+ Nuova specifica</a>
   <a href="?" class="{% if not mostra_storico %}active{% endif %}">Attive</a>
   <a href="?storico=1" class="{% if mostra_storico %}active{% endif %}">Mostra storico</a>
   <span style="color:#6c84a6; font-size:.85rem;">{{ tot }} element{{ tot|pluralize:"o,i" }}</span>
@@ -48,7 +49,7 @@
   <tbody>
     {% for s in specifiche %}
     <tr>
-      <td>{{ s.codice }}</td>
+      <td><a href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{{ s.codice }}</a></td>
       <td>{{ s.revisione|default:"—" }}</td>
       <td>{{ s.titolo }}</td>
       <td>{{ s.get_tipo_display }}</td>

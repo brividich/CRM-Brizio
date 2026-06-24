@@ -1,0 +1,22 @@
+{# Una riga (form) del formset MOD.133. Usato anche per l'empty_form (HTMX add). #}
+<div class="gs-card gs-riga" style="background:#fafcff;">
+  {{ form.id }}
+  <div class="gs-grid">
+    <div><div class="lbl">Ordine</div>{{ form.ordine }}</div>
+    <div><div class="lbl">Rif. paragrafo specifica</div>{{ form.rif_paragrafo }}</div>
+    <div><div class="lbl">TAG processo</div>{{ form.tag_processo }}</div>
+    <div style="grid-column:1/-1;"><div class="lbl">Argomento</div>{{ form.argomento }}</div>
+    <div style="grid-column:1/-1;"><div class="lbl">Descrizione modifiche</div>{{ form.descrizione_modifiche }}</div>
+    <div style="grid-column:1/-1;"><div class="lbl">Descrizione impatto</div>{{ form.descrizione_impatto }}</div>
+    <div><div class="lbl">Rif. documento CN</div>{{ form.rif_doc_cn }}
+      {% if form.rif_doc_cn.errors %}<div style="color:#b42318; font-size:.78rem;">{{ form.rif_doc_cn.errors|striptags }}</div>{% endif %}</div>
+    <div><div class="lbl">Rif. § CN</div>{{ form.rif_paragrafo_cn }}</div>
+    <div style="display:flex; gap:14px; align-items:end; flex-wrap:wrap;">
+      <label style="font-size:.85rem; color:#24395e;">{{ form.impatto_documenti }} Impatto documenti</label>
+      <label style="font-size:.85rem; color:#24395e;">{{ form.impatto_operativo }} Impatto operativo</label>
+      <label style="font-size:.85rem; color:#24395e;">{{ form.genera_ofi }} Genera OFI</label>
+    </div>
+  </div>
+  <div style="display:none;">{{ form.DELETE }}</div>
+  <button type="button" class="gs-btn gs-btn--ghost" style="margin-top:8px;" onclick="gsRemoveRiga(this)">Rimuovi riga</button>
+</div>

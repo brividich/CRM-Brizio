@@ -10,7 +10,7 @@
 | STEP 0 | Esplorazione repo | fatto | 2026-06-24 |
 | F1 | Modello dati, migrazioni, admin, ACL, navigation | fatto | 2026-06-24 |
 | F2 | Macchina a stati (django-fsm-2) + audit + test | fatto | 2026-06-24 |
-| F3 | Flusso MOD.133 (UI HTMX) | todo | — |
+| F3 | Flusso MOD.133 (UI HTMX) | fatto | 2026-06-24 |
 | F4 | Timer/scheduling (django-q2) + notifiche | todo | — |
 | F5 | OFI → MOD.174 + sotto-flusso documento CN | todo | — |
 | F6 | Distribuzione + tracciamento copie | todo | — |
@@ -81,6 +81,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## TEST
 
+- **F3** — `gestione_specifiche` **43/43 verdi** (+17 F3): incremento revisione, creazione/eredità revisione, avvio flow-down (crea MOD.133), formset righe + claim implicito, obbligatorietà condizionale documenti, add riga HTMX, flusso completo S1→S2→S3 da UI, guardia stesso-utente (resta S2), respingi→S8, render template GET (dettaglio/nuova/modifica/approva/compila/lista).
 - **F2** — `gestione_specifiche` **26/26 verdi** (9 F1 + 17 F2): happy path S1→S2→S3 + data_verifica, guardie esito/compilatore≠approvatore, superamento revisione automatico, sospendi/ripristina S2↔S5 e S3↔S5, annulla multi-sorgente, duplicato richiede master, errore_tecnico + ripristino, un-evento-per-transizione, TransitionNotAllowed, ACL nega utente senza permesso (superuser ok).
 - **F1** — `gestione_specifiche` 9/9 verdi (`manage.py test gestione_specifiche --settings=config.settings.test --keepdb`): default stato/`__str__`, snapshot metadati, PROTECT revisione precedente, immutabilità EventoSpecifica (create ok / update+delete bloccati), default `modo_approvazione` da settings, M2M `Distribuzione`↔`anagrafica.Reparto`. `manage.py check` pulito. Bootstrap ACL verificato a runtime: 8 PermissionDefinition, 1 NavigationItem, 2 RoutePermissionBinding.
 
@@ -88,6 +89,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 - **[F1]** `feat(spec): [F1] app gestione_specifiche — modelli, migrazioni, admin, ACL v2, navigation`
 - **[F2]** `feat(spec): [F2] macchina a stati django-fsm-2 + audit immutabile (post_transition)`
+- **[F3]** `feat(spec): [F3] flusso MOD.133 UI HTMX (creazione/revisione, formset, claim, approvazione)`
 
 ## NOTE STEP 0 (ruoli reali)
 
