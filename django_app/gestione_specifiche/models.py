@@ -15,6 +15,7 @@ from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from django_fsm import FSMField, GET_STATE, transition
 
 from . import constants as C
@@ -72,6 +73,9 @@ class Specifica(models.Model):
     commessa_ref = models.CharField("Rif. commessa", max_length=100, blank=True, default="", db_index=True)
     famiglia_ref = models.CharField("Rif. famiglia", max_length=100, blank=True, default="", db_index=True)
 
+    # Timer verifica periodica (F4): ultimo reminder inviato (ricorrente da data_verifica).
+    verifica_reminder_inviata_at = models.DateTimeField("Ultimo reminder verifica", null=True, blank=True)
+
     created_at = models.DateTimeField("Creato il", auto_now_add=True)
     updated_at = models.DateTimeField("Aggiornato il", auto_now=True)
 
@@ -124,8 +128,11 @@ class Specifica(models.Model):
 
     @transition(field=stato, source=C.STATO_BOZZA, target=C.STATO_FLOW_DOWN)
     def avvia_flow_down(self, attore=None):
-        """S1→S2: crea il MOD.133 vuoto (DM)."""
-        MOD133.objects.get_or_create(specifica=self)
+        """S1→S2: crea il MOD.133 vuoto (DM) e avvia il timer reminder/escalation."""
+        mod, _ = MOD133.objects.get_or_create(specifica=self)
+        mod.timer_anchor = timezone.now()
+        mod.avviato_da = attore
+        mod.save(update_fields=["timer_anchor", "avviato_da", "updated_at"])
         self._prep_evento(attore)
 
     @transition(field=stato, source=C.STATO_FLOW_DOWN, target=C.STATO_IN_VALIDITA)
@@ -167,6 +174,12 @@ class Specifica(models.Model):
             raise ValidationError("Il motivo di sospensione è obbligatorio.")
         if not data:
             raise ValidationError("La data di sospensione è obbligatoria.")
+        # Pausa timer (F4): congela il conteggio reminder/escalation se in flow-down.
+        if self.stato == C.STATO_FLOW_DOWN:
+            mod = MOD133.objects.filter(specifica=self).first()
+            if mod is not None and mod.timer_anchor and not mod.timer_pausa_at:
+                mod.timer_pausa_at = timezone.now()
+                mod.save(update_fields=["timer_pausa_at", "updated_at"])
         self.stato_precedente = self.stato
         self._prep_evento(attore, motivo=motivo, data=str(data), riesame=str(riesame) if riesame else None)
 
@@ -179,6 +192,13 @@ class Specifica(models.Model):
             raise ValidationError("Il motivo di ripristino è obbligatorio.")
         if self.stato_precedente not in (C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA):
             raise ValidationError("Stato precedente non valido per il ripristino.")
+        # Ripresa timer (F4): sposta l'anchor in avanti della durata di pausa.
+        if self.stato_precedente == C.STATO_FLOW_DOWN:
+            mod = MOD133.objects.filter(specifica=self).first()
+            if mod is not None and mod.timer_pausa_at and mod.timer_anchor:
+                mod.timer_anchor = mod.timer_anchor + (timezone.now() - mod.timer_pausa_at)
+                mod.timer_pausa_at = None
+                mod.save(update_fields=["timer_anchor", "timer_pausa_at", "updated_at"])
         self._prep_evento(attore, motivo=motivo)
 
     @transition(field=stato,
@@ -237,6 +257,16 @@ class MOD133(models.Model):
     esito = models.CharField(
         "Esito", max_length=20, choices=C.ESITO_CHOICES, null=True, blank=True
     )
+
+    # Timer reminder/escalation (F4). avviato_da = DM che ha avviato il flow-down.
+    avviato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="mod133_avviati", verbose_name="Avviato da (DM)",
+    )
+    timer_anchor = models.DateTimeField("Inizio timer flow-down", null=True, blank=True)
+    timer_pausa_at = models.DateTimeField("Timer in pausa da", null=True, blank=True)
+    reminder_inviato = models.BooleanField("Reminder 7gg inviato", default=False)
+    escalation_inviata = models.BooleanField("Escalation 14gg inviata", default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
