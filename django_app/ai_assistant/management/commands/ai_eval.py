@@ -6,10 +6,16 @@ confrontandoli con i domini attesi. Serve a tarare AI_TOOL_ROUTING_THRESHOLD /
 MARGIN / TOP_K su dati reali e a non regredire quando si toccano keyword o seed.
 
 In modalita' ``--rag`` valuta invece il **retrieval documentale** (knowledge base
-curata + RAG su file): per ogni golden query misura se la fonte attesa compare tra
-i primi ``--top-k`` chunk recuperati (recall@k). Funziona offline con BM25 (gli
-embeddings, opzionali, sono fail-safe), quindi serve a verificare che la knowledge
-base risponda alle domande tipiche e a non regredire quando si modificano i file.
+curata + RAG su file): per ogni golden query misura recall@k, MRR e rank-1, piu' la
+copertura della KB (file non testati da alcuna golden). Funziona offline con BM25
+(gli embeddings, opzionali, sono fail-safe), quindi serve a verificare che la
+knowledge base risponda alle domande tipiche e a non regredire quando si toccano i file.
+
+In modalita' ``--rag-live`` valuta la **copertura della KB sulle domande REALI**
+memorizzate (``AiChatFeedback.prompt`` e, con ``--include-faq``, ``AiKnowledgeEntry``):
+segnala i "gap" (domande che non recuperano alcun file di knowledge curato, al piu' il
+README generico) come candidati per nuovi contenuti KB o nuove golden. Va eseguito dove
+ci sono feedback raccolti (es. produzione). Non scrive nulla e non committa testo utente.
 
 Esempi:
     python manage.py ai_eval --settings=config.settings.dev
@@ -17,6 +23,8 @@ Esempi:
     python manage.py ai_eval --query "quanto tempo libero mi resta per le ferie"
     python manage.py ai_eval --rag
     python manage.py ai_eval --rag --top-k 4 --json
+    python manage.py ai_eval --rag-live --down-only
+    python manage.py ai_eval --rag-live --include-faq --json
 """
 
 from __future__ import annotations
@@ -137,6 +145,33 @@ class Command(BaseCommand):
                 "retrieval come in produzione (docs/ e' escluso dal pacchetto di deploy)."
             ),
         )
+        parser.add_argument(
+            "--rag-live",
+            action="store_true",
+            help=(
+                "Valuta la COPERTURA della KB curata sulle domande REALI memorizzate "
+                "(AiChatFeedback.prompt, opz. AiKnowledgeEntry). Segnala i 'gap' (domande "
+                "che non recuperano alcun file di knowledge curato) come candidati per "
+                "nuovi contenuti KB o nuove golden. Non scrive nulla; il testo non e' "
+                "committato nel repo."
+            ),
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=200,
+            help="Max domande reali distinte valutate in --rag-live (default 200).",
+        )
+        parser.add_argument(
+            "--include-faq",
+            action="store_true",
+            help="In --rag-live includi anche le domande delle FAQ curate (AiKnowledgeEntry).",
+        )
+        parser.add_argument(
+            "--down-only",
+            action="store_true",
+            help="In --rag-live considera solo i feedback negativi (risposte giudicate scarse).",
+        )
 
     def handle(self, *args, **options):
         as_json = bool(options.get("json"))
@@ -148,6 +183,17 @@ class Command(BaseCommand):
                 custom=custom,
                 top_k=int(options.get("top_k") or 0),
                 sources=str(options.get("sources") or "").strip(),
+            )
+            return
+
+        if options.get("rag_live"):
+            self._handle_rag_live(
+                as_json=as_json,
+                top_k=int(options.get("top_k") or 0),
+                sources=str(options.get("sources") or "").strip(),
+                limit=int(options.get("limit") or 200),
+                include_faq=bool(options.get("include_faq")),
+                down_only=bool(options.get("down_only")),
             )
             return
 
@@ -393,3 +439,143 @@ class Command(BaseCommand):
             if not any(frag in stem or stem in frag for frag in expected_fragments):
                 uncovered.append(path.name)
         return uncovered
+
+    @staticmethod
+    def _is_curated_kb_chunk(source: str) -> bool:
+        """True se il chunk proviene da un file di knowledge curato (non il README)."""
+        normalized = source.replace("\\", "/")
+        return "ai_assistant/knowledge/" in normalized and not normalized.lower().endswith("/readme.md")
+
+    # ── Copertura KB sulle domande REALI (AiChatFeedback / FAQ) ─────────────
+    def _handle_rag_live(
+        self,
+        *,
+        as_json: bool,
+        top_k: int,
+        sources: str,
+        limit: int,
+        include_faq: bool,
+        down_only: bool,
+    ) -> None:
+        embeddings_on = services.embeddings_enabled()
+        default_k = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
+        k = top_k if top_k > 0 else default_k
+
+        if sources:
+            settings.OLLAMA_RAG_SOURCE_PATHS = [i.strip() for i in sources.split(",") if i.strip()]
+            services.clear_knowledge_cache()
+        index = services._load_knowledge_index()
+
+        # Raccolta domande reali (in memoria, mai persistite ne' committate).
+        harvested: list[tuple[str, str]] = []
+        try:
+            from ai_assistant.models import AiChatFeedback
+
+            qs = AiChatFeedback.objects.all()
+            if down_only:
+                qs = qs.filter(rating="down")
+            for text in qs.order_by("-created_at").values_list("prompt", flat=True)[: max(limit * 3, limit)]:
+                cleaned = (text or "").strip()
+                if cleaned:
+                    harvested.append((cleaned, "feedback"))
+        except Exception:
+            pass
+        if include_faq:
+            try:
+                from ai_assistant.models import AiKnowledgeEntry
+
+                for text in (
+                    AiKnowledgeEntry.objects.order_by("-updated_at").values_list("question", flat=True)[:limit]
+                ):
+                    cleaned = (text or "").strip()
+                    if cleaned:
+                        harvested.append((cleaned, "faq"))
+            except Exception:
+                pass
+
+        seen: set[str] = set()
+        deduped: list[tuple[str, str]] = []
+        for text, origin in harvested:
+            key = text.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append((text, origin))
+            if len(deduped) >= limit:
+                break
+
+        results = []
+        covered = 0
+        for text, origin in deduped:
+            tokens = Counter(services._tokenize(text))
+            ranked = services._select_chunk_indices(text, tokens, index)[:k]
+            top = [{"source": index.chunks[i].source, "title": index.chunks[i].title} for i in ranked]
+            is_covered = any(self._is_curated_kb_chunk(c["source"]) for c in top)
+            if is_covered:
+                covered += 1
+            results.append(
+                {
+                    "prompt": text,
+                    "origin": origin,
+                    "covered": is_covered,
+                    "top_source": top[0]["source"] if top else None,
+                    "top_title": top[0]["title"] if top else None,
+                }
+            )
+
+        n = len(deduped)
+        gaps = [r for r in results if not r["covered"]]
+        summary = {
+            "mode": "rag-live",
+            "embeddings_enabled": embeddings_on,
+            "top_k": k,
+            "source_paths": services._source_paths(),
+            "evaluated": n,
+            "covered": covered,
+            "gaps": len(gaps),
+            "coverage_pct": round(100.0 * covered / n, 1) if n else None,
+            "down_only": down_only,
+            "include_faq": include_faq,
+        }
+
+        if as_json:
+            # Tronca i prompt (input utente reale) nel JSON: non serve l'intero testo.
+            out_results = [{**r, "prompt": r["prompt"][:200]} for r in results]
+            self.stdout.write(
+                self._safe(json.dumps({"summary": summary, "results": out_results}, ensure_ascii=False, indent=2))
+            )
+            return
+
+        mode = "ibrido BM25+semantico" if embeddings_on else "BM25"
+        self.stdout.write(f"RAG-LIVE: retrieval={mode} | top_k={k} | domande reali valutate={n}")
+        self.stdout.write(self._safe(f"sorgenti KB: {', '.join(services._source_paths())}"))
+        if n == 0:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Nessuna domanda reale trovata (AiChatFeedback vuoto). Esegui in un "
+                    "ambiente con feedback raccolti (es. produzione), eventualmente con --include-faq."
+                )
+            )
+            return
+        self.stdout.write("-" * 78)
+        self.stdout.write(
+            self.style.WARNING(
+                "NB: il testo sotto e' input reale degli utenti; non viene salvato ne' committato."
+            )
+        )
+        for row in gaps:
+            self.stdout.write(self._safe(f"[GAP/{row['origin']}] {row['prompt'][:120]}"))
+            if row["top_source"]:
+                self.stdout.write(
+                    self._safe(f"        recupera invece: {row['top_source']} > {row['top_title']}")
+                )
+            else:
+                self.stdout.write("        recupera: (nessun chunk)")
+        self.stdout.write("-" * 78)
+        self.stdout.write(
+            f"Copertura KB curata: {covered}/{n} ({summary['coverage_pct']}%) | gap: {len(gaps)}"
+        )
+        self.stdout.write(
+            "I gap sono candidati per nuovi contenuti KB o nuove golden (da curare a mano, "
+            "senza committare testo utente reale)."
+        )
