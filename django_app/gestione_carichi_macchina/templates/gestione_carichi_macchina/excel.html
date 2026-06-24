@@ -1,0 +1,183 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione Carichi Macchina{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gcm-wrap { display: grid; gap: 12px; }
+  .gcm-head {
+    position: relative; overflow: hidden;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    border: 1px solid #d9e2ef; border-radius: 14px; padding: 14px 16px 14px 22px;
+    background: linear-gradient(135deg, #fff 0%, #f7faff 60%, #eef6ff 100%);
+    box-shadow: 0 16px 34px rgba(12,37,69,.06);
+  }
+  .gcm-head:before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+    background: linear-gradient(180deg, var(--primary,#0c2545) 0%, var(--primary-mid,#1f87cd) 55%, var(--accent,#ff8a1f) 100%);
+  }
+  .gcm-head h1 { margin: 0; font-size: 1.5rem; color: var(--primary,#0c2545); }
+  .gcm-head p { margin: 3px 0 0; color: #6c84a6; font-size: .9rem; }
+  .gcm-nav { display: flex; gap: 6px; align-items: center; }
+  .gcm-btn {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
+    padding: 7px 12px; border: 1px solid #cdd9ea; border-radius: 10px;
+    background: #fff; color: #24395e; font-weight: 700; text-decoration: none; cursor: pointer;
+  }
+  .gcm-btn:hover { background: #eef6ff; border-color: var(--primary-mid,#1f87cd); }
+  .gcm-toggle { display: inline-flex; border: 1px solid #cdd9ea; border-radius: 10px; overflow: hidden; margin-right: 4px; }
+  .gcm-toggle a { padding: 7px 14px; text-decoration: none; color: #24395e; font-weight: 700; background: #fff; }
+  .gcm-toggle a.active { background: var(--primary,#0c2545); color: #fff; }
+
+  .gcm-scroll {
+    overflow: auto; max-height: 74vh;
+    border: 1px solid #d9e2ef; border-radius: 14px; background: #fff;
+    box-shadow: 0 16px 34px rgba(12,37,69,.05);
+  }
+  table.gcm { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: .82rem; }
+  table.gcm th, table.gcm td { border-right: 1px solid #eef2f7; border-bottom: 1px solid #eef2f7; padding: 0; }
+
+  /* header date sticky in alto */
+  table.gcm thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: var(--primary,#0c2545); color: #fff;
+    padding: 7px 8px; text-align: center; white-space: nowrap; font-weight: 700;
+  }
+  table.gcm thead th.gcm-corner { left: 0; z-index: 5; text-align: left; }
+  table.gcm thead th.gcm-weekend { background: #16314f; color: #aac3df; }
+  table.gcm thead th.gcm-today { background: var(--accent,#ff8a1f); color: #1a1206; }
+  .gcm-dow { display: block; font-size: .66rem; opacity: .75; font-weight: 600; }
+
+  /* prima colonna (macchina) sticky a sinistra */
+  table.gcm th.gcm-mac {
+    position: sticky; left: 0; z-index: 2;
+    background: #f7faff; color: var(--primary,#0c2545);
+    text-align: left; padding: 6px 10px; min-width: 168px; max-width: 168px;
+    font-weight: 800; white-space: nowrap;
+  }
+  table.gcm th.gcm-mac small { display: block; font-weight: 600; color: #7a8ca6; font-size: .68rem; }
+  .gcm-turno { font-weight: 700; color: var(--primary-mid,#1f87cd); }
+  tr.gcm-notte th.gcm-mac { background: #eef3fb; }
+  tr.gcm-ferma th.gcm-mac { background: #f0f0f3; color: #8a93a3; }
+
+  /* sezione */
+  tr.gcm-sez th {
+    position: sticky; left: 0; z-index: 4;
+    background: linear-gradient(90deg, var(--primary-mid,#1f87cd), #2a96d8);
+    color: #fff; text-align: left; padding: 6px 12px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em; font-size: .72rem;
+  }
+
+  /* celle */
+  td.gcm-td { min-width: 116px; max-width: 116px; vertical-align: top; background: #fff; }
+  td.gcm-td.gcm-weekend { background: #f4f6fa; }
+  td.gcm-td.gcm-today { background: #fff7ee; }
+  tr.gcm-ferma td.gcm-td { background: repeating-linear-gradient(45deg,#f3f3f6,#f3f3f6 6px,#ededf1 6px,#ededf1 12px); }
+  .gcm-cell-inner { min-height: 30px; padding: 3px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+  .gcm-cell-inner:hover { outline: 2px solid var(--primary-mid,#1f87cd); outline-offset: -2px; border-radius: 6px; }
+  .gcm-chip {
+    display: block; padding: 3px 6px; border-radius: 6px; line-height: 1.15;
+    font-weight: 600; color: #fff; word-break: break-word;
+  }
+  .gcm-chip.gcm-plan { background: var(--primary,#0c2545); }
+  .gcm-chip.gcm-wip  { background: var(--primary-mid,#1f87cd); }
+  .gcm-chip.gcm-urg  { background: var(--accent,#ff8a1f); color: #1a1206; }
+  .gcm-chip.gcm-done { background: #6b7a8f; }
+  .gcm-empty { color: #c2cddd; font-weight: 700; text-align: center; }
+
+  /* form inline */
+  .gcm-cell-form { display: grid; gap: 4px; padding: 4px; }
+  .gcm-cell-form input, .gcm-cell-form select {
+    width: 100%; box-sizing: border-box; font-size: .76rem; padding: 3px 5px;
+    border: 1px solid #cdd9ea; border-radius: 6px;
+  }
+  .gcm-cell-form .gcm-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .gcm-form-actions { display: flex; gap: 4px; }
+  .gcm-form-actions button {
+    flex: 1; font-size: .72rem; padding: 4px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #cdd9ea; background: #fff;
+  }
+  .gcm-form-actions .gcm-save { background: var(--primary-mid,#1f87cd); color: #fff; border-color: var(--primary-mid,#1f87cd); }
+  .gcm-form-actions .gcm-del { background: #fde8e8; color: #b91c1c; border-color: #f3c4c4; flex: 0 0 30px; }
+
+  .gcm-legend { display: flex; gap: 14px; flex-wrap: wrap; color: #61748f; font-size: .78rem; align-items: center; }
+  .gcm-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .gcm-dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gcm-wrap">
+  <header class="gcm-head">
+    <div>
+      <h1>Gestione Carichi Macchina</h1>
+      <p>Pianificazione carichi · {{ start|date:"d/m/Y" }} → {{ giorni|last|date:"d/m/Y" }}</p>
+    </div>
+    <nav class="gcm-nav">
+      <span class="gcm-toggle">
+        <a class="active" href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Excel</a>
+        <a href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Gantt</a>
+      </span>
+      <a class="gcm-btn" href="?start={{ prev_start }}&giorni={{ giorni_n }}">‹ Prec.</a>
+      <a class="gcm-btn" href="?giorni={{ giorni_n }}">Oggi</a>
+      <a class="gcm-btn" href="?start={{ next_start }}&giorni={{ giorni_n }}">Succ. ›</a>
+    </nav>
+  </header>
+
+  <div class="gcm-legend">
+    <span><i class="gcm-dot" style="background:var(--primary,#0c2545)"></i> Pianificata</span>
+    <span><i class="gcm-dot" style="background:var(--primary-mid,#1f87cd)"></i> In corso</span>
+    <span><i class="gcm-dot" style="background:var(--accent,#ff8a1f)"></i> Urgente / in ritardo</span>
+    <span><i class="gcm-dot" style="background:#6b7a8f"></i> Completata</span>
+    <span><i class="gcm-dot" style="background:#ededf1"></i> Guasto / manutenzione</span>
+  </div>
+
+  <div class="gcm-scroll">
+    <table class="gcm">
+      <thead>
+        <tr>
+          <th class="gcm-corner gcm-mac">Macchina</th>
+          {% for g in giorni %}
+            <th class="{% if g == oggi %}gcm-today{% endif %}">
+              {{ g|date:"d/m" }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for sez in sezioni %}
+          <tr class="gcm-sez">
+            <th colspan="{{ giorni_n|add:1 }}">{{ sez.label }}</th>
+          </tr>
+          {% for riga in sez.righe %}
+            <tr class="{% if riga.turno == 'notte' %}gcm-notte{% endif %}{% if riga.ferma %} gcm-ferma{% endif %}">
+              <th class="gcm-mac">
+                {% if riga.turno == 'notte' %}
+                  <span class="gcm-turno">↳ notturno</span>
+                {% else %}
+                  {{ riga.macchina.codice }}
+                  <small>{{ riga.macchina.descrizione|truncatechars:28 }}</small>
+                {% endif %}
+              </th>
+              {% for cella in riga.celle %}
+                <td class="gcm-td{% if cella.oggi %} gcm-today{% endif %}">
+                  {% include "gestione_carichi_macchina/partials/_cella.html" with macchina=riga.macchina turno=riga.turno data=cella.data data_iso=cella.data_iso jobs=cella.jobs %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        {% empty %}
+          <tr><td class="gcm-td" colspan="{{ giorni_n|add:1 }}" style="padding:20px;text-align:center;color:#7a8ca6;">
+            Nessuna macchina in piano. Esegui <code>import_carichi</code> oppure aggiungi una macchina.
+          </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<datalist id="gcm-famiglie">
+  {% for nome in famiglie %}<option value="{{ nome }}"></option>{% endfor %}
+</datalist>
+{% endblock %}

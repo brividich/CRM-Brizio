@@ -1,0 +1,39 @@
+{% load static %}
+<form class="gcm-cell-form"
+      hx-post="{% url 'gestione_carichi_macchina:cella_edit' %}"
+      hx-target="closest .gcm-td"
+      hx-swap="innerHTML">
+  <input type="hidden" name="macchina" value="{{ macchina.id }}">
+  <input type="hidden" name="turno" value="{{ turno }}">
+  <input type="hidden" name="data" value="{{ data_iso }}">
+  {% if job %}<input type="hidden" name="pianificazione_id" value="{{ job.id }}">{% endif %}
+
+  <input name="testo" list="gcm-famiglie" autofocus
+         placeholder="es. 8 gimbal (33h)"
+         value="{{ job.testo_originale|default:'' }}">
+  <div class="gcm-row2">
+    <input name="qta" type="number" min="0" placeholder="qta" value="{{ job.qta|default:'' }}">
+    <input name="ore" type="number" min="0" step="0.5" placeholder="ore" value="{{ job.ore|default:'' }}">
+  </div>
+  <div class="gcm-row2">
+    <select name="stato">
+      {% for val, lbl in stato_choices %}
+        <option value="{{ val }}"{% if job and job.stato == val %} selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+    <select name="fase">
+      {% for val, lbl in fase_choices %}
+        <option value="{{ val }}"{% if job and job.fase == val %} selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="gcm-form-actions">
+    <button type="submit" class="gcm-save">Salva</button>
+    <button type="button"
+            hx-get="{% url 'gestione_carichi_macchina:cella_edit' %}?macchina={{ macchina.id }}&turno={{ turno }}&data={{ data_iso }}&display=1"
+            hx-target="closest .gcm-td" hx-swap="innerHTML">✕</button>
+    {% if job %}
+      <button type="submit" name="elimina" value="1" class="gcm-del" title="Elimina">🗑</button>
+    {% endif %}
+  </div>
+</form>

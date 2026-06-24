@@ -1,0 +1,391 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Carichi Macchina · Gantt{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gwrap { display: grid; gap: 12px; }
+  .gtophead {
+    position: relative; overflow: hidden;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    border: 1px solid #d9e2ef; border-radius: 14px; padding: 14px 16px 14px 22px;
+    background: linear-gradient(135deg, #fff 0%, #f7faff 60%, #eef6ff 100%);
+    box-shadow: 0 16px 34px rgba(12,37,69,.06);
+  }
+  .gtophead:before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+    background: linear-gradient(180deg, var(--primary,#0c2545), var(--primary-mid,#1f87cd) 55%, var(--accent,#ff8a1f)); }
+  .gtophead h1 { margin: 0; font-size: 1.5rem; color: var(--primary,#0c2545); }
+  .gtophead p { margin: 3px 0 0; color: #6c84a6; font-size: .9rem; }
+  .gtoggle { display: inline-flex; border: 1px solid #cdd9ea; border-radius: 10px; overflow: hidden; }
+  .gtoggle a { padding: 7px 14px; text-decoration: none; color: #24395e; font-weight: 700; background: #fff; }
+  .gtoggle a.active { background: var(--primary,#0c2545); color: #fff; }
+  .gbtn { display: inline-flex; align-items: center; min-height: 36px; padding: 7px 12px;
+    border: 1px solid #cdd9ea; border-radius: 10px; background: #fff; color: #24395e; font-weight: 700; text-decoration: none; cursor: pointer; }
+  .gbtn:hover { background: #eef6ff; }
+  .gnav { display: flex; gap: 6px; align-items: center; }
+
+  .gtoolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
+    border: 1px solid #d9e2ef; border-radius: 12px; background: #f8fbff; padding: 10px 14px; }
+  .gfield { display: grid; gap: 3px; }
+  .gfield label { font-size: .64rem; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; font-weight: 800; }
+  .gfield select, .gfield input { min-height: 34px; border: 1px solid #cdd9ea; border-radius: 8px; padding: 4px 8px; font-size: .82rem; background: #fff; }
+  .gzoom { display: flex; align-items: center; gap: 8px; }
+  .gzoom input[type=range] { accent-color: var(--primary-mid,#1f87cd); }
+  .gspacer { flex: 1; }
+  .gflag { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 700; color: #24395e;
+    border: 1px solid #cdd9ea; border-radius: 10px; padding: 7px 10px; background: #fff; cursor: pointer; }
+  .gflag:has(input:checked) { background: rgba(31,135,205,.10); border-color: var(--primary-mid,#1f87cd); }
+
+  .gkpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; }
+  .gkpi { border: 1px solid #d9e2ef; border-radius: 12px; background: #fff; padding: 12px 14px; box-shadow: 0 8px 20px rgba(12,37,69,.04); }
+  .gkpi .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; font-weight: 800; }
+  .gkpi .val { font-size: 1.5rem; font-weight: 800; color: var(--primary,#0c2545); line-height: 1; margin-top: 6px; }
+  .gkpi .bar { height: 6px; border-radius: 999px; background: #e8eef6; margin-top: 8px; overflow: hidden; }
+  .gkpi .bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary-mid,#1f87cd); }
+  .gkpi.over .val { color: #b91c1c; } .gkpi.over .bar i { background: var(--accent,#ff8a1f); }
+
+  .gscroll { overflow: auto; max-height: 70vh; border: 1px solid #d9e2ef; border-radius: 14px; background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.05); }
+  .grow { display: flex; align-items: stretch; border-bottom: 1px solid #eef2f7; }
+  .gmac { position: sticky; left: 0; z-index: 2; min-width: 190px; max-width: 190px;
+    background: #f7faff; border-right: 1px solid #e3e9f2; padding: 6px 10px; box-sizing: border-box; }
+  .gmac b { color: var(--primary,#0c2545); font-weight: 800; }
+  .gmac small { display: block; font-weight: 600; color: #7a8ca6; font-size: .66rem; }
+  .gmac .gsat { font-size: .64rem; font-weight: 800; margin-top: 3px; color: #5b6b85; }
+  .gmac .gsat.over { color: #b91c1c; }
+  .gmac .gsatbar { height: 4px; border-radius: 999px; background: #e8eef6; margin-top: 3px; overflow: hidden; }
+  .gmac .gsatbar i { display: block; height: 100%; background: var(--primary-mid,#1f87cd); }
+  .gmac .gsatbar.over i { background: var(--accent,#ff8a1f); }
+
+  /* banda settimane */
+  .gweeks { position: sticky; top: 0; z-index: 5; }
+  .gweeks .gmac { z-index: 6; background: #16314f; color: #cfe0f1; display: flex; align-items: center; font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+  .gweeks .gtrack { display: flex; background: #16314f; height: 24px; }
+  .gweek { display: flex; align-items: center; justify-content: center; color: #cfe0f1; font-size: .62rem; font-weight: 800;
+    border-right: 1px solid rgba(255,255,255,.12); box-sizing: border-box; flex: 0 0 auto; }
+
+  .ghead { position: sticky; top: 24px; z-index: 4; }
+  .ghead .gmac { z-index: 5; background: var(--primary,#0c2545); color: #fff; display: flex; align-items: center; font-weight: 800; }
+  .ghead .gtrack { display: flex; background: var(--primary,#0c2545); height: 32px; }
+  .gday { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: .62rem; box-sizing: border-box; flex: 0 0 auto; }
+  .gday.we { color: #9fbcdb; background: #16314f; }
+  .gday.td { background: var(--accent,#ff8a1f); color: #1a1206; font-weight: 800; }
+
+  .gtrack { position: relative; flex: 0 0 auto; }
+  .grow.gbody .gtrack {
+    background-image:
+      repeating-linear-gradient(90deg, #eef2f7 0, #eef2f7 1px, transparent 1px, transparent var(--cw));
+  }
+  .gsez .gmac { background: linear-gradient(90deg, var(--primary-mid,#1f87cd), #2a96d8); color: #fff;
+    text-transform: uppercase; letter-spacing: .04em; font-size: .72rem; font-weight: 800; display: flex; align-items: center; justify-content: space-between; }
+  .gsez .gtrack { background: #eef3fb; height: 28px; }
+
+  .gbar { position: absolute; height: 24px; border-radius: 7px; color: #fff;
+    font-size: .66rem; font-weight: 700; padding: 3px 7px; box-sizing: border-box; overflow: hidden;
+    white-space: nowrap; text-overflow: ellipsis; cursor: grab; box-shadow: 0 2px 6px rgba(12,37,69,.18); user-select: none;
+    transition: box-shadow .12s ease, filter .12s ease; }
+  .gbar:hover { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(12,37,69,.28); z-index: 3; }
+  .gbar.dragging { opacity: .75; cursor: grabbing; z-index: 7; box-shadow: 0 8px 20px rgba(12,37,69,.35); }
+  .gbar.saved { animation: gsaved 1s ease; }
+  @keyframes gsaved { 0% { box-shadow: 0 0 0 3px rgba(34,197,94,.6); } 100% { box-shadow: 0 2px 6px rgba(12,37,69,.18); } }
+  .gbar.plan { background: linear-gradient(135deg, #143a63, var(--primary,#0c2545)); }
+  .gbar.wip  { background: linear-gradient(135deg, #36a6e6, var(--primary-mid,#1f87cd)); }
+  .gbar.urg  { background: linear-gradient(135deg, #ffa648, var(--accent,#ff8a1f)); color: #1a1206; }
+  .gbar.done { background: linear-gradient(135deg, #8a98ab, #6b7a8f); }
+  /* modalita' colore-per-commessa: fondo dal colore commessa (inline), urgenti col bordo rosso */
+  .gbar.gbar-c { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .gbar.urg-bordo { box-shadow: inset 4px 0 0 #ff2d2d, 0 2px 6px rgba(12,37,69,.22); }
+  /* conflitto = sovrapposizione sulla stessa macchina/turno */
+  .gbar.conflitto { outline: 2px dashed #ff2d2d; outline-offset: -2px; }
+  /* durata stimata dall'AI predittiva (ore non scritte): tratteggio diagonale */
+  .gbar.stima { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.22) 0 6px, transparent 6px 12px); }
+  /* ritardo previsto (fine stimata oltre la consegna) */
+  .gbar.gritardo { box-shadow: inset 0 -3px 0 #ff2d2d, 0 2px 6px rgba(12,37,69,.22); }
+  .gmac .gwarn { color: #c0392b; font-weight: 800; font-size: .72rem; }
+  .grow.harow .gmac { background: #fff4f3; }
+  /* legenda commesse */
+  .gcomm { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
+  .gcomm .it { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; color: #4a5b73; }
+  .gcomm .sw { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+  .gtoday { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent,#ff8a1f); z-index: 1; pointer-events: none; }
+
+  .glegend { display: flex; gap: 14px; flex-wrap: wrap; color: #61748f; font-size: .78rem; align-items: center; }
+  .glegend span { display: inline-flex; align-items: center; gap: 5px; }
+  .gdot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .gempty { padding: 24px; text-align: center; color: #7a8ca6; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gwrap">
+  <header class="gtophead">
+    <div>
+      <h1>Carichi Macchina · Gantt</h1>
+      <p>{{ start|date:"d/m/Y" }} → {{ giorni|last|date:"d/m/Y" }} · saturazione totale <b>{{ sat_totale.perc }}%</b></p>
+    </div>
+    <div class="gnav">
+      <span class="gtoggle">
+        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Excel</a>
+        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Gantt</a>
+      </span>
+      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">‹</a>
+      <a class="gbtn" href="?giorni={{ giorni_n }}">Oggi</a>
+      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">›</a>
+      {% if ha_undo %}<button type="button" id="g_undo" class="gbtn" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
+    </div>
+  </header>
+
+  {# ── Toolbar filtri + zoom ── #}
+  <form method="get" class="gtoolbar">
+    <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
+    <div class="gfield">
+      <label for="g_giorni">Finestra</label>
+      <select id="g_giorni" name="giorni">
+        {% for v in finestra_opzioni %}
+          <option value="{{ v }}" {% if giorni_n == v %}selected{% endif %}>{{ v }} giorni</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="gfield">
+      <label for="g_cat">Categoria</label>
+      <select id="g_cat" name="cat">
+        <option value="">Tutte</option>
+        {% for val, lbl in categorie %}<option value="{{ val }}" {% if f_cat == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="gfield">
+      <label for="g_fam">Famiglia</label>
+      <select id="g_fam" name="fam">
+        <option value="">Tutte</option>
+        {% for f in famiglie %}<option value="{{ f.id }}" {% if f_fam == f.id %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="gfield">
+      <label for="g_cliente">Cliente</label>
+      <input id="g_cliente" name="cliente" list="g_clienti" value="{{ f_cliente }}" placeholder="tutti" autocomplete="off">
+      <datalist id="g_clienti">{% for c in clienti %}<option value="{{ c }}"></option>{% endfor %}</datalist>
+    </div>
+    <div class="gfield">
+      <label for="g_colore">Colore</label>
+      <select id="g_colore" name="colore">
+        <option value="commessa" {% if colore_mode == 'commessa' %}selected{% endif %}>Per commessa</option>
+        <option value="stato" {% if colore_mode == 'stato' %}selected{% endif %}>Per stato</option>
+      </select>
+    </div>
+    <button type="submit" class="gbtn" style="background:var(--primary,#0c2545);color:#fff;border-color:var(--primary,#0c2545);">Applica</button>
+    {% if f_cat or f_cliente or f_fam %}<a class="gbtn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Azzera filtri</a>{% endif %}
+    <div class="gspacer"></div>
+    <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina">
+      <input type="checkbox" id="g_cascata" checked> Cascata
+    </label>
+    <div class="gzoom">
+      <span class="gfield"><label>Zoom</label></span>
+      <input type="range" id="g_zoom" min="24" max="72" step="2" value="{{ cell_w }}" aria-label="Zoom giorni">
+    </div>
+  </form>
+
+  <div class="gkpis">
+    <div class="gkpi {% if sat_totale.perc > 100 %}over{% endif %}">
+      <div class="lbl">Saturazione totale</div>
+      <div class="val">{{ sat_totale.perc }}%</div>
+      <div class="bar"><i style="width:{% if sat_totale.perc > 100 %}100{% else %}{{ sat_totale.perc }}{% endif %}%"></i></div>
+    </div>
+    {% for sez in sezioni %}
+      <div class="gkpi {% if sez.sat.perc > 100 %}over{% endif %}">
+        <div class="lbl">{{ sez.label }}</div>
+        <div class="val">{{ sez.sat.perc|default:0 }}%</div>
+        <div class="bar"><i style="width:{% if sez.sat.perc > 100 %}100{% else %}{{ sez.sat.perc|default:0 }}{% endif %}%"></i></div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="glegend">
+    {% if colore_mode == 'commessa' %}
+      <span>Colore barra = <b>commessa / pezzo</b></span>
+      <span><i class="gdot" style="background:#5b6b85;box-shadow:inset 4px 0 0 #ff2d2d"></i> bordo rosso = urgente / in ritardo</span>
+    {% else %}
+      <span><i class="gdot" style="background:var(--primary,#0c2545)"></i> Pianificata</span>
+      <span><i class="gdot" style="background:var(--primary-mid,#1f87cd)"></i> In corso</span>
+      <span><i class="gdot" style="background:var(--accent,#ff8a1f)"></i> Urgente / ritardo</span>
+      <span><i class="gdot" style="background:#6b7a8f"></i> Completata</span>
+    {% endif %}
+    <span style="color:#94a3b8">· trascina una barra per spostarla (snap al giorno, conferma) · <b>Cascata</b> sposta anche i successivi · <span style="color:#c0392b">&#9888;</span> = conflitto · tratteggio = durata stimata</span>
+  </div>
+  {% if colore_mode == 'commessa' and commesse_legenda %}
+  <div class="gcomm">
+    {% for c in commesse_legenda %}<span class="it"><i class="sw" style="background:{{ c.colore }}"></i>{{ c.label }}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="gscroll" data-reschedule-url="{% url 'gestione_carichi_macchina:reschedule' %}" data-undo-url="{% url 'gestione_carichi_macchina:reschedule_undo' %}" data-oggi-idx="{{ oggi_idx|default_if_none:'-1' }}" style="--cw:{{ cell_w }}px;">
+    <div class="grow gweeks">
+      <div class="gmac">Settimana</div>
+      <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});">
+        {% for w in settimane %}<div class="gweek" style="width:calc(var(--cw) * {{ w.giorni }});">{{ w.label }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="grow ghead">
+      <div class="gmac">Macchina</div>
+      <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});">
+        {% for g in giorni %}
+          <div class="gday{% if g == oggi %} td{% endif %}" style="width:var(--cw);">
+            {{ g|date:"d/m" }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% for sez in sezioni %}
+      <div class="grow gsez">
+        <div class="gmac">{{ sez.label }}<span>{{ sez.sat.perc|default:0 }}%</span></div>
+        <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});"></div>
+      </div>
+      {% for riga in sez.righe %}
+        <div class="grow gbody{% if riga.conflitto %} harow{% endif %}" data-macchina="{{ riga.macchina.id }}">
+          <div class="gmac">
+            <b>{{ riga.macchina.codice }}</b>{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
+            <small>{{ riga.macchina.descrizione|truncatechars:26 }}</small>
+            {% if riga.sat %}
+              <div class="gsat{% if riga.sat.perc > 100 %} over{% endif %}">{{ riga.sat.perc }}% · {{ riga.sat.carico }}/{{ riga.sat.capacita }}h</div>
+              <div class="gsatbar{% if riga.sat.perc > 100 %} over{% endif %}"><i style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
+            {% endif %}
+          </div>
+          <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }}); height:{{ riga.row_h }}px;">
+            {% if oggi_idx is not None %}<div class="gtoday" style="left:calc(var(--cw) * {{ oggi_idx }});"></div>{% endif %}
+            {% for bar in riga.bars %}
+              <div class="gbar {% if colore_mode == 'commessa' %}gbar-c{% if bar.urgente %} urg-bordo{% endif %}{% else %}{{ bar.classe }}{% endif %}{% if bar.conflitto %} conflitto{% endif %}{% if bar.stima %} stima{% endif %}{% if bar.ritardo %} gritardo{% endif %}"
+                   data-id="{{ bar.id }}" data-start="{{ bar.start_idx }}"
+                   title="{{ bar.label }}{% if bar.qta %} · {{ bar.qta }} pz{% endif %}{% if bar.ore %} · {{ bar.ore }}h{% elif bar.ore_stima %} · ≈{{ bar.ore_stima }}h (durata stimata){% endif %}{% if bar.cliente %} · {{ bar.cliente }}{% endif %}{% if bar.turno == 'notte' %} · turno notte{% endif %}{% if bar.ritardo %} · ⏱ ritardo previsto{% endif %}"
+                   style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:{{ bar.top }}px;{% if colore_mode == 'commessa' %}background:{{ bar.colore }};{% endif %}">{{ bar.label }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    {% empty %}
+      <div class="grow gbody"><div class="gmac">—</div><div class="gtrack gempty" style="width:calc(var(--cw) * {{ giorni_n }});">Nessuna macchina/lavoro per i filtri correnti.</div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var scroll = document.querySelector('.gscroll');
+  if (!scroll) return;
+  var url = scroll.getAttribute('data-reschedule-url');
+  var zoom = document.getElementById('g_zoom');
+
+  function cw() { return parseInt(getComputedStyle(scroll).getPropertyValue('--cw'), 10) || 38; }
+  function csrf() { var m = document.querySelector("meta[name='csrf-token']"); return m ? m.getAttribute('content') : ''; }
+  function calcLeft(idx) { return 'calc(var(--cw) * ' + idx + ')'; }
+
+  // Zoom live (non ricarica): aggiorna solo la variabile CSS
+  if (zoom) zoom.addEventListener('input', function () { scroll.style.setProperty('--cw', zoom.value + 'px'); });
+
+  var drag = null;
+  scroll.addEventListener('mousedown', function (e) {
+    var bar = e.target.closest('.gbar');
+    if (!bar) return;
+    e.preventDefault();
+    var row = bar.closest('.grow');
+    drag = {
+      bar: bar, startX: e.clientX, startY: e.clientY,
+      origStart: parseInt(bar.getAttribute('data-start'), 10) || 0,
+      sourceMac: row ? row.getAttribute('data-macchina') : null,
+      w: cw()
+    };
+    bar.classList.add('dragging');
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!drag) return;
+    var snapped = Math.round((e.clientX - drag.startX) / drag.w) * drag.w;
+    drag.bar.style.left = (drag.origStart * drag.w + snapped) + 'px';
+    drag.bar.style.transform = 'translateY(' + (e.clientY - drag.startY) + 'px)';  // feedback verticale
+  });
+
+  function resetBar(d) { d.bar.style.transform = ''; d.bar.style.left = calcLeft(d.origStart); }
+
+  function postMove(d, params) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: new URLSearchParams(params).toString()
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      if (data && data.reason === 'incompatibile') {
+        if (window.confirm(data.error || 'Macchina incompatibile. Spostare comunque?')) {
+          params.forza = '1'; return postMove(d, params);
+        }
+        resetBar(d); return;
+      }
+      if (data && data.ok) {
+        if (data.macchina || data.spostati > 1) { window.location.reload(); return; }
+        var newStart = d.origStart + (parseInt(params.giorni_delta, 10) || 0);
+        d.bar.setAttribute('data-start', newStart);
+        d.bar.style.transform = '';
+        d.bar.style.left = calcLeft(newStart);
+        d.bar.classList.add('saved');
+        setTimeout(function () { d.bar.classList.remove('saved'); }, 1000);
+      } else {
+        resetBar(d); alert((data && data.error) || 'Errore nello spostamento.');
+      }
+    }).catch(function () { resetBar(d); alert('Errore di rete.'); });
+  }
+
+  document.addEventListener('mouseup', function (e) {
+    if (!drag) return;
+    var d = drag; drag = null;
+    d.bar.classList.remove('dragging');
+    var deltaDays = Math.round((e.clientX - d.startX) / d.w);
+
+    // macchina di destinazione = riga sotto il cursore (ignorando la barra trascinata)
+    d.bar.style.pointerEvents = 'none';
+    var elem = document.elementFromPoint(e.clientX, e.clientY);
+    d.bar.style.pointerEvents = '';
+    var destRow = (elem && elem.closest) ? elem.closest('.grow.gbody') : null;
+    var destMac = destRow ? destRow.getAttribute('data-macchina') : null;
+    var cambioMac = !!(destMac && d.sourceMac && destMac !== d.sourceMac);
+
+    if (!deltaDays && !cambioMac) { resetBar(d); return; }
+
+    if (cambioMac) {
+      var msg = 'Spostare il lavoro su un\'altra macchina';
+      if (deltaDays) msg += ' e di ' + Math.abs(deltaDays) + ' giorni';
+      if (!window.confirm(msg + '?')) { resetBar(d); return; }
+      postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, macchina_dest: destMac });
+      return;
+    }
+
+    var cascEl = document.getElementById('g_cascata');
+    var casc = !!(cascEl && cascEl.checked);
+    var verso = deltaDays > 0 ? 'avanti' : 'indietro';
+    var m2 = 'Spostare la pianificazione di ' + Math.abs(deltaDays) + ' giorni ' + verso + '?';
+    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina)';
+    if (!window.confirm(m2)) { resetBar(d); return; }
+    postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, cascata: casc ? '1' : '0' });
+  });
+
+  // scroll automatico alla colonna di OGGI all'apertura
+  var oggiIdx = parseInt(scroll.getAttribute('data-oggi-idx'), 10);
+  if (oggiIdx >= 0) {
+    var w0 = cw();
+    scroll.scrollLeft = Math.max(0, oggiIdx * w0 - 3 * w0);
+  }
+
+  // Undo ultimo spostamento
+  var undoBtn = document.getElementById('g_undo');
+  if (undoBtn) {
+    undoBtn.addEventListener('click', function () {
+      undoBtn.disabled = true;
+      fetch(scroll.getAttribute('data-undo-url'), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) { window.location.reload(); }
+        else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
+      }).catch(function () { undoBtn.disabled = false; alert('Errore di rete.'); });
+    });
+  }
+})();
+</script>
+{% endblock %}

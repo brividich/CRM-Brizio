@@ -346,6 +346,7 @@ INSTALLED_APPS = [
     "anomalie.apps.AnomalieConfig",
     "assets.apps.AssetsConfig",
     "attrezzature.apps.AttrezzatureConfig",
+    "gestione_carichi_macchina.apps.GestioneCarichiMacchinaConfig",
     "tasks.apps.TasksConfig",
     "automazioni.apps.AutomazioniConfig",
     "monitoring.apps.MonitoringConfig",
