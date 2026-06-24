@@ -127,12 +127,12 @@
     </div>
     <div class="gnav">
       <span class="gtoggle">
-        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Excel</a>
-        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Gantt</a>
+        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Excel</a>
+        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Gantt</a>
       </span>
-      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">‹</a>
-      <a class="gbtn" href="?giorni={{ giorni_n }}">Oggi</a>
-      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}">›</a>
+      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if mostra_turni %}&turni=1{% endif %}">‹</a>
+      <a class="gbtn" href="?giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Oggi</a>
+      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if mostra_turni %}&turni=1{% endif %}">›</a>
       {% if ha_undo %}<button type="button" id="g_undo" class="gbtn" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
     </div>
   </header>
@@ -177,8 +177,11 @@
     <button type="submit" class="gbtn" style="background:var(--primary,#0c2545);color:#fff;border-color:var(--primary,#0c2545);">Applica</button>
     {% if f_cat or f_cliente or f_fam %}<a class="gbtn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Azzera filtri</a>{% endif %}
     <div class="gspacer"></div>
-    <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina">
+    <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina e turno">
       <input type="checkbox" id="g_cascata" checked> Cascata
+    </label>
+    <label class="gflag" title="Mostra righe separate per turno (1° / 2° / notturno)">
+      <input type="checkbox" name="turni" value="1" {% if mostra_turni %}checked{% endif %} onchange="this.form.submit()"> Turni
     </label>
     <div class="gzoom">
       <span class="gfield"><label>Zoom</label></span>
@@ -243,13 +246,17 @@
         <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});"></div>
       </div>
       {% for riga in sez.righe %}
-        <div class="grow gbody{% if riga.conflitto %} harow{% endif %}" data-macchina="{{ riga.macchina.id }}">
+        <div class="grow gbody{% if riga.conflitto %} harow{% endif %}" data-macchina="{{ riga.macchina.id }}" data-turno="{{ riga.turno }}">
           <div class="gmac">
-            <b>{{ riga.macchina.codice }}</b>{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
-            <small>{{ riga.macchina.descrizione|truncatechars:26 }}</small>
-            {% if riga.sat %}
-              <div class="gsat{% if riga.sat.perc > 100 %} over{% endif %}">{{ riga.sat.perc }}% · {{ riga.sat.carico }}/{{ riga.sat.capacita }}h</div>
-              <div class="gsatbar{% if riga.sat.perc > 100 %} over{% endif %}"><i style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
+            {% if riga.sub %}
+              <b style="color:var(--primary-mid,#1f87cd);font-weight:700;">↳ {{ riga.turno_label }}</b>{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questo turno">&#9888;</span>{% endif %}
+            {% else %}
+              <b>{{ riga.macchina.codice }}</b>{% if mostra_turni %} <small style="color:var(--primary-mid,#1f87cd)">1° turno</small>{% endif %}{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
+              <small>{{ riga.macchina.descrizione|truncatechars:26 }}</small>
+              {% if riga.sat %}
+                <div class="gsat{% if riga.sat.perc > 100 %} over{% endif %}">{{ riga.sat.perc }}% · {{ riga.sat.carico }}/{{ riga.sat.capacita }}h</div>
+                <div class="gsatbar{% if riga.sat.perc > 100 %} over{% endif %}"><i style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
+              {% endif %}
             {% endif %}
           </div>
           <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }}); height:{{ riga.row_h }}px;">
@@ -362,7 +369,7 @@
     var casc = !!(cascEl && cascEl.checked);
     var verso = deltaDays > 0 ? 'avanti' : 'indietro';
     var m2 = 'Spostare la pianificazione di ' + Math.abs(deltaDays) + ' giorni ' + verso + '?';
-    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina)';
+    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina e turno; gli altri turni non vengono toccati)';
     if (!window.confirm(m2)) { resetBar(d); return; }
     postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, cascata: casc ? '1' : '0' });
   });

@@ -228,14 +228,19 @@ def vista_excel(request):
                         "celle": _celle([turno]), "ferma": ferma,
                     })
             else:
-                # Collassata: una sola riga con i lavori di tutti i turni del giorno.
+                # Default: 1°+2° turno UNITI in una riga (look familiare); il notturno
+                # resta su riga separata solo se la macchina lo ha (com'era nel foglio).
                 righe.append({
                     "macchina": m, "turno": Pianificazione.TURNO_GIORNO, "turno_label": "",
                     "sub": False, "ferma": ferma,
-                    "celle": _celle([
-                        Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2, Pianificazione.TURNO_NOTTE,
-                    ]),
+                    "celle": _celle([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2]),
                 })
+                if m.ha_turno_notte:
+                    righe.append({
+                        "macchina": m, "turno": Pianificazione.TURNO_NOTTE, "turno_label": "notturno",
+                        "sub": True, "ferma": ferma,
+                        "celle": _celle([Pianificazione.TURNO_NOTTE]),
+                    })
         sezioni.append({"categoria": cat, "label": cat_label.get(cat, cat), "righe": righe})
 
     # autocomplete famiglia via <datalist>: nomi canonici + alias
@@ -450,6 +455,7 @@ def vista_gantt(request):
     f_cat = request.GET.get("cat") or ""
     f_cliente = (request.GET.get("cliente") or "").strip()
     f_fam = _as_int(request.GET.get("fam"))
+    mostra_turni = request.GET.get("turni") == "1"
 
     macchine_qs = Macchina.objects.filter(attivo=True).select_related("asset")
     if f_cat:
@@ -526,18 +532,34 @@ def vista_gantt(request):
                 leg_count[colore] += 1
                 if colore not in leg_label:
                     leg_label[colore] = (cliente or famiglia or _job_label(p))[:22]
-            if filtro_lavori and not bars:
-                continue
-            nlanes = _assign_lanes(bars)
-            riga_conf = _segna_conflitti(bars)
-            for b in bars:
-                b["top"] = b["lane"] * lane_h + 6
-            righe.append({
-                "macchina": m, "bars": bars,
-                "sat": sat["per_macchina"].get(m.id),
-                "row_h": nlanes * lane_h + 12,
-                "conflitto": riga_conf,
-            })
+            def _riga(turni_inclusi, label, sub):
+                sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
+                if filtro_lavori and not sub_bars:
+                    return None
+                nlanes = _assign_lanes(sub_bars)
+                conf = _segna_conflitti(sub_bars)
+                for b in sub_bars:
+                    b["top"] = b["lane"] * lane_h + 6
+                turno_riga = turni_inclusi[0] if len(turni_inclusi) == 1 else Pianificazione.TURNO_GIORNO
+                return {
+                    "macchina": m, "turno": turno_riga, "turno_label": label, "sub": sub,
+                    "bars": sub_bars,
+                    "sat": sat["per_macchina"].get(m.id) if not sub else None,
+                    "row_h": nlanes * lane_h + 12, "conflitto": conf,
+                }
+
+            if mostra_turni:
+                rows = [_riga([Pianificazione.TURNO_GIORNO], "1° turno", False)]
+                if m.ha_secondo_turno:
+                    rows.append(_riga([Pianificazione.TURNO_T2], "2° turno", True))
+                if m.ha_turno_notte:
+                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", True))
+            else:
+                # Default: 1°+2° turno UNITI; notturno su riga separata se presente.
+                rows = [_riga([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2], "", False)]
+                if m.ha_turno_notte:
+                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", True))
+            righe.extend(r for r in rows if r is not None)
         if righe:
             sezioni.append({
                 "categoria": cat, "label": cat_label.get(cat, cat),
@@ -572,7 +594,7 @@ def vista_gantt(request):
         "finestra_opzioni": [7, 14, 21, 28, 42, 56],
         "clienti": clienti,
         "famiglie": list(FamigliaPezzo.objects.values("id", "nome").order_by("nome")),
-        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam,
+        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam, "mostra_turni": mostra_turni,
         "colore_mode": "stato" if request.GET.get("colore") == "stato" else "commessa",
         "commesse_legenda": commesse_legenda,
         "ha_undo": bool(request.session.get("gcm_undo")),
@@ -639,9 +661,11 @@ def reschedule(request):
 
     with transaction.atomic():
         if cascata and not sposta_macchina:
+            # Cascata SOLO sullo stesso turno: spostare un lavoro del 1° turno non deve
+            # toccare 2° turno / notturno (sono linee indipendenti).
             successivi = list(
                 Pianificazione.objects.select_for_update().filter(
-                    macchina_id=p.macchina_id, data__gte=p.data
+                    macchina_id=p.macchina_id, turno=p.turno, data__gte=p.data
                 ).exclude(pk=p.pk)
             )
             affected = [p] + successivi

@@ -108,12 +108,42 @@ class ViewsTest(TestCase):
         self.m.ha_secondo_turno = True
         self.m.ha_turno_notte = True
         self.m.save()
-        # Default (collassato): nessuna sotto-riga per turno.
+        # Default: 1°+2° turno UNITI -> niente sotto-riga "2° turno"; il notturno resta
+        # su riga separata (com'era nel foglio) quando la macchina lo ha.
         r0 = self.client.get(self.url_excel).content.decode()
         self.assertNotIn("↳ 2° turno", r0)
-        self.assertNotIn("↳ notturno", r0)
-        # Con ?turni=1: sotto-righe 2° turno e notturno.
+        self.assertIn("↳ notturno", r0)
+        # Con ?turni=1: sotto-righe esplicite 2° turno e notturno.
         r1 = self.client.get(self.url_excel, {"turni": "1"}).content.decode()
+        self.assertIn("↳ 2° turno", r1)
+        self.assertIn("↳ notturno", r1)
+
+    def test_reschedule_cascata_non_tocca_altri_turni(self):
+        from datetime import date as _d, timedelta as _td
+
+        from .models import Pianificazione
+
+        self.client.force_login(self.user)
+        d = _d(2026, 6, 1)
+        p1 = Pianificazione.objects.create(macchina=self.m, turno="giorno", data=d)
+        p2 = Pianificazione.objects.create(macchina=self.m, turno="giorno", data=d + _td(days=1))
+        pn = Pianificazione.objects.create(macchina=self.m, turno="notte", data=d + _td(days=1))
+        r = self.client.post(reverse("gestione_carichi_macchina:reschedule"), {
+            "pianificazione_id": p1.id, "giorni_delta": 2, "cascata": "1",
+        })
+        self.assertEqual(r.status_code, 200)
+        p2.refresh_from_db(); pn.refresh_from_db()
+        self.assertEqual(p2.data, d + _td(days=3))   # cascata sullo STESSO turno
+        self.assertEqual(pn.data, d + _td(days=1))    # turno diverso: NON toccato
+
+    def test_gantt_turni_flag_mostra_righe(self):
+        self.client.force_login(self.user)
+        self.m.ha_secondo_turno = True
+        self.m.ha_turno_notte = True
+        self.m.save()
+        r0 = self.client.get(reverse("gestione_carichi_macchina:gantt")).content.decode()
+        self.assertNotIn("↳ 2° turno", r0)  # 2° turno solo con ?turni=1
+        r1 = self.client.get(reverse("gestione_carichi_macchina:gantt"), {"turni": "1"}).content.decode()
         self.assertIn("↳ 2° turno", r1)
         self.assertIn("↳ notturno", r1)
 
