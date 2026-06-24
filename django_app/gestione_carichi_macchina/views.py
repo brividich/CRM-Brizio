@@ -392,6 +392,33 @@ def api_pianificazioni(request):
                          "macchine": macchine, "items": items})
 
 
+@login_required
+def api_pianificazione_dettaglio(request, pk):
+    """Dettaglio di una pianificazione per il pannello laterale del Gantt (click su barra)."""
+    from .models import Pianificazione
+
+    p = get_object_or_404(
+        Pianificazione.objects.select_related("macchina__asset", "famiglia", "commessa"), pk=pk
+    )
+    return JsonResponse({"ok": True, "p": {
+        "id": p.id,
+        "macchina_id": p.macchina_id,
+        "macchina": p.macchina.codice,
+        "data": p.data.isoformat(),
+        "turno": p.turno,
+        "turno_label": p.get_turno_display(),
+        "testo": p.testo_originale or "",
+        "famiglia": p.famiglia.nome if p.famiglia_id else "",
+        "qta": p.qta if p.qta is not None else "",
+        "ore": float(p.ore) if p.ore is not None else "",
+        "stato": p.stato,
+        "fase": p.fase,
+        "cliente": p.commessa.cliente if p.commessa_id else "",
+        "commessa": p.commessa.numero if p.commessa_id else "",
+        "consegna": p.commessa.data_consegna.isoformat() if (p.commessa_id and p.commessa.data_consegna) else "",
+    }})
+
+
 def _assign_lanes(bars: list[dict]) -> int:
     """Assegna a ogni barra una 'corsia' verticale per non sovrapporre intervalli.
 
@@ -455,7 +482,9 @@ def vista_gantt(request):
     f_cat = request.GET.get("cat") or ""
     f_cliente = (request.GET.get("cliente") or "").strip()
     f_fam = _as_int(request.GET.get("fam"))
-    mostra_turni = request.GET.get("turni") == "1"
+    # Turni espansi PER-MACCHINA: lista di id macchina in ?turni=12,34 (espandi una
+    # non apre le altre). Vuoto = tutte unite (1°+2° turno) come nel foglio.
+    turni_aperti = {x for x in request.GET.get("turni", "").split(",") if x.isdigit()}
 
     macchine_qs = Macchina.objects.filter(attivo=True).select_related("asset")
     if f_cat:
@@ -532,7 +561,7 @@ def vista_gantt(request):
                 leg_count[colore] += 1
                 if colore not in leg_label:
                     leg_label[colore] = (cliente or famiglia or _job_label(p))[:22]
-            def _riga(turni_inclusi, label, sub):
+            def _riga(turni_inclusi, label, kind, expandable=False):
                 sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
                 if filtro_lavori and not sub_bars:
                     return None
@@ -541,24 +570,27 @@ def vista_gantt(request):
                 for b in sub_bars:
                     b["top"] = b["lane"] * lane_h + 6
                 turno_riga = turni_inclusi[0] if len(turni_inclusi) == 1 else Pianificazione.TURNO_GIORNO
+                sub = kind == "split_sub"
                 return {
                     "macchina": m, "turno": turno_riga, "turno_label": label, "sub": sub,
-                    "bars": sub_bars,
+                    "kind": kind, "expandable": expandable, "bars": sub_bars,
                     "sat": sat["per_macchina"].get(m.id) if not sub else None,
                     "row_h": nlanes * lane_h + 12, "conflitto": conf,
                 }
 
-            if mostra_turni:
-                rows = [_riga([Pianificazione.TURNO_GIORNO], "1° turno", False)]
+            espandibile = m.ha_secondo_turno or m.ha_turno_notte
+            if espandibile and str(m.id) in turni_aperti:
+                # Espansa SOLO questa macchina (le altre restano unite): 1°/2°/notturno.
+                rows = [_riga([Pianificazione.TURNO_GIORNO], "1° turno", "split_main", True)]
                 if m.ha_secondo_turno:
-                    rows.append(_riga([Pianificazione.TURNO_T2], "2° turno", True))
+                    rows.append(_riga([Pianificazione.TURNO_T2], "2° turno", "split_sub"))
                 if m.ha_turno_notte:
-                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", True))
+                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", "split_sub"))
             else:
                 # Default: 1°+2° turno UNITI; notturno su riga separata se presente.
-                rows = [_riga([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2], "", False)]
+                rows = [_riga([Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2], "", "union", espandibile)]
                 if m.ha_turno_notte:
-                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", True))
+                    rows.append(_riga([Pianificazione.TURNO_NOTTE], "notturno", "split_sub"))
             righe.extend(r for r in rows if r is not None)
         if righe:
             sezioni.append({
@@ -594,7 +626,11 @@ def vista_gantt(request):
         "finestra_opzioni": [7, 14, 21, 28, 42, 56],
         "clienti": clienti,
         "famiglie": list(FamigliaPezzo.objects.values("id", "nome").order_by("nome")),
-        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam, "mostra_turni": mostra_turni,
+        "f_cat": f_cat, "f_cliente": f_cliente, "f_fam": f_fam, "turni_qs": request.GET.get("turni", ""),
+        # Hook ACL: per ora tutto il modulo è login-only (come cella_edit); qui si potrà
+        # agganciare il permesso canonico gestione_carichi_macchina.piano.edit.
+        "can_edit": request.user.is_authenticated,
+        "stato_choices": Pianificazione.STATO_CHOICES, "fase_choices": Pianificazione.FASE_CHOICES,
         "colore_mode": "stato" if request.GET.get("colore") == "stato" else "commessa",
         "commesse_legenda": commesse_legenda,
         "ha_undo": bool(request.session.get("gcm_undo")),

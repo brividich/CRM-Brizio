@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Gestione Carichi Macchina - Gantt operativo: turni per-macchina, drag robusto, pannello dettaglio/modifica, info macchina
+
+- **[feat/fix/ux/test] `gestione_carichi_macchina/views.py`, `urls.py`, `templates/.../gantt.html`, `templates/.../excel.html`, `templates/.../partials/_cella_form.html`, `tests_views.py`**: revisione operativa del Gantt (la pagina usata per «muovere») su feedback utente.
+  - **Drag&drop robusto**: il cambio macchina scatta **solo se il cursore esce verticalmente dalla riga** di origine → niente più commesse «sparpagliate» su altre macchine durante un drag orizzontale con barre sovrapposte.
+  - **Cascata indipendente per turno**: lo spostamento a catena resta confinato a `(macchina, turno)` (il 1° turno non muove 2°/notturno); messaggio di conferma esplicito.
+  - **Barra strumenti collassabile** (filtri + KPI saturazione): di default **chiusa** → più spazio al Gantt.
+  - **Turni per-macchina nella cella**: il toggle turni è ora accanto al nome macchina (pulsante «▾ turni»); espandere una macchina **non apre** i turni delle altre (`?turni=<id,...>`). Default: 1°+2° turno **uniti** + notturno separato se presente.
+  - **Cella macchina interattiva**: il **nome macchina è cliccabile** → riquadro info (categoria, attacco, assi, turni, stato, saturazione).
+  - **Pannello laterale destro (#)**: clic su una **commessa** apre un drawer con i dettagli e, se l'utente ha i permessi (`can_edit`, hook ACL), il **form di modifica** (testo/qtà/ore/stato/fase) che salva via `cella_edit`.
+  - **Coerenza Excel**: stesso default unione T1+T2; nel modale «+ Aggiungi lavoro» dell'Excel è mostrata l'**affinità macchine** (stesso endpoint/partial del «+» cella). Nuovo endpoint `api/pianificazione/<pk>/`. Test: drag/cascata per turno, turni Gantt, dettaglio pianificazione. Suite modulo 80 verde.
+
 ### Gestione Carichi Macchina - Turni nel Gantt + cascata indipendente per turno + default unione T1+T2
 
 - **[feat/fix/test] `gestione_carichi_macchina/views.py`, `templates/.../gantt.html`, `tests_views.py`**: portati i **turni anche nel Gantt** (la pagina usata per «muovere») con lo stesso toggle **Turni** (`?turni=1`): OFF = righe per macchina con **1°+2° turno uniti** + notturno su riga separata se presente (com'era nel foglio); ON = righe esplicite 1° turno / 2° turno / notturno solo per i turni che la macchina ha. **Fix di correttezza**: la **cascata** del drag-to-reschedule ora è limitata a **`(macchina, turno)`** — spostare un lavoro del 1° turno **non sposta più** 2° turno/notturno (prima `reschedule` propagava a tutti i turni della macchina). La conferma del drag lo dichiara esplicitamente. Stessa logica di default unione T1+T2 applicata anche alla vista Excel. Test `test_reschedule_cascata_non_tocca_altri_turni` (indipendenza turni) e `test_gantt_turni_flag_mostra_righe`; suite modulo 79 verde.

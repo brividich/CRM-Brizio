@@ -142,10 +142,30 @@ class ViewsTest(TestCase):
         self.m.ha_turno_notte = True
         self.m.save()
         r0 = self.client.get(reverse("gestione_carichi_macchina:gantt")).content.decode()
-        self.assertNotIn("↳ 2° turno", r0)  # 2° turno solo con ?turni=1
-        r1 = self.client.get(reverse("gestione_carichi_macchina:gantt"), {"turni": "1"}).content.decode()
+        self.assertNotIn("↳ 2° turno", r0)  # 2° turno solo se la macchina è espansa
+        # turni = lista di id macchina (espansione per-macchina)
+        r1 = self.client.get(reverse("gestione_carichi_macchina:gantt"), {"turni": str(self.m.id)}).content.decode()
         self.assertIn("↳ 2° turno", r1)
         self.assertIn("↳ notturno", r1)
+
+    def test_api_pianificazione_dettaglio(self):
+        from datetime import date as _d
+
+        from .models import Pianificazione
+
+        self.client.force_login(self.user)
+        p = Pianificazione.objects.create(
+            macchina=self.m, turno="giorno", data=_d(2026, 6, 1),
+            testo_originale="8 gimbal (33h)", qta=8, stato="pianificata", fase="sgr",
+        )
+        r = self.client.get(reverse("gestione_carichi_macchina:api_pianificazione_dettaglio", args=[p.id]))
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        self.assertTrue(d["ok"])
+        self.assertEqual(d["p"]["id"], p.id)
+        self.assertEqual(d["p"]["qta"], 8)
+        self.assertEqual(d["p"]["stato"], "pianificata")
+        self.assertEqual(d["p"]["fase"], "sgr")
 
     @override_settings(OLLAMA_CHAT_ENABLED=False)
     def test_api_spiega_macchina_failsafe(self):

@@ -236,6 +236,7 @@
         <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">1° turno</option><option value="t2">2° turno</option><option value="notte">Notturno</option></select></div>
       </div>
       <div><label>Lavoro (testo libero)</label><input id="gcm-add-testo" list="gcm-famiglie" placeholder="es. 8 gimbal (33h)"></div>
+      <div id="gcm-add-sugg"></div>
       <div class="row2">
         <div><label>Quantità (pz)</label><input type="number" min="0" id="gcm-add-qta"></div>
         <div><label>Ore</label><input type="number" min="0" step="0.5" id="gcm-add-ore"></div>
@@ -282,6 +283,28 @@
       macSel.appendChild(op);
     });
     addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); });
+
+    // Affinità macchine nel modale: STESSO box/endpoint del "+" cella (componente identico).
+    // La macchina si sceglie dopo: il box guida la scelta ed evidenzia quella selezionata.
+    var addSugg = document.getElementById('gcm-add-sugg');
+    var addTesto = document.getElementById('gcm-add-testo');
+    var addTurno = document.getElementById('gcm-add-turno');
+    var suggTimer;
+    function refreshAddSugg() {
+      if (!addSugg || !addTesto) return;
+      var testo = addTesto.value.trim();
+      if (!testo) { addSugg.innerHTML = ''; return; }
+      var qs = new URLSearchParams({ testo: testo, macchina: macSel.value || '', fase: '' });
+      fetch("{% url 'gestione_carichi_macchina:cella_suggerimento' %}?" + qs.toString(),
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.text(); })
+        .then(function (html) { addSugg.innerHTML = html; })
+        .catch(function () {});
+    }
+    if (addTesto) addTesto.addEventListener('input', function () { clearTimeout(suggTimer); suggTimer = setTimeout(refreshAddSugg, 450); });
+    macSel.addEventListener('change', refreshAddSugg);
+    if (addTurno) addTurno.addEventListener('change', refreshAddSugg);
+
     document.getElementById('gcm-add-save').addEventListener('click', function () {
       var testo = document.getElementById('gcm-add-testo').value.trim();
       var mid = macSel.value, data = document.getElementById('gcm-add-data').value;

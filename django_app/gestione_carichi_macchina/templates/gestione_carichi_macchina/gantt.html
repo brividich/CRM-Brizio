@@ -115,6 +115,35 @@
   .glegend span { display: inline-flex; align-items: center; gap: 5px; }
   .gdot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
   .gempty { padding: 24px; text-align: center; color: #7a8ca6; }
+  /* Barra strumenti collassabile (default chiusa = piu' spazio al Gantt) */
+  #g-tools.collapsed { display: none; }
+  .g-tools-toggle.on { background: var(--primary,#0c2545); color: #fff; border-color: var(--primary,#0c2545); }
+  /* Cella macchina interattiva: expander turni per-macchina + info */
+  .gmac-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .gmac-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: var(--primary,#0c2545); cursor: pointer; text-decoration: underline dotted; }
+  .gmac-name:hover { color: var(--primary-mid,#1f87cd); }
+  .gturni-exp { font-size: .62rem; font-weight: 700; color: var(--primary-mid,#1f87cd); cursor: pointer; text-decoration: none; }
+  .gmac-t1 { font-size: .6rem; color: var(--primary-mid,#1f87cd); font-weight: 700; }
+  .gmac-info { display: none; margin-top: 5px; padding: 6px 8px; background: #f7faff; border: 1px solid #d9e2ef; border-radius: 8px; font-size: .66rem; color: #5b6b85; line-height: 1.5; }
+  .gmac-info.open { display: block; }
+  /* Pannello laterale destro (dettaglio/modifica commessa) */
+  .gcm-drawer { position: fixed; top: 0; right: 0; height: 100%; width: 340px; max-width: 92vw;
+    background: #fff; box-shadow: -12px 0 40px rgba(12,37,69,.22); transform: translateX(105%);
+    transition: transform .18s ease; z-index: 1200; display: flex; flex-direction: column; }
+  .gcm-drawer.open { transform: translateX(0); }
+  .gd-head { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px;
+    background: var(--primary,#0c2545); color: #fff; font-weight: 800; }
+  .gd-head button { background: none; border: 0; color: #fff; font-size: 1.4rem; cursor: pointer; line-height: 1; }
+  .gd-body { padding: 14px 16px; overflow: auto; display: grid; gap: 8px; }
+  .gd-row { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; color: #24395e;
+    border-bottom: 1px solid #eef2f7; padding-bottom: 5px; }
+  .gd-row > span { color: #7a8ca6; }
+  .gd-form { display: grid; gap: 8px; margin-top: 8px; }
+  .gd-form label { display: grid; gap: 3px; font-size: .68rem; color: #7a8ca6; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .gd-form input, .gd-form select { padding: 6px 8px; border: 1px solid #cdd9ea; border-radius: 7px; font-size: .85rem; }
+  .gd-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gd-save { margin-top: 6px; padding: 9px; border: 0; border-radius: 8px; background: var(--primary-mid,#1f87cd); color: #fff; font-weight: 800; cursor: pointer; }
+  .gd-ro-note { font-size: .72rem; color: #94a3b8; }
 </style>
 {% endblock %}
 
@@ -127,16 +156,21 @@
     </div>
     <div class="gnav">
       <span class="gtoggle">
-        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Excel</a>
-        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Gantt</a>
+        <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Excel</a>
+        <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Gantt</a>
       </span>
-      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if mostra_turni %}&turni=1{% endif %}">‹</a>
-      <a class="gbtn" href="?giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Oggi</a>
-      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if mostra_turni %}&turni=1{% endif %}">›</a>
+      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">‹</a>
+      <a class="gbtn" href="?giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Oggi</a>
+      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">›</a>
       {% if ha_undo %}<button type="button" id="g_undo" class="gbtn" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
     </div>
   </header>
 
+  <button type="button" class="gbtn g-tools-toggle"
+          onclick="var t=document.getElementById('g-tools');t.classList.toggle('collapsed');this.classList.toggle('on',!t.classList.contains('collapsed'));">
+    Filtri &amp; saturazione ▾
+  </button>
+  <div id="g-tools" class="collapsed">
   {# ── Toolbar filtri + zoom ── #}
   <form method="get" class="gtoolbar">
     <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
@@ -180,9 +214,7 @@
     <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina e turno">
       <input type="checkbox" id="g_cascata" checked> Cascata
     </label>
-    <label class="gflag" title="Mostra righe separate per turno (1° / 2° / notturno)">
-      <input type="checkbox" name="turni" value="1" {% if mostra_turni %}checked{% endif %} onchange="this.form.submit()"> Turni
-    </label>
+    <span class="gflag" style="color:#94a3b8" title="I turni si aprono per-macchina dal pulsante «▾ turni» accanto al nome della macchina">Turni: per-macchina ↘</span>
     <div class="gzoom">
       <span class="gfield"><label>Zoom</label></span>
       <input type="range" id="g_zoom" min="24" max="72" step="2" value="{{ cell_w }}" aria-label="Zoom giorni">
@@ -203,6 +235,8 @@
       </div>
     {% endfor %}
   </div>
+
+  </div>{# /#g-tools #}
 
   <div class="glegend">
     {% if colore_mode == 'commessa' %}
@@ -251,12 +285,24 @@
             {% if riga.sub %}
               <b style="color:var(--primary-mid,#1f87cd);font-weight:700;">↳ {{ riga.turno_label }}</b>{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questo turno">&#9888;</span>{% endif %}
             {% else %}
-              <b>{{ riga.macchina.codice }}</b>{% if mostra_turni %} <small style="color:var(--primary-mid,#1f87cd)">1° turno</small>{% endif %}{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
+              <div class="gmac-head">
+                <button type="button" class="gmac-name" onclick="var i=this.closest('.gmac').querySelector('.gmac-info');if(i)i.classList.toggle('open');" title="Info macchina">{{ riga.macchina.codice }}</button>
+                {% if riga.expandable %}<a class="gturni-exp" href="javascript:void(0)" onclick="gcmToggleTurni({{ riga.macchina.id }})" title="Mostra/nascondi i turni di questa macchina">{% if riga.kind == 'split_main' %}&#9650; turni{% else %}&#9660; turni{% endif %}</a>{% endif %}
+                {% if riga.kind == 'split_main' %}<span class="gmac-t1">1° turno</span>{% endif %}
+                {% if riga.conflitto %}<span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
+              </div>
               <small>{{ riga.macchina.descrizione|truncatechars:26 }}</small>
               {% if riga.sat %}
                 <div class="gsat{% if riga.sat.perc > 100 %} over{% endif %}">{{ riga.sat.perc }}% · {{ riga.sat.carico }}/{{ riga.sat.capacita }}h</div>
                 <div class="gsatbar{% if riga.sat.perc > 100 %} over{% endif %}"><i style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
               {% endif %}
+              <div class="gmac-info">
+                <b>{{ riga.macchina.codice }}</b> — {{ riga.macchina.descrizione }}<br>
+                Categoria: {{ riga.macchina.get_categoria_display }}<br>
+                Attacco: {{ riga.macchina.attacco }}{% if riga.macchina.n_assi %} · {{ riga.macchina.n_assi }} assi{% endif %}<br>
+                Turni: 1°{% if riga.macchina.ha_secondo_turno %} · 2°{% endif %}{% if riga.macchina.ha_turno_notte %} · notturno{% endif %}<br>
+                Stato: {{ riga.macchina.get_stato_pianificazione_display }}{% if riga.sat %} · saturazione {{ riga.sat.perc }}%{% endif %}
+              </div>
             {% endif %}
           </div>
           <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }}); height:{{ riga.row_h }}px;">
@@ -275,10 +321,54 @@
     {% endfor %}
   </div>
 </div>
+
+{# ── Pannello laterale destro: dettaglio/modifica commessa (click su barra) ── #}
+<aside id="gcm-detail" class="gcm-drawer"
+       data-detail-url="{% url 'gestione_carichi_macchina:api_pianificazione_dettaglio' 0 %}">
+  <div class="gd-head">
+    <span id="gd-title">Lavoro</span>
+    <button type="button" onclick="document.getElementById('gcm-detail').classList.remove('open')" aria-label="Chiudi">&times;</button>
+  </div>
+  <div class="gd-body">
+    <div class="gd-row"><span>Macchina</span><b id="gd-macchina"></b></div>
+    <div class="gd-row"><span>Data · turno</span><b><span id="gd-data"></span> · <span id="gd-turno"></span></b></div>
+    <div class="gd-row"><span>Famiglia</span><b id="gd-famiglia"></b></div>
+    <div class="gd-row"><span>Cliente</span><b id="gd-cliente"></b></div>
+    <div class="gd-row"><span>Commessa</span><b id="gd-commessa"></b></div>
+    <div class="gd-row"><span>Consegna</span><b id="gd-consegna"></b></div>
+    {% if can_edit %}
+    <form id="gd-form" class="gd-form" data-save-url="{% url 'gestione_carichi_macchina:cella_edit' %}">
+      <label>Lavoro (testo)<input id="gd-testo" autocomplete="off"></label>
+      <div class="gd-2">
+        <label>Quantità<input type="number" min="0" id="gd-qta"></label>
+        <label>Ore<input type="number" min="0" step="0.5" id="gd-ore"></label>
+      </div>
+      <div class="gd-2">
+        <label>Stato<select id="gd-stato">{% for v, l in stato_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+        <label>Fase<select id="gd-fase">{% for v, l in fase_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+      </div>
+      <button type="button" id="gd-save" class="gd-save">Salva modifiche</button>
+    </form>
+    {% else %}
+      <div class="gd-row"><span>Lavoro</span><b id="gd-testo-ro"></b></div>
+      <div class="gd-ro-note">Sola lettura: non hai i permessi di modifica.</div>
+    {% endif %}
+  </div>
+</aside>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+// Espande/collassa i turni di UNA macchina (toggle dell'id in ?turni=..., ricarica).
+// Per-macchina: aprire una non tocca le altre.
+function gcmToggleTurni(mid) {
+  var u = new URL(window.location.href);
+  var set = (u.searchParams.get('turni') || '').split(',').filter(Boolean);
+  var i = set.indexOf(String(mid));
+  if (i >= 0) set.splice(i, 1); else set.push(String(mid));
+  if (set.length) u.searchParams.set('turni', set.join(',')); else u.searchParams.delete('turni');
+  window.location.href = u.toString();
+}
 (function () {
   var scroll = document.querySelector('.gscroll');
   if (!scroll) return;
@@ -353,9 +443,15 @@
     d.bar.style.pointerEvents = '';
     var destRow = (elem && elem.closest) ? elem.closest('.grow.gbody') : null;
     var destMac = destRow ? destRow.getAttribute('data-macchina') : null;
-    var cambioMac = !!(destMac && d.sourceMac && destMac !== d.sourceMac);
+    // Cambio macchina SOLO se il cursore è uscito verticalmente dalla riga di origine:
+    // così un drag orizzontale su barre sovrapposte NON "sparpaglia" il lavoro su altre
+    // macchine. (Il transform della barra non sposta la riga nel DOM.)
+    var srcRow = d.bar.closest('.grow.gbody');
+    var rb = srcRow ? srcRow.getBoundingClientRect() : null;
+    var fuoriRiga = rb ? (e.clientY < rb.top - 4 || e.clientY > rb.bottom + 4) : true;
+    var cambioMac = !!(destMac && d.sourceMac && destMac !== d.sourceMac && fuoriRiga);
 
-    if (!deltaDays && !cambioMac) { resetBar(d); return; }
+    if (!deltaDays && !cambioMac) { resetBar(d); gcmOpenDetail(d.bar.getAttribute('data-id')); return; }
 
     if (cambioMac) {
       var msg = 'Spostare il lavoro su un\'altra macchina';
@@ -393,6 +489,53 @@
         if (d && d.ok) { window.location.reload(); }
         else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
       }).catch(function () { undoBtn.disabled = false; alert('Errore di rete.'); });
+    });
+  }
+
+  // ── Pannello dettaglio/modifica commessa (click su barra, senza trascinarla) ──
+  function gcmSet(id, v) { var el = document.getElementById(id); if (el) el.textContent = (v == null || v === '') ? '—' : v; }
+  function gcmVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null) ? '' : v; }
+  function gcmOpenDetail(pid) {
+    var drawer = document.getElementById('gcm-detail'); if (!drawer || !pid) return;
+    var url = drawer.getAttribute('data-detail-url').replace(/0\/$/, pid + '/');
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        var p = d.p;
+        gcmSet('gd-title', p.testo || ('Lavoro #' + p.id));
+        gcmSet('gd-macchina', p.macchina); gcmSet('gd-data', p.data); gcmSet('gd-turno', p.turno_label);
+        gcmSet('gd-famiglia', p.famiglia); gcmSet('gd-cliente', p.cliente);
+        gcmSet('gd-commessa', p.commessa); gcmSet('gd-consegna', p.consegna);
+        if (document.getElementById('gd-testo-ro')) gcmSet('gd-testo-ro', p.testo);
+        var f = document.getElementById('gd-form');
+        if (f) {
+          f.dataset.pid = p.id; f.dataset.mac = p.macchina_id; f.dataset.turno = p.turno; f.dataset.data = p.data;
+          gcmVal('gd-testo', p.testo); gcmVal('gd-qta', p.qta); gcmVal('gd-ore', p.ore);
+          var s = document.getElementById('gd-stato'); if (s) s.value = p.stato;
+          var fa = document.getElementById('gd-fase'); if (fa) fa.value = p.fase;
+        }
+        drawer.classList.add('open');
+      }).catch(function () {});
+  }
+  window.gcmOpenDetail = gcmOpenDetail;
+  var gdSave = document.getElementById('gd-save');
+  if (gdSave) {
+    gdSave.addEventListener('click', function () {
+      var f = document.getElementById('gd-form');
+      var body = new URLSearchParams({
+        pianificazione_id: f.dataset.pid, macchina: f.dataset.mac, turno: f.dataset.turno, data: f.dataset.data,
+        testo: document.getElementById('gd-testo').value,
+        qta: document.getElementById('gd-qta').value, ore: document.getElementById('gd-ore').value,
+        stato: document.getElementById('gd-stato').value, fase: document.getElementById('gd-fase').value
+      });
+      gdSave.disabled = true;
+      fetch(f.getAttribute('data-save-url'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: body.toString()
+      }).then(function (r) { if (!r.ok) throw 0; window.location.reload(); })
+        .catch(function () { gdSave.disabled = false; alert('Errore nel salvataggio.'); });
     });
   }
 })();
