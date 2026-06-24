@@ -9,13 +9,21 @@ Macchina a stati su `Specifica.stato` (FSMField, protected) — le transizioni
 """
 from __future__ import annotations
 
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django_fsm import FSMField
+from django_fsm import FSMField, GET_STATE, transition
 
 from . import constants as C
 from .storage import specifica_allegato_storage, upload_to_specifica
+
+
+def _verifica_periodica_mesi() -> int:
+    cfg = getattr(settings, "GESTIONE_SPECIFICHE", {}) or {}
+    return int(cfg.get("VERIFICA_PERIODICA_MESI", 6))
 
 
 class Specifica(models.Model):
@@ -88,6 +96,10 @@ class Specifica(models.Model):
 
     def snapshot_metadati(self) -> dict:
         """Snapshot metadati per il payload audit (ricostruzione punto-nel-tempo)."""
+        try:
+            esito_mod133 = self.mod133.esito
+        except Exception:
+            esito_mod133 = None
         return {
             "codice": self.codice,
             "revisione": self.revisione,
@@ -97,7 +109,113 @@ class Specifica(models.Model):
             "cliente": self.cliente,
             "stato": self.stato,
             "data_verifica": self.data_verifica.isoformat() if self.data_verifica else None,
+            "esito_mod133": esito_mod133,
         }
+
+    # --- Macchina a stati (§6) ------------------------------------------------
+    # Le transizioni cambiano `stato` (FSMField protected). L'audit
+    # `EventoSpecifica` è creato centralmente dal signal post_transition
+    # (state_machine.py); ogni transizione prepara attore/payload via
+    # `_prep_evento` e genera ESATTAMENTE un evento.
+
+    def _prep_evento(self, attore=None, **payload):
+        self._evento_attore = attore
+        self._evento_payload = payload
+
+    @transition(field=stato, source=C.STATO_BOZZA, target=C.STATO_FLOW_DOWN)
+    def avvia_flow_down(self, attore=None):
+        """S1→S2: crea il MOD.133 vuoto (DM)."""
+        MOD133.objects.get_or_create(specifica=self)
+        self._prep_evento(attore)
+
+    @transition(field=stato, source=C.STATO_FLOW_DOWN, target=C.STATO_IN_VALIDITA)
+    def approva_flow_down(self, attore=None):
+        """S2→S3: guardia esito=approvato e approvatore≠compilatore; set
+        data_verifica; supera automaticamente la revisione precedente in S3."""
+        mod = MOD133.objects.filter(specifica=self).first()
+        if mod is None:
+            raise ValidationError("MOD.133 assente: impossibile approvare il flow-down.")
+        if mod.esito != C.ESITO_APPROVATO:
+            raise ValidationError("Il MOD.133 deve avere esito 'approvato' per l'approvazione.")
+        if not mod.compilatore_id or not mod.approvatore_id:
+            raise ValidationError("Compilatore e approvatore del MOD.133 sono obbligatori.")
+        if mod.compilatore_id == mod.approvatore_id:
+            raise ValidationError("L'approvatore deve essere diverso dal compilatore.")
+        self.data_verifica = date.today() + relativedelta(months=_verifica_periodica_mesi())
+        # Side-effect: superamento automatico della revisione precedente in validità.
+        prev = self.revisione_precedente
+        if prev is not None and prev.stato == C.STATO_IN_VALIDITA:
+            prev.supera(attore=attore)
+            prev.save()
+        self._prep_evento(attore, data_verifica=self.data_verifica.isoformat())
+
+    @transition(field=stato, source=C.STATO_IN_VALIDITA, target=C.STATO_SUPERATO)
+    def supera(self, attore=None):
+        """S3→S4: superamento (automatico alla nuova revisione approvata)."""
+        self._prep_evento(attore, motivo="superamento_automatico")
+
+    @transition(field=stato, source=C.STATO_FLOW_DOWN, target=C.STATO_RESPINTO)
+    def respingi_flow_down(self, attore=None, motivo=""):
+        """S2→S8: flow-down respinto/non applicabile."""
+        self._prep_evento(attore, motivo=motivo)
+
+    @transition(field=stato, source=[C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA],
+                target=C.STATO_SOSPESO)
+    def sospendi(self, attore=None, motivo="", data=None, riesame=None):
+        """{S2,S3}→S5: motivo e data obbligatori; salva stato_precedente."""
+        if not motivo:
+            raise ValidationError("Il motivo di sospensione è obbligatorio.")
+        if not data:
+            raise ValidationError("La data di sospensione è obbligatoria.")
+        self.stato_precedente = self.stato
+        self._prep_evento(attore, motivo=motivo, data=str(data), riesame=str(riesame) if riesame else None)
+
+    @transition(field=stato, source=C.STATO_SOSPESO,
+                target=GET_STATE(lambda self, **kw: self.stato_precedente,
+                                 states=[C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA]))
+    def ripristina(self, attore=None, motivo=""):
+        """S5→(S2|S3) secondo stato_precedente; motivo obbligatorio."""
+        if not motivo:
+            raise ValidationError("Il motivo di ripristino è obbligatorio.")
+        if self.stato_precedente not in (C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA):
+            raise ValidationError("Stato precedente non valido per il ripristino.")
+        self._prep_evento(attore, motivo=motivo)
+
+    @transition(field=stato,
+                source=[C.STATO_BOZZA, C.STATO_FLOW_DOWN, C.STATO_SOSPESO, C.STATO_ERRORE_TECNICO],
+                target=C.STATO_ANNULLATO)
+    def annulla(self, attore=None, motivo=""):
+        """{S1,S2,S5,S9}→S6: motivo obbligatorio."""
+        if not motivo:
+            raise ValidationError("Il motivo di annullamento è obbligatorio.")
+        self._prep_evento(attore, motivo=motivo)
+
+    @transition(field=stato, source=[C.STATO_BOZZA, C.STATO_FLOW_DOWN],
+                target=C.STATO_DUPLICATO)
+    def marca_duplicato(self, attore=None):
+        """{S1,S2}→S7: master obbligatorio."""
+        if not self.master_id:
+            raise ValidationError("Per marcare come duplicato è obbligatorio indicare la master.")
+        self._prep_evento(attore, master_id=self.master_id)
+
+    @transition(field=stato, source="+", target=C.STATO_ERRORE_TECNICO)
+    def errore_tecnico(self, attore=None, errore=None):
+        """*→S9: salva stato_precedente; payload errore obbligatorio."""
+        if not errore:
+            raise ValidationError("Il payload di errore è obbligatorio.")
+        self.stato_precedente = self.stato
+        self._prep_evento(attore, errore=errore)
+
+    @transition(field=stato, source=C.STATO_ERRORE_TECNICO,
+                target=GET_STATE(lambda self, **kw: self.stato_precedente,
+                                 states=[C.STATO_BOZZA, C.STATO_FLOW_DOWN, C.STATO_IN_VALIDITA,
+                                         C.STATO_SUPERATO, C.STATO_SOSPESO, C.STATO_ANNULLATO,
+                                         C.STATO_DUPLICATO, C.STATO_RESPINTO]))
+    def ripristina_da_errore(self, attore=None):
+        """S9→stato_precedente."""
+        if not self.stato_precedente:
+            raise ValidationError("Stato precedente assente: impossibile ripristinare da errore.")
+        self._prep_evento(attore)
 
 
 class MOD133(models.Model):

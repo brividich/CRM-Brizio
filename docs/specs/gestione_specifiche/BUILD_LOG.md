@@ -9,7 +9,7 @@
 |------|-------------|-------|------|
 | STEP 0 | Esplorazione repo | fatto | 2026-06-24 |
 | F1 | Modello dati, migrazioni, admin, ACL, navigation | fatto | 2026-06-24 |
-| F2 | Macchina a stati (django-fsm-2) + audit + test | todo | — |
+| F2 | Macchina a stati (django-fsm-2) + audit + test | fatto | 2026-06-24 |
 | F3 | Flusso MOD.133 (UI HTMX) | todo | — |
 | F4 | Timer/scheduling (django-q2) + notifiche | todo | — |
 | F5 | OFI → MOD.174 + sotto-flusso documento CN | todo | — |
@@ -72,6 +72,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **D1** — Usate le librerie reali `django-fsm-2`/`django-ninja` (rete disponibile) invece di shim locali. Coerente con decisione F0 #6 e F7.
 - **D2** — Stati FSM memorizzati come codici snake_case (`bozza`, `flow_down`, `in_validita`, `superato`, `sospeso`, `annullato`, `duplicato`, `respinto`, `errore_tecnico`).
 - **D3** — App come **modulo isolato** (decisione F0 #9): hook `commessa_ref`/`famiglia_ref` come CharField indicizzati nullable, nessuna FK verso commesse/asset.
+- **D4 (gotcha django-fsm)** — `Specifica.stato` è FSMField `protected` ⇒ `instance.refresh_from_db()` solleva `AttributeError` (django-fsm vieta la setattr diretta). Nel codice/test **non** usare `refresh_from_db()` su `Specifica`: ri-fetchare con `Specifica.objects.get(pk=...)`. Le transizioni che falliscono una guardia (ValidationError) **non** emettono `post_transition` ⇒ nessun evento spurio.
 
 ## BLOCKERS
 
@@ -80,11 +81,13 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## TEST
 
+- **F2** — `gestione_specifiche` **26/26 verdi** (9 F1 + 17 F2): happy path S1→S2→S3 + data_verifica, guardie esito/compilatore≠approvatore, superamento revisione automatico, sospendi/ripristina S2↔S5 e S3↔S5, annulla multi-sorgente, duplicato richiede master, errore_tecnico + ripristino, un-evento-per-transizione, TransitionNotAllowed, ACL nega utente senza permesso (superuser ok).
 - **F1** — `gestione_specifiche` 9/9 verdi (`manage.py test gestione_specifiche --settings=config.settings.test --keepdb`): default stato/`__str__`, snapshot metadati, PROTECT revisione precedente, immutabilità EventoSpecifica (create ok / update+delete bloccati), default `modo_approvazione` da settings, M2M `Distribuzione`↔`anagrafica.Reparto`. `manage.py check` pulito. Bootstrap ACL verificato a runtime: 8 PermissionDefinition, 1 NavigationItem, 2 RoutePermissionBinding.
 
 ## CHANGELOG (commit principali)
 
 - **[F1]** `feat(spec): [F1] app gestione_specifiche — modelli, migrazioni, admin, ACL v2, navigation`
+- **[F2]** `feat(spec): [F2] macchina a stati django-fsm-2 + audit immutabile (post_transition)`
 
 ## NOTE STEP 0 (ruoli reali)
 
