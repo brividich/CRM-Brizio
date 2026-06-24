@@ -10,7 +10,11 @@
 
   <input name="testo" list="gcm-famiglie" autofocus
          placeholder="es. 8 gimbal (33h)"
-         value="{{ job.testo_originale|default:'' }}">
+         value="{{ job.testo_originale|default:'' }}"
+         hx-get="{% url 'gestione_carichi_macchina:cella_suggerimento' %}"
+         hx-trigger="load, keyup changed delay:500ms"
+         hx-target="#gcm-sugg-box" hx-swap="innerHTML"
+         hx-include="[name='macchina']">
   <div class="gcm-row2">
     <input name="qta" type="number" min="0" placeholder="qta" value="{{ job.qta|default:'' }}">
     <input name="ore" type="number" min="0" step="0.5" placeholder="ore" value="{{ job.ore|default:'' }}">
@@ -36,4 +40,5 @@
       <button type="submit" name="elimina" value="1" class="gcm-del" title="Elimina">🗑</button>
     {% endif %}
   </div>
+  <div id="gcm-sugg-box"></div>
 </form>

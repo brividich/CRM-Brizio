@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from math import ceil
 
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
@@ -707,6 +707,62 @@ def _suggerimenti_macchina(fam) -> list[dict]:
          "componenti": r.get("componenti")}
         for r in ranked
     ]
+
+
+def _righe_suggerimento_display(sugg: list[dict], macchina_corrente: int) -> list[dict]:
+    """Trasforma i suggerimenti in righe pronte per il template (percentuali + classe carico)."""
+    righe = []
+    for s in sugg:
+        score = s.get("score")
+        sat = s.get("saturazione")
+        comp = s.get("componenti") or {}
+        if sat is None:
+            sat_classe = ""
+        elif sat >= 0.9:
+            sat_classe = "satura"
+        elif sat >= 0.6:
+            sat_classe = "media"
+        else:
+            sat_classe = "libera"
+        base = score if score is not None else s.get("prob", 0)
+        righe.append({
+            "macchina_id": s["macchina_id"],
+            "codice": s.get("codice") or s["macchina_id"],
+            "score_pct": round(float(base) * 100),
+            "occorrenze": s.get("occorrenze"),
+            "sat_pct": round(float(sat) * 100) if sat is not None else None,
+            "sat_classe": sat_classe,
+            "freq_pct": round(float(comp.get("freq", 0)) * 100),
+            "rec_pct": round(float(comp.get("recency", 0)) * 100),
+            "lib_pct": round(float(comp.get("carico_libero", 0)) * 100),
+            "is_corrente": s["macchina_id"] == macchina_corrente,
+        })
+    return righe
+
+
+@login_required
+def cella_suggerimento(request):
+    """Box HTMX (read-only): macchine consigliate per la famiglia digitata nella cella.
+
+    Mostra score (barra) e carico (colore), evidenziando la macchina della cella.
+    Ritorna frammento vuoto se la famiglia non e' riconosciuta dal testo.
+    """
+    testo = (request.GET.get("testo") or "").strip()
+    try:
+        macchina_corrente = int(request.GET.get("macchina") or 0)
+    except (TypeError, ValueError):
+        macchina_corrente = 0
+    fam = _match_famiglia(testo) if testo else None
+    if not fam:
+        return HttpResponse("")
+    righe = _righe_suggerimento_display(_suggerimenti_macchina(fam), macchina_corrente)
+    ctx = {
+        "famiglia": fam.nome,
+        "righe": righe,
+        "ha_corrente": bool(macchina_corrente),
+        "corrente_in_lista": any(r["is_corrente"] for r in righe),
+    }
+    return render(request, "gestione_carichi_macchina/partials/_suggerimento_macchina.html", ctx)
 
 
 @login_required

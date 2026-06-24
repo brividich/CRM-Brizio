@@ -79,6 +79,30 @@ class ViewsTest(TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["suggerimenti"][0]["macchina_id"], self.m.id)
 
+    def test_cella_suggerimento_box(self):
+        from .models import FamigliaPezzo, MacchinaFamigliaAffinita
+
+        self.client.force_login(self.user)
+        fam = FamigliaPezzo.objects.create(nome="gimbal")
+        MacchinaFamigliaAffinita.objects.create(macchina=self.m, famiglia=fam, occorrenze=7)
+        # Famiglia riconosciuta dal testo della cella -> box con macchina consigliata.
+        r = self.client.get(
+            reverse("gestione_carichi_macchina:cella_suggerimento"),
+            {"testo": "8 gimbal (33h)", "macchina": self.m.id},
+        )
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("gcm-sugg", body)
+        self.assertIn(self.m.codice, body)  # codice macchina mostrato
+        self.assertIn("●", body)            # evidenziata come macchina della cella
+        # Testo senza famiglia riconoscibile -> frammento vuoto (nessun box).
+        r2 = self.client.get(
+            reverse("gestione_carichi_macchina:cella_suggerimento"),
+            {"testo": "zzz ignoto", "macchina": self.m.id},
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.content.decode().strip(), "")
+
     @override_settings(OLLAMA_CHAT_ENABLED=False)
     def test_api_spiega_macchina_failsafe(self):
         from .models import FamigliaPezzo, MacchinaFamigliaAffinita

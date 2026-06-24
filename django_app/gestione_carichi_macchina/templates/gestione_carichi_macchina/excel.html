@@ -103,6 +103,21 @@
   .gcm-form-actions .gcm-save { background: var(--primary-mid,#1f87cd); color: #fff; border-color: var(--primary-mid,#1f87cd); }
   .gcm-form-actions .gcm-del { background: #fde8e8; color: #b91c1c; border-color: #f3c4c4; flex: 0 0 30px; }
 
+  /* Suggerimento macchina (AI predittiva) dentro il form cella: barra=score, colore=carico. */
+  .gcm-sugg { margin-top: 6px; border-top: 1px dashed #dbe3ef; padding-top: 6px; color: #24395e; }
+  .gcm-sugg-h { font-weight: 800; font-size: .56rem; text-transform: uppercase; letter-spacing: .04em; color: #7a8ca6; margin-bottom: 4px; }
+  .gcm-sugg-row { margin-bottom: 5px; }
+  .gcm-sugg-top { display: flex; justify-content: space-between; gap: 4px; line-height: 1.1; font-size: .68rem; }
+  .gcm-sugg-cod { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gcm-sugg-row.cur .gcm-sugg-cod { color: var(--primary-mid,#1f87cd); }
+  .gcm-sugg-pct { font-weight: 800; }
+  .gcm-sugg-bar { height: 6px; border-radius: 3px; background: #eef2f8; overflow: hidden; margin-top: 2px; }
+  .gcm-sugg-bar i { display: block; height: 100%; background: #16a34a; }
+  .gcm-sugg-bar i.media { background: #f59e0b; }
+  .gcm-sugg-bar i.satura { background: #b91c1c; }
+  .gcm-sugg-note { color: #b45309; font-size: .62rem; margin-top: 3px; }
+  .gcm-sugg-foot { color: #94a3b8; font-size: .56rem; margin-top: 4px; }
+
   .gcm-legend { display: flex; gap: 14px; flex-wrap: wrap; color: #61748f; font-size: .78rem; align-items: center; }
   .gcm-legend span { display: inline-flex; align-items: center; gap: 5px; }
   .gcm-dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
