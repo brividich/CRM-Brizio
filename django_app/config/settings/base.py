@@ -347,6 +347,7 @@ INSTALLED_APPS = [
     "assets.apps.AssetsConfig",
     "attrezzature.apps.AttrezzatureConfig",
     "gestione_carichi_macchina.apps.GestioneCarichiMacchinaConfig",
+    "gestione_specifiche.apps.GestioneSpecificheConfig",
     "tasks.apps.TasksConfig",
     "automazioni.apps.AutomazioniConfig",
     "monitoring.apps.MonitoringConfig",
@@ -512,6 +513,18 @@ DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE
 # Documenti dipendente (consegne DPI archiviate, referti visite mediche, contratti).
 # Storage privato, mai esposto da IIS: accessibile solo via view protetta con ACL.
 ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
+# mai esposto da IIS; accessibile solo via view protetta con ACL.
+GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+
+# Configurazione di processo dell'app gestione_specifiche (BUILD_SPEC §5).
+# APPROVAZIONE_DOC_CN_MODE ∈ {mod133_approver, car_flow, rdd_dedicato} (decisione F0 #2).
+GESTIONE_SPECIFICHE = {
+    "APPROVAZIONE_DOC_CN_MODE": env("GESTIONE_SPECIFICHE_APPROVAZIONE_DOC_CN_MODE", "car_flow"),
+    "VERIFICA_PERIODICA_MESI": int(env("GESTIONE_SPECIFICHE_VERIFICA_PERIODICA_MESI", "6")),
+    "REMINDER_GIORNI": int(env("GESTIONE_SPECIFICHE_REMINDER_GIORNI", "7")),
+    "ESCALATION_GIORNI": int(env("GESTIONE_SPECIFICHE_ESCALATION_GIORNI", "14")),
+}
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

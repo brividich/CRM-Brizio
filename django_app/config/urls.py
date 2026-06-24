@@ -42,6 +42,7 @@ urlpatterns = [
     path("", include(("attrezzature.urls", "attrezzature"), namespace="attrezzature")),
     path("", include(("tasks.urls", "tasks"), namespace="tasks")),
     path("carichi-macchina/", include(("gestione_carichi_macchina.urls", "gestione_carichi_macchina"), namespace="gestione_carichi_macchina")),
+    path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
     path("notizie/", include("notizie.urls")),
     path(
         "admin-portale/monitoring/",

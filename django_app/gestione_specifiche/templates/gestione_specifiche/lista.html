@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione Specifiche{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gs-head { border:1px solid #d9e2ef; border-radius:14px; padding:16px 18px; margin-bottom:16px;
+    background:linear-gradient(135deg,#fff 0%,#f7faff 60%,#eef6ff 100%); }
+  .gs-head h1 { margin:0; font-size:1.5rem; color:var(--primary,#0c2545); }
+  .gs-head p { margin:4px 0 0; color:#6c84a6; font-size:.9rem; }
+  .gs-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e3e9f2; border-radius:12px; overflow:hidden; }
+  .gs-table th, .gs-table td { padding:9px 12px; text-align:left; border-bottom:1px solid #eef2f8; font-size:.9rem; }
+  .gs-table th { background:#f4f8ff; color:#24395e; font-weight:700; }
+  .gs-pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.78rem; font-weight:700; }
+  .gs-pill.bozza { background:#eef2f8; color:#51607a; }
+  .gs-pill.flow_down { background:#fff3e0; color:#b35b00; }
+  .gs-pill.in_validita { background:#e3f6ec; color:#1c7a45; }
+  .gs-pill.superato, .gs-pill.duplicato { background:#eceff4; color:#7a8699; }
+  .gs-pill.sospeso { background:#fff8d6; color:#8a6d00; }
+  .gs-pill.annullato, .gs-pill.respinto { background:#fde8e8; color:#b42318; }
+  .gs-pill.errore_tecnico { background:#f3e0ff; color:#7a1fb3; }
+  .gs-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+  .gs-toolbar a { text-decoration:none; color:#24395e; font-weight:700; border:1px solid #cdd9ea; border-radius:10px; padding:7px 12px; background:#fff; }
+  .gs-toolbar a.active { background:var(--primary,#0c2545); color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Gestione Specifiche</h1>
+  <p>Flusso specifiche tecniche + MOD.133 — tracciabilità ISO 9001 / EN 9100.</p>
+</div>
+
+<div class="gs-toolbar">
+  <a href="?" class="{% if not mostra_storico %}active{% endif %}">Attive</a>
+  <a href="?storico=1" class="{% if mostra_storico %}active{% endif %}">Mostra storico</a>
+  <span style="color:#6c84a6; font-size:.85rem;">{{ tot }} element{{ tot|pluralize:"o,i" }}</span>
+</div>
+
+<table class="gs-table">
+  <thead>
+    <tr>
+      <th>Codice</th><th>Rev.</th><th>Titolo</th><th>Tipo</th><th>Fonte</th>
+      <th>Cliente</th><th>Stato</th><th>Verifica</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in specifiche %}
+    <tr>
+      <td>{{ s.codice }}</td>
+      <td>{{ s.revisione|default:"—" }}</td>
+      <td>{{ s.titolo }}</td>
+      <td>{{ s.get_tipo_display }}</td>
+      <td>{{ s.get_fonte_display }}</td>
+      <td>{{ s.cliente|default:"—" }}</td>
+      <td><span class="gs-pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
+      <td>{{ s.data_verifica|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" style="text-align:center; color:#6c84a6; padding:24px;">Nessuna specifica.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

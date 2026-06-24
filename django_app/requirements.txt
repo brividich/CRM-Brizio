@@ -4,6 +4,7 @@
 #
 #    pip-compile --annotation-style=line --output-file=requirements.txt --strip-extras requirements.in
 #
+annotated-types==0.7.0    # via pydantic
 asgiref==3.11.1           # via django, django-axes, django-htmx
 cachetools==7.0.6         # via -r requirements.in
 certifi==2026.4.22        # via requests
@@ -15,8 +16,11 @@ cryptography==44.0.3      # via msal, pyjwt, pyopenssl, pyspnego
 django==5.2.13            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
 django-axes==7.1.0        # via -r requirements.in
 django-extensions==4.1    # via -r requirements.in
+django-fsm-2==4.2.4       # via -r requirements.in
 django-htmx==1.27.0       # via -r requirements.in
+django-ninja==1.6.2       # via -r requirements.in
 django-picklefield==3.4.0  # via django-q2
+django-stubs-ext==6.0.6   # via django-ninja
 django-q2==1.9.0          # via -r requirements.in
 et-xmlfile==2.0.0         # via openpyxl
 idna==3.13                # via requests
@@ -28,6 +32,8 @@ openpyxl==3.1.5           # via -r requirements.in
 pillow==12.0.0            # via -r requirements.in, qrcode, reportlab
 pyasn1==0.6.3             # via ldap3
 pycparser==3.0            # via cffi
+pydantic==2.13.4          # via django-ninja
+pydantic-core==2.46.4     # via pydantic
 pyjwt==2.12.1             # via msal, pyjwt
 pymupdf==1.27.2.3         # via -r requirements.in
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
@@ -45,6 +51,7 @@ six==1.17.0               # via python-dateutil
 sqlparse==0.5.5           # via django
 sspilib==0.5.0            # via pyspnego
 tzdata==2026.2            # via django
+typing-inspection==0.4.2  # via pydantic
 urllib3==2.6.3            # via requests
 waitress==3.0.2           # via -r requirements.in
 werkzeug==3.0.3           # via -r requirements.in
