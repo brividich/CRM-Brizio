@@ -33,6 +33,7 @@
 
   <div class="gs-actions">
     <a class="gs-btn" href="{% url 'gestione_specifiche:lista' %}">← Elenco</a>
+    <a class="gs-btn gs-btn--ghost" href="{% url 'gestione_specifiche:scheda_storico' spec.pk %}">Storico</a>
     {% if spec.stato == C.STATO_BOZZA %}
       <a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">Modifica metadati</a>
       <form method="post" action="{% url 'gestione_specifiche:avvia_flow_down' spec.pk %}" style="display:inline;">
@@ -50,6 +51,28 @@
     {% elif spec.stato == C.STATO_IN_VALIDITA %}
       <a class="gs-btn gs-btn--accent" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}">Distribuisci</a>
       <a class="gs-btn" href="{% url 'gestione_specifiche:nuova' %}?da={{ spec.pk }}">Nuova revisione</a>
+    {% endif %}
+  </div>
+
+  {# Gestione stato (sospendi/ripristina/annulla) — motivo obbligatorio #}
+  <div class="gs-actions" style="margin-top:8px;">
+    {% if spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_IN_VALIDITA %}
+    <form method="post" action="{% url 'gestione_specifiche:sospendi' spec.pk %}" style="display:flex; gap:6px;">
+      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo sospensione" style="max-width:220px;">
+      <button class="gs-btn" type="submit">Sospendi</button>
+    </form>
+    {% endif %}
+    {% if spec.stato == C.STATO_SOSPESO %}
+    <form method="post" action="{% url 'gestione_specifiche:ripristina' spec.pk %}" style="display:flex; gap:6px;">
+      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo ripristino" style="max-width:220px;">
+      <button class="gs-btn gs-btn--primary" type="submit">Ripristina</button>
+    </form>
+    {% endif %}
+    {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_SOSPESO or spec.stato == C.STATO_ERRORE_TECNICO %}
+    <form method="post" action="{% url 'gestione_specifiche:annulla' spec.pk %}" style="display:flex; gap:6px;">
+      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo annullamento" style="max-width:220px;">
+      <button class="gs-btn" type="submit">Annulla</button>
+    </form>
     {% endif %}
   </div>
 </div>

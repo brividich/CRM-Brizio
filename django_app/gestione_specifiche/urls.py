@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from .api import api as ninja_api
 
 app_name = "gestione_specifiche"
 
@@ -19,4 +20,14 @@ urlpatterns = [
     path("<int:pk>/mod133/riga/<int:riga_id>/genera-ofi/", views.riga_genera_ofi, name="riga_genera_ofi"),
     path("azione-ofi/<int:azione_id>/approva/", views.azione_ofi_approva, name="azione_ofi_approva"),
     path("<int:pk>/distribuisci/", views.distribuzione_nuova, name="distribuzione_nuova"),
+    # Storico consultabile + export
+    path("<int:pk>/storico/", views.scheda_storico, name="scheda_storico"),
+    path("<int:pk>/storico/export.csv", views.storico_export_csv, name="storico_export_csv"),
+    path("<int:pk>/storico/export.pdf", views.storico_export_pdf, name="storico_export_pdf"),
+    # Azioni di stato SSR (inline)
+    path("<int:pk>/sospendi/", views.sospendi_view, name="sospendi"),
+    path("<int:pk>/ripristina/", views.ripristina_view, name="ripristina"),
+    path("<int:pk>/annulla/", views.annulla_view, name="annulla"),
+    # API django-ninja
+    path("api/", ninja_api.urls),
 ]

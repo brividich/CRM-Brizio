@@ -6,17 +6,23 @@ Gating: `@login_required` + ACLMiddleware (binding canonico per rotta).
 """
 from __future__ import annotations
 
+import csv
+import io
+import json
 import re
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django_fsm import TransitionNotAllowed
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 from . import constants as C
 from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
@@ -40,16 +46,46 @@ def _incrementa_revisione(rev: str) -> str:
 
 @login_required
 def lista(request):
-    """Elenco specifiche (versione base F1, default = solo attive)."""
+    """Elenco/archivio ricercabile. Default = solo specifiche attive; lo storico
+    (incluse superate/terminali S4/S6/S7/S8) è raggiungibile col toggle o filtrando
+    per stato/intervallo date."""
     mostra_storico = request.GET.get("storico") == "1"
+    f_stato = request.GET.get("stato", "").strip()
+    f_tipo = request.GET.get("tipo", "").strip()
+    f_cliente = request.GET.get("cliente", "").strip()
+    f_tag = request.GET.get("tag", "").strip()
+    f_q = request.GET.get("q", "").strip()
+    f_dal = request.GET.get("dal", "").strip()
+    f_al = request.GET.get("al", "").strip()
+
     qs = Specifica.objects.all().select_related("mod133")
-    if not mostra_storico:
+    if not mostra_storico and not f_stato:
         qs = qs.filter(stato__in=C.STATI_ATTIVI)
+    if f_stato:
+        qs = qs.filter(stato=f_stato)
+    if f_tipo:
+        qs = qs.filter(tipo=f_tipo)
+    if f_cliente:
+        qs = qs.filter(cliente__icontains=f_cliente)
+    if f_tag:
+        qs = qs.filter(tag__icontains=f_tag)
+    if f_q:
+        qs = qs.filter(Q(codice__icontains=f_q) | Q(titolo__icontains=f_q))
+    if f_dal:
+        qs = qs.filter(data_inserimento__date__gte=f_dal)
+    if f_al:
+        qs = qs.filter(data_inserimento__date__lte=f_al)
     qs = qs.order_by("-data_inserimento", "codice")
+
     context = {
         "specifiche": qs[:500],
-        "mostra_storico": mostra_storico,
         "tot": qs.count(),
+        "mostra_storico": mostra_storico,
+        "f": {"stato": f_stato, "tipo": f_tipo, "cliente": f_cliente,
+              "tag": f_tag, "q": f_q, "dal": f_dal, "al": f_al},
+        "STATO_CHOICES": C.STATO_CHOICES,
+        "TIPO_CHOICES": C.TIPO_CHOICES,
+        "C": C,
     }
     return render(request, "gestione_specifiche/lista.html", context)
 
@@ -335,3 +371,139 @@ def distribuzione_nuova(request, pk: int):
         form = DistribuzioneForm()
     return render(request, "gestione_specifiche/distribuzione_form.html",
                   {"spec": spec, "form": form, "deroga_richiesta": deroga_richiesta})
+
+
+# ---------------------------------------------------------------------------
+# F7 — Azioni di stato SSR (inline) + storico consultabile + export
+# ---------------------------------------------------------------------------
+
+def _esegui_transizione(request, spec, azione_label, fn, **kwargs):
+    try:
+        fn(attore=request.user, **kwargs)
+        spec.save()
+        messages.success(request, f"{azione_label} eseguita.")
+    except (TransitionNotAllowed, ValidationError) as exc:
+        msg = exc.messages[0] if isinstance(exc, ValidationError) and exc.messages else str(exc)
+        messages.error(request, f"Operazione non consentita: {msg}")
+
+
+@login_required
+@require_POST
+def sospendi_view(request, pk: int):
+    spec = get_object_or_404(Specifica, pk=pk)
+    motivo = request.POST.get("motivo", "").strip()
+    _esegui_transizione(request, spec, "Sospensione", spec.sospendi,
+                        motivo=motivo, data=timezone.now().date())
+    return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+@login_required
+@require_POST
+def ripristina_view(request, pk: int):
+    spec = get_object_or_404(Specifica, pk=pk)
+    motivo = request.POST.get("motivo", "").strip()
+    _esegui_transizione(request, spec, "Ripristino", spec.ripristina, motivo=motivo)
+    return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+@login_required
+@require_POST
+def annulla_view(request, pk: int):
+    spec = get_object_or_404(Specifica, pk=pk)
+    motivo = request.POST.get("motivo", "").strip()
+    _esegui_transizione(request, spec, "Annullamento", spec.annulla, motivo=motivo)
+    return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
+
+
+def _catena_revisioni(spec: Specifica):
+    """Restituisce la catena lineare di revisioni dalla radice all'ultima."""
+    radice = spec
+    visti = set()
+    while radice.revisione_precedente_id and radice.revisione_precedente_id not in visti:
+        visti.add(radice.id)
+        radice = radice.revisione_precedente
+    catena, nodo, visti2 = [], radice, set()
+    while nodo is not None and nodo.id not in visti2:
+        visti2.add(nodo.id)
+        catena.append(nodo)
+        nodo = nodo.revisioni_successive.order_by("data_inserimento").first()
+    return catena
+
+
+def _ricostruzione_punto_nel_tempo(spec: Specifica):
+    """Ultimo snapshot dei metadati di quando la specifica era 'In validità'
+    (dal payload di EventoSpecifica), per ricostruire il punto-nel-tempo."""
+    evt = (
+        spec.eventi.filter(stato_a=C.STATO_IN_VALIDITA).order_by("-timestamp").first()
+        or spec.eventi.order_by("-timestamp").first()
+    )
+    if evt and isinstance(evt.payload, dict):
+        return evt.payload.get("snapshot")
+    return None
+
+
+@login_required
+def scheda_storico(request, pk: int):
+    spec = get_object_or_404(Specifica.objects.select_related("mod133"), pk=pk)
+    mod = MOD133.objects.filter(specifica=spec).first()
+    azioni_ofi = AzioneOFI.objects.filter(riga_mod133__mod133=mod) if mod else []
+    context = {
+        "spec": spec,
+        "catena": _catena_revisioni(spec),
+        "eventi": spec.eventi.all(),
+        "righe": mod.righe.all() if mod else [],
+        "azioni_ofi": azioni_ofi,
+        "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),
+        "snapshot": _ricostruzione_punto_nel_tempo(spec),
+        "C": C,
+    }
+    return render(request, "gestione_specifiche/scheda_storico.html", context)
+
+
+@login_required
+def storico_export_csv(request, pk: int):
+    spec = get_object_or_404(Specifica, pk=pk)
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="storico_{spec.codice}_{spec.revisione or "0"}.csv"'
+    response.write("﻿")  # BOM per Excel
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(["timestamp", "stato_da", "stato_a", "trigger", "attore", "payload"])
+    for e in spec.eventi.all():
+        writer.writerow([
+            e.timestamp.isoformat(), e.stato_da, e.stato_a, e.trigger,
+            str(e.attore or ""), json.dumps(e.payload, ensure_ascii=False),
+        ])
+    return response
+
+
+@login_required
+def storico_export_pdf(request, pk: int):
+    spec = get_object_or_404(Specifica, pk=pk)
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    y = height - 50
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, f"Storico specifica {spec.codice} rev.{spec.revisione or '0'}")
+    y -= 18
+    c.setFont("Helvetica", 9)
+    c.drawString(40, y, f"{spec.titolo} — stato attuale: {spec.get_stato_display()}")
+    y -= 24
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(40, y, "Cronologia eventi (audit ISO 9001 / EN 9100)")
+    y -= 16
+    c.setFont("Helvetica", 8)
+    for e in spec.eventi.all():
+        if y < 50:
+            c.showPage()
+            y = height - 50
+            c.setFont("Helvetica", 8)
+        riga = f"{e.timestamp:%Y-%m-%d %H:%M}  {e.stato_da or '-'} -> {e.stato_a}  [{e.trigger}]  {e.attore or ''}"
+        c.drawString(40, y, riga[:120])
+        y -= 12
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True,
+                        filename=f"storico_{spec.codice}_{spec.revisione or '0'}.pdf",
+                        content_type="application/pdf")

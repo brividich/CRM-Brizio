@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% block title %}Storico {{ spec.codice }} · Gestione Specifiche{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Storico — {{ spec.codice }}{% if spec.revisione %} rev.{{ spec.revisione }}{% endif %}
+    &nbsp;<span class="gs-pill {{ spec.stato }}">{{ spec.get_stato_display }}</span></h1>
+  <p>Scheda di sola lettura per audit ISO 9001 / EN 9100.</p>
+</div>
+
+<div class="gs-actions" style="margin-bottom:14px;">
+  <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">← Dettaglio</a>
+  <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_csv' spec.pk %}">Export CSV</a>
+  <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_pdf' spec.pk %}">Export PDF</a>
+</div>
+
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Catena revisioni</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+    {% for r in catena %}
+      <a href="{% url 'gestione_specifiche:scheda_storico' r.pk %}"
+         class="gs-pill {{ r.stato }}" style="text-decoration:none; {% if r.pk == spec.pk %}outline:2px solid #1f87cd;{% endif %}">
+        rev.{{ r.revisione|default:"0" }} · {{ r.get_stato_display }}
+      </a>
+      {% if not forloop.last %}<span style="color:#9fb0c8;">→</span>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+{% if snapshot %}
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Ricostruzione punto-nel-tempo</h3>
+  <p style="color:#6c84a6; font-size:.85rem;">Snapshot dei metadati all'ultima validità (dal payload audit).</p>
+  <div class="gs-grid">
+    {% for k, v in snapshot.items %}
+    <div><div class="lbl">{{ k }}</div><div class="val">{{ v|default:"—" }}</div></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Cronologia eventi completa</h3>
+  <table class="gs-table">
+    <thead><tr><th>Quando</th><th>Da → A</th><th>Trigger</th><th>Attore</th></tr></thead>
+    <tbody>
+      {% for e in eventi %}
+      <tr>
+        <td>{{ e.timestamp|date:"d/m/Y H:i" }}</td>
+        <td>{{ e.stato_da|default:"—" }} → <b>{{ e.stato_a }}</b></td>
+        <td>{{ e.trigger }}</td>
+        <td>{{ e.attore|default:"sistema" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" style="color:#6c84a6;">Nessun evento.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Collegamenti di questa revisione</h3>
+  <ul style="color:#24395e; font-size:.9rem;">
+    <li>MOD.133: {% if spec.mod133 %}{{ righe|length }} righe{% else %}assente{% endif %}</li>
+    <li>OFI generati (MOD.174): {{ azioni_ofi|length }}</li>
+    <li>Distribuzioni: {{ distribuzioni|length }}</li>
+  </ul>
+</div>
+{% endblock %}
