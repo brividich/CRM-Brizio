@@ -591,9 +591,46 @@ class AiAssistantTests(TestCase):
         self.assertEqual(summary["mode"], "rag-live")
         self.assertEqual(summary["evaluated"], 2)
         by_prompt = {r["prompt"]: r for r in payload["results"]}
-        self.assertTrue(by_prompt["quante ferie mi restano?"]["covered"])
+        ferie = by_prompt["quante ferie mi restano?"]
+        self.assertTrue(ferie["covered"])
+        # La domanda coperta porta uno score BM25 del chunk KB > 0 (visibilità A2).
+        self.assertIsNotNone(ferie["kb_score"])
+        self.assertGreater(ferie["kb_score"], 0)
         self.assertFalse(by_prompt["come prenoto un parcheggio per la bicicletta?"]["covered"])
         self.assertGreaterEqual(summary["gaps"], 1)
+
+    def test_ai_eval_rag_live_min_score_flags_weak_matches_as_gaps(self):
+        """Con --min-score alta anche un match KB forte diventa gap 'debole'.
+
+        Verifica la soglia di qualità (A2): senza soglia la domanda è coperta; con una
+        soglia irraggiungibile lo stesso match (sotto soglia) è classificato gap debole.
+        """
+        AiChatFeedback.objects.create(
+            prompt="quante ferie mi restano?", response="risposta", rating="up"
+        )
+
+        def run(min_score):
+            out = StringIO()
+            with override_settings(
+                OLLAMA_RAG_ENABLED=True,
+                OLLAMA_EMBED_ENABLED=False,
+                OLLAMA_RAG_SOURCE_PATHS=["README.md", "django_app/ai_assistant/knowledge"],
+                OLLAMA_RAG_CACHE_SECONDS=0,
+            ):
+                clear_knowledge_cache()
+                call_command("ai_eval", "--rag-live", "--json", "--min-score", str(min_score), stdout=out)
+            return json.loads(out.getvalue())
+
+        covered = run(0.0)
+        self.assertTrue(covered["results"][0]["covered"])
+        self.assertEqual(covered["summary"]["weak_gaps"], 0)
+
+        strict = run(9999)
+        row = strict["results"][0]
+        self.assertFalse(row["covered"])
+        self.assertTrue(row["weak"])  # ha recuperato un chunk KB, ma sotto soglia
+        self.assertEqual(strict["summary"]["covered"], 0)
+        self.assertEqual(strict["summary"]["weak_gaps"], 1)
 
     def test_wants_anagrafica_ratei_context_recognizes_phrasings(self):
         from ai_assistant.tools import _wants_anagrafica_ratei_context

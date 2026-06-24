@@ -172,6 +172,17 @@ class Command(BaseCommand):
             action="store_true",
             help="In --rag-live considera solo i feedback negativi (risposte giudicate scarse).",
         )
+        parser.add_argument(
+            "--min-score",
+            type=float,
+            default=0.0,
+            help=(
+                "In --rag-live: soglia minima di score BM25 del miglior chunk KB perché la "
+                "domanda conti come 'coperta'. Sotto soglia = gap 'debole' (match coincidente, "
+                "risposta irrilevante). Default 0.0 = qualsiasi match conta; gli score sono "
+                "mostrati sempre, quindi alza la soglia guardando la distribuzione reale."
+            ),
+        )
 
     def handle(self, *args, **options):
         as_json = bool(options.get("json"))
@@ -194,6 +205,7 @@ class Command(BaseCommand):
                 limit=int(options.get("limit") or 200),
                 include_faq=bool(options.get("include_faq")),
                 down_only=bool(options.get("down_only")),
+                min_score=float(options.get("min_score") or 0.0),
             )
             return
 
@@ -456,6 +468,7 @@ class Command(BaseCommand):
         limit: int,
         include_faq: bool,
         down_only: bool,
+        min_score: float = 0.0,
     ) -> None:
         embeddings_on = services.embeddings_enabled()
         default_k = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
@@ -506,18 +519,33 @@ class Command(BaseCommand):
 
         results = []
         covered = 0
+        weak = 0
         for text, origin in deduped:
             tokens = Counter(services._tokenize(text))
             ranked = services._select_chunk_indices(text, tokens, index)[:k]
             top = [{"source": index.chunks[i].source, "title": index.chunks[i].title} for i in ranked]
-            is_covered = any(self._is_curated_kb_chunk(c["source"]) for c in top)
+            # Score BM25 (lessicale) del MIGLIOR chunk KB curato tra i top-k: misura
+            # quanto il match e' davvero pertinente (vale anche in modalita' ibrida).
+            kb_score = None
+            for i in ranked:
+                if self._is_curated_kb_chunk(index.chunks[i].source):
+                    score = services._bm25_score(tokens, index.chunks[i], index.idf, index.avgdl)
+                    if kb_score is None or score > kb_score:
+                        kb_score = score
+            has_kb = kb_score is not None
+            is_covered = has_kb and kb_score >= min_score
+            is_weak = has_kb and not is_covered  # recupera un file KB ma sotto soglia
             if is_covered:
                 covered += 1
+            if is_weak:
+                weak += 1
             results.append(
                 {
                     "prompt": text,
                     "origin": origin,
                     "covered": is_covered,
+                    "weak": is_weak,
+                    "kb_score": round(kb_score, 2) if kb_score is not None else None,
                     "top_source": top[0]["source"] if top else None,
                     "top_title": top[0]["title"] if top else None,
                 }
@@ -529,10 +557,12 @@ class Command(BaseCommand):
             "mode": "rag-live",
             "embeddings_enabled": embeddings_on,
             "top_k": k,
+            "min_score": min_score,
             "source_paths": services._source_paths(),
             "evaluated": n,
             "covered": covered,
             "gaps": len(gaps),
+            "weak_gaps": weak,
             "coverage_pct": round(100.0 * covered / n, 1) if n else None,
             "down_only": down_only,
             "include_faq": include_faq,
@@ -547,7 +577,10 @@ class Command(BaseCommand):
             return
 
         mode = "ibrido BM25+semantico" if embeddings_on else "BM25"
-        self.stdout.write(f"RAG-LIVE: retrieval={mode} | top_k={k} | domande reali valutate={n}")
+        self.stdout.write(
+            f"RAG-LIVE: retrieval={mode} | top_k={k} | min_score={min_score} | "
+            f"domande reali valutate={n}"
+        )
         self.stdout.write(self._safe(f"sorgenti KB: {', '.join(services._source_paths())}"))
         if n == 0:
             self.stdout.write(
@@ -564,8 +597,16 @@ class Command(BaseCommand):
             )
         )
         for row in gaps:
-            self.stdout.write(self._safe(f"[GAP/{row['origin']}] {row['prompt'][:120]}"))
-            if row["top_source"]:
+            tag = "GAP-DEBOLE" if row["weak"] else "GAP"
+            self.stdout.write(self._safe(f"[{tag}/{row['origin']}] {row['prompt'][:120]}"))
+            if row["weak"]:
+                self.stdout.write(
+                    self._safe(
+                        f"        recupera (debole, score {row['kb_score']} < {min_score}): "
+                        f"{row['top_source']} > {row['top_title']}"
+                    )
+                )
+            elif row["top_source"]:
                 self.stdout.write(
                     self._safe(f"        recupera invece: {row['top_source']} > {row['top_title']}")
                 )
@@ -573,9 +614,10 @@ class Command(BaseCommand):
                 self.stdout.write("        recupera: (nessun chunk)")
         self.stdout.write("-" * 78)
         self.stdout.write(
-            f"Copertura KB curata: {covered}/{n} ({summary['coverage_pct']}%) | gap: {len(gaps)}"
+            f"Copertura KB curata: {covered}/{n} ({summary['coverage_pct']}%) | "
+            f"gap: {len(gaps)} (di cui deboli: {weak})"
         )
         self.stdout.write(
             "I gap sono candidati per nuovi contenuti KB o nuove golden (da curare a mano, "
-            "senza committare testo utente reale)."
+            "senza committare testo utente reale). Alza --min-score per scremare i match deboli."
         )
