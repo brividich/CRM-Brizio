@@ -121,6 +121,27 @@
   .gcm-legend { display: flex; gap: 14px; flex-wrap: wrap; color: #61748f; font-size: .78rem; align-items: center; }
   .gcm-legend span { display: inline-flex; align-items: center; gap: 5px; }
   .gcm-dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  /* modali (+ Aggiungi lavoro / AI) */
+  .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1000; padding-top: 6vh; }
+  .gcm-ov.open { display: flex; }
+  .gcm-modal { width: min(520px, 94vw); background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(12,37,69,.35); overflow: hidden; }
+  .gcm-modal h3 { margin: 0; padding: 14px 18px; background: var(--primary,#0c2545); color: #fff; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }
+  .gcm-modal h3 button { background: transparent; border: 0; color: #fff; font-size: 1.3rem; cursor: pointer; line-height: 1; }
+  .gcm-modal .body { padding: 16px 18px; display: grid; gap: 10px; }
+  .gcm-modal label { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #7a8ca6; font-weight: 800; display: block; margin-bottom: 3px; }
+  .gcm-modal input, .gcm-modal select { width: 100%; box-sizing: border-box; min-height: 36px; border: 1px solid #cdd9ea; border-radius: 8px; padding: 4px 8px; font-size: .9rem; }
+  .gcm-modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gcm-modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  .gcm-modal .actions button { min-height: 38px; padding: 8px 16px; border-radius: 9px; font-weight: 800; cursor: pointer; border: 1px solid #cdd9ea; background: #fff; }
+  .gcm-modal .actions .primary { background: var(--primary,#0c2545); color: #fff; border-color: var(--primary,#0c2545); }
+  .gcm-ai-res { display: grid; gap: 8px; }
+  .gcm-ai-spieg { background: #eef6ff; border: 1px solid #cfe0f1; border-radius: 10px; padding: 10px 12px; font-size: .9rem; color: #1f3559; line-height: 1.45; }
+  .gcm-ai-mac { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+  .gcm-ai-mac b { min-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gcm-ai-mac .bar { flex: 1; height: 8px; border-radius: 4px; background: #e8eef6; overflow: hidden; }
+  .gcm-ai-mac .bar i { display: block; height: 100%; background: var(--primary-mid,#1f87cd); }
+  .gcm-muted { color: #94a3b8; font-size: .82rem; }
 </style>
 {% endblock %}
 
@@ -139,6 +160,8 @@
       <a class="gcm-btn" href="?start={{ prev_start }}&giorni={{ giorni_n }}">‹ Prec.</a>
       <a class="gcm-btn" href="?giorni={{ giorni_n }}">Oggi</a>
       <a class="gcm-btn" href="?start={{ next_start }}&giorni={{ giorni_n }}">Succ. ›</a>
+      <button type="button" id="gcm-add-btn" class="gcm-btn" style="background:var(--primary-mid,#1f87cd);color:#fff;border-color:var(--primary-mid,#1f87cd);">+ Aggiungi lavoro</button>
+      <button type="button" id="gcm-ai-btn" class="gcm-btn" title="Suggerimento e spiegazione AI">🔮 AI</button>
     </nav>
   </header>
 
@@ -169,7 +192,7 @@
           </tr>
           {% for riga in sez.righe %}
             <tr class="{% if riga.turno == 'notte' %}gcm-notte{% endif %}{% if riga.ferma %} gcm-ferma{% endif %}">
-              <th class="gcm-mac">
+              <th class="gcm-mac"{% if riga.turno != 'notte' %} data-mid="{{ riga.macchina.id }}" data-mcod="{{ riga.macchina.codice }}"{% endif %}>
                 {% if riga.turno == 'notte' %}
                   <span class="gcm-turno">↳ notturno</span>
                 {% else %}
@@ -197,4 +220,108 @@
 <datalist id="gcm-famiglie">
   {% for nome in famiglie %}<option value="{{ nome }}"></option>{% endfor %}
 </datalist>
+
+{# ── Modale: + Aggiungi lavoro (come nel foglio Excel) ── #}
+<div class="gcm-ov" id="gcm-add-ov">
+  <div class="gcm-modal">
+    <h3>+ Aggiungi lavoro <button type="button" data-close aria-label="Chiudi">&times;</button></h3>
+    <div class="body">
+      <div><label>Macchina</label><select id="gcm-add-mac"></select></div>
+      <div class="row2">
+        <div><label>Data</label><input type="date" id="gcm-add-data" value="{{ oggi|date:'Y-m-d' }}"></div>
+        <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">Giorno</option><option value="notte">Notte</option></select></div>
+      </div>
+      <div><label>Lavoro (testo libero)</label><input id="gcm-add-testo" list="gcm-famiglie" placeholder="es. 8 gimbal (33h)"></div>
+      <div class="row2">
+        <div><label>Quantità (pz)</label><input type="number" min="0" id="gcm-add-qta"></div>
+        <div><label>Ore</label><input type="number" min="0" step="0.5" id="gcm-add-ore"></div>
+      </div>
+      <div class="actions">
+        <button type="button" data-close>Annulla</button>
+        <button type="button" class="primary" id="gcm-add-save">Aggiungi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Modale: 🔮 Suggerimento AI (predizione + spiegazione LLM) ── #}
+<div class="gcm-ov" id="gcm-ai-ov">
+  <div class="gcm-modal">
+    <h3>🔮 Suggerimento AI <button type="button" data-close aria-label="Chiudi">&times;</button></h3>
+    <div class="body">
+      <div><label>Famiglia / pezzo</label><input id="gcm-ai-fam" list="gcm-famiglie" placeholder="es. gimbal"></div>
+      <div class="actions"><button type="button" class="primary" id="gcm-ai-ask">Chiedi all'AI</button></div>
+      <div class="gcm-ai-res" id="gcm-ai-res"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  function csrf() { var m = document.querySelector("meta[name='csrf-token']"); return m ? m.getAttribute('content') : ''; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }); }
+  function openOv(id) { var o = document.getElementById(id); if (o) o.classList.add('open'); }
+  document.querySelectorAll('.gcm-ov').forEach(function (o) {
+    o.addEventListener('click', function (e) { if (e.target === o || e.target.closest('[data-close]')) o.classList.remove('open'); });
+  });
+
+  // ── + Aggiungi lavoro: popola macchine dalla tabella, crea via cella_edit ──
+  var addBtn = document.getElementById('gcm-add-btn');
+  var macSel = document.getElementById('gcm-add-mac');
+  if (addBtn && macSel) {
+    document.querySelectorAll('th.gcm-mac[data-mid]').forEach(function (th) {
+      var op = document.createElement('option');
+      op.value = th.getAttribute('data-mid');
+      op.textContent = th.getAttribute('data-mcod');
+      macSel.appendChild(op);
+    });
+    addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); });
+    document.getElementById('gcm-add-save').addEventListener('click', function () {
+      var testo = document.getElementById('gcm-add-testo').value.trim();
+      var mid = macSel.value, data = document.getElementById('gcm-add-data').value;
+      var turno = document.getElementById('gcm-add-turno').value;
+      if (!mid || !data || !testo) { alert('Compila macchina, data e lavoro.'); return; }
+      var body = new URLSearchParams({
+        macchina: mid, turno: turno, data: data, testo: testo,
+        qta: document.getElementById('gcm-add-qta').value,
+        ore: document.getElementById('gcm-add-ore').value, stato: 'pianificata', fase: ''
+      });
+      fetch("{% url 'gestione_carichi_macchina:cella_edit' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: body.toString()
+      }).then(function (r) { if (!r.ok) throw 0; return r.text(); })
+        .then(function () { window.location.reload(); })
+        .catch(function () { alert('Errore nel salvataggio del lavoro.'); });
+    });
+  }
+
+  // ── 🔮 AI: predizione macchina + spiegazione LLM (api/spiega-macchina) ──
+  var aiBtn = document.getElementById('gcm-ai-btn');
+  if (aiBtn) {
+    aiBtn.addEventListener('click', function () { openOv('gcm-ai-ov'); });
+    document.getElementById('gcm-ai-ask').addEventListener('click', function () {
+      var fam = document.getElementById('gcm-ai-fam').value.trim();
+      var res = document.getElementById('gcm-ai-res');
+      if (!fam) { res.innerHTML = '<div class="gcm-muted">Indica una famiglia.</div>'; return; }
+      res.innerHTML = '<div class="gcm-muted">Sto chiedendo all\'AI…</div>';
+      fetch("{% url 'gestione_carichi_macchina:api_spiega_macchina' %}?famiglia=" + encodeURIComponent(fam),
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d || !d.ok) { res.innerHTML = '<div class="gcm-muted">' + esc((d && d.error) || 'Famiglia non trovata.') + '</div>'; return; }
+          var html = '';
+          (d.suggerimenti || []).forEach(function (s) {
+            var pct = Math.round((s.prob || 0) * 100);
+            html += '<div class="gcm-ai-mac"><b>' + esc(s.codice) + '</b><div class="bar"><i style="width:' + pct + '%"></i></div><span>' + pct + '%</span></div>';
+          });
+          if (d.spiegazione) html += '<div class="gcm-ai-spieg">' + esc(d.spiegazione) + '</div>';
+          else html += '<div class="gcm-muted">Spiegazione AI non disponibile (LLM offline): mostrati i dati storici.</div>';
+          res.innerHTML = html || '<div class="gcm-muted">Nessun dato storico per questa famiglia.</div>';
+        }).catch(function () { res.innerHTML = '<div class="gcm-muted">Errore di rete.</div>'; });
+    });
+  }
+})();
+</script>
 {% endblock %}
