@@ -103,6 +103,20 @@ class ViewsTest(TestCase):
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(r2.content.decode().strip(), "")
 
+    def test_excel_turni_flag_mostra_righe_turno(self):
+        self.client.force_login(self.user)
+        self.m.ha_secondo_turno = True
+        self.m.ha_turno_notte = True
+        self.m.save()
+        # Default (collassato): nessuna sotto-riga per turno.
+        r0 = self.client.get(self.url_excel).content.decode()
+        self.assertNotIn("↳ 2° turno", r0)
+        self.assertNotIn("↳ notturno", r0)
+        # Con ?turni=1: sotto-righe 2° turno e notturno.
+        r1 = self.client.get(self.url_excel, {"turni": "1"}).content.decode()
+        self.assertIn("↳ 2° turno", r1)
+        self.assertIn("↳ notturno", r1)
+
     @override_settings(OLLAMA_CHAT_ENABLED=False)
     def test_api_spiega_macchina_failsafe(self):
         from .models import FamigliaPezzo, MacchinaFamigliaAffinita

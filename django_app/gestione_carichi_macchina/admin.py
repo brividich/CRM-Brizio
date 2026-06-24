@@ -15,8 +15,9 @@ from .models import (
 
 @admin.register(Macchina)
 class MacchinaAdmin(admin.ModelAdmin):
-    list_display = ("codice", "descrizione", "categoria", "attacco", "stato_pianificazione", "attivo")
-    list_filter = ("categoria", "attacco", "stato_pianificazione", "attivo", "ha_turno_notte")
+    list_display = ("codice", "descrizione", "categoria", "attacco", "stato_pianificazione", "ha_secondo_turno", "ha_turno_notte", "attivo")
+    list_editable = ("ha_secondo_turno", "ha_turno_notte")
+    list_filter = ("categoria", "attacco", "stato_pianificazione", "attivo", "ha_turno_notte", "ha_secondo_turno")
     search_fields = ("asset__asset_tag", "asset__name")
     raw_id_fields = ("asset",)
 

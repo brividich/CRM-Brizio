@@ -157,9 +157,12 @@
         <a class="active" href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Excel</a>
         <a href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Gantt</a>
       </span>
-      <a class="gcm-btn" href="?start={{ prev_start }}&giorni={{ giorni_n }}">‹ Prec.</a>
-      <a class="gcm-btn" href="?giorni={{ giorni_n }}">Oggi</a>
-      <a class="gcm-btn" href="?start={{ next_start }}&giorni={{ giorni_n }}">Succ. ›</a>
+      <a class="gcm-btn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">‹ Prec.</a>
+      <a class="gcm-btn" href="?giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Oggi</a>
+      <a class="gcm-btn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if mostra_turni %}&turni=1{% endif %}">Succ. ›</a>
+      <a class="gcm-btn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if not mostra_turni %}&turni=1{% endif %}"
+         title="Mostra/nascondi le righe per turno (1° / 2° / notturno)"
+         {% if mostra_turni %}style="background:var(--primary,#0c2545);color:#fff;border-color:var(--primary,#0c2545);"{% endif %}>Turni{% if mostra_turni %}: ON{% endif %}</a>
       <button type="button" id="gcm-add-btn" class="gcm-btn" style="background:var(--primary-mid,#1f87cd);color:#fff;border-color:var(--primary-mid,#1f87cd);">+ Aggiungi lavoro</button>
       <button type="button" id="gcm-ai-btn" class="gcm-btn" title="Suggerimento e spiegazione AI">🔮 AI</button>
     </nav>
@@ -191,13 +194,14 @@
             <th colspan="{{ giorni_n|add:1 }}">{{ sez.label }}</th>
           </tr>
           {% for riga in sez.righe %}
-            <tr class="{% if riga.turno == 'notte' %}gcm-notte{% endif %}{% if riga.ferma %} gcm-ferma{% endif %}">
-              <th class="gcm-mac"{% if riga.turno != 'notte' %} data-mid="{{ riga.macchina.id }}" data-mcod="{{ riga.macchina.codice }}"{% endif %}>
-                {% if riga.turno == 'notte' %}
-                  <span class="gcm-turno">↳ notturno</span>
+            <tr class="{% if riga.sub %}gcm-notte{% endif %}{% if riga.ferma %} gcm-ferma{% endif %}">
+              <th class="gcm-mac"{% if not riga.sub %} data-mid="{{ riga.macchina.id }}" data-mcod="{{ riga.macchina.codice }}"{% endif %}>
+                {% if riga.sub %}
+                  <span class="gcm-turno">↳ {{ riga.turno_label }}</span>
                 {% else %}
                   {{ riga.macchina.codice }}
                   <small>{{ riga.macchina.descrizione|truncatechars:28 }}</small>
+                  {% if mostra_turni %}<span class="gcm-turno" style="font-size:.62rem">· 1° turno</span>{% endif %}
                 {% endif %}
               </th>
               {% for cella in riga.celle %}
@@ -229,7 +233,7 @@
       <div><label>Macchina</label><select id="gcm-add-mac"></select></div>
       <div class="row2">
         <div><label>Data</label><input type="date" id="gcm-add-data" value="{{ oggi|date:'Y-m-d' }}"></div>
-        <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">Giorno</option><option value="notte">Notte</option></select></div>
+        <div><label>Turno</label><select id="gcm-add-turno"><option value="giorno">1° turno</option><option value="t2">2° turno</option><option value="notte">Notturno</option></select></div>
       </div>
       <div><label>Lavoro (testo libero)</label><input id="gcm-add-testo" list="gcm-famiglie" placeholder="es. 8 gimbal (33h)"></div>
       <div class="row2">

@@ -191,6 +191,10 @@ def vista_excel(request):
         by_cat[m.categoria].append(m)
 
     cat_label = dict(Macchina.CATEGORIA_CHOICES)
+    # Flag di visualizzazione turni: OFF (default) = una riga per macchina (look familiare,
+    # tutti i turni uniti); ON = righe separate 1° turno / 2° turno / notturno (solo quelli
+    # che la macchina ha). Spostare un lavoro su una riga turno non tocca gli altri turni.
+    mostra_turni = request.GET.get("turni") == "1"
     sezioni = []
     for cat in _CAT_ORDER:
         ms = by_cat.get(cat)
@@ -198,21 +202,39 @@ def vista_excel(request):
             continue
         righe = []
         for m in ms:
-            turni = ["giorno"] + (["notte"] if m.ha_turno_notte else [])
             ferma = m.stato_pianificazione != Macchina.STATO_ATTIVA
-            for turno in turni:
-                celle = []
+
+            def _celle(turni_inclusi):
+                out = []
                 for g in giorni:
-                    jobs = lookup.get((m.id, turno, g), [])
-                    celle.append({
-                        "data": g,
-                        "data_iso": g.isoformat(),
-                        "jobs": [_job_ctx(j, oggi) for j in jobs],
-                        "oggi": g == oggi,
+                    jobs = []
+                    for t in turni_inclusi:
+                        jobs += lookup.get((m.id, t, g), [])
+                    out.append({
+                        "data": g, "data_iso": g.isoformat(),
+                        "jobs": [_job_ctx(j, oggi) for j in jobs], "oggi": g == oggi,
                     })
+                return out
+
+            if mostra_turni:
+                seq = [(Pianificazione.TURNO_GIORNO, "1° turno", False)]
+                if m.ha_secondo_turno:
+                    seq.append((Pianificazione.TURNO_T2, "2° turno", True))
+                if m.ha_turno_notte:
+                    seq.append((Pianificazione.TURNO_NOTTE, "notturno", True))
+                for turno, label, sub in seq:
+                    righe.append({
+                        "macchina": m, "turno": turno, "turno_label": label, "sub": sub,
+                        "celle": _celle([turno]), "ferma": ferma,
+                    })
+            else:
+                # Collassata: una sola riga con i lavori di tutti i turni del giorno.
                 righe.append({
-                    "macchina": m, "turno": turno, "celle": celle,
-                    "ferma": ferma,
+                    "macchina": m, "turno": Pianificazione.TURNO_GIORNO, "turno_label": "",
+                    "sub": False, "ferma": ferma,
+                    "celle": _celle([
+                        Pianificazione.TURNO_GIORNO, Pianificazione.TURNO_T2, Pianificazione.TURNO_NOTTE,
+                    ]),
                 })
         sezioni.append({"categoria": cat, "label": cat_label.get(cat, cat), "righe": righe})
 
@@ -228,6 +250,7 @@ def vista_excel(request):
         "prev_start": _inizio_finestra_prec(start, giorni_n).isoformat(),
         "next_start": (fine + timedelta(days=1)).isoformat(),
         "famiglie": famiglie,
+        "mostra_turni": mostra_turni,
         "stato_choices": Pianificazione.STATO_CHOICES,
         "fase_choices": Pianificazione.FASE_CHOICES,
     }

@@ -67,6 +67,9 @@ class Macchina(models.Model):
     attacco = models.CharField(max_length=8, choices=ATTACCO_CHOICES, default=ATTACCO_NA)
     n_assi = models.PositiveSmallIntegerField(null=True, blank=True)
     ha_turno_notte = models.BooleanField(default=False)
+    ha_secondo_turno = models.BooleanField(
+        default=False, help_text="Secondo turno di giorno (T2): non tutte le macchine lo hanno."
+    )
     ore_giorno_disponibili = models.DecimalField(
         max_digits=4, decimal_places=1, default=Decimal("8.0")
     )
@@ -350,11 +353,13 @@ class Pianificazione(models.Model):
     stato (workflow) e fase (lavorazione) sono DUE dimensioni ortogonali, campi distinti.
     """
 
-    TURNO_GIORNO = "giorno"
+    TURNO_GIORNO = "giorno"  # 1° turno (giorno)
+    TURNO_T2 = "t2"          # 2° turno (giorno)
     TURNO_NOTTE = "notte"
     TURNO_CHOICES = [
-        (TURNO_GIORNO, "Giorno"),
-        (TURNO_NOTTE, "Notte"),
+        (TURNO_GIORNO, "1° turno"),
+        (TURNO_T2, "2° turno"),
+        (TURNO_NOTTE, "Notturno"),
     ]
 
     STATO_PIANIFICATA = "pianificata"
