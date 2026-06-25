@@ -14,7 +14,7 @@
 ![IIS](https://img.shields.io/badge/Runtime-Waitress%20%2B%20IIS-0078D4?style=flat-square&logo=microsoft&logoColor=white)
 ![Graph](https://img.shields.io/badge/Integration-Microsoft%20Graph-2563eb?style=flat-square&logo=microsoft&logoColor=white)
 ![LDAP](https://img.shields.io/badge/Auth-LDAP%20%2B%20Django%20%2B%20Legacy-6B7280?style=flat-square)
-![Modules](https://img.shields.io/badge/Moduli-25%2B-16A34A?style=flat-square)
+![Modules](https://img.shields.io/badge/Moduli-27-16A34A?style=flat-square)
 
 [Start here](doc/START_HERE.md) · [Manuale tecnico GitHub](doc/README.md) · [Architettura](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md) · [Testing](doc/TESTING.md) · [Deploy IIS](deployment/README_DEPLOY_IIS_WINDOWS.md) · [ACL v2](doc/ACL_V2_PERMISSION_GUIDE.md)
 
@@ -53,7 +53,7 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 
 | | |
 |---|---|
-| 🧩 **25 app Django custom** | raggruppate per area funzionale |
+| 🧩 **27 app Django custom** | raggruppate per area funzionale |
 | 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
 | 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
 | 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
@@ -134,7 +134,7 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
-### Tutti i 25 moduli custom a colpo d'occhio
+### Tutti i 27 moduli custom a colpo d'occhio
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
