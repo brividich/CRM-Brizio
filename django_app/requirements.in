@@ -6,7 +6,7 @@ Django>=5.2,<6.0
 waitress>=3.0,<4                # WSGI server per IIS via HttpPlatformHandler
 
 # --- Database ---
-mssql-django==1.6               # backend SQL Server; versione fissa per compat pyodbc
+mssql-django==1.7.3               # backend SQL Server; versione fissa per compat pyodbc
 pyodbc>=5.2.0                   # driver ODBC; 5.2+ richiesto per Python 3.11 su Windows
 
 # --- Auth / Identity ---
