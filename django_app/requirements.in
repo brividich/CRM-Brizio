@@ -16,7 +16,7 @@ pyspnego>=0.10                  # SPNEGO/Kerberos SSO (NTLM/Negotiate)
 django-axes>=7.0,<8             # rate-limiting login + lockout
 
 # --- HTTP / TLS ---
-requests>=2.31.0                # chiamate Graph/SharePoint
+requests>=2.34.2                # chiamate Graph/SharePoint
 pyOpenSSL>=25.1.0,<26             # TLS per ldap3 e pyspnego
 
 # --- Microsoft Graph / Office ---

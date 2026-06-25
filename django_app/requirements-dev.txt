@@ -4,6 +4,8 @@
 #
 #    pip-compile --annotation-style=line --output-file=requirements-dev.txt --strip-extras requirements-dev.in
 #
+annotated-types==0.7.0
+    # via pydantic
 asgiref==3.11.1
     # via
     #   django
@@ -27,6 +29,8 @@ click==8.3.3
     # via pip-tools
 coverage==7.13.5
     # via pytest-cov
+croniter==6.2.2
+    # via -r requirements.in
 cryptography==44.0.3
     # via
     #   msal
@@ -40,21 +44,30 @@ django==5.2.13
     #   -r requirements.in
     #   django-axes
     #   django-extensions
+    #   django-fsm-2
     #   django-htmx
+    #   django-ninja
     #   django-picklefield
     #   django-q2
+    #   django-stubs-ext
     #   model-bakery
     #   mssql-django
 django-axes==7.1.0
     # via -r requirements.in
 django-extensions==4.1
     # via -r requirements.in
+django-fsm-2==4.2.4
+    # via -r requirements.in
 django-htmx==1.27.0
+    # via -r requirements.in
+django-ninja==1.6.2
     # via -r requirements.in
 django-picklefield==3.4.0
     # via django-q2
 django-q2==1.9.0
     # via -r requirements.in
+django-stubs-ext==6.0.6
+    # via django-fsm-2
 et-xmlfile==2.0.0
     # via openpyxl
 factory-boy==3.3.3
@@ -111,12 +124,18 @@ pyasn1==0.6.3
     # via ldap3
 pycparser==3.0
     # via cffi
+pydantic==2.13.4
+    # via django-ninja
+pydantic-core==2.46.4
+    # via pydantic
 pygments==2.20.0
     # via pytest
 pyjwt==2.12.1
     # via
     #   msal
     #   pyjwt
+pymupdf==1.27.2.3
+    # via -r requirements.in
 pyodbc==5.3.0
     # via
     #   -r requirements.in
@@ -139,6 +158,8 @@ pytest-cov==7.1.0
     # via -r requirements-dev.in
 pytest-django==4.12.0
     # via -r requirements-dev.in
+python-dateutil==2.9.0.post0
+    # via croniter
 python-discovery==1.2.2
     # via virtualenv
 python-magic==0.4.27 ; platform_system != "Windows"
@@ -151,14 +172,24 @@ qrcode==8.2
     # via -r requirements.in
 reportlab==4.4.10
     # via -r requirements.in
-requests==2.33.1
+requests==2.34.2
     # via
     #   -r requirements.in
     #   msal
 ruff==0.15.15
     # via -r requirements-dev.in
+six==1.17.0
+    # via python-dateutil
 sqlparse==0.5.5
     # via django
+typing-extensions==4.15.0
+    # via
+    #   django-stubs-ext
+    #   pydantic
+    #   pydantic-core
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via pydantic
 urllib3==2.6.3
     # via requests
 virtualenv==21.2.4
