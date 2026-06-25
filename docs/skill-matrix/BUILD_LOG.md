@@ -329,6 +329,31 @@ regola di sospensione gira su dati assenti (no-op) ed è testata su fixtures.
 **Test:** `anagrafica.tests_skillmatrix_continuita` → **6 passed** (persa→sospende, dry-run,
 idempotenza, recupero→riattiva, no-riattiva-altre-origini, seed CND-PT). Suite skill-matrix **58 verdi**.
 
+## F6 — Refresh semestrale (CAR)  ✅ (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/services/skillmatrix_refresh.py` (nuovo).
+- `django_app/anagrafica/views.py` — view `skm_refresh`.
+- `django_app/anagrafica/urls.py` — `path("skill-matrix/refresh/", …)`.
+- `django_app/anagrafica/templates/anagrafica/pages/skm_refresh.html` (nuovo).
+- `django_app/anagrafica/migrations/0074_subnav_skill_matrix_refresh.py` (nuovo) — voce di menu.
+- `django_app/anagrafica/tests_skillmatrix_refresh.py` (nuovo) — 12 test.
+- `django_app/anagrafica/tests_skillmatrix.py` — fix collisione `CND-PT` col seed F5 (→ `CND-PT-TEST`).
+
+**Pagina** `/anagrafica/skill-matrix/refresh/` (guard `_check_hr_permission`): selezione
+reparto → **① rivaluta** le abilitazioni in lista (conferma/aggiorna livello, oppure rimuovi)
+e **② aggiunta manuale** (legacy id + macchina + livello). Servizio `skillmatrix_refresh`:
+`apri_campagna` (CampagnaRefresh, idempotente, è solo l'innesco), `abilitazioni_reparto`,
+`applica_refresh` (scrive scatti storico **fonte refresh** e sposta `prossima_revisione` di
+`periodicita_refresh_mesi`; `--dry-run` via `apply=False`), `aggiungi_abilitazione`,
+`arretrati_reparto`. Arretrato (revisione scaduta) **visibile, non bloccante**. Merito = CAR
+(lo scoping stretto per reparto-del-CAR è una rifinitura ACL successiva). Voce di menu
+"Refresh semestrale" nel gruppo Skill Matrix (migration `0074`).
+
+**Test:** `anagrafica.tests_skillmatrix_refresh` → **12 passed** (campagna idempotente,
+abilitazioni reparto, conferma/modifica/rimuovi, aggiunta manuale, livello invalido, dry-run,
+view GET/POST, accesso negato, voce menu). Suite skill-matrix totale **70 verdi**.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
@@ -338,7 +363,7 @@ idempotenza, recupero→riattiva, no-riattiva-altre-origini, seed CND-PT). Suite
 - [x] F3 Resolver bridge read-only (9 test) — punto d'aggancio Fase B carichi macchina
 - [x] F4 Matrice macchina UI + tab (`/anagrafica/skill-matrix/`, 5 test) — vuota finché F2b non importa la baseline
 - [~] F5 Continuità operativa — **regola sospensione + seed CND-PT fatti (6 test)**; STOP: sorgente produzione `ultima_esecuzione` da approvare/cablare
-- [ ] F6 Refresh semestrale (CAR)
+- [x] F6 Refresh semestrale (CAR) — pagina `/anagrafica/skill-matrix/refresh/` + servizio (12 test)
 - [~] F7 ACL + navigazione — **voci di menu fatte** (migration 0072, sotto Competenze/Skill Matrix); ACL formale opzionale (view già gated da `_check_hr_permission`)
 - [ ] F8 Hardening test
 - [ ] F9 Chiusura

@@ -114,8 +114,9 @@ class SkillMatrixModelTests(TestCase):
 
     # ── Continuità ───────────────────────────────────────────────────────────
     def test_continuita_stati(self):
+        # NB: "CND-PT" è seminato dalla migration 0073 → uso un nome dedicato al test.
         proc = ProcessoCriticoContinuita.objects.create(
-            nome="CND-PT", finestra_mesi=12, preavviso_mesi=9,
+            nome="CND-PT-TEST", finestra_mesi=12, preavviso_mesi=9,
         )
         cont = ContinuitaOperativa.objects.create(legacy_anagrafica_id=1, processo=proc)
         oggi = date(2026, 6, 25)

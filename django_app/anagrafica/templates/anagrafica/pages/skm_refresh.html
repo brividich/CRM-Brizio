@@ -1,0 +1,126 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Refresh semestrale — Skill Matrix MOD.187{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.rf-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:6px 0 16px; }
+.rf-toolbar select, .rf-toolbar input { padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; }
+.rf-card { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:14px 16px; margin-bottom:16px; }
+.rf-card h3 { margin:0 0 4px; font-size:14px; color:#0c2545; }
+.rf-card .sub { color:#64748b; font-size:12px; margin:0 0 12px; }
+.rf-table { border-collapse:collapse; width:100%; font-size:13px; }
+.rf-table th, .rf-table td { border-bottom:1px solid #eef2f7; padding:7px 9px; text-align:left; vertical-align:middle; }
+.rf-table thead th { background:#0c2545; color:#fff; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.rf-table tbody tr:hover { background:#f8fafc; }
+.rf-sel { padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; }
+.rf-arr { display:inline-block; margin-left:6px; font-size:10.5px; font-weight:800; color:#b45309; background:#fef3c7; border-radius:5px; padding:1px 6px; }
+.rf-empty { text-align:center; padding:40px 16px; color:#475569; }
+.rf-chip { border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:700; color:#475569; background:#fff; }
+.rf-chip b { color:#0c2545; }
+.rf-chip.warn { border-color:#fcd34d; background:#fef9c3; color:#854d0e; }
+.rf-add { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.rf-add label { font-size:11px; font-weight:700; color:#64748b; display:block; margin-bottom:3px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
+        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+      </div>
+      <h2 class="hr-pagehead-title">🔁 Refresh semestrale abilitazioni</h2>
+      <p class="hr-pagehead-desc">Rivalutazione periodica delle abilitazioni macchina del reparto (merito del CAR). Conferma, modifica o rimuovi; ogni azione registra uno scatto nello storico.</p>
+    </div>
+    <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
+  </div>
+
+  <form method="get" class="rf-toolbar">
+    <label style="font-size:12px;color:#64748b;font-weight:700;">Reparto</label>
+    <select name="reparto" onchange="this.form.submit()">
+      <option value="">— scegli un reparto —</option>
+      {% for r in reparti %}<option value="{{ r }}" {% if r == reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    {% if reparto %}
+      <span class="rf-chip">In lista <b>{{ totale }}</b></span>
+      <span class="rf-chip {% if arretrati %}warn{% endif %}">Arretrati <b>{{ arretrati }}</b></span>
+      {% if campagna %}<span class="rf-chip">Campagna aperta dal <b>{{ campagna.periodo_inizio }}</b></span>{% endif %}
+    {% endif %}
+  </form>
+
+  {% if not reparto %}
+    <div class="rf-empty">Seleziona un reparto per avviare la rivalutazione.</div>
+  {% else %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="reparto" value="{{ reparto }}">
+
+    <div class="rf-card">
+      <h3>① Abilitazioni in lista — rivaluta</h3>
+      <p class="sub">«Conferma» mantiene/aggiorna al livello scelto; «Rimuovi» toglie dalla lista. Tutto registra uno scatto datato.</p>
+      {% if righe %}
+      <table class="rf-table">
+        <thead><tr><th>Dipendente</th><th>Macchina</th><th>Livello</th><th>Azione</th></tr></thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td>{{ r.nome }}{% if r.arretrata %}<span class="rf-arr">arretrata</span>{% endif %}</td>
+            <td>{{ r.ab.asset.name }} <span style="color:#94a3b8;">({{ r.ab.asset.asset_tag }})</span></td>
+            <td>
+              <select class="rf-sel" name="livello_{{ r.ab.id }}">
+                {% for code, label in livelli %}<option value="{{ code }}" {% if code == r.ab.livello %}selected{% endif %}>{{ code }} — {{ label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select class="rf-sel" name="azione_{{ r.ab.id }}">
+                <option value="conferma">Conferma / aggiorna</option>
+                <option value="rimuovi">Rimuovi dalla lista</option>
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <div class="rf-empty">Nessuna abilitazione in lista per questo reparto (la baseline non è ancora stata importata).</div>
+      {% endif %}
+    </div>
+
+    <div class="rf-card">
+      <h3>② Aggiunta manuale</h3>
+      <p class="sub">Aggiungi un'abilitazione non presente in lista (legacy id del dipendente, macchina del reparto, livello).</p>
+      <div class="rf-add">
+        <div><label>Legacy id dipendente</label><input type="number" name="nuovo_legacy" placeholder="es. 1234"></div>
+        <div><label>Macchina</label>
+          <select class="rf-sel" name="nuovo_asset">
+            <option value="">—</option>
+            {% for m in macchine_reparto %}<option value="{{ m.asset_id }}">{{ m.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Livello</label>
+          <select class="rf-sel" name="nuovo_livello">
+            <option value="">—</option>
+            {% for code, label in livelli %}<option value="{{ code }}">{{ code }} — {{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button type="submit" class="hr-btn hr-btn-primary">💾 Salva refresh</button>
+      <span style="color:#94a3b8;font-size:12px;">Le modifiche spostano la prossima revisione in avanti e scrivono lo storico.</span>
+    </div>
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}

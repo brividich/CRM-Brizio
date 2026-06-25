@@ -13417,6 +13417,104 @@ def skill_matrix_macchina(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Skill Matrix MOD.187 — refresh semestrale CAR (F6)
+# ---------------------------------------------------------------------------
+
+@login_required
+def skm_refresh(request):
+    """Schermata CAR di **refresh semestrale** delle abilitazioni macchina.
+
+    ① Rivaluta le abilitazioni in lista del reparto (conferma invariato / modifica
+    livello / rimuovi); ② aggiunge nuove abilitazioni. Ogni azione scrive uno
+    scatto in ``AbilitazioneMacchinaStorico`` (fonte ``refresh``) e sposta in avanti
+    ``prossima_revisione``. Arretrato visibile, non bloccante.
+
+    Accesso: ``_check_hr_permission`` (lo scoping per CAR sul proprio reparto è una
+    rifinitura successiva). Merito = CAR; la campagna è solo l'innesco.
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per il refresh Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from django.utils import timezone
+    from .models import CampagnaRefresh, CompetenzaSkm, LivelloSkm
+    from .services import skillmatrix_refresh as refresh
+
+    reparto = (request.GET.get("reparto") or request.POST.get("reparto") or "").strip()
+
+    comp = list(
+        CompetenzaSkm.objects
+        .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
+        .select_related("asset")
+    )
+    reparti = sorted({(c.asset.reparto or "").strip() for c in comp if (c.asset.reparto or "").strip()})
+    macchine_reparto = [
+        {"asset_id": c.asset_id, "label": f"{c.competenza_key} — {c.asset.name}"}
+        for c in comp if reparto and (c.asset.reparto or "").strip() == reparto
+    ]
+
+    if request.method == "POST" and reparto:
+        camp = refresh.apri_campagna(reparto, avviatore_ruolo=(request.POST.get("avviatore_ruolo") or "").strip())
+        decisioni = {}
+        for k, v in request.POST.items():
+            if k.startswith("azione_"):
+                ab_id = k[len("azione_"):]
+                decisioni[ab_id] = {"azione": v, "livello": request.POST.get(f"livello_{ab_id}", "")}
+        stats = refresh.applica_refresh(reparto=reparto, decisioni=decisioni, campagna=camp)
+        # ② aggiunta manuale (facoltativa).
+        nl = (request.POST.get("nuovo_legacy") or "").strip()
+        na = (request.POST.get("nuovo_asset") or "").strip()
+        nlv = (request.POST.get("nuovo_livello") or "").strip()
+        agg = 0
+        if nl and na and nlv:
+            try:
+                refresh.aggiungi_abilitazione(
+                    legacy_anagrafica_id=int(nl), asset_id=int(na), livello=nlv)
+                agg = 1
+            except (ValueError, TypeError):
+                messages.warning(request, "Aggiunta manuale non valida (legacy id / asset / livello).")
+        messages.success(
+            request,
+            f"Refresh salvato: {stats['confermate']} confermate, {stats['modificate']} modificate, "
+            f"{stats['rimosse']} rimosse" + (f", {agg} aggiunta." if agg else "."),
+        )
+        return redirect(f"{reverse('anagrafica:skm_refresh')}?reparto={reparto}")
+
+    oggi = timezone.localdate()
+    abil = list(refresh.abilitazioni_reparto(reparto)) if reparto else []
+    dip_map: dict[int, dict] = {}
+    if abil:
+        try:
+            dip_map = {int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")}
+        except Exception:
+            logger.warning("Skill Matrix refresh: anagrafica legacy non disponibile", exc_info=True)
+
+    def _nome(lid):
+        d = dip_map.get(lid, {})
+        return f"{str(d.get('cognome') or '').strip()} {str(d.get('nome') or '').strip()}".strip() or f"ID {lid}"
+
+    righe = [{
+        "ab": a, "nome": _nome(a.legacy_anagrafica_id),
+        "arretrata": bool(a.prossima_revisione and a.prossima_revisione < oggi),
+    } for a in abil]
+    campagna = (
+        CampagnaRefresh.objects.filter(reparto=reparto, stato=CampagnaRefresh.STATO_APERTA).first()
+        if reparto else None
+    )
+
+    return render(request, "anagrafica/pages/skm_refresh.html", {
+        "reparto": reparto,
+        "reparti": reparti,
+        "righe": righe,
+        "macchine_reparto": macchine_reparto,
+        "campagna": campagna,
+        "arretrati": sum(1 for r in righe if r["arretrata"]),
+        "livelli": LivelloSkm.choices,
+        "totale": len(righe),
+    })
+
+
 @login_required
 def conformita_report(request):
     """Elenco conformità di tutti i dipendenti attivi (semaforo per dominio).
