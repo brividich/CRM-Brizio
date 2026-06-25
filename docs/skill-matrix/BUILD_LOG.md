@@ -173,6 +173,34 @@ e si sceglie *Conferma* / *Escludi* / *Da validare*; «Salva» persiste su
 **Esito:** seed dev → 84 voci (42 macchine: 18 esatti/14 parziali/10 assenti, 18 confermati),
 41 processi, 1 contatore. Test `anagrafica.tests_skillmatrix*` → **31 passed**. `check` pulito.
 
+## F2a — Codici asset dall'ambiente target (export read-only + match offline)  ⛔ GATE attivo (2026-06-25)
+
+> Richiesta utente: «prendiamo i codici degli asset dal server prod». Da una
+> macchina di sviluppo NON ci si collega al DB di prod (serve `.env`/credenziali
+> prod, è un confine di sicurezza). Gli asset (tag/nome/tipo) **non** sono dati
+> personali → si "prendono i codici" con un export sola lettura, da rigiocare
+> offline nel matcher.
+
+**File toccati:**
+- `django_app/anagrafica/management/commands/skm_export_assets.py` (nuovo) — export **sola lettura**
+  dei soli metadati asset (`id, asset_tag, internal_number, name, asset_type`) in CSV.
+- `django_app/anagrafica/management/commands/skm_asset_match_report.py` — opzione **`--assets-csv`**
+  (match OFFLINE dal CSV, DB non letto) + fallback al catalogo impacchettato
+  `skillmatrix_catalogo.CATALOGO_MOD187` quando manca il CSV in `docs/` (eseguibile anche in prod).
+- `django_app/anagrafica/tests_skillmatrix_export.py` (nuovo) — 3 test.
+
+**Flusso operativo (GDPR-safe, niente DB prod da dev):**
+1. Su prod: `python manage.py skm_export_assets --settings=config.settings.prod`
+   → `docs/skill-matrix/assets_export.csv` (solo codici asset, nessun dato personale).
+2. Su dev: `python manage.py skm_asset_match_report --assets-csv <file>`
+   → report prod-accurato, **senza** leggere il DB di prod.
+
+Round-trip verificato: export 773 asset dev + match offline riproduce **identici** i conteggi
+del run su DB (18 esatti/14 parziali/10 assenti su 42 macchine). Suite `tests_skillmatrix*` → **34 passed**.
+
+In alternativa: lanciare lo specchietto «Sincronizza dagli asset» **direttamente su prod**
+(legge gli asset live), oppure `skm_asset_match_report --settings=config.settings.prod` (modalità DB).
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
