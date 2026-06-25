@@ -15,7 +15,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Q
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -25,6 +25,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from . import constants as C
+from .ai_copilota import proponi_righe_mod133, proponi_tag, ricerca_semantica
 from .distribuzione import DerogaCopieRichiesta, crea_distribuzione
 from .forms import ApprovazioneForm, DistribuzioneForm, RigaMOD133FormSet, SpecificaForm
 from .models import AzioneOFI, Distribuzione, MOD133, RigaMOD133, Specifica
@@ -507,3 +508,37 @@ def storico_export_pdf(request, pk: int):
     return FileResponse(buf, as_attachment=True,
                         filename=f"storico_{spec.codice}_{spec.revisione or '0'}.pdf",
                         content_type="application/pdf")
+
+
+# ---------------------------------------------------------------------------
+# F9 — Copilota AI locale (proposte; l'umano valida e firma — mai auto-applicate)
+# ---------------------------------------------------------------------------
+
+@login_required
+def ai_precompila_mod133(request, pk: int):
+    """Proposta AI di righe MOD.133 dal PDF (JSON). NON salva nulla."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    proposta = proponi_righe_mod133(spec)
+    proposta["nota"] = "Proposta AI: rivedi e inserisci manualmente. Nessuna riga è stata salvata."
+    return JsonResponse(proposta)
+
+
+@login_required
+def ai_proponi_tag(request, pk: int):
+    """Proposta AI del TAG di processo (JSON). NON salva nulla."""
+    spec = get_object_or_404(Specifica, pk=pk)
+    testo = f"{spec.titolo}\n{spec.note}\n{spec.cliente}"
+    proposta = proponi_tag(testo)
+    proposta["nota"] = "Proposta AI: applica il TAG manualmente se corretto. Nessuna modifica salvata."
+    return JsonResponse(proposta)
+
+
+@login_required
+def ricerca_semantica_view(request):
+    """Ricerca semantica sull'archivio specifiche (sola lettura)."""
+    q = request.GET.get("q", "").strip()
+    risultati = ricerca_semantica(q) if q else []
+    if request.GET.get("format") == "json" or request.headers.get("HX-Request"):
+        return JsonResponse({"query": q, "risultati": risultati})
+    return render(request, "gestione_specifiche/ricerca.html",
+                  {"q": q, "risultati": risultati})

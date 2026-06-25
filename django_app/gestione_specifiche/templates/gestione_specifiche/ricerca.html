@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+{% block title %}Ricerca semantica · Gestione Specifiche{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Ricerca semantica specifiche</h1>
+  <p>Copilota AI locale (on-premise). Ricerca per significato sull'archivio; sola lettura.</p>
+</div>
+
+<form method="get" class="gs-card" style="display:flex; gap:10px; align-items:center;">
+  <input class="gs-input" type="text" name="q" value="{{ q }}" placeholder="Descrivi cosa cerchi (es. trattamento termico tolleranze)" autofocus>
+  <button class="gs-btn gs-btn--primary" type="submit">Cerca</button>
+  <a class="gs-btn" href="{% url 'gestione_specifiche:lista' %}">Elenco</a>
+</form>
+
+{% if q %}
+<div class="gs-card">
+  <h3 style="margin-top:0; color:#0c2545;">Risultati per «{{ q }}»</h3>
+  <table class="gs-table">
+    <thead><tr><th>Score</th><th>Codice</th><th>Titolo</th><th>TAG</th><th>Stato</th></tr></thead>
+    <tbody>
+      {% for r in risultati %}
+      <tr>
+        <td>{{ r.score }}</td>
+        <td><a href="{% url 'gestione_specifiche:dettaglio' r.id %}">{{ r.codice }}</a></td>
+        <td>{{ r.titolo }}</td>
+        <td>{{ r.tag|default:"—" }}</td>
+        <td><span class="gs-pill {{ r.stato }}">{{ r.stato }}</span></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="color:#6c84a6;">Nessun risultato.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

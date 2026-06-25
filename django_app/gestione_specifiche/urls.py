@@ -28,6 +28,10 @@ urlpatterns = [
     path("<int:pk>/sospendi/", views.sospendi_view, name="sospendi"),
     path("<int:pk>/ripristina/", views.ripristina_view, name="ripristina"),
     path("<int:pk>/annulla/", views.annulla_view, name="annulla"),
+    # F9 — Copilota AI (proposte) + ricerca semantica
+    path("ricerca/", views.ricerca_semantica_view, name="ricerca"),
+    path("<int:pk>/ai/precompila-mod133/", views.ai_precompila_mod133, name="ai_precompila_mod133"),
+    path("<int:pk>/ai/proponi-tag/", views.ai_proponi_tag, name="ai_proponi_tag"),
     # API django-ninja
     path("api/", ninja_api.urls),
 ]

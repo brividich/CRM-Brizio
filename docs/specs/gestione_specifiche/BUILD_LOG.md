@@ -16,7 +16,7 @@
 | F6 | Distribuzione + tracciamento copie | fatto | 2026-06-24 |
 | F7 | Ricerca, API ninja, UI elenco/cruscotto + storico | fatto | 2026-06-24 |
 | F8 | Import storico + prospetto intake | fatto (manca solo file dati reale) | 2026-06-25 |
-| F9 | Copilota AI locale | todo | — |
+| F9 | Copilota AI locale | fatto | 2026-06-25 |
 
 ---
 
@@ -72,6 +72,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **D1** — Usate le librerie reali `django-fsm-2`/`django-ninja` (rete disponibile) invece di shim locali. Coerente con decisione F0 #6 e F7.
 - **D2** — Stati FSM memorizzati come codici snake_case (`bozza`, `flow_down`, `in_validita`, `superato`, `sospeso`, `annullato`, `duplicato`, `respinto`, `errore_tecnico`).
 - **D3** — App come **modulo isolato** (decisione F0 #9): hook `commessa_ref`/`famiglia_ref` come CharField indicizzati nullable, nessuna FK verso commesse/asset.
+- **D5 (F9 — embedding ricerca semantica)** — strato di embedding locale via **Ollama** (`OLLAMA_EMBED_MODEL`, coerente con `ai_assistant`), con **fallback lessicale** deterministico (Jaccard sui token) quando gli embeddings non sono disponibili. Scelta motivata: riusa l'AI on-premise già nel portale, resta fail-safe/offline-capable e testabile senza rete. Cosine/kNN su embeddings reali abilitabili attivando `OLLAMA_EMBED_ENABLED`.
 - **D4 (gotcha django-fsm)** — `Specifica.stato` è FSMField `protected` ⇒ `instance.refresh_from_db()` solleva `AttributeError` (django-fsm vieta la setattr diretta). Nel codice/test **non** usare `refresh_from_db()` su `Specifica`: ri-fetchare con `Specifica.objects.get(pk=...)`. Le transizioni che falliscono una guardia (ValidationError) **non** emettono `post_transition` ⇒ nessun evento spurio.
 
 ## BLOCKERS
@@ -82,6 +83,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## TEST
 
+- **F9** — `gestione_specifiche` **110/110 verdi** (+10 F9): proposta righe MOD.133 (offline vuota / AI mockata parsa) senza scrittura, proposta TAG non applicata, ricerca semantica lessicale read-only, query vuota, endpoint precompila/tag non salvano, pagina ricerca, **nessuna transizione automatica** (stato invariato). INVARIANTE «AI propone, umano firma» verificata.
 - **F8** — `gestione_specifiche` **100/100 verdi** (+13 F8): validatore (riga valida, obbligatori, tipo/fonte non validi, solo in_validita, data malformata), import dry-run/apply/idempotenza/scarto, conteggi `importa_righe`, command dry-run/apply/genera-template su fixture sintetiche. `data_inserimento` storica preservata (mezzogiorno locale, no shift UTC).
 - **F7** — `gestione_specifiche` **87/87 verdi** (+15 F7): API ninja (lista+filtri, dettaglio, eventi, transizione ok/illegale 400, auth 401), archivio include storico + filtro stato terminale, scheda storico + eventi, ricostruzione punto-nel-tempo, catena revisioni, export CSV/PDF, azioni SSR sospendi/ripristina/annulla.
 - **F6** — `gestione_specifiche` **72/72 verdi** (+11 F6): regola copie (match/mismatch→deroga/con deroga procede), non-cartacea senza controllo, presa visione (default false / reparto-specifico / default reparto-nullo), evento+M2M+data, flusso via view (GET form, POST notifica, POST cartacea mismatch→deroga).
@@ -101,6 +103,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **[F6]** `feat(spec): [F6] distribuzione tracciata + regola copie cartacee con deroga`
 - **[F7]** `feat(spec): [F7] API ninja + ricerca/elenco filtri + storico consultabile + export`
 - **[F8]** `feat(spec): [F8] import storico (solo In validità) + prospetto intake + template + command/validatore`
+- **[F9]** `feat(spec): [F9] copilota AI locale (pre-compilazione MOD.133/TAG/ricerca semantica) — proposta, umano firma`
 
 ### NOTA GIT — file condivisi esclusi dai commit di fase
 `CHANGELOG.md` e `django_app/automazioni/schedules.py` contenevano già modifiche

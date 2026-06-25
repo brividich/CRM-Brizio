@@ -21,6 +21,7 @@
 
 <div class="gs-toolbar">
   <a href="{% url 'gestione_specifiche:nuova' %}" style="background:#0c2545; color:#fff; border-color:#0c2545;">+ Nuova specifica</a>
+  <a href="{% url 'gestione_specifiche:ricerca' %}">🔮 Ricerca AI</a>
   <a href="?" class="{% if not mostra_storico and not f.stato %}active{% endif %}">Attive</a>
   <a href="?storico=1" class="{% if mostra_storico %}active{% endif %}">Mostra storico</a>
   <span style="color:#6c84a6; font-size:.85rem;">{{ tot }} element{{ tot|pluralize:"o,i" }}</span>
