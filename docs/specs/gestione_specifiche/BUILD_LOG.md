@@ -117,3 +117,59 @@ relativo WIP. Tutto il resto (codice app, migrazioni, test, BUILD_LOG) è commit
 Ruoli legacy presenti in dev: `admin, amministrazione, caporeparto, HR, qualita, utente`.
 Mappatura di default applicata (create-only, rifinibile in /admin-portale/acl-canonico/):
 admin+amministrazione+qualita = tutti i permessi; caporeparto = view/claim/compila.
+
+---
+
+## RIEPILOGO ESECUTIVO (per revisione umana)
+
+**Esito:** app `gestione_specifiche` costruita **end-to-end F1→F9**, tutte le fasi
+**fatte**. Suite modulo **110/110 verde**, `manage.py check` (dev e test) pulito,
+migrazioni allineate, secret hygiene OK, nessuna modifica distruttiva. Branch
+`feature/gestione-specifiche` — 9 commit (uno per fase, `[F1]`…`[F9]`).
+
+### Cosa è stato fatto
+- **F1** Modelli §5 (`Specifica` FSM, `MOD133`, `RigaMOD133`, `AzioneOFI`,
+  `Distribuzione`, `EventoSpecifica` immutabile, `ConfigPresaVisione`), migrazioni,
+  admin, **ACL v2 canonico** (8 permessi + binding + voce menu), storage privato cifrato.
+- **F2** Macchina a stati **django-fsm-2** (S1→S9) con guardie e side-effect; audit
+  centralizzato nel signal `post_transition` (un evento per transizione, snapshot).
+- **F3** Flusso MOD.133 UI HTMX: creazione/revisione (eredita+incrementa rev), formset
+  righe dinamiche, obbligatorietà condizionale, claim, chiusura, approvazione con
+  segregazione compiti.
+- **F4** Timer django-q2: reminder 7gg, escalation 14gg, verifica periodica 6 mesi,
+  **pausa in S5/S9**; notifiche email + in-app.
+- **F5** OFI→MOD.174 **su conferma** (idempotente) + sotto-flusso documento CN nei **3 modi**.
+- **F6** Distribuzione tracciata (reparti reali, presa visione da config) + **regola copie
+  cartacee con deroga**.
+- **F7** **API django-ninja** (ricerca/dettaglio/eventi/transizioni), elenco con filtri,
+  **storico consultabile** (archivio + scheda read-only + ricostruzione punto-nel-tempo +
+  export CSV/PDF).
+- **F8** Import storico (solo In validità): prospetto intake + template CSV/XLSX + command
+  idempotente (dry-run) + validatore, testati su fixture sintetiche.
+- **F9** Copilota AI locale (Ollama): pre-compilazione MOD.133 da PDF, classificazione TAG,
+  ricerca semantica — **l'AI propone, l'umano firma** (invariante testata).
+
+### Assunzioni prese in autonomia
+Vedi §ASSUMPTIONS (A1–A5) e §DECISIONS (D1–D5). In sintesi: `revisione` CharField;
+campi `cliente`/`tag` aggiunti per i filtri F7; `ConfigPresaVisione` come modello;
+storage cifrato; django-fsm-2/ninja installati (rete ok); embedding Ollama+fallback
+lessicale; **non usare `refresh_from_db` su `Specifica`** (FSMField protected → re-fetch).
+
+### Domande aperte / blocchi (in blocco, per te)
+1. **B1 — Registro OFI/MOD.174**: nel portale **non esiste** un modello OFI. Ora il
+   numero OFI è un intero locale. *Esiste una tabella SQL legacy OFI/MOD.174 a cui
+   agganciarsi (nome tabella/PK)?* Se sì, la sostituzione con FK è una migrazione additiva.
+2. **B2 — Ruoli di processo**: DM/IN1/RDD/MSM/MSO/MSA/SGI vanno mappati ai `Ruolo` reali.
+   Default applicato a admin/amministrazione/qualita/caporeparto. *Confermi la mappatura
+   o i nomi dei ruoli/gruppi da creare?* (Nessun gruppo AD creato senza OK.)
+3. **B3 — Dati storici (F8)**: command/validatore/template pronti; manca il **file CSV
+   reale** delle specifiche In validità (vedi `INTAKE_IMPORT_STORICO.md`). Deposita il file
+   e lancia il dry-run, poi `--apply`.
+4. **File condivisi non committati**: `CHANGELOG.md` e `automazioni/schedules.py` (3 schedule
+   F4) sono aggiornati **su disco** ma esclusi dai commit perché contenevano WIP altrui non
+   committato. Vanno committati insieme a quel lavoro (oppure dimmi di committarli io).
+
+### Da fare in deploy
+- Registrare gli schedule django-q2: `python manage.py setup_q_schedules` (richiede
+  `automazioni/schedules.py` committato).
+- (Opz.) abilitare `OLLAMA_EMBED_ENABLED` per la ricerca semantica via embeddings reali.
