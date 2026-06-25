@@ -561,6 +561,11 @@ def vista_gantt(request):
                 leg_count[colore] += 1
                 if colore not in leg_label:
                     leg_label[colore] = (cliente or famiglia or _job_label(p))[:22]
+            try:
+                from .integrations import kickoff_tasks_for_asset
+                m_ko = kickoff_tasks_for_asset(m.asset_id, start, fine)
+            except Exception:
+                m_ko = []
             def _riga(turni_inclusi, label, kind, expandable=False):
                 sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
                 if filtro_lavori and not sub_bars:
@@ -576,6 +581,7 @@ def vista_gantt(request):
                     "kind": kind, "expandable": expandable, "bars": sub_bars,
                     "sat": sat["per_macchina"].get(m.id) if not sub else None,
                     "row_h": nlanes * lane_h + 12, "conflitto": conf,
+                    "kickoff": m_ko if not sub else [],
                 }
 
             espandibile = m.ha_secondo_turno or m.ha_turno_notte
@@ -631,6 +637,11 @@ def vista_gantt(request):
         # agganciare il permesso canonico gestione_carichi_macchina.piano.edit.
         "can_edit": request.user.is_authenticated,
         "stato_choices": Pianificazione.STATO_CHOICES, "fase_choices": Pianificazione.FASE_CHOICES,
+        # Tutte le macchine attive per il select del modale "+ Aggiungi lavoro" (come Excel).
+        "macchine_scelta": [
+            {"id": mm.id, "codice": mm.codice}
+            for mm in Macchina.objects.filter(attivo=True).select_related("asset").order_by("categoria", "ordine_sezione", "id")
+        ],
         "colore_mode": "stato" if request.GET.get("colore") == "stato" else "commessa",
         "commesse_legenda": commesse_legenda,
         "ha_undo": bool(request.session.get("gcm_undo")),

@@ -62,14 +62,48 @@ def _task_body_html(request, task: Task) -> str:
     return "\n".join(lines)
 
 
+def _notification_email_for_user(user) -> str:
+    """Mailbox reale dell'utente per il calendario Outlook.
+
+    Preferisce `email_notifica` dell'anagrafica (la mailbox Microsoft 365 reale),
+    risolta dall'utente Django via `Profile.legacy_user_id` -> `AnagraficaDipendente`.
+    La colonna `email` dell'anagrafica e' il login-id legacy (NON una mailbox) e non
+    va usata. Fallback all'email dell'account Django se l'anagrafica non ha un
+    indirizzo di notifica valido. Non solleva mai.
+    """
+    if not user:
+        return ""
+    legacy_id = 0
+    try:
+        legacy_id = int(getattr(getattr(user, "profile", None), "legacy_user_id", 0) or 0)
+    except Exception:
+        legacy_id = 0
+    if legacy_id:
+        try:
+            from core.legacy_models import AnagraficaDipendente
+
+            row = (
+                AnagraficaDipendente.objects.filter(utente_id=legacy_id)
+                .values("email_notifica")
+                .first()
+            )
+            notifica = str((row or {}).get("email_notifica") or "").strip()
+            if notifica and "@" in notifica:
+                return notifica
+        except Exception:
+            logger.warning(
+                "Outlook: lookup email_notifica fallito per user=%s",
+                getattr(user, "id", None),
+                exc_info=True,
+            )
+    return (getattr(user, "email", "") or "").strip()
+
+
 def _resolve_target_email(task: Task, explicit_email: str) -> str:
     email = (explicit_email or "").strip()
     if email:
         return email
-    user = task.assigned_to
-    if user and getattr(user, "email", ""):
-        return user.email.strip()
-    return ""
+    return _notification_email_for_user(task.assigned_to)
 
 
 def _looks_like_local_mailbox_identity(target_email: str) -> bool:

@@ -19,6 +19,7 @@ from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpR
 from django.shortcuts import redirect, render
 from django.urls import NoReverseMatch, reverse
 from django.conf import settings
+from django.utils import timezone as dj_tz
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from config.env_config import get_first_env_value, update_env_file_values
@@ -991,6 +992,33 @@ def _resolve_op_lookup_id(op_item_id, op_title) -> int | None:
         return int(sp_id) if sp_id.isdigit() else None
     except Exception:
         return None
+
+
+def _canonicalize_avanzamento(value: str) -> str:
+    """Normalizza lo stato di avanzamento sul catalogo configurato (`avanzamenti`).
+
+    Catalogo stati controllato: evita la deriva delle stringhe di stato (es.
+    "in attesa" vs "In attesa") che romperebbe in silenzio il filtro di escalation
+    (match esatto su 'In attesa') e i raggruppamenti dei KPI. Se esiste un match
+    case-insensitive nel catalogo restituisce il valore CANONICO (casing del
+    catalogo); se lo stato e' fuori catalogo lo accetta comunque ma lo segnala a
+    log (telemetria della deriva). Valore vuoto -> 'In attesa'.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return "In attesa"
+    try:
+        choices = (_load_anomalie_lists() or {}).get("avanzamenti") or []
+    except Exception:
+        choices = []
+    for c in choices:
+        if str(c).strip().lower() == raw.lower():
+            return str(c).strip()
+    if choices:
+        logger.warning(
+            "anomalie: avanzamento fuori catalogo: %r (catalogo=%s)", raw, list(choices)
+        )
+    return raw
 
 
 def _legacy_role_name(request) -> str:
@@ -2209,8 +2237,18 @@ def api_salva(request):
         "numero_rdc": _safe_text(data.get("numero_rdc"), 100),
         "segnalare_cliente": segnalare_val,
         "chiudere": chiudere_val,
-        "avanzamento": _safe_text(data.get("avanzamento"), 100) or "In attesa",
+        "avanzamento": _canonicalize_avanzamento(_safe_text(data.get("avanzamento"), 100)),
     }
+
+    # Chiave OP canonica: se non si risolve l'op_lookup_id dal titolo (refuso o OP
+    # non presente in ordini_produzione) lo si segnala — il record resterebbe
+    # agganciabile solo per titolo (fallback fragile). Riconciliabile a posteriori
+    # con `manage.py reconcile_anomalie_op_lookup`.
+    if payload_map.get("op_lookup_id") is None and op_id:
+        logger.info(
+            "anomalie api_salva: op_lookup_id non risolto per OP %r (titolo assente da ordini_produzione)",
+            op_id,
+        )
 
     writable = {k: v for k, v in payload_map.items() if k in cols}
     insert_writable = dict(writable)
@@ -3702,7 +3740,7 @@ def report_segnalazione_html(request):
             "anomalie_aperte": anomalie_aperte,
             "anomalie_chiuse": max(len(anomalie) - anomalie_aperte, 0),
             "allegati_totali": total_attachments,
-            "generated_at": datetime.now().strftime("%d-%m-%Y %H:%M"),
+            "generated_at": dj_tz.localtime(dj_tz.now()).strftime("%d-%m-%Y %H:%M"),
             "focus_local_id": anomalia_id or "",
         },
         "anomalie": anomalie,
@@ -3748,7 +3786,7 @@ def api_anomalie_config_report_template(request):
             return JsonResponse({
                 "has_custom": True,
                 "size": stat.st_size,
-                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d-%m-%Y %H:%M"),
+                "modified": dj_tz.localtime(datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)).strftime("%d-%m-%Y %H:%M"),
             })
         return JsonResponse({"has_custom": False})
 

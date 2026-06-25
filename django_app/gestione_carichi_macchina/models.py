@@ -270,6 +270,17 @@ class Commessa(models.Model):
     stato = models.CharField(max_length=16, choices=STATO_CHOICES, default=STATO_APERTA)
     note = models.TextField(blank=True, default="")
 
+    # Integrazione KICK-OFF: aggancio (non bloccante) al progetto kickoff
+    # corrispondente. Permette navigazione e reporting unificati commessa<->kickoff.
+    kickoff_project = models.ForeignKey(
+        "tasks.Project",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="carichi_commesse",
+        help_text="Progetto KICK-OFF collegato a questa commessa.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -387,10 +398,12 @@ class Pianificazione(models.Model):
     FONTE_IMPORT = "import"
     FONTE_MANUALE = "manuale"
     FONTE_AI = "ai"
+    FONTE_KICKOFF = "kickoff"
     FONTE_CHOICES = [
         (FONTE_IMPORT, "Import"),
         (FONTE_MANUALE, "Manuale"),
         (FONTE_AI, "AI"),
+        (FONTE_KICKOFF, "KICK-OFF"),
     ]
 
     macchina = models.ForeignKey(
@@ -431,6 +444,18 @@ class Pianificazione(models.Model):
     testo_originale = models.TextField(blank=True, default="")
     settimane_presente = models.PositiveIntegerField(default=1)
     fonte = models.CharField(max_length=8, choices=FONTE_CHOICES, default=FONTE_IMPORT)
+
+    # Integrazione KICK-OFF: pianificazione generata/sincronizzata da un'attivita
+    # kickoff (fonte=kickoff). SET_NULL: se la task viene eliminata la riga resta
+    # ma si scollega (gestita poi dal sync). Una task -> al piu' una pianificazione.
+    kickoff_task = models.ForeignKey(
+        "tasks.Task",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="carichi_pianificazioni",
+        help_text="Attivita KICK-OFF di origine (se la pianificazione viene dal kickoff).",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

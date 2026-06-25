@@ -1558,6 +1558,22 @@ def _sync_task_integrations(request, task: Task, form, *, action: str) -> None:
         # Fire-and-forget: non bloccare il save del task
         logger.warning("Task reminder sync fallita (task=%s): %s", task.id, exc)
 
+    # Integrazione Carichi Macchina (non bloccante): se l'attività è "lavoro
+    # macchina" su un asset con profilo Macchina, allinea/crea la pianificazione
+    # collegata; altrimenti rimuove quella eventualmente generata.
+    try:
+        from gestione_carichi_macchina.integrations import sync_kickoff_task_to_pianificazione
+
+        outcome, _pian = sync_kickoff_task_to_pianificazione(task, user=getattr(request, "user", None))
+        if outcome == "created":
+            messages.info(request, "Attività sincronizzata nei Carichi Macchina (pianificazione creata).")
+        elif outcome == "updated":
+            messages.info(request, "Pianificazione Carichi Macchina aggiornata da questa attività.")
+        elif outcome == "removed":
+            messages.info(request, "Pianificazione Carichi Macchina collegata rimossa.")
+    except Exception as exc:
+        logger.warning("Sync Carichi Macchina fallita (task=%s): %s", task.id, exc)
+
 
 def _build_task_absence_day_map(tasks: list[Task], *, timeline_start: date, timeline_end: date) -> dict[int, dict[date, list[dict]]]:
     if timeline_end < timeline_start:
@@ -1816,6 +1832,7 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict
         row["cells"] = cells
         row["start_index"] = start_index
         row["end_index"] = end_index
+        row["span"] = max(1, end_index - start_index + 1)
         row["absence_days"] = len(conflict_dates)
         row["absence_dates"] = conflict_dates[:6]
         row["has_absence_conflicts"] = bool(conflict_dates)
@@ -1827,13 +1844,33 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict
     for i, row in enumerate(rows):
         row["prev_end_index"] = rows[i - 1]["end_index"] if i > 0 else -1
 
+    # Indice colonna di "oggi" (per la linea verticale) e bande settimana (stile
+    # Gantt Carichi Macchina): -1 se oggi è fuori finestra.
+    today_index = (today - timeline_start).days
+    if today_index < 0 or today_index >= len(days):
+        today_index = -1
+
+    week_spans = []
+    if days:
+        cur_week = days[0].isocalendar()[1]
+        cnt = 0
+        for day_value in days:
+            wk = day_value.isocalendar()[1]
+            if wk != cur_week:
+                week_spans.append({"label": f"Sett. {cur_week:02d}", "span": cnt})
+                cur_week, cnt = wk, 0
+            cnt += 1
+        week_spans.append({"label": f"Sett. {cur_week:02d}", "span": cnt})
+
     return {
         "rows": rows,
         "timeline_start": timeline_start,
         "timeline_end": timeline_end,
         "today": today,
+        "today_index": today_index,
         "days": day_columns,
         "month_spans": month_spans,
+        "week_spans": week_spans,
     }
 
 
@@ -2852,6 +2889,13 @@ def update_due_date(request, task_id: int):
         if task.is_overdue:
             messages.warning(request, "Task in stato overdue.")
         _add_task_absence_warnings(request, task)
+        # Integrazione Carichi Macchina (non bloccante): riallinea la data della
+        # pianificazione collegata alla nuova scadenza.
+        try:
+            from gestione_carichi_macchina.integrations import sync_kickoff_task_to_pianificazione
+            sync_kickoff_task_to_pianificazione(task, user=request.user)
+        except Exception as exc:
+            logger.warning("Sync Carichi (update_due_date) fallita task=%s: %s", task.id, exc)
     else:
         messages.error(request, "Data prevista conclusione non valida.")
 
@@ -2881,6 +2925,13 @@ def change_status(request, task_id: int):
                 {"from": old_status, "to": task.status},
             )
             messages.success(request, "Stato task aggiornato.")
+            # Integrazione Carichi Macchina (non bloccante): chiusura/annullamento
+            # rimuove la pianificazione collegata, ripresa la ricrea.
+            try:
+                from gestione_carichi_macchina.integrations import sync_kickoff_task_to_pianificazione
+                sync_kickoff_task_to_pianificazione(task, user=request.user)
+            except Exception as exc:
+                logger.warning("Sync Carichi (change_status) fallita task=%s: %s", task.id, exc)
     else:
         messages.error(request, "Stato non valido.")
     return redirect("tasks:detail", task_id=task_id)
@@ -3400,6 +3451,8 @@ def project_gantt(request, project_id: int):
             "gantt_today": gantt_meta["today"],
             "gantt_days": gantt_meta["days"],
             "gantt_month_spans": gantt_meta["month_spans"],
+            "gantt_week_spans": gantt_meta["week_spans"],
+            "gantt_today_index": gantt_meta["today_index"],
             "can_edit_schedule": can_edit_schedule,
             "can_comment": can_comment,
             "task_update_forms": task_update_forms,
@@ -4527,6 +4580,37 @@ def _asset_availability_report(
                 "url": t_url,
             })
             bump("block")
+
+    # 6) Carico macchina da Gestione Carichi Macchina (integrazione, SOLO AVVISO).
+    #    Se l'asset ha un profilo Macchina, mostriamo le pianificazioni che si
+    #    sovrappongono alla finestra. Non bloccante: severity sempre 'warning'.
+    if start and end:
+        try:
+            from gestione_carichi_macchina.integrations import pianificazioni_for_asset
+
+            for pl in pianificazioni_for_asset(asset.id, start, end):
+                if pl.get("is_kickoff"):
+                    continue  # già rappresentata dalla task KICK-OFF di origine
+                when = pl["data"].isoformat()
+                if pl["fine"] != pl["data"]:
+                    when = f'{pl["data"].isoformat()} -> {pl["fine"].isoformat()}'
+                titolo = pl["commessa"] or pl["label"] or "lavoro pianificato"
+                det = []
+                if pl["ore"]:
+                    det.append(f'{pl["ore"]:.0f}h')
+                if pl.get("qta"):
+                    det.append(f'{pl["qta"]} pz')
+                conflicts.append({
+                    "type": "carico_macchina",
+                    "severity": "warning",
+                    "title": f"Carico macchina (Carichi): {titolo}",
+                    "detail": " · ".join(det),
+                    "when": when,
+                    "url": "",
+                })
+                bump("warning")
+        except Exception:
+            pass
 
     return {
         "asset": {

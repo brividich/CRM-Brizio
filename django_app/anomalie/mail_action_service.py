@@ -35,6 +35,41 @@ logger = logging.getLogger(__name__)
 # Soglia oltre la quale la mail tronca l'elenco a MAX_ANOMALIE_IN_EMAIL
 MAX_ANOMALIE_IN_EMAIL = 10
 
+# Tentativi di invio della mail di conferma (debounce) prima del "dead-letter":
+# oltre questa soglia si smette di ritentare e si avvisano i supervisori.
+MAX_FLUSH_ATTEMPTS = 3
+
+
+def _alert_admins_send_failure(*, context: str, op_id: str = "", detail: str = "") -> None:
+    """Rete di sicurezza: segnala un fallimento di invio email anomalie.
+
+    Logga a livello ERROR (intercettabile dal monitoring) e, se è configurata la
+    lista supervisori escalation, invia loro un avviso. Non solleva mai: è un
+    meccanismo di allerta e non deve a sua volta far fallire il job chiamante.
+    """
+    logger.error("ANOMALIE ALERT [%s] op=%s — %s", context, op_id or "(n/d)", detail)
+    try:
+        from .escalation_config import LISTA_SUPERVISORI_KEY
+
+        recipients = _resolve_lista_config(LISTA_SUPERVISORI_KEY)
+        if not recipients:
+            return
+        _from = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
+        subject = f"[Novicrom Hub] AVVISO: invio email anomalie non riuscito — {context}"
+        body = (
+            "Il sistema non è riuscito a inviare una comunicazione automatica del modulo Anomalie.\n\n"
+            f"Contesto: {context}\n"
+            f"OP: {op_id or '(non disponibile)'}\n"
+            f"Dettaglio: {detail}\n\n"
+            "Verificare la configurazione SMTP e i destinatari. "
+            "Questo è un avviso automatico di sistema; non rispondere a questa email."
+        )
+        EmailMultiAlternatives(subject=subject, body=body, from_email=_from, to=recipients).send(
+            fail_silently=True
+        )
+    except Exception:
+        logger.warning("_alert_admins_send_failure: invio avviso supervisori fallito", exc_info=True)
+
 
 def build_anomalie_action_email(
     *,
@@ -494,8 +529,10 @@ def send_anomalie_update_confirmation(
         logger.info("anomalie update confirmation inviata op=%s a=%s n=%s", op_id, to_list, n)
         return True
     except Exception:
+        # Errore SMTP reale (a differenza del caso "nessun destinatario" che ritorna
+        # False sopra): si rilancia perché il chiamante possa ritentare / fare dead-letter.
         logger.exception("anomalie update confirmation FALLITA op=%s", op_id)
-        return False
+        raise
 
 
 def register_pending_update(
@@ -545,7 +582,13 @@ def register_pending_update(
 def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     """Invia la mail di conferma per gli OP fermi da più di `threshold_minutes`.
 
-    Chiamato dal task periodico. Ritorna {"sent": n, "checked": m}.
+    Affidabilità (no fallimenti silenziosi):
+    - successo → `notified=True`, errore azzerato;
+    - "nessun destinatario" (caso benigno) → `notified=True` senza ritentare;
+    - errore SMTP → si ritenta nei run successivi fino a `MAX_FLUSH_ATTEMPTS`;
+      raggiunta la soglia si fa "dead-letter" (stop) e si avvisano i supervisori.
+
+    Chiamato dal task periodico. Ritorna {"sent", "failed", "given_up", "checked"}.
     """
     from .mail_action_models import AnomaliaPendingNotification
     from django.utils import timezone as _tz
@@ -556,24 +599,46 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
         AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
     )
     sent = 0
+    failed = 0
+    given_up = 0
     for p in pending:
         snapshot = p.updates_snapshot if isinstance(p.updates_snapshot, list) else []
         if not snapshot:
             p.notified = True
             p.save(update_fields=["notified"])
             continue
-        ok = send_anomalie_update_confirmation(
-            op_id=p.op_id,
-            op_nominativo=p.op_nominativo or "",
-            anomalie_rows=[{"id": u.get("id"), "seriale": u.get("seriale")} for u in snapshot],
-            updates_summary=snapshot,
-            source_label=f"Modifiche da portale (debounce {threshold_minutes} min)",
-        )
+        try:
+            ok = send_anomalie_update_confirmation(
+                op_id=p.op_id,
+                op_nominativo=p.op_nominativo or "",
+                anomalie_rows=[{"id": u.get("id"), "seriale": u.get("seriale")} for u in snapshot],
+                updates_summary=snapshot,
+                source_label=f"Modifiche da portale (debounce {threshold_minutes} min)",
+            )
+        except Exception as exc:
+            # Errore SMTP: NON marcare notified, ritenta al prossimo giro fino alla soglia.
+            failed += 1
+            p.attempts = int(p.attempts or 0) + 1
+            p.last_error = str(exc)[:2000]
+            if p.attempts >= MAX_FLUSH_ATTEMPTS:
+                p.notified = True  # dead-letter: smette di ritentare
+                given_up += 1
+                p.save(update_fields=["notified", "attempts", "last_error"])
+                _alert_admins_send_failure(
+                    context="conferma aggiornamenti (debounce)",
+                    op_id=p.op_id,
+                    detail=f"Invio non riuscito dopo {p.attempts} tentativi. Ultimo errore: {p.last_error}",
+                )
+            else:
+                p.save(update_fields=["attempts", "last_error"])
+            continue
+        # Invio andato (True) o nessun destinatario (False, caso benigno): si chiude.
         p.notified = True
-        p.save(update_fields=["notified"])
+        p.last_error = ""
+        p.save(update_fields=["notified", "last_error"])
         if ok:
             sent += 1
-    return {"sent": sent, "checked": len(pending)}
+    return {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending)}
 
 
 # ── Promemoria & escalation "OP da controllare" ──────────────────────────────
@@ -852,8 +917,12 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
         msg.send(fail_silently=False)
         logger.info("anomalie escalation resoconto inviato a=%s n_op=%s", to_list, n_op)
         return True
-    except Exception:
+    except Exception as exc:
         logger.exception("anomalie escalation resoconto FALLITO")
+        _alert_admins_send_failure(
+            context="resoconto escalation OP da controllare",
+            detail=f"Invio del resoconto a {len(to_list)} destinatari non riuscito: {exc}",
+        )
         return False
 
 

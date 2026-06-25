@@ -175,6 +175,10 @@ class AnomaliaPendingNotification(models.Model):
     # Snapshot incrementale delle modifiche da includere nella mail (lista di dict)
     updates_snapshot = models.JSONField(default=list, blank=True)
     notified = models.BooleanField(default=False, db_index=True)
+    # Tentativi di invio falliti consecutivi e ultimo errore: abilitano il retry
+    # con dead-letter (si smette di ritentare oltre una soglia, con avviso admin).
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_error = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

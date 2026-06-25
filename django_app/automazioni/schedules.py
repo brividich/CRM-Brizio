@@ -111,6 +111,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Pulizia notturna delle cartelle allegati anomalie orfane (id non più in
+        # tabella anomalie). Conservativo: elimina solo cartelle ferme da oltre 30
+        # giorni, max 500 per run. Idempotente.
+        "name": "anomalie_cleanup_allegati",
+        "func": "anomalie.tasks.run_anomalie_cleanup_allegati",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 3 * * *",       # ogni notte alle 03:45
+        "repeats": -1,
+        "kwargs": {"older_than_days": 30, "limit": 500},
+    },
+    {
         # Warmup del modello chat Ollama: pre-carica i pesi in memoria così la
         # prima richiesta utente non paga il cold start (causa principale dei
         # timeout «Timeout dopo Ns durante la risposta di Ollama»). Cadenza < del
@@ -121,6 +132,45 @@ SCHEDULES: list[dict] = [
         "func": "ai_assistant.tasks.run_warmup_ollama",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
         "minutes": 25,          # ogni 25 min (< keep_alive 30m)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
+        # scadenza come notifiche portale (idempotente, fired flag). Porta i
+        # promemoria nello scheduler centralizzato al posto del Task Windows.
+        "name": "tasks_send_reminders",
+        "func": "tasks.tasks.run_send_task_reminders",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * *",       # ogni mattina alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # GESTIONE SPECIFICHE — reminder 7gg sui MOD.133 non presi in carico.
+        # Timer in pausa per le specifiche sospese/in errore (gestito nel job).
+        "name": "gestione_specifiche_reminder",
+        "func": "gestione_specifiche.tasks.run_specifiche_reminder",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 7 * * *",        # ogni mattina alle 07:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # GESTIONE SPECIFICHE — escalation 14gg → Approvatore + DM.
+        "name": "gestione_specifiche_escalation",
+        "func": "gestione_specifiche.tasks.run_specifiche_escalation",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * *",       # ogni mattina alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # GESTIONE SPECIFICHE — verifica periodica 6 mesi (ricorrente da data_verifica).
+        "name": "gestione_specifiche_verifica_periodica",
+        "func": "gestione_specifiche.tasks.run_specifiche_verifica_periodica",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 6 * * *",       # ogni mattina alle 06:30
         "repeats": -1,
         "kwargs": {},
     },

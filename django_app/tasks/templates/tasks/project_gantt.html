@@ -13,14 +13,15 @@
     --g-head-bg: #f1f5f9;
     --g-head-bg2: #f8fbff;
     --g-row-hover: rgba(219,234,254,.28);
-    --g-today-line: rgba(220,38,38,.5);
-    --g-bar-todo:         linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
-    --g-bar-in_progress:  linear-gradient(135deg, #fde047 0%, #d97706 100%);
-    --g-bar-done:         linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+    /* Palette allineata al Gantt Carichi Macchina (navy #0c2545 / blu #1f87cd / arancio #ff8a1f) */
+    --g-today-line: #ff8a1f;
+    --g-bar-todo:         linear-gradient(135deg, #143a63 0%, #0c2545 100%);
+    --g-bar-in_progress:  linear-gradient(135deg, #36a6e6 0%, #1f87cd 100%);
+    --g-bar-done:         linear-gradient(135deg, #8a98ab 0%, #6b7a8f 100%);
     --g-bar-canceled:     linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
-    --g-shadow-todo:        rgba(22,163,74,.3);
-    --g-shadow-in_progress: rgba(217,119,6,.3);
-    --g-shadow-done:        rgba(37,99,235,.3);
+    --g-shadow-todo:        rgba(12,37,69,.32);
+    --g-shadow-in_progress: rgba(31,135,205,.32);
+    --g-shadow-done:        rgba(107,122,143,.3);
     --g-shadow-canceled:    rgba(148,163,184,.2);
   }
 
@@ -347,8 +348,8 @@
     position: sticky;
     top: 0;
     z-index: 3;
-    background: var(--g-head-bg2);
-    color: #64748b;
+    background: #0c2545;
+    color: #cfe0f1;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: .07em;
@@ -357,14 +358,14 @@
   }
 
   .gantt-table .left-head {
-    background: var(--g-head-bg);
-    color: #0f172a;
+    background: #0c2545;
+    color: #ffffff;
   }
 
   .gantt-table .month-head {
     text-align: center;
-    background: linear-gradient(to bottom, #dbeafe, #eff6ff);
-    color: #1e40af;
+    background: #16314f;
+    color: #cfe0f1;
     font-size: 11px;
     font-weight: 900;
     letter-spacing: .04em;
@@ -378,9 +379,9 @@
     font-size: 10px;
   }
 
-  .gantt-table .day-head.is-weekend  { background: #f8fafc; color: #94a3b8; }
-  .gantt-table .day-head.is-holiday  { background: #fdf2f8; color: #9d174d; }
-  .gantt-table .day-head.is-today    { background: #fef2f2; color: #b91c1c; font-weight: 900; }
+  .gantt-table .day-head.is-weekend  { background: #16314f; color: #9fbcdb; }
+  .gantt-table .day-head.is-holiday  { background: #3a2740; color: #f0abdc; }
+  .gantt-table .day-head.is-today    { background: #ff8a1f; color: #1a1206; font-weight: 900; }
 
   /* Colonne sticky sinistra */
   .gantt-table .col-wbs  { width: var(--wbs-col-w);   min-width: var(--wbs-col-w);   text-align: center; }
@@ -396,7 +397,7 @@
   .gantt-table .col-name { background: #fff; }
 
   .gantt-table thead .col-wbs,
-  .gantt-table thead .col-name { z-index: 5; background: var(--g-head-bg); }
+  .gantt-table thead .col-name { z-index: 5; background: #0c2545; color: #ffffff; }
 
   /* Resize handle */
   .resizable-col { position: relative; }
@@ -1179,114 +1180,105 @@
 
     <div class="ts-panel-body no-pad">
       {% if gantt_rows %}
-        <div class="gantt-table-wrap">
-          <table class="gantt-table" role="table"
-                 data-project-id="{{ project.id }}"
-                 data-can-shift="{% if can_edit_schedule %}1{% else %}0{% endif %}"
-                 data-total-days="{{ gantt_days|length }}">
-            <thead>
-              <tr>
-                {% if gantt_show_wbs %}
-                  <th class="left-head col-wbs resizable-col" data-resize-var="--wbs-col-w" data-min-width="48" rowspan="3">
-                    WBS<span class="col-resizer" aria-hidden="true"></span>
-                  </th>
-                {% endif %}
-                <th class="left-head col-name resizable-col" data-resize-var="--name-col-w" data-min-width="220" rowspan="3">
-                  Nome attivita<span class="col-resizer" aria-hidden="true"></span>
-                </th>
-                {% if gantt_show_duration %}
-                  <th class="left-head col-days resizable-col" data-resize-var="--dur-col-w" data-min-width="92" rowspan="3">
-                    Durata<span class="col-resizer" aria-hidden="true"></span>
-                  </th>
-                {% endif %}
-                {% if gantt_show_start %}
-                  <th class="left-head col-date-start resizable-col" data-resize-var="--start-col-w" data-min-width="96" rowspan="3">
-                    Inizio<span class="col-resizer" aria-hidden="true"></span>
-                  </th>
-                {% endif %}
-                {% if gantt_show_end %}
-                  <th class="left-head col-date-end resizable-col" data-resize-var="--end-col-w" data-min-width="96" rowspan="3">
-                    Fine<span class="col-resizer" aria-hidden="true"></span>
-                  </th>
-                {% endif %}
-                <th colspan="{{ gantt_days|length }}">Timeline giornaliera</th>
-              </tr>
-              <tr>
-                {% for month in gantt_month_spans %}
-                  <th class="month-head" colspan="{{ month.span }}">{{ month.label }}</th>
-                {% endfor %}
-              </tr>
-              <tr>
-                {% for day in gantt_days %}
-                  <th class="day-head{% if day.is_weekend %} is-weekend{% endif %}{% if day.is_holiday %} is-holiday{% endif %}{% if day.is_today %} is-today{% endif %}">{{ day.date|date:"d" }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in gantt_rows %}
-                <tr class="task-row{% if row.can_edit %} is-shiftable{% endif %}"
-                    data-task-id="{{ row.task.id }}"
-                    data-start-index="{{ row.start_index }}"
-                    data-end-index="{{ row.end_index }}"
-                    data-prev-end-index="{{ row.prev_end_index }}"
-                    {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
-                  {% if gantt_show_wbs %}<td class="col-wbs">{{ row.wbs }}</td>{% endif %}
-                  <td class="col-name">
-                    <a class="gantt-task-link" href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
-                    <div class="gantt-meta">
-                      <span>{{ row.task.get_status_display }}</span>
-                      <span>{{ row.task.get_priority_display }}</span>
-                      <span>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}—{% endif %}</span>
-                      {% if row.invalid_range %}<span style="color:#b91c1c;font-weight:900;">Range non valido</span>{% endif %}
-                      {% if row.has_absence_conflicts %}<span style="color:#b91c1c;font-weight:900;">Assenze: {{ row.absence_days }}gg</span>{% endif %}
-                      {% for dep in gantt_deps %}{% if dep.succ_id == row.task.id %}<span class="g-dep-arrow">&#8592; WBS {{ dep.pred_wbs }} ({{ dep.type }}{% if dep.lag_days != 0 %} {{ dep.lag_days }}gg{% endif %})</span>{% endif %}{% endfor %}
-                      {% with delta=row.baseline_delta %}
-                        {% if delta.end is not None %}
-                          {% if delta.end == 0 %}
-                            <span class="g-baseline-delta on-time">BL +0gg</span>
-                          {% elif delta.end > 0 %}
-                            <span class="g-baseline-delta late">BL +{{ delta.end }}gg</span>
-                          {% else %}
-                            <span class="g-baseline-delta early">BL {{ delta.end }}gg</span>
-                          {% endif %}
-                        {% endif %}
-                      {% endwith %}
-                    </div>
-                    <div class="g-row-progress">
-                      <div class="g-row-progress-bar">
-                        <div class="g-row-progress-fill" style="width:{{ row.task.progress }}%"></div>
-                      </div>
-                      <span class="g-row-progress-pct">{{ row.task.progress }}%</span>
-                    </div>
-                  </td>
-                  {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni calendario">{{ row.duration_working_days }}gg</td>{% endif %}
-                  {% if gantt_show_start %}<td class="col-date-start">{{ row.start|date:"d-m-Y" }}</td>{% endif %}
-                  {% if gantt_show_end %}<td class="col-date-end">{{ row.end|date:"d-m-Y" }}</td>{% endif %}
-                  {% for cell in row.cells %}
-                    <td class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}"
-                        data-day-index="{{ forloop.counter0 }}"
-                        {% if forloop.counter0 == row.start_index and forloop.counter0 == row.end_index %}data-gantt-edge="both"{% elif forloop.counter0 == row.start_index %}data-gantt-edge="start"{% elif forloop.counter0 == row.end_index %}data-gantt-edge="end"{% endif %}
-                        {% if cell.title %}title="{{ cell.title }}"{% endif %}>
-                      {% if cell.marker %}<span class="absence-x">{{ cell.marker }}</span>{% endif %}
-                    </td>
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <div class="ts-gantt-cm">
+          <style>
+            .ts-gantt-cm { --cw: 30px; }
+            .ts-gantt-cm .g-toolbar2 { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 14px; border:1px solid #d9e2ef; border-bottom:0; border-radius:14px 14px 0 0; background:#f8fbff; }
+            .ts-gantt-cm .gzoom { display:flex; align-items:center; gap:8px; }
+            .ts-gantt-cm .gzlbl { font-size:.64rem; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; font-weight:800; }
+            .ts-gantt-cm .gzoom input[type=range] { accent-color:#1f87cd; }
+            .ts-gantt-cm .gcasc { display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:700; color:#24395e; border:1px solid #cdd9ea; border-radius:10px; padding:6px 10px; background:#fff; cursor:pointer; }
+            .ts-gantt-cm .gcasc:has(input:checked) { background:rgba(31,135,205,.10); border-color:#1f87cd; }
+            .ts-gantt-cm .gscroll { overflow:auto; max-height:70vh; border:1px solid #d9e2ef; background:#fff; box-shadow:0 16px 34px rgba(12,37,69,.05); }
+            .ts-gantt-cm .grow { display:flex; align-items:stretch; border-bottom:1px solid #eef2f7; }
+            .ts-gantt-cm .gmac { position:sticky; left:0; z-index:2; min-width:240px; max-width:240px; box-sizing:border-box; background:#f7faff; border-right:1px solid #e3e9f2; padding:7px 12px; }
+            .ts-gantt-cm .gmac-title { display:block; color:#0c2545; font-weight:800; font-size:.82rem; text-decoration:none; line-height:1.25; }
+            .ts-gantt-cm .gmac-title:hover { color:#1f87cd; }
+            .ts-gantt-cm .gmac small { display:block; color:#7a8ca6; font-size:.66rem; font-weight:600; margin-top:2px; }
+            .ts-gantt-cm .gmac-prog { height:4px; border-radius:999px; background:#e8eef6; margin-top:5px; overflow:hidden; }
+            .ts-gantt-cm .gmac-prog i { display:block; height:100%; background:linear-gradient(90deg,#34d399,#1f87cd); }
+            .ts-gantt-cm .gtrack { position:relative; flex:0 0 auto; }
+            .ts-gantt-cm .grow.gbody .gtrack { background-image: repeating-linear-gradient(90deg,#eef2f7 0,#eef2f7 1px,transparent 1px,transparent var(--cw)); min-height:46px; }
+            .ts-gantt-cm .gweeks { position:sticky; top:0; z-index:5; }
+            .ts-gantt-cm .gweeks .gmac { z-index:6; background:#16314f; color:#cfe0f1; display:flex; align-items:center; font-size:.66rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+            .ts-gantt-cm .gweeks .gtrack { display:flex; background:#16314f; height:24px; }
+            .ts-gantt-cm .gweek { display:flex; align-items:center; justify-content:center; color:#cfe0f1; font-size:.62rem; font-weight:800; border-right:1px solid rgba(255,255,255,.12); box-sizing:border-box; flex:0 0 auto; }
+            .ts-gantt-cm .ghead { position:sticky; top:24px; z-index:4; }
+            .ts-gantt-cm .ghead .gmac { z-index:5; background:#0c2545; color:#fff; display:flex; align-items:center; font-weight:800; }
+            .ts-gantt-cm .ghead .gtrack { display:flex; background:#0c2545; height:32px; }
+            .ts-gantt-cm .gday { display:flex; align-items:center; justify-content:center; color:#fff; font-size:.62rem; box-sizing:border-box; flex:0 0 auto; }
+            .ts-gantt-cm .gday.we { color:#9fbcdb; background:#16314f; }
+            .ts-gantt-cm .gday.hol { color:#f0abdc; background:#3a2740; }
+            .ts-gantt-cm .gday.td { background:#ff8a1f; color:#1a1206; font-weight:800; }
+            .ts-gantt-cm .gtoday { position:absolute; top:0; bottom:0; width:2px; background:#ff8a1f; z-index:1; pointer-events:none; }
+            .ts-gantt-cm .gbar { position:absolute; top:8px; height:26px; border-radius:7px; color:#fff; font-size:.66rem; font-weight:700; box-sizing:border-box; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; box-shadow:0 2px 6px rgba(12,37,69,.18); user-select:none; display:flex; align-items:center; }
+            .ts-gantt-cm .grow.can-edit .gbar { cursor:grab; }
+            .ts-gantt-cm .gbar.dragging { opacity:.8; cursor:grabbing; z-index:7; box-shadow:0 8px 20px rgba(12,37,69,.35); }
+            .ts-gantt-cm .gbar-label { padding:0 8px; overflow:hidden; text-overflow:ellipsis; }
+            .ts-gantt-cm .gbar.status-todo        { background:linear-gradient(135deg,#143a63,#0c2545); }
+            .ts-gantt-cm .gbar.status-in_progress { background:linear-gradient(135deg,#36a6e6,#1f87cd); }
+            .ts-gantt-cm .gbar.status-done        { background:linear-gradient(135deg,#8a98ab,#6b7a8f); }
+            .ts-gantt-cm .gbar.status-canceled    { background:linear-gradient(135deg,#e2e8f0,#94a3b8); color:#475569; }
+            .ts-gantt-cm .gbar.is-invalid-range { background:repeating-linear-gradient(135deg,#fca5a5 0,#fca5a5 6px,#ef4444 6px,#ef4444 12px); }
+            .ts-gantt-cm .ghandle { width:8px; align-self:stretch; cursor:ew-resize; flex:0 0 auto; background:rgba(255,255,255,.001); }
+            .ts-gantt-cm .grow.gbody.is-selected { outline:2px solid #1f87cd; outline-offset:-2px; }
+            .ts-gantt-cm .glegend2 { display:flex; gap:14px; flex-wrap:wrap; align-items:center; padding:10px 14px; border:1px solid #d9e2ef; border-top:0; border-radius:0 0 14px 14px; background:#f8fbff; color:#61748f; font-size:.74rem; }
+            .ts-gantt-cm .glegend2 span { display:inline-flex; align-items:center; gap:5px; }
+            .ts-gantt-cm .gdot { width:14px; height:9px; border-radius:3px; display:inline-block; }
+            .ts-gantt-cm .gdot.status-todo{background:linear-gradient(135deg,#143a63,#0c2545);} .ts-gantt-cm .gdot.status-in_progress{background:linear-gradient(135deg,#36a6e6,#1f87cd);} .ts-gantt-cm .gdot.status-done{background:linear-gradient(135deg,#8a98ab,#6b7a8f);} .ts-gantt-cm .gdot.status-canceled{background:#cbd5e1;}
+          </style>
 
-        <div class="g-legend">
-          <span class="g-legend-item"><span class="g-legend-dot todo"></span>To do</span>
-          <span class="g-legend-item"><span class="g-legend-dot in_progress"></span>In progress</span>
-          <span class="g-legend-item"><span class="g-legend-dot done"></span>Done</span>
-          <span class="g-legend-item"><span class="g-legend-dot canceled"></span>Canceled</span>
-          <span class="g-legend-item"><span class="g-legend-dot invalid"></span>Range non valido</span>
-          <span class="g-legend-item"><span class="g-legend-dot absence"></span>Assenza assegnatario</span>
-          <span class="g-legend-item"><span class="g-legend-dot weekend"></span>Weekend</span>
-          <span class="g-legend-item"><span class="g-legend-dot holiday"></span>Festivita</span>
-          <span class="g-legend-item" style="font-style:italic;">Durata in giorni lavorativi</span>
-        </div>
+          <div class="g-toolbar2">
+            <div class="gzoom"><span class="gzlbl">Zoom giorni</span>
+              <input type="range" id="g_zoom_cm" min="16" max="64" step="2" value="{{ gantt_day_cell_px|default:30 }}" aria-label="Zoom giorni"></div>
+            {% if can_edit_schedule %}<label class="gcasc" title="Sposta anche le attivita successive"><input type="checkbox" id="g_cascade_cm" checked> Cascata</label>{% endif %}
+            <span class="gzlbl" style="margin-left:auto;">Trascina le barre per ripianificare</span>
+          </div>
+
+          <div class="gscroll" data-oggi-idx="{{ gantt_today_index|default_if_none:'-1' }}" style="--cw:{{ gantt_day_cell_px|default:30 }}px;">
+            <div class="grow gweeks">
+              <div class="gmac">Settimana</div>
+              <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
+                {% for w in gantt_week_spans %}<div class="gweek" style="width:calc(var(--cw) * {{ w.span }});">{{ w.label }}</div>{% endfor %}
+              </div>
+            </div>
+            <div class="grow ghead">
+              <div class="gmac">Attivita</div>
+              <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
+                {% for day in gantt_days %}<div class="gday{% if day.is_weekend %} we{% endif %}{% if day.is_holiday %} hol{% endif %}{% if day.is_today %} td{% endif %}" style="width:var(--cw);">{{ day.date|date:"d" }}</div>{% endfor %}
+              </div>
+            </div>
+            {% for row in gantt_rows %}
+              <div class="grow gbody{% if row.can_edit %} can-edit{% endif %}" data-task-id="{{ row.task.id }}"
+                   {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
+                <div class="gmac">
+                  <a class="gmac-title" href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
+                  <small>{{ row.task.get_status_display }} · {% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}non assegnata{% endif %}{% if row.has_absence_conflicts %} · assenze {{ row.absence_days }}gg{% endif %}</small>
+                  {% if row.invalid_range %}<small style="color:#b91c1c;font-weight:800;">Range non valido</small>{% endif %}
+                  <div class="gmac-prog"><i style="width:{{ row.task.progress }}%"></i></div>
+                </div>
+                <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
+                  {% if gantt_today_index >= 0 %}<div class="gtoday" style="left:calc(var(--cw) * {{ gantt_today_index }});"></div>{% endif %}
+                  <div class="gbar status-{{ row.task.status|lower }}{% if row.invalid_range %} is-invalid-range{% endif %}"
+                       data-start="{{ row.start_index }}" data-span="{{ row.span }}"
+                       title="{{ row.task.title }} · {{ row.start|date:'d/m/Y' }} -> {{ row.end|date:'d/m/Y' }} · {{ row.task.progress }}%"
+                       style="left:calc(var(--cw) * {{ row.start_index }}); width:calc(var(--cw) * {{ row.span }} - 4px);">
+                    {% if row.can_edit %}<span class="ghandle" data-edge="start"></span>{% endif %}
+                    <span class="gbar-label">{{ row.task.title }}</span>
+                    {% if row.can_edit %}<span class="ghandle" data-edge="end"></span>{% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="glegend2">
+            <span><i class="gdot status-todo"></i>To do</span>
+            <span><i class="gdot status-in_progress"></i>In corso</span>
+            <span><i class="gdot status-done"></i>Completata</span>
+            <span><i class="gdot status-canceled"></i>Annullata</span>
+            <span style="color:#94a3b8;">· linea arancio = oggi · trascina centro barra per spostare, bordi per allungare/accorciare</span>
+          </div>
       {% else %}
         <div class="ts-empty" style="margin:16px;">
           <strong>Nessuna attivita nel kickoff.</strong>
@@ -1500,347 +1492,103 @@
 {% block tasks_shell_scripts %}
 <script>
 (function () {
-  const table = document.querySelector(".gantt-table");
-  if (!table) return;
-  const projectId = table.dataset.projectId || "0";
-  const canShift = table.dataset.canShift === "1";
-  const layoutKey = "tasks.gantt.layout." + projectId;
-  const widthRange = document.getElementById("id_day_width_live");
-  const heightRange = document.getElementById("id_day_height_live");
-  const valueLabel = document.getElementById("id_day_height_value"); /* compat */
-  const widthVal = document.getElementById("id_width_val");
-  const heightVal = document.getElementById("id_height_val");
+  var scroll = document.querySelector('.ts-gantt-cm .gscroll');
+  if (!scroll) return;
+  var zoom = document.getElementById('g_zoom_cm');
+  var cascadeEl = document.getElementById('g_cascade_cm');
 
-  function parsePx(value, fallback) { const numeric = parseInt(String(value || "").replace("px", "").trim(), 10); return Number.isFinite(numeric) ? numeric : fallback; }
-  function getVar(name, fallback) { return parsePx(getComputedStyle(table).getPropertyValue(name), fallback); }
-  function setVar(name, value) { table.style.setProperty(name, Math.round(value) + "px"); }
-
-  function updateValueLabel() {
-    const w = getVar("--day-cell-w", 30);
-    const h = getVar("--day-cell-h", 28);
-    if (valueLabel) valueLabel.textContent = "giorni " + w + "px - altezza " + h + "px";
-    if (widthVal) widthVal.textContent = w + "px";
-    if (heightVal) heightVal.textContent = h + "px";
+  function cw() { return parseInt(getComputedStyle(scroll).getPropertyValue('--cw'), 10) || 30; }
+  function csrf() {
+    var m = document.querySelector("meta[name='csrf-token']");
+    if (m) return m.getAttribute('content');
+    var i = document.querySelector("[name=csrfmiddlewaretoken]");
+    return i ? i.value : '';
   }
+  function leftCalc(idx) { return 'calc(var(--cw) * ' + idx + ')'; }
+  function widthCalc(span) { return 'calc(var(--cw) * ' + span + ' - 4px)'; }
 
-  function syncRangesFromVars() {
-    if (widthRange) widthRange.value = String(getVar("--day-cell-w", 30));
-    if (heightRange) heightRange.value = String(getVar("--day-cell-h", 28));
-    updateValueLabel();
-  }
+  // Zoom live (non ricarica)
+  if (zoom) zoom.addEventListener('input', function () { scroll.style.setProperty('--cw', zoom.value + 'px'); });
 
-  function saveLayout() {
-    const payload = { wbs:getVar("--wbs-col-w",58), name:getVar("--name-col-w",360), dur:getVar("--dur-col-w",110), start:getVar("--start-col-w",110), end:getVar("--end-col-w",110), dayW:getVar("--day-cell-w",30), dayH:getVar("--day-cell-h",28), rowH:getVar("--row-content-h",46) };
-    try { window.localStorage.setItem(layoutKey, JSON.stringify(payload)); } catch (error) { console.warn("Gantt layout non salvato", error); }
-  }
-
-  function loadLayout() {
-    try {
-      const raw = window.localStorage.getItem(layoutKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") return;
-      if (parsed.wbs) setVar("--wbs-col-w", parsed.wbs);
-      if (parsed.name) setVar("--name-col-w", parsed.name);
-      if (parsed.dur) setVar("--dur-col-w", parsed.dur);
-      if (parsed.start) setVar("--start-col-w", parsed.start);
-      if (parsed.end) setVar("--end-col-w", parsed.end);
-      if (parsed.dayW) setVar("--day-cell-w", parsed.dayW);
-      if (parsed.dayH) setVar("--day-cell-h", parsed.dayH);
-      if (parsed.rowH) setVar("--row-content-h", parsed.rowH); else if (parsed.dayH) setVar("--row-content-h", Math.max(36, parsed.dayH + 18));
-    } catch (error) { console.warn("Gantt layout non caricato", error); }
-  }
-
-  function isNonWorking(cell) { return cell.classList.contains("is-weekend") || cell.classList.contains("is-holiday"); }
-
-  function renderBars() {
-    table.querySelectorAll("tr.task-row").forEach(function (row) {
-      const cells = Array.from(row.querySelectorAll("td.g-cell"));
-      cells.forEach(function (cell) { cell.classList.remove("is-bar-start", "is-bar-end"); });
-      let runStart = -1;
-      for (let index = 0; index <= cells.length; index += 1) {
-        const isWorkingActive = index < cells.length && cells[index].classList.contains("is-active") && !isNonWorking(cells[index]) && !cells[index].classList.contains("is-absence");
-        if (isWorkingActive && runStart === -1) runStart = index;
-        else if (!isWorkingActive && runStart !== -1) { cells[runStart].classList.add("is-bar-start"); cells[index - 1].classList.add("is-bar-end"); runStart = -1; }
-      }
-    });
-  }
-
-  function applyStickyOffsets() {
-    const hasWbs = !!table.querySelector("th.col-wbs");
-    const wbsW = hasWbs ? getVar("--wbs-col-w", 58) : 0;
-    if (hasWbs) table.querySelectorAll(".col-wbs").forEach(function (element) { element.style.left = "0px"; });
-    table.querySelectorAll(".col-name").forEach(function (element) { element.style.left = wbsW + "px"; });
-  }
-
-  function bindRangeControls() {
-    if (widthRange) widthRange.addEventListener("input", function () { setVar("--day-cell-w", parseInt(widthRange.value, 10)); updateValueLabel(); saveLayout(); });
-    if (heightRange) heightRange.addEventListener("input", function () {
-      const dayHeight = parseInt(heightRange.value, 10);
-      setVar("--day-cell-h", dayHeight);
-      setVar("--row-content-h", Math.max(36, dayHeight + 18));
-      updateValueLabel();
-      saveLayout();
-    });
-  }
-
-  function bindColumnResizers() {
-    table.querySelectorAll("th.resizable-col[data-resize-var]").forEach(function (header) {
-      const handle = header.querySelector(".col-resizer");
-      if (!handle) return;
-      handle.addEventListener("pointerdown", function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        const variableName = header.dataset.resizeVar;
-        const minWidth = parseInt(header.dataset.minWidth || "60", 10);
-        const startX = event.clientX;
-        const startWidth = header.getBoundingClientRect().width;
-        document.body.style.cursor = "col-resize";
-        function onPointerMove(moveEvent) {
-          const next = Math.max(minWidth, startWidth + (moveEvent.clientX - startX));
-          setVar(variableName, next);
-          updateValueLabel();
-        }
-        function onPointerUp() {
-          document.removeEventListener("pointermove", onPointerMove);
-          document.removeEventListener("pointerup", onPointerUp);
-          document.body.style.cursor = "";
-          syncRangesFromVars();
-          applyStickyOffsets();
-          saveLayout();
-        }
-        document.addEventListener("pointermove", onPointerMove);
-        document.addEventListener("pointerup", onPointerUp);
-      });
-    });
-  }
-
-  function getCookie(name) {
-    const parts = document.cookie ? document.cookie.split(";") : [];
-    for (let index = 0; index < parts.length; index += 1) {
-      const item = parts[index].trim();
-      if (item.startsWith(name + "=")) return decodeURIComponent(item.slice(name.length + 1));
+  // ── Drag/resize barre ──
+  var drag = null;
+  scroll.addEventListener('mousedown', function (e) {
+    var bar = e.target.closest('.gbar');
+    if (!bar) return;
+    var row = bar.closest('.grow.gbody');
+    if (!row || !row.getAttribute('data-shift-url')) return;
+    e.preventDefault();
+    var edge = e.target.classList.contains('ghandle') ? e.target.getAttribute('data-edge') : null;
+    drag = {
+      bar: bar, row: row, edge: edge, startX: e.clientX, moved: false,
+      origStart: parseInt(bar.getAttribute('data-start'), 10) || 0,
+      origSpan: parseInt(bar.getAttribute('data-span'), 10) || 1,
+      w: cw(),
+    };
+    bar.classList.add('dragging');
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!drag) return;
+    var d = Math.round((e.clientX - drag.startX) / drag.w);
+    if (d !== 0) drag.moved = true;
+    if (drag.edge === 'start') {
+      var maxd = drag.origSpan - 1;
+      var dd = Math.min(d, maxd);
+      drag.bar.style.left = leftCalc(drag.origStart + dd);
+      drag.bar.style.width = widthCalc(drag.origSpan - dd);
+    } else if (drag.edge === 'end') {
+      drag.bar.style.width = widthCalc(Math.max(1, drag.origSpan + d));
+    } else {
+      drag.bar.style.left = leftCalc(drag.origStart + d);
     }
-    return "";
+  });
+  function reset(g) { g.bar.style.left = leftCalc(g.origStart); g.bar.style.width = widthCalc(g.origSpan); }
+  function postShift(g, mode, days) {
+    var casc = cascadeEl ? (cascadeEl.checked ? '1' : '0') : '0';
+    return fetch(g.row.getAttribute('data-shift-url'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: new URLSearchParams({ mode: mode, shift_days: days, cascade: casc }).toString(),
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.ok) { window.location.reload(); }
+      else { reset(g); alert((j && j.error) || 'Errore nello spostamento.'); }
+    }).catch(function () { reset(g); alert('Errore di rete.'); });
   }
+  document.addEventListener('mouseup', function (e) {
+    if (!drag) return;
+    var g = drag; drag = null;
+    g.bar.classList.remove('dragging');
+    var days = Math.round((e.clientX - g.startX) / g.w);
+    if (!days) { reset(g); return; }
+    var mode = g.edge === 'start' ? 'resize_start' : (g.edge === 'end' ? 'resize_end' : 'shift');
+    postShift(g, mode, days);
+  });
 
-  function clearRowPreview(row) {
-    row.classList.remove("is-dragging");
-    row.querySelectorAll(".g-cell").forEach(function (cell) {
-      cell.classList.remove("is-drag-preview", "is-drag-bar-start", "is-drag-bar-end");
-    });
+  // ── Click barra -> quick edit accordion ──
+  var forms = document.querySelectorAll('.quick-edit-item[data-task-id]');
+  var placeholder = document.getElementById('quick-edit-placeholder');
+  function selectTask(taskId) {
+    forms.forEach(function (f) { f.classList.toggle('is-visible', taskId !== null && f.dataset.taskId === String(taskId)); });
+    if (placeholder) placeholder.style.display = taskId ? 'none' : '';
+    scroll.querySelectorAll('.grow.gbody').forEach(function (r) { r.classList.toggle('is-selected', taskId !== null && r.getAttribute('data-task-id') === String(taskId)); });
   }
-
-  function paintRowPreview(row, startIndex, endIndex) {
-    clearRowPreview(row);
-    row.classList.add("is-dragging");
-    var firstPreviewCell = null, lastPreviewCell = null;
-    row.querySelectorAll(".g-cell").forEach(function (cell) {
-      const dayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
-      if (dayIndex >= startIndex && dayIndex <= endIndex) {
-        cell.classList.add("is-drag-preview");
-        if (!firstPreviewCell) firstPreviewCell = cell;
-        lastPreviewCell = cell;
-      }
-    });
-    if (firstPreviewCell) firstPreviewCell.classList.add("is-drag-bar-start");
-    if (lastPreviewCell) lastPreviewCell.classList.add("is-drag-bar-end");
-  }
-
-  function bindTaskDragShift() {
-    if (!canShift) return;
-    const tbody = table.querySelector("tbody");
-    if (!tbody) return;
-    const tableWrap = table.closest(".gantt-table-wrap");
-    const csrfToken = getCookie("csrftoken");
-    const totalDays = parseInt(table.dataset.totalDays || "0", 10);
-    let gesture = null;
-    let shiftRequestPending = false;
-
-    /* Calcola in quale colonna-giorno si trova il cursore leggendo la posizione
-       della prima cella della timeline (BoundingClientRect aggiornata ad ogni frame,
-       quindi corretta anche dopo lo scroll automatico). */
-    function dayIndexAt(clientX) {
-      const firstCell = table.querySelector("td.g-cell");
-      if (!firstCell) return 0;
-      const dayWidth = Math.max(4, getVar("--day-cell-w", 30));
-      const raw = Math.floor((clientX - firstCell.getBoundingClientRect().left) / dayWidth);
-      return Math.max(0, totalDays > 0 ? Math.min(totalDays - 1, raw) : raw);
+  scroll.addEventListener('click', function (e) {
+    if (e.target.closest('a') || e.target.classList.contains('ghandle')) return;
+    var row = e.target.closest('.grow.gbody');
+    if (!row || !e.target.closest('.gbar')) return;
+    var taskId = row.getAttribute('data-task-id');
+    if (!document.querySelector('.quick-edit-item[data-task-id="' + String(taskId) + '"]')) return;
+    var already = row.classList.contains('is-selected');
+    selectTask(already ? null : taskId);
+    if (!already) {
+      var sec = document.querySelector('.quick-edit-grid');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+  });
 
-    function autoScrollWrap(clientX) {
-      if (!tableWrap) return;
-      const rect = tableWrap.getBoundingClientRect();
-      const edge = 56;
-      if (clientX < rect.left + edge) tableWrap.scrollLeft -= Math.ceil((rect.left + edge - clientX) / 7);
-      else if (clientX > rect.right - edge) tableWrap.scrollLeft += Math.ceil((clientX - (rect.right - edge)) / 7);
-    }
-
-    /* Applica il vincolo predecessore: il task non puo iniziare prima della fine
-       del task precedente (WBS order). prevEndIndex == -1 significa nessun vincolo. */
-    function clampDelta(rawDelta, startIndex, endIndex, prevEndIndex) {
-      let d = rawDelta;
-      d = Math.max(d, -startIndex);                                         // non prima del giorno 0
-      if (totalDays > 0) d = Math.min(d, totalDays - 1 - endIndex);        // non oltre l'ultimo giorno
-      if (prevEndIndex >= 0) d = Math.max(d, prevEndIndex + 1 - startIndex); // vincolo predecessore
-      return d;
-    }
-
-    function clampResizeStartDelta(rawDelta, startIndex, endIndex, prevEndIndex) {
-      let d = rawDelta;
-      d = Math.max(d, -startIndex);
-      d = Math.min(d, endIndex - startIndex);
-      if (prevEndIndex >= 0) d = Math.max(d, prevEndIndex + 1 - startIndex);
-      return d;
-    }
-
-    function clampResizeEndDelta(rawDelta, startIndex, endIndex) {
-      let d = rawDelta;
-      d = Math.max(d, startIndex - endIndex);
-      if (totalDays > 0) d = Math.min(d, totalDays - 1 - endIndex);
-      return d;
-    }
-
-    function dragModeFromPointer(cell, event, startIndex, endIndex) {
-      const edge = cell.dataset.ganttEdge || "";
-      if (!edge) return "shift";
-      const dayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
-      const rect = cell.getBoundingClientRect();
-      const edgeZone = Math.max(6, Math.min(12, rect.width * 0.35));
-      const x = event.clientX - rect.left;
-      if ((edge === "start" || edge === "both") && dayIndex === startIndex && x <= edgeZone) return "resize_start";
-      if ((edge === "end" || edge === "both") && dayIndex === endIndex && x >= rect.width - edgeZone) return "resize_end";
-      return "shift";
-    }
-
-    /* Stile cursore globale durante il drag */
-    var dragStyle = null;
-    function setCursorGrabbing() {
-      dragStyle = document.createElement("style");
-      dragStyle.textContent = "* { cursor: grabbing !important; }";
-      document.head.appendChild(dragStyle);
-    }
-    function clearCursorGrabbing() {
-      if (dragStyle) { dragStyle.remove(); dragStyle = null; }
-    }
-
-    tbody.addEventListener("pointerdown", function (event) {
-      if (gesture || shiftRequestPending || event.button !== 0) return;
-      const cell = event.target.closest("td.g-cell.is-active");
-      if (!cell) return;
-      const row = cell.closest("tr.task-row");
-      if (!row || !row.dataset.shiftUrl) return;
-      const startIndex = parseInt(row.dataset.startIndex || "-1", 10);
-      const endIndex = parseInt(row.dataset.endIndex || "-1", 10);
-      if (startIndex < 0 || endIndex < startIndex) return;
-      const anchorDayIndex = parseInt(cell.dataset.dayIndex || "0", 10);
-      const prevEndIndex = parseInt(row.dataset.prevEndIndex || "-1", 10);
-
-      event.preventDefault();
-      const mode = dragModeFromPointer(cell, event, startIndex, endIndex);
-      gesture = { row, pointerId: event.pointerId, mode, anchorDayIndex, startIndex, endIndex, prevEndIndex, delta: 0 };
-      paintRowPreview(row, startIndex, endIndex);
-      setCursorGrabbing();
-      document.addEventListener("pointermove", onPointerMove);
-      document.addEventListener("pointerup", onPointerUp);
-      document.addEventListener("pointercancel", onPointerCancel);
-    });
-
-    function onPointerMove(moveEvent) {
-      if (!gesture || moveEvent.pointerId !== gesture.pointerId) return;
-      autoScrollWrap(moveEvent.clientX);
-      const { anchorDayIndex, startIndex, endIndex, prevEndIndex, row, mode } = gesture;
-      const hoveredDay = dayIndexAt(moveEvent.clientX);
-      let delta = hoveredDay - anchorDayIndex;
-      let previewStart = startIndex;
-      let previewEnd = endIndex;
-      if (mode === "resize_start") {
-        delta = clampResizeStartDelta(hoveredDay - startIndex, startIndex, endIndex, prevEndIndex);
-        previewStart = startIndex + delta;
-      } else if (mode === "resize_end") {
-        delta = clampResizeEndDelta(hoveredDay - endIndex, startIndex, endIndex);
-        previewEnd = endIndex + delta;
-      } else {
-        delta = clampDelta(delta, startIndex, endIndex, prevEndIndex);
-        previewStart = startIndex + delta;
-        previewEnd = endIndex + delta;
-      }
-      if (delta !== gesture.delta) {
-        gesture.delta = delta;
-        paintRowPreview(row, previewStart, previewEnd);
-      }
-    }
-
-    async function finishDrag(shouldSubmit) {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerCancel);
-      clearCursorGrabbing();
-      if (!gesture) return;
-      const { row, delta, mode } = gesture;
-      gesture = null;
-      if (!shouldSubmit || delta === 0) { clearRowPreview(row); return; }
-      shiftRequestPending = true;
-      try {
-        const cascadeCheckbox = document.getElementById("id_cascade_shift");
-        const doCascade = (!cascadeCheckbox || cascadeCheckbox.checked) ? "1" : "0";
-        const body = new URLSearchParams();
-        body.set("mode", mode);
-        body.set("shift_days", String(delta));
-        body.set("cascade", doCascade);
-        const response = await fetch(row.dataset.shiftUrl, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": csrfToken, "X-Requested-With": "XMLHttpRequest" },
-          body: body.toString()
-        });
-        const payload = await response.json().catch(function () { return {}; });
-        if (!response.ok || !payload.ok) throw new Error(payload.error || "shift_failed");
-        window.location.reload();
-      } catch (error) {
-        clearRowPreview(row);
-        alert("Spostamento task non riuscito.");
-        console.error("Gantt shift error", error);
-      } finally { shiftRequestPending = false; }
-    }
-
-    function onPointerUp(e) { if (!gesture || e.pointerId !== gesture.pointerId) return; finishDrag(true); }
-    function onPointerCancel(e) { if (!gesture || e.pointerId !== gesture.pointerId) return; finishDrag(false); }
-  }
-
-  function bindQuickEditAccordion() {
-    const placeholder = document.getElementById("quick-edit-placeholder");
-    const forms = document.querySelectorAll(".quick-edit-item[data-task-id]");
-    if (!forms.length) return;
-    function selectTask(taskId) {
-      forms.forEach(function (form) { if (form.dataset.taskId === String(taskId)) form.classList.add("is-visible"); else form.classList.remove("is-visible"); });
-      if (placeholder) placeholder.style.display = taskId ? "none" : "";
-      table.querySelectorAll("tr.task-row").forEach(function (row) { if (row.dataset.taskId === String(taskId)) row.classList.add("is-selected"); else row.classList.remove("is-selected"); });
-    }
-    const tbody = table.querySelector("tbody");
-    if (tbody) tbody.addEventListener("click", function (event) {
-      const row = event.target.closest("tr.task-row");
-      if (!row) return;
-      const taskId = row.dataset.taskId;
-      const hasForm = document.querySelector('.quick-edit-item[data-task-id="' + String(taskId) + '"]');
-      if (!hasForm) return;
-      const isAlreadySelected = row.classList.contains("is-selected");
-      selectTask(isAlreadySelected ? null : taskId);
-      if (!isAlreadySelected) {
-        const section = document.querySelector(".quick-edit-grid");
-        if (section) section.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-    });
-  }
-
-  loadLayout();
-  syncRangesFromVars();
-  renderBars();
-  applyStickyOffsets();
-  bindRangeControls();
-  bindColumnResizers();
-  bindTaskDragShift();
-  bindQuickEditAccordion();
+  // Scroll automatico alla colonna di OGGI
+  var oggi = parseInt(scroll.getAttribute('data-oggi-idx'), 10);
+  if (oggi >= 0) { var w0 = cw(); scroll.scrollLeft = Math.max(0, oggi * w0 - 3 * w0); }
 })();
 
 // ── Dipendenze AJAX ──────────────────────────────────
