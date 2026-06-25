@@ -262,12 +262,48 @@ modulo.
 abilitazione, export CSV, accesso negato, voci di menu seminate). Suite skill-matrix totale
 **49 verdi**; `manage.py check` pulito; migration applicata su SQLite (dev).
 
+## F2b — Importer baseline  ⛔ STOP: **ATTESA APPROVAZIONE SCRITTURA** (2026-06-25)
+
+> Importer **costruito e testato**; eseguito solo in **dry-run** su fixtures sintetiche.
+> NON eseguito `--apply` sui dati reali: serve prima la conferma del match (gate F2a)
+> e l'ok esplicito alla scrittura baseline.
+
+**File toccati:**
+- `django_app/anagrafica/services/skillmatrix_importer.py` (nuovo) — logica import.
+- `django_app/anagrafica/management/commands/import_skill_matrix.py` (nuovo) — comando.
+- `django_app/anagrafica/tests_skillmatrix_importer.py` (nuovo) — 3 test.
+
+**Comportamento** (`importa_skill_matrix`, comando `import_skill_matrix`):
+- **dry-run di default**, scrive solo con `--apply`; CSV da `docs/anagrafica/skillmatrix/`.
+- operatori risolti per **nome** → `legacy_anagrafica_id` (via `fetch_anagrafica_rows`,
+  match "COGNOME NOME"/"NOME COGNOME"); non risolti/ambigui **riportati** (mai drop);
+- chiama `sincronizza_catalogo()` poi usa SOLO le macchine con **match confermato**
+  (`match_confermato` + `asset`); macchina referenziata senza match → **bloccata** e
+  elencata (non si inventa l'asset);
+- baseline (snapshot 2026-04-30) → `AbilitazioneMacchina` (`update_or_create`,
+  CAR ⇒ `conteggiabile_nel_carico=False`, cella vuota = non in lista);
+- **storico** append-only per ENTRAMBI gli snapshot (`get_or_create` per data, idempotente);
+- "corsi attivati" → `SkmCorsiAttivati`; righe **processo** della matrice → contate e
+  riportate (NON nello strato macchina, decisione F0 #4);
+- verifica **coerenza** matrice vs `skm_storico_delta.csv`; tutto in transazione.
+
+**Test:** `anagrafica.tests_skillmatrix_importer` → **3 passed** (dry-run pianifica senza
+scrivere; `--apply` scrive abilitazioni+storico+contatore con CAR escluso dal carico;
+idempotenza). Suite skill-matrix totale **52 verdi**.
+
+### ⛔ STOP — cosa serve per `--apply` sui dati reali
+1. Confermare i match competenza→asset nell'ambiente target (specchietto F2a, o report);
+   le macchine non confermate restano **bloccate** dall'importer.
+2. `python manage.py import_skill_matrix` (dry-run) nell'ambiente target → rivedere il
+   piano (operatori risolti, abilitazioni, bloccate, processi saltati, coerenza storico).
+3. Ok esplicito → `python manage.py import_skill_matrix --apply`.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
 - [x] F2a Asset-match report — 18 esatti/14 parziali/10 assenti (13 test) — **GATE attivo**
 - [x] F2a-UI Specchietto validazione in portale (`/anagrafica/skill-matrix/match/`) — 31 test totali — **GATE attivo**
-- [ ] F2b Importer baseline (STOP approvazione scrittura)
+- [~] F2b Importer baseline — **costruito + dry-run validato (3 test)**; STOP attivo per `--apply` (conferma match + approvazione)
 - [x] F3 Resolver bridge read-only (9 test) — punto d'aggancio Fase B carichi macchina
 - [x] F4 Matrice macchina UI + tab (`/anagrafica/skill-matrix/`, 5 test) — vuota finché F2b non importa la baseline
 - [ ] F5 Continuità operativa (STOP approvazione cablaggio produzione)
