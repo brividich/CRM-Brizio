@@ -14,7 +14,7 @@
 ![IIS](https://img.shields.io/badge/Runtime-Waitress%20%2B%20IIS-0078D4?style=flat-square&logo=microsoft&logoColor=white)
 ![Graph](https://img.shields.io/badge/Integration-Microsoft%20Graph-2563eb?style=flat-square&logo=microsoft&logoColor=white)
 ![LDAP](https://img.shields.io/badge/Auth-LDAP%20%2B%20Django%20%2B%20Legacy-6B7280?style=flat-square)
-![Modules](https://img.shields.io/badge/Moduli-25%2B-16A34A?style=flat-square)
+![Modules](https://img.shields.io/badge/Moduli-27-16A34A?style=flat-square)
 
 [Start here](doc/START_HERE.md) · [Manuale tecnico GitHub](doc/README.md) · [Architettura](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md) · [Testing](doc/TESTING.md) · [Deploy IIS](deployment/README_DEPLOY_IIS_WINDOWS.md) · [ACL v2](doc/ACL_V2_PERMISSION_GUIDE.md)
 
@@ -53,7 +53,7 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 
 | | |
 |---|---|
-| 🧩 **25 app Django custom** | raggruppate per area funzionale |
+| 🧩 **27 app Django custom** | raggruppate per area funzionale |
 | 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
 | 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
 | 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
@@ -134,7 +134,7 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
-### Tutti i 25 moduli custom a colpo d'occhio
+### Tutti i 27 moduli custom a colpo d'occhio
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
@@ -150,7 +150,7 @@ sequenceDiagram
 | 7b | [`fornitori`](django_app/fornitori/) | Operations | `/fornitori/` | **Anagrafica Fornitori** (modulo e permessi ACL separati da Anagrafica HR): dashboard KPI spesa/ordini/asset, lista filtrabile, scheda fornitore con documenti / ordini / valutazioni qualità / asset assegnati. I modelli restano in `anagrafica.models` per compatibilità con le FK storiche di assets |
 | 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario IT e produzione con tabelle operative comuni, work order, manutenzioni periodiche con subnav condivisa, KPI collegati a liste filtrate, azioni rapide OdL, calendario asset, planimetrie, licenze SW, export Excel, Outlook sync |
 | 9 | [`attrezzature`](django_app/attrezzature/) | Operations | `/attrezzature/` | Gestione Attrezzatura: workflow attrezzi/P-N, import Excel legacy, azioni avanzamento/pronta produzione, link strutturato KICK-OFF |
-| 9b | [`gestione_carichi_macchina`](django_app/gestione_carichi_macchina/) | Operations | `/carichi-macchina/` | **Gestione Carichi Macchina**: pianificazione carichi che sostituisce il foglio Excel; vista **Excel** (matrice macchine×giorni, edit inline HTMX) + **Gantt** (colore per commessa, cascata, drag tra macchine, conflitti/overbooking, undo, zoom); **importer** del foglio reale (mappatura asset, backlog, CICLI); **AI predittiva** (durata, macchina probabile con **scoring pesato load-aware** mostrato nel form cella, rischio ritardo, carico/colli di bottiglia) con spiegazione LLM via gateway `ai_assistant`. ACL v2 canonica (`gestione_carichi_macchina.piano.view/edit`). Guida d'uso: [docs/gestione_carichi_macchina/GUIDA_UTILIZZO.md](docs/gestione_carichi_macchina/GUIDA_UTILIZZO.md) |
+| 9b | [`gestione_carichi_macchina`](django_app/gestione_carichi_macchina/) | Operations | `/carichi-macchina/` | **Gestione Carichi Macchina**: pianificazione carichi che sostituisce il foglio Excel; vista **Excel** (matrice macchine×giorni, edit inline HTMX) + **Gantt ridisegnato** (header navy, colonna macchine sticky/ridimensionabile, stepper live largh. colonna/alt. riga, colore per **commessa/famiglia/stato**, **milestone** KICK-OFF/consegna, avanzamento, banda settimane + giorni, cascata, drag-to-reschedule tra macchine, conflitti/overbooking, undo, **pannelli laterali** lavoro/macchina con macchine consigliate); **importer** del foglio reale (mappatura asset, backlog, CICLI); **AI predittiva** (durata, macchina probabile con **scoring pesato load-aware** mostrato nel form cella, rischio ritardo, carico/colli di bottiglia) con spiegazione LLM via gateway `ai_assistant`. ACL v2 canonica (`gestione_carichi_macchina.piano.view/edit`). Guida d'uso: [docs/gestione_carichi_macchina/GUIDA_UTILIZZO.md](docs/gestione_carichi_macchina/GUIDA_UTILIZZO.md) |
 | 9c | [`gestione_specifiche`](django_app/gestione_specifiche/) | Operations | `/gestione-specifiche/` | **Gestione Specifiche** (in costruzione, vedi `docs/specs/gestione_specifiche/`): digitalizza il **Flusso Specifiche + MOD.133** (ciclo di vita specifiche tecniche/comunicazioni/piani di qualità, flow-down requisiti, OFI→MOD.174, verifica periodica, distribuzione tracciata) per audit **ISO 9001 §7.5 / EN 9100**. Macchina a stati **django-fsm-2** (S1 bozza→S9 errore), **audit immutabile** con snapshot per ricostruzione punto-nel-tempo, storico consultabile con **export PDF/CSV**, allegati su storage privato cifrato. Reminder/escalation/verifica periodica via django-q2 (email + notifica in-app). **API django-ninja** (`/gestione-specifiche/api/`: elenco/ricerca/dettaglio/eventi/transizioni). **Copilota AI locale** (Ollama on-premise): pre-compilazione MOD.133 da PDF, classificazione TAG, ricerca semantica — l'AI propone, l'umano firma. ACL v2 canonica (`gestione_specifiche.*`). Modulo isolato (hook nullable `commessa_ref`/`famiglia_ref`) |
 | 10 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, Gantt con drag spostamento/resize, timeline eventi leggibile, incontri avanzamento, VRF (MOD.073), blocco progressivo, flag impatto sicurezza |
 | 11 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |

@@ -1,0 +1,5 @@
+{# Mini-indicatore di saturazione per la colonna macchina del Gantt. Riceve `riga` e la classe colore `sc` (sat-lo / sat-mid / sat-hi / sat-crit) dal contesto del chiamante. #}
+<div class="gmac-sat">
+  <div class="gsatp {{ sc }}">{{ riga.sat.perc }}%</div>
+  <div class="gsatbar"><i class="{{ sc }}" style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
+</div>
