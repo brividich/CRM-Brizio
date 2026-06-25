@@ -2164,3 +2164,355 @@ class AiAssistantTests(TestCase):
             runtime_context="",
             user_preferences={"style": "dettagliato", "show_limits": True},
         )
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False)
+class SgiRagLoaderTests(TestCase):
+    """F1 — loader RAG del corpus documentale SGI (specifiche + procedure correnti).
+
+    Verifica: chunk citabili (handle spec:/proc:), solo revisioni in vigore, cache
+    del testo per file_hash, fail-safe su PDF assente/illeggibile, opt-out via
+    setting. Estrazione PDF (pymupdf) e Ollama non vengono mai toccati dalla rete:
+    il testo e' iniettato/mockato.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        clear_knowledge_cache()
+
+    def _make_specifica_in_validita(self, *, codice, revisione, titolo, cliente="ACME", tag="timbri"):
+        from gestione_specifiche import constants as C
+        from gestione_specifiche.models import Specifica
+
+        spec = Specifica.objects.create(
+            codice=codice, revisione=revisione, titolo=titolo, cliente=cliente, tag=tag
+        )
+        # FSMField protetto: lo stato "in vigore" si imposta via update() (come l'import storico).
+        Specifica.objects.filter(pk=spec.pk).update(stato=C.STATO_IN_VALIDITA)
+        return Specifica.objects.get(pk=spec.pk)
+
+    def test_sgi_loader_indexes_current_specifica_with_citable_source(self):
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Manuale tecnico")
+        pdf_text = (
+            "1 Scopo\nDescrizione generale del documento.\n\n"
+            "4.2 Registrazione timbri\n"
+            "La registrazione dei timbri di presenza segue questa regola.\n"
+        )
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+            OLLAMA_RAG_MAX_CHUNKS=4,
+        ), patch("ai_assistant.services._sgi_extract_specifica_text", return_value=pdf_text):
+            clear_knowledge_cache()
+            context = build_knowledge_context("in che documento si parla dei timbri?")
+
+        self.assertIn("timbri", context.text.lower())
+        self.assertTrue(
+            any(s.startswith("spec:MT CN 06#rev7") for s in context.sources),
+            msg=f"manca l'handle citabile spec:: {context.sources}",
+        )
+        self.assertTrue(
+            any("§4.2" in s for s in context.sources),
+            msg=f"la citazione deve riportare la sezione §4.2: {context.sources}",
+        )
+
+    def test_sgi_loader_excludes_non_current_specifica(self):
+        from gestione_specifiche.models import Specifica
+
+        # Resta in bozza (stato di default): non e' in vigore -> non indicizzata.
+        Specifica.objects.create(codice="SPEC-BOZZA", revisione="A", titolo="Bozza timbri presenze")
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            context = build_knowledge_context("timbri presenze bozza")
+
+        self.assertFalse(
+            any(s.startswith("spec:") for s in context.sources),
+            msg=f"una specifica non in vigore non deve essere indicizzata: {context.sources}",
+        )
+
+    def test_sgi_loader_without_pdf_falls_back_to_metadata(self):
+        # Nessun allegato -> il documento resta comunque citabile dai metadati.
+        self._make_specifica_in_validita(
+            codice="MT CN 09", revisione="2", titolo="Gestione presenze e timbrature", tag="presenze"
+        )
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            context = build_knowledge_context("gestione presenze e timbrature")
+
+        self.assertTrue(
+            any(s.startswith("spec:MT CN 09#rev2") for s in context.sources),
+            msg=f"il fallback metadati deve restare citabile: {context.sources}",
+        )
+
+    def test_extract_pdf_text_is_failsafe(self):
+        from ai_assistant.services import _extract_pdf_text
+
+        # Input non-PDF / vuoto / None: mai un'eccezione, sempre stringa vuota.
+        self.assertEqual(_extract_pdf_text(b"questo non e' un pdf"), "")
+        self.assertEqual(_extract_pdf_text(None), "")
+        self.assertEqual(_extract_pdf_text(""), "")
+
+    def test_sgi_specifica_text_cached_by_file_hash(self):
+        import io
+
+        from ai_assistant.services import _sgi_extract_specifica_text
+
+        class _StubAllegato:
+            def __init__(self, data):
+                self.data = data
+                self.open_calls = 0
+
+            def __bool__(self):
+                return True
+
+            def open(self, mode="rb"):
+                self.open_calls += 1
+                return io.BytesIO(self.data)
+
+        class _StubSpec:
+            pk = 4242
+            updated_at = timezone.now()
+
+            def __init__(self, allegato):
+                self.allegato = allegato
+
+        allegato = _StubAllegato(b"%PDF-1.4 byte finti")
+        spec = _StubSpec(allegato)
+        with override_settings(
+            OLLAMA_RAG_SGI_MAX_PDF_CHARS=200000,
+            OLLAMA_RAG_SGI_TEXT_CACHE_TTL=600,
+        ), patch("ai_assistant.services._extract_pdf_text", return_value="TESTO ESTRATTO") as mock_extract:
+            first = _sgi_extract_specifica_text(spec)
+            second = _sgi_extract_specifica_text(spec)
+
+        self.assertEqual(first, "TESTO ESTRATTO")
+        self.assertEqual(second, "TESTO ESTRATTO")
+        # 2a chiamata servita dalla cache: nessuna ri-estrazione ne' ri-lettura del file.
+        self.assertEqual(mock_extract.call_count, 1)
+        self.assertEqual(allegato.open_calls, 1)
+
+    def test_sgi_loader_disabled_by_setting(self):
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Manuale timbri")
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=False,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            context = build_knowledge_context("timbri manuale")
+
+        self.assertFalse(
+            any(s.startswith("spec:") for s in context.sources),
+            msg=f"con OLLAMA_RAG_SGI_ENABLED=False il corpus SGI non va indicizzato: {context.sources}",
+        )
+
+    def test_sgi_loader_indexes_current_procedure_metadata_only(self):
+        from procedure_refresh.models import ProcedureDocument, ProcedureRevision
+
+        doc = ProcedureDocument.objects.create(
+            code="MT CN 06", title="Registrazione presenze e timbri", category="Qualita", is_active=True
+        )
+        ProcedureRevision.objects.create(
+            document=doc, revision_code="7", revision_date=date.today(), effective_date=date.today(),
+            source_type="sharepoint", source_url="https://sp.example/x", file_name="mtcn06.pdf", is_current=True,
+        )
+        # Documento dismesso (is_active=False): la sua revisione corrente NON va indicizzata.
+        doc_off = ProcedureDocument.objects.create(code="MT CN 99", title="Documento dismesso", is_active=False)
+        ProcedureRevision.objects.create(
+            document=doc_off, revision_code="1", revision_date=date.today(), effective_date=date.today(),
+            source_type="sharepoint", source_url="https://sp.example/y", file_name="off.pdf", is_current=True,
+        )
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            context = build_knowledge_context("dove registro i timbri di presenza?")
+
+        self.assertTrue(
+            any(s.startswith("proc:MT CN 06#rev7") for s in context.sources),
+            msg=f"la procedura corrente deve essere citabile (fallback metadati): {context.sources}",
+        )
+        self.assertFalse(
+            any("MT CN 99" in s for s in context.sources),
+            msg=f"un documento dismesso non deve comparire: {context.sources}",
+        )
+
+    # ── F2: regola di citazione nel prompt + comando di indicizzazione ──────
+    def test_prompt_carries_sgi_citation_rule(self):
+        messages = build_ollama_messages(
+            "in che MT si parla di timbri?",
+            knowledge_context=(
+                "[fonte: proc:MT CN 06#rev7 > MT CN 06 Rev.7 — §4.2 Registrazione timbri]\n"
+                "La registrazione dei timbri di presenza segue questa regola."
+            ),
+        )
+        block = "\n".join(m["content"] for m in messages if m["role"] == "system")
+        self.assertIn("REGOLA DI CITAZIONE DOCUMENTI SGI", block)
+        self.assertIn("Non disponibile nei documenti indicizzati", block)
+
+    def test_index_sgi_documents_command_reports_sgi_chunks(self):
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Manuale timbri presenze")
+        out = StringIO()
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+        ):
+            clear_knowledge_cache()
+            call_command("index_sgi_documents", "--json", stdout=out)
+
+        payload = json.loads(out.getvalue())
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["embeddings_enabled"])
+        self.assertGreaterEqual(payload["chunks_spec"], 1)
+        self.assertEqual(payload["chunks_sgi"], payload["chunks_spec"] + payload["chunks_proc"])
+
+    def test_index_sgi_documents_skips_when_rag_disabled(self):
+        out = StringIO()
+        with override_settings(OLLAMA_RAG_ENABLED=False):
+            call_command("index_sgi_documents", "--json", stdout=out)
+
+        payload = json.loads(out.getvalue())
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["skipped"])
+
+    def test_run_index_sgi_documents_task_is_failsafe(self):
+        from ai_assistant.tasks import run_index_sgi_documents
+
+        with patch("ai_assistant.services.index_sgi_documents", side_effect=RuntimeError("boom")):
+            result = run_index_sgi_documents()
+
+        self.assertFalse(result["ok"])
+        self.assertIn("inatteso", result["message"])
+
+    # ── F3: stemming opt-in + golden set SGI / ai_eval --rag-sgi ────────────
+    def test_stemming_unifies_inflected_forms_when_enabled(self):
+        from ai_assistant import services
+
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+        with override_settings(OLLAMA_RAG_STEMMING_ENABLED=True):
+            stemmed = {services._tokenize(w)[0] for w in ("timbri", "timbro", "timbrare")}
+        with override_settings(OLLAMA_RAG_STEMMING_ENABLED=False):
+            raw = {services._tokenize(w)[0] for w in ("timbri", "timbro", "timbrare")}
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+
+        self.assertEqual(len(stemmed), 1, msg=f"lo stemming deve unificare le flessioni: {stemmed}")
+        self.assertEqual(len(raw), 3, msg=f"senza stemming le flessioni restano distinte: {raw}")
+
+    def test_stemming_is_failsafe_when_dependency_missing(self):
+        import builtins
+
+        from ai_assistant import services
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "snowballstemmer":
+                raise ImportError("dipendenza assente")
+            return real_import(name, *args, **kwargs)
+
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+        with override_settings(OLLAMA_RAG_STEMMING_ENABLED=True), patch(
+            "builtins.__import__", side_effect=fake_import
+        ):
+            tokens = services._tokenize("timbrare")
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+
+        self.assertEqual(tokens, ["timbrare"], msg="dipendenza assente -> nessuno stemming, mai crash")
+
+    def test_ai_eval_rag_sgi_reports_recall_on_seeded_corpus(self):
+        from ai_assistant import services
+
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Registrazione presenze")
+        pdf_text = (
+            "4.2 Registrazione timbri\n"
+            "I timbri di presenza si registrano a inizio e fine turno tramite il portale."
+        )
+        out = StringIO()
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+        # Stemming ON: e' la config consigliata per il corpus SGI (unifica le flessioni
+        # timbri/timbro/timbrare/presenze), così tutte le golden recuperano MT CN 06.
+        with override_settings(
+            OLLAMA_RAG_ENABLED=True,
+            OLLAMA_RAG_SGI_ENABLED=True,
+            OLLAMA_EMBED_ENABLED=False,
+            OLLAMA_RAG_SOURCE_PATHS=[],
+            OLLAMA_RAG_CACHE_SECONDS=0,
+            OLLAMA_RAG_STEMMING_ENABLED=True,
+        ), patch("ai_assistant.services._sgi_extract_specifica_text", return_value=pdf_text):
+            clear_knowledge_cache()
+            call_command("ai_eval", "--rag-sgi", "--json", stdout=out)
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+
+        payload = json.loads(out.getvalue())
+        summary = payload["summary"]
+        self.assertEqual(summary["mode"], "rag-sgi")
+        self.assertTrue(summary["stemming_enabled"])
+        self.assertGreaterEqual(summary["sgi_chunks"], 1)
+        self.assertGreaterEqual(summary["cases"], 1)
+        # Unico documento del corpus: con stemming tutte le golden recuperano MT CN 06.
+        self.assertEqual(summary["recall_hits"], summary["cases"])
+
+    def test_stemming_recovers_inflected_query_match(self):
+        """Misura l'effetto della leva stemming: una query flessa ('timbrare') recupera
+        il documento sui 'timbri' solo con lo stemming attivo (prima/dopo deterministico)."""
+        from ai_assistant import services
+
+        self._make_specifica_in_validita(codice="MT CN 06", revisione="7", titolo="Presenze")
+        self._make_specifica_in_validita(codice="MT CN 80", revisione="1", titolo="Gestione personale")
+        text_map = {
+            "MT CN 06": "4.2 Registrazione timbri\nI timbri di inizio e fine turno.",
+            "MT CN 80": "1 Personale\nGestione del personale interno ed esterno dell'azienda.",
+        }
+
+        def fake_extract(spec):
+            return text_map.get(spec.codice, "")
+
+        def sources_for(stemming):
+            services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+            with override_settings(
+                OLLAMA_RAG_ENABLED=True,
+                OLLAMA_RAG_SGI_ENABLED=True,
+                OLLAMA_EMBED_ENABLED=False,
+                OLLAMA_RAG_SOURCE_PATHS=[],
+                OLLAMA_RAG_CACHE_SECONDS=0,
+                OLLAMA_RAG_MAX_CHUNKS=4,
+                OLLAMA_RAG_STEMMING_ENABLED=stemming,
+            ), patch("ai_assistant.services._sgi_extract_specifica_text", side_effect=fake_extract):
+                clear_knowledge_cache()
+                ctx = build_knowledge_context("come timbrare, info sul personale")
+            return ctx.sources
+
+        off = sources_for(False)
+        on = sources_for(True)
+        services._STEMMER_CACHE.update({"loaded": False, "stemmer": None})
+
+        # OFF: 'timbrare' non combacia con 'timbri' -> il documento timbri non emerge.
+        self.assertFalse(any("MT CN 06" in s for s in off), msg=f"off={off}")
+        # ON: 'timbrare'->'timbr' == 'timbri'->'timbr' -> il documento timbri viene recuperato.
+        self.assertTrue(any("MT CN 06" in s for s in on), msg=f"on={on}")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 import time
@@ -16,6 +17,8 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core.cache import cache
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaChatError(RuntimeError):
@@ -123,13 +126,39 @@ def _fold_accents(value: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
+# Stemmer italiano opt-in (OLLAMA_RAG_STEMMING_ENABLED). snowballstemmer e'
+# pure-python; se la dipendenza manca o il flag e' spento la tokenizzazione resta
+# invariata (fail-safe). Lo stemmer e' applicato in modo identico a chunk e query,
+# quindi "timbri"/"timbro"/"timbrare" collassano sullo stesso token ("timbr").
+_STEMMER_CACHE: dict[str, Any] = {"loaded": False, "stemmer": None}
+
+
+def _get_italian_stemmer():
+    if not _STEMMER_CACHE["loaded"]:
+        try:
+            import snowballstemmer
+
+            _STEMMER_CACHE["stemmer"] = snowballstemmer.stemmer("italian")
+        except Exception:
+            _STEMMER_CACHE["stemmer"] = None
+        _STEMMER_CACHE["loaded"] = True
+    return _STEMMER_CACHE["stemmer"]
+
+
 def _tokenize(value: str) -> list[str]:
     folded = _fold_accents(value.lower())
-    return [
+    tokens = [
         token
         for token in re.findall(r"[a-z0-9_]{3,}", folded)
         if token not in _RAG_STOPWORDS
     ]
+    # Stemming opt-in: dopo la rimozione stopword (queste sono non-stemmate), così
+    # query e chunk condividono la stessa radice. Fail-safe se la dipendenza manca.
+    if tokens and bool(getattr(settings, "OLLAMA_RAG_STEMMING_ENABLED", False)):
+        stemmer = _get_italian_stemmer()
+        if stemmer is not None:
+            tokens = [stemmer.stemWord(token) for token in tokens]
+    return tokens
 
 
 def _repo_root() -> Path:
@@ -297,6 +326,355 @@ def _curated_knowledge_signature() -> tuple[int, str]:
     except Exception:
         return (0, "")
     return (count, latest.updated_at.isoformat() if latest else "")
+
+
+# ── Corpus documentale SGI (specifiche + procedure correnti) ────────────────
+# Loader gemello di `_load_curated_knowledge_chunks`: indicizza il testo dei
+# documenti SGI gia' presenti nel portale rendendoli citabili in chat (handle
+# stabile `spec:`/`proc:`). Solo revisioni in vigore. Tutto fail-safe: app
+# assente, PDF illeggibile o Ollama offline saltano il singolo documento senza
+# mai propagare un'eccezione (coerente con gli altri loader). On-premise: per le
+# procedure si legge solo il file server locale; SharePoint -> fallback metadati.
+
+# Heading di sezione numerata (es. "4.2 Registrazione timbri", "§4.2 Titolo",
+# "4.2) Titolo"): chiave per il chunking sezione-aware, cosi' la citazione puo'
+# riportare il paragrafo (§4.2) e non solo il documento.
+_SGI_HEADING_RE = re.compile(r"^\s*(?:§\s*)?(\d{1,2}(?:\.\d{1,3}){0,4})[.)]?\s+(\S.+?)\s*$")
+
+
+def _extract_pdf_text(source: Any) -> str:
+    """Estrae il testo da un PDF (FieldFile, path o bytes) con pymupdf.
+
+    Replica il pattern di ``gestione_specifiche.ai_copilota._estrai_testo_pdf``
+    mantenendo ``ai_assistant`` autonomo (nessun import cross-app). Fail-safe:
+    pymupdf assente, file mancante o PDF corrotto -> stringa vuota (il chunk viene
+    saltato o ripiega sui metadati), mai un'eccezione propagata.
+    """
+    if not source:
+        return ""
+    try:
+        import fitz  # pymupdf
+    except Exception:
+        return ""
+    try:
+        if isinstance(source, (bytes, bytearray)):
+            data = bytes(source)
+        elif hasattr(source, "open"):  # Django FieldFile
+            with source.open("rb") as fh:
+                data = fh.read()
+        elif isinstance(source, (str, Path)):
+            data = Path(source).read_bytes()
+        else:
+            return ""
+        if not data:
+            return ""
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            return "\n".join(page.get_text() for page in doc)
+    except Exception as exc:
+        logger.debug("ai_assistant: estrazione PDF SGI fallita: %s", exc)
+        return ""
+
+
+def _sgi_sections(text: str) -> list[tuple[str, str]]:
+    """Spezza il testo del documento in sezioni numerate (etichetta, contenuto).
+
+    Una riga e' heading se combacia con ``_SGI_HEADING_RE``, e' corta (titolo, non
+    un paragrafo) e ha almeno una lettera. Senza heading riconosciuti ritorna
+    un'unica sezione con etichetta vuota (il chiamante usa il titolo del documento).
+    """
+    sections: list[tuple[str, list[str]]] = []
+    title = ""
+    lines: list[str] = []
+    for line in text.splitlines():
+        match = _SGI_HEADING_RE.match(line)
+        is_heading = bool(
+            match
+            and len(line.strip()) <= 90
+            and any(ch.isalpha() for ch in match.group(2))
+        )
+        if is_heading:
+            if title or lines:
+                sections.append((title, lines))
+            title = f"§{match.group(1)} {match.group(2).strip()}"[:160]
+            lines = [line]
+        else:
+            lines.append(line)
+    if title or lines:
+        sections.append((title, lines))
+    return [
+        (label, "\n".join(body).strip())
+        for label, body in sections
+        if "\n".join(body).strip()
+    ]
+
+
+def _sgi_chunks_from_text(*, source: str, doc_label: str, text: str, max_chars: int) -> list[KnowledgeChunk]:
+    """Costruisce i chunk citabili di un documento: sezione-aware + split lungo."""
+    chunks: list[KnowledgeChunk] = []
+    for label, body in _sgi_sections(text):
+        title = f"{doc_label} — {label}" if label else doc_label
+        chunks.extend(_split_long_section(source, title, body, max_chars=max_chars))
+    return chunks
+
+
+def _sgi_text_cache_key(file_hash: str) -> str:
+    return "ai_sgi_text:" + file_hash
+
+
+def _sgi_cached_text(file_hash: str) -> str | None:
+    """Testo PDF estratto in cache (DatabaseCache) per content-hash. None = miss."""
+    if not file_hash:
+        return None
+    try:
+        value = cache.get(_sgi_text_cache_key(file_hash))
+    except Exception:
+        return None
+    return value if isinstance(value, str) else None
+
+
+def _sgi_store_text(file_hash: str, text: str) -> None:
+    if not file_hash:
+        return
+    ttl = int(getattr(settings, "OLLAMA_RAG_SGI_TEXT_CACHE_TTL", 2592000) or 2592000)
+    try:
+        cache.set(_sgi_text_cache_key(file_hash), text, timeout=ttl)
+    except Exception:
+        pass
+
+
+def _sgi_spec_hash_cache_key(spec) -> str:
+    """Chiave cache (pk, updated_at) -> file_hash per la Specifica.
+
+    La Specifica non persiste un hash del PDF: lo deriviamo dai byte una sola
+    volta e lo cachiamo per (pk, updated_at), cosi' i rebuild a caldo dell'indice
+    non rileggono il file finche' il documento non cambia.
+    """
+    updated = getattr(spec, "updated_at", None)
+    stamp = updated.isoformat() if updated else ""
+    return "ai_sgi_hash:spec:" + hashlib.sha256(f"{spec.pk}\n{stamp}".encode("utf-8")).hexdigest()
+
+
+def _sgi_cached_spec_hash(spec) -> str:
+    try:
+        value = cache.get(_sgi_spec_hash_cache_key(spec))
+    except Exception:
+        return ""
+    return value if isinstance(value, str) else ""
+
+
+def _sgi_store_spec_hash(spec, file_hash: str) -> None:
+    ttl = int(getattr(settings, "OLLAMA_RAG_SGI_TEXT_CACHE_TTL", 2592000) or 2592000)
+    try:
+        cache.set(_sgi_spec_hash_cache_key(spec), file_hash, timeout=ttl)
+    except Exception:
+        pass
+
+
+def _sgi_extract_specifica_text(spec) -> str:
+    """Testo PDF della Specifica con doppia cache (hash per pk+updated_at, testo
+    per file_hash). I byte si leggono al piu' una volta per rebuild (solo su miss).
+    """
+    allegato = getattr(spec, "allegato", None)
+    if not allegato:
+        return ""
+    max_pdf_chars = int(getattr(settings, "OLLAMA_RAG_SGI_MAX_PDF_CHARS", 200000) or 200000)
+    file_hash = _sgi_cached_spec_hash(spec)
+    if file_hash:
+        cached = _sgi_cached_text(file_hash)
+        if cached is not None:
+            return cached[:max_pdf_chars]
+    # Miss: leggi i byte UNA volta -> hash + estrazione.
+    try:
+        with allegato.open("rb") as fh:
+            data = fh.read()
+    except Exception as exc:
+        logger.debug("ai_assistant: lettura allegato Specifica fallita: %s", exc)
+        return ""
+    if not data:
+        return ""
+    file_hash = hashlib.sha256(data).hexdigest()
+    _sgi_store_spec_hash(spec, file_hash)
+    cached = _sgi_cached_text(file_hash)
+    if cached is not None:
+        return cached[:max_pdf_chars]
+    text = _extract_pdf_text(data)[:max_pdf_chars]
+    _sgi_store_text(file_hash, text)
+    return text
+
+
+def _sgi_safe_pdf_path(raw_path: str) -> Path | None:
+    """Path file server leggibile e con estensione .pdf, altrimenti None.
+
+    Estraiamo solo PDF: un .docx/.xlsx ripiega sui metadati a monte. Nessuna
+    scrittura, sola lettura per l'indicizzazione.
+    """
+    try:
+        path = Path(raw_path)
+        if path.is_file() and path.suffix.lower() == ".pdf":
+            return path
+    except OSError:
+        return None
+    return None
+
+
+def _sgi_extract_procedure_text(rev) -> str:
+    """Testo PDF della procedura: solo file server locale (decisione F0-A).
+
+    SharePoint e' escluso on-premise -> il chiamante ripiega sui metadati. Cache
+    del testo per il ``file_hash`` gia' presente sul modello.
+    """
+    source_type = str(getattr(rev, "source_type", "") or "").strip().lower()
+    source_path = str(getattr(rev, "source_path", "") or "").strip()
+    if source_type != "fileserver" or not source_path:
+        return ""
+    max_pdf_chars = int(getattr(settings, "OLLAMA_RAG_SGI_MAX_PDF_CHARS", 200000) or 200000)
+    file_hash = _clean_text(getattr(rev, "file_hash", ""), limit=128)
+    if file_hash:
+        cached = _sgi_cached_text(file_hash)
+        if cached is not None:
+            return cached[:max_pdf_chars]
+    path = _sgi_safe_pdf_path(source_path)
+    if path is None:
+        return ""
+    text = _extract_pdf_text(path)[:max_pdf_chars]
+    if file_hash:
+        _sgi_store_text(file_hash, text)
+    return text
+
+
+def _sgi_specifica_metadata(spec) -> str:
+    """Testo di fallback (metadati) quando il PDF della Specifica non e' leggibile."""
+    parts = [
+        _clean_text(getattr(spec, "titolo", ""), limit=300),
+        f"Cliente: {_clean_text(spec.cliente, limit=200)}" if getattr(spec, "cliente", "") else "",
+        f"TAG: {_clean_text(spec.tag, limit=120)}" if getattr(spec, "tag", "") else "",
+        _clean_text(getattr(spec, "note", ""), limit=600),
+    ]
+    return "\n".join(p for p in parts if p)
+
+
+def _sgi_procedure_metadata(doc) -> str:
+    """Testo di fallback (metadati) quando il PDF della procedura non e' leggibile."""
+    parts = [
+        _clean_text(getattr(doc, "title", ""), limit=300),
+        f"Categoria: {_clean_text(doc.category, limit=100)}" if getattr(doc, "category", "") else "",
+        _clean_text(getattr(doc, "description", ""), limit=600),
+    ]
+    return "\n".join(p for p in parts if p)
+
+
+def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
+    """Chunk citabili dalle Specifiche in vigore (stato S3 `in_validita`)."""
+    try:
+        from gestione_specifiche import constants as C
+        from gestione_specifiche.models import Specifica
+    except Exception:
+        return []
+    limit = int(getattr(settings, "OLLAMA_RAG_SGI_MAX_SPECS", 300) or 300)
+    try:
+        specifiche = list(
+            Specifica.objects.filter(stato=C.STATO_IN_VALIDITA)
+            .only("id", "codice", "revisione", "titolo", "cliente", "tag", "note", "allegato", "updated_at")
+            .order_by("-updated_at")[:limit]
+        )
+    except Exception:
+        return []
+
+    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
+    chunks: list[KnowledgeChunk] = []
+    for spec in specifiche:
+        try:
+            codice = _clean_text(spec.codice, limit=100)
+            if not codice:
+                continue
+            rev = _clean_text(spec.revisione, limit=30)
+            doc_label = f"{codice} Rev.{rev}" if rev else codice
+            source = f"spec:{codice}#rev{rev}" if rev else f"spec:{codice}"
+            text = _sgi_extract_specifica_text(spec) or _sgi_specifica_metadata(spec)
+            chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
+        except Exception:
+            continue
+    return chunks
+
+
+def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
+    """Chunk citabili dalle procedure correnti (ProcedureRevision is_current, doc attivo)."""
+    try:
+        from procedure_refresh.models import ProcedureRevision
+    except Exception:
+        return []
+    limit = int(getattr(settings, "OLLAMA_RAG_SGI_MAX_PROCS", 300) or 300)
+    try:
+        revisions = list(
+            ProcedureRevision.objects.filter(is_current=True, document__is_active=True)
+            .select_related("document")
+            .only(
+                "id", "revision_code", "file_hash", "source_type", "source_path", "updated_at",
+                "document__code", "document__title", "document__category", "document__description",
+            )
+            .order_by("-revision_date")[:limit]
+        )
+    except Exception:
+        return []
+
+    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
+    chunks: list[KnowledgeChunk] = []
+    for rev in revisions:
+        try:
+            doc = rev.document
+            code = _clean_text(getattr(doc, "code", ""), limit=50)
+            if not code:
+                continue
+            rev_code = _clean_text(rev.revision_code, limit=50)
+            doc_label = f"{code} Rev.{rev_code}" if rev_code else code
+            source = f"proc:{code}#rev{rev_code}" if rev_code else f"proc:{code}"
+            text = _sgi_extract_procedure_text(rev) or _sgi_procedure_metadata(doc)
+            chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
+        except Exception:
+            continue
+    return chunks
+
+
+def _load_sgi_document_chunks() -> list[KnowledgeChunk]:
+    """Aggrega i chunk del corpus SGI (specifiche correnti + procedure correnti)."""
+    chunks: list[KnowledgeChunk] = []
+    chunks.extend(_load_sgi_specifiche_chunks())
+    chunks.extend(_load_sgi_procedure_chunks())
+    return chunks
+
+
+def _sgi_documents_signature() -> tuple[int, str, int, str]:
+    """Firma del corpus SGI (count + max updated_at per fonte) per invalidare la cache."""
+    if not bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
+        return (0, "", 0, "")
+    from django.db.models import Count, Max
+
+    spec_count, spec_latest = 0, ""
+    try:
+        from gestione_specifiche import constants as C
+        from gestione_specifiche.models import Specifica
+
+        agg = Specifica.objects.filter(stato=C.STATO_IN_VALIDITA).aggregate(
+            n=Count("id"), latest=Max("updated_at")
+        )
+        spec_count = agg["n"] or 0
+        spec_latest = agg["latest"].isoformat() if agg["latest"] else ""
+    except Exception:
+        spec_count, spec_latest = 0, ""
+
+    proc_count, proc_latest = 0, ""
+    try:
+        from procedure_refresh.models import ProcedureRevision
+
+        agg = ProcedureRevision.objects.filter(is_current=True, document__is_active=True).aggregate(
+            n=Count("id"), latest=Max("updated_at")
+        )
+        proc_count = agg["n"] or 0
+        proc_latest = agg["latest"].isoformat() if agg["latest"] else ""
+    except Exception:
+        proc_count, proc_latest = 0, ""
+
+    return (spec_count, spec_latest, proc_count, proc_latest)
 
 
 def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
@@ -502,6 +880,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
     signature = (
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
         _curated_knowledge_signature(),
+        _sgi_documents_signature(),
     )
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
@@ -524,6 +903,8 @@ def _load_knowledge_index() -> KnowledgeIndex:
         text = raw_text[:max_file_chars]
         chunks.extend(_chunk_document(path, text))
     chunks.extend(_load_curated_knowledge_chunks())
+    if bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
+        chunks.extend(_load_sgi_document_chunks())
 
     index = _build_index(chunks)
 
@@ -708,7 +1089,13 @@ def build_ollama_messages(
                     f"{knowledge_context}\n\n"
                     "Usa questo contesto solo per domande su configurazione, architettura o funzionamento del portale, "
                     "e solo se non e' gia presente un contesto live pertinente. "
-                    "Cita le fonti presenti nel contesto tra parentesi."
+                    "Cita le fonti presenti nel contesto tra parentesi. "
+                    "REGOLA DI CITAZIONE DOCUMENTI SGI: se una fonte inizia con 'spec:' o 'proc:' "
+                    "(specifiche tecniche e procedure del Sistema di Gestione), la risposta DEVE riportare "
+                    "codice documento, revisione e sezione come compaiono nel titolo della fonte "
+                    "(es. «MT CN 06 Rev.7 §4.2»), senza mostrare l'handle tecnico 'spec:'/'proc:'. "
+                    "Se il contesto SGI non basta a rispondere, dichiaralo con "
+                    "«Non disponibile nei documenti indicizzati» invece di inventare codici, revisioni o sezioni."
                 ),
             }
         )
@@ -883,6 +1270,81 @@ def chat_with_ollama(
         sources=() if has_runtime_context else knowledge.sources,
         rag_context_chars=0 if has_runtime_context else len(knowledge.text),
     )
+
+
+def index_sgi_documents() -> dict[str, Any]:
+    """Forza la build dell'indice RAG e il warm degli embeddings del corpus SGI.
+
+    La prima build e' la piu' costosa (estrazione PDF + embedding dei chunk SGI);
+    le successive riusano la cache per ``file_hash``/content-hash. Se gli embeddings
+    sono attivi (``OLLAMA_EMBED_ENABLED``) i vettori vengono precalcolati e cachati
+    qui, cosi' la prima chat non paga il costo.
+
+    Non solleva eccezioni: cattura tutto e riporta l'esito in un dict
+    (``ok``/``chunks_*``/``embeddings_ready``/``elapsed_ms``/``message``), cosi' e'
+    usabile in un cluster django-q senza farlo fallire.
+    """
+    started = time.monotonic()
+    result: dict[str, Any] = {
+        "ok": False,
+        "skipped": False,
+        "sgi_enabled": bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)),
+        "embeddings_enabled": embeddings_enabled(),
+        "chunks_total": 0,
+        "chunks_sgi": 0,
+        "chunks_spec": 0,
+        "chunks_proc": 0,
+        "embeddings_ready": False,
+        "embed_model": "",
+        "elapsed_ms": None,
+        "message": "",
+    }
+    if not bool(getattr(settings, "OLLAMA_RAG_ENABLED", True)):
+        result.update(skipped=True, message="RAG disabilitato (OLLAMA_RAG_ENABLED=False): indicizzazione saltata.")
+        return result
+    try:
+        clear_knowledge_cache()
+        index = _load_knowledge_index()
+        total = len(index.chunks)
+        spec = sum(1 for c in index.chunks if c.source.startswith("spec:"))
+        proc = sum(1 for c in index.chunks if c.source.startswith("proc:"))
+        result.update(
+            ok=True,
+            chunks_total=total,
+            chunks_sgi=spec + proc,
+            chunks_spec=spec,
+            chunks_proc=proc,
+            embeddings_ready=index.embeddings is not None,
+            embed_model=index.embed_model,
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+        )
+    except Exception as exc:
+        result["elapsed_ms"] = int((time.monotonic() - started) * 1000)
+        result["message"] = f"Indicizzazione SGI fallita: {exc}"
+        logger.exception("index_sgi_documents: errore durante la build dell'indice")
+        return result
+
+    if not result["sgi_enabled"]:
+        result["message"] = (
+            f"Indice ricostruito: {total} chunk totali. Corpus SGI disattivato "
+            "(OLLAMA_RAG_SGI_ENABLED=False)."
+        )
+    elif not result["embeddings_enabled"]:
+        result["message"] = (
+            f"Indice ricostruito: {total} chunk ({spec + proc} SGI: {spec} specifiche, {proc} procedure). "
+            "Embeddings spenti: retrieval BM25-only (attiva OLLAMA_EMBED_ENABLED per l'ibrido)."
+        )
+    elif not result["embeddings_ready"]:
+        result["message"] = (
+            f"Indice ricostruito: {total} chunk ({spec + proc} SGI), ma gli embeddings non sono "
+            "disponibili (Ollama offline o modello assente): retrieval BM25-only."
+        )
+    else:
+        result["message"] = (
+            f"Indice + embeddings pronti in {result['elapsed_ms']} ms: {total} chunk "
+            f"({spec + proc} SGI: {spec} specifiche, {proc} procedure), modello {result['embed_model']}."
+        )
+    return result
 
 
 def _resolve_ollama_target() -> tuple[str, str, str, int]:

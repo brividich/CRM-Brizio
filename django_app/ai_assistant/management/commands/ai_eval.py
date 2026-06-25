@@ -131,6 +131,15 @@ class Command(BaseCommand):
             help="Valuta il retrieval documentale (recall@k) invece del routing tool.",
         )
         parser.add_argument(
+            "--rag-sgi",
+            action="store_true",
+            help=(
+                "Come --rag ma sul golden set del corpus SGI (ai_assistant/eval/golden_sgi.jsonl): "
+                "misura recall@k/hit-rate sui documenti SGI indicizzati (specifiche in vigore / "
+                "procedure correnti). Da eseguire dove il corpus e' presente."
+            ),
+        )
+        parser.add_argument(
             "--top-k",
             type=int,
             default=0,
@@ -188,12 +197,15 @@ class Command(BaseCommand):
         as_json = bool(options.get("json"))
         custom = list(options.get("query") or [])
 
-        if options.get("rag"):
+        if options.get("rag") or options.get("rag_sgi"):
+            sgi = bool(options.get("rag_sgi"))
             self._handle_rag(
                 as_json=as_json,
                 custom=custom,
                 top_k=int(options.get("top_k") or 0),
                 sources=str(options.get("sources") or "").strip(),
+                golden=self._load_sgi_golden() if sgi else None,
+                sgi=sgi,
             )
             return
 
@@ -312,9 +324,19 @@ class Command(BaseCommand):
             return text.encode(enc, errors="replace").decode(enc, errors="replace")
 
     # ── Valutazione retrieval RAG (recall@k) ────────────────────────────────
-    def _handle_rag(self, *, as_json: bool, custom: list[str], top_k: int, sources: str = "") -> None:
+    def _handle_rag(
+        self,
+        *,
+        as_json: bool,
+        custom: list[str],
+        top_k: int,
+        sources: str = "",
+        golden: "list[tuple[str, frozenset[str]]] | None" = None,
+        sgi: bool = False,
+    ) -> None:
         rag_enabled = bool(getattr(settings, "OLLAMA_RAG_ENABLED", True))
         embeddings_on = services.embeddings_enabled()
+        stemming_on = bool(getattr(settings, "OLLAMA_RAG_STEMMING_ENABLED", False))
         default_k = int(getattr(settings, "OLLAMA_RAG_MAX_CHUNKS", 4) or 4)
         k = top_k if top_k > 0 else default_k
 
@@ -322,14 +344,17 @@ class Command(BaseCommand):
             # Override prod-like dei path RAG per il solo eval (es. escludere docs/).
             override = [item.strip() for item in sources.split(",") if item.strip()]
             settings.OLLAMA_RAG_SOURCE_PATHS = override
-            services.clear_knowledge_cache()
+        # Rebuild esplicito: l'eval e' una misura, deve riflettere i settings correnti
+        # (sorgenti, stemming on/off, embeddings) senza cache stantia tra due run.
+        services.clear_knowledge_cache()
 
         index = services._load_knowledge_index()
+        sgi_chunks = sum(1 for c in index.chunks if c.source.startswith(("spec:", "proc:")))
 
         if custom:
             cases: list[tuple[str, frozenset[str]]] = [(q, frozenset()) for q in custom]
         else:
-            cases = list(_RAG_GOLDEN)
+            cases = list(golden if golden is not None else _RAG_GOLDEN)
 
         results = []
         hits = 0
@@ -371,14 +396,16 @@ class Command(BaseCommand):
             )
 
         mrr = round(sum(reciprocal_ranks) / len(reciprocal_ranks), 3) if reciprocal_ranks else None
-        coverage = self._kb_golden_coverage() if not custom else None
+        coverage = self._kb_golden_coverage() if (not custom and not sgi) else None
         summary = {
-            "mode": "rag",
+            "mode": "rag-sgi" if sgi else "rag",
             "rag_enabled": rag_enabled,
             "embeddings_enabled": embeddings_on,
+            "stemming_enabled": stemming_on,
             "top_k": k,
             "source_paths": services._source_paths(),
             "chunks_indexed": len(index.chunks),
+            "sgi_chunks": sgi_chunks,
             "cases": len(cases),
             "recall_hits": hits if not custom else None,
             "mrr": mrr if not custom else None,
@@ -394,10 +421,25 @@ class Command(BaseCommand):
 
         retrieval_mode = "ibrido BM25+semantico" if embeddings_on else "BM25"
         self.stdout.write(
-            f"RAG: {'ON' if rag_enabled else 'OFF'} | retrieval={retrieval_mode} | "
+            f"{'RAG-SGI' if sgi else 'RAG'}: {'ON' if rag_enabled else 'OFF'} | "
+            f"retrieval={retrieval_mode} | stemming={'ON' if stemming_on else 'OFF'} | "
             f"top_k={k} | chunk indicizzati={len(index.chunks)}"
+            + (f" (di cui SGI={sgi_chunks})" if sgi else "")
         )
         self.stdout.write(self._safe(f"sorgenti: {', '.join(services._source_paths())}"))
+        if sgi and not cases:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Golden SGI vuoto: ai_assistant/eval/golden_sgi.jsonl mancante o senza righe valide."
+                )
+            )
+        if sgi and sgi_chunks == 0:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Nessun chunk SGI indicizzato: esegui dove le specifiche in vigore / procedure "
+                    "correnti sono presenti, con OLLAMA_RAG_SGI_ENABLED=1."
+                )
+            )
         self.stdout.write("-" * 78)
         for row in results:
             flag = "  " if row["recall_ok"] is None else ("OK" if row["recall_ok"] else "!!")
@@ -451,6 +493,37 @@ class Command(BaseCommand):
             if not any(frag in stem or stem in frag for frag in expected_fragments):
                 uncovered.append(path.name)
         return uncovered
+
+    def _load_sgi_golden(self) -> "list[tuple[str, frozenset[str]]]":
+        """Golden set SGI da ai_assistant/eval/golden_sgi.jsonl (vuoto se assente).
+
+        Ogni riga JSON: {"q": "<domanda>", "expect": ["<frammento fonte attesa>", ...]}.
+        Le righe vuote e quelle che iniziano con # sono ignorate (commenti).
+        """
+        from pathlib import Path
+
+        path = Path(services.__file__).resolve().parent / "eval" / "golden_sgi.jsonl"
+        golden: list[tuple[str, frozenset[str]]] = []
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            q = str(obj.get("q") or obj.get("domanda") or "").strip()
+            raw = obj.get("expect") or obj.get("documento") or []
+            if isinstance(raw, str):
+                raw = [raw]
+            expect = frozenset(str(item).strip() for item in raw if str(item).strip())
+            if q and expect:
+                golden.append((q, expect))
+        return golden
 
     @staticmethod
     def _is_curated_kb_chunk(source: str) -> bool:

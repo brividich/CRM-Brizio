@@ -30,3 +30,24 @@ def run_warmup_ollama(timeout: int | None = None) -> dict:
     except Exception:
         logger.exception("run_warmup_ollama: errore inatteso")
         return {"ok": False, "skipped": False, "loaded": False, "message": "errore inatteso"}
+
+
+def run_index_sgi_documents() -> dict:
+    """Indicizza/scalda il corpus documentale SGI nel RAG dell'assistente.
+
+    Wrappa ``services.index_sgi_documents()``. **Fail-safe**: non solleva mai, così
+    il cluster django-q non va in errore se Ollama/embeddings sono giù. La prima
+    build è la più costosa (estrazione PDF + embedding); poi è in cache per
+    ``file_hash``/content-hash. Schedulalo a bassa frequenza (es. notturna) per
+    evitare che sia la prima chat della giornata a pagare la ricostruzione.
+    """
+    from ai_assistant.services import index_sgi_documents
+
+    try:
+        result = index_sgi_documents()
+        if not result.get("ok") and not result.get("skipped"):
+            logger.warning("index_sgi_documents non riuscito: %s", result.get("message"))
+        return result
+    except Exception:
+        logger.exception("run_index_sgi_documents: errore inatteso")
+        return {"ok": False, "skipped": False, "message": "errore inatteso"}

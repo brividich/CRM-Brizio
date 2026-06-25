@@ -1,0 +1,17 @@
+# Golden set SGI per `manage.py ai_eval --rag-sgi` (recall@k / hit-rate).
+# Formato JSONL: {"q": "<domanda>", "expect": ["<frammento documento atteso>", ...]}.
+# Il frammento atteso e' un pezzo dell'handle/titolo della fonte (di norma il codice
+# documento, es. "MT CN 06"): la golden e' soddisfatta se almeno una delle fonti
+# attese compare tra i primi --top-k chunk recuperati. Le righe che iniziano con #
+# sono commenti e vengono ignorate.
+#
+# STARTER SET: contiene solo l'esempio verificato (timbri -> MT CN 06, dal prompt).
+# VA CURATO contro il corpus REALE dell'ambiente target (aggiungere una riga per
+# ogni documento SGI tipico, con le domande come le porrebbe un utente). L'eval va
+# eseguito dove il corpus e' indicizzato (specifiche in vigore / procedure correnti).
+# Le piu' phrasing sullo stesso documento esercitano la robustezza del retrieval e
+# l'effetto dello stemming (timbri/timbro/timbrare -> stessa radice).
+{"q": "in che MT si fa riferimento ai timbri?", "expect": ["MT CN 06"]}
+{"q": "dove sono regolati i timbri di presenza?", "expect": ["MT CN 06"]}
+{"q": "come si registra un timbro a inizio turno?", "expect": ["MT CN 06"]}
+{"q": "qual e' la procedura per timbrare le presenze?", "expect": ["MT CN 06"]}

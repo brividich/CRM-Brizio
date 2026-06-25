@@ -136,6 +136,20 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Warm dell'indice RAG + cache embeddings del corpus documentale SGI
+        # (specifiche in vigore / procedure correnti). La PRIMA build è la più
+        # costosa (estrazione PDF + embedding); il run notturno la anticipa così
+        # non è la prima chat della giornata a pagarla. Utile soprattutto con
+        # OLLAMA_EMBED_ENABLED=1; con embeddings spenti ricostruisce solo l'indice
+        # BM25 (cheap). Fail-safe / no-op se RAG o SGI sono disattivi o Ollama è giù.
+        "name": "ai_index_sgi_documents",
+        "func": "ai_assistant.tasks.run_index_sgi_documents",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "30 3 * * *",   # ogni notte alle 03:30 (off-peak)
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria scadenza attività KICK-OFF: materializza i TaskReminder in
         # scadenza come notifiche portale (idempotente, fired flag). Porta i
         # promemoria nello scheduler centralizzato al posto del Task Windows.

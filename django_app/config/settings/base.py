@@ -270,6 +270,20 @@ OLLAMA_RAG_BM25_B = float(env("OLLAMA_RAG_BM25_B", "0.75") or "0.75")
 # Overlap (caratteri) tra chunk consecutivi della stessa sezione: preserva il
 # contesto a cavallo del confine. 0 = nessun overlap.
 OLLAMA_RAG_CHUNK_OVERLAP_CHARS = int(env("OLLAMA_RAG_CHUNK_OVERLAP_CHARS", "150") or "150")
+# Corpus documentale SGI nel RAG: indicizza le Specifiche in vigore (stato S3) e
+# le revisioni procedura correnti, rendendole citabili in chat (handle spec:/proc:).
+# OPT-OUT con OLLAMA_RAG_SGI_ENABLED=False. Cap dedicati perche' il corpus SGI
+# supera i 200 di OLLAMA_RAG_MAX_DB_ENTRIES. Il testo PDF estratto e' cachato per
+# file_hash (TTL dedicato). Il chunking riusa OLLAMA_RAG_CHUNK_CHARS/_OVERLAP_CHARS.
+OLLAMA_RAG_SGI_ENABLED = env_bool("OLLAMA_RAG_SGI_ENABLED", True)
+OLLAMA_RAG_SGI_MAX_SPECS = int(env("OLLAMA_RAG_SGI_MAX_SPECS", "300") or "300")
+OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "300") or "300")
+OLLAMA_RAG_SGI_MAX_PDF_CHARS = int(env("OLLAMA_RAG_SGI_MAX_PDF_CHARS", "200000") or "200000")
+OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "2592000") or "2592000")
+# Stemming italiano opt-in per il RAG (Snowball via snowballstemmer, pure-python).
+# OFF di default: misurare il recall con `ai_eval --rag`/`--rag-sgi` prima di attivarlo
+# in .env. Applicato identico a query e chunk; fail-safe se la dipendenza manca.
+OLLAMA_RAG_STEMMING_ENABLED = env_bool("OLLAMA_RAG_STEMMING_ENABLED", False)
 # Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
 # di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
 # se non disponibile il retrieval resta BM25-only. Solo provider "ollama".

@@ -44,6 +44,9 @@ qrcode[pil]>=7.4                # generazione QR code (setup TOTP)
 django-fsm-2>=4.0,<5            # macchina a stati Specifica (FSMField/@transition)
 django-ninja>=1.0,<2            # API REST elenco/ricerca/transizioni gestione_specifiche
 
+# --- AI / RAG (assistente Ollama) ---
+snowballstemmer>=2.2            # stemmer italiano opt-in per il RAG (OLLAMA_RAG_STEMMING_ENABLED); pure-python
+
 # --- HTMX integration ---
 django-htmx>=1.17               # middleware + script bundled per htmx SSR
 

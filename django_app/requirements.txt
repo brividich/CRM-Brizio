@@ -48,6 +48,7 @@ qrcode==8.0               # via -r requirements.in
 reportlab==4.4.10         # via -r requirements.in
 requests==2.33.1          # via -r requirements.in, msal
 six==1.17.0               # via python-dateutil
+snowballstemmer==3.1.1    # via -r requirements.in
 sqlparse==0.5.5           # via django
 sspilib==0.5.0            # via pyspnego
 tzdata==2026.2            # via django
