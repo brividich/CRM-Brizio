@@ -476,8 +476,16 @@ def vista_gantt(request):
     oggi = timezone.localdate()
     fine = giorni[-1]
     idx_map = {g: i for i, g in enumerate(giorni)}  # data -> colonna (in giorni lavorativi)
+    oggi_col = idx_map.get(oggi)
     cell_w = max(24, min(_as_int(request.GET.get("cw"), 38) or 38, 72))
     lane_h = 30
+    # Intestazione date arricchita (sigla giorno + numero), come nel design Gantt.
+    _abbr = ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"]
+    giorni_hdr = [
+        {"d": g, "abbr": _abbr[g.weekday()], "num": g.day,
+         "monday": g.weekday() == 0, "we": g.weekday() >= 5, "oggi": g == oggi}
+        for g in giorni
+    ]
 
     f_cat = request.GET.get("cat") or ""
     f_cliente = (request.GET.get("cliente") or "").strip()
@@ -515,6 +523,8 @@ def vista_gantt(request):
 
     leg_count: Counter = Counter()       # legenda commesse: colore -> #barre
     leg_label: dict[str, str] = {}       # colore -> etichetta leggibile
+    leg_fam_count: Counter = Counter()   # legenda famiglie: colore -> #barre
+    leg_fam_label: dict[str, str] = {}   # colore -> nome famiglia
 
     sezioni = []
     for cat in _CAT_ORDER:
@@ -541,8 +551,8 @@ def vista_gantt(request):
                 span = min(max(1, ceil(ore / ogg)) if ore else 1, giorni_n - start_idx)
                 classe = _classe_cella(p, oggi)
                 colore = _colore_commessa(_chiave_commessa(p))
+                colore_fam = _colore_commessa(famiglia := (p.famiglia.nome if p.famiglia_id else ""))
                 cliente = p.commessa.cliente if p.commessa_id else ""
-                famiglia = p.famiglia.nome if p.famiglia_id else ""
                 # rischio ritardo: fine prevista (durata) oltre la consegna della commessa
                 ritardo = False
                 if p.commessa_id and p.commessa.data_consegna and ore:
@@ -550,22 +560,51 @@ def vista_gantt(request):
                         data_inizio=p.data, ore_previste=ore, ore_giorno=ogg,
                         data_consegna=p.commessa.data_consegna,
                     ).get("in_ritardo", False)
+                # Avanzamento derivato (no campo esplicito nel modello): completata=100%;
+                # in corso = quota temporale se "oggi" cade dentro la barra, altrimenti 0.
+                if p.stato == Pianificazione.STATO_COMPLETATA:
+                    prog = 100
+                elif (p.stato == Pianificazione.STATO_IN_CORSO and oggi_col is not None
+                      and start_idx <= oggi_col < start_idx + span):
+                    prog = max(5, min(100, round((oggi_col - start_idx + 1) / span * 100)))
+                else:
+                    prog = 0
                 bars.append({
                     "id": p.id, "start_idx": start_idx, "span": span,
-                    "label": _job_label(p), "classe": classe, "colore": colore,
+                    "label": _job_label(p), "classe": classe,
+                    "colore": colore, "colore_fam": colore_fam,
                     "urgente": classe == "urg", "conflitto": False, "ritardo": ritardo,
-                    "turno": p.turno, "ore": p.ore, "qta": p.qta,
+                    "turno": p.turno, "ore": p.ore, "qta": p.qta, "prog": prog,
                     "stima": stima, "ore_stima": round(ore, 1) if stima else None,
                     "famiglia": famiglia, "cliente": cliente,
                 })
                 leg_count[colore] += 1
                 if colore not in leg_label:
                     leg_label[colore] = (cliente or famiglia or _job_label(p))[:22]
+                leg_fam_count[colore_fam] += 1
+                if colore_fam not in leg_fam_label:
+                    leg_fam_label[colore_fam] = famiglia or "—"
             try:
                 from .integrations import kickoff_tasks_for_asset
                 m_ko = kickoff_tasks_for_asset(m.asset_id, start, fine)
             except Exception:
                 m_ko = []
+            # Milestone derivate (rombi sulla timeline): attivita KICK-OFF (data inizio)
+            # + date di consegna delle commesse pianificate sulla macchina nella finestra.
+            milestones = []
+            for k in m_ko:
+                idx = idx_map.get(k.get("start"))
+                if idx is not None:
+                    milestones.append({"start_idx": idx, "label": k.get("title") or "KICK-OFF", "kind": "kickoff"})
+            consegne_viste: dict = {}
+            for p in by_mac.get(m.id, []):
+                if p.commessa_id and p.commessa.data_consegna and p.commessa.data_consegna in idx_map:
+                    consegne_viste.setdefault(
+                        p.commessa.data_consegna, p.commessa.cliente or p.commessa.numero or "")
+            for d_cons, lbl in consegne_viste.items():
+                milestones.append({"start_idx": idx_map[d_cons],
+                                   "label": ("Consegna " + lbl).strip(), "kind": "consegna"})
+
             def _riga(turni_inclusi, label, kind, expandable=False):
                 sub_bars = [b for b in bars if b["turno"] in turni_inclusi]
                 if filtro_lavori and not sub_bars:
@@ -578,10 +617,11 @@ def vista_gantt(request):
                 sub = kind == "split_sub"
                 return {
                     "macchina": m, "turno": turno_riga, "turno_label": label, "sub": sub,
-                    "kind": kind, "expandable": expandable, "bars": sub_bars,
+                    "kind": kind, "expandable": expandable, "bars": sub_bars, "lanes": nlanes,
                     "sat": sat["per_macchina"].get(m.id) if not sub else None,
                     "row_h": nlanes * lane_h + 12, "conflitto": conf,
                     "kickoff": m_ko if not sub else [],
+                    "milestones": milestones if not sub else [],
                 }
 
             espandibile = m.ha_secondo_turno or m.ha_turno_notte
@@ -621,13 +661,20 @@ def vista_gantt(request):
     commesse_legenda = [
         {"colore": c, "label": leg_label.get(c, "")} for c, _n in leg_count.most_common(14)
     ]
+    famiglie_legenda = [
+        {"colore": c, "label": leg_fam_label.get(c, "")}
+        for c, _n in leg_fam_count.most_common(16) if leg_fam_label.get(c, "") not in ("", "—")
+    ]
+    _cm = request.GET.get("colore")
+    colore_mode = _cm if _cm in ("stato", "famiglia", "commessa") else "commessa"
     ctx = {
-        "giorni": giorni, "sezioni": sezioni, "oggi": oggi, "start": start, "giorni_n": giorni_n,
+        "giorni": giorni, "giorni_hdr": giorni_hdr, "sezioni": sezioni, "oggi": oggi,
+        "start": start, "giorni_n": giorni_n,
         "cell_w": cell_w, "lane_h": lane_h, "settimane": settimane,
         "prev_start": _inizio_finestra_prec(start, giorni_n).isoformat(),
         "next_start": (fine + timedelta(days=1)).isoformat(),
         "sat_totale": sat["totale"],
-        "oggi_idx": idx_map.get(oggi),
+        "oggi_idx": oggi_col,
         "categorie": Macchina.CATEGORIA_CHOICES,
         "finestra_opzioni": [7, 14, 21, 28, 42, 56],
         "clienti": clienti,
@@ -637,13 +684,13 @@ def vista_gantt(request):
         # agganciare il permesso canonico gestione_carichi_macchina.piano.edit.
         "can_edit": request.user.is_authenticated,
         "stato_choices": Pianificazione.STATO_CHOICES, "fase_choices": Pianificazione.FASE_CHOICES,
-        # Tutte le macchine attive per il select del modale "+ Aggiungi lavoro" (come Excel).
-        "macchine_scelta": [
-            {"id": mm.id, "codice": mm.codice}
-            for mm in Macchina.objects.filter(attivo=True).select_related("asset").order_by("categoria", "ordine_sezione", "id")
-        ],
-        "colore_mode": "stato" if request.GET.get("colore") == "stato" else "commessa",
+        # Macchine per il select del modale "+ Aggiungi lavoro": rispetta il filtro
+        # categoria della vista (coerente con ciò che si vede; il test verifica che le
+        # macchine fuori categoria non compaiano).
+        "macchine_scelta": [{"id": mm.id, "codice": mm.codice} for mm in macchine],
+        "colore_mode": colore_mode,
         "commesse_legenda": commesse_legenda,
+        "famiglie_legenda": famiglie_legenda,
         "ha_undo": bool(request.session.get("gcm_undo")),
     }
     return render(request, "gestione_carichi_macchina/gantt.html", ctx)

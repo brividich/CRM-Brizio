@@ -1,221 +1,288 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Carichi Macchina · Gantt{% endblock %}
+{% block title %}Gestione Carichi Macchina · Gantt{% endblock %}
 
 {% block extra_head %}
 <style>
-  /* vista a tutta pagina (timeline larga) */
+  /* ============================================================================
+     Gestione Carichi Macchina · Gantt
+     Layout e look ricostruiti dal design Claude (handoff "Gestione carichi
+     macchina Gantt"), adattati ai token del portale (navy/cyan/orange) e al
+     pattern SSR + vanilla JS. Nessun framework: drag-to-reschedule, modali e
+     pannelli usano gli endpoint reali del modulo.
+     ========================================================================== */
   .content { padding: 12px !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
-  .gwrap { display: grid; gap: 12px; }
-  .gtophead {
-    position: relative; overflow: hidden;
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
-    border: 1px solid #d9e2ef; border-radius: 14px; padding: 14px 16px 14px 22px;
-    background: linear-gradient(135deg, #fff 0%, #f7faff 60%, #eef6ff 100%);
-    box-shadow: 0 16px 34px rgba(12,37,69,.06);
+  .gapp {
+    --g-navy: var(--primary, #0c2545);
+    --g-cyan: var(--primary-mid, #1f87cd);
+    --g-orange: var(--accent, #ff8a1f);
+    --g-navymid: #2f5f89;
+    --g-surf: #fff; --g-surfalt: #f6f9fc; --g-border: #d7e0ea;
+    --g-text: #1a202c; --g-mid: #4a5568; --g-light: #94a3b8;
+    --g-success: #38a169; --g-warning: #d69e2e; --g-danger: #e53e3e;
+    display: flex; flex-direction: column;
+    border: 1px solid var(--g-border); border-radius: 16px; overflow: hidden;
+    background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.06);
+    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--g-text);
   }
-  .gtophead:before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
-    background: linear-gradient(180deg, var(--primary,#0c2545), var(--primary-mid,#1f87cd) 55%, var(--accent,#ff8a1f)); }
-  .gtophead h1 { margin: 0; font-size: 1.5rem; color: var(--primary,#0c2545); }
-  .gtophead p { margin: 3px 0 0; color: #6c84a6; font-size: .9rem; }
-  .gtoggle { display: inline-flex; border: 1px solid #cdd9ea; border-radius: 10px; overflow: hidden; }
-  .gtoggle a { padding: 7px 14px; text-decoration: none; color: #24395e; font-weight: 700; background: #fff; }
-  .gtoggle a.active { background: var(--primary,#0c2545); color: #fff; }
-  .gbtn { display: inline-flex; align-items: center; min-height: 36px; padding: 7px 12px;
-    border: 1px solid #cdd9ea; border-radius: 10px; background: #fff; color: #24395e; font-weight: 700; text-decoration: none; cursor: pointer; }
+
+  /* ── Header navy ── */
+  .gh { background: var(--g-navy); color: #fff; padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .gh-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em; }
+  .gh-sub { font-size: .78rem; color: rgba(255,255,255,.72); margin-top: 2px; }
+  .gh-tools { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+  .gtoggle { display: inline-flex; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,.10); padding: 3px; }
+  .gtoggle a { padding: 6px 13px; text-decoration: none; color: rgba(255,255,255,.82); font-weight: 700; font-size: .8rem; border-radius: 6px; }
+  .gtoggle a.active { background: #fff; color: var(--g-navy); }
+  .gnav { display: inline-flex; gap: 4px; }
+  .gpill { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px;
+    padding: 0 13px; border-radius: 8px; font-size: .78rem; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent; background: rgba(255,255,255,.10); color: #fff; text-decoration: none; white-space: nowrap; }
+  .gpill:hover { background: rgba(255,255,255,.18); }
+  .gpill.sq { width: 34px; padding: 0; }
+  .gpill.orange { background: var(--g-orange); color: #1a1206; }
+  .gpill.orange:hover { filter: brightness(1.05); }
+  .gstep { display: flex; flex-direction: column; gap: 4px; }
+  .gstep > span { font-size: .58rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+  .gstep .box { display: flex; align-items: center; background: #fff; border-radius: 8px; overflow: hidden; height: 32px; }
+  .gstep .box b { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 1rem; font-weight: 700; color: var(--g-navy); user-select: none; }
+  .gstep .box i { width: 1px; height: 18px; background: var(--g-border); }
+
+  /* ── Strip filtri ── */
+  .gstrip { padding: 11px 18px; border-bottom: 1px solid var(--g-border); background: var(--g-surfalt);
+    display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .gfield { display: flex; flex-direction: column; gap: 4px; }
+  .gfield label { font-size: .6rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--g-light); }
+  .gfield select, .gfield input { min-height: 34px; border: 1px solid var(--g-border); border-radius: 8px;
+    padding: 4px 9px; font-size: .82rem; background: #fff; color: var(--g-text); }
+  .gbtn { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 13px;
+    border: 1px solid var(--g-border); border-radius: 8px; background: #fff; color: var(--g-navy);
+    font-weight: 700; font-size: .8rem; text-decoration: none; cursor: pointer; }
   .gbtn:hover { background: #eef6ff; }
-  .gnav { display: flex; gap: 6px; align-items: center; }
-
-  .gtoolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
-    border: 1px solid #d9e2ef; border-radius: 12px; background: #f8fbff; padding: 10px 14px; }
-  .gfield { display: grid; gap: 3px; }
-  .gfield label { font-size: .64rem; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; font-weight: 800; }
-  .gfield select, .gfield input { min-height: 34px; border: 1px solid #cdd9ea; border-radius: 8px; padding: 4px 8px; font-size: .82rem; background: #fff; }
-  .gzoom { display: flex; align-items: center; gap: 8px; }
-  .gzoom input[type=range] { accent-color: var(--primary-mid,#1f87cd); }
+  .gbtn.primary { background: var(--g-navy); color: #fff; border-color: var(--g-navy); }
+  .gflag { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--g-mid);
+    border: 1px solid var(--g-border); border-radius: 9px; padding: 6px 10px; background: #fff; cursor: pointer; }
+  .gflag:has(input:checked) { background: rgba(31,135,205,.10); border-color: var(--g-cyan); }
   .gspacer { flex: 1; }
-  .gflag { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 700; color: #24395e;
-    border: 1px solid #cdd9ea; border-radius: 10px; padding: 7px 10px; background: #fff; cursor: pointer; }
-  .gflag:has(input:checked) { background: rgba(31,135,205,.10); border-color: var(--primary-mid,#1f87cd); }
+  .glegends { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+  .glegend { display: flex; gap: 13px; flex-wrap: wrap; align-items: center; }
+  .glegend span { display: inline-flex; align-items: center; gap: 5px; font-size: .7rem; color: var(--g-mid); font-weight: 600; }
+  .gdot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; box-sizing: border-box; }
 
-  .gkpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; }
-  .gkpi { border: 1px solid #d9e2ef; border-radius: 12px; background: #fff; padding: 12px 14px; box-shadow: 0 8px 20px rgba(12,37,69,.04); }
-  .gkpi .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; font-weight: 800; }
-  .gkpi .val { font-size: 1.5rem; font-weight: 800; color: var(--primary,#0c2545); line-height: 1; margin-top: 6px; }
-  .gkpi .bar { height: 6px; border-radius: 999px; background: #e8eef6; margin-top: 8px; overflow: hidden; }
-  .gkpi .bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary-mid,#1f87cd); }
-  .gkpi.over .val { color: #b91c1c; } .gkpi.over .bar i { background: var(--accent,#ff8a1f); }
-
-  .gscroll { overflow: auto; max-height: 70vh; border: 1px solid #d9e2ef; border-radius: 14px; background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.05); }
-  .grow { display: flex; align-items: stretch; border-bottom: 1px solid #eef2f7; }
-  .gmac { position: sticky; left: 0; z-index: 2; min-width: 190px; max-width: 190px;
-    background: #f7faff; border-right: 1px solid #e3e9f2; padding: 6px 10px; box-sizing: border-box; }
-  .gmac b { color: var(--primary,#0c2545); font-weight: 800; }
-  .gmac small { display: block; font-weight: 600; color: #7a8ca6; font-size: .66rem; }
-  .gmac .gsat { font-size: .64rem; font-weight: 800; margin-top: 3px; color: #5b6b85; }
-  .gmac .gsat.over { color: #b91c1c; }
-  .gmac .gsatbar { height: 4px; border-radius: 999px; background: #e8eef6; margin-top: 3px; overflow: hidden; }
-  .gmac .gsatbar i { display: block; height: 100%; background: var(--primary-mid,#1f87cd); }
-  .gmac .gsatbar.over i { background: var(--accent,#ff8a1f); }
+  /* ── Griglia ── (le variabili --cw/--laneh/--leftw sono impostate inline su .gscroll) */
+  .gscroll { overflow: auto; max-height: 72vh; background: #fff; }
+  .grow { display: flex; align-items: stretch; }
+  .gmac { position: sticky; left: 0; z-index: 2; width: var(--leftw); min-width: var(--leftw); max-width: var(--leftw);
+    box-sizing: border-box; background: #fff; border-right: 1px solid var(--g-border); padding: 5px 12px;
+    box-shadow: 4px 0 8px -6px rgba(12,37,69,.18); }
+  .gtrack { position: relative; flex: 0 0 auto; width: calc(var(--cw) * {{ giorni_n }}); }
 
   /* banda settimane */
-  .gweeks { position: sticky; top: 0; z-index: 5; }
-  .gweeks .gmac { z-index: 6; background: #16314f; color: #cfe0f1; display: flex; align-items: center; font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
-  .gweeks .gtrack { display: flex; background: #16314f; height: 24px; }
-  .gweek { display: flex; align-items: center; justify-content: center; color: #cfe0f1; font-size: .62rem; font-weight: 800;
-    border-right: 1px solid rgba(255,255,255,.12); box-sizing: border-box; flex: 0 0 auto; }
+  .gweeks { position: sticky; top: 0; z-index: 6; }
+  .gweeks .gmac { z-index: 7; background: var(--g-navy); color: rgba(255,255,255,.78);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+  .gweeks .gtrack { display: flex; background: var(--g-surfalt); height: 24px; }
+  .gweek { display: flex; align-items: center; justify-content: center; color: var(--g-navymid);
+    font-size: .6rem; font-weight: 800; letter-spacing: .04em; border-left: 1px solid var(--g-border);
+    box-sizing: border-box; flex: 0 0 auto; }
 
-  .ghead { position: sticky; top: 24px; z-index: 4; }
-  .ghead .gmac { z-index: 5; background: var(--primary,#0c2545); color: #fff; display: flex; align-items: center; font-weight: 800; }
-  .ghead .gtrack { display: flex; background: var(--primary,#0c2545); height: 32px; }
-  .gday { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: .62rem; box-sizing: border-box; flex: 0 0 auto; }
-  .gday.we { color: #9fbcdb; background: #16314f; }
-  .gday.td { background: var(--accent,#ff8a1f); color: #1a1206; font-weight: 800; }
+  /* header giorni */
+  .ghead { position: sticky; top: 24px; z-index: 5; }
+  .ghead .gmac { z-index: 6; background: var(--g-navy); color: #fff; display: flex; align-items: center;
+    justify-content: space-between; font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+  .ghead .gmac .s { color: rgba(255,255,255,.7); }
+  .ghead .gtrack { display: flex; background: #fff; height: 38px; border-bottom: 1px solid var(--g-border); }
+  .gday { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05;
+    box-sizing: border-box; flex: 0 0 auto; width: var(--cw); border-left: 1px solid #eef2f6; color: var(--g-mid); font-weight: 600; }
+  .gday.mon { border-left-color: var(--g-border); }
+  .gday .ab { font-size: .5rem; font-weight: 700; opacity: .55; }
+  .gday .nu { font-size: .72rem; }
+  .gday.td { background: var(--g-orange); color: #1a1206; font-weight: 800; }
+  .gday.td .ab { opacity: .9; }
 
-  .gtrack { position: relative; flex: 0 0 auto; }
-  .grow.gbody .gtrack {
-    background-image:
-      repeating-linear-gradient(90deg, #eef2f7 0, #eef2f7 1px, transparent 1px, transparent var(--cw));
-  }
-  .gsez .gmac { background: linear-gradient(90deg, var(--primary-mid,#1f87cd), #2a96d8); color: #fff;
-    text-transform: uppercase; letter-spacing: .04em; font-size: .72rem; font-weight: 800; display: flex; align-items: center; justify-content: space-between; }
-  .gsez .gtrack { background: #eef3fb; height: 28px; }
+  /* sezione */
+  .gsez .gmac { background: var(--g-navymid); color: #fff; text-transform: uppercase; letter-spacing: .04em;
+    font-size: .66rem; font-weight: 800; display: flex; align-items: center; justify-content: space-between; }
+  .gsez .gtrack { background: rgba(47,95,137,.10); height: 26px; border-top: 1px solid var(--g-border); border-bottom: 1px solid var(--g-border); }
 
-  .gbar { position: absolute; height: 24px; border-radius: 7px; color: #fff;
-    font-size: .66rem; font-weight: 700; padding: 3px 7px; box-sizing: border-box; overflow: hidden;
-    white-space: nowrap; text-overflow: ellipsis; cursor: grab; box-shadow: 0 2px 6px rgba(12,37,69,.18); user-select: none;
-    transition: box-shadow .12s ease, filter .12s ease; }
-  .gbar:hover { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(12,37,69,.28); z-index: 3; }
-  .gbar.dragging { opacity: .75; cursor: grabbing; z-index: 7; box-shadow: 0 8px 20px rgba(12,37,69,.35); }
+  /* riga macchina */
+  .grow.gbody { border-bottom: 1px solid #eef2f6; }
+  .gmac-body { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .gmac-body:hover { background: rgba(31,95,179,.05); }
+  .gmac-main { min-width: 0; flex: 1; }
+  .gmac-cod { display: flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 800; color: var(--g-navy);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gmac-name { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gmac-desc { font-size: .64rem; color: var(--g-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gmac-sat { flex: 0 0 60px; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+  .gsatp { font-size: .74rem; font-weight: 800; }
+  .gsatbar { width: 54px; height: 4px; background: #eef2f6; border-radius: 3px; overflow: hidden; }
+  .gsatbar i { display: block; height: 100%; }
+  .sat-lo { color: var(--g-success); } i.sat-lo { background: var(--g-success); }
+  .sat-mid { color: var(--g-warning); } i.sat-mid { background: var(--g-warning); }
+  .sat-hi { color: #f56a00; } i.sat-hi { background: #f56a00; }
+  .sat-crit { color: var(--g-danger); } i.sat-crit { background: var(--g-danger); }
+  .gmac-sub { display: flex; align-items: center; gap: 6px; font-size: .68rem; font-weight: 700; color: var(--g-cyan); }
+  .gturni-exp { font-size: .58rem; font-weight: 800; color: var(--g-cyan); cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .gwarn { color: #c0392b; font-weight: 800; }
+  .gko { display: inline-block; font-size: .56rem; font-weight: 800; color: #9a3412; background: #ffedd5;
+    border: 1px solid #fed7aa; border-radius: 6px; padding: 1px 6px; margin-top: 3px; }
+
+  .grow.gbody .gtrack { background-image: repeating-linear-gradient(90deg, #f1f5f9 0, #f1f5f9 1px, transparent 1px, transparent var(--cw)); }
+  .gtoday { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--g-orange); opacity: .85; z-index: 1; pointer-events: none; }
+
+  /* barre */
+  .gbar { position: absolute; height: calc(var(--laneh) - 8px); border-radius: 6px; color: #fff;
+    font-size: .66rem; font-weight: 700; padding: 0 7px; box-sizing: border-box; overflow: hidden;
+    display: flex; align-items: center; white-space: nowrap; text-overflow: ellipsis; cursor: grab;
+    box-shadow: 0 1px 3px rgba(0,43,92,.22); user-select: none; text-shadow: 0 1px 1px rgba(0,0,0,.28);
+    transition: box-shadow .12s ease, filter .12s ease; z-index: 2; }
+  .gbar:hover { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(12,37,69,.28); z-index: 4; }
+  .gbar.dragging { opacity: .78; cursor: grabbing; z-index: 9; box-shadow: 0 8px 20px rgba(12,37,69,.35); }
   .gbar.saved { animation: gsaved 1s ease; }
-  @keyframes gsaved { 0% { box-shadow: 0 0 0 3px rgba(34,197,94,.6); } 100% { box-shadow: 0 2px 6px rgba(12,37,69,.18); } }
-  .gbar.plan { background: linear-gradient(135deg, #143a63, var(--primary,#0c2545)); }
-  .gbar.wip  { background: linear-gradient(135deg, #36a6e6, var(--primary-mid,#1f87cd)); }
-  .gbar.urg  { background: linear-gradient(135deg, #ffa648, var(--accent,#ff8a1f)); color: #1a1206; }
+  @keyframes gsaved { 0% { box-shadow: 0 0 0 3px rgba(56,161,105,.6); } 100% { box-shadow: 0 1px 3px rgba(0,43,92,.22); } }
+  .gbar.plan { background: linear-gradient(135deg, #143a63, var(--g-navy)); }
+  .gbar.wip  { background: linear-gradient(135deg, #36a6e6, var(--g-cyan)); }
+  .gbar.urg  { background: linear-gradient(135deg, #ffa648, var(--g-orange)); color: #1a1206; text-shadow: none; }
   .gbar.done { background: linear-gradient(135deg, #8a98ab, #6b7a8f); }
-  /* modalita' colore-per-commessa: fondo dal colore commessa (inline), urgenti col bordo rosso */
-  .gbar.gbar-c { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
-  .gbar.urg-bordo { box-shadow: inset 4px 0 0 #ff2d2d, 0 2px 6px rgba(12,37,69,.22); }
-  /* conflitto = sovrapposizione sulla stessa macchina/turno */
-  .gbar.conflitto { outline: 2px dashed #ff2d2d; outline-offset: -2px; }
-  /* durata stimata dall'AI predittiva (ore non scritte): tratteggio diagonale */
-  .gbar.stima { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.22) 0 6px, transparent 6px 12px); }
-  /* ritardo previsto (fine stimata oltre la consegna) */
-  .gbar.gritardo { box-shadow: inset 0 -3px 0 #ff2d2d, 0 2px 6px rgba(12,37,69,.22); }
-  .gmac .gwarn { color: #c0392b; font-weight: 800; font-size: .72rem; }
-  .grow.harow .gmac { background: #fff4f3; }
-  /* legenda commesse */
-  .gcomm { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
-  .gcomm .it { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; color: #4a5b73; }
-  .gcomm .sw { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
-  .gtoday { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent,#ff8a1f); z-index: 1; pointer-events: none; }
+  .gbar.gbar-c { color: #fff; }
+  .gbar.urg-bordo, .gbar.conflitto { border: 2px solid var(--g-danger); }
+  .gbar.stima { background-image: repeating-linear-gradient(110deg, rgba(255,255,255,0) 0 9px, rgba(255,255,255,.28) 9px 18px); border: 1px dashed rgba(255,255,255,.7); }
+  .gbar.gritardo { box-shadow: inset 0 -3px 0 var(--g-danger), 0 1px 3px rgba(0,43,92,.22); }
+  .gbar .gprog { position: absolute; left: 0; bottom: 0; height: 3px; background: rgba(255,255,255,.92); }
+  .gbar .gcfl { margin-left: 4px; flex: 0 0 auto; }
 
-  .glegend { display: flex; gap: 14px; flex-wrap: wrap; color: #61748f; font-size: .78rem; align-items: center; }
-  .glegend span { display: inline-flex; align-items: center; gap: 5px; }
-  .gdot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
-  .gempty { padding: 24px; text-align: center; color: #7a8ca6; }
-  /* Barra strumenti collassabile (default chiusa = piu' spazio al Gantt) */
-  #g-tools.collapsed { display: none; }
-  .g-tools-toggle.on { background: var(--primary,#0c2545); color: #fff; border-color: var(--primary,#0c2545); }
-  /* Cella macchina interattiva: expander turni per-macchina + info */
-  .gmac-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .gmac-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: var(--primary,#0c2545); cursor: pointer; text-decoration: underline dotted; }
-  .gmac-name:hover { color: var(--primary-mid,#1f87cd); }
-  .gturni-exp { font-size: .62rem; font-weight: 700; color: var(--primary-mid,#1f87cd); cursor: pointer; text-decoration: none; }
-  .gmac-t1 { font-size: .6rem; color: var(--primary-mid,#1f87cd); font-weight: 700; }
-  .gmac-info { display: none; margin-top: 5px; padding: 6px 8px; background: #f7faff; border: 1px solid #d9e2ef; border-radius: 8px; font-size: .66rem; color: #5b6b85; line-height: 1.5; }
-  .gmac-info.open { display: block; }
-  /* Pannello laterale destro (dettaglio/modifica commessa) */
+  /* milestone (rombi) */
+  .gms { position: absolute; top: 1px; display: flex; align-items: center; gap: 5px; z-index: 5; pointer-events: none; }
+  .gms i { width: 12px; height: 12px; background: var(--g-orange); transform: rotate(45deg);
+    border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); box-sizing: border-box; flex: 0 0 auto; }
+  .gms.consegna i { background: var(--g-danger); }
+  .gms b { font-size: .56rem; font-weight: 800; color: var(--g-navy); white-space: nowrap;
+    background: rgba(255,255,255,.88); padding: 0 4px; border-radius: 3px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+
+  .gempty { padding: 26px; text-align: center; color: var(--g-light); }
+
+  /* splitter colonna macchine */
+  .gsplit { position: sticky; left: var(--leftw); z-index: 8; flex: 0 0 0; width: 0; }
+  .gsplit i { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; }
+
+  /* footer */
+  .gfoot { padding: 7px 18px; border-top: 1px solid var(--g-border); background: var(--g-surfalt);
+    font-size: .68rem; color: var(--g-light); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .gfoot .ms { width: 9px; height: 9px; background: var(--g-orange); transform: rotate(45deg); display: inline-block; }
+
+  /* ── Drawer dettaglio (lavoro / macchina) ── */
   .gcm-drawer { position: fixed; top: 0; right: 0; height: 100%; width: 340px; max-width: 92vw;
     background: #fff; box-shadow: -12px 0 40px rgba(12,37,69,.22); transform: translateX(105%);
     transition: transform .18s ease; z-index: 1200; display: flex; flex-direction: column; }
   .gcm-drawer.open { transform: translateX(0); }
-  .gd-head { display: flex; justify-content: space-between; align-items: center; padding: 13px 16px;
-    background: var(--primary,#0c2545); color: #fff; font-weight: 800; }
-  .gd-head button { background: none; border: 0; color: #fff; font-size: 1.4rem; cursor: pointer; line-height: 1; }
-  .gd-body { padding: 14px 16px; overflow: auto; display: grid; gap: 8px; }
-  .gd-row { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; color: #24395e;
-    border-bottom: 1px solid #eef2f7; padding-bottom: 5px; }
-  .gd-row > span { color: #7a8ca6; }
-  .gd-form { display: grid; gap: 8px; margin-top: 8px; }
-  .gd-form label { display: grid; gap: 3px; font-size: .68rem; color: #7a8ca6; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-  .gd-form input, .gd-form select { padding: 6px 8px; border: 1px solid #cdd9ea; border-radius: 7px; font-size: .85rem; }
+  .gd-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 18px 0; }
+  .gd-eyebrow { font-size: .6rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--g-light); padding-top: 6px; }
+  .gd-x { width: 30px; height: 30px; flex: 0 0 auto; border-radius: 8px; border: 1px solid var(--g-border);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--g-mid);
+    font-size: 1rem; font-weight: 700; background: #fff; }
+  .gd-x:hover { color: var(--g-danger); border-color: var(--g-danger); }
+  .gd-body { padding: 2px 18px 18px; overflow: auto; }
+  .gd-title { display: flex; align-items: center; gap: 8px; margin: 8px 0 14px; }
+  .gd-title .dot { width: 13px; height: 13px; border-radius: 4px; flex: 0 0 auto; }
+  .gd-title b { font-size: 1rem; font-weight: 800; color: var(--g-navy); line-height: 1.25; }
+  .gd-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #eef2f6; font-size: .82rem; }
+  .gd-row > span { color: var(--g-light); font-weight: 600; flex: 0 0 auto; }
+  .gd-row > b { color: var(--g-text); font-weight: 700; text-align: right; }
+  .gd-satbox { padding: 12px 0 4px; }
+  .gd-satbox .t { display: flex; justify-content: space-between; font-size: .78rem; font-weight: 700; color: var(--g-mid); }
+  .gd-satbox .bar { height: 8px; background: #eef2f6; border-radius: 5px; margin-top: 6px; overflow: hidden; }
+  .gd-satbox .bar i { display: block; height: 100%; }
+  .gd-sec { margin-top: 16px; font-size: .66rem; font-weight: 800; letter-spacing: .06em; color: var(--g-light); }
+  .gd-jobs { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .gd-job { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--g-border);
+    border-radius: 8px; cursor: pointer; background: var(--g-surfalt); }
+  .gd-job .dot { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 3px; }
+  .gd-job .l { min-width: 0; flex: 1; }
+  .gd-job .l .a { font-size: .76rem; font-weight: 700; color: var(--g-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gd-job .l .b { font-size: .68rem; color: var(--g-light); }
+  .gd-job .c { color: var(--g-light); font-size: .9rem; flex: 0 0 auto; }
+  .gd-sugg-row { margin-top: 9px; }
+  .gd-sugg-row .t { display: flex; justify-content: space-between; font-size: .76rem; font-weight: 700; color: var(--g-text); }
+  .gd-sugg-row .bar { height: 5px; background: #eef2f6; border-radius: 3px; margin-top: 3px; overflow: hidden; }
+  .gd-sugg-row .bar i { display: block; height: 100%; background: var(--g-cyan); }
+  .gd-warn { margin-top: 14px; background: rgba(214,158,46,.10); border: 1px solid var(--g-warning); border-radius: 9px;
+    padding: 10px 12px; font-size: .76rem; color: #8a6d1f; line-height: 1.45; }
+  .gd-form { display: grid; gap: 8px; margin-top: 14px; }
+  .gd-form label { display: grid; gap: 3px; font-size: .6rem; color: var(--g-light); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+  .gd-form input, .gd-form select { padding: 6px 8px; border: 1px solid var(--g-border); border-radius: 7px; font-size: .82rem; }
   .gd-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .gd-save { margin-top: 6px; padding: 9px; border: 0; border-radius: 8px; background: var(--primary-mid,#1f87cd); color: #fff; font-weight: 800; cursor: pointer; }
-  .gd-ro-note { font-size: .72rem; color: #94a3b8; }
-  /* Modali "+ Aggiungi lavoro" / "AI" (coerenti con la vista Excel) */
+  .gd-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .gd-actions button, .gd-actions a { flex: 1; justify-content: center; height: 38px; display: inline-flex; align-items: center;
+    border-radius: 9px; font-weight: 800; cursor: pointer; border: 1px solid var(--g-border); background: #fff; color: var(--g-navy); text-decoration: none; font-size: .82rem; }
+  .gd-actions .primary { background: var(--g-cyan); color: #fff; border-color: var(--g-cyan); }
+  .gd-ro-note { font-size: .72rem; color: var(--g-light); margin-top: 8px; }
+
+  /* ── Modali (+ Aggiungi / AI) ── */
   .gcm-ov { position: fixed; inset: 0; background: rgba(12,37,69,.45); display: none; align-items: flex-start; justify-content: center; z-index: 1300; padding-top: 6vh; }
   .gcm-ov.open { display: flex; }
   .gcm-modal { width: min(520px, 94vw); background: #fff; border-radius: 14px; box-shadow: 0 24px 60px rgba(12,37,69,.35); overflow: hidden; }
-  .gcm-modal h3 { margin: 0; padding: 14px 18px; background: var(--primary,#0c2545); color: #fff; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }
+  .gcm-modal h3 { margin: 0; padding: 14px 18px; background: var(--g-navy); color: #fff; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; }
   .gcm-modal h3 button { background: transparent; border: 0; color: #fff; font-size: 1.3rem; cursor: pointer; line-height: 1; }
   .gcm-modal .body { padding: 16px 18px; display: grid; gap: 10px; }
-  .gcm-modal label { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #7a8ca6; font-weight: 800; display: block; margin-bottom: 3px; }
-  .gcm-modal input, .gcm-modal select { width: 100%; box-sizing: border-box; min-height: 36px; border: 1px solid #cdd9ea; border-radius: 8px; padding: 4px 8px; font-size: .9rem; }
+  .gcm-modal label { font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; color: var(--g-light); font-weight: 800; display: block; margin-bottom: 3px; }
+  .gcm-modal input, .gcm-modal select { width: 100%; box-sizing: border-box; min-height: 36px; border: 1px solid var(--g-border); border-radius: 8px; padding: 4px 8px; font-size: .88rem; }
   .gcm-modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .gcm-modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
-  .gcm-modal .actions button { min-height: 38px; padding: 8px 16px; border-radius: 9px; font-weight: 800; cursor: pointer; border: 1px solid #cdd9ea; background: #fff; }
-  .gcm-modal .actions .primary { background: var(--primary,#0c2545); color: #fff; border-color: var(--primary,#0c2545); }
-  .gcm-ai-res { display: grid; gap: 8px; }
-  .gcm-ai-spieg { background: #eef6ff; border: 1px solid #cfe0f1; border-radius: 10px; padding: 10px 12px; font-size: .9rem; color: #1f3559; line-height: 1.45; }
+  .gcm-modal .actions button { min-height: 38px; padding: 8px 16px; border-radius: 9px; font-weight: 800; cursor: pointer; border: 1px solid var(--g-border); background: #fff; }
+  .gcm-modal .actions .primary { background: var(--g-navy); color: #fff; border-color: var(--g-navy); }
+  .gcm-ai-spieg { background: #eef6ff; border: 1px solid #cfe0f1; border-radius: 10px; padding: 10px 12px; font-size: .88rem; color: #1f3559; line-height: 1.45; }
   .gcm-ai-mac { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
   .gcm-ai-mac b { min-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .gcm-ai-mac .bar { flex: 1; height: 8px; border-radius: 4px; background: #e8eef6; overflow: hidden; }
-  .gcm-ai-mac .bar i { display: block; height: 100%; background: var(--primary-mid,#1f87cd); }
-  .gcm-muted { color: #94a3b8; font-size: .82rem; }
-  /* box affinità nel modale (stesso del "+" cella Excel) */
-  .gcm-sugg { margin-top: 6px; border-top: 1px dashed #dbe3ef; padding-top: 6px; color: #24395e; }
-  .gcm-sugg-h { font-weight: 800; font-size: .56rem; text-transform: uppercase; letter-spacing: .04em; color: #7a8ca6; margin-bottom: 4px; }
-  .gcm-sugg-row { margin-bottom: 5px; }
-  .gcm-sugg-top { display: flex; justify-content: space-between; gap: 4px; line-height: 1.1; font-size: .72rem; }
-  .gcm-sugg-cod { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .gcm-sugg-row.cur .gcm-sugg-cod { color: var(--primary-mid,#1f87cd); }
-  .gcm-sugg-pct { font-weight: 800; }
-  .gcm-sugg-bar { height: 6px; border-radius: 3px; background: #eef2f8; overflow: hidden; margin-top: 2px; }
-  .gcm-sugg-bar i { display: block; height: 100%; background: #16a34a; }
-  .gcm-sugg-bar i.media { background: #f59e0b; }
-  .gcm-sugg-bar i.satura { background: #b91c1c; }
-  .gcm-sugg-note { color: #b45309; font-size: .62rem; margin-top: 3px; }
-  .gcm-sugg-foot { color: #94a3b8; font-size: .56rem; margin-top: 4px; }
+  .gcm-ai-mac .bar i { display: block; height: 100%; background: var(--g-cyan); }
+  .gcm-muted { color: var(--g-light); font-size: .82rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="gwrap">
-  <header class="gtophead">
+<div class="gapp">
+  {# ── Header ── #}
+  <header class="gh">
     <div>
-      <h1>Carichi Macchina · Gantt</h1>
-      <p>{{ start|date:"d/m/Y" }} → {{ giorni|last|date:"d/m/Y" }} · saturazione totale <b>{{ sat_totale.perc }}%</b></p>
+      <div class="gh-title">Gestione Carichi Macchina</div>
+      <div class="gh-sub">Diagramma di Gantt · solo giorni lavorativi · {{ start|date:"d/m/Y" }} → {{ giorni|last|date:"d/m/Y" }} · saturazione tot. <b>{{ sat_totale.perc }}%</b></div>
     </div>
-    <div class="gnav">
+    <div class="gh-tools">
       <span class="gtoggle">
         <a href="{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Excel</a>
         <a class="active" href="{% url 'gestione_carichi_macchina:gantt' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Gantt</a>
       </span>
-      <a class="gbtn" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">‹</a>
-      <a class="gbtn" href="?giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Oggi</a>
-      <a class="gbtn" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">›</a>
-      {% if ha_undo %}<button type="button" id="g_undo" class="gbtn" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
-      <button type="button" id="gcm-add-btn" class="gbtn" style="background:var(--primary-mid,#1f87cd);color:#fff;border-color:var(--primary-mid,#1f87cd);">+ Aggiungi lavoro</button>
-      <button type="button" id="gcm-ai-btn" class="gbtn" title="Suggerimento e spiegazione AI">🔮 AI</button>
+      <span class="gnav">
+        <a class="gpill sq" title="Periodo precedente" href="?start={{ prev_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">‹</a>
+        <a class="gpill" href="?giorni={{ giorni_n }}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">Oggi</a>
+        <a class="gpill sq" title="Periodo successivo" href="?start={{ next_start }}&giorni={{ giorni_n }}{% if f_cat %}&cat={{ f_cat }}{% endif %}{% if f_cliente %}&cliente={{ f_cliente|urlencode }}{% endif %}{% if f_fam %}&fam={{ f_fam }}{% endif %}{% if turni_qs %}&turni={{ turni_qs }}{% endif %}">›</a>
+      </span>
+      <span class="gstep"><span>Largh. col.</span>
+        <span class="box"><b onclick="gcmStep('--cw',-8)">−</b><i></i><b onclick="gcmStep('--cw',8)">+</b></span>
+      </span>
+      <span class="gstep"><span>Alt. righe</span>
+        <span class="box"><b onclick="gcmStep('--laneh',-6)">−</b><i></i><b onclick="gcmStep('--laneh',6)">+</b></span>
+      </span>
+      {% if ha_undo %}<button type="button" id="g_undo" class="gpill" title="Annulla l'ultimo spostamento">&#8634; Annulla</button>{% endif %}
+      <button type="button" id="gcm-add-btn" class="gpill orange">+ Aggiungi lavoro</button>
+      <button type="button" id="gcm-ai-btn" class="gpill" title="Suggerimento e spiegazione AI">🔮 AI</button>
     </div>
   </header>
 
-  <button type="button" class="gbtn g-tools-toggle"
-          onclick="var t=document.getElementById('g-tools');t.classList.toggle('collapsed');this.classList.toggle('on',!t.classList.contains('collapsed'));">
-    Filtri &amp; saturazione ▾
-  </button>
-  <div id="g-tools" class="collapsed">
-  {# ── Toolbar filtri + zoom ── #}
-  <form method="get" class="gtoolbar">
+  {# ── Strip filtri + legende ── #}
+  <form method="get" class="gstrip">
     <input type="hidden" name="start" value="{{ start|date:'Y-m-d' }}">
     <div class="gfield">
       <label for="g_giorni">Finestra</label>
-      <select id="g_giorni" name="giorni">
-        {% for v in finestra_opzioni %}
-          <option value="{{ v }}" {% if giorni_n == v %}selected{% endif %}>{{ v }} giorni</option>
-        {% endfor %}
+      <select id="g_giorni" name="giorni" onchange="this.form.submit()">
+        {% for v in finestra_opzioni %}<option value="{{ v }}" {% if giorni_n == v %}selected{% endif %}>{{ v }} giorni</option>{% endfor %}
       </select>
     </div>
     <div class="gfield">
@@ -241,70 +308,59 @@
       <label for="g_colore">Colore</label>
       <select id="g_colore" name="colore">
         <option value="commessa" {% if colore_mode == 'commessa' %}selected{% endif %}>Per commessa</option>
+        <option value="famiglia" {% if colore_mode == 'famiglia' %}selected{% endif %}>Per famiglia</option>
         <option value="stato" {% if colore_mode == 'stato' %}selected{% endif %}>Per stato</option>
       </select>
     </div>
-    <button type="submit" class="gbtn" style="background:var(--primary,#0c2545);color:#fff;border-color:var(--primary,#0c2545);">Applica</button>
-    {% if f_cat or f_cliente or f_fam %}<a class="gbtn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Azzera filtri</a>{% endif %}
-    <div class="gspacer"></div>
+    <button type="submit" class="gbtn primary">Applica</button>
+    {% if f_cat or f_cliente or f_fam %}<a class="gbtn" href="?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}">Azzera</a>{% endif %}
     <label class="gflag" title="Sposta anche i lavori successivi sulla stessa macchina e turno">
       <input type="checkbox" id="g_cascata" checked> Cascata
     </label>
-    <span class="gflag" style="color:#94a3b8" title="I turni si aprono per-macchina dal pulsante «▾ turni» accanto al nome della macchina">Turni: per-macchina ↘</span>
-    <div class="gzoom">
-      <span class="gfield"><label>Zoom</label></span>
-      <input type="range" id="g_zoom" min="24" max="72" step="2" value="{{ cell_w }}" aria-label="Zoom giorni">
+
+    <div class="gspacer"></div>
+    <div class="glegends">
+      <div class="glegend">
+        {% if colore_mode == 'stato' %}
+          <span><i class="gdot" style="background:var(--g-navy)"></i> Pianificata</span>
+          <span><i class="gdot" style="background:var(--g-cyan)"></i> In corso</span>
+          <span><i class="gdot" style="background:var(--g-orange);border:2px solid var(--g-danger)"></i> Urgente</span>
+          <span><i class="gdot" style="background:#6b7a8f"></i> Completata</span>
+        {% else %}
+          <span><i class="gdot" style="background:#5b6b85;border:2px solid var(--g-danger)"></i> Urgente / ritardo</span>
+          <span><i class="gdot" style="background:repeating-linear-gradient(110deg,#9aa5b1 0 5px,#cbd5e1 5px 10px)"></i> Stima</span>
+        {% endif %}
+        <span><i class="gdot" style="background:var(--g-orange);transform:rotate(45deg);border-radius:0"></i> Milestone</span>
+      </div>
+      {% if colore_mode == 'famiglia' and famiglie_legenda %}
+        <div class="glegend">{% for c in famiglie_legenda %}<span><i class="gdot" style="background:{{ c.colore }}"></i>{{ c.label }}</span>{% endfor %}</div>
+      {% elif colore_mode == 'commessa' and commesse_legenda %}
+        <div class="glegend">{% for c in commesse_legenda %}<span><i class="gdot" style="background:{{ c.colore }}"></i>{{ c.label }}</span>{% endfor %}</div>
+      {% endif %}
     </div>
   </form>
 
-  <div class="gkpis">
-    <div class="gkpi {% if sat_totale.perc > 100 %}over{% endif %}">
-      <div class="lbl">Saturazione totale</div>
-      <div class="val">{{ sat_totale.perc }}%</div>
-      <div class="bar"><i style="width:{% if sat_totale.perc > 100 %}100{% else %}{{ sat_totale.perc }}{% endif %}%"></i></div>
-    </div>
-    {% for sez in sezioni %}
-      <div class="gkpi {% if sez.sat.perc > 100 %}over{% endif %}">
-        <div class="lbl">{{ sez.label }}</div>
-        <div class="val">{{ sez.sat.perc|default:0 }}%</div>
-        <div class="bar"><i style="width:{% if sez.sat.perc > 100 %}100{% else %}{{ sez.sat.perc|default:0 }}{% endif %}%"></i></div>
-      </div>
-    {% endfor %}
-  </div>
+  {# ── Griglia Gantt ── #}
+  <div class="gscroll" style="--cw:{{ cell_w }}px;--laneh:{{ lane_h }}px;--leftw:256px;"
+       data-reschedule-url="{% url 'gestione_carichi_macchina:reschedule' %}"
+       data-undo-url="{% url 'gestione_carichi_macchina:reschedule_undo' %}"
+       data-detail-url="{% url 'gestione_carichi_macchina:api_pianificazione_dettaglio' 0 %}"
+       data-sugg-url="{% url 'gestione_carichi_macchina:api_suggerimento_macchina' %}"
+       data-oggi-idx="{{ oggi_idx|default_if_none:'-1' }}">
 
-  </div>{# /#g-tools #}
-
-  <div class="glegend">
-    {% if colore_mode == 'commessa' %}
-      <span>Colore barra = <b>commessa / pezzo</b></span>
-      <span><i class="gdot" style="background:#5b6b85;box-shadow:inset 4px 0 0 #ff2d2d"></i> bordo rosso = urgente / in ritardo</span>
-    {% else %}
-      <span><i class="gdot" style="background:var(--primary,#0c2545)"></i> Pianificata</span>
-      <span><i class="gdot" style="background:var(--primary-mid,#1f87cd)"></i> In corso</span>
-      <span><i class="gdot" style="background:var(--accent,#ff8a1f)"></i> Urgente / ritardo</span>
-      <span><i class="gdot" style="background:#6b7a8f"></i> Completata</span>
-    {% endif %}
-    <span style="color:#94a3b8">· trascina una barra per spostarla (snap al giorno, conferma) · <b>Cascata</b> sposta anche i successivi · <span style="color:#c0392b">&#9888;</span> = conflitto · tratteggio = durata stimata</span>
-  </div>
-  {% if colore_mode == 'commessa' and commesse_legenda %}
-  <div class="gcomm">
-    {% for c in commesse_legenda %}<span class="it"><i class="sw" style="background:{{ c.colore }}"></i>{{ c.label }}</span>{% endfor %}
-  </div>
-  {% endif %}
-
-  <div class="gscroll" data-reschedule-url="{% url 'gestione_carichi_macchina:reschedule' %}" data-undo-url="{% url 'gestione_carichi_macchina:reschedule_undo' %}" data-oggi-idx="{{ oggi_idx|default_if_none:'-1' }}" style="--cw:{{ cell_w }}px;">
     <div class="grow gweeks">
-      <div class="gmac">Settimana</div>
-      <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});">
-        {% for w in settimane %}<div class="gweek" style="width:calc(var(--cw) * {{ w.giorni }});">{{ w.label }}</div>{% endfor %}
+      <div class="gmac">Macchina <span>Sat.</span></div>
+      <div class="gtrack">
+        {% for w in settimane %}<div class="gweek" style="width:calc(var(--cw) * {{ w.giorni }});">{{ w.label|upper }}</div>{% endfor %}
       </div>
     </div>
+
     <div class="grow ghead">
-      <div class="gmac">Macchina</div>
-      <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});">
-        {% for g in giorni %}
-          <div class="gday{% if g == oggi %} td{% endif %}" style="width:var(--cw);">
-            {{ g|date:"d/m" }}
+      <div class="gmac">Macchina <span class="s">Sat.</span></div>
+      <div class="gtrack">
+        {% for g in giorni_hdr %}
+          <div class="gday{% if g.monday %} mon{% endif %}{% if g.oggi %} td{% endif %}">
+            <span class="ab">{{ g.abbr }}</span><span class="nu">{{ g.num }}</span>
           </div>
         {% endfor %}
       </div>
@@ -313,55 +369,139 @@
     {% for sez in sezioni %}
       <div class="grow gsez">
         <div class="gmac">{{ sez.label }}<span>{{ sez.sat.perc|default:0 }}%</span></div>
-        <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }});"></div>
+        <div class="gtrack"></div>
       </div>
       {% for riga in sez.righe %}
-        <div class="grow gbody{% if riga.conflitto %} harow{% endif %}" data-macchina="{{ riga.macchina.id }}" data-turno="{{ riga.turno }}">
+        <div class="grow gbody" data-macchina="{{ riga.macchina.id }}" data-turno="{{ riga.turno }}">
           <div class="gmac">
             {% if riga.sub %}
-              <b style="color:var(--primary-mid,#1f87cd);font-weight:700;">↳ {{ riga.turno_label }}</b>{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questo turno">&#9888;</span>{% endif %}
+              <div class="gmac-sub">↳ {{ riga.turno_label }}{% if riga.conflitto %} <span class="gwarn" title="Sovrapposizioni / overbooking su questo turno">&#9888;</span>{% endif %}</div>
             {% else %}
-              <div class="gmac-head">
-                <button type="button" class="gmac-name" onclick="var i=this.closest('.gmac').querySelector('.gmac-info');if(i)i.classList.toggle('open');" title="Info macchina">{{ riga.macchina.codice }}</button>
-                {% if riga.expandable %}<a class="gturni-exp" href="javascript:void(0)" onclick="gcmToggleTurni({{ riga.macchina.id }})" title="Mostra/nascondi i turni di questa macchina">{% if riga.kind == 'split_main' %}&#9650; turni{% else %}&#9660; turni{% endif %}</a>{% endif %}
-                {% if riga.kind == 'split_main' %}<span class="gmac-t1">1° turno</span>{% endif %}
-                {% if riga.conflitto %}<span class="gwarn" title="Sovrapposizioni / overbooking su questa macchina">&#9888;</span>{% endif %}
-              </div>
-              <small>{{ riga.macchina.descrizione|truncatechars:26 }}</small>
-              {% if riga.sat %}
-                <div class="gsat{% if riga.sat.perc > 100 %} over{% endif %}">{{ riga.sat.perc }}% · {{ riga.sat.carico }}/{{ riga.sat.capacita }}h</div>
-                <div class="gsatbar{% if riga.sat.perc > 100 %} over{% endif %}"><i style="width:{% if riga.sat.perc > 100 %}100{% else %}{{ riga.sat.perc }}{% endif %}%"></i></div>
-              {% endif %}
-              {% if riga.kickoff %}<div title="Attivita KICK-OFF sulla macchina nel periodo: {% for k in riga.kickoff %}{{ k.title }} ({{ k.start|date:'d/m' }}-{{ k.end|date:'d/m' }}){% if not forloop.last %}, {% endif %}{% endfor %}" style="margin-top:4px;display:inline-block;font-size:.6rem;font-weight:800;color:#9a3412;background:#ffedd5;border:1px solid #fed7aa;border-radius:6px;padding:1px 7px;">KICK-OFF &middot; {{ riga.kickoff|length }}</div>{% endif %}
-              <div class="gmac-info">
-                <b>{{ riga.macchina.codice }}</b> — {{ riga.macchina.descrizione }}<br>
-                Categoria: {{ riga.macchina.get_categoria_display }}<br>
-                Attacco: {{ riga.macchina.attacco }}{% if riga.macchina.n_assi %} · {{ riga.macchina.n_assi }} assi{% endif %}<br>
-                Turni: 1°{% if riga.macchina.ha_secondo_turno %} · 2°{% endif %}{% if riga.macchina.ha_turno_notte %} · notturno{% endif %}<br>
-                Stato: {{ riga.macchina.get_stato_pianificazione_display }}{% if riga.sat %} · saturazione {{ riga.sat.perc }}%{% endif %}
+              <div class="gmac-body"
+                   data-cod="{{ riga.macchina.codice }}"
+                   data-desc="{{ riga.macchina.descrizione }}"
+                   data-rep="{{ sez.label }}"
+                   data-model="{{ riga.macchina.descrizione|truncatechars:40 }}"
+                   {% if riga.sat %}data-sat="{{ riga.sat.perc }}" data-carico="{{ riga.sat.carico }}" data-cap="{{ riga.sat.capacita }}"{% endif %}
+                   onclick="if(!event.target.closest('.gturni-exp'))gcmOpenMachine(this.closest('.grow'));">
+                <div class="gmac-main">
+                  <div class="gmac-cod">
+                    <button type="button" class="gmac-name" title="Dettaglio macchina">{{ riga.macchina.codice }}</button>
+                    {% if riga.sat.perc > 100 or riga.conflitto %}<span class="gwarn" title="Sovraccarico / conflitti">&#9888;</span>{% endif %}
+                    {% if riga.expandable %}<a class="gturni-exp" href="javascript:void(0)" onclick="gcmToggleTurni({{ riga.macchina.id }})" title="Mostra/nascondi i turni">{% if riga.kind == 'split_main' %}&#9650; turni{% else %}&#9660; turni{% endif %}</a>{% endif %}
+                  </div>
+                  <div class="gmac-desc">{% if riga.kind == 'split_main' %}1° turno · {% endif %}Macchine CNC · {{ riga.macchina.descrizione|truncatechars:26 }}</div>
+                  {% if riga.kickoff %}<span class="gko" title="Attività KICK-OFF nel periodo">KICK-OFF · {{ riga.kickoff|length }}</span>{% endif %}
+                </div>
+                {% if riga.sat %}
+                  {% if riga.sat.perc < 40 %}{% with sc='sat-lo' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                  {% elif riga.sat.perc < 70 %}{% with sc='sat-mid' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                  {% elif riga.sat.perc < 90 %}{% with sc='sat-hi' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}
+                  {% else %}{% with sc='sat-crit' %}{% include 'gestione_carichi_macchina/partials/_gantt_sat.html' %}{% endwith %}{% endif %}
+                {% endif %}
               </div>
             {% endif %}
           </div>
-          <div class="gtrack" style="width:calc(var(--cw) * {{ giorni_n }}); height:{{ riga.row_h }}px;">
+          <div class="gtrack" style="height:calc(var(--laneh) * {{ riga.lanes|default:1 }} + 12px);">
             {% if oggi_idx is not None %}<div class="gtoday" style="left:calc(var(--cw) * {{ oggi_idx }});"></div>{% endif %}
+            {% for ms in riga.milestones %}
+              <div class="gms {{ ms.kind }}" style="left:calc(var(--cw) * {{ ms.start_idx }} - 6px);" title="{{ ms.label }}"><i></i><b>{{ ms.label }}</b></div>
+            {% endfor %}
             {% for bar in riga.bars %}
-              <div class="gbar {% if colore_mode == 'commessa' %}gbar-c{% if bar.urgente %} urg-bordo{% endif %}{% else %}{{ bar.classe }}{% endif %}{% if bar.conflitto %} conflitto{% endif %}{% if bar.stima %} stima{% endif %}{% if bar.ritardo %} gritardo{% endif %}"
-                   data-id="{{ bar.id }}" data-start="{{ bar.start_idx }}"
-                   title="{{ bar.label }}{% if bar.qta %} · {{ bar.qta }} pz{% endif %}{% if bar.ore %} · {{ bar.ore }}h{% elif bar.ore_stima %} · ≈{{ bar.ore_stima }}h (durata stimata){% endif %}{% if bar.cliente %} · {{ bar.cliente }}{% endif %}{% if bar.turno == 'notte' %} · turno notte{% endif %}{% if bar.ritardo %} · ⏱ ritardo previsto{% endif %}"
-                   style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:{{ bar.top }}px;{% if colore_mode == 'commessa' %}background:{{ bar.colore }};{% endif %}">{{ bar.label }}</div>
+              <div class="gbar {% if colore_mode == 'stato' %}{{ bar.classe }}{% else %}gbar-c{% if bar.urgente %} urg-bordo{% endif %}{% endif %}{% if bar.conflitto %} conflitto{% endif %}{% if bar.stima %} stima{% endif %}{% if bar.ritardo %} gritardo{% endif %}"
+                   data-id="{{ bar.id }}" data-start="{{ bar.start_idx }}" data-span="{{ bar.span }}"
+                   data-ore="{% if bar.ore %}{{ bar.ore }}{% elif bar.ore_stima %}{{ bar.ore_stima }}{% endif %}"
+                   data-fam="{{ bar.famiglia }}" data-color="{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %}"
+                   title="{{ bar.label }}{% if bar.qta %} · {{ bar.qta }} pz{% endif %}{% if bar.ore %} · {{ bar.ore }}h{% elif bar.ore_stima %} · ≈{{ bar.ore_stima }}h (stima){% endif %}{% if bar.cliente %} · {{ bar.cliente }}{% endif %}{% if bar.turno == 'notte' %} · turno notte{% endif %}{% if bar.ritardo %} · ⏱ ritardo previsto{% endif %}"
+                   style="left:calc(var(--cw) * {{ bar.start_idx }}); width:calc(var(--cw) * {{ bar.span }} - 4px); top:calc(var(--laneh) * {{ bar.lane|default:0 }} + 4px);{% if colore_mode != 'stato' %}background:{% if colore_mode == 'famiglia' %}{{ bar.colore_fam }}{% else %}{{ bar.colore }}{% endif %};{% endif %}">
+                <span style="overflow:hidden;text-overflow:ellipsis;">{{ bar.label }}</span>{% if bar.conflitto %}<span class="gcfl">&#9888;</span>{% endif %}{% if bar.prog %}<i class="gprog" style="width:{{ bar.prog }}%"></i>{% endif %}
+              </div>
             {% endfor %}
           </div>
         </div>
       {% endfor %}
     {% empty %}
-      <div class="grow gbody"><div class="gmac">—</div><div class="gtrack gempty" style="width:calc(var(--cw) * {{ giorni_n }});">Nessuna macchina/lavoro per i filtri correnti.</div></div>
+      <div class="grow gbody"><div class="gmac">—</div><div class="gtrack gempty">Nessuna macchina/lavoro per i filtri correnti.</div></div>
     {% endfor %}
+
+    <div class="gsplit"><i id="g_leftsplit" title="Trascina per ridimensionare la colonna macchine"></i></div>
+  </div>
+
+  {# ── Footer legenda ── #}
+  <div class="gfoot">
+    <span>Colore barra = {% if colore_mode == 'famiglia' %}famiglia / pezzo{% elif colore_mode == 'stato' %}stato lavorazione{% else %}commessa{% endif %} · bordo rosso = urgente / conflitto · tratteggio = durata stimata</span>
+    <span><i class="ms"></i> milestone (KICK-OFF / consegna)</span>
+    <span>Trascina una barra per spostarla (snap al giorno, con conferma) · <b>Cascata</b> sposta anche i successivi · &#9888; = conflitto di capacità</span>
   </div>
 </div>
 
 <datalist id="gcm-famiglie">{% for f in famiglie %}<option value="{{ f.nome }}"></option>{% endfor %}</datalist>
+<script id="gcm-giorni" type="application/json">[{% for g in giorni %}"{{ g|date:'d/m' }}"{% if not forloop.last %},{% endif %}{% endfor %}]</script>
 
-{# ── Modale: + Aggiungi lavoro (come in Excel, con affinità) ── #}
+{# ── Drawer: dettaglio LAVORO (click su barra) ── #}
+<aside id="gcm-detail" class="gcm-drawer">
+  <div class="gd-top">
+    <div class="gd-eyebrow">Lavoro selezionato</div>
+    <div class="gd-x" onclick="document.getElementById('gcm-detail').classList.remove('open')">&times;</div>
+  </div>
+  <div class="gd-body">
+    <div class="gd-title"><span class="dot" id="gd-dot"></span><b id="gd-title">Lavoro</b></div>
+    <div class="gd-row"><span>Macchina</span><b id="gd-macchina"></b></div>
+    <div class="gd-row"><span>Data · turno</span><b><span id="gd-data"></span> · <span id="gd-turno"></span></b></div>
+    <div class="gd-row"><span>Famiglia</span><b id="gd-famiglia"></b></div>
+    <div class="gd-row"><span>Cliente</span><b id="gd-cliente"></b></div>
+    <div class="gd-row"><span>Commessa</span><b id="gd-commessa"></b></div>
+    <div class="gd-row"><span>Consegna</span><b id="gd-consegna"></b></div>
+    {% if can_edit %}
+    <form id="gd-form" class="gd-form" data-save-url="{% url 'gestione_carichi_macchina:cella_edit' %}">
+      <label>Lavoro (testo)<input id="gd-testo" autocomplete="off"></label>
+      <div class="gd-2">
+        <label>Quantità<input type="number" min="0" id="gd-qta"></label>
+        <label>Ore<input type="number" min="0" step="0.5" id="gd-ore"></label>
+      </div>
+      <div class="gd-2">
+        <label>Stato<select id="gd-stato">{% for v, l in stato_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+        <label>Fase<select id="gd-fase">{% for v, l in fase_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+      </div>
+    </form>
+    {% else %}
+      <div class="gd-row"><span>Lavoro</span><b id="gd-testo-ro"></b></div>
+      <div class="gd-ro-note">Sola lettura: non hai i permessi di modifica.</div>
+    {% endif %}
+    <div class="gd-sec">MACCHINE CONSIGLIATE</div>
+    <div id="gd-sugg"><div class="gcm-muted" style="margin-top:8px">—</div></div>
+    {% if can_edit %}
+    <div class="gd-actions">
+      <button type="button" id="gd-save" class="primary">Salva modifiche</button>
+    </div>
+    {% endif %}
+  </div>
+</aside>
+
+{# ── Drawer: dettaglio MACCHINA (click sul nome macchina) ── #}
+<aside id="gcm-machine" class="gcm-drawer">
+  <div class="gd-top">
+    <div class="gd-eyebrow">Macchina selezionata</div>
+    <div class="gd-x" onclick="document.getElementById('gcm-machine').classList.remove('open')">&times;</div>
+  </div>
+  <div class="gd-body">
+    <div class="gd-title"><b id="gm-title">Macchina</b></div>
+    <div class="gd-row"><span>Reparto</span><b id="gm-rep"></b></div>
+    <div class="gd-row"><span>Modello</span><b id="gm-model"></b></div>
+    <div class="gd-row"><span>Ore pianificate</span><b id="gm-ore"></b></div>
+    <div class="gd-satbox" id="gm-satbox" style="display:none">
+      <div class="t">Saturazione <b id="gm-satp"></b></div>
+      <div class="bar"><i id="gm-satbar"></i></div>
+    </div>
+    <div class="gd-sec" id="gm-jobs-h">LAVORI IN CODA</div>
+    <div class="gd-jobs" id="gm-jobs"></div>
+    <div class="gd-actions">
+      <a class="primary" id="gm-excel" href="#">Apri nel foglio Excel</a>
+    </div>
+  </div>
+</aside>
+
+{# ── Modale: + Aggiungi lavoro ── #}
 <div class="gcm-ov" id="gcm-add-ov">
   <div class="gcm-modal">
     <h3>+ Aggiungi lavoro <button type="button" data-close aria-label="Chiudi">&times;</button></h3>
@@ -392,50 +532,15 @@
     <div class="body">
       <div><label>Famiglia / pezzo</label><input id="gcm-ai-fam" list="gcm-famiglie" placeholder="es. gimbal"></div>
       <div class="actions"><button type="button" class="primary" id="gcm-ai-ask">Chiedi all'AI</button></div>
-      <div class="gcm-ai-res" id="gcm-ai-res"></div>
+      <div id="gcm-ai-res" style="display:grid;gap:8px;"></div>
     </div>
   </div>
 </div>
-
-{# ── Pannello laterale destro: dettaglio/modifica commessa (click su barra) ── #}
-<aside id="gcm-detail" class="gcm-drawer"
-       data-detail-url="{% url 'gestione_carichi_macchina:api_pianificazione_dettaglio' 0 %}">
-  <div class="gd-head">
-    <span id="gd-title">Lavoro</span>
-    <button type="button" onclick="document.getElementById('gcm-detail').classList.remove('open')" aria-label="Chiudi">&times;</button>
-  </div>
-  <div class="gd-body">
-    <div class="gd-row"><span>Macchina</span><b id="gd-macchina"></b></div>
-    <div class="gd-row"><span>Data · turno</span><b><span id="gd-data"></span> · <span id="gd-turno"></span></b></div>
-    <div class="gd-row"><span>Famiglia</span><b id="gd-famiglia"></b></div>
-    <div class="gd-row"><span>Cliente</span><b id="gd-cliente"></b></div>
-    <div class="gd-row"><span>Commessa</span><b id="gd-commessa"></b></div>
-    <div class="gd-row"><span>Consegna</span><b id="gd-consegna"></b></div>
-    {% if can_edit %}
-    <form id="gd-form" class="gd-form" data-save-url="{% url 'gestione_carichi_macchina:cella_edit' %}">
-      <label>Lavoro (testo)<input id="gd-testo" autocomplete="off"></label>
-      <div class="gd-2">
-        <label>Quantità<input type="number" min="0" id="gd-qta"></label>
-        <label>Ore<input type="number" min="0" step="0.5" id="gd-ore"></label>
-      </div>
-      <div class="gd-2">
-        <label>Stato<select id="gd-stato">{% for v, l in stato_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
-        <label>Fase<select id="gd-fase">{% for v, l in fase_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
-      </div>
-      <button type="button" id="gd-save" class="gd-save">Salva modifiche</button>
-    </form>
-    {% else %}
-      <div class="gd-row"><span>Lavoro</span><b id="gd-testo-ro"></b></div>
-      <div class="gd-ro-note">Sola lettura: non hai i permessi di modifica.</div>
-    {% endif %}
-  </div>
-</aside>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-// Espande/collassa i turni di UNA macchina (toggle dell'id in ?turni=..., ricarica).
-// Per-macchina: aprire una non tocca le altre.
+// ── Espande/collassa i turni di UNA macchina (toggle id in ?turni=..., ricarica) ──
 function gcmToggleTurni(mid) {
   var u = new URL(window.location.href);
   var set = (u.searchParams.get('turni') || '').split(',').filter(Boolean);
@@ -444,42 +549,60 @@ function gcmToggleTurni(mid) {
   if (set.length) u.searchParams.set('turni', set.join(',')); else u.searchParams.delete('turni');
   window.location.href = u.toString();
 }
+
+// ── Stepper live su variabili CSS (largh. colonna / alt. riga) ──
+function gcmStep(name, delta) {
+  var s = document.querySelector('.gscroll'); if (!s) return;
+  var cur = parseInt(getComputedStyle(s).getPropertyValue(name), 10) || 0;
+  var min = name === '--cw' ? 18 : 22, max = name === '--cw' ? 86 : 76;
+  s.style.setProperty(name, Math.max(min, Math.min(max, cur + delta)) + 'px');
+}
+
 (function () {
   var scroll = document.querySelector('.gscroll');
   if (!scroll) return;
   var url = scroll.getAttribute('data-reschedule-url');
-  var zoom = document.getElementById('g_zoom');
+  var days = JSON.parse(document.getElementById('gcm-giorni').textContent || '[]');
 
   function cw() { return parseInt(getComputedStyle(scroll).getPropertyValue('--cw'), 10) || 38; }
   function csrf() { var m = document.querySelector("meta[name='csrf-token']"); return m ? m.getAttribute('content') : ''; }
   function calcLeft(idx) { return 'calc(var(--cw) * ' + idx + ')'; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }); }
 
-  // Zoom live (non ricarica): aggiorna solo la variabile CSS
-  if (zoom) zoom.addEventListener('input', function () { scroll.style.setProperty('--cw', zoom.value + 'px'); });
+  // ── Ridimensionamento colonna macchine (splitter) ──
+  var splitter = document.getElementById('g_leftsplit');
+  if (splitter) {
+    var sd = null;
+    splitter.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      sd = { x: e.clientX, w: parseInt(getComputedStyle(scroll).getPropertyValue('--leftw'), 10) || 256 };
+      document.body.style.cursor = 'col-resize';
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!sd) return;
+      scroll.style.setProperty('--leftw', Math.max(180, Math.min(520, sd.w + (e.clientX - sd.x))) + 'px');
+    });
+    document.addEventListener('mouseup', function () { if (sd) { sd = null; document.body.style.cursor = ''; } });
+  }
 
+  // ── Drag-to-reschedule delle barre ──
   var drag = null;
   scroll.addEventListener('mousedown', function (e) {
-    var bar = e.target.closest('.gbar');
-    if (!bar) return;
+    var bar = e.target.closest('.gbar'); if (!bar) return;
     e.preventDefault();
     var row = bar.closest('.grow');
-    drag = {
-      bar: bar, startX: e.clientX, startY: e.clientY,
+    drag = { bar: bar, startX: e.clientX, startY: e.clientY,
       origStart: parseInt(bar.getAttribute('data-start'), 10) || 0,
-      sourceMac: row ? row.getAttribute('data-macchina') : null,
-      w: cw()
-    };
+      sourceMac: row ? row.getAttribute('data-macchina') : null, w: cw() };
     bar.classList.add('dragging');
   });
   document.addEventListener('mousemove', function (e) {
     if (!drag) return;
     var snapped = Math.round((e.clientX - drag.startX) / drag.w) * drag.w;
     drag.bar.style.left = (drag.origStart * drag.w + snapped) + 'px';
-    drag.bar.style.transform = 'translateY(' + (e.clientY - drag.startY) + 'px)';  // feedback verticale
+    drag.bar.style.transform = 'translateY(' + (e.clientY - drag.startY) + 'px)';
   });
-
   function resetBar(d) { d.bar.style.transform = ''; d.bar.style.left = calcLeft(d.origStart); }
-
   function postMove(d, params) {
     return fetch(url, {
       method: 'POST',
@@ -487,47 +610,34 @@ function gcmToggleTurni(mid) {
       body: new URLSearchParams(params).toString()
     }).then(function (r) { return r.json(); }).then(function (data) {
       if (data && data.reason === 'incompatibile') {
-        if (window.confirm(data.error || 'Macchina incompatibile. Spostare comunque?')) {
-          params.forza = '1'; return postMove(d, params);
-        }
+        if (window.confirm(data.error || 'Macchina incompatibile. Spostare comunque?')) { params.forza = '1'; return postMove(d, params); }
         resetBar(d); return;
       }
       if (data && data.ok) {
         if (data.macchina || data.spostati > 1) { window.location.reload(); return; }
         var newStart = d.origStart + (parseInt(params.giorni_delta, 10) || 0);
         d.bar.setAttribute('data-start', newStart);
-        d.bar.style.transform = '';
-        d.bar.style.left = calcLeft(newStart);
+        d.bar.style.transform = ''; d.bar.style.left = calcLeft(newStart);
         d.bar.classList.add('saved');
         setTimeout(function () { d.bar.classList.remove('saved'); }, 1000);
-      } else {
-        resetBar(d); alert((data && data.error) || 'Errore nello spostamento.');
-      }
+      } else { resetBar(d); alert((data && data.error) || 'Errore nello spostamento.'); }
     }).catch(function () { resetBar(d); alert('Errore di rete.'); });
   }
-
   document.addEventListener('mouseup', function (e) {
     if (!drag) return;
     var d = drag; drag = null;
     d.bar.classList.remove('dragging');
     var deltaDays = Math.round((e.clientX - d.startX) / d.w);
-
-    // macchina di destinazione = riga sotto il cursore (ignorando la barra trascinata)
     d.bar.style.pointerEvents = 'none';
     var elem = document.elementFromPoint(e.clientX, e.clientY);
     d.bar.style.pointerEvents = '';
     var destRow = (elem && elem.closest) ? elem.closest('.grow.gbody') : null;
     var destMac = destRow ? destRow.getAttribute('data-macchina') : null;
-    // Cambio macchina SOLO se il cursore è uscito verticalmente dalla riga di origine:
-    // così un drag orizzontale su barre sovrapposte NON "sparpaglia" il lavoro su altre
-    // macchine. (Il transform della barra non sposta la riga nel DOM.)
     var srcRow = d.bar.closest('.grow.gbody');
     var rb = srcRow ? srcRow.getBoundingClientRect() : null;
     var fuoriRiga = rb ? (e.clientY < rb.top - 4 || e.clientY > rb.bottom + 4) : true;
     var cambioMac = !!(destMac && d.sourceMac && destMac !== d.sourceMac && fuoriRiga);
-
     if (!deltaDays && !cambioMac) { resetBar(d); gcmOpenDetail(d.bar.getAttribute('data-id')); return; }
-
     if (cambioMac) {
       var msg = 'Spostare il lavoro su un\'altra macchina';
       if (deltaDays) msg += ' e di ' + Math.abs(deltaDays) + ' giorni';
@@ -535,87 +645,127 @@ function gcmToggleTurni(mid) {
       postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, macchina_dest: destMac });
       return;
     }
-
     var cascEl = document.getElementById('g_cascata');
     var casc = !!(cascEl && cascEl.checked);
     var verso = deltaDays > 0 ? 'avanti' : 'indietro';
     var m2 = 'Spostare la pianificazione di ' + Math.abs(deltaDays) + ' giorni ' + verso + '?';
-    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina e turno; gli altri turni non vengono toccati)';
+    if (casc) m2 += '\n(Cascata attiva: sposto anche i lavori successivi sulla stessa macchina e turno)';
     if (!window.confirm(m2)) { resetBar(d); return; }
     postMove(d, { pianificazione_id: d.bar.getAttribute('data-id'), giorni_delta: deltaDays, cascata: casc ? '1' : '0' });
   });
 
-  // scroll automatico alla colonna di OGGI all'apertura
+  // scroll automatico alla colonna di OGGI
   var oggiIdx = parseInt(scroll.getAttribute('data-oggi-idx'), 10);
-  if (oggiIdx >= 0) {
-    var w0 = cw();
-    scroll.scrollLeft = Math.max(0, oggiIdx * w0 - 3 * w0);
-  }
+  if (oggiIdx >= 0) { var w0 = cw(); scroll.scrollLeft = Math.max(0, oggiIdx * w0 - 3 * w0); }
 
-  // Undo ultimo spostamento
+  // ── Undo ultimo spostamento ──
   var undoBtn = document.getElementById('g_undo');
-  if (undoBtn) {
-    undoBtn.addEventListener('click', function () {
-      undoBtn.disabled = true;
-      fetch(scroll.getAttribute('data-undo-url'), {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d && d.ok) { window.location.reload(); }
-        else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
+  if (undoBtn) undoBtn.addEventListener('click', function () {
+    undoBtn.disabled = true;
+    fetch(scroll.getAttribute('data-undo-url'), { method: 'POST', headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok) window.location.reload(); else { undoBtn.disabled = false; alert((d && d.error) || 'Niente da annullare.'); }
       }).catch(function () { undoBtn.disabled = false; alert('Errore di rete.'); });
-    });
-  }
+  });
 
-  // ── Pannello dettaglio/modifica commessa (click su barra, senza trascinarla) ──
-  function gcmSet(id, v) { var el = document.getElementById(id); if (el) el.textContent = (v == null || v === '') ? '—' : v; }
-  function gcmVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null) ? '' : v; }
+  // ── Pannello dettaglio LAVORO ──
+  function set(id, v) { var el = document.getElementById(id); if (el) el.textContent = (v == null || v === '') ? '—' : v; }
+  function val(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null) ? '' : v; }
+  function renderSugg(fam, currentMac) {
+    var box = document.getElementById('gd-sugg'); if (!box) return;
+    if (!fam) { box.innerHTML = '<div class="gcm-muted" style="margin-top:8px">Nessuna famiglia associata.</div>'; return; }
+    box.innerHTML = '<div class="gcm-muted" style="margin-top:8px">Calcolo…</div>';
+    fetch(scroll.getAttribute('data-sugg-url') + '?famiglia=' + encodeURIComponent(fam), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok || !(d.suggerimenti || []).length) { box.innerHTML = '<div class="gcm-muted" style="margin-top:8px">Nessuno storico per questa famiglia.</div>'; return; }
+        box.innerHTML = d.suggerimenti.slice(0, 4).map(function (s) {
+          var pct = Math.round((s.prob || 0) * 100);
+          var cur = String(s.codice) === String(currentMac);
+          return '<div class="gd-sugg-row"><div class="t"><span>' + esc(s.codice) + (cur ? ' · attuale' : '') + '</span><span>' + pct + '%</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>';
+        }).join('');
+      }).catch(function () { box.innerHTML = '<div class="gcm-muted" style="margin-top:8px">Errore di rete.</div>'; });
+  }
   function gcmOpenDetail(pid) {
     var drawer = document.getElementById('gcm-detail'); if (!drawer || !pid) return;
-    var url = drawer.getAttribute('data-detail-url').replace(/0\/$/, pid + '/');
-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (!d || !d.ok) return;
-        var p = d.p;
-        gcmSet('gd-title', p.testo || ('Lavoro #' + p.id));
-        gcmSet('gd-macchina', p.macchina); gcmSet('gd-data', p.data); gcmSet('gd-turno', p.turno_label);
-        gcmSet('gd-famiglia', p.famiglia); gcmSet('gd-cliente', p.cliente);
-        gcmSet('gd-commessa', p.commessa); gcmSet('gd-consegna', p.consegna);
-        if (document.getElementById('gd-testo-ro')) gcmSet('gd-testo-ro', p.testo);
-        var f = document.getElementById('gd-form');
-        if (f) {
-          f.dataset.pid = p.id; f.dataset.mac = p.macchina_id; f.dataset.turno = p.turno; f.dataset.data = p.data;
-          gcmVal('gd-testo', p.testo); gcmVal('gd-qta', p.qta); gcmVal('gd-ore', p.ore);
-          var s = document.getElementById('gd-stato'); if (s) s.value = p.stato;
-          var fa = document.getElementById('gd-fase'); if (fa) fa.value = p.fase;
-        }
-        drawer.classList.add('open');
-      }).catch(function () {});
+    document.getElementById('gcm-machine').classList.remove('open');
+    var u = scroll.getAttribute('data-detail-url').replace(/0\/$/, pid + '/');
+    fetch(u, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok) return;
+      var p = d.p;
+      set('gd-title', p.testo || ('Lavoro #' + p.id));
+      set('gd-macchina', p.macchina); set('gd-data', p.data); set('gd-turno', p.turno_label);
+      set('gd-famiglia', p.famiglia); set('gd-cliente', p.cliente); set('gd-commessa', p.commessa); set('gd-consegna', p.consegna);
+      if (document.getElementById('gd-testo-ro')) set('gd-testo-ro', p.testo);
+      var f = document.getElementById('gd-form');
+      if (f) {
+        f.dataset.pid = p.id; f.dataset.mac = p.macchina_id; f.dataset.turno = p.turno; f.dataset.data = p.data;
+        val('gd-testo', p.testo); val('gd-qta', p.qta); val('gd-ore', p.ore);
+        var s = document.getElementById('gd-stato'); if (s) s.value = p.stato;
+        var fa = document.getElementById('gd-fase'); if (fa) fa.value = p.fase;
+      }
+      renderSugg(p.famiglia, p.macchina);
+      drawer.classList.add('open');
+    }).catch(function () {});
   }
   window.gcmOpenDetail = gcmOpenDetail;
-  var gdSave = document.getElementById('gd-save');
-  if (gdSave) {
-    gdSave.addEventListener('click', function () {
-      var f = document.getElementById('gd-form');
-      var body = new URLSearchParams({
-        pianificazione_id: f.dataset.pid, macchina: f.dataset.mac, turno: f.dataset.turno, data: f.dataset.data,
-        testo: document.getElementById('gd-testo').value,
-        qta: document.getElementById('gd-qta').value, ore: document.getElementById('gd-ore').value,
-        stato: document.getElementById('gd-stato').value, fase: document.getElementById('gd-fase').value
-      });
-      gdSave.disabled = true;
-      fetch(f.getAttribute('data-save-url'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
-        body: body.toString()
-      }).then(function (r) { if (!r.ok) throw 0; window.location.reload(); })
-        .catch(function () { gdSave.disabled = false; alert('Errore nel salvataggio.'); });
-    });
-  }
 
-  // ── Modali "+ Aggiungi lavoro" e "🔮 AI" (stesse funzioni della vista Excel) ──
-  function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }); }
+  // ── Pannello dettaglio MACCHINA ──
+  function gcmOpenMachine(row) {
+    if (!row) return;
+    var head = row.querySelector('.gmac-body'); if (!head) return;
+    document.getElementById('gcm-detail').classList.remove('open');
+    set('gm-title', head.dataset.cod);
+    set('gm-rep', head.dataset.rep);
+    set('gm-model', head.dataset.model || head.dataset.desc);
+    var sat = head.dataset.sat;
+    var box = document.getElementById('gm-satbox');
+    if (sat != null && sat !== '') {
+      set('gm-ore', (head.dataset.carico || '?') + ' / ' + (head.dataset.cap || '?') + ' h');
+      var cls = sat < 40 ? 'sat-lo' : sat < 70 ? 'sat-mid' : sat < 90 ? 'sat-hi' : 'sat-crit';
+      var sp = document.getElementById('gm-satp'); sp.textContent = sat + '%'; sp.className = cls;
+      var i = document.getElementById('gm-satbar'); i.style.width = Math.min(100, sat) + '%'; i.className = cls;
+      box.style.display = '';
+    } else { set('gm-ore', '—'); box.style.display = 'none'; }
+    // lavori in coda: tutte le barre della macchina (anche notturno)
+    var mid = row.getAttribute('data-macchina');
+    var bars = document.querySelectorAll('.grow.gbody[data-macchina="' + mid + '"] .gbar');
+    var jl = document.getElementById('gm-jobs');
+    document.getElementById('gm-jobs-h').textContent = 'LAVORI IN CODA (' + bars.length + ')';
+    jl.innerHTML = '';
+    Array.prototype.forEach.call(bars, function (b) {
+      var label = b.querySelector('span') ? b.querySelector('span').textContent : (b.textContent || '');
+      var si = parseInt(b.getAttribute('data-start'), 10) || 0;
+      var spn = parseInt(b.getAttribute('data-span'), 10) || 1;
+      var ore = b.getAttribute('data-ore');
+      var when = (days[si] || '') + (spn > 1 ? ' → ' + (days[Math.min(days.length - 1, si + spn - 1)] || '') : '') + (ore ? ' · ' + ore + 'h' : '');
+      var color = b.getAttribute('data-color') || '#4a5568';
+      var el = document.createElement('div'); el.className = 'gd-job';
+      el.innerHTML = '<span class="dot" style="background:' + esc(color) + '"></span><div class="l"><div class="a">' + esc(label) + '</div><div class="b">' + esc(when) + '</div></div><span class="c">›</span>';
+      el.addEventListener('click', function () { gcmOpenDetail(b.getAttribute('data-id')); });
+      jl.appendChild(el);
+    });
+    var ex = document.getElementById('gm-excel');
+    if (ex) ex.href = "{% url 'gestione_carichi_macchina:excel' %}?start={{ start|date:'Y-m-d' }}&giorni={{ giorni_n }}";
+    document.getElementById('gcm-machine').classList.add('open');
+  }
+  window.gcmOpenMachine = gcmOpenMachine;
+
+  // ── Salva modifiche lavoro ──
+  var gdSave = document.getElementById('gd-save');
+  if (gdSave) gdSave.addEventListener('click', function () {
+    var f = document.getElementById('gd-form');
+    var body = new URLSearchParams({
+      pianificazione_id: f.dataset.pid, macchina: f.dataset.mac, turno: f.dataset.turno, data: f.dataset.data,
+      testo: document.getElementById('gd-testo').value, qta: document.getElementById('gd-qta').value, ore: document.getElementById('gd-ore').value,
+      stato: document.getElementById('gd-stato').value, fase: document.getElementById('gd-fase').value
+    });
+    gdSave.disabled = true;
+    fetch(f.getAttribute('data-save-url'), { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body.toString() })
+      .then(function (r) { if (!r.ok) throw 0; window.location.reload(); })
+      .catch(function () { gdSave.disabled = false; alert('Errore nel salvataggio.'); });
+  });
+
+  // ── Modali "+ Aggiungi lavoro" e "🔮 AI" ──
   function openOv(id) { var o = document.getElementById(id); if (o) o.classList.add('open'); }
   document.querySelectorAll('.gcm-ov').forEach(function (o) {
     o.addEventListener('click', function (e) { if (e.target === o || e.target.closest('[data-close]')) o.classList.remove('open'); });
@@ -626,7 +776,6 @@ function gcmToggleTurni(mid) {
     addBtn.addEventListener('click', function () { openOv('gcm-add-ov'); });
     var addSugg = document.getElementById('gcm-add-sugg');
     var addTesto = document.getElementById('gcm-add-testo');
-    var addTurno = document.getElementById('gcm-add-turno');
     var suggTimer;
     function refreshAddSugg() {
       if (!addSugg || !addTesto) return;
@@ -638,7 +787,6 @@ function gcmToggleTurni(mid) {
     }
     if (addTesto) addTesto.addEventListener('input', function () { clearTimeout(suggTimer); suggTimer = setTimeout(refreshAddSugg, 450); });
     if (macSel) macSel.addEventListener('change', refreshAddSugg);
-    if (addTurno) addTurno.addEventListener('change', refreshAddSugg);
     var addSave = document.getElementById('gcm-add-save');
     if (addSave) addSave.addEventListener('click', function () {
       var testo = addTesto.value.trim(); var mid = macSel ? macSel.value : ''; var data = document.getElementById('gcm-add-data').value; var turno = document.getElementById('gcm-add-turno').value;
