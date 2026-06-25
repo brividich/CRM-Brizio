@@ -1,0 +1,3 @@
+﻿codice;revisione;titolo;tipo;fonte;cliente;tag;data_inserimento;data_verifica;note;stato;master_codice
+SPEC-2023-001;2;Trattamento termico lega X;specifica;cliente;ACME Aerospace;trattamenti_termici;2023-03-14;2026-09-14;Importata da archivio cartaceo;in_validita;
+COM-2024-017;0;Comunicazione requisiti imballo;comunicazione;generica;;logistica;2024-01-09;;Caratteri accentati: città, però (NVARCHAR);in_validita;

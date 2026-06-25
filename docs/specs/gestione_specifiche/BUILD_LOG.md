@@ -15,7 +15,7 @@
 | F5 | OFI → MOD.174 + sotto-flusso documento CN | fatto | 2026-06-24 |
 | F6 | Distribuzione + tracciamento copie | fatto | 2026-06-24 |
 | F7 | Ricerca, API ninja, UI elenco/cruscotto + storico | fatto | 2026-06-24 |
-| F8 | Import storico + prospetto intake | todo | — |
+| F8 | Import storico + prospetto intake | fatto (manca solo file dati reale) | 2026-06-25 |
 | F9 | Copilota AI locale | todo | — |
 
 ---
@@ -77,10 +77,12 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 ## BLOCKERS
 
 - **B1 (non bloccante per il codice)** — Registro **OFI / MOD.174** inesistente nel portale. `RigaMOD133.ofi` e `AzioneOFI.ofi` usano `PositiveIntegerField(null=True)` come riferimento al numero OFI legacy. Quando il registro MOD.174 verrà modellato in Django, sostituire con FK nullable (migrazione additiva). **Domanda all'umano**: esiste una tabella SQL legacy OFI/MOD.174 a cui agganciarsi (nome tabella/PK)?
-- **B2** — Ruoli di processo (DM, IN1, RDD, MSM, MSO, MSA, SGI, IT Admin): da mappare ai `Ruolo` legacy esistenti. In attesa di conferma nomi, il bootstrap concede i permessi ai ruoli `admin`/`amministrazione` e propone i nomi mancanti (nessuna creazione gruppi AD senza OK — guardrail §8).
+- **B2** — Ruoli di processo (DM, IN1, RDD, MSM, MSO, MSA, SGI, IT Admin): da mappare ai `Ruolo` legacy esistenti. In attesa di conferma nomi, il bootstrap concede i permessi ai ruoli `admin`/`amministrazione`/`qualita`/`caporeparto` e propone i nomi mancanti (nessuna creazione gruppi AD senza OK — guardrail §8).
+- **B3 (F8) — dati storici attesi**: command/validatore/template pronti e testati su fixture sintetiche; manca solo il **file CSV reale** delle specifiche "In validità" compilato dall'umano. Prospetto: [INTAKE_IMPORT_STORICO.md](INTAKE_IMPORT_STORICO.md). Deposito fuori repo + lancio dry-run, poi `--apply`.
 
 ## TEST
 
+- **F8** — `gestione_specifiche` **100/100 verdi** (+13 F8): validatore (riga valida, obbligatori, tipo/fonte non validi, solo in_validita, data malformata), import dry-run/apply/idempotenza/scarto, conteggi `importa_righe`, command dry-run/apply/genera-template su fixture sintetiche. `data_inserimento` storica preservata (mezzogiorno locale, no shift UTC).
 - **F7** — `gestione_specifiche` **87/87 verdi** (+15 F7): API ninja (lista+filtri, dettaglio, eventi, transizione ok/illegale 400, auth 401), archivio include storico + filtro stato terminale, scheda storico + eventi, ricostruzione punto-nel-tempo, catena revisioni, export CSV/PDF, azioni SSR sospendi/ripristina/annulla.
 - **F6** — `gestione_specifiche` **72/72 verdi** (+11 F6): regola copie (match/mismatch→deroga/con deroga procede), non-cartacea senza controllo, presa visione (default false / reparto-specifico / default reparto-nullo), evento+M2M+data, flusso via view (GET form, POST notifica, POST cartacea mismatch→deroga).
 - **F5** — `gestione_specifiche` **61/61 verdi** (+9 F5): creazione OFI su conferma, idempotenza, richiede genera_ofi, modo default da settings, 3 modi di approvazione (mod133_approver con guardia, car_flow, rdd_dedicato), respingi, flusso genera/approva via view + render sezione Azioni OFI.
@@ -98,6 +100,7 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 - **[F5]** `feat(spec): [F5] OFI→MOD.174 su conferma + sotto-flusso documento CN (3 modi)`
 - **[F6]** `feat(spec): [F6] distribuzione tracciata + regola copie cartacee con deroga`
 - **[F7]** `feat(spec): [F7] API ninja + ricerca/elenco filtri + storico consultabile + export`
+- **[F8]** `feat(spec): [F8] import storico (solo In validità) + prospetto intake + template + command/validatore`
 
 ### NOTA GIT — file condivisi esclusi dai commit di fase
 `CHANGELOG.md` e `django_app/automazioni/schedules.py` contenevano già modifiche
