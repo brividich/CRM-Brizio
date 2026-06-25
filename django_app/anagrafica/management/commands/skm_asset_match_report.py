@@ -131,20 +131,34 @@ class Command(BaseCommand):
             if (c.get("tipo") or "").strip().lower() == TIPO_MACCHINA
         ]
 
-    @staticmethod
-    def _leggi_assets_csv(path: Path) -> list:
-        """Legge gli asset esportati (skm_export_assets) come stub per il matcher.
+    # Ordine posizionale per i dump SQL/SSMS SENZA intestazione.
+    COLONNE_ASSET = ["id", "asset_tag", "internal_number", "name", "asset_type"]
 
-        Accetta delimitatore ``;`` o ``,`` (autodetect). Servono le colonne
-        ``asset_tag``, ``name``, ``asset_type`` (``id`` opzionale).
+    @classmethod
+    def _leggi_assets_csv(cls, path: Path) -> list:
+        """Legge gli asset esportati come stub per il matcher.
+
+        Tollerante: delimitatore ``;`` o ``,`` (autodetect) e CSV **con o senza
+        intestazione** (i dump SQL/SSMS spesso non la includono → si usa l'ordine
+        posizionale ``id;asset_tag;internal_number;name;asset_type``).
+        Servono almeno ``asset_tag``/``name`` (``id`` opzionale).
         """
         out: list = []
         with path.open("r", encoding="utf-8-sig", newline="") as fh:
             sample = fh.read(4096)
             fh.seek(0)
             delim = ";" if sample.count(";") >= sample.count(",") else ","
-            reader = csv.DictReader(fh, delimiter=delim)
-            for row in reader:
+            prima = sample.splitlines()[0] if sample else ""
+            ha_header = "asset_tag" in prima.lower()
+            if ha_header:
+                righe = csv.DictReader(fh, delimiter=delim)
+            else:
+                # Mappa per posizione sulle colonne note.
+                righe = (
+                    {cls.COLONNE_ASSET[i]: c for i, c in enumerate(cells) if i < len(cls.COLONNE_ASSET)}
+                    for cells in csv.reader(fh, delimiter=delim)
+                )
+            for row in righe:
                 tag = (row.get("asset_tag") or "").strip()
                 name = (row.get("name") or "").strip()
                 if not tag and not name:

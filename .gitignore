@@ -240,6 +240,12 @@ Programmazione 2026 ASR.xlsx
 MOD.155 - VCD Verbale Consegna DPI Rev.2.pdf
 # Export/dati PROD e fogli di lavoro collaudo/manutenzione (non versionare)
 assets_prod.csv
+# Skill Matrix MOD.187 — export asset (nomi PC riconducibili a persone) e seed con dati reali
+docs/skill-matrix/Risultati.csv
+docs/skill-matrix/assets_export.csv
+docs/anagrafica/skillmatrix/skm_operatori.csv
+docs/anagrafica/skillmatrix/skm_matrice_livelli.csv
+docs/anagrafica/skillmatrix/skm_storico_delta.csv
 Causali manutenzione.xlsx
 movimenti collado.xlsx
 storico collaudo.xlsx

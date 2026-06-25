@@ -61,6 +61,21 @@ class ReportOfflineTests(TestCase):
         self.assertEqual(righe[0]["asset_tag"], "CNC-DM3-12280")
         self.assertEqual(righe[0]["asset_match_id"], "7")
 
+    def test_match_offline_csv_senza_header(self):
+        # Dump SQL/SSMS tipico: niente intestazione, ordine posizionale, delimitatore ';'.
+        with tempfile.TemporaryDirectory() as d:
+            cat, assets, out = Path(d) / "c.csv", Path(d) / "a.csv", Path(d) / "r.csv"
+            self._scrivi_catalogo(cat)
+            with assets.open("w", encoding="utf-8-sig", newline="") as fh:
+                fh.write("285;CNC-DM3-12280000463;Int.203;DM3 - DMG Mori DMC 85;WORK_MACHINE\n")
+            call_command("skm_asset_match_report",
+                         catalogo=str(cat), assets_csv=str(assets), output=str(out))
+            righe = list(csv.DictReader(out.open(encoding="utf-8-sig"), delimiter=";"))
+        self.assertEqual(len(righe), 1)
+        self.assertEqual(righe[0]["confidenza"], "esatto")
+        self.assertEqual(righe[0]["asset_tag"], "CNC-DM3-12280000463")
+        self.assertEqual(righe[0]["asset_match_id"], "285")
+
     def test_fallback_catalogo_da_modulo(self):
         # Senza CSV catalogo, il report ripiega sul modulo impacchettato: 42 macchine.
         competenze = ReportCmd._competenze_da_modulo()
