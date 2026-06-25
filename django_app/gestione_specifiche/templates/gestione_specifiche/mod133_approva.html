@@ -1,23 +1,82 @@
 {% extends "core/base.html" %}
-{% block title %}Approva MOD.133 · {{ spec.codice }}{% endblock %}
+{% block title %}Approvazione MOD.133 · {{ spec.codice }}{% endblock %}
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>Approvazione flow-down — {{ spec.codice }}</h1>
-  <p>Compilatore: {{ mod.compilatore|default:"—" }}. L'approvatore deve essere diverso dal compilatore.</p>
-</div>
+<div class="gs-wrap">
 
-<form method="post" action="{% url 'gestione_specifiche:mod133_approva' spec.pk %}" class="gs-card">
-  {% csrf_token %}
-  {% if form.non_field_errors %}<div style="color:#b42318;">{{ form.non_field_errors }}</div>{% endif %}
-  <div class="gs-grid">
-    <div><div class="lbl">Esito</div>{{ form.esito }}</div>
-    <div style="grid-column:1/-1;"><div class="lbl">Note</div>{{ form.note }}</div>
+  <a class="gs-back" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Scheda specifica</a>
+
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=18 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Approvazione MOD.133</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">{{ spec.codice }}{% if spec.revisione %} · r.{{ spec.revisione }}{% endif %} — {{ spec.titolo }}</h1>
+    </div>
+    <span class="gs-pill gs-pill--lg {{ spec.stato }}">{{ spec.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span>
   </div>
-  <div class="gs-actions" style="margin-top:14px;">
-    <button class="gs-btn gs-btn--primary" type="submit">Registra esito</button>
-    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Annulla</a>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+  {% if form.non_field_errors %}<div class="gs-banner gs-banner--danger" style="margin-top:14px;"><div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=16 %}</div><div style="flex:1; align-self:center; font-size:12.5px; color:#a02e2e;">{{ form.non_field_errors|striptags }}</div></div>{% endif %}
+
+  {% if guard_attiva %}
+  <div class="gs-banner gs-banner--danger" style="margin-top:16px;">
+    <div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="ban" size=18 %}</div>
+    <div style="flex:1;">
+      <div class="gs-banner__title" style="color:#a02e2e;">Approvazione bloccata — compilatore ≠ approvatore obbligatorio</div>
+      <p style="margin:5px 0 0; font-size:12.5px; color:#7a4a4a; line-height:1.55;">Questa revisione è stata compilata da <strong>{{ mod.compilatore }}</strong>, che coincide con l'utente corrente. La guardia di separazione dei ruoli richiede che l'approvazione sia effettuata da un utente <strong>diverso</strong> abilitato (RDD, MSM, MSO o MSA).</p>
+    </div>
   </div>
-</form>
+  {% endif %}
+
+  <div style="display:grid; grid-template-columns:1fr 320px; gap:16px; margin-top:16px; align-items:start;">
+
+    {# Riepilogo righe #}
+    <div class="gs-panel" style="margin-top:0;">
+      <div class="gs-panel__head"><h2 class="gs-panel__title">Riepilogo righe MOD.133</h2><span class="gs-panel__meta">{{ righe|length }} rig{{ righe|length|pluralize:"a,he" }} · {{ n_impatto }} a impatto</span></div>
+      <div style="padding:6px 0;">
+        {% for r in righe %}
+        <div style="display:flex; gap:13px; padding:14px 18px; {% if not forloop.last %}border-bottom:1px solid #f1f5fa;{% endif %}">
+          <span class="gs-row133__n {% if not r.impatto_documenti and not r.impatto_operativo and not r.genera_ofi %}{% endif %}" style="{% if not r.impatto_documenti and not r.impatto_operativo and not r.genera_ofi %}background:#8794a8;{% endif %}">{{ forloop.counter|stringformat:"02d" }}</span>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+              {% if r.rif_paragrafo %}<span style="font-size:12.5px; font-weight:800; color:#0c2545;">{{ r.rif_paragrafo }}</span>{% endif %}
+              <span style="font-size:13px; color:#1c2b42;">{{ r.argomento|default:"—" }}</span>
+            </div>
+            <div style="display:flex; gap:7px; margin-top:8px; flex-wrap:wrap;">
+              {% if r.impatto_documenti %}<span class="gs-tag is-blue">Impatto doc{% if r.rif_doc_cn %} · {{ r.rif_doc_cn }}{% endif %}</span>{% endif %}
+              {% if r.impatto_operativo %}<span class="gs-tag is-green">Impatto operativo</span>{% endif %}
+              {% if r.genera_ofi %}<span class="gs-tag is-orange">Genera OFI</span>{% endif %}
+              {% if not r.impatto_documenti and not r.impatto_operativo and not r.genera_ofi %}<span class="gs-tag is-grey">Nessun impatto documentale</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% empty %}<div style="padding:18px; color:#92a0b5; font-size:13px;">Nessuna riga compilata.</div>{% endfor %}
+      </div>
+      <div style="padding:14px 18px; background:#f6f9fd; border-top:1px solid #eef2f7; display:flex; align-items:flex-start; gap:10px;">
+        <span style="color:#1665a3; margin-top:1px;">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=16 %}</span>
+        <div style="font-size:12px; color:#5b6b82; line-height:1.5;"><strong style="color:#0c2545;">All'approvazione:</strong> {{ spec.codice }}{% if spec.revisione %} r.{{ spec.revisione }}{% endif %} passa <strong style="color:#1f7a52;">In validità</strong>{% if spec.revisione_precedente_id %} · la revisione precedente viene marcata <strong style="color:#8794a8;">Superata</strong>{% endif %} · le righe a impatto possono generare <strong style="color:#c2410c;">OFI</strong> (conferma richiesta).</div>
+      </div>
+    </div>
+
+    {# Pannello decisione #}
+    <form method="post" action="{% url 'gestione_specifiche:mod133_approva' spec.pk %}" class="gs-panel gs-panel--pad" style="margin-top:0;">
+      {% csrf_token %}
+      <div class="gs-eyebrow" style="margin-bottom:14px;">Decisione approvatore</div>
+      {% if guard_attiva %}
+        <button type="button" class="gs-btn is-disabled" disabled style="width:100%; height:44px; margin-bottom:6px;">{% include "gestione_specifiche/partials/_icon.html" with name="ban" size=16 %} Approva (bloccato)</button>
+        <div style="font-size:11px; color:#b5564f; text-align:center; margin:0 0 14px;">Disabilitato dalla guardia di ruolo</div>
+      {% else %}
+        <button type="submit" name="esito" value="{{ C.ESITO_APPROVATO }}" class="gs-btn gs-btn--success" style="width:100%; height:44px; margin-bottom:12px;">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Approva</button>
+      {% endif %}
+      <a href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}" class="gs-btn" style="width:100%; height:42px; margin-bottom:9px;">{% include "gestione_specifiche/partials/_icon.html" with name="undo" size=15 %} Rimanda al compilatore</a>
+      <button type="submit" name="esito" value="{{ C.ESITO_NON_APPLICABILE }}" class="gs-btn gs-btn--danger" style="width:100%; height:42px;">{% include "gestione_specifiche/partials/_icon.html" with name="ban" size=15 %} Respingi — Non applicabile</button>
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid #eef2f7;">
+        <label class="gs-flabel">Nota di approvazione</label>
+        <textarea name="note" rows="3" placeholder="Motivazione o annotazioni per il compilatore…" class="gs-input">{{ form.note.value|default:"" }}</textarea>
+      </div>
+    </form>
+
+  </div>
+</div>
 {% endblock %}

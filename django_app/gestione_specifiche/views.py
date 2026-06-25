@@ -10,11 +10,13 @@ import csv
 import io
 import json
 import re
+from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -45,9 +47,46 @@ def _incrementa_revisione(rev: str) -> str:
     return "1" if not rev else rev + ".1"
 
 
+def _scadenza_verifica_giorni() -> int:
+    cfg = getattr(settings, "GESTIONE_SPECIFICHE", {}) or {}
+    return int(cfg.get("SCADENZA_VERIFICA_GIORNI", 30))
+
+
+def _stato_mod133(spec):
+    """Etichetta + tipo grafico dello 'Stato MOD.133' per la riga di elenco.
+
+    Usa i contatori annotati `n_righe`/`n_ofi` (vedi `lista`) per evitare N+1.
+    Ritorna (label, kind) dove kind ∈ {green,blue,orange,amber,danger,grey}.
+    """
+    mod = getattr(spec, "mod133", None)
+    n_ofi = getattr(spec, "n_ofi", 0) or 0
+    n_righe = getattr(spec, "n_righe", 0) or 0
+    if spec.stato == C.STATO_ERRORE_TECNICO:
+        return ("Errore tecnico", "danger")
+    if spec.stato in C.STATI_TERMINALI:
+        if spec.stato == C.STATO_RESPINTO:
+            return ("Non applicabile", "danger")
+        return ("Archiviato", "grey")
+    if mod is None:
+        return ("Da avviare", "grey")
+    if spec.stato == C.STATO_SOSPESO:
+        return ("In pausa", "amber")
+    if n_ofi:
+        return (f"{n_ofi} OFI → MOD.174", "orange")
+    if mod.esito == C.ESITO_APPROVATO:
+        return ("Approvato", "green")
+    if mod.esito in (C.ESITO_RESPINTO, C.ESITO_NON_APPLICABILE):
+        return (mod.get_esito_display(), "danger")
+    if mod.data_chiusura_compilazione:
+        return ("In approvazione", "blue")
+    if n_righe:
+        return (f"In compilazione · {n_righe} rig{'a' if n_righe == 1 else 'he'}", "blue")
+    return ("Da compilare", "grey")
+
+
 @login_required
 def lista(request):
-    """Elenco/archivio ricercabile. Default = solo specifiche attive; lo storico
+    """Cruscotto/archivio ricercabile. Default = solo specifiche attive; lo storico
     (incluse superate/terminali S4/S6/S7/S8) è raggiungibile col toggle o filtrando
     per stato/intervallo date."""
     mostra_storico = request.GET.get("storico") == "1"
@@ -59,7 +98,10 @@ def lista(request):
     f_dal = request.GET.get("dal", "").strip()
     f_al = request.GET.get("al", "").strip()
 
-    qs = Specifica.objects.all().select_related("mod133")
+    qs = Specifica.objects.all().select_related("mod133").annotate(
+        n_righe=Count("mod133__righe", distinct=True),
+        n_ofi=Count("mod133__righe__azioni_ofi", distinct=True),
+    )
     if not mostra_storico and not f_stato:
         qs = qs.filter(stato__in=C.STATI_ATTIVI)
     if f_stato:
@@ -78,10 +120,32 @@ def lista(request):
         qs = qs.filter(data_inserimento__date__lte=f_al)
     qs = qs.order_by("-data_inserimento", "codice")
 
+    specifiche = list(qs[:500])
+    for s in specifiche:
+        s.mod_label, s.mod_kind = _stato_mod133(s)
+
+    # KPI cruscotto (su tutto l'archivio, indipendenti dai filtri di elenco).
+    oggi = timezone.now().date()
+    limite_verifica = oggi + timedelta(days=_scadenza_verifica_giorni())
+    per_stato = dict(
+        Specifica.objects.values_list("stato").order_by().annotate(n=Count("id"))
+    )
+    n_verifica_scad = Specifica.objects.filter(
+        stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
+        data_verifica__lte=limite_verifica,
+    ).count()
+    kpi = {
+        "in_validita": per_stato.get(C.STATO_IN_VALIDITA, 0),
+        "flow_down": per_stato.get(C.STATO_FLOW_DOWN, 0),
+        "sospeso": per_stato.get(C.STATO_SOSPESO, 0),
+        "verifica_scad": n_verifica_scad,
+    }
+
     context = {
-        "specifiche": qs[:500],
+        "specifiche": specifiche,
         "tot": qs.count(),
         "mostra_storico": mostra_storico,
+        "kpi": kpi,
         "f": {"stato": f_stato, "tipo": f_tipo, "cliente": f_cliente,
               "tag": f_tag, "q": f_q, "dal": f_dal, "al": f_al},
         "STATO_CHOICES": C.STATO_CHOICES,
@@ -111,17 +175,26 @@ def allegato_download(request, pk: int):
 
 @login_required
 def dettaglio(request, pk: int):
-    spec = get_object_or_404(Specifica.objects.select_related("mod133"), pk=pk)
+    spec = get_object_or_404(Specifica.objects.select_related("mod133", "revisione_precedente"), pk=pk)
+    if spec.allegato:
+        spec.allegato_nome = spec.allegato.name.rsplit("/", 1)[-1]
     mod = MOD133.objects.filter(specifica=spec).first()
+    righe = list(mod.righe.all()) if mod else []
     azioni_ofi = (
         AzioneOFI.objects.filter(riga_mod133__mod133=mod).select_related("approvatore", "riga_mod133")
         if mod else []
     )
+    # Righe a impatto che possono ancora generare un OFI (per la modale di conferma).
+    righe_ofi_candidate = [r for r in righe if r.genera_ofi and not r.ofi]
+    n_impatto = sum(1 for r in righe if r.impatto_documenti or r.impatto_operativo or r.genera_ofi)
     context = {
         "spec": spec,
         "mod": mod,
-        "righe": mod.righe.all() if mod else [],
+        "righe": righe,
+        "n_righe": len(righe),
+        "n_impatto": n_impatto,
         "azioni_ofi": azioni_ofi,
+        "righe_ofi_candidate": righe_ofi_candidate,
         "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),
         "eventi": spec.eventi.all()[:50],
         "C": C,
@@ -266,14 +339,22 @@ def mod133_approva(request, pk: int):
     """Approvazione/respingimento del flow-down (approvatore ≠ compilatore)."""
     spec = get_object_or_404(Specifica, pk=pk)
     mod = get_object_or_404(MOD133, specifica=spec)
+    righe = list(mod.righe.all())
+    extra = {
+        "righe": righe,
+        "n_impatto": sum(1 for r in righe if r.impatto_documenti or r.impatto_operativo or r.genera_ofi),
+        # Guardia di segregazione dei compiti: l'approvatore deve essere ≠ compilatore.
+        "guard_attiva": bool(mod.compilatore_id and mod.compilatore_id == request.user.id),
+        "C": C,
+    }
     if request.method != "POST":
         return render(request, "gestione_specifiche/mod133_approva.html",
-                      {"spec": spec, "mod": mod, "form": ApprovazioneForm()})
+                      {"spec": spec, "mod": mod, "form": ApprovazioneForm(), **extra})
 
     form = ApprovazioneForm(request.POST)
     if not form.is_valid():
         return render(request, "gestione_specifiche/mod133_approva.html",
-                      {"spec": spec, "mod": mod, "form": form})
+                      {"spec": spec, "mod": mod, "form": form, **extra})
 
     esito = form.cleaned_data["esito"]
     note = form.cleaned_data.get("note", "")
@@ -340,7 +421,8 @@ def azione_ofi_approva(request, azione_id: int):
 def distribuzione_nuova(request, pk: int):
     """Crea una distribuzione tracciata; per le cartacee applica la regola copie
     (warning + deroga giustificata, no blocco rigido)."""
-    spec = get_object_or_404(Specifica, pk=pk)
+    from .distribuzione import copie_distribuite_rev_precedente
+    spec = get_object_or_404(Specifica.objects.select_related("revisione_precedente"), pk=pk)
     deroga_richiesta = False
     if request.method == "POST":
         form = DistribuzioneForm(request.POST)
@@ -371,7 +453,10 @@ def distribuzione_nuova(request, pk: int):
     else:
         form = DistribuzioneForm()
     return render(request, "gestione_specifiche/distribuzione_form.html",
-                  {"spec": spec, "form": form, "deroga_richiesta": deroga_richiesta})
+                  {"spec": spec, "form": form, "deroga_richiesta": deroga_richiesta,
+                   "copie_attese": copie_distribuite_rev_precedente(spec),
+                   "distribuzioni": spec.distribuzioni.prefetch_related("destinatari"),
+                   "C": C})
 
 
 # ---------------------------------------------------------------------------
@@ -531,6 +616,155 @@ def ai_proponi_tag(request, pk: int):
     proposta = proponi_tag(testo)
     proposta["nota"] = "Proposta AI: applica il TAG manualmente se corretto. Nessuna modifica salvata."
     return JsonResponse(proposta)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard direzionale KPI qualità (ISO 9001 / EN 9100)
+# ---------------------------------------------------------------------------
+
+_MESI_IT = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+
+
+def _scala(valore, massimo, px):
+    """Altezza/larghezza in px proporzionale (per le barre dei grafici)."""
+    if not massimo:
+        return 0
+    return max(2, round(px * (valore / massimo)))
+
+
+@login_required
+def kpi(request):
+    """Dashboard direzionale: KPI di processo sulle specifiche (dati reali)."""
+    oggi = timezone.now().date()
+    now = timezone.now()
+
+    per_stato = dict(
+        Specifica.objects.values_list("stato").order_by().annotate(n=Count("id"))
+    )
+    n_attive = sum(per_stato.get(s, 0) for s in C.STATI_ATTIVI)
+
+    # OFI aperti (sotto-flusso documento CN non ancora chiuso) + clienti coinvolti.
+    aperti = AzioneOFI.objects.filter(
+        stato__in=[C.AZIONE_OFI_BOZZA, C.AZIONE_OFI_IN_APPROVAZIONE]
+    )
+    n_ofi_aperti = aperti.count()
+    cli_field = "riga_mod133__mod133__specifica__cliente"
+    n_clienti_ofi = aperti.exclude(**{f"{cli_field}": ""}).values(cli_field).distinct().count()
+    ofi_cli_raw = list(
+        aperti.values(cli_field).order_by().annotate(n=Count("id")).order_by("-n")[:5]
+    )
+    max_ofi = max([r["n"] for r in ofi_cli_raw], default=0)
+    ofi_per_cliente = [
+        {"cliente": r[cli_field] or "—", "n": r["n"], "h": _scala(r["n"], max_ofi, 112)}
+        for r in ofi_cli_raw
+    ]
+
+    # Tempo medio flow-down (gg): da avvio (timer_anchor) ad approvazione.
+    durate = []
+    durate_per_mese = {}
+    for mod in MOD133.objects.filter(timer_anchor__isnull=False, data_approvazione__isnull=False):
+        giorni = (mod.data_approvazione - mod.timer_anchor).days
+        if giorni < 0:
+            continue
+        durate.append(giorni)
+        chiave = (mod.data_approvazione.year, mod.data_approvazione.month)
+        durate_per_mese.setdefault(chiave, []).append(giorni)
+    tempo_medio = round(sum(durate) / len(durate), 1) if durate else 0
+
+    # Trend tempo medio flow-down — ultimi 6 mesi.
+    trend = []
+    anno, mese = now.year, now.month
+    mesi_chiave = []
+    for _ in range(6):
+        mesi_chiave.append((anno, mese))
+        mese -= 1
+        if mese == 0:
+            mese = 12
+            anno -= 1
+    mesi_chiave.reverse()
+    valori_trend = []
+    for (a, m) in mesi_chiave:
+        vals = durate_per_mese.get((a, m), [])
+        media = round(sum(vals) / len(vals), 1) if vals else 0
+        valori_trend.append(media)
+    max_trend = max(valori_trend, default=0)
+    for (a, m), val in zip(mesi_chiave, valori_trend):
+        trend.append({"label": _MESI_IT[m], "val": val, "h": _scala(val, max_trend, 100)})
+
+    # Specifiche in ritardo: in validità con verifica scaduta.
+    n_ritardo = Specifica.objects.filter(
+        stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False, data_verifica__lt=oggi
+    ).count()
+    pct_ritardo = round(100 * n_ritardo / n_attive, 1) if n_attive else 0
+
+    # Distribuzione per stato (barre orizzontali).
+    voci = [
+        ("In validità", C.STATO_IN_VALIDITA, "#2f9e6f"),
+        ("Superate", C.STATO_SUPERATO, "#b3bdcc"),
+        ("In flow-down", C.STATO_FLOW_DOWN, "#1f87cd"),
+        ("Bozza", C.STATO_BOZZA, "#8794a8"),
+        ("Sospese", C.STATO_SOSPESO, "#d9912a"),
+    ]
+    max_stato = max([per_stato.get(s, 0) for _, s, _ in voci], default=0)
+    dist_stato = [
+        {"label": lbl, "n": per_stato.get(s, 0), "colore": col,
+         "pct": _scala(per_stato.get(s, 0), max_stato, 100)}
+        for lbl, s, col in voci
+    ]
+
+    # Verifiche periodiche in scadenza per fascia (≤30 / 31–60 / 61–90 gg).
+    def _fascia(d_da, d_a):
+        return Specifica.objects.filter(
+            stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
+            data_verifica__gte=oggi + timedelta(days=d_da),
+            data_verifica__lte=oggi + timedelta(days=d_a),
+        ).count()
+
+    verifiche = {
+        "f30": Specifica.objects.filter(
+            stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
+            data_verifica__lte=oggi + timedelta(days=30)).count(),
+        "f60": _fascia(31, 60),
+        "f90": _fascia(61, 90),
+    }
+
+    # Azioni in scadenza (tabella sintetica).
+    azioni_scad = []
+    for spec in Specifica.objects.filter(
+        stato=C.STATO_IN_VALIDITA, data_verifica__isnull=False,
+        data_verifica__lte=oggi + timedelta(days=90)).order_by("data_verifica")[:6]:
+        gg = (spec.data_verifica - oggi).days
+        azioni_scad.append({
+            "codice": spec.codice, "revisione": spec.revisione, "pk": spec.pk,
+            "cliente": spec.cliente or spec.get_fonte_display(),
+            "azione": "Verifica periodica", "gg": gg,
+            "urg": "danger" if gg <= 7 else ("warn" if gg <= 30 else "flat"),
+        })
+    for mod in MOD133.objects.select_related("specifica").filter(
+        data_chiusura_compilazione__isnull=False, data_approvazione__isnull=True,
+        specifica__stato=C.STATO_FLOW_DOWN)[:4]:
+        azioni_scad.append({
+            "codice": mod.specifica.codice, "revisione": mod.specifica.revisione,
+            "pk": mod.specifica.pk,
+            "cliente": mod.specifica.cliente or mod.specifica.get_fonte_display(),
+            "azione": "Approvazione MOD.133", "gg": None, "urg": "flat",
+        })
+
+    context = {
+        "kpi": {
+            "attive": n_attive, "attive_delta": per_stato.get(C.STATO_FLOW_DOWN, 0),
+            "ofi_aperti": n_ofi_aperti, "ofi_clienti": n_clienti_ofi,
+            "tempo_medio": tempo_medio,
+            "ritardo_pct": pct_ritardo, "ritardo_n": n_ritardo,
+        },
+        "dist_stato": dist_stato,
+        "trend": trend,
+        "ofi_per_cliente": ofi_per_cliente,
+        "verifiche": verifiche,
+        "azioni_scad": azioni_scad,
+        "C": C,
+    }
+    return render(request, "gestione_specifiche/kpi.html", context)
 
 
 @login_required

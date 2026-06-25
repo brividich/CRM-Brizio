@@ -1,0 +1,134 @@
+{% extends "core/base.html" %}
+{% block title %}Dashboard KPI qualità · Gestione Specifiche{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+
+  <a class="gs-back" href="{% url 'gestione_specifiche:lista' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Cruscotto specifiche</a>
+
+  {# ---- Hero ------------------------------------------------------- #}
+  <section class="gs-hero">
+    <div class="gs-hero__row" style="align-items:center;">
+      <div style="flex:1; min-width:260px;">
+        <div class="gs-hero__eyebrow"><i></i>Direzione qualità · ISO 9001 / EN 9100</div>
+        <h1 style="font-size:29px;">Dashboard direzionale KPI</h1>
+        <p class="gs-hero__sub">Indicatori di processo sulle specifiche tecniche — dati in tempo reale dall'archivio HUB.</p>
+      </div>
+      <div class="gs-seg">
+        <a class="is-active">Sintesi</a>
+        <a href="{% url 'gestione_specifiche:lista' %}">Elenco</a>
+      </div>
+    </div>
+  </section>
+
+  {# ---- KPI cards -------------------------------------------------- #}
+  <div class="gs-kpis">
+    <div class="gs-kpi">
+      <div class="gs-kpi__label">Specifiche attive</div>
+      <div class="gs-kpi__num" style="margin-top:8px;">{{ kpi.attive }}</div>
+      <div class="gs-kpi__delta flat">{{ kpi.attive_delta }} in flow-down</div>
+    </div>
+    <div class="gs-kpi">
+      <div class="gs-kpi__label">OFI aperti</div>
+      <div class="gs-kpi__num is-orange" style="margin-top:8px;">{{ kpi.ofi_aperti }}</div>
+      <div class="gs-kpi__delta warn">su {{ kpi.ofi_clienti }} client{{ kpi.ofi_clienti|pluralize:"e,i" }}</div>
+    </div>
+    <div class="gs-kpi">
+      <div class="gs-kpi__label">Tempo medio flow-down</div>
+      <div class="gs-kpi__num" style="margin-top:8px;">{{ kpi.tempo_medio|floatformat:"-1" }} <span style="font-size:15px; color:#7c8aa2; font-weight:700;">gg</span></div>
+      <div class="gs-kpi__delta flat">da avvio ad approvazione</div>
+    </div>
+    <div class="gs-kpi">
+      <div class="gs-kpi__label">Specifiche in ritardo</div>
+      <div class="gs-kpi__num" style="margin-top:8px;">{{ kpi.ritardo_pct|floatformat:"-1" }}<span style="font-size:18px;">%</span></div>
+      <div class="gs-kpi__delta flat">{{ kpi.ritardo_n }} verifica/he scadut{{ kpi.ritardo_n|pluralize:"a,e" }}</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1.25fr 1fr; gap:16px; margin-top:16px; align-items:start;">
+
+    {# ---- Distribuzione per stato + trend ------------------------- #}
+    <div class="gs-panel gs-panel--pad" style="margin-top:0;">
+      <h2 style="margin:0 0 16px; font-size:14.5px; font-weight:800; color:#0c2545;">Distribuzione per stato</h2>
+      <div style="display:flex; flex-direction:column; gap:13px;">
+        {% for d in dist_stato %}
+        <div class="gs-hbar">
+          <span class="gs-hbar__l">{{ d.label }}</span>
+          <div class="gs-hbar__track"><div class="gs-hbar__fill" style="width:{{ d.pct }}%; background:{{ d.colore }};"></div></div>
+          <span class="gs-hbar__v">{{ d.n }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:22px; padding-top:18px; border-top:1px solid #eef2f7;">
+        <h3 style="margin:0 0 14px; font-size:13px; font-weight:800; color:#0c2545;">Tempo medio flow-down · ultimi 6 mesi (gg)</h3>
+        <div class="gs-vbars" style="height:120px;">
+          {% for t in trend %}
+          <div class="gs-vbar">
+            <div class="gs-vbar__v {% if forloop.last %}is-cur{% endif %}" style="{% if forloop.last %}color:#0c2545; font-weight:800;{% endif %}">{{ t.val|floatformat:"-1" }}</div>
+            <div class="gs-vbar__bar {% if forloop.last %}is-accent{% endif %}" style="height:{{ t.h }}px;"></div>
+            <span class="gs-vbar__x" style="{% if forloop.last %}color:#0c2545; font-weight:700;{% endif %}">{{ t.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# ---- OFI per cliente + verifiche ----------------------------- #}
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="gs-panel gs-panel--pad" style="margin-top:0;">
+        <h2 style="margin:0 0 18px; font-size:14.5px; font-weight:800; color:#0c2545;">OFI aperti per cliente</h2>
+        {% if ofi_per_cliente %}
+        <div class="gs-vbars" style="height:130px;">
+          {% for o in ofi_per_cliente %}
+          <div class="gs-vbar">
+            <div class="gs-vbar__v" style="color:#c2410c; font-weight:800;">{{ o.n }}</div>
+            <div class="gs-vbar__bar is-accent" style="height:{{ o.h }}px;"></div>
+            <span class="gs-vbar__x" style="color:#5b6b82; font-weight:600;">{{ o.cliente|truncatechars:10 }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:12.5px; color:#92a0b5;">Nessun OFI aperto.</p>
+        {% endif %}
+      </div>
+      <div class="gs-panel gs-panel--pad" style="margin-top:0;">
+        <h2 style="margin:0 0 14px; font-size:14.5px; font-weight:800; color:#0c2545;">Verifiche periodiche in scadenza</h2>
+        <div style="display:flex; gap:11px;">
+          <div style="flex:1; text-align:center; padding:14px 8px; border-radius:12px; background:#fdf3f3; border:1px solid #f1c9c9;"><div style="font-size:26px; font-weight:800; color:#cf3a3a; line-height:1;">{{ verifiche.f30 }}</div><div style="font-size:10.5px; font-weight:700; color:#b5564f; margin-top:5px;">≤ 30 gg</div></div>
+          <div style="flex:1; text-align:center; padding:14px 8px; border-radius:12px; background:#fffaf0; border:1px solid #f3d9a8;"><div style="font-size:26px; font-weight:800; color:#a86a14; line-height:1;">{{ verifiche.f60 }}</div><div style="font-size:10.5px; font-weight:700; color:#a86a14; margin-top:5px;">31–60 gg</div></div>
+          <div style="flex:1; text-align:center; padding:14px 8px; border-radius:12px; background:#f6f9fd; border:1px solid #e6eef7;"><div style="font-size:26px; font-weight:800; color:#0c2545; line-height:1;">{{ verifiche.f90 }}</div><div style="font-size:10.5px; font-weight:700; color:#5b6b82; margin-top:5px;">61–90 gg</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ---- Azioni in scadenza ----------------------------------------- #}
+  <div class="gs-panel">
+    <div class="gs-panel__head"><h2 class="gs-panel__title">Azioni in scadenza</h2><a href="{% url 'gestione_specifiche:lista' %}" class="gs-panel__meta" style="color:#1f87cd; font-weight:700; text-decoration:none;">Vedi tutte</a></div>
+    <div class="gs-scroll">
+      <table class="gs-table">
+        <thead><tr><th>Codice</th><th>Cliente</th><th>Azione</th><th>Scadenza</th></tr></thead>
+        <tbody>
+          {% for a in azioni_scad %}
+          <tr class="is-click" onclick="window.location='{% url 'gestione_specifiche:dettaglio' a.pk %}'">
+            <td class="gs-code">{{ a.codice }}{% if a.revisione %} · r.{{ a.revisione }}{% endif %}</td>
+            <td style="font-size:12.5px; color:#5b6b82;">{{ a.cliente }}</td>
+            <td style="font-size:12.5px;">{{ a.azione }}</td>
+            <td>
+              {% if a.gg is None %}<span class="gs-tag is-grey">in attesa</span>
+              {% elif a.urg == "danger" %}<span class="gs-tag" style="background:#fbeaea; color:#b5564f;">{{ a.gg }} gg</span>
+              {% elif a.urg == "warn" %}<span class="gs-tag is-amber">{{ a.gg }} gg</span>
+              {% else %}<span class="gs-tag is-grey">{{ a.gg }} gg</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center; color:#92a0b5; padding:24px;">Nessuna azione in scadenza nei prossimi 90 giorni.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

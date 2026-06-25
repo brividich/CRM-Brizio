@@ -33,6 +33,10 @@ class SpecificaForm(forms.ModelForm):
 
 
 class RigaMOD133Form(forms.ModelForm):
+    # Ordine non è più un campo visibile (la UI mostra un badge numerico): è
+    # facoltativo e coerciato a 0 in clean, l'ordinamento riga rompe i pari per id.
+    ordine = forms.IntegerField(required=False, widget=forms.HiddenInput())
+
     class Meta:
         model = RigaMOD133
         fields = [
@@ -41,7 +45,6 @@ class RigaMOD133Form(forms.ModelForm):
             "impatto_documenti", "impatto_operativo", "genera_ofi",
         ]
         widgets = {
-            "ordine": forms.NumberInput(attrs={"class": "gs-input gs-input--num"}),
             "rif_paragrafo": forms.TextInput(attrs=_TXT),
             "argomento": forms.TextInput(attrs=_TXT),
             "descrizione_modifiche": forms.Textarea(attrs=_AREA),
@@ -53,6 +56,9 @@ class RigaMOD133Form(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        # ordine facoltativo dalla UI → default 0 (l'ordinamento rompe i pari per id).
+        if cleaned.get("ordine") in (None, ""):
+            cleaned["ordine"] = 0
         # Griglia documenti obbligatoria solo se impatto_documenti=Y.
         if cleaned.get("impatto_documenti") and not (cleaned.get("rif_doc_cn") or "").strip():
             self.add_error("rif_doc_cn", "Obbligatorio quando l'impatto sui documenti è attivo.")

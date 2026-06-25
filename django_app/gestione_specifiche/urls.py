@@ -7,6 +7,7 @@ app_name = "gestione_specifiche"
 
 urlpatterns = [
     path("", views.lista, name="lista"),
+    path("kpi/", views.kpi, name="kpi"),
     path("nuova/", views.nuova_specifica, name="nuova"),
     path("allegato/<int:pk>/", views.allegato_download, name="allegato_download"),
     path("<int:pk>/", views.dettaglio, name="dettaglio"),

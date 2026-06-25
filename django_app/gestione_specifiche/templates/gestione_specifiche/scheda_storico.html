@@ -3,68 +3,96 @@
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>Storico — {{ spec.codice }}{% if spec.revisione %} rev.{{ spec.revisione }}{% endif %}
-    &nbsp;<span class="gs-pill {{ spec.stato }}">{{ spec.get_stato_display }}</span></h1>
-  <p>Scheda di sola lettura per audit ISO 9001 / EN 9100.</p>
-</div>
+<div class="gs-wrap">
 
-<div class="gs-actions" style="margin-bottom:14px;">
-  <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">← Dettaglio</a>
-  <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_csv' spec.pk %}">Export CSV</a>
-  <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_pdf' spec.pk %}">Export PDF</a>
-</div>
+  <a class="gs-back" href="{% url 'gestione_specifiche:lista' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Elenco specifiche</a>
 
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Catena revisioni</h3>
-  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
-    {% for r in catena %}
-      <a href="{% url 'gestione_specifiche:scheda_storico' r.pk %}"
-         class="gs-pill {{ r.stato }}" style="text-decoration:none; {% if r.pk == spec.pk %}outline:2px solid #1f87cd;{% endif %}">
-        rev.{{ r.revisione|default:"0" }} · {{ r.get_stato_display }}
-      </a>
-      {% if not forloop.last %}<span style="color:#9fb0c8;">→</span>{% endif %}
-    {% endfor %}
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="history" size=18 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Storico specifica · sola lettura</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">{{ spec.codice }} — {{ spec.titolo }}</h1>
+    </div>
+    <div class="gs-actions">
+      <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_csv' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="download" size=15 %} CSV</a>
+      <a class="gs-btn" href="{% url 'gestione_specifiche:storico_export_pdf' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="download" size=15 %} PDF audit</a>
+    </div>
   </div>
-</div>
 
-{% if snapshot %}
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Ricostruzione punto-nel-tempo</h3>
-  <p style="color:#6c84a6; font-size:.85rem;">Snapshot dei metadati all'ultima validità (dal payload audit).</p>
-  <div class="gs-grid">
-    {% for k, v in snapshot.items %}
-    <div><div class="lbl">{{ k }}</div><div class="val">{{ v|default:"—" }}</div></div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Cronologia eventi completa</h3>
-  <table class="gs-table">
-    <thead><tr><th>Quando</th><th>Da → A</th><th>Trigger</th><th>Attore</th></tr></thead>
-    <tbody>
-      {% for e in eventi %}
-      <tr>
-        <td>{{ e.timestamp|date:"d/m/Y H:i" }}</td>
-        <td>{{ e.stato_da|default:"—" }} → <b>{{ e.stato_a }}</b></td>
-        <td>{{ e.trigger }}</td>
-        <td>{{ e.attore|default:"sistema" }}</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="4" style="color:#6c84a6;">Nessun evento.</td></tr>
+  {# ---- Timeline revisioni ----------------------------------------- #}
+  <div class="gs-panel gs-panel--pad">
+    <div class="gs-eyebrow" style="margin-bottom:16px;">Timeline revisioni</div>
+    <div class="gs-revs">
+      {% for r in catena %}
+        <a class="gs-rev" href="{% url 'gestione_specifiche:scheda_storico' r.pk %}">
+          <div class="gs-rev__n {% if r.pk == spec.pk %}is-current{% endif %}">r.{{ r.revisione|default:"0" }}</div>
+          <span class="gs-rev__l {% if r.pk == spec.pk %}is-current{% endif %}">{{ r.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span>
+        </a>
+        {% if not forloop.last %}<span class="gs-rev__link"></span>{% endif %}
       {% endfor %}
-    </tbody>
-  </table>
-</div>
+    </div>
+  </div>
 
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Collegamenti di questa revisione</h3>
-  <ul style="color:#24395e; font-size:.9rem;">
-    <li>MOD.133: {% if spec.mod133 %}{{ righe|length }} righe{% else %}assente{% endif %}</li>
-    <li>OFI generati (MOD.174): {{ azioni_ofi|length }}</li>
-    <li>Distribuzioni: {{ distribuzioni|length }}</li>
-  </ul>
+  <div style="display:grid; grid-template-columns:1fr 330px; gap:16px; margin-top:16px; align-items:start;">
+
+    {# ---- Cronologia eventi ---------------------------------------- #}
+    <div class="gs-panel" style="margin-top:0;">
+      <div class="gs-panel__head"><h2 class="gs-panel__title">Cronologia eventi · r.{{ spec.revisione|default:"0" }}</h2><span class="gs-panel__meta">{{ eventi|length }} event{{ eventi|length|pluralize:"o,i" }}</span></div>
+      <div style="padding:18px 20px;">
+        <div class="gs-tl">
+          {% for e in eventi reversed %}
+          <div class="gs-tl__row">
+            <div class="gs-tl__rail"><div class="gs-tl__dot {% if e.stato_a == C.STATO_IN_VALIDITA %}is-green{% elif e.stato_a == C.STATO_FLOW_DOWN %}is-blue{% endif %}"></div>{% if not forloop.last %}<div class="gs-tl__line"></div>{% endif %}</div>
+            <div class="gs-tl__body">
+              <div class="gs-tl__when">{{ e.timestamp|date:"d/m/Y H:i" }}</div>
+              <div class="gs-tl__title">{% if e.stato_da and e.stato_da != e.stato_a %}{{ e.stato_da }} → {{ e.stato_a }}{% else %}{{ e.trigger|default:e.stato_a }}{% endif %}</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-size:11.5px; color:#5b6b82;">{{ e.attore|default:"sistema" }}</span>
+                <span class="gs-tag is-grey">trigger: {{ e.trigger|default:"—" }}</span>
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <p style="color:#92a0b5; font-size:13px;">Nessun evento registrato.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# ---- Sidebar: ricostruzione + collegamenti -------------------- #}
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      {% if snapshot %}
+      <div class="gs-panel gs-panel--pad" style="margin-top:0;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><span style="color:#1665a3;">{% include "gestione_specifiche/partials/_icon.html" with name="clock" size=18 %}</span><h3 style="margin:0; font-size:13.5px; font-weight:800; color:#0c2545;">Ricostruzione punto-nel-tempo</h3></div>
+        <p style="margin:0 0 12px; font-size:11.5px; color:#7c8aa2; line-height:1.5;">Snapshot dei metadati all'ultima validità (dal payload audit immutabile).</p>
+        <div style="padding:13px; border-radius:11px; background:#f6f9fd; border:1px solid #e6eef7;">
+          <div class="gs-eyebrow" style="margin-bottom:8px;">Snapshot</div>
+          {% for k, v in snapshot.items %}
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; padding:3px 0;"><span style="color:#7c8aa2;">{{ k }}</span><span style="color:#1c2b42; font-weight:700; text-align:right;">{{ v|default:"—" }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="gs-panel gs-panel--pad" style="margin-top:0;">
+        <div class="gs-eyebrow" style="margin-bottom:12px;">Collegamenti · r.{{ spec.revisione|default:"0" }}</div>
+        <a href="{% url 'gestione_specifiche:dettaglio' spec.pk %}" style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; border:1px solid #eef2f7; text-decoration:none; margin-bottom:8px;">
+          <span style="color:#1665a3;">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=16 %}</span>
+          <span style="flex:1; font-size:12.5px; font-weight:700; color:#1c2b42;">MOD.133 · {{ righe|length }} rig{{ righe|length|pluralize:"a,he" }}</span>
+          <span style="color:#c3cedd;">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %}</span>
+        </a>
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; border:1px solid #eef2f7; margin-bottom:8px;">
+          <span style="color:#c2410c;">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=16 %}</span>
+          <span style="flex:1; font-size:12.5px; font-weight:700; color:#1c2b42;">OFI generati · {{ azioni_ofi|length }} → MOD.174</span>
+        </div>
+        <a href="{% if spec.stato == C.STATO_IN_VALIDITA %}{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}{% else %}{% url 'gestione_specifiche:dettaglio' spec.pk %}{% endif %}" style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; border:1px solid #eef2f7; text-decoration:none;">
+          <span style="color:#1665a3;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=16 %}</span>
+          <span style="flex:1; font-size:12.5px; font-weight:700; color:#1c2b42;">Distribuzioni · {{ distribuzioni|length }}</span>
+          <span style="color:#c3cedd;">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %}</span>
+        </a>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
