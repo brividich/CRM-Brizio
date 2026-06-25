@@ -77,9 +77,10 @@ Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixi
 
 ## BLOCKERS
 
-- **B1 (non bloccante per il codice)** — Registro **OFI / MOD.174** inesistente nel portale. `RigaMOD133.ofi` e `AzioneOFI.ofi` usano `PositiveIntegerField(null=True)` come riferimento al numero OFI legacy. Quando il registro MOD.174 verrà modellato in Django, sostituire con FK nullable (migrazione additiva). **Domanda all'umano**: esiste una tabella SQL legacy OFI/MOD.174 a cui agganciarsi (nome tabella/PK)?
+- **B1 — RISPOSTA UTENTE (2026-06-25)**: l'OFI oggi vive **su Excel**, con **più modelli OFI per reparto** (IT, qualità, produzione), usati anche durante gli **audit di sistema**. Quindi **nessuna tabella SQL** a cui agganciarsi: il `PositiveIntegerField(null=True)` locale resta corretto per ora. *Follow-up suggerito (non bloccante)*: in futuro modellare un registro OFI per-reparto (o aggiungere ad `AzioneOFI` un campo `reparto`/`modello_ofi`) per replicare i template Excel ed esporli in audit; finché non deciso, il numero OFI resta intero locale.
 - **B2** — Ruoli di processo (DM, IN1, RDD, MSM, MSO, MSA, SGI, IT Admin): da mappare ai `Ruolo` legacy esistenti. In attesa di conferma nomi, il bootstrap concede i permessi ai ruoli `admin`/`amministrazione`/`qualita`/`caporeparto` e propone i nomi mancanti (nessuna creazione gruppi AD senza OK — guardrail §8).
-- **B3 (F8) — dati storici attesi**: command/validatore/template pronti e testati su fixture sintetiche; manca solo il **file CSV reale** delle specifiche "In validità" compilato dall'umano. Prospetto: [INTAKE_IMPORT_STORICO.md](INTAKE_IMPORT_STORICO.md). Deposito fuori repo + lancio dry-run, poi `--apply`.
+- **B2 — RISPOSTA UTENTE (2026-06-25)**: i ruoli di processo verranno **compilati più avanti**. Il default attuale (admin/amministrazione/qualita/caporeparto) resta valido e rifinibile in `/admin-portale/acl-canonico/`.
+- **B3 (F8) — dati storici attesi**: command/validatore/template pronti e testati su fixture sintetiche; manca solo il **file CSV reale** delle specifiche "In validità" compilato dall'umano (l'utente lo passerà appena pronto). Prospetto: [INTAKE_IMPORT_STORICO.md](INTAKE_IMPORT_STORICO.md). Deposito fuori repo + lancio dry-run, poi `--apply`.
 
 ## TEST
 
