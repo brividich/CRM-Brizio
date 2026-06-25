@@ -217,7 +217,8 @@ urlpatterns = [
     path("sicurezza/guida/", views.sicurezza_wizard, name="sicurezza_wizard"),
     path("sicurezza/matrice/", views.matrice_competenze, name="matrice_competenze"),
 
-    # Skill Matrix MOD.187 — validazione abbinamento competenza→asset (F2a UI)
+    # Skill Matrix MOD.187 — matrice macchina (F4) + validazione match (F2a UI)
+    path("skill-matrix/", views.skill_matrix_macchina, name="skill_matrix_macchina"),
     path("skill-matrix/match/", views.skm_match_validazione, name="skm_match_validazione"),
 
     # Onboarding strutturato (pratica + checklist, speculare a offboarding)

@@ -13280,6 +13280,143 @@ def skm_match_validazione(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Skill Matrix MOD.187 — matrice persone × macchine (F4)
+# ---------------------------------------------------------------------------
+
+@login_required
+def skill_matrix_macchina(request):
+    """Matrice **persone × macchine** con livelli I/L/U/O (MOD.187).
+
+    Celle = livello (etichetta configurabile); marker ``▲`` sotto livello
+    richiesto; tratteggio = rivalutazione arretrata (NON bloccante); barra blu =
+    multivoce; punto = continuità monitorata. KPI in testa (prontezza squadra,
+    macchine scoperte, rischio uomo-solo, continuità persa) dal resolver F3.
+    Tab gemella "Processi qualificati" rimanda alla matrice qualifiche esistente.
+
+    Sola lettura. Accesso: ``_check_hr_permission`` (ACL formale in F7).
+    Finché la baseline (F2b) non è importata, la matrice è vuota: la pagina
+    mostra comunque struttura e KPI, con rimando alla validazione match (F2a).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per la Skill Matrix macchine.")
+        return redirect("anagrafica:index")
+
+    from django.utils import timezone
+    from .models import (
+        AbilitazioneMacchina, CompetenzaSkm, ContinuitaOperativa, SkillMatrixConfig,
+    )
+    from .services import skillmatrix_resolver as resolver
+
+    config = SkillMatrixConfig.get_instance()
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+    oggi = timezone.localdate()
+
+    # Colonne = macchine MOD.187 con asset risolto (catalogo F2a).
+    comp_all = list(
+        CompetenzaSkm.objects
+        .filter(tipo=CompetenzaSkm.TIPO_MACCHINA, asset__isnull=False)
+        .select_related("asset").order_by("display", "competenza_key")
+    )
+    reparti = sorted({
+        (c.asset.reparto or "").strip() for c in comp_all if (c.asset.reparto or "").strip()
+    })
+    comp_macchine = [
+        c for c in comp_all
+        if not filtro_reparto or (c.asset.reparto or "").strip().casefold() == filtro_reparto.casefold()
+    ]
+    asset_ids = [c.asset_id for c in comp_macchine]
+
+    # Abilitazioni su quelle macchine (vuoto finché non c'è la baseline F2b).
+    ab_map: dict[tuple[int, int], AbilitazioneMacchina] = {}
+    legacy_ids: set[int] = set()
+    if asset_ids:
+        for ab in AbilitazioneMacchina.objects.filter(asset_id__in=asset_ids).prefetch_related("voci"):
+            ab_map[(ab.legacy_anagrafica_id, ab.asset_id)] = ab
+            legacy_ids.add(ab.legacy_anagrafica_id)
+
+    # Nomi dall'anagrafica legacy: solo se servono, fail-safe (la sorgente può
+    # non essere disponibile, es. in test) → fallback "ID <n>".
+    dip_map: dict[int, dict] = {}
+    if legacy_ids:
+        try:
+            dip_map = {int(r["id"]): r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")}
+        except Exception:
+            logger.warning("Skill Matrix: anagrafica legacy non disponibile, nomi non risolti", exc_info=True)
+    soglia_ord = config.soglia_operativa_ordinale
+
+    righe: list[dict] = []
+    for lid in legacy_ids:
+        dip = dip_map.get(lid, {})
+        celle = []
+        for c in comp_macchine:
+            ab = ab_map.get((lid, c.asset_id))
+            if ab is None:
+                celle.append({"vuota": True})
+                continue
+            celle.append({
+                "vuota": False,
+                "livello": ab.livello,
+                "etichetta": config.etichetta(ab.livello),
+                "operativa": ab.is_operativa(soglia_ord),
+                "sotto": ab.sotto_livello_richiesto,
+                "arretrata": bool(ab.prossima_revisione and ab.prossima_revisione < oggi),
+                "multivoce": bool(ab.voci.all()),
+                "sospesa": ab.stato == AbilitazioneMacchina.STATO_SOSPESA,
+                "in_lista": ab.in_lista,
+            })
+        righe.append({
+            "legacy_id": lid,
+            "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": str(dip.get("reparto") or "").strip(),
+            "celle": celle,
+        })
+    righe.sort(key=lambda r: (r["cognome"].casefold(), r["nome"].casefold()))
+
+    if export_csv:
+        resp = HttpResponse(content_type="text/csv; charset=utf-8-sig")
+        resp["Content-Disposition"] = 'attachment; filename="skill_matrix_macchina.csv"'
+        writer = csv.writer(resp, delimiter=";")
+        writer.writerow(["Dipendente", "Reparto"] + [c.display or c.competenza_key for c in comp_macchine])
+        for r in righe:
+            cells = []
+            for cell in r["celle"]:
+                cells.append("" if cell["vuota"] else cell["livello"])
+            writer.writerow([f"{r['cognome']} {r['nome']}".strip(), r["reparto"]] + cells)
+        return resp
+
+    # KPI dal resolver (rispettano il filtro reparto).
+    rep = filtro_reparto or None
+    prontezza = resolver.prontezza_squadra(rep, config=config)
+    n_scoperte = len(resolver.macchine_scoperte(rep))
+    n_uomo_solo = sum(
+        1 for c in comp_macchine if resolver.kpi_uomo_solo(c.asset, config=config)["a_rischio"]
+    )
+    n_cont_persa = sum(
+        1 for co in ContinuitaOperativa.objects.all()
+        if co.stato() == ContinuitaOperativa.STATO_PERSA
+    )
+
+    return render(request, "anagrafica/pages/skill_matrix_macchina.html", {
+        "macchine": comp_macchine,
+        "righe": righe,
+        "reparti": reparti,
+        "filtro_reparto": filtro_reparto,
+        "totale_persone": len(righe),
+        "config": config,
+        "kpi": {
+            "prontezza": prontezza,
+            "scoperte": n_scoperte,
+            "uomo_solo": n_uomo_solo,
+            "continuita_persa": n_cont_persa,
+        },
+        "matrice_vuota": len(righe) == 0,
+        "n_macchine": len(comp_macchine),
+    })
+
+
 @login_required
 def conformita_report(request):
     """Elenco conformità di tutti i dipendenti attivi (semaforo per dominio).

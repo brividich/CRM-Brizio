@@ -221,6 +221,47 @@ senza che i carichi importino i modelli skill matrix.
 **Esito:** `anagrafica.tests_skillmatrix_resolver` → **9 passed** (CAR esclusi, academy
 inclusi, soglia, riserva, uomo-solo, copertura, prontezza, no-scrittura).
 
+## F4 — Matrice macchina (UI) + tab  ✅ (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/views.py` — view `skill_matrix_macchina` (sola lettura).
+- `django_app/anagrafica/templates/anagrafica/pages/skill_matrix_macchina.html` (nuovo).
+- `django_app/anagrafica/urls.py` — `path("skill-matrix/", …, name="skill_matrix_macchina")`.
+
+**Pagina** `/anagrafica/skill-matrix/`: matrice **persone × macchine** (colonne = macchine
+MOD.187 con asset risolto, righe = persone con abilitazioni). Celle livello I/L/U/O
+(colore per livello, etichette configurabili), marker `▲` sotto livello richiesto,
+**tratteggio** = rivalutazione arretrata (non bloccante), barra blu = multivoce, cella
+vuota = non in lista. **KPI** dal resolver F3 (prontezza squadra %, macchine scoperte,
+rischio uomo-solo, continuità persa), filtro **reparto** (`asset.reparto`), **export CSV**.
+Riusa il design HUB (`hr-shell`/`hr-pagehead`, navy/cyan) e la subnav del modulo.
+**Tab gemella** "Processi qualificati" → rimanda alla `matrice_competenze` esistente
+(non la riscrive). Nomi dall'anagrafica legacy **fail-safe** (sorgente assente → "ID n";
+in test la sorgente legacy non esiste). Finché la baseline F2b non è importata la matrice
+è **vuota**: la pagina mostra struttura + KPI + rimando alla validazione match (F2a).
+
+## F7 (parziale) — Navigazione: voci di menu del modulo anagrafica  ✅ (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/migrations/0072_subnav_skill_matrix.py` (nuovo) — data migration.
+
+La subnav di anagrafica è **data-driven** (`SubnavLinkAnagrafica`/`SubnavCategoriaAnagrafica`,
+non `NavigationItem`). La migration `0072` semina — con lo stesso idioma di `0070`,
+idempotente per `url_value`, voci **non di sistema** (riordinabili/nascondibili da
+Impostazioni → Navigazione) — sotto il pilastro **Competenze**, gruppo **"Skill Matrix"**:
+- **Abilitazioni macchina (MOD.187)** → `anagrafica:skill_matrix_macchina`
+- **Validazione abbinamento macchine** → `anagrafica:skm_match_validazione`
+
+**ACL:** le view usano la guardia in-view `_check_hr_permission` (come `matrice_competenze`
+e `conformita_report`), quindi **non** servono `RoutePermissionBinding` canonici dedicati:
+l'autorizzazione non passa dal middleware ACL per queste rotte. La parte ACL formale di F7
+(permission code dedicati) resta opzionale e va valutata insieme alla revisione ACL del
+modulo.
+
+**Test (F4+F7):** `anagrafica.tests_skillmatrix_ui` → **5 passed** (render vuoto, render con
+abilitazione, export CSV, accesso negato, voci di menu seminate). Suite skill-matrix totale
+**49 verdi**; `manage.py check` pulito; migration applicata su SQLite (dev).
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
@@ -228,10 +269,10 @@ inclusi, soglia, riserva, uomo-solo, copertura, prontezza, no-scrittura).
 - [x] F2a-UI Specchietto validazione in portale (`/anagrafica/skill-matrix/match/`) — 31 test totali — **GATE attivo**
 - [ ] F2b Importer baseline (STOP approvazione scrittura)
 - [x] F3 Resolver bridge read-only (9 test) — punto d'aggancio Fase B carichi macchina
-- [ ] F4 Matrice macchina UI + tab
+- [x] F4 Matrice macchina UI + tab (`/anagrafica/skill-matrix/`, 5 test) — vuota finché F2b non importa la baseline
 - [ ] F5 Continuità operativa (STOP approvazione cablaggio produzione)
 - [ ] F6 Refresh semestrale (CAR)
-- [ ] F7 ACL + navigazione
+- [~] F7 ACL + navigazione — **voci di menu fatte** (migration 0072, sotto Competenze/Skill Matrix); ACL formale opzionale (view già gated da `_check_hr_permission`)
 - [ ] F8 Hardening test
 - [ ] F9 Chiusura
 

@@ -1,0 +1,135 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Skill Matrix — Abilitazioni macchina (MOD.187){% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.sm-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:6px 0 18px; }
+.sm-kpi { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; background:#fff; }
+.sm-kpi .v { font-size:26px; font-weight:800; color:#0c2545; line-height:1; }
+.sm-kpi .l { font-size:11.5px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; margin-top:6px; }
+.sm-kpi.warn { border-color:#fcd34d; background:#fffbeb; } .sm-kpi.warn .v { color:#92400e; }
+.sm-kpi.bad  { border-color:#fca5a5; background:#fef2f2; } .sm-kpi.bad .v  { color:#991b1b; }
+.sm-tabs { display:flex; gap:6px; margin:0 0 14px; border-bottom:2px solid #e2e8f0; }
+.sm-tab { padding:8px 16px; font-size:13px; font-weight:700; color:#64748b; text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-2px; }
+.sm-tab.active { color:#0c2545; border-bottom-color:#1f87cd; }
+.sm-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+.sm-toolbar select { padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; }
+.sm-legend { display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px; color:#475569; margin:10px 0 4px; }
+.sm-legend b { color:#0c2545; }
+.sm-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:8px; max-height:72vh; }
+.sm-table { border-collapse:separate; border-spacing:0; font-size:12px; }
+.sm-table th, .sm-table td { border-bottom:1px solid #eef2f7; border-right:1px solid #eef2f7; padding:6px 8px; text-align:center; white-space:nowrap; }
+.sm-table thead th { background:#0c2545; color:#fff; font-size:10.5px; text-transform:uppercase; letter-spacing:.02em; position:sticky; top:0; z-index:3; }
+.sm-table thead th.rot { height:128px; vertical-align:bottom; }
+.sm-table thead th.rot > div { writing-mode:vertical-rl; transform:rotate(180deg); margin:0 auto; max-height:118px; overflow:hidden; text-overflow:ellipsis; }
+.sm-table th.name, .sm-table td.name { text-align:left; position:sticky; left:0; background:#fff; z-index:2; min-width:200px; font-weight:600; color:#0c2545; }
+.sm-table thead th.name { z-index:4; background:#0c2545; }
+.sm-table tbody tr:hover td { background:#f8fafc; } .sm-table tbody tr:hover td.name { background:#eff6ff; }
+.sm-cell { display:inline-block; min-width:24px; border-radius:5px; padding:2px 6px; font-weight:800; }
+.sm-cell.I { background:#fee2e2; color:#991b1b; }
+.sm-cell.L { background:#fef9c3; color:#854d0e; }
+.sm-cell.U { background:#dcfce7; color:#166534; }
+.sm-cell.O { background:#1f87cd; color:#fff; }
+.sm-cell.susp { opacity:.45; text-decoration:line-through; }
+.sm-flag { font-size:10px; margin-left:2px; }
+.sm-multi { box-shadow:inset 0 -3px 0 #1f87cd; }
+.sm-arr { background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(148,163,184,.35) 3px,rgba(148,163,184,.35) 6px); }
+.sm-rep { color:#94a3b8; font-size:11px; font-weight:400; }
+.sm-empty { text-align:center; padding:46px 16px; color:#475569; }
+body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { background:var(--surface); color:var(--text-light); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
+        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+      </div>
+      <h2 class="hr-pagehead-title">🛠️ Skill Matrix — Abilitazioni macchina</h2>
+      <p class="hr-pagehead-desc">Matrice persone × macchine con livelli I/L/U/O. Soglia operativa: <b>≥ {{ config.soglia_operativa }}</b> ({{ config.get_soglia_operativa_display }}).</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="{% url 'anagrafica:skm_match_validazione' %}" class="hr-btn hr-btn-outline" title="Valida l'abbinamento competenza→asset (gate F2a)">🔧 Validazione match</a>
+      <a href="?{% if filtro_reparto %}reparto={{ filtro_reparto|urlencode }}&{% endif %}format=csv" class="hr-btn hr-btn-outline">⬇ CSV</a>
+    </div>
+  </div>
+
+  <div class="sm-tabs">
+    <span class="sm-tab active">Macchina</span>
+    <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Processi qualificati</a>
+  </div>
+
+  <div class="sm-kpis">
+    <div class="sm-kpi"><div class="v">{{ kpi.prontezza.percentuale }}%</div><div class="l">Prontezza squadra (≥ soglia)</div></div>
+    <div class="sm-kpi {% if kpi.scoperte %}bad{% endif %}"><div class="v">{{ kpi.scoperte }}</div><div class="l">Macchine scoperte (0 in lista)</div></div>
+    <div class="sm-kpi {% if kpi.uomo_solo %}warn{% endif %}"><div class="v">{{ kpi.uomo_solo }}</div><div class="l">Rischio uomo-solo (&lt; {{ config.soglia_uomo_solo }})</div></div>
+    <div class="sm-kpi {% if kpi.continuita_persa %}bad{% endif %}"><div class="v">{{ kpi.continuita_persa }}</div><div class="l">Continuità persa</div></div>
+  </div>
+
+  <form method="get" class="sm-toolbar">
+    <label class="sm-rep">Reparto</label>
+    <select name="reparto" onchange="this.form.submit()">
+      <option value="">Tutti i reparti</option>
+      {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+    </select>
+    <span class="sm-rep">{{ totale_persone }} persone · {{ n_macchine }} macchine</span>
+  </form>
+
+  {% if matrice_vuota %}
+    <div class="sm-empty">
+      <p style="font-size:15px;font-weight:700;color:#0c2545;">Nessuna abilitazione macchina presente.</p>
+      <p>La baseline MOD.187 non è ancora stata importata (passo F2b, in attesa di conferma del match asset).<br>
+      Completa prima la <a href="{% url 'anagrafica:skm_match_validazione' %}">validazione abbinamento macchine</a>.</p>
+    </div>
+  {% else %}
+    <div class="sm-legend">
+      <span><span class="sm-cell I">I</span> {{ config.etichetta_i }}</span>
+      <span><span class="sm-cell L">L</span> {{ config.etichetta_l }}</span>
+      <span><span class="sm-cell U">U</span> {{ config.etichetta_u }}</span>
+      <span><span class="sm-cell O">O</span> {{ config.etichetta_o }}</span>
+      <span><b>▲</b> sotto livello richiesto</span>
+      <span class="sm-arr" style="padding:2px 8px;">rivalutazione arretrata</span>
+      <span class="sm-multi" style="padding:2px 8px;">multivoce</span>
+      <span>vuoto = non in lista</span>
+    </div>
+    <div class="sm-wrap">
+      <table class="sm-table">
+        <thead>
+          <tr>
+            <th class="name">Dipendente</th>
+            {% for c in macchine %}<th class="rot" title="{{ c.display }}"><div>{{ c.competenza_key }}</div></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe %}
+          <tr>
+            <td class="name">{{ r.cognome }} {{ r.nome }}{% if r.reparto %}<div class="sm-rep">{{ r.reparto }}</div>{% endif %}</td>
+            {% for cell in r.celle %}
+              {% if cell.vuota %}
+                <td></td>
+              {% else %}
+                <td class="{% if cell.arretrata %}sm-arr{% endif %}">
+                  <span class="sm-cell {{ cell.livello }}{% if cell.sospesa %} susp{% endif %}{% if cell.multivoce %} sm-multi{% endif %}"
+                        title="{{ cell.etichetta }}{% if cell.sospesa %} — SOSPESA{% endif %}{% if not cell.in_lista %} — non in lista{% endif %}">{{ cell.livello }}{% if cell.sotto %}<span class="sm-flag">▲</span>{% endif %}</span>
+                </td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
