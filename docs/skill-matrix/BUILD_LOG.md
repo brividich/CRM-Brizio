@@ -133,10 +133,51 @@ validato lì prima dell'import: i Mazak assenti in dev potrebbero esserci in pro
 3. Dare l'ok esplicito: solo allora parte **F2b** (import baseline, con ulteriore
    STOP di approvazione prima della scrittura massiva, e `--dry-run` come default).
 
+## F2a-UI — Specchietto di validazione in portale  ⛔ GATE ancora attivo (2026-06-25)
+
+> Richiesta utente: «in prod gli asset sono diversi, puoi inserire uno specchietto
+> per associarli all'interno del portale?». Il report CSV era derivato dal DB dev →
+> serviva un modo di validare il match **nell'ambiente target**, senza editare CSV.
+
+**Decisione packaging:** il catalogo viaggia come **modulo Python**
+(`anagrafica/skillmatrix_catalogo.py`, `CATALOGO_MOD187`), non come CSV: prod esclude
+`docs/` e l'allowlist di release esclude i file dati → il CSV non arriverebbe in prod.
+Il modulo `.py` è sempre disponibile a runtime. Contiene **solo** chiavi/display/codici
+del catalogo macchine-processi (nessun dato personale).
+
+**File toccati:**
+- `django_app/anagrafica/skillmatrix_catalogo.py` (nuovo) — catalogo 84 voci come dati Python.
+- `django_app/anagrafica/services/skillmatrix_seed.py` (nuovo) — `sincronizza_catalogo()`:
+  upsert idempotente di `CompetenzaSkm` dal catalogo + match macchine vs asset live;
+  auto-conferma gli "esatto"; **preserva le conferme manuali** (non ricalcola se
+  `match_confermato=True`); collega i processi a `TipoQualifica` per nome.
+- `django_app/anagrafica/management/commands/skm_seed_catalogo.py` (nuovo) — wrapper CLI `--dry-run`.
+- `django_app/anagrafica/services/skillmatrix_match.py` — refactor: `match_competenza()`
+  centralizza il declassamento; `AssetRef` con `asset_type`; usato dal report e dal seed.
+- `django_app/anagrafica/views.py` — nuova view `skm_match_validazione` (GET tabella +
+  POST `sincronizza`/`salva`), guard `_check_hr_permission`.
+- `django_app/anagrafica/urls.py` — `path("skill-matrix/match/", …, name="skm_match_validazione")`.
+- `django_app/anagrafica/templates/anagrafica/pages/skm_match_validazione.html` (nuovo) —
+  design HUB (chips riepilogo, tabella con `datalist` asset, decisione da_validare/conferma/escludi).
+- `django_app/anagrafica/tests_skillmatrix_seed.py` (nuovo) — 6 test (seed + view).
+
+**Come si valida (nell'ambiente target):** `Anagrafica → Skill Matrix → Validazione
+abbinamento macchine` (`/anagrafica/skill-matrix/match/`). «Sincronizza dagli asset»
+popola/ricalcola il match sugli asset reali; per ogni macchina si imposta l'asset_tag
+e si sceglie *Conferma* / *Escludi* / *Da validare*; «Salva» persiste su
+`CompetenzaSkm.match_confermato`. Gli "esatto" arrivano già confermati.
+
+**Il gate F2b resta chiuso** finché tutte le macchine non sono *confermate* o *escluse*
+(`match_confermato=True`). La conferma in portale **sostituisce** l'edit manuale del CSV.
+
+**Esito:** seed dev → 84 voci (42 macchine: 18 esatti/14 parziali/10 assenti, 18 confermati),
+41 processi, 1 contatore. Test `anagrafica.tests_skillmatrix*` → **31 passed**. `check` pulito.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
 - [x] F2a Asset-match report — 18 esatti/14 parziali/10 assenti (13 test) — **GATE attivo**
+- [x] F2a-UI Specchietto validazione in portale (`/anagrafica/skill-matrix/match/`) — 31 test totali — **GATE attivo**
 - [ ] F2b Importer baseline (STOP approvazione scrittura)
 - [ ] F3 Resolver bridge read-only
 - [ ] F4 Matrice macchina UI + tab

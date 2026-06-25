@@ -1,0 +1,134 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Validazione match macchine | Skill Matrix MOD.187{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<style>
+.skm-chips { display:flex; flex-wrap:wrap; gap:10px; margin:4px 0 16px; }
+.skm-chip { border:1px solid #e2e8f0; border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; color:#475569; background:#fff; }
+.skm-chip b { color:#0c2545; }
+.skm-chip.val { border-color:#fcd34d; background:#fef9c3; color:#854d0e; }
+.skm-chip.conf { border-color:#86efac; background:#dcfce7; color:#166534; }
+.skm-chip.escl { border-color:#cbd5e1; background:#f1f5f9; color:#64748b; }
+.skm-table { border-collapse:collapse; width:100%; font-size:13px; }
+.skm-table th, .skm-table td { border:1px solid #eef2f7; padding:8px 10px; text-align:left; vertical-align:top; }
+.skm-table thead th { background:#0c2545; color:#fff; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; position:sticky; top:0; z-index:2; }
+.skm-table tbody tr:hover { background:#f8fafc; }
+.skm-key { font-weight:800; color:#0c2545; }
+.skm-sub { color:#94a3b8; font-size:11.5px; }
+.skm-badge { display:inline-block; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:800; }
+.skm-badge.esatto { background:#dcfce7; color:#166534; }
+.skm-badge.parziale { background:#fef9c3; color:#854d0e; }
+.skm-badge.assente { background:#fee2e2; color:#991b1b; }
+.skm-badge.na { background:#f1f5f9; color:#64748b; }
+.skm-asset-in { width:100%; max-width:320px; padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-family:monospace; }
+.skm-asset-cur { color:#475569; font-size:11.5px; margin-top:3px; }
+.skm-asset-cur.none { color:#cbd5e1; }
+.skm-dec { padding:5px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; }
+.skm-empty { text-align:center; padding:48px 16px; color:#475569; }
+body.theme-dark .skm-table thead th { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .skm-key { color:#93c5fd; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="hr-shell">
+
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">
+        <a href="{% url 'anagrafica:index' %}" class="fm-crumb">Anagrafica</a>
+        <span class="fm-crumb-sep">›</span> Skill Matrix MOD.187
+      </div>
+      <h2 class="hr-pagehead-title">🔧 Validazione abbinamento macchine</h2>
+      <p class="hr-pagehead-desc">Abbina ogni competenza-macchina MOD.187 all'asset reale di questo ambiente e conferma il match. È il passo che sblocca l'import della baseline. Non modifica le abilitazioni.</p>
+    </div>
+    <form method="post" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="sincronizza">
+      <button type="submit" class="hr-btn hr-btn-outline" title="Rilegge il catalogo e ricalcola il match sugli asset attuali (non tocca le conferme manuali)">
+        ⟳ Sincronizza dagli asset
+      </button>
+    </form>
+  </div>
+
+  {% if catalogo_vuoto %}
+    <div class="skm-empty">
+      <p style="font-size:15px;font-weight:700;color:#0c2545;">Catalogo non ancora inizializzato.</p>
+      <p>Premi <b>⟳ Sincronizza dagli asset</b> per popolare il catalogo delle 42 macchine MOD.187 e calcolare l'abbinamento con gli asset di questo ambiente.</p>
+    </div>
+  {% else %}
+    <div class="skm-chips">
+      <span class="skm-chip">Macchine <b>{{ n_tot }}</b></span>
+      <span class="skm-chip val">Da validare <b>{{ n_val }}</b></span>
+      <span class="skm-chip conf">Confermate <b>{{ n_conf }}</b></span>
+      <span class="skm-chip escl">Escluse <b>{{ n_escl }}</b></span>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="azione" value="salva">
+      <div class="mc-wrap" style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:8px;">
+        <table class="skm-table">
+          <thead>
+            <tr>
+              <th>Competenza (MOD.187)</th>
+              <th>Match calcolato</th>
+              <th>Asset abbinato (asset_tag)</th>
+              <th>Decisione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in righe %}
+            <tr>
+              <td>
+                <div class="skm-key">{{ r.c.competenza_key }}</div>
+                <div class="skm-sub">{{ r.c.display }}</div>
+                {% if r.c.alias_storici %}<div class="skm-sub">alias: {{ r.c.alias_storici }}</div>{% endif %}
+                {% if r.c.note %}<div class="skm-sub">{{ r.c.note }}</div>{% endif %}
+              </td>
+              <td>
+                <span class="skm-badge {{ r.c.match_confidenza }}">{{ r.c.get_match_confidenza_display }}</span>
+                {% if r.c.match_strategia %}<div class="skm-sub">{{ r.c.match_strategia }}</div>{% endif %}
+              </td>
+              <td>
+                <input class="skm-asset-in" type="text" name="asset_{{ r.c.id }}"
+                       list="skm-assets-dl" placeholder="cerca tag o nome…"
+                       value="{% if r.c.asset_id %}{{ r.c.asset.asset_tag }}{% endif %}">
+                {% if r.c.asset_id %}
+                  <div class="skm-asset-cur">→ {{ r.c.asset.name }}</div>
+                {% else %}
+                  <div class="skm-asset-cur none">nessun asset abbinato</div>
+                {% endif %}
+              </td>
+              <td>
+                <select class="skm-dec" name="decisione_{{ r.c.id }}">
+                  <option value="da_validare" {% if r.stato == "da_validare" %}selected{% endif %}>Da validare</option>
+                  <option value="conferma" {% if r.stato == "confermato" %}selected{% endif %}>✓ Conferma asset</option>
+                  <option value="escludi" {% if r.stato == "escluso" %}selected{% endif %}>✗ Escludi (no asset)</option>
+                </select>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <datalist id="skm-assets-dl">
+        {% for a in asset_opts %}<option value="{{ a.asset_tag }}">{{ a.name }}</option>{% endfor %}
+      </datalist>
+
+      <div style="display:flex;gap:10px;margin-top:16px;align-items:center;">
+        <button type="submit" class="hr-btn hr-btn-primary">💾 Salva validazione</button>
+        <span class="skm-sub">Imposta l'asset (o lascia vuoto + «Escludi»), scegli la decisione e salva. «Conferma» richiede un asset_tag valido.</span>
+      </div>
+    </form>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -142,6 +142,31 @@ def match_per_nome(display: str, indice: IndiceAssetSkm, *, min_overlap: int = 2
     return RisultatoMatch(CONF_PARZIALE, STR_MANUALE, None, f"nome: {len(best)} candidati, risolvere a mano")
 
 
+def match_competenza(codice: str, display: str, indice: IndiceAssetSkm) -> RisultatoMatch:
+    """Match completo di una competenza-macchina con declassamento degli "esatto"
+    sospetti (= pre-approvati, salterebbero la review):
+      - asset di tipo non-macchina (collisione IT, es. tag PC);
+      - codice cortissimo (≤2 char) che collide facilmente (es. HI → PCHI,
+        asset spesso mistippato OTHER → la regola sul tipo da sola non basta).
+    """
+    codice = (codice or "").strip()
+    display = (display or "").strip()
+    r = match_per_codice(codice, indice) if codice else match_per_nome(display, indice)
+    if r.asset is not None and r.confidenza == CONF_ESATTO:
+        tipo = getattr(r.asset, "asset_type", "")
+        if tipo in TIPI_NON_MACCHINA:
+            return RisultatoMatch(
+                CONF_PARZIALE, r.strategia, r.asset,
+                f"tipo asset '{tipo}' non-macchina: verificare (possibile collisione codice)",
+            )
+        if len(normalizza_codice(codice)) <= 2:
+            return RisultatoMatch(
+                CONF_PARZIALE, r.strategia, r.asset,
+                "codice corto (≤2 char): verificare possibile collisione",
+            )
+    return r
+
+
 # Colonne del report (ordine stabile per il CSV).
 COLONNE_REPORT = [
     "competenza_key", "nome_mod187", "codice",
@@ -159,25 +184,8 @@ def costruisci_righe_report(competenze: list[dict], indice: IndiceAssetSkm) -> l
     for c in competenze:
         codice = (c.get("codice") or "").strip()
         display = (c.get("display") or "").strip()
-        r = match_per_codice(codice, indice) if codice else match_per_nome(display, indice)
+        r = match_competenza(codice, display, indice)
         asset = r.asset
-        # Declassa un "esatto" sospetto, perché "esatto" = pre-approvato (no review):
-        #  (a) asset di tipo non-macchina (collisione IT, es. tag PC);
-        #  (b) codice cortissimo (≤2 char), che collide facilmente (es. HI -> PCHI,
-        #      asset spesso mistippato OTHER → la regola (a) da sola non basta).
-        if asset is not None and r.confidenza == CONF_ESATTO:
-            tipo = getattr(asset, "asset_type", "")
-            code_norm = normalizza_codice(codice)
-            if tipo in TIPI_NON_MACCHINA:
-                r = RisultatoMatch(
-                    CONF_PARZIALE, r.strategia, asset,
-                    f"tipo asset '{tipo}' non-macchina: verificare (possibile collisione codice)",
-                )
-            elif len(code_norm) <= 2:
-                r = RisultatoMatch(
-                    CONF_PARZIALE, r.strategia, asset,
-                    "codice corto (≤2 char): verificare possibile collisione",
-                )
         righe.append({
             "competenza_key": c.get("competenza_key", ""),
             "nome_mod187": display,

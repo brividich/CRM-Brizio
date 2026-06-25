@@ -13166,6 +13166,120 @@ def matrice_competenze(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Skill Matrix MOD.187 — validazione abbinamento competenza→asset (F2a, UI)
+# ---------------------------------------------------------------------------
+
+@login_required
+def skm_match_validazione(request):
+    """Specchietto in-portal per abbinare le competenze-macchina MOD.187 agli
+    asset **reali** dell'ambiente (dev o prod) e **confermare** il match — è il
+    gate F2a, propedeutico all'import baseline.
+
+    Lavora sugli asset live e salva nel catalogo ``CompetenzaSkm``: NON scrive
+    baseline (nessuna ``AbilitazioneMacchina``). Le conferme manuali sono
+    preservate dalle ri-sincronizzazioni.
+    Accesso: ``_check_hr_permission`` (ACL formale in F7).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per la validazione Skill Matrix.")
+        return redirect("anagrafica:index")
+
+    from .models import CompetenzaSkm
+    from .services.skillmatrix_seed import sincronizza_catalogo
+
+    if request.method == "POST":
+        azione = request.POST.get("azione", "")
+        if azione == "sincronizza":
+            stats = sincronizza_catalogo()
+            messages.success(
+                request,
+                f"Catalogo sincronizzato dagli asset live: {stats['macchine']} macchine "
+                f"({stats['esatti']} esatti, {stats['parziali']} parziali, "
+                f"{stats['assenti']} assenti; {stats['confermati']} confermati). "
+                f"Processi {stats['processi']} (collegati a qualifica {stats['processi_collegati']}).",
+            )
+            return redirect("anagrafica:skm_match_validazione")
+
+        if azione == "salva":
+            from assets.models import Asset
+            macchine = list(CompetenzaSkm.objects.filter(tipo=CompetenzaSkm.TIPO_MACCHINA))
+            tag_richiesti = {
+                (request.POST.get(f"asset_{c.id}") or "").strip()
+                for c in macchine
+            }
+            tag_richiesti.discard("")
+            asset_per_tag = {
+                a.asset_tag: a for a in Asset.objects.filter(asset_tag__in=tag_richiesti)
+            } if tag_richiesti else {}
+            n_conf = n_escl = n_aperti = n_err = 0
+            for c in macchine:
+                dec = request.POST.get(f"decisione_{c.id}", "da_validare")
+                tag = (request.POST.get(f"asset_{c.id}") or "").strip()
+                if dec == "conferma":
+                    asset = asset_per_tag.get(tag)
+                    if asset is None:
+                        n_err += 1
+                        continue
+                    c.asset = asset
+                    c.match_confermato = True
+                    n_conf += 1
+                elif dec == "escludi":
+                    c.asset = None
+                    c.match_confermato = True
+                    n_escl += 1
+                else:  # da_validare: aggiorna l'asset proposto ma non confermare
+                    asset = asset_per_tag.get(tag) if tag else None
+                    if asset is not None:
+                        c.asset = asset
+                    c.match_confermato = False
+                    n_aperti += 1
+                c.save()
+            msg = f"Salvato: {n_conf} confermati, {n_escl} esclusi, {n_aperti} da validare."
+            if n_err:
+                messages.warning(request, msg + f" {n_err} righe non salvate (asset_tag non valido).")
+            else:
+                messages.success(request, msg)
+            return redirect("anagrafica:skm_match_validazione")
+
+    macchine = list(
+        CompetenzaSkm.objects.filter(tipo=CompetenzaSkm.TIPO_MACCHINA)
+        .select_related("asset").order_by("competenza_key")
+    )
+
+    def _stato(c):
+        if c.match_confermato:
+            return "confermato" if c.asset_id else "escluso"
+        return "da_validare"
+
+    ordine = {"da_validare": 0, "confermato": 1, "escluso": 2}
+    righe = sorted(
+        ({"c": c, "stato": _stato(c)} for c in macchine),
+        key=lambda r: (ordine.get(r["stato"], 9), r["c"].competenza_key),
+    )
+    n_conf = sum(1 for r in righe if r["stato"] == "confermato")
+    n_escl = sum(1 for r in righe if r["stato"] == "escluso")
+    n_val = sum(1 for r in righe if r["stato"] == "da_validare")
+
+    # Datalist asset: esclude i tipi palesemente non-macchina per ridurre rumore.
+    from assets.models import Asset
+    nonmacc = {"PC", "NOTEBOOK", "SERVER", "VM", "FIREWALL", "STAMPANTE", "FONIA", "CCTV"}
+    asset_opts = list(
+        Asset.objects.exclude(asset_type__in=nonmacc)
+        .only("id", "asset_tag", "name").order_by("asset_tag")
+    )
+
+    return render(request, "anagrafica/pages/skm_match_validazione.html", {
+        "righe": righe,
+        "n_tot": len(righe),
+        "n_conf": n_conf,
+        "n_escl": n_escl,
+        "n_val": n_val,
+        "catalogo_vuoto": len(righe) == 0,
+        "asset_opts": asset_opts,
+    })
+
+
 @login_required
 def conformita_report(request):
     """Elenco conformità di tutti i dipendenti attivi (semaforo per dominio).
