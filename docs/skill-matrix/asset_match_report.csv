@@ -1,0 +1,43 @@
+﻿competenza_key;nome_mod187;codice;asset_match_id;asset_tag;asset_name;confidenza;strategia;azione_suggerita
+35S;35S - AKEBONO ANCL 35 XL;35S;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+AGV1;AGV1 - SIP 8000;AGV1;141;CNC-000006;AGV1;parziale;name;verificare/confermare match su nome
+AGV2;AGV2 - SIP 4000;AGV2;142;CNC-000007;AGV2;parziale;name;verificare/confermare match su nome
+AGV3;AGV3 - SIP 640;AGV3;163;CNC-000028;AGV3;parziale;name;verificare/confermare match su nome
+CNT1;CNT1 - CNS VT-36BLMC-2000;CNT1;693;CNC-CNT1-9661205011;Macchine CNC | CNT1 - CNS VT-36BLMC-2000 | TNFR;esatto;asset_tag;pre-approvato
+CNV;CNV - CNS CNC KMV16;CNV;;;;parziale;manuale;ambiguo: 2 asset col codice nel nome, risolvere a mano
+D1;D1 - DIXI DHP 80;D1;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+DM1;DM1 - DMG CTX Gamma 2000 TC;DM1;144;CNC-000009;DM1;parziale;name;verificare/confermare match su nome
+DM10;DM10 - DMC 85 Duoblock;DM10;696;CNC-DM10-12280008793;Macchine CNC | DMG Mori DMC 85 | CN5;esatto;asset_tag;pre-approvato
+DM11;DM11 - DMC 85 Monoblock;DM11;697;CNC-DM11-12280009603;Macchine CNC | DMG Mori DMC 85 | CN5;esatto;asset_tag;pre-approvato
+DM12;DM12 - DMC 160U Duoblock;DM12;698;CNC-DM12-12670000953;Macchine CNC | DMG Mori DMC 160U | CN5;esatto;asset_tag;pre-approvato
+DM13;DM13 - DMC 75 Monoblock;DM13;699;CNC-DM13-12960000243;Macchine CNC | DMG Mori DMC 75 | CN5;esatto;asset_tag;pre-approvato
+DM14;DM14 - DMC 65 FD Monoblock;DM14;700;CNC-DM14-12150002173;Macchine CNC | DMG Mori DMC 75 | CN5;esatto;asset_tag;pre-approvato
+DM15;DM15 - DMG CTX beta 2000CT;DM15;701;CNC-DM15-10000000547;Macchine CNC | DMG CTX Beta 2000 TC | TNF;esatto;asset_tag;pre-approvato
+DM2;DM2 - ECOTURN 650;DM2;702;CNC-DM2-00330002201;Macchine CNC | DMG Ecturn 650 | TNC;esatto;asset_tag;pre-approvato
+DM3;DM3 - DMC 85 Monoblock;DM3;703;CNC-DM3-12280000463;Macchine CNC | DMG Mori DMC 85 | CN5;esatto;asset_tag;pre-approvato
+DM4;DM4 - DMG Gamma 3000 CTX;DM4;704;CNC-DM4-00570000111;Macchine CNC | DMG CTX G 3000 | TNC;esatto;asset_tag;pre-approvato
+DM5;DM5 - DMG CTXbeta1250CT;DM5;705;CNC-DM5-00830001391;Macchine CNC | DMG CTX Beta 1250 TC | TNF;esatto;asset_tag;pre-approvato
+DM6;DM6 - DMC 125U Duoblock;DM6;706;CNC-DM6-000060148189;Macchine CNC | DMG Mori DMC 125U | CN5;esatto;asset_tag;pre-approvato
+DM7;DM7 - DMC 160U Duoblock;DM7;707;CNC-DM7-000066868439;Macchine CNC | DMG Mori DMC 160U | CN5;esatto;asset_tag;pre-approvato
+DM8;DM8 - ECOTURN 650;DM8;708;CNC-DM8-330002291;Macchine CNC | DMG Ecturn 650 | TNC;esatto;asset_tag;pre-approvato
+DM9;DM9 - DMG CTX beta 2000CT;DM9;709;CNC-DM9-00810001311;Macchine CNC | DMG CTX Beta 2000 TC | TNF;esatto;asset_tag;pre-approvato
+ELT1;ELT1 - Agie Charmille CUT 30;ELT1;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+HH;HH - HERMLE C1200U;HH;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+HI;HI - HITACHI NR 1742;HI;521;IT-PC-HI;PCHI;parziale;asset_tag;codice corto (≤2 char): verificare possibile collisione
+HY1;HY1 - Hyundai L600 MA;HY1;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+MK1;MK1 - MIKRON HSM 600U;MK1;715;CNC-MK1-2178800057;Macchine CNC | MIKRON HSM 600U | CN5;esatto;asset_tag;pre-approvato
+MK2;MK2 - MIKRON UCP 800;MK2;716;CNC-MK2-2174400080;Macchine CNC | MIKRON UCP 800 | CN5;esatto;asset_tag;pre-approvato
+MK3;MK3 - MIKRON HPM 1000U;MK3;140;CNC-000005;MK3;parziale;name;verificare/confermare match su nome
+MZ2;MZ2 - MAZAK H800;MZ2;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+MZ3;MZ3 - MAZAK H630N;MZ3;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+MZ5;MZ5 - MAZAK FH6800;MZ5;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+MZ6;MZ6 - MAZAK FH8800;MZ6;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+STZ;STZ - Stozzatrice;STZ;;;;assente;manuale;nessun asset: creare alias/asset o escludere
+TNZ;TNZ - Omba - MN8;TNZ;725;CNC-TNZ-VERTICALOMBATUS;Macchine CNC |VERTICAL OMBATUS TNZ| TNFR;esatto;asset_tag;pre-approvato
+ZEISS - CONTURA G2;ZEISS - CONTURA G2;;;;;parziale;manuale;nome: 2 candidati, risolvere a mano
+ZEISS - DURAMAX - Matr. 14301;ZEISS - DURAMAX - Matr. 14301;;;;;parziale;manuale;nome: 4 candidati, risolvere a mano
+ZEISS - DURAMAX Matr. 140642;ZEISS - DURAMAX Matr. 140642;;;;;parziale;manuale;nome: 6 candidati, risolvere a mano
+ZEISS - PRISMO;ZEISS - PRISMO;;;;;parziale;manuale;nome: 6 candidati, risolvere a mano
+ZEISS - PRISMO 10HTG VAST;ZEISS - PRISMO 10HTG VAST;;;;;parziale;manuale;nome: 2 candidati, risolvere a mano
+ZEISS - PRISMO NAVIGATOR;ZEISS - PRISMO NAVIGATOR;;;;;parziale;manuale;nome: 2 candidati, risolvere a mano
+ZEISS - PRISMO USS2;ZEISS - PRISMO USS2;;;;;parziale;manuale;nome: 6 candidati, risolvere a mano

@@ -86,10 +86,57 @@ nessun `unique` nullable; nessun indice parziale; nessun `ArrayField`.
 **Esito test:** `python manage.py test anagrafica.tests_skillmatrix --settings=config.settings.test --keepdb`
 → **12 passed**. `makemigrations --check` pulito. `migrate` su SQLite OK.
 
+## F2a — Asset-match report  ⛔ GATE: **ATTESA CONFERMA MATCH ASSET** (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/services/skillmatrix_match.py` (nuovo) — matcher puro a token.
+- `django_app/anagrafica/management/commands/skm_asset_match_report.py` (nuovo) — comando **sola lettura**.
+- `django_app/anagrafica/tests_skillmatrix_match.py` (nuovo) — 13 test.
+- `docs/skill-matrix/asset_match_report.csv` (generato) — **derivato dal DB dev**.
+
+**Strategia di match** (self-contained in anagrafica, niente import cross-modulo):
+normalizzazione uppercase/no-spazi (pattern gcm) + match a **token interi** del
+tag/nome (gestisce codici sole-lettere `STZ/HH/CNV` e con cifra iniziale `35S`,
+e mantiene la precisione `DM1≠DM10≠DM11`). Mappatura confidenza:
+codice in `asset_tag` → **esatto**; solo in `name` → **parziale**; ambiguo/assente
+→ **parziale/manuale** o **assente**; ZEISS (codice non univoco) → match sul nome
+completo (best-overlap), sempre "confermare a mano". **Declassamento** di un
+"esatto" sospetto (= pre-approvato, salterebbe la review): asset di tipo
+non-macchina, oppure **codice ≤2 char** (collisione tipo `HI → PCHI`).
+
+**Esito (DB dev, 773 asset, 42 macchine):** **18 esatti · 14 parziali · 10 assenti.**
+- **Esatti (18, pre-approvati):** CNT1, DM2…DM15, DM3, MK1, MK2, TNZ — tutti su
+  `asset_tag` `CNC-<codice>-<seriale>` (i 7 rinominati DMC/DMG matchano sul codice,
+  come atteso).
+- **Parziali (14, da confermare):**
+  - solo-nome (asset `name`==codice, tag generico `CNC-00000x`): **AGV1, AGV2, AGV3,
+    DM1, MK3** — probabilmente corretti, confermare.
+  - **CNV** → 2 asset col codice nel nome (disambiguare).
+  - **HI** → declassato: ha colpito `IT-PC-HI`/`PCHI` (un PC mistippato `OTHER`).
+    **Quasi certamente NON la HITACHI**: escludere o creare l'asset macchina.
+  - **7 ZEISS** (CONTURA G2, DURAMAX ×2, PRISMO ×4) → 2–6 candidati ciascuno:
+    disambiguare per matricola/modello a mano.
+- **Assenti (10, da creare/alias o escludere):** 35S, D1, ELT1, HH, HY1, **MZ2, MZ3,
+  MZ5, MZ6** (tutti i Mazak), STZ — non presenti tra gli asset del DB dev.
+
+⚠️ **Il report è derivato dal DB *dev*.** Va **rigenerato nell'ambiente target**
+(`python manage.py skm_asset_match_report --settings=config.settings.prod`) e
+validato lì prima dell'import: i Mazak assenti in dev potrebbero esserci in prod.
+
+**Test:** `anagrafica.tests_skillmatrix_match` → **13 passed**. `manage.py check` pulito.
+
+### ⛔ STOP — cosa serve per sbloccare F2b
+1. Validare a mano `docs/skill-matrix/asset_match_report.csv` (rigenerato in target):
+   confermare i **parziali**, decidere su **assenti** (creare asset/alias o escludere),
+   risolvere **ZEISS** e il caso **HI**.
+2. Confermare/correggere la colonna `asset_match_id` per parziali/assenti.
+3. Dare l'ok esplicito: solo allora parte **F2b** (import baseline, con ulteriore
+   STOP di approvazione prima della scrittura massiva, e `--dry-run` come default).
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
-- [ ] F2a Asset-match report (GATE: ATTESA CONFERMA MATCH ASSET)
+- [x] F2a Asset-match report — 18 esatti/14 parziali/10 assenti (13 test) — **GATE attivo**
 - [ ] F2b Importer baseline (STOP approvazione scrittura)
 - [ ] F3 Resolver bridge read-only
 - [ ] F4 Matrice macchina UI + tab
