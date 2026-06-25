@@ -298,6 +298,37 @@ idempotenza). Suite skill-matrix totale **52 verdi**.
    piano (operatori risolti, abilitazioni, bloccate, processi saltati, coerenza storico).
 3. Ok esplicito → `python manage.py import_skill_matrix --apply`.
 
+## F5 — Continuità operativa (regola di sospensione)  ⛔ STOP: sorgente produzione NON cablata (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/services/skillmatrix_continuita.py` (nuovo) — sospensione/riattivazione.
+- `django_app/anagrafica/management/commands/skm_continuita_sync.py` (nuovo) — `--dry-run`.
+- `django_app/anagrafica/migrations/0073_seed_continuita_cndpt.py` (nuovo) — seed CND-PT.
+- `django_app/anagrafica/tests_skillmatrix_continuita.py` (nuovo) — 6 test.
+
+**Regola bloccante (MT CN 65 §3.7):** `applica_sospensioni()` calcola `ContinuitaOperativa.stato()`
+e, su **persa**, **sospende** l'abilitazione collegata (scatto storico, nota con marcatore
+`[continuita-persa]`); al recupero (mantenuta/in_scadenza) **riattiva** SOLO le abilitazioni
+che erano state sospese per continuità (marcatore presente) — le sospensioni di altra origine
+restano. Idempotente; `--dry-run` pianifica senza scrivere. È l'**unica regola bloccante**.
+`riepilogo_continuita()` per i KPI. Seed catalogo: solo **CND-PT** (certo); saldatura ISO 9606
+e cromatura restano **aperti** (da confermare in avvio).
+
+### ⛔ STOP — sorgente di `ultima_esecuzione` (da approvare prima di cablare)
+La data di ultima esecuzione **non** è inserita a mano: va letta dall'esecuzione reale di
+produzione. Sorgenti candidate individuate nel repo (da validare, **non ancora cablate**):
+- **avanzamento ordini di produzione** (`ordini_produzione` / avanzamento) — segnale "processo
+  eseguito" ma da incrociare con l'operatore;
+- **timbri** (registro timbri/firme/sigle) — presenza/operazione per persona, ma non sempre
+  legato al *processo* CND-PT;
+- eventuale log di esecuzione CND dedicato (da verificare con qualità).
+Manca un segnale pulito **persona × processo × data**: serve decidere la fonte e la regola di
+attribuzione **prima** di popolare `ContinuitaOperativa.ultima_esecuzione`. Fino ad allora la
+regola di sospensione gira su dati assenti (no-op) ed è testata su fixtures.
+
+**Test:** `anagrafica.tests_skillmatrix_continuita` → **6 passed** (persa→sospende, dry-run,
+idempotenza, recupero→riattiva, no-riattiva-altre-origini, seed CND-PT). Suite skill-matrix **58 verdi**.
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
@@ -306,7 +337,7 @@ idempotenza). Suite skill-matrix totale **52 verdi**.
 - [~] F2b Importer baseline — **costruito + dry-run validato (3 test)**; STOP attivo per `--apply` (conferma match + approvazione)
 - [x] F3 Resolver bridge read-only (9 test) — punto d'aggancio Fase B carichi macchina
 - [x] F4 Matrice macchina UI + tab (`/anagrafica/skill-matrix/`, 5 test) — vuota finché F2b non importa la baseline
-- [ ] F5 Continuità operativa (STOP approvazione cablaggio produzione)
+- [~] F5 Continuità operativa — **regola sospensione + seed CND-PT fatti (6 test)**; STOP: sorgente produzione `ultima_esecuzione` da approvare/cablare
 - [ ] F6 Refresh semestrale (CAR)
 - [~] F7 ACL + navigazione — **voci di menu fatte** (migration 0072, sotto Competenze/Skill Matrix); ACL formale opzionale (view già gated da `_check_hr_permission`)
 - [ ] F8 Hardening test
