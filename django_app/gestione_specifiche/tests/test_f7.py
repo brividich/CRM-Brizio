@@ -132,8 +132,8 @@ class SchedaStoricoTests(_Base):
                                        revisione_precedente=prev)
         r = self.client.get(reverse("gestione_specifiche:scheda_storico", args=[new.pk]))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Catena revisioni")
-        self.assertContains(r, "rev.1")
+        self.assertContains(r, "Timeline revisioni")
+        self.assertContains(r, "r.1")
 
 
 class ExportTests(_Base):
@@ -177,3 +177,22 @@ class AzioniSSRTests(_Base):
         spec = Specifica.objects.create(codice="SP-ANN", titolo="T")
         self.client.post(reverse("gestione_specifiche:annulla", args=[spec.pk]), {"motivo": "errata"})
         self.assertEqual(Specifica.objects.get(pk=spec.pk).stato, C.STATO_ANNULLATO)
+
+
+class KpiDashboardTests(_Base):
+    def test_kpi_render_vuoto(self):
+        """La dashboard KPI rende anche senza dati (nessuna divisione per zero)."""
+        r = self.client.get(reverse("gestione_specifiche:kpi"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Dashboard direzionale KPI")
+        self.assertContains(r, "Distribuzione per stato")
+
+    def test_kpi_con_dati(self):
+        self._in_validita("SP-KPI-1")
+        self._in_validita("SP-KPI-2")
+        Specifica.objects.create(codice="SP-KPI-3", titolo="T", cliente="ACME")
+        r = self.client.get(reverse("gestione_specifiche:kpi"))
+        self.assertEqual(r.status_code, 200)
+        # 2 specifiche in validità → compare nella distribuzione per stato
+        self.assertContains(r, "In validità")
+        self.assertContains(r, "OFI aperti per cliente")

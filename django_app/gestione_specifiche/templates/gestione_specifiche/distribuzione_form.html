@@ -3,28 +3,141 @@
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>Distribuzione — {{ spec.codice }}</h1>
-  <p>Canale, destinatari ed evidenza di presa visione. Per le copie cartacee si applica la regola con deroga giustificata.</p>
-</div>
+<div class="gs-wrap">
 
-<form method="post" class="gs-card">
-  {% csrf_token %}
-  {% if form.non_field_errors %}<div style="color:#b42318;">{{ form.non_field_errors }}</div>{% endif %}
-  <div class="gs-grid">
-    <div><div class="lbl">Canale</div>{{ form.canale }}</div>
-    <div><div class="lbl">Copia cartacea</div>{{ form.cartacea }}</div>
-    <div><div class="lbl">Copie distribuite (questa rev.)</div>{{ form.n_copie_distribuite }}</div>
-    <div><div class="lbl">Copie ritirate (rev. prec.)</div>{{ form.n_copie_ritirate }}</div>
-    <div style="grid-column:1/-1;"><div class="lbl">Reparti destinatari</div>{{ form.destinatari }}</div>
-    <div style="grid-column:1/-1;{% if not deroga_richiesta %} display:none;{% endif %}">
-      <div class="lbl" style="color:#b35b00;">Giustificazione deroga copie (obbligatoria in caso di mancata corrispondenza)</div>
-      {{ form.deroga_giustificazione }}
+  <a class="gs-back" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Scheda specifica</a>
+
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-cyan">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=18 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Distribuzione revisione</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">{{ spec.codice }}{% if spec.revisione %} · r.{{ spec.revisione }}{% endif %} — {{ spec.titolo }}</h1>
+    </div>
+    <span class="gs-pill gs-pill--lg {{ spec.stato }}">{{ spec.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="gs-banner gs-banner--danger" style="margin-top:14px;"><div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=16 %}</div><div style="flex:1; align-self:center; font-size:12.5px; color:#a02e2e;">{{ form.non_field_errors|striptags }}</div></div>{% endif %}
+
+    {# ---- Canale ----------------------------------------------------- #}
+    <div class="gs-eyebrow" style="margin:20px 2px 10px;">Canale di distribuzione</div>
+    <div class="gs-chan">
+      <label class="gs-chan__opt" data-chan="{{ C.CANALE_EMAIL }}">
+        <input type="radio" name="canale" value="{{ C.CANALE_EMAIL }}" style="display:none;" {% if form.canale.value == C.CANALE_EMAIL %}checked{% endif %}>
+        <div class="gs-chan__ic">{% include "gestione_specifiche/partials/_icon.html" with name="mail" size=16 %}</div>
+        <div style="flex:1;"><div style="font-size:13px; font-weight:700; color:#0c2545;">Email</div><div style="font-size:11.5px; color:#92a0b5;">Notifica via posta</div></div>
+        <div class="gs-chan__radio"></div>
+      </label>
+      <label class="gs-chan__opt" data-chan="{{ C.CANALE_NOTIFICA }}">
+        <input type="radio" name="canale" value="{{ C.CANALE_NOTIFICA }}" style="display:none;" {% if form.canale.value == C.CANALE_NOTIFICA %}checked{% endif %}>
+        <div class="gs-chan__ic">{% include "gestione_specifiche/partials/_icon.html" with name="bell" size=16 %}</div>
+        <div style="flex:1;"><div style="font-size:13px; font-weight:700; color:#0c2545;">Notifica in-app</div><div style="font-size:11.5px; color:#92a0b5;">Portale HUB</div></div>
+        <div class="gs-chan__radio"></div>
+      </label>
+      <label class="gs-chan__opt" data-chan="{{ C.CANALE_CARTACEO }}">
+        <input type="radio" name="canale" value="{{ C.CANALE_CARTACEO }}" style="display:none;" {% if form.canale.value == C.CANALE_CARTACEO %}checked{% endif %}>
+        <div class="gs-chan__ic">{% include "gestione_specifiche/partials/_icon.html" with name="printer" size=16 %}</div>
+        <div style="flex:1;"><div style="font-size:13px; font-weight:700; color:#0c2545;">Cartaceo</div><div style="font-size:11.5px; color:#92a0b5;">Con ritiro copie</div></div>
+        <div class="gs-chan__radio"></div>
+      </label>
+    </div>
+
+    <div class="gs-grid2">
+      {# ---- Destinatari per reparto --------------------------------- #}
+      <div class="gs-panel" style="margin-top:0;">
+        <div class="gs-panel__head"><h2 class="gs-panel__title">Destinatari per reparto</h2>
+          <span class="gs-tag is-grey">Presa visione: da configurazione</span>
+        </div>
+        <div>
+          {% for cb in form.destinatari %}
+          <label class="gs-rep" style="cursor:pointer;">
+            <div class="gs-rep__ic">{% include "gestione_specifiche/partials/_icon.html" with name="user" size=15 %}</div>
+            <div style="flex:1;"><div style="font-size:13px; font-weight:700; color:#1c2b42;">{{ cb.choice_label }}</div></div>
+            {{ cb.tag }}
+          </label>
+          {% empty %}
+          <div style="padding:16px 18px; font-size:12.5px; color:#92a0b5;">Nessun reparto disponibile.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ---- Tracciamento copie cartacee ---------------------------- #}
+      <div class="gs-panel" id="gs-copie" style="margin-top:0;{% if form.canale.value != C.CANALE_CARTACEO %} display:none;{% endif %}">
+        <div class="gs-panel__head"><h2 class="gs-panel__title">Tracciamento copie cartacee</h2></div>
+        <div style="padding:16px 18px;">
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:120px;">
+              <label class="gs-flabel">Copie distribuite (questa rev.)</label>
+              {{ form.n_copie_distribuite }}
+            </div>
+            <div style="flex:1; min-width:120px;">
+              <label class="gs-flabel">Copie ritirate (rev. prec.)</label>
+              {{ form.n_copie_ritirate }}
+            </div>
+          </div>
+          <div style="margin-top:12px;"><span class="gs-statbox" style="display:inline-block; min-width:160px;"><span class="gs-statbox__n">{{ copie_attese }}</span><span class="gs-statbox__l">Copie distribuite rev. precedente (attese al ritiro)</span></span></div>
+
+          <div class="gs-banner gs-banner--warn" style="margin-top:14px;{% if not deroga_richiesta %} display:none;{% endif %}" data-deroga-banner>
+            <span style="color:#a86a14; margin-top:1px;">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=15 %}</span>
+            <div style="flex:1;">
+              <div style="font-size:12.5px; font-weight:800; color:#8a5a12;">Copie non quadranti — deroga obbligatoria</div>
+              <p style="margin:4px 0 0; font-size:11.5px; color:#8a6a3a; line-height:1.5;">Le copie ritirate non corrispondono a quelle distribuite per la revisione precedente. È necessaria una giustificazione per procedere.</p>
+            </div>
+          </div>
+
+          <label class="gs-flabel" style="margin:14px 0 6px;">Giustificazione / deroga {% if deroga_richiesta %}<span style="color:#cf3a3a;">*</span>{% endif %}</label>
+          {{ form.deroga_giustificazione }}
+        </div>
+      </div>
+    </div>
+
+    <div class="gs-panel" style="margin-top:16px; padding:14px 18px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1;"></div>
+      <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Annulla</a>
+      <button type="submit" class="gs-btn gs-btn--orange">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %} Conferma distribuzione</button>
+    </div>
+  </form>
+
+  {# ---- Log distribuzione ------------------------------------------- #}
+  {% if distribuzioni %}
+  <div class="gs-panel">
+    <div class="gs-panel__head"><h2 class="gs-panel__title">Log distribuzione</h2></div>
+    <div class="gs-scroll">
+      <table class="gs-table">
+        <thead><tr><th>Data e ora</th><th>Canale</th><th>Reparti</th><th>Copie dist./rit.</th><th>Presa visione</th><th>Deroga</th></tr></thead>
+        <tbody>
+          {% for d in distribuzioni %}
+          <tr>
+            <td style="font-size:12.5px; color:#5b6b82;">{{ d.data_distribuzione|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td>{{ d.get_canale_display }}</td>
+            <td style="font-size:12px; color:#5b6b82;">{% for r in d.destinatari.all %}{{ r.nome }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+            <td>{{ d.n_copie_distribuite }} / {{ d.n_copie_ritirate }}</td>
+            <td>{% if d.presa_visione_richiesta %}<span class="gs-tag is-green">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=14 %} Richiesta</span>{% else %}<span class="gs-tag is-grey">Solo notifica</span>{% endif %}</td>
+            <td>{% if d.deroga_giustificazione %}<span class="gs-tag is-amber" title="{{ d.deroga_giustificazione }}">Deroga</span>{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-  <div class="gs-actions" style="margin-top:14px;">
-    <button class="gs-btn gs-btn--primary" type="submit">Registra distribuzione</button>
-    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Annulla</a>
-  </div>
-</form>
+  {% endif %}
+
+</div>
+
+<script>
+(function(){
+  var opts = document.querySelectorAll('.gs-chan__opt');
+  var copie = document.getElementById('gs-copie');
+  function sync(){
+    var sel = document.querySelector('input[name="canale"]:checked');
+    opts.forEach(function(o){ o.classList.toggle('is-sel', o.querySelector('input').checked); });
+    if(copie) copie.style.display = (sel && sel.value === '{{ C.CANALE_CARTACEO }}') ? '' : 'none';
+  }
+  opts.forEach(function(o){ o.addEventListener('click', function(){ o.querySelector('input').checked = true; sync(); }); });
+  sync();
+})();
+</script>
 {% endblock %}

@@ -1,36 +1,89 @@
 {% extends "core/base.html" %}
+{% load static %}
 {% block title %}Compila MOD.133 · {{ spec.codice }}{% endblock %}
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>MOD.133 — {{ spec.codice }}{% if spec.revisione %} rev.{{ spec.revisione }}{% endif %}</h1>
-  <p>Compilazione righe di flow-down. La griglia documenti è obbligatoria solo per le righe con «Impatto documenti».</p>
-</div>
+<div class="gs-wrap">
 
-<form method="post" action="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">
-  {% csrf_token %}
-  {{ formset.management_form }}
-  {% if formset.non_form_errors %}<div class="gs-card" style="color:#b42318;">{{ formset.non_form_errors }}</div>{% endif %}
+  <a class="gs-back" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Scheda specifica</a>
 
-  <div id="righe-body">
-    {% for form in formset %}
-      {% include "gestione_specifiche/partials/_riga_form.html" with form=form %}
-    {% endfor %}
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">MOD.133 — Flow-down dei requisiti</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">{{ spec.codice }}{% if spec.revisione %} · r.{{ spec.revisione }}{% endif %} — {{ spec.titolo }}</h1>
+    </div>
+    <span class="gs-pill gs-pill--lg {{ spec.stato }}">{{ spec.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span>
   </div>
 
-  <div class="gs-actions">
-    <button type="button" class="gs-btn"
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  {# ---- Copilota AI (proposte; l'umano valida e firma) ---------------- #}
+  <div class="gs-banner gs-banner--ai" style="margin-top:18px;">
+    <div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="ai" size=16 %}</div>
+    <div style="flex:1;">
+      <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+        <span class="gs-banner__title">Copilota AI</span>
+        <span class="gs-badge-prop">Proposto — da validare</span>
+      </div>
+      <p style="margin:5px 0 12px; font-size:12.5px; color:#5b6b82; line-height:1.5;">
+        Pre-compilazione estratta dal PDF della specifica{% if spec.allegato_nome %} <strong style="color:#1c2b42;">{{ spec.allegato_nome }}</strong>{% endif %}. Ogni proposta richiede conferma dell'operatore: nulla viene salvato automaticamente.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="gs-btn gs-btn--cyan" style="min-height:32px;" onclick="gsAiRighe()" data-ai-righe>{% include "gestione_specifiche/partials/_icon.html" with name="ai" size=14 %} Proponi righe da PDF</button>
+        <button type="button" class="gs-btn" style="min-height:32px;" onclick="gsAiTag()" data-ai-tag>{% include "gestione_specifiche/partials/_icon.html" with name="tag" size=13 %} Proponi TAG di processo</button>
+      </div>
+      <div id="gs-ai-out" style="margin-top:12px; display:none;"></div>
+    </div>
+  </div>
+
+  <div style="display:flex; align-items:center; justify-content:space-between; margin:20px 2px 12px; flex-wrap:wrap; gap:10px;">
+    <div>
+      <h2 style="margin:0; font-size:16px; font-weight:800; color:#0c2545;">Righe MOD.133</h2>
+      <p style="margin:3px 0 0; font-size:12px; color:#7c8aa2;">Le righe a impatto generano OFI dopo conferma. La griglia documenti è obbligatoria solo con «Impatto su documenti CN».</p>
+    </div>
+    <button type="button" class="gs-btn gs-btn--dashed" id="gs-add-riga"
             hx-get="{% url 'gestione_specifiche:mod133_riga_add' spec.pk %}"
             hx-target="#righe-body" hx-swap="beforeend"
             hx-vals='js:{i: document.getElementById("id_righe-TOTAL_FORMS").value}'
             hx-on::after-request="var t=document.getElementById('id_righe-TOTAL_FORMS'); t.value=parseInt(t.value)+1;">
-      + Aggiungi riga
+      {% include "gestione_specifiche/partials/_icon.html" with name="plusrow" size=15 %} Aggiungi riga
     </button>
-    <button type="submit" class="gs-btn gs-btn--primary">Salva righe</button>
-    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Torna al dettaglio</a>
   </div>
-</form>
+
+  <form method="post" action="{% url 'gestione_specifiche:mod133_compila' spec.pk %}" id="gs-mod133-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="gs-banner gs-banner--danger" style="margin-bottom:12px;"><div class="gs-banner__ic">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=16 %}</div><div style="flex:1; align-self:center; font-size:12.5px; color:#a02e2e;">{{ formset.non_form_errors|striptags }}</div></div>{% endif %}
+
+    <div id="righe-body">
+      {% for form in formset %}
+        {% include "gestione_specifiche/partials/_riga_form.html" with form=form %}
+      {% endfor %}
+    </div>
+
+    <div class="gs-panel" style="margin-top:16px; padding:16px 18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:38px; height:38px; border-radius:10px; background:#1f87cd; color:#fff; display:flex; align-items:center; justify-content:center;">{% include "gestione_specifiche/partials/_icon.html" with name="user" size=16 %}</div>
+        <div style="line-height:1.3;"><div class="gs-eyebrow">Compilatore</div><div style="font-size:13px; font-weight:700; color:#0c2545;">{{ mod.compilatore|default:request.user }}</div></div>
+      </div>
+      <div style="flex:1;"></div>
+      <button type="submit" class="gs-btn gs-btn--cyan">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Salva righe</button>
+    </div>
+  </form>
+
+  {% if spec.stato == C.STATO_FLOW_DOWN %}
+  <div class="gs-actions" style="margin-top:14px;">
+    {% if mod.data_chiusura_compilazione %}
+      <a class="gs-btn gs-btn--success" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Vai all'approvazione</a>
+    {% else %}
+      <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}">{% csrf_token %}<button type="submit" class="gs-btn gs-btn--success">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Chiudi compilazione</button></form>
+    {% endif %}
+    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Torna alla scheda</a>
+  </div>
+  {% endif %}
+
+</div>
 
 <script>
 function gsRemoveRiga(btn){
@@ -38,6 +91,53 @@ function gsRemoveRiga(btn){
   var del = row.querySelector('input[type=checkbox][name$="-DELETE"]');
   if (del){ del.checked = true; row.style.display = 'none'; }
   else { row.remove(); }
+}
+/* Reveal griglia documenti al toggle "Impatto su documenti CN" (delegato → vale anche per righe HTMX) */
+document.addEventListener('change', function(e){
+  var toggle = e.target.closest('[data-reveal] input[type=checkbox]');
+  if(!toggle) return;
+  var label = e.target.closest('[data-reveal]');
+  var key = label.getAttribute('data-reveal');
+  var row = label.closest('[data-riga]');
+  if(!row) return;
+  var grid = row.querySelector('[data-reveal-target="'+key+'"]');
+  if(grid) grid.hidden = !toggle.checked;
+});
+
+/* ---- Copilota AI (fetch JSON, sola proposta) ---------------------------- */
+function gsAiBox(html){ var b=document.getElementById('gs-ai-out'); b.style.display='block'; b.innerHTML=html; }
+function gsEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function gsAiRighe(){
+  var btn=document.querySelector('[data-ai-righe]'); if(btn){btn.disabled=true; btn.classList.add('btn-loading');}
+  gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">Analisi del PDF in corso…</div>');
+  fetch("{% url 'gestione_specifiche:ai_precompila_mod133' spec.pk %}", {headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(function(r){return r.json();}).then(function(d){
+      if(btn){btn.disabled=false; btn.classList.remove('btn-loading');}
+      if(!d.ai_disponibile && (!d.righe||!d.righe.length)){ gsAiBox('<div style="font-size:12.5px;color:#a86a14;">Copilota AI non disponibile o PDF non leggibile. Compila le righe manualmente.</div>'); return; }
+      if(!d.righe||!d.righe.length){ gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">Nessuna riga proposta dall\'AI.</div>'); return; }
+      var html='<div class="gs-eyebrow" style="margin-bottom:8px;">'+d.righe.length+' righe proposte · rivedi e inserisci manualmente</div>';
+      d.righe.forEach(function(r){
+        html+='<div style="background:#fff;border:1px solid #dce7f3;border-radius:11px;padding:10px 12px;margin-bottom:8px;">'+
+          '<div style="font-size:12.5px;color:#1c2b42;"><strong>'+gsEsc(r.rif_paragrafo||'—')+'</strong> '+gsEsc(r.argomento||'')+'</div>'+
+          (r.descrizione_modifiche?'<div style="font-size:11.5px;color:#7c8aa2;margin-top:4px;">'+gsEsc(r.descrizione_modifiche)+'</div>':'')+
+          '<div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">'+
+            (r.impatto_documenti?'<span class="gs-tag is-blue">Impatto doc</span>':'')+
+            (r.impatto_operativo?'<span class="gs-tag is-green">Impatto operativo</span>':'')+
+            (r.tag_processo?'<span class="gs-tag">'+gsEsc(r.tag_processo)+'</span>':'')+
+          '</div></div>';
+      });
+      html+='<div style="font-size:11px;color:#92a0b5;font-style:italic;">'+gsEsc(d.nota||'')+'</div>';
+      gsAiBox(html);
+    }).catch(function(){ if(btn){btn.disabled=false; btn.classList.remove('btn-loading');} gsAiBox('<div style="font-size:12.5px;color:#b5564f;">Errore nel contattare il Copilota AI.</div>'); });
+}
+function gsAiTag(){
+  var btn=document.querySelector('[data-ai-tag]'); if(btn){btn.disabled=true; btn.classList.add('btn-loading');}
+  fetch("{% url 'gestione_specifiche:ai_proponi_tag' spec.pk %}", {headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(function(r){return r.json();}).then(function(d){
+      if(btn){btn.disabled=false; btn.classList.remove('btn-loading');}
+      if(!d.tag){ gsAiBox('<div style="font-size:12.5px;color:#a86a14;">Nessun TAG proposto (AI non disponibile).</div>'); return; }
+      gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">TAG di processo proposto: <span class="gs-chip" style="margin-left:4px;">'+gsEsc(d.tag)+'</span> — applicalo manualmente alla riga pertinente.</div>');
+    }).catch(function(){ if(btn){btn.disabled=false; btn.classList.remove('btn-loading');} });
 }
 </script>
 {% endblock %}

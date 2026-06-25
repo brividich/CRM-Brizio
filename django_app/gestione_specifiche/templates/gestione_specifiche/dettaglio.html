@@ -1,177 +1,359 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}{{ spec.codice }} · Gestione Specifiche{% endblock %}
+{% block title %}{{ spec.codice }} · Scheda specifica{% endblock %}
 
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>{{ spec.codice }}{% if spec.revisione %} · rev. {{ spec.revisione }}{% endif %}
-    &nbsp;<span class="gs-pill {{ spec.stato }}">{{ spec.get_stato_display }}</span></h1>
-  <p>{{ spec.titolo }}</p>
-</div>
+<div class="gs-wrap" data-default-tab="{% if mod %}mod133{% else %}dati{% endif %}">
 
-<div class="gs-card">
-  <div class="gs-grid">
-    <div><div class="lbl">Tipo</div><div class="val">{{ spec.get_tipo_display }}</div></div>
-    <div><div class="lbl">Fonte</div><div class="val">{{ spec.get_fonte_display }}</div></div>
-    <div><div class="lbl">Cliente</div><div class="val">{{ spec.cliente|default:"—" }}</div></div>
-    <div><div class="lbl">TAG</div><div class="val">{{ spec.tag|default:"—" }}</div></div>
-    <div><div class="lbl">Data inserimento</div><div class="val">{{ spec.data_inserimento|date:"d/m/Y H:i" }}</div></div>
-    <div><div class="lbl">Verifica periodica</div><div class="val">{{ spec.data_verifica|default:"—" }}</div></div>
-    {% if spec.revisione_precedente_id %}
-    <div><div class="lbl">Revisione precedente</div><div class="val">
-      <a href="{% url 'gestione_specifiche:dettaglio' spec.revisione_precedente_id %}">{{ spec.revisione_precedente }}</a></div></div>
-    {% endif %}
-    {% if spec.allegato %}
-    <div><div class="lbl">Allegato</div><div class="val">
-      <a href="{% url 'gestione_specifiche:allegato_download' spec.pk %}">Scarica</a></div></div>
-    {% endif %}
-  </div>
-  {% if spec.note %}<p style="margin-top:12px; color:#51607a;">{{ spec.note|linebreaksbr }}</p>{% endif %}
+  <a class="gs-back" href="{% url 'gestione_specifiche:lista' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Elenco specifiche</a>
 
-  <div class="gs-actions">
-    <a class="gs-btn" href="{% url 'gestione_specifiche:lista' %}">← Elenco</a>
-    <a class="gs-btn gs-btn--ghost" href="{% url 'gestione_specifiche:scheda_storico' spec.pk %}">Storico</a>
-    {% if spec.stato == C.STATO_BOZZA %}
-      <a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">Modifica metadati</a>
-      <form method="post" action="{% url 'gestione_specifiche:avvia_flow_down' spec.pk %}" style="display:inline;">
-        {% csrf_token %}<button class="gs-btn gs-btn--primary" type="submit">Avvia flow-down →</button>
-      </form>
-    {% elif spec.stato == C.STATO_FLOW_DOWN %}
-      <a class="gs-btn gs-btn--primary" href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">Compila MOD.133</a>
-      {% if mod and mod.data_chiusura_compilazione %}
-        <a class="gs-btn gs-btn--accent" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">Approva / Respingi</a>
-      {% else %}
-        <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}" style="display:inline;">
-          {% csrf_token %}<button class="gs-btn" type="submit">Chiudi compilazione</button>
-        </form>
-      {% endif %}
-    {% elif spec.stato == C.STATO_IN_VALIDITA %}
-      <a class="gs-btn gs-btn--accent" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}">Distribuisci</a>
-      <a class="gs-btn" href="{% url 'gestione_specifiche:nuova' %}?da={{ spec.pk }}">Nuova revisione</a>
-    {% endif %}
-  </div>
-
-  {# Gestione stato (sospendi/ripristina/annulla) — motivo obbligatorio #}
-  <div class="gs-actions" style="margin-top:8px;">
-    {% if spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_IN_VALIDITA %}
-    <form method="post" action="{% url 'gestione_specifiche:sospendi' spec.pk %}" style="display:flex; gap:6px;">
-      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo sospensione" style="max-width:220px;">
-      <button class="gs-btn" type="submit">Sospendi</button>
-    </form>
-    {% endif %}
-    {% if spec.stato == C.STATO_SOSPESO %}
-    <form method="post" action="{% url 'gestione_specifiche:ripristina' spec.pk %}" style="display:flex; gap:6px;">
-      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo ripristino" style="max-width:220px;">
-      <button class="gs-btn gs-btn--primary" type="submit">Ripristina</button>
-    </form>
-    {% endif %}
-    {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_SOSPESO or spec.stato == C.STATO_ERRORE_TECNICO %}
-    <form method="post" action="{% url 'gestione_specifiche:annulla' spec.pk %}" style="display:flex; gap:6px;">
-      {% csrf_token %}<input class="gs-input" name="motivo" placeholder="motivo annullamento" style="max-width:220px;">
-      <button class="gs-btn" type="submit">Annulla</button>
-    </form>
-    {% endif %}
-  </div>
-</div>
-
-{% if mod %}
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">MOD.133 — flow-down requisiti</h3>
-  <div class="gs-grid" style="margin-bottom:12px;">
-    <div><div class="lbl">Compilatore</div><div class="val">{{ mod.compilatore|default:"— (non preso in carico)" }}</div></div>
-    <div><div class="lbl">Approvatore</div><div class="val">{{ mod.approvatore|default:"—" }}</div></div>
-    <div><div class="lbl">Esito</div><div class="val">{{ mod.get_esito_display|default:"—" }}</div></div>
-    <div><div class="lbl">Chiusura compilazione</div><div class="val">{{ mod.data_chiusura_compilazione|date:"d/m/Y H:i"|default:"—" }}</div></div>
-  </div>
-  <table class="gs-table">
-    <thead><tr><th>#</th><th>Argomento</th><th>Rif. §</th><th>TAG</th><th>Imp. doc</th><th>Imp. op</th><th>OFI</th></tr></thead>
-    <tbody>
-      {% for r in righe %}
-      <tr>
-        <td>{{ r.ordine }}</td><td>{{ r.argomento }}</td><td>{{ r.rif_paragrafo }}</td>
-        <td>{{ r.tag_processo|default:"—" }}</td>
-        <td>{% if r.impatto_documenti %}✓{% endif %}</td>
-        <td>{% if r.impatto_operativo %}✓{% endif %}</td>
-        <td>
-          {% if r.ofi %}<b>#{{ r.ofi }}</b>
-          {% elif r.genera_ofi and spec.stato == C.STATO_IN_VALIDITA %}
-            <form method="post" action="{% url 'gestione_specifiche:riga_genera_ofi' spec.pk r.pk %}" style="display:inline;">
-              {% csrf_token %}<button class="gs-btn gs-btn--ghost" type="submit" style="padding:3px 8px; min-height:0;">Genera OFI</button>
-            </form>
-          {% elif r.genera_ofi %}<span style="color:#b35b00;">in attesa</span>
-          {% else %}—{% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="7" style="color:#6c84a6;">Nessuna riga.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if azioni_ofi %}
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Azioni OFI — documenti CN</h3>
-  <table class="gs-table">
-    <thead><tr><th>OFI</th><th>Documento CN</th><th>Tipo</th><th>Modo approvazione</th><th>Stato</th><th>Approvatore</th><th></th></tr></thead>
-    <tbody>
-      {% for a in azioni_ofi %}
-      <tr>
-        <td><b>#{{ a.ofi }}</b></td>
-        <td>{{ a.documento_cn|default:"—" }}</td>
-        <td>{{ a.tipo_azione|default:"—" }}</td>
-        <td>{{ a.get_modo_approvazione_display }}</td>
-        <td>{{ a.get_stato_display }}</td>
-        <td>{{ a.approvatore|default:"—" }}</td>
-        <td>
-          {% if a.stato != C.AZIONE_OFI_APPROVATA and a.stato != C.AZIONE_OFI_RESPINTA %}
-          <form method="post" action="{% url 'gestione_specifiche:azione_ofi_approva' a.pk %}" style="display:inline;">
-            {% csrf_token %}
-            <button name="esito" value="{{ C.AZIONE_OFI_APPROVATA }}" class="gs-btn gs-btn--primary" style="padding:3px 8px; min-height:0;">Approva</button>
-            <button name="esito" value="{{ C.AZIONE_OFI_RESPINTA }}" class="gs-btn" style="padding:3px 8px; min-height:0;">Respingi</button>
-          </form>
+  {# ---- Header card --------------------------------------------------- #}
+  <div class="gs-panel" style="margin-top:0;">
+    <div class="gs-deth">
+      <div class="gs-deth__code">
+        <div class="k">Codice</div>
+        <div class="v">{{ spec.codice }}</div>
+        {% if spec.revisione %}<div class="rev">Revisione <b>r.{{ spec.revisione }}</b></div>{% endif %}
+      </div>
+      <div class="gs-deth__body">
+        <div style="display:flex; align-items:flex-start; gap:14px;">
+          <div style="flex:1;">
+            <h1 style="margin:0 0 6px; font-size:19px; font-weight:800; color:#0c2545;">{{ spec.titolo }}</h1>
+            <div class="gs-meta">
+              <span>{% include "gestione_specifiche/partials/_icon.html" with name="file" size=15 %} {{ spec.get_tipo_display }}</span>
+              <span>{% include "gestione_specifiche/partials/_icon.html" with name="user" size=15 %} Fonte: {{ spec.get_fonte_display }}{% if spec.cliente %} — {{ spec.cliente }}{% endif %}</span>
+              {% if spec.data_verifica %}<span>{% include "gestione_specifiche/partials/_icon.html" with name="calendar" size=15 %} Verifica entro {{ spec.data_verifica|date:"d/m/Y" }}</span>{% endif %}
+            </div>
+          </div>
+          <span class="gs-pill gs-pill--lg {{ spec.stato }}">{{ spec.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding-top:12px; border-top:1px solid #eef2f7;">
+          {% if spec.revisione_precedente_id %}
+          <a href="{% url 'gestione_specifiche:scheda_storico' spec.revisione_precedente_id %}" style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#1f87cd; text-decoration:none;">
+            {% include "gestione_specifiche/partials/_icon.html" with name="link" size=14 %} Revisione precedente · r.{{ spec.revisione_precedente.revisione|default:"0" }} ({{ spec.revisione_precedente.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }})
+          </a>
           {% endif %}
-        </td>
-      </tr>
+          <div style="flex:1;"></div>
+          {% if spec.stato == C.STATO_BOZZA %}
+            <a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Modifica metadati</a>
+            <form method="post" action="{% url 'gestione_specifiche:avvia_flow_down' spec.pk %}">{% csrf_token %}
+              <button class="gs-btn gs-btn--cyan" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=15 %} Avvia flow-down</button>
+            </form>
+          {% elif spec.stato == C.STATO_FLOW_DOWN %}
+            {% if mod and not mod.compilatore_id %}
+            <form method="post" action="{% url 'gestione_specifiche:claim' spec.pk %}">{% csrf_token %}
+              <button class="gs-btn" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="hand" size=15 %} Presa in carico</button>
+            </form>
+            {% endif %}
+            <a class="gs-btn gs-btn--cyan" href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=15 %} Compila MOD.133</a>
+            {% if mod and mod.data_chiusura_compilazione %}
+            <a class="gs-btn gs-btn--success" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Approva</a>
+            {% endif %}
+          {% elif spec.stato == C.STATO_IN_VALIDITA %}
+            <a class="gs-btn" href="{% url 'gestione_specifiche:nuova' %}?da={{ spec.pk }}">{% include "gestione_specifiche/partials/_icon.html" with name="plus" size=15 %} Nuova revisione</a>
+            <a class="gs-btn gs-btn--cyan" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %} Distribuisci</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  {# ---- Tabs ---------------------------------------------------------- #}
+  <div class="gs-tabs">
+    <button class="gs-tab" data-tab="dati" type="button">{% include "gestione_specifiche/partials/_icon.html" with name="file" size=15 %} Dati</button>
+    <button class="gs-tab" data-tab="mod133" type="button">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=15 %} MOD.133</button>
+    <button class="gs-tab" data-tab="distr" type="button">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %} Distribuzione</button>
+    <button class="gs-tab" data-tab="storico" type="button">{% include "gestione_specifiche/partials/_icon.html" with name="history" size=15 %} Storico</button>
+  </div>
+
+  {# ---- TAB: Dati ----------------------------------------------------- #}
+  <div data-panel="dati">
+    <div class="gs-panel gs-panel--pad">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px 28px;">
+        <div><div class="gs-flabel">Titolo specifica</div><div style="font-size:14px; font-weight:600; color:#1c2b42;">{{ spec.titolo }}</div></div>
+        <div><div class="gs-flabel">Tipo documento</div><div style="font-size:14px; color:#1c2b42;">{{ spec.get_tipo_display }}</div></div>
+        <div><div class="gs-flabel">Fonte</div><div style="font-size:14px; color:#1c2b42;">{{ spec.get_fonte_display }}</div></div>
+        <div><div class="gs-flabel">Cliente</div><div style="font-size:14px; color:#1c2b42;">{{ spec.cliente|default:"—" }}</div></div>
+        <div><div class="gs-flabel">Data ricezione</div><div style="font-size:14px; color:#1c2b42;">{{ spec.data_inserimento|date:"d/m/Y" }}</div></div>
+        <div><div class="gs-flabel">Prossima verifica periodica</div><div style="font-size:14px; color:#1c2b42;">{{ spec.data_verifica|date:"d/m/Y"|default:"—" }}</div></div>
+        {% if spec.tag %}<div><div class="gs-flabel">TAG di processo</div><span class="gs-chip">{% include "gestione_specifiche/partials/_icon.html" with name="tag" size=13 %} {{ spec.tag }}</span></div>{% endif %}
+        {% if spec.commessa_ref %}<div><div class="gs-flabel">Rif. commessa</div><div style="font-size:14px; color:#1c2b42;">{{ spec.commessa_ref }}</div></div>{% endif %}
+      </div>
+      {% if spec.note %}<div style="margin-top:18px;"><div class="gs-flabel">Note</div><div style="font-size:13px; color:#5b6b82; line-height:1.5;">{{ spec.note|linebreaksbr }}</div></div>{% endif %}
+      <div style="margin-top:20px; padding-top:18px; border-top:1px solid #eef2f7; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span class="gs-flabel" style="margin:0;">Documento allegato</span>
+        {% if spec.allegato %}
+        <a href="{% url 'gestione_specifiche:allegato_download' spec.pk %}" style="display:inline-flex; align-items:center; gap:9px; padding:8px 13px; border-radius:10px; background:#f6f9fd; border:1px solid #e6eef7; text-decoration:none;">
+          <span style="color:#1f87cd;">{% include "gestione_specifiche/partials/_icon.html" with name="file" size=15 %}</span>
+          <span style="font-size:12.5px; font-weight:700; color:#1c2b42;">{{ spec.allegato_nome }}</span>
+          <span style="color:#1f87cd;">{% include "gestione_specifiche/partials/_icon.html" with name="download" size=15 %}</span>
+        </a>
+        {% else %}<span style="font-size:12.5px; color:#92a0b5; font-style:italic;">Nessun allegato</span>{% endif %}
+        {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN %}<div style="flex:1;"></div><a class="gs-btn" href="{% url 'gestione_specifiche:modifica' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Modifica metadati</a>{% endif %}
+      </div>
+    </div>
+
+    {# Gestione stato (motivo obbligatorio) #}
+    {% if spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_IN_VALIDITA or spec.stato == C.STATO_SOSPESO or spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_ERRORE_TECNICO %}
+    <div class="gs-panel gs-panel--pad">
+      <div class="gs-eyebrow" style="margin-bottom:12px;">Gestione stato</div>
+      <div class="gs-actions">
+        {% if spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_IN_VALIDITA %}
+        <form method="post" action="{% url 'gestione_specifiche:sospendi' spec.pk %}" style="display:flex; gap:8px;">{% csrf_token %}
+          <input class="gs-input" name="motivo" placeholder="Motivo sospensione" style="max-width:260px; height:38px;">
+          <button class="gs-btn gs-btn--ghost" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="pause" size=15 %} Sospendi</button>
+        </form>
+        {% endif %}
+        {% if spec.stato == C.STATO_SOSPESO %}
+        <form method="post" action="{% url 'gestione_specifiche:ripristina' spec.pk %}" style="display:flex; gap:8px;">{% csrf_token %}
+          <input class="gs-input" name="motivo" placeholder="Motivo ripristino" style="max-width:260px; height:38px;">
+          <button class="gs-btn gs-btn--cyan" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="play" size=14 %} Ripristina</button>
+        </form>
+        {% endif %}
+        {% if spec.stato == C.STATO_BOZZA or spec.stato == C.STATO_FLOW_DOWN or spec.stato == C.STATO_SOSPESO or spec.stato == C.STATO_ERRORE_TECNICO %}
+        <form method="post" action="{% url 'gestione_specifiche:annulla' spec.pk %}" style="display:flex; gap:8px;">{% csrf_token %}
+          <input class="gs-input" name="motivo" placeholder="Motivo annullamento" style="max-width:260px; height:38px;">
+          <button class="gs-btn gs-btn--danger" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="ban" size=15 %} Annulla</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---- TAB: MOD.133 -------------------------------------------------- #}
+  <div data-panel="mod133">
+    {% if not mod %}
+    <div class="gs-panel gs-panel--pad" style="text-align:center; padding:28px;">
+      <div style="width:48px; height:48px; margin:0 auto 12px; border-radius:13px; background:#e4f1fb; color:#1665a3; display:flex; align-items:center; justify-content:center;">{% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=22 %}</div>
+      <h3 style="margin:0 0 5px; font-size:15px; font-weight:800; color:#0c2545;">MOD.133 non ancora avviato</h3>
+      <p style="margin:0 0 16px; font-size:12.5px; color:#7c8aa2;">Avvia il flow-down per creare il modulo MOD.133 e iniziare la compilazione delle righe di requisito.</p>
+      {% if spec.stato == C.STATO_BOZZA %}
+      <form method="post" action="{% url 'gestione_specifiche:avvia_flow_down' spec.pk %}" style="display:inline;">{% csrf_token %}
+        <button class="gs-btn gs-btn--cyan" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=15 %} Avvia flow-down</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div style="display:flex; align-items:center; justify-content:space-between; margin:20px 2px 12px; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h2 style="margin:0; font-size:16px; font-weight:800; color:#0c2545;">MOD.133 — Flow-down dei requisiti</h2>
+        <p style="margin:3px 0 0; font-size:12px; color:#7c8aa2;">{{ n_righe }} rig{{ n_righe|pluralize:"a,he" }} · {{ n_impatto }} a impatto · le righe a impatto generano OFI dopo conferma</p>
+      </div>
+      <div class="gs-actions">
+        {% if spec.stato == C.STATO_FLOW_DOWN %}<a class="gs-btn gs-btn--dashed" href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Compila / modifica</a>{% endif %}
+        {% if righe_ofi_candidate and spec.stato == C.STATO_IN_VALIDITA %}<button class="gs-btn gs-btn--ofi" type="button" onclick="gsOpenOfi()">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=15 %} Genera OFI ({{ righe_ofi_candidate|length }})</button>{% endif %}
+      </div>
+    </div>
+
+    <div class="gs-panel" style="margin-top:0;">
+      <div class="gs-panel__head">
+        <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:12px;">
+          <span><span class="gs-eyebrow">Compilatore</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.compilatore|default:"— non preso in carico" }}</div></span>
+          <span><span class="gs-eyebrow">Approvatore</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.approvatore|default:"—" }}</div></span>
+          <span><span class="gs-eyebrow">Esito</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.get_esito_display|default:"—" }}</div></span>
+          <span><span class="gs-eyebrow">Chiusura compilazione</span><div style="font-weight:700; color:#0c2545; margin-top:2px;">{{ mod.data_chiusura_compilazione|date:"d/m/Y H:i"|default:"—" }}</div></span>
+        </div>
+      </div>
+      <div style="padding:6px 0;">
+        {% for r in righe %}
+        <div style="display:flex; gap:13px; padding:14px 18px; {% if not forloop.last %}border-bottom:1px solid #f1f5fa;{% endif %}">
+          <span class="gs-row133__n">{{ forloop.counter|stringformat:"02d" }}</span>
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+              {% if r.rif_paragrafo %}<span style="font-size:12.5px; font-weight:800; color:#0c2545;">{{ r.rif_paragrafo }}</span>{% endif %}
+              <span style="font-size:13px; color:#1c2b42;">{{ r.argomento|default:"—" }}</span>
+            </div>
+            <div style="display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+              {% if r.impatto_documenti %}<span class="gs-tag is-blue">Impatto doc{% if r.rif_doc_cn %} · {{ r.rif_doc_cn }}{% endif %}</span>{% endif %}
+              {% if r.impatto_operativo %}<span class="gs-tag is-green">Impatto operativo</span>{% endif %}
+              {% if r.tag_processo %}<span class="gs-tag">{% include "gestione_specifiche/partials/_icon.html" with name="tag" size=12 %} {{ r.tag_processo }}</span>{% endif %}
+              {% if r.ofi %}<span class="gs-tag is-orange">OFI #{{ r.ofi }} → MOD.174</span>
+              {% elif r.genera_ofi %}<span class="gs-tag is-orange">Genera OFI</span>{% endif %}
+              {% if not r.impatto_documenti and not r.impatto_operativo and not r.genera_ofi %}<span class="gs-tag is-grey">Nessun impatto documentale</span>{% endif %}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div style="padding:18px; text-align:center; color:#92a0b5; font-size:13px;">Nessuna riga compilata.</div>
+        {% endfor %}
+      </div>
+      {% if spec.stato == C.STATO_FLOW_DOWN %}
+      <div style="display:flex; align-items:center; gap:10px; padding:14px 18px; background:#fbfcfe; border-top:1px solid #eef2f7; flex-wrap:wrap;">
+        <div style="flex:1;"></div>
+        <a class="gs-btn" href="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="edit" size=15 %} Apri compilazione</a>
+        {% if mod.data_chiusura_compilazione %}
+          <a class="gs-btn gs-btn--success" href="{% url 'gestione_specifiche:mod133_approva' spec.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="shield" size=15 %} Vai all'approvazione</a>
+        {% else %}
+          <form method="post" action="{% url 'gestione_specifiche:mod133_chiudi' spec.pk %}">{% csrf_token %}<button class="gs-btn gs-btn--cyan" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=16 %} Chiudi compilazione</button></form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if azioni_ofi %}
+    <div class="gs-panel">
+      <div class="gs-panel__head"><h2 class="gs-panel__title">Azioni OFI — documenti CN (MOD.174)</h2><span class="gs-panel__meta">{{ azioni_ofi|length }} azion{{ azioni_ofi|length|pluralize:"e,i" }}</span></div>
+      <div class="gs-scroll">
+        <table class="gs-table">
+          <thead><tr><th>OFI</th><th>Documento CN</th><th>Modo approvazione</th><th>Stato</th><th>Approvatore</th><th style="text-align:right;">Azioni</th></tr></thead>
+          <tbody>
+            {% for a in azioni_ofi %}
+            <tr>
+              <td class="gs-code">#{{ a.ofi }}</td>
+              <td>{{ a.documento_cn|default:"—" }}</td>
+              <td style="font-size:12px; color:#5b6b82;">{{ a.get_modo_approvazione_display }}</td>
+              <td>{{ a.get_stato_display }}</td>
+              <td style="font-size:12px; color:#5b6b82;">{{ a.approvatore|default:"—" }}</td>
+              <td>
+                {% if a.stato != C.AZIONE_OFI_APPROVATA and a.stato != C.AZIONE_OFI_RESPINTA %}
+                <form method="post" action="{% url 'gestione_specifiche:azione_ofi_approva' a.pk %}" class="gs-acts">{% csrf_token %}
+                  <button name="esito" value="{{ C.AZIONE_OFI_APPROVATA }}" class="gs-btn gs-btn--success" style="min-height:30px; padding:0 11px; font-size:12px;">Approva</button>
+                  <button name="esito" value="{{ C.AZIONE_OFI_RESPINTA }}" class="gs-btn gs-btn--danger" style="min-height:30px; padding:0 11px; font-size:12px;">Respingi</button>
+                </form>
+                {% else %}<span style="font-size:12px; color:#92a0b5;">{{ a.get_stato_display }}</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  {# ---- TAB: Distribuzione -------------------------------------------- #}
+  <div data-panel="distr">
+    {% if distribuzioni %}
+    <div class="gs-panel">
+      <div class="gs-panel__head"><h2 class="gs-panel__title">Distribuzioni tracciate</h2>
+        {% if spec.stato == C.STATO_IN_VALIDITA %}<a class="gs-btn gs-btn--cyan" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}" style="min-height:34px;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %} Nuova distribuzione</a>{% endif %}
+      </div>
+      <div class="gs-scroll">
+        <table class="gs-table">
+          <thead><tr><th>Data</th><th>Canale</th><th>Destinatari</th><th>Presa visione</th><th>Copie dist./rit.</th><th>Deroga</th></tr></thead>
+          <tbody>
+            {% for d in distribuzioni %}
+            <tr>
+              <td style="font-size:12.5px; color:#5b6b82;">{{ d.data_distribuzione|date:"d/m/Y H:i"|default:"—" }}</td>
+              <td>{{ d.get_canale_display }}</td>
+              <td style="font-size:12px; color:#5b6b82;">{% for r in d.destinatari.all %}{{ r.nome }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+              <td>{% if d.presa_visione_richiesta %}<span class="gs-tag is-green">Richiesta</span>{% else %}<span class="gs-tag is-grey">Solo notifica</span>{% endif %}</td>
+              <td>{{ d.n_copie_distribuite }} / {{ d.n_copie_ritirate }}</td>
+              <td>{% if d.deroga_giustificazione %}<span class="gs-tag is-amber" title="{{ d.deroga_giustificazione }}">Deroga</span>{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="gs-panel gs-panel--pad" style="text-align:center; padding:28px;">
+      <div style="width:48px; height:48px; margin:0 auto 12px; border-radius:13px; background:#e4f1fb; color:#1665a3; display:flex; align-items:center; justify-content:center;">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=22 %}</div>
+      {% if spec.stato == C.STATO_IN_VALIDITA %}
+        <h3 style="margin:0 0 5px; font-size:15px; font-weight:800; color:#0c2545;">Nessuna distribuzione registrata</h3>
+        <p style="margin:0 0 16px; font-size:12.5px; color:#7c8aa2;">La revisione è in validità: puoi distribuirla ai reparti e tracciare le copie cartacee.</p>
+        <a class="gs-btn gs-btn--cyan" href="{% url 'gestione_specifiche:distribuzione_nuova' spec.pk %}">Apri pannello distribuzione {% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %}</a>
+      {% else %}
+        <h3 style="margin:0 0 5px; font-size:15px; font-weight:800; color:#0c2545;">Distribuzione disponibile dopo la validità</h3>
+        <p style="margin:0; font-size:12.5px; color:#7c8aa2;">La revisione potrà essere distribuita ai reparti una volta approvato il MOD.133 e portata in validità.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ---- TAB: Storico -------------------------------------------------- #}
+  <div data-panel="storico">
+    <div class="gs-panel">
+      <div class="gs-panel__head"><h2 class="gs-panel__title">Cronologia eventi</h2>
+        <a class="gs-btn" href="{% url 'gestione_specifiche:scheda_storico' spec.pk %}" style="min-height:34px;">{% include "gestione_specifiche/partials/_icon.html" with name="history" size=15 %} Apri scheda storico</a>
+      </div>
+      <div class="gs-panel--pad" style="padding-top:18px;">
+        <div class="gs-tl">
+          {% for e in eventi %}
+          <div class="gs-tl__row">
+            <div class="gs-tl__rail"><div class="gs-tl__dot {% if e.stato_a == C.STATO_IN_VALIDITA %}is-green{% elif e.stato_a == C.STATO_FLOW_DOWN %}is-blue{% endif %}"></div>{% if not forloop.last %}<div class="gs-tl__line"></div>{% endif %}</div>
+            <div class="gs-tl__body">
+              <div class="gs-tl__when">{{ e.timestamp|date:"d/m/Y H:i" }}</div>
+              <div class="gs-tl__title">{{ e.stato_da|default:"—" }} → {{ e.stato_a }}</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"><span style="font-size:11.5px; color:#5b6b82;">{{ e.attore|default:"sistema" }}</span><span class="gs-tag is-grey">trigger: {{ e.trigger|default:"—" }}</span></div>
+            </div>
+          </div>
+          {% empty %}
+          <p style="color:#92a0b5; font-size:13px;">Nessun evento.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ---- Modale OFI → MOD.174 ------------------------------------------- #}
+{% if righe_ofi_candidate %}
+<div class="gs-modal-ov" id="gs-ofi-modal" onclick="if(event.target===this)gsCloseOfi()">
+  <div class="gs-modal">
+    <div class="gs-modal__head">
+      <div style="width:42px; height:42px; flex:0 0 42px; border-radius:12px; background:#fff1e3; color:#c2410c; display:flex; align-items:center; justify-content:center;">{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=20 %}</div>
+      <div style="flex:1;">
+        <h2 style="margin:0; font-size:18px; font-weight:800; color:#0c2545;">Conferma generazione OFI → MOD.174</h2>
+        <p style="margin:5px 0 0; font-size:12.5px; color:#7c8aa2; line-height:1.5;">La generazione non è automatica. Conferma le righe a impatto che devono produrre un'Opportunità di Miglioramento.</p>
+      </div>
+      <button class="gs-modal__close" type="button" onclick="gsCloseOfi()">{% include "gestione_specifiche/partials/_icon.html" with name="x" size=16 %}</button>
+    </div>
+    <div style="padding:0 24px;">
+      <div class="gs-eyebrow" style="margin-bottom:9px;">Righe a impatto · {{ righe_ofi_candidate|length }}</div>
+      {% for r in righe_ofi_candidate %}
+      <div class="gs-ofi-row">
+        <div style="flex:1;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            {% if r.rif_paragrafo %}<span style="font-size:12.5px; font-weight:800; color:#0c2545;">{{ r.rif_paragrafo }}</span>{% endif %}
+            <span style="font-size:12.5px; color:#1c2b42;">{{ r.argomento|default:"—" }}</span>
+          </div>
+          {% if r.rif_doc_cn %}<div style="font-size:11.5px; color:#7c8aa2; margin-top:4px;">Documento CN impattato: <strong style="color:#1665a3;">{{ r.rif_doc_cn }}</strong></div>{% endif %}
+        </div>
+        <form method="post" action="{% url 'gestione_specifiche:riga_genera_ofi' spec.pk r.pk %}">{% csrf_token %}
+          <button class="gs-btn gs-btn--orange" type="submit" style="min-height:34px; padding:0 13px; font-size:12px;">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=14 %} Genera</button>
+        </form>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
+      <div style="display:flex; align-items:flex-start; gap:10px; margin-top:16px; padding:12px 14px; border-radius:11px; background:#f6f9fd; border:1px solid #e6eef7;">
+        <span style="color:#1665a3; margin-top:1px;">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=16 %}</span>
+        <div style="font-size:12px; color:#5b6b82; line-height:1.55;">Ogni OFI avvia il sotto-flusso <strong style="color:#0c2545;">modifica documento CN → approvazione</strong> su MOD.174 e resta tracciato nello storico della specifica.</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; padding:18px 24px 22px;">
+      <div style="flex:1;"></div>
+      <button class="gs-btn" type="button" onclick="gsCloseOfi()">Chiudi</button>
+    </div>
+  </div>
 </div>
 {% endif %}
 
-{% if distribuzioni %}
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Distribuzioni</h3>
-  <table class="gs-table">
-    <thead><tr><th>Data</th><th>Canale</th><th>Destinatari</th><th>Presa visione</th><th>Cartacea</th><th>Copie dist./rit.</th><th>Deroga</th></tr></thead>
-    <tbody>
-      {% for d in distribuzioni %}
-      <tr>
-        <td>{{ d.data_distribuzione|date:"d/m/Y H:i"|default:"—" }}</td>
-        <td>{{ d.get_canale_display }}</td>
-        <td>{% for r in d.destinatari.all %}{{ r.nome }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
-        <td>{% if d.presa_visione_richiesta %}richiesta{% else %}solo notifica{% endif %}</td>
-        <td>{% if d.cartacea %}✓{% endif %}</td>
-        <td>{{ d.n_copie_distribuite }} / {{ d.n_copie_ritirate }}</td>
-        <td>{% if d.deroga_giustificazione %}<span title="{{ d.deroga_giustificazione }}" style="color:#b35b00;">deroga</span>{% else %}—{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-<div class="gs-card">
-  <h3 style="margin-top:0; color:#0c2545;">Cronologia eventi</h3>
-  {% for e in eventi %}
-  <div class="gs-evt"><b>{{ e.timestamp|date:"d/m/Y H:i" }}</b> · {{ e.stato_da|default:"—" }} → <b>{{ e.stato_a }}</b>
-    · {{ e.trigger }}{% if e.attore %} · {{ e.attore }}{% endif %}</div>
-  {% empty %}
-  <p style="color:#6c84a6;">Nessun evento.</p>
-  {% endfor %}
-</div>
+<script>
+(function(){
+  var wrap = document.querySelector('.gs-wrap[data-default-tab]');
+  if(!wrap) return;
+  var tabs = wrap.querySelectorAll('.gs-tab');
+  var panels = wrap.querySelectorAll('[data-panel]');
+  function activate(name){
+    tabs.forEach(function(t){ t.classList.toggle('is-active', t.dataset.tab === name); });
+    panels.forEach(function(p){ p.style.display = (p.dataset.panel === name) ? '' : 'none'; });
+    try{ history.replaceState(null,'',location.pathname + '#' + name); }catch(e){}
+  }
+  tabs.forEach(function(t){ t.addEventListener('click', function(){ activate(t.dataset.tab); }); });
+  var initial = (location.hash || '').replace('#','');
+  var valid = Array.prototype.some.call(tabs, function(t){ return t.dataset.tab === initial; });
+  activate(valid ? initial : wrap.dataset.defaultTab);
+})();
+function gsOpenOfi(){ var m=document.getElementById('gs-ofi-modal'); if(m) m.classList.add('is-open'); }
+function gsCloseOfi(){ var m=document.getElementById('gs-ofi-modal'); if(m) m.classList.remove('is-open'); }
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') gsCloseOfi(); });
+</script>
 {% endblock %}

@@ -91,6 +91,17 @@ class FlussoUITests(TestCase):
         self.assertEqual(mod.righe.count(), 2)
         self.assertEqual(mod.compilatore_id, self.comp.id)  # claim implicito
 
+    def test_compila_riga_senza_ordine(self):
+        """La UI ridisegnata non mostra il campo 'ordine': una riga inviata
+        senza ordine deve salvarsi (coerciato a 0), non fallire la validazione."""
+        spec = self._crea_e_avvia("SP-UI-NOORD")
+        r = self.client.post(reverse("gestione_specifiche:mod133_compila", args=[spec.pk]),
+                             _formset_data([{"ordine": "", "argomento": "Senza ordine"}]))
+        self.assertEqual(r.status_code, 302)
+        riga = MOD133.objects.get(specifica=spec).righe.get()
+        self.assertEqual(riga.argomento, "Senza ordine")
+        self.assertEqual(riga.ordine, 0)
+
     def test_obbligatorieta_condizionale_documenti(self):
         spec = self._crea_e_avvia("SP-UI-COND")
         r = self.client.post(reverse("gestione_specifiche:mod133_compila", args=[spec.pk]),
@@ -180,7 +191,7 @@ class TemplateRenderTests(TestCase):
         spec.save()
         r = self.client.get(reverse("gestione_specifiche:mod133_approva", args=[spec.pk]))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Approvazione flow-down")
+        self.assertContains(r, "Approvazione MOD.133")
 
     def test_compila_get(self):
         spec = Specifica.objects.create(codice="SP-RC", titolo="T")

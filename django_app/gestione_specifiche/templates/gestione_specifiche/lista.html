@@ -1,81 +1,188 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-{% block title %}Gestione Specifiche{% endblock %}
+{% block title %}Cruscotto Specifiche{% endblock %}
 
-{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}
-<style>
-  .gs-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin-bottom:12px; }
-  .gs-filtri .fld { display:flex; flex-direction:column; gap:2px; }
-  .gs-filtri .fld .lbl { font-size:.72rem; color:#6c84a6; text-transform:uppercase; }
-  .gs-filtri select, .gs-filtri input { padding:6px 8px; border:1px solid #cdd9ea; border-radius:8px; font-size:.85rem; }
-  .gs-inline a, .gs-inline button { font-size:.78rem; padding:3px 7px; border:1px solid #cdd9ea; border-radius:7px; background:#fff; color:#24395e; text-decoration:none; cursor:pointer; }
-</style>
-{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="gs-head">
-  <h1>Gestione Specifiche</h1>
-  <p>Archivio specifiche tecniche + MOD.133 — tracciabilità ISO 9001 / EN 9100. Storico sempre consultabile.</p>
-</div>
+<div class="gs-wrap">
 
-<div class="gs-toolbar">
-  <a href="{% url 'gestione_specifiche:nuova' %}" style="background:#0c2545; color:#fff; border-color:#0c2545;">+ Nuova specifica</a>
-  <a href="{% url 'gestione_specifiche:ricerca' %}">🔮 Ricerca AI</a>
-  <a href="?" class="{% if not mostra_storico and not f.stato %}active{% endif %}">Attive</a>
-  <a href="?storico=1" class="{% if mostra_storico %}active{% endif %}">Mostra storico</a>
-  <span style="color:#6c84a6; font-size:.85rem;">{{ tot }} element{{ tot|pluralize:"o,i" }}</span>
-</div>
-
-<form method="get" class="gs-filtri">
-  {% if mostra_storico %}<input type="hidden" name="storico" value="1">{% endif %}
-  <div class="fld"><span class="lbl">Cerca</span><input type="text" name="q" value="{{ f.q }}" placeholder="codice o titolo"></div>
-  <div class="fld"><span class="lbl">Stato</span>
-    <select name="stato"><option value="">— tutti —</option>
-      {% for val,label in STATO_CHOICES %}<option value="{{ val }}" {% if f.stato == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select></div>
-  <div class="fld"><span class="lbl">Tipo</span>
-    <select name="tipo"><option value="">— tutti —</option>
-      {% for val,label in TIPO_CHOICES %}<option value="{{ val }}" {% if f.tipo == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select></div>
-  <div class="fld"><span class="lbl">Cliente</span><input type="text" name="cliente" value="{{ f.cliente }}"></div>
-  <div class="fld"><span class="lbl">TAG</span><input type="text" name="tag" value="{{ f.tag }}"></div>
-  <div class="fld"><span class="lbl">Dal</span><input type="date" name="dal" value="{{ f.dal }}"></div>
-  <div class="fld"><span class="lbl">Al</span><input type="date" name="al" value="{{ f.al }}"></div>
-  <button class="gs-btn gs-btn--primary" type="submit">Filtra</button>
-  <a class="gs-btn" href="{% if mostra_storico %}?storico=1{% else %}?{% endif %}">Azzera</a>
-</form>
-
-<table class="gs-table">
-  <thead>
-    <tr>
-      <th>Codice</th><th>Rev.</th><th>Titolo</th><th>Tipo</th><th>Cliente</th>
-      <th>TAG</th><th>Stato</th><th>MOD.133</th><th>Verifica</th><th>Azioni</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for s in specifiche %}
-    <tr>
-      <td><a href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{{ s.codice }}</a></td>
-      <td>{{ s.revisione|default:"—" }}</td>
-      <td>{{ s.titolo }}</td>
-      <td>{{ s.get_tipo_display }}</td>
-      <td>{{ s.cliente|default:"—" }}</td>
-      <td>{{ s.tag|default:"—" }}</td>
-      <td><span class="gs-pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
-      <td>{% if s.mod133.esito %}{{ s.mod133.get_esito_display }}{% elif s.mod133 %}in corso{% else %}—{% endif %}</td>
-      <td>{{ s.data_verifica|default:"—" }}</td>
-      <td class="gs-inline">
-        <a href="{% url 'gestione_specifiche:dettaglio' s.pk %}">Apri</a>
-        <a href="{% url 'gestione_specifiche:scheda_storico' s.pk %}">Storico</a>
-        {% if s.stato == C.STATO_IN_VALIDITA %}
-          <a href="{% url 'gestione_specifiche:distribuzione_nuova' s.pk %}">Distribuisci</a>
+  {# ---- Hero ---------------------------------------------------------- #}
+  <section class="gs-hero">
+    <div class="gs-hero__row">
+      <div style="flex:1; min-width:280px;">
+        <div class="gs-hero__eyebrow"><i></i>MOD.133 · Flow-down dei requisiti</div>
+        <h1>Cruscotto Specifiche tecniche</h1>
+        <p class="gs-hero__sub">Ciclo di vita di specifiche, comunicazioni e piani di qualità ricevuti dai clienti. Tracciamento per audit ISO 9001 / EN 9100.</p>
+      </div>
+      <div class="gs-hero__side">
+        {% if kpi.verifica_scad %}
+        <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-hero__chip" style="text-decoration:none;">
+          <i>{% include "gestione_specifiche/partials/_icon.html" with name="alert" size=15 %}</i>
+          {{ kpi.verifica_scad }} verifica{{ kpi.verifica_scad|pluralize:"e" }} in scadenza
+        </a>
         {% endif %}
-      </td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="10" style="text-align:center; color:#6c84a6; padding:24px;">Nessuna specifica.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+        <a href="{% url 'gestione_specifiche:nuova' %}" class="gs-btn gs-btn--orange" style="height:42px;">
+          {% include "gestione_specifiche/partials/_icon.html" with name="plus" size=17 %} Nuova specifica
+        </a>
+      </div>
+    </div>
+  </section>
+
+  {# ---- KPI ----------------------------------------------------------- #}
+  <div class="gs-kpis">
+    <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-kpi gs-kpi--link">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-green">{% include "gestione_specifiche/partials/_icon.html" with name="check" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div class="gs-kpi__num">{{ kpi.in_validita }}</div>
+      <div class="gs-kpi__label">In validità</div>
+    </a>
+    <a href="?stato={{ C.STATO_FLOW_DOWN }}" class="gs-kpi gs-kpi--link">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-blue">{% include "gestione_specifiche/partials/_icon.html" with name="branch" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div class="gs-kpi__num">{{ kpi.flow_down }}</div>
+      <div class="gs-kpi__label">In flow-down</div>
+    </a>
+    <a href="?stato={{ C.STATO_IN_VALIDITA }}" class="gs-kpi gs-kpi--link gs-kpi--warn">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-amber">{% include "gestione_specifiche/partials/_icon.html" with name="clock" size=20 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div class="gs-kpi__num is-amber">{{ kpi.verifica_scad }}</div>
+      <div class="gs-kpi__label">Verifica in scadenza</div>
+    </a>
+    <a href="?stato={{ C.STATO_SOSPESO }}" class="gs-kpi gs-kpi--link">
+      <div class="gs-kpi__top">
+        <div class="gs-kpi__icon is-amber">{% include "gestione_specifiche/partials/_icon.html" with name="pause" size=18 %}</div>
+        <span class="gs-kpi__arrow">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      </div>
+      <div class="gs-kpi__num">{{ kpi.sospeso }}</div>
+      <div class="gs-kpi__label">Sospese</div>
+    </a>
+  </div>
+
+  {# ---- Elenco -------------------------------------------------------- #}
+  <div class="gs-panel">
+    <form method="get" class="gs-bar">
+      <div class="gs-bar__search">
+        {% include "gestione_specifiche/partials/_icon.html" with name="search" size=16 %}
+        <input type="text" name="q" value="{{ f.q }}" placeholder="Codice, titolo o TAG di processo…">
+      </div>
+      {% if mostra_storico %}<input type="hidden" name="storico" value="1">{% endif %}
+      <label class="gs-bar__sel">Cliente
+        <input type="text" name="cliente" value="{{ f.cliente }}" placeholder="—" style="width:110px; border:none; outline:none; background:transparent; font-family:inherit; font-weight:600; color:#5b6b82;">
+      </label>
+      <label class="gs-bar__sel">Stato
+        <select name="stato" onchange="this.form.submit()">
+          <option value="">tutti</option>
+          {% for val,label in STATO_CHOICES %}<option value="{{ val }}" {% if f.stato == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="gs-bar__sel">Tipo
+        <select name="tipo" onchange="this.form.submit()">
+          <option value="">tutti</option>
+          {% for val,label in TIPO_CHOICES %}<option value="{{ val }}" {% if f.tipo == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="gs-btn" style="min-height:38px;">Filtra</button>
+      <div class="gs-bar__div"></div>
+      <a class="gs-switch {% if mostra_storico %}is-on{% endif %}"
+         href="?{% if mostra_storico %}{% else %}storico=1{% endif %}{% if f.stato %}&stato={{ f.stato }}{% endif %}{% if f.tipo %}&tipo={{ f.tipo }}{% endif %}{% if f.cliente %}&cliente={{ f.cliente }}{% endif %}{% if f.q %}&q={{ f.q }}{% endif %}">
+        <span class="gs-switch__track"><span class="gs-switch__knob"></span></span>
+        <span>Mostra storico</span>
+      </a>
+    </form>
+
+    <div class="gs-scroll">
+      <table class="gs-table" style="min-width:920px;">
+        <thead>
+          <tr>
+            <th>Codice · Rev</th><th>Titolo</th><th>Tipo</th><th>Stato</th><th>Stato MOD.133</th>
+            <th style="text-align:right;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in specifiche %}
+          <tr class="is-click {% if s.stato in C.STATI_TERMINALI %}is-storico{% endif %}"
+              onclick="if(!event.target.closest('a,button,form'))window.location='{% url 'gestione_specifiche:dettaglio' s.pk %}'">
+            <td><span class="gs-code">{{ s.codice }}{% if s.revisione %} <span class="rev">· r.{{ s.revisione }}</span>{% endif %}</span></td>
+            <td>
+              <div style="font-weight:600; color:#1c2b42;">{{ s.titolo }}</div>
+              <div class="gs-sub">{{ s.cliente|default:s.get_fonte_display }}</div>
+            </td>
+            <td style="font-size:12px; color:#5b6b82;">{{ s.get_tipo_display }}</td>
+            <td><span class="gs-pill {{ s.stato }}">{{ s.get_stato_display|cut:"S1 · "|cut:"S2 · "|cut:"S3 · "|cut:"S4 · "|cut:"S5 · "|cut:"S6 · "|cut:"S7 · "|cut:"S8 · "|cut:"S9 · " }}</span></td>
+            <td>
+              {% if s.mod_kind == "blue" and "compilazione" in s.mod_label %}
+                <span class="gs-tag is-blue">{{ s.mod_label }}</span>
+              {% elif s.mod_kind == "orange" %}
+                <span class="gs-tag is-orange">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=12 %} {{ s.mod_label }}</span>
+              {% elif s.mod_kind == "green" %}
+                <span style="font-size:12px; color:#1f7a52; font-weight:600;">{{ s.mod_label }}</span>
+              {% elif s.mod_kind == "amber" %}
+                <span style="font-size:12px; color:#a86a14; font-weight:600;">{{ s.mod_label }}</span>
+              {% elif s.mod_kind == "danger" %}
+                <span style="font-size:12px; color:#cf3a3a; font-weight:600;">{{ s.mod_label }}</span>
+              {% else %}
+                <span style="font-size:12px; color:#92a0b5;">{{ s.mod_label }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="gs-acts">
+                <a class="gs-iconbtn" title="Apri" href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="eye" size=15 %}</a>
+                {% if s.stato == C.STATO_FLOW_DOWN and not s.mod133.compilatore_id %}
+                  <form method="post" action="{% url 'gestione_specifiche:claim' s.pk %}" style="display:inline;">{% csrf_token %}
+                    <button class="gs-iconbtn is-amber" title="Presa in carico" type="submit">{% include "gestione_specifiche/partials/_icon.html" with name="hand" size=15 %}</button>
+                  </form>
+                {% endif %}
+                {% if s.stato == C.STATO_IN_VALIDITA %}
+                  <a class="gs-iconbtn" title="Distribuisci" href="{% url 'gestione_specifiche:distribuzione_nuova' s.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=15 %}</a>
+                {% endif %}
+                {% if s.stato == C.STATO_FLOW_DOWN or s.stato == C.STATO_IN_VALIDITA %}
+                  <a class="gs-iconbtn is-warn" title="Sospendi" href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="pause" size=15 %}</a>
+                {% elif s.stato == C.STATO_SOSPESO %}
+                  <a class="gs-iconbtn is-green" title="Riprendi" href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="play" size=14 %}</a>
+                {% endif %}
+                <a class="gs-iconbtn" title="Storico" href="{% url 'gestione_specifiche:scheda_storico' s.pk %}">{% include "gestione_specifiche/partials/_icon.html" with name="history" size=15 %}</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center; color:#92a0b5; padding:28px;">Nessuna specifica.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:12px 18px; font-size:12px; color:#92a0b5;">{{ tot }} element{{ tot|pluralize:"o,i" }}{% if specifiche|length < tot %} · primi {{ specifiche|length }} mostrati{% endif %} · <a href="{% url 'gestione_specifiche:kpi' %}" style="color:#1f87cd; font-weight:700; text-decoration:none;">Dashboard KPI →</a></div>
+  </div>
+
+  {# ---- Ciclo di vita ------------------------------------------------- #}
+  <div class="gs-panel gs-panel--pad">
+    <div class="gs-eyebrow" style="margin-bottom:14px;">Ciclo di vita della specifica</div>
+    <div class="gs-stepper">
+      <div class="gs-step s-grey"><span class="gs-step__n">S1</span>Bozza</div>
+      <span class="gs-step__sep">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      <div class="gs-step s-blue"><span class="gs-step__n">S2</span>Flow-down</div>
+      <span class="gs-step__sep">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      <div class="gs-step s-green"><span class="gs-step__n">S3</span>In validità</div>
+      <span class="gs-step__sep">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=16 %}</span>
+      <div class="gs-step s-mute"><span class="gs-step__n">S4</span>Superato</div>
+      <div style="flex:1; min-width:20px;"></div>
+      <div class="gs-step__exc">
+        <span class="gs-eyebrow">Eccezioni</span>
+        <span class="gs-exc" style="background:#fdf1de; color:#a86a14;">S5 Sospeso</span>
+        <span class="gs-exc" style="background:#fbeaea; color:#b5564f;">S6 Annullato</span>
+        <span class="gs-exc" style="background:#eef1f6; color:#5b6b82;">S7 Duplicato</span>
+        <span class="gs-exc" style="background:#fbeaea; color:#b5564f;">S8 Respinto</span>
+        <span class="gs-exc" style="background:#fbe3e3; color:#cf3a3a;">S9 Errore</span>
+      </div>
+    </div>
+  </div>
+
+</div>
 {% endblock %}

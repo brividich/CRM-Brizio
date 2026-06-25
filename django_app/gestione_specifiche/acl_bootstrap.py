@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v6"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v7"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -45,6 +45,7 @@ _CANONICAL = {
 # Binding route -> permesso (esteso man mano che le rotte vengono aggiunte).
 _ROUTE_BINDINGS = {
     "gestione_specifiche:lista": PERM_VIEW,
+    "gestione_specifiche:kpi": PERM_VIEW,
     "gestione_specifiche:dettaglio": PERM_VIEW,
     "gestione_specifiche:allegato_download": PERM_VIEW,
     "gestione_specifiche:nuova": PERM_COMPILA,
