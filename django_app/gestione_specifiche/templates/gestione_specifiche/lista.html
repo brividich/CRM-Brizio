@@ -1,0 +1,81 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione Specifiche{% endblock %}
+
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}
+<style>
+  .gs-filtri { display:flex; flex-wrap:wrap; gap:8px; align-items:end; margin-bottom:12px; }
+  .gs-filtri .fld { display:flex; flex-direction:column; gap:2px; }
+  .gs-filtri .fld .lbl { font-size:.72rem; color:#6c84a6; text-transform:uppercase; }
+  .gs-filtri select, .gs-filtri input { padding:6px 8px; border:1px solid #cdd9ea; border-radius:8px; font-size:.85rem; }
+  .gs-inline a, .gs-inline button { font-size:.78rem; padding:3px 7px; border:1px solid #cdd9ea; border-radius:7px; background:#fff; color:#24395e; text-decoration:none; cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>Gestione Specifiche</h1>
+  <p>Archivio specifiche tecniche + MOD.133 — tracciabilità ISO 9001 / EN 9100. Storico sempre consultabile.</p>
+</div>
+
+<div class="gs-toolbar">
+  <a href="{% url 'gestione_specifiche:nuova' %}" style="background:#0c2545; color:#fff; border-color:#0c2545;">+ Nuova specifica</a>
+  <a href="{% url 'gestione_specifiche:ricerca' %}">🔮 Ricerca AI</a>
+  <a href="?" class="{% if not mostra_storico and not f.stato %}active{% endif %}">Attive</a>
+  <a href="?storico=1" class="{% if mostra_storico %}active{% endif %}">Mostra storico</a>
+  <span style="color:#6c84a6; font-size:.85rem;">{{ tot }} element{{ tot|pluralize:"o,i" }}</span>
+</div>
+
+<form method="get" class="gs-filtri">
+  {% if mostra_storico %}<input type="hidden" name="storico" value="1">{% endif %}
+  <div class="fld"><span class="lbl">Cerca</span><input type="text" name="q" value="{{ f.q }}" placeholder="codice o titolo"></div>
+  <div class="fld"><span class="lbl">Stato</span>
+    <select name="stato"><option value="">— tutti —</option>
+      {% for val,label in STATO_CHOICES %}<option value="{{ val }}" {% if f.stato == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></div>
+  <div class="fld"><span class="lbl">Tipo</span>
+    <select name="tipo"><option value="">— tutti —</option>
+      {% for val,label in TIPO_CHOICES %}<option value="{{ val }}" {% if f.tipo == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></div>
+  <div class="fld"><span class="lbl">Cliente</span><input type="text" name="cliente" value="{{ f.cliente }}"></div>
+  <div class="fld"><span class="lbl">TAG</span><input type="text" name="tag" value="{{ f.tag }}"></div>
+  <div class="fld"><span class="lbl">Dal</span><input type="date" name="dal" value="{{ f.dal }}"></div>
+  <div class="fld"><span class="lbl">Al</span><input type="date" name="al" value="{{ f.al }}"></div>
+  <button class="gs-btn gs-btn--primary" type="submit">Filtra</button>
+  <a class="gs-btn" href="{% if mostra_storico %}?storico=1{% else %}?{% endif %}">Azzera</a>
+</form>
+
+<table class="gs-table">
+  <thead>
+    <tr>
+      <th>Codice</th><th>Rev.</th><th>Titolo</th><th>Tipo</th><th>Cliente</th>
+      <th>TAG</th><th>Stato</th><th>MOD.133</th><th>Verifica</th><th>Azioni</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in specifiche %}
+    <tr>
+      <td><a href="{% url 'gestione_specifiche:dettaglio' s.pk %}">{{ s.codice }}</a></td>
+      <td>{{ s.revisione|default:"—" }}</td>
+      <td>{{ s.titolo }}</td>
+      <td>{{ s.get_tipo_display }}</td>
+      <td>{{ s.cliente|default:"—" }}</td>
+      <td>{{ s.tag|default:"—" }}</td>
+      <td><span class="gs-pill {{ s.stato }}">{{ s.get_stato_display }}</span></td>
+      <td>{% if s.mod133.esito %}{{ s.mod133.get_esito_display }}{% elif s.mod133 %}in corso{% else %}—{% endif %}</td>
+      <td>{{ s.data_verifica|default:"—" }}</td>
+      <td class="gs-inline">
+        <a href="{% url 'gestione_specifiche:dettaglio' s.pk %}">Apri</a>
+        <a href="{% url 'gestione_specifiche:scheda_storico' s.pk %}">Storico</a>
+        {% if s.stato == C.STATO_IN_VALIDITA %}
+          <a href="{% url 'gestione_specifiche:distribuzione_nuova' s.pk %}">Distribuisci</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="10" style="text-align:center; color:#6c84a6; padding:24px;">Nessuna specifica.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

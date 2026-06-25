@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Conformità | Anagrafica{% endblock %}
 
@@ -39,7 +40,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
   <div class="hr-pagehead">
     <div>
       <div class="hr-pagehead-eyebrow">Anagrafica HR</div>
-      <h1 class="hr-pagehead-title">Conformità alla mansione</h1>
+      <h1 class="hr-pagehead-title">Conformità alla mansione{% info_hint "conformita" %}</h1>
       <p class="hr-pagehead-desc">Semaforo di idoneità per ogni dipendente attivo: formazione obbligatoria, visite mediche, qualifiche e DPI.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">

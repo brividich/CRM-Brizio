@@ -1611,7 +1611,7 @@ def dipendente_detail(request, legacy_id: int):
     qualifiche_dip = list(
         DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
         .select_related("tipo", "record_formazione", "record_formazione__corso", "sessione")
-        .prefetch_related("storico")
+        .prefetch_related("storico", "tipo__corsi")
         .order_by("data_scadenza", "tipo__nome")
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
@@ -1666,7 +1666,16 @@ def dipendente_detail(request, legacy_id: int):
         if not can_view_visite:
             qs_doc = qs_doc.exclude(tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
         documenti_dipendente = list(qs_doc.order_by("-created_at")[:100])
-        cartelle_documenti = list(CartellaDocumentoDipendente.objects.filter(attiva=True).order_by("ordine", "nome"))
+        # Scheletro cartelle: solo quelle applicabili al dipendente (targeting per
+        # reparto/ruoli operativi; cartella senza targeting = universale).
+        from .models import DipendenteAnagraficaAziendale as _Az, DipendenteRuoloOperativo as _RO
+        _area_nome = (_Az.objects.filter(legacy_anagrafica_id=legacy_id).values_list("area", flat=True).first() or "")
+        _ruoli_ids = set(_RO.objects.filter(legacy_anagrafica_id=legacy_id).values_list("ruolo_id", flat=True))
+        cartelle_documenti = [
+            c for c in CartellaDocumentoDipendente.objects
+            .filter(attiva=True).prefetch_related("reparti", "ruoli_operativi").order_by("ordine", "nome")
+            if c.si_applica(_area_nome, _ruoli_ids)
+        ]
     except Exception:
         logger.exception("Errore caricamento documenti per dipendente %s", legacy_id)
 
@@ -3757,9 +3766,14 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
     # Storico append-only (Fase 2c): una riga per rilascio/rinnovo. Dedup contro
     # l'ultima riga identica (evita doppioni su re-import idempotenti).
     from anagrafica.models import DipendenteQualificaStorico
-    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente)
+    doc_name = getattr(obj.documento, "name", "") or ""
+    snap = (obj.data_conseguimento, obj.data_scadenza, obj.numero, obj.ente, doc_name)
     last = None if created else obj.storico.order_by("-id").first()
-    if last is None or (last.data_conseguimento, last.data_scadenza, last.numero, last.ente) != snap:
+    last_snap = None if last is None else (
+        last.data_conseguimento, last.data_scadenza, last.numero, last.ente,
+        getattr(last.documento, "name", "") or "",
+    )
+    if last_snap != snap:
         if sessione is not None:
             org = DipendenteQualificaStorico.Origine.SESSIONE
         else:
@@ -3769,6 +3783,8 @@ def _upsert_dipendente_qualifica(legacy_id, tipo, data_conseguimento, data_scade
             data_conseguimento=obj.data_conseguimento,
             data_scadenza=obj.data_scadenza,
             numero=obj.numero, livello=obj.livello, ente=obj.ente,
+            documento=(obj.documento or None),
+            documento_nome_originale=obj.documento_nome_originale,
             note=(note or "")[:255], origine=org, registrato_da=user,
         )
     return obj, created
@@ -3885,6 +3901,39 @@ def dipendente_qualifica_evidenza(request, legacy_id: int, q_id: int):
     return FileResponse(
         fh, as_attachment=True,
         filename=q.documento_nome_originale or f"qualifica_{q.pk}.bin",
+    )
+
+
+@login_required
+def dipendente_qualifica_storico_evidenza(request, legacy_id: int, q_id: int, storico_id: int):
+    """Serve l'evidenza documentale storicizzata di un rinnovo (storage privato).
+    ACL: admin legacy / superuser / HR (come l'evidenza corrente)."""
+    legacy_user = get_legacy_user(request.user)
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user) or _check_hr_permission(request)):
+        return HttpResponse(status=403)
+    from anagrafica.models import DipendenteQualificaStorico
+    s = get_object_or_404(
+        DipendenteQualificaStorico, pk=storico_id,
+        qualifica_id=q_id, qualifica__legacy_anagrafica_id=legacy_id,
+    )
+    if not s.documento:
+        return HttpResponse("Evidenza non disponibile.", status=404)
+    try:
+        from core.audit import log_action
+        log_action(
+            request, "QUALIFICA_STORICO_EVIDENZA_DOWNLOAD", "anagrafica",
+            {"storico_id": s.pk, "qualifica_id": q_id, "legacy_id": legacy_id},
+        )
+    except Exception:
+        logger.warning("Audit QUALIFICA_STORICO_EVIDENZA_DOWNLOAD fallito", exc_info=True)
+    from django.http import FileResponse
+    try:
+        fh = s.documento.open("rb")
+    except FileNotFoundError:
+        return HttpResponse("File non trovato sul server.", status=404)
+    return FileResponse(
+        fh, as_attachment=True,
+        filename=s.documento_nome_originale or f"qualifica_storico_{s.pk}.bin",
     )
 
 
@@ -5852,6 +5901,7 @@ def qualifiche_dashboard(request):
         scadenze_urgenti.append({
             "legacy_id": q.legacy_anagrafica_id,
             "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
+            "tipo_id": q.tipo_id,
             "tipo_nome": q.tipo.nome,
             "categoria": q.tipo.get_categoria_display(),
             "data_scadenza": q.data_scadenza,
@@ -8038,10 +8088,15 @@ def impostazioni(request):
     _cartelle_all = list(
         CartellaDocumentoDipendente.objects
         .annotate(n_documenti=Count("documenti"))
+        .prefetch_related("reparti", "ruoli_operativi")
         .order_by("ordine", "nome")
     )
     _cartelle_by_parent: dict = {}
     for _c in _cartelle_all:
+        # Targeting: id selezionati (per i multiselect del form) + flag "mirata"
+        _c.reparti_ids = {r.id for r in _c.reparti.all()}
+        _c.ruoli_ids = {r.id for r in _c.ruoli_operativi.all()}
+        _c.is_mirata = bool(_c.reparti_ids or _c.ruoli_ids)
         _cartelle_by_parent.setdefault(_c.parent_id, []).append(_c)
     cartelle_documenti: list = []
 
@@ -8062,27 +8117,46 @@ def impostazioni(request):
     )
     # Rotte del modulo selezionabili nei link subnav (pagine GET senza parametri)
     subnav_route_choices = [
-        ("anagrafica:index", "Anagrafica HR — dashboard"),
-        ("anagrafica:dipendenti_list", "Dipendenti — elenco"),
-        ("anagrafica:dipendente_create", "Dipendenti — nuovo"),
-        ("anagrafica:dipendenti_report", "Dipendenti — report"),
-        ("anagrafica:retribuzioni_globale", "Analisi retribuzioni — vista globale"),
-        ("anagrafica:retribuzioni_import", "Retribuzioni — import CSV"),
-        ("anagrafica:contratti_import", "Contratti — import CSV"),
-        ("anagrafica:ratei_list", "Ratei ferie / permessi"),
-        ("anagrafica:scadenzario", "Scadenzario qualifiche e visite"),
-        ("anagrafica:organigramma", "Organigramma"),
-        ("anagrafica:conformita_report", "Conformità alla mansione"),
-        ("anagrafica:onboarding_list", "Onboarding — pratiche"),
-        ("anagrafica:visite_mediche_dashboard", "Visite mediche — dashboard"),
-        ("anagrafica:visite_mediche_nuova_sessione", "Visite mediche — nuova sessione"),
-        ("anagrafica:documenti_list", "Documenti dipendenti"),
-        ("anagrafica:ruoli_operativi_list", "Ruoli operativi — catalogo"),
-        ("anagrafica:mansioni_list", "Mansioni — catalogo"),
-        ("anagrafica:aree_list", "Reparti — catalogo"),
-        ("anagrafica:ruoli_aziendali_list", "Ruoli aziendali — catalogo"),
-        ("anagrafica:qualifiche_list", "Qualifiche — catalogo"),
-        ("anagrafica:widget_permissions", "Impostazioni widget dipendente"),
+        ("anagrafica:index", "Dashboard modulo (home)"),
+        ("anagrafica:scadenzario", "Scadenzario unificato (filtrabile)"),
+        # Persone
+        ("anagrafica:dipendenti_list", "Persone — elenco dipendenti"),
+        ("anagrafica:dipendente_create", "Persone — nuovo dipendente"),
+        ("anagrafica:ex_dipendenti_list", "Persone — ex dipendenti"),
+        ("anagrafica:organigramma", "Persone — organigramma"),
+        ("anagrafica:onboarding_list", "Persone — onboarding (pratiche)"),
+        ("anagrafica:documenti_list", "Persone — documenti"),
+        ("anagrafica:dipendenti_report", "Persone — report dipendenti"),
+        # Competenze (formazione + qualifiche)
+        ("anagrafica:formazione_dashboard", "Competenze — dashboard formazione"),
+        ("anagrafica:formazione_piani_list", "Competenze — piani formativi"),
+        ("anagrafica:formazione_corsi_list", "Competenze — corsi"),
+        ("anagrafica:formazione_sessioni_list", "Competenze — sessioni"),
+        ("anagrafica:formazione_istruttori_list", "Competenze — istruttori"),
+        ("anagrafica:formazione_elearning_hub", "Competenze — e-learning (hub)"),
+        ("anagrafica:formazione_online_catalog", "Competenze — corsi online"),
+        ("anagrafica:formazione_copertura", "Competenze — copertura / gap"),
+        ("anagrafica:qualifiche_dashboard", "Competenze — cruscotto qualifiche"),
+        ("anagrafica:qualifiche_list", "Competenze — catalogo qualifiche"),
+        ("anagrafica:qualifica_sessioni_list", "Competenze — sessioni di rinnovo"),
+        ("anagrafica:matrice_competenze", "Competenze — matrice competenze"),
+        # Compliance (salute & sicurezza)
+        ("anagrafica:sicurezza_hub", "Compliance — hub sicurezza"),
+        ("anagrafica:visite_mediche_dashboard", "Compliance — visite mediche"),
+        ("anagrafica:visite_mediche_nuova_sessione", "Compliance — visite, nuova sessione"),
+        ("anagrafica:conformita_report", "Compliance — conformità alla mansione"),
+        # Amministrazione (paghe & contratti)
+        ("anagrafica:retribuzioni_globale", "Amministrazione — analisi retribuzioni"),
+        ("anagrafica:retribuzioni_import", "Amministrazione — import retribuzioni"),
+        ("anagrafica:contratti_import", "Amministrazione — contratti"),
+        ("anagrafica:cedolini_import", "Amministrazione — cedolini"),
+        ("anagrafica:ratei_list", "Amministrazione — ratei ferie / ROL"),
+        # Cataloghi struttura / impostazioni
+        ("anagrafica:ruoli_operativi_list", "Catalogo — ruoli operativi"),
+        ("anagrafica:mansioni_list", "Catalogo — mansioni"),
+        ("anagrafica:aree_list", "Catalogo — reparti"),
+        ("anagrafica:ruoli_aziendali_list", "Catalogo — ruoli aziendali"),
+        ("anagrafica:widget_permissions", "Impostazioni — permessi widget"),
         ("anagrafica:impostazioni", "Impostazioni anagrafica"),
     ]
 
@@ -9114,6 +9188,15 @@ def cartella_documento_edit(request, cartella_id: int):
     except (ValueError, TypeError):
         pass
     cartella.save()
+    # Targeting (visibilità mirata): reparti + ruoli operativi. Vuoto = universale.
+    def _ids(name):
+        out = []
+        for raw in request.POST.getlist(name):
+            if str(raw).strip().isdigit():
+                out.append(int(raw))
+        return out
+    cartella.reparti.set(_ids("reparti_ids"))
+    cartella.ruoli_operativi.set(_ids("ruoli_ids"))
     messages.success(request, f"Cartella «{nome}» aggiornata.")
     return _redirect_impostazioni("documenti")
 
@@ -9164,7 +9247,14 @@ def subnav_categoria_create(request):
         ordine = int(ordine_raw)
     except (ValueError, TypeError):
         ordine = 0
-    SubnavCategoriaAnagrafica.objects.create(nome=nome, icona=icona, ordine=ordine)
+    landing_type = request.POST.get("landing_url_type") or "named"
+    if landing_type not in ("named", "raw"):
+        landing_type = "named"
+    landing_value = (request.POST.get("landing_url_value") or "").strip()[:255]
+    SubnavCategoriaAnagrafica.objects.create(
+        nome=nome, icona=icona, ordine=ordine,
+        landing_url_type=landing_type, landing_url_value=landing_value,
+    )
     messages.success(request, f"Categoria «{nome}» creata.")
     return _redirect_impostazioni("navigazione")
 
@@ -9183,6 +9273,10 @@ def subnav_categoria_edit(request, cat_id: int):
         cat.ordine = int(request.POST.get("ordine") or cat.ordine)
     except (ValueError, TypeError):
         pass
+    landing_type = request.POST.get("landing_url_type") or cat.landing_url_type
+    if landing_type in ("named", "raw"):
+        cat.landing_url_type = landing_type
+    cat.landing_url_value = (request.POST.get("landing_url_value") or "").strip()[:255]
     cat.save()
     messages.success(request, f"Categoria «{cat.nome}» aggiornata.")
     return _redirect_impostazioni("navigazione")
@@ -9213,6 +9307,7 @@ def subnav_link_create(request):
         return resp
     etichetta = (request.POST.get("etichetta") or "").strip()[:80]
     icona = (request.POST.get("icona") or "").strip()[:20]
+    gruppo = (request.POST.get("gruppo") or "").strip()[:40]
     url_type = request.POST.get("url_type") or "raw"
     if url_type not in ("named", "raw"):
         url_type = "raw"
@@ -9230,7 +9325,7 @@ def subnav_link_create(request):
     if cat_id_raw:
         cat = SubnavCategoriaAnagrafica.objects.filter(pk=cat_id_raw).first()
     SubnavLinkAnagrafica.objects.create(
-        etichetta=etichetta, icona=icona, url_type=url_type, url_value=url_value,
+        etichetta=etichetta, icona=icona, gruppo=gruppo, url_type=url_type, url_value=url_value,
         categoria=cat, apri_nuova_tab=apri_nuova_tab, ordine=ordine, is_sistema=False,
     )
     messages.success(request, f"Link «{etichetta}» aggiunto.")
@@ -9246,6 +9341,7 @@ def subnav_link_edit(request, link_id: int):
     link = get_object_or_404(SubnavLinkAnagrafica, pk=link_id)
     link.etichetta = (request.POST.get("etichetta") or "").strip()[:80] or link.etichetta
     link.icona = (request.POST.get("icona") or "").strip()[:20]
+    link.gruppo = (request.POST.get("gruppo") or "").strip()[:40]
     link.is_active = request.POST.get("is_active") == "1"
     link.apri_nuova_tab = request.POST.get("apri_nuova_tab") == "1"
     try:

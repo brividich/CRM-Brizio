@@ -109,7 +109,8 @@ Sintomi: errore "Ollama non raggiungibile" o "Timeout" nella chat AI.
 3. Controllare `OLLAMA_BASE_URL` nella console Gestione AI: deve puntare a `http://<host>:11434`, **non** all'indirizzo di Open WebUI (porte 3000/8080/8081).
 4. Se si usa Open WebUI come provider (`OLLAMA_API_PROVIDER=openwebui`), verificare che la API key sia ancora valida (vedi 5.1).
 5. Se il modello risponde lentamente: aumentare `OLLAMA_REQUEST_TIMEOUT_SECONDS` a 180–300 nel `.env` e riavviare.
-6. Controllare i log Waitress/IIS per errori di connessione verso Ollama.
+6. **Timeout solo sulla prima richiesta dopo inattività/restart (cold start):** il job django-q **`ai_warmup_ollama`** (registrato dal deploy, ogni 25 min < keep_alive) pre-carica il modello a ogni run rinnovando il timer `OLLAMA_KEEP_ALIVE` → il cold start non arriva mai alle richieste utente. Verificare che sia attivo: `python django_app\manage.py setup_q_schedules --dry-run` lo elenca, e il cluster `QCluster_PROD` deve girare. Per scaldare **subito** (dopo un restart di Ollama/IIS, senza aspettare il prossimo tick) lanciare a mano `python django_app\manage.py warmup_ollama` (load-only via `/api/generate`, nessun token generato; `--json` per l'esito, `--timeout` per il timeout dedicato). Solo provider Ollama nativo (con Open WebUI è saltato).
+7. Controllare i log Waitress/IIS per errori di connessione verso Ollama.
 
 ### 5.3 Svuotare la cache RAG/runtime
 

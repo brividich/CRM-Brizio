@@ -3007,14 +3007,20 @@ class QualificheCatalogoTests(TestCase):
         self.assertIn("Dipendenti che la possiedono", body)
         self.assertIn("Corsi collegati", body)
 
-    def test_subnav_binding_qualifiche_su_formazione_non_impostazioni(self):
-        """Dopo la 0045 l'highlight top-nav delle qualifiche è su Formazione e
-        non più su Impostazioni (niente doppio-highlight, come per la 0044)."""
+    def test_subnav_qualifiche_highlight_proprio_non_impostazioni(self):
+        """Le qualifiche hanno un highlight top-nav PROPRIO (link dedicato), non
+        agganciato a Impostazioni (niente doppio-highlight).
+
+        Storia: con la 0045 l'highlight era stato spostato su Formazione; la 0064
+        ha poi creato il dropdown «Qualifiche» dedicato (token sul link proprio) e
+        la riorganizzazione a pilastri (Proposta A, 0070) colloca il catalogo nel
+        pilastro «Competenze» (gruppo Qualifiche) mantenendo l'highlight sul link
+        del catalogo, mai su Impostazioni."""
         from .models import SubnavLinkAnagrafica
-        form = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:formazione_dashboard").first()
+        qual = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:qualifiche_list").first()
         imp = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:impostazioni").first()
-        if form:
-            self.assertIn("anagrafica:qualifiche_list", form.active_view_names)
+        if qual:
+            self.assertIn("anagrafica:qualifiche_list", qual.active_view_names)
         if imp:
             self.assertNotIn("anagrafica:qualifiche_list", imp.active_view_names)
 

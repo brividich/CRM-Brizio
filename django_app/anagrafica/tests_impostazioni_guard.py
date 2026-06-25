@@ -13,6 +13,7 @@ from .models import (
     DipendenteQualifica,
     DipendenteRuoloOperativo,
     DocumentoDipendente,
+    Reparto,
     RuoloOperativo,
     TipoQualifica,
 )
@@ -63,6 +64,55 @@ class FolderRetentionTests(TestCase):
             file=SimpleUploadedFile("y.txt", b"y"),
         )
         self.assertEqual(doc.retention_until.year, date.today().year + 10)
+
+
+class SubfolderTests(TestCase):
+    """Sottocartelle documenti: creazione, unicità per livello, guardia eliminazione."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser("sub", "sub@e.it", "pwd12345")
+        self.client.force_login(self.admin)
+
+    def test_crea_sottocartella(self):
+        root = CartellaDocumentoDipendente.objects.create(nome="HR")
+        self.client.post(reverse("anagrafica:cartella_documento_create"),
+                         {"nome": "Contratti", "parent": str(root.id), "ordine": "0", "retention_anni": "10"})
+        sub = CartellaDocumentoDipendente.objects.get(nome="Contratti")
+        self.assertEqual(sub.parent_id, root.id)
+
+    def test_stesso_nome_parent_diversi_ok(self):
+        a = CartellaDocumentoDipendente.objects.create(nome="A")
+        b = CartellaDocumentoDipendente.objects.create(nome="B")
+        CartellaDocumentoDipendente.objects.create(nome="2025", parent=a)
+        CartellaDocumentoDipendente.objects.create(nome="2025", parent=b)  # non deve sollevare
+        self.assertEqual(CartellaDocumentoDipendente.objects.filter(nome="2025").count(), 2)
+
+    def test_delete_bloccato_se_ha_figlie(self):
+        root = CartellaDocumentoDipendente.objects.create(nome="Radice")
+        CartellaDocumentoDipendente.objects.create(nome="Figlia", parent=root)
+        self.client.post(reverse("anagrafica:cartella_documento_delete", args=[root.id]))
+        self.assertTrue(CartellaDocumentoDipendente.objects.filter(pk=root.id).exists())  # non eliminata
+
+
+class TargetingTests(TestCase):
+    """Targeting cartelle: applicabilità per reparto/ruolo (vuoto = universale)."""
+
+    def test_universale_sempre_applicabile(self):
+        c = CartellaDocumentoDipendente.objects.create(nome="Generale")
+        self.assertTrue(c.si_applica("Produzione", set()))
+
+    def test_match_reparto_case_insensitive(self):
+        c = CartellaDocumentoDipendente.objects.create(nome="Solo Produzione")
+        c.reparti.add(Reparto.objects.create(nome="Produzione"))
+        self.assertTrue(c.si_applica("produzione", set()))   # case-insensitive
+        self.assertFalse(c.si_applica("Ufficio", set()))
+
+    def test_match_ruolo_operativo(self):
+        c = CartellaDocumentoDipendente.objects.create(nome="Solo Preposti")
+        r = RuoloOperativo.objects.create(nome="Preposto")
+        c.ruoli_operativi.add(r)
+        self.assertTrue(c.si_applica("", {r.id}))
+        self.assertFalse(c.si_applica("", {99999}))
 
 
 class DocumentMoveTests(TestCase):

@@ -1,0 +1,118 @@
+"""Test F9 — copilota AI: l'output è sempre 'proposto', mai applicato senza umano."""
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+
+from gestione_specifiche import constants as C
+from gestione_specifiche.ai_copilota import (
+    proponi_righe_mod133, proponi_tag, ricerca_semantica,
+)
+from gestione_specifiche.models import RigaMOD133, Specifica
+
+User = get_user_model()
+
+
+def _ai(content):
+    return SimpleNamespace(content=content)
+
+
+class ProponiRigheTests(TestCase):
+    def setUp(self):
+        self.spec = Specifica.objects.create(codice="SP-AI", titolo="Trattamento")
+
+    def test_ai_offline_proposta_vuota_nessuna_scrittura(self):
+        with patch("ai_assistant.services.chat_with_ollama", side_effect=Exception("down")):
+            res = proponi_righe_mod133(self.spec)
+        self.assertTrue(res["proposto"])
+        self.assertFalse(res["ai_disponibile"])
+        self.assertEqual(res["righe"], [])
+        self.assertEqual(RigaMOD133.objects.count(), 0)  # nulla salvato
+
+    def test_ai_propone_ma_non_salva(self):
+        canned = _ai('[{"argomento":"Tolleranze","tag_processo":"meccanica","impatto_documenti": true}]')
+        with patch("ai_assistant.services.chat_with_ollama", return_value=canned):
+            res = proponi_righe_mod133(self.spec)
+        self.assertTrue(res["proposto"])
+        self.assertEqual(len(res["righe"]), 1)
+        self.assertEqual(res["righe"][0]["argomento"], "Tolleranze")
+        self.assertTrue(res["righe"][0]["impatto_documenti"])
+        # INVARIANTE: nessuna riga creata nel DB
+        self.assertEqual(RigaMOD133.objects.count(), 0)
+
+
+class ProponiTagTests(TestCase):
+    def test_proposta_tag_non_modifica_spec(self):
+        spec = Specifica.objects.create(codice="SP-TAG", titolo="Calibrazione strumenti")
+        canned = _ai("Metrologia / Calibrazione")
+        with patch("ai_assistant.services.chat_with_ollama", return_value=canned):
+            res = proponi_tag(f"{spec.titolo}")
+        self.assertTrue(res["proposto"])
+        self.assertEqual(res["tag"], "metrologia")  # normalizzato snake_case, primo token
+        spec = Specifica.objects.get(pk=spec.pk)  # re-fetch (FSMField protected)
+        self.assertEqual(spec.tag, "")  # INVARIANTE: non applicato
+
+    def test_offline_tag_vuoto(self):
+        with patch("ai_assistant.services.chat_with_ollama", side_effect=Exception("down")):
+            res = proponi_tag("qualcosa")
+        self.assertTrue(res["proposto"])
+        self.assertEqual(res["tag"], "")
+        self.assertFalse(res["ai_disponibile"])
+
+
+class RicercaSemanticaTests(TestCase):
+    def test_ranking_lessicale_read_only(self):
+        Specifica.objects.create(codice="SP-TT", titolo="Trattamento termico tolleranze lega")
+        Specifica.objects.create(codice="SP-IM", titolo="Imballo e logistica spedizioni")
+        risultati = ricerca_semantica("trattamento termico")
+        codici = [r["codice"] for r in risultati]
+        self.assertIn("SP-TT", codici)
+        self.assertNotIn("SP-IM", codici)  # nessun overlap → score 0 → escluso
+        self.assertTrue(all("score" in r for r in risultati))
+
+    def test_query_vuota(self):
+        self.assertEqual(ricerca_semantica(""), [])
+
+
+class CopilotaViewTests(TestCase):
+    def setUp(self):
+        self.su = User.objects.create_superuser("ai_su", "a@x.it", "x")
+        self.client.force_login(self.su)
+
+    def test_endpoint_precompila_non_salva(self):
+        spec = Specifica.objects.create(codice="SP-EP", titolo="T")
+        canned = _ai('[{"argomento":"X"}]')
+        with patch("ai_assistant.services.chat_with_ollama", return_value=canned):
+            r = self.client.get(reverse("gestione_specifiche:ai_precompila_mod133", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["proposto"])
+        self.assertEqual(RigaMOD133.objects.count(), 0)  # INVARIANTE
+
+    def test_endpoint_proponi_tag_non_salva(self):
+        spec = Specifica.objects.create(codice="SP-ET", titolo="T")
+        with patch("ai_assistant.services.chat_with_ollama", return_value=_ai("saldatura")):
+            r = self.client.get(reverse("gestione_specifiche:ai_proponi_tag", args=[spec.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["tag"], "saldatura")
+        spec = Specifica.objects.get(pk=spec.pk)  # re-fetch (FSMField protected)
+        self.assertEqual(spec.tag, "")  # INVARIANTE
+
+    def test_pagina_ricerca(self):
+        Specifica.objects.create(codice="SP-RIC", titolo="Trattamento superficiale")
+        r = self.client.get(reverse("gestione_specifiche:ricerca"), {"q": "trattamento"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "SP-RIC")
+
+    def test_nessuna_transizione_automatica(self):
+        # Le funzioni copilota non cambiano mai lo stato.
+        spec = Specifica.objects.create(codice="SP-NT", titolo="T")
+        with patch("ai_assistant.services.chat_with_ollama", return_value=_ai('[{"argomento":"X"}]')):
+            proponi_righe_mod133(spec)
+            proponi_tag("x")
+        spec = Specifica.objects.get(pk=spec.pk)  # re-fetch (FSMField protected)
+        self.assertEqual(spec.stato, C.STATO_BOZZA)

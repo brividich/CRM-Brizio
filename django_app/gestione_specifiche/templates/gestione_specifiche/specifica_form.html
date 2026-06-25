@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block title %}{% if is_new %}Nuova specifica{% else %}Modifica specifica{% endif %} · Gestione Specifiche{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>{% if is_new %}Nuova specifica{% if prev %} (revisione di {{ prev.codice }} rev.{{ prev.revisione }}){% endif %}{% else %}Modifica {{ spec.codice }}{% endif %}</h1>
+  <p>Compila i metadati della specifica.</p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="gs-card">
+  {% csrf_token %}
+  {% if prev %}<input type="hidden" name="da" value="{{ prev.pk }}">{% endif %}
+  {% if form.non_field_errors %}<div style="color:#b42318;">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="gs-grid">
+    {% for field in form %}
+    <div>
+      <div class="lbl">{{ field.label }}</div>
+      {{ field }}
+      {% if field.errors %}<div style="color:#b42318; font-size:.8rem;">{{ field.errors|striptags }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="gs-actions" style="margin-top:14px;">
+    <button class="gs-btn gs-btn--primary" type="submit">Salva</button>
+    <a class="gs-btn" href="{% if is_new %}{% url 'gestione_specifiche:lista' %}{% else %}{% url 'gestione_specifiche:dettaglio' spec.pk %}{% endif %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}

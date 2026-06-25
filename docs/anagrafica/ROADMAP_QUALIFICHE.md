@@ -32,9 +32,10 @@ qualifica corrente (numero/livello/ente via `data-*`), imposta `data_conseguimen
 e lascia ricalcolare la scadenza da `durata_mesi`. Solo front-end (nessuna migration), il
 modello regge già tutto.
 
-**Follow-up (non fatto, opzionale):** scorciatoia diretta dallo scadenzario/cruscotto e,
-per le qualifiche legate a un corso, proposta di iscrizione/edizione di rinnovo (riuso del
-flusso formazione). Per ora dallo scadenzario si raggiunge la scheda dal nome dipendente.
+**Follow-up ✅ FATTO:** scadenzario e «scadenze urgenti» del cruscotto hanno una colonna
+**Azioni** con «↻ Rinnova» (deep-link `?rinnova=<tipo_id>` → la scheda auto-apre il form
+prefillato). Nella scheda, per le qualifiche legate a un corso (`TipoQualifica.corsi`),
+link «📚 Iscrivi a un'edizione …» verso il dettaglio corso.
 
 ---
 
@@ -51,6 +52,14 @@ La `DipendenteQualifica` resta **la fonte unica dello stato corrente**:
 `matrice_competenze`/`conformita_report`/`import_asr` non sono toccati. La timeline è
 visibile nella scheda dipendente sotto ogni qualifica (`<details>` "↻ Storico rinnovi (N)",
 mostrato quando ci sono ≥2 eventi).
+
+**Evidenza storicizzata (migration `0067`):** ogni riga di storico conserva anche il **file**
+dell'evidenza di quel rinnovo (`documento`/`documento_nome_originale`), associato
+condividendo il path del file corrente (nessuna copia fisica). Così quando un rinnovo
+successivo sovrascrive l'evidenza del record corrente, il file precedente resta
+referenziato dallo storico. Download via `dipendente_qualifica_storico_evidenza`
+(ACL admin/HR + audit); link «📎 Evidenza» per riga nella timeline. Il dedup dello storico
+considera anche il nome file.
 
 *(Opzione 2 — più record con "corrente=ultimo valido" — scartata: avrebbe toccato
 matrice/conformità/upsert/import ovunque, rischio alto senza benefici aggiuntivi.)*

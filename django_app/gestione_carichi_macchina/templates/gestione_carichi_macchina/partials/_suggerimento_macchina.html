@@ -1,0 +1,19 @@
+{% if righe %}
+<div class="gcm-sugg">
+  <div class="gcm-sugg-h">Consigliate · {{ famiglia }}{% if fase %} · fase {{ fase }}{% endif %}</div>
+  {% for r in righe %}
+    <div class="gcm-sugg-row{% if r.is_corrente %} cur{% endif %}"
+         title="Score {{ r.score_pct }}% — storico {{ r.freq_pct }}%, recente {{ r.rec_pct }}%, macchina libera {{ r.lib_pct }}%{% if r.occorrenze %} · {{ r.occorrenze }} lavori storici{% endif %}{% if r.sat_pct is not None %} · saturazione {{ r.sat_pct }}%{% endif %}">
+      <div class="gcm-sugg-top">
+        <span class="gcm-sugg-cod">{% if r.is_corrente %}● {% endif %}{{ r.codice }}</span>
+        <span class="gcm-sugg-pct">{{ r.score_pct }}%</span>
+      </div>
+      <div class="gcm-sugg-bar"><i class="{{ r.sat_classe }}" style="width:{{ r.score_pct }}%"></i></div>
+    </div>
+  {% endfor %}
+  {% if ha_corrente and not corrente_in_lista %}
+    <div class="gcm-sugg-note">Questa macchina non è tra le consigliate.</div>
+  {% endif %}
+  <div class="gcm-sugg-foot">barra = score · colore = carico (verde libera → rosso satura)</div>
+</div>
+{% endif %}

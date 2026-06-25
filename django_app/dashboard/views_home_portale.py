@@ -674,6 +674,10 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "safety_kpis":        _safety_kpis(request),
         "system_status":      _system_status(request),
         "app_version":        str(getattr(settings, "APP_VERSION", "") or ""),
+        "ai_daily_brief_enabled": bool(
+            getattr(settings, "OLLAMA_CHAT_ENABLED", True)
+            and getattr(settings, "OLLAMA_DAILY_BRIEF_ENABLED", True)
+        ),
     }
     return render(request, "dashboard/pages/home_portale.html", context)
 

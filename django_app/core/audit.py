@@ -10,10 +10,15 @@ from core.impersonation import display_name_for_user
 logger = logging.getLogger(__name__)
 
 
-def log_action(request, azione: str, modulo: str, dettaglio: dict | None = None) -> None:
+def log_action(request, azione: str, modulo: str, dettaglio: dict | str | None = None) -> None:
     """Registra un'azione nell'AuditLog Django.
 
     Chiamata fire-and-forget: eventuali errori DB sono loggati ma non propagati.
+
+    ``dettaglio`` è tollerante al tipo: un ``dict`` viene usato così com'è, una
+    ``str`` viene incapsulata in ``{"dettaglio": ...}``, ``None``/vuoto dà ``{}``.
+    Molte call-site storiche passano una stringa: senza questo wrap ``dict("...")``
+    solleverebbe ``ValueError`` e l'audit andava perso silenziosamente.
     """
     try:
         from core.models import AuditLog
@@ -26,7 +31,12 @@ def log_action(request, azione: str, modulo: str, dettaglio: dict | None = None)
             django_user=impersonator_user or getattr(request, "user", None),
             legacy_user=actor_legacy_user,
         )
-        payload = dict(dettaglio or {})
+        if isinstance(dettaglio, str):
+            payload = {"dettaglio": dettaglio} if dettaglio else {}
+        elif dettaglio:
+            payload = dict(dettaglio)
+        else:
+            payload = {}
         if getattr(request, "impersonation_active", False):
             payload.setdefault(
                 "_impersonation",

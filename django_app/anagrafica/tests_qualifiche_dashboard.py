@@ -169,6 +169,25 @@ class QualificheFase2Tests(TestCase):
         self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10"})
         self.assertEqual(q.storico.count(), 2)
 
+    def test_storico_storicizza_evidenza(self):
+        url = reverse("anagrafica:dipendente_qualifica_add", args=[1])
+        pdf1 = SimpleUploadedFile("v1.pdf", b"%PDF-1.4 uno", content_type="application/pdf")
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2024-01-10", "documento": pdf1})
+        pdf2 = SimpleUploadedFile("v2.pdf", b"%PDF-1.4 due", content_type="application/pdf")
+        self.client.post(url, {"tipo_id": self.tipo.id, "data_conseguimento": "2026-01-10", "documento": pdf2})
+        q = DipendenteQualifica.objects.get(legacy_anagrafica_id=1, tipo=self.tipo)
+        storici = list(q.storico.order_by("id"))
+        self.assertEqual(len(storici), 2)
+        self.assertTrue(storici[0].documento)
+        self.assertTrue(storici[1].documento)
+        # Evidenza del primo rilascio preservata (path diverso dall'attuale)
+        self.assertNotEqual(storici[0].documento.name, storici[1].documento.name)
+        self.assertEqual(q.documento.name, storici[1].documento.name)
+        # Download dell'evidenza storica del primo rilascio
+        r = self.client.get(reverse(
+            "anagrafica:dipendente_qualifica_storico_evidenza", args=[1, q.id, storici[0].id]))
+        self.assertEqual(r.status_code, 200)
+
     def test_dashboard_kpi_da_verificare(self):
         pdf = SimpleUploadedFile("c.pdf", b"%PDF-1.4", content_type="application/pdf")
         q = DipendenteQualifica.objects.create(

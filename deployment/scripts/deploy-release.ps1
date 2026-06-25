@@ -631,6 +631,27 @@ else {
 }
 
 # ---------------------------------------------------------------------------
+# Warmup modello AI (best-effort, NON bloccante): pre-carica subito il modello
+# chat Ollama cosi' la prima richiesta utente non paga il cold start, senza
+# attendere il primo tick dello schedule ai_warmup_ollama. Il command esce 0
+# anche su errore (nessun -fail-on-error) -> non puo' mai far fallire il deploy;
+# e' no-op se l'AI e' disabilitata o il provider e' Open WebUI. Timeout corto:
+# se il modello e' freddo la chiamata avvia comunque il load lato Ollama e lo
+# schedule lo completa al tick successivo.
+# ---------------------------------------------------------------------------
+Write-Log "Warmup modello AI (pre-caricamento Ollama)..." "STEP"
+try {
+    Invoke-Venv -VenvPath $paths.Venv `
+                -WorkDir  $djangoApp `
+                -PyArgs   @("manage.py", "warmup_ollama", "--json", "--timeout", "120", "--settings=$settingsMod") `
+                -EnvVars  $djangoEnv
+    Write-Log "Warmup AI eseguito (o saltato se AI disabilitata/Open WebUI)." "SUCCESS"
+}
+catch {
+    Write-Log "Warmup AI non riuscito (non bloccante, il load prosegue lato Ollama): $_" "WARN"
+}
+
+# ---------------------------------------------------------------------------
 # [12/12] Registra/aggiorna Task Scheduler automation queue (idempotente)
 # ---------------------------------------------------------------------------
 Write-Log "[12/12] Registrazione task poller automation queue..." "STEP"

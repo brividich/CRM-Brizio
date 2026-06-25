@@ -51,6 +51,8 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "api_debug_ui_meta",
     "ai_assistant:chat",
     "ai_assistant:api_chat",
+    "ai_assistant:api_chat_stream",
+    "ai_assistant:api_daily_brief",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

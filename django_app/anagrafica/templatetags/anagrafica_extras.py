@@ -61,6 +61,79 @@ def subnav_svg_icon(label):
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Glossario informativo: spiegazioni dei termini «strani» del modulo, mostrate
+# come tooltip «ⓘ» accanto alle etichette. Fonte unica: si aggiunge qui una volta
+# e si richiama nei template con {% info_hint "chiave" %}.
+# ---------------------------------------------------------------------------
+GLOSSARIO_INFO = {
+    # Documenti
+    "retention": (
+        "Per quanto tempo conservare il documento (GDPR). Calcolata in automatico: "
+        "data di caricamento + N anni (default 10, secondo la normativa italiana). "
+        "I documenti manuali ereditano gli anni impostati sulla cartella. Alla scadenza "
+        "il documento può essere eliminato: la pulizia automatica rimuove solo i documenti "
+        "scaduti dei dipendenti cessati."
+    ),
+    "cartella_riservata": (
+        "Cartella privata: nell'archivio i suoi documenti sono visibili solo ai "
+        "super-amministratori, nascosti agli altri ruoli HR. Per documenti sensibili "
+        "(provvedimenti, dati riservati)."
+    ),
+    # Qualifiche
+    "qualifica_evidenza": (
+        "Il file del certificato/patentino (PDF o immagine) allegato come prova della "
+        "qualifica. Conservato in area privata fuori dal web, scaricabile solo da admin/HR."
+    ),
+    "qualifica_verifica": (
+        "Controllo HR: conferma che l'evidenza caricata è stata verificata. Caricando una "
+        "nuova evidenza la verifica si azzera e va rifatta."
+    ),
+    "qualifica_permanente": "Qualifica senza scadenza: resta valida a tempo indeterminato.",
+    "qualifica_storico": (
+        "Cronologia dei rilasci e rinnovi della qualifica: ogni evento conserva date, "
+        "estremi ed evidenza di quel momento (la qualifica corrente non li sovrascrive)."
+    ),
+    "qualifica_stato_rag": (
+        "Semaforo di validità: Scaduta (rossa), in scadenza ≤30 o ≤60 giorni (arancio/ambra), "
+        "Valida (verde), Permanente (senza scadenza)."
+    ),
+    # Salute & Sicurezza / Conformità
+    "conformita": (
+        "Semaforo di idoneità alla mansione: aggrega formazione obbligatoria, visite "
+        "mediche, qualifiche e DPI → In regola (verde) / In scadenza (giallo) / Non "
+        "conforme (rosso) / N.D. (grigio = requisito mai registrato, non scaduto). "
+        "È un avviso tracciato, non un blocco operativo."
+    ),
+    "matrice_competenze": (
+        "Dipendenti × abilitazioni. Ogni cella: valido (verde) / in scadenza ≤60gg "
+        "(giallo) / scaduto (rosso) / mancante (—). Le colonne sono le qualifiche con "
+        "almeno un'assegnazione (competenze realmente in uso). Per audit ISO 45001."
+    ),
+    "livello_rischio": (
+        "Livello di rischio della mansione (Accordo Stato-Regioni): A = alto (16h) · "
+        "M = medio (12h) · B = basso (8h). Determina le ore della formazione lavoratori "
+        "e il rinnovo quinquennale."
+    ),
+    # Ratei
+    "ratei": (
+        "Saldi maturati da cedolino: Ferie, ROL (Riduzione Orario di Lavoro, ex permessi "
+        "retribuiti) ed Ex-festività (festività soppresse). Per ciascuno: maturato, goduto "
+        "e residuo."
+    ),
+}
+
+
+@register.inclusion_tag("anagrafica/components/_info.html")
+def info_hint(key: str = "", testo: str = ""):
+    """Icona informativa «ⓘ» con popup. Uso:
+
+    - ``{% info_hint "retention" %}`` → testo dal glossario centralizzato;
+    - ``{% info_hint testo="spiegazione libera" %}`` → testo ad hoc.
+    """
+    return {"testo": testo or GLOSSARIO_INFO.get(key, "")}
+
+
 @register.filter(name="dictlookup")
 def dictlookup(value, key):
     """Lookup ``value[key]`` con coercion safe a int/str e default ''.
@@ -120,6 +193,20 @@ def subnav_anagrafica(context):
                 return "#"
         return link.url_value
 
+    def _resolve_landing(cat):
+        """URL di atterraggio del «pilastro» (clic sul testo categoria).
+
+        Ritorna "" se la categoria non ha landing (resta solo-dropdown)."""
+        value = (getattr(cat, "landing_url_value", "") or "").strip()
+        if not value:
+            return ""
+        if getattr(cat, "landing_url_type", "named") == "named":
+            try:
+                return reverse(value)
+            except NoReverseMatch:
+                return ""
+        return value
+
     def _is_active(link, resolved_url):
         if link.active_view_names:
             names = [n.strip() for n in link.active_view_names.split(",") if n.strip()]
@@ -137,6 +224,7 @@ def subnav_anagrafica(context):
             "type": "link",
             "label": link.etichetta,
             "icona": link.icona,
+            "gruppo": getattr(link, "gruppo", "") or "",
             "url": resolved,
             "active": _is_active(link, resolved),
             "target": "_blank" if link.apri_nuova_tab else "_self",
@@ -191,13 +279,28 @@ def subnav_anagrafica(context):
             built_children = [item for item in (_build_link_item(l) for l in child_links) if item]
             if not built_children:
                 continue
+            # Raggruppa i figli per «gruppo» preservando l'ordine: link consecutivi
+            # con la stessa intestazione formano una colonna del mega-menu.
+            groups: list[dict] = []
+            for child in built_children:
+                header = child.get("gruppo") or ""
+                if groups and groups[-1]["header"] == header:
+                    groups[-1]["links"].append(child)
+                else:
+                    groups.append({"header": header, "links": [child]})
+            has_headers = any(g["header"] for g in groups)
+            landing = _resolve_landing(cat)
+            landing_active = bool(landing) and current_path == landing
             items.append({
                 "type": "category",
                 "label": cat.nome,
                 "icona": cat.icona,
                 "id": cat.pk,
-                "active": any(c["active"] for c in built_children),
+                "landing_url": landing,
+                "active": landing_active or any(c["active"] for c in built_children),
                 "links": built_children,
+                "groups": groups,
+                "has_headers": has_headers,
             })
 
     return {"items": items}

@@ -1,0 +1,176 @@
+2# BUILD LOG — App `gestione_specifiche`
+
+> Traccia di esecuzione end-to-end (F1→F9) secondo `BUILD_SPEC.md`.
+> Mantenuto dal lead orchestrator. Aggiornato a ogni fine fase e a ogni blocker.
+
+## Stato fasi
+
+| Fase | Descrizione | Stato | Data |
+|------|-------------|-------|------|
+| STEP 0 | Esplorazione repo | fatto | 2026-06-24 |
+| F1 | Modello dati, migrazioni, admin, ACL, navigation | fatto | 2026-06-24 |
+| F2 | Macchina a stati (django-fsm-2) + audit + test | fatto | 2026-06-24 |
+| F3 | Flusso MOD.133 (UI HTMX) | fatto | 2026-06-24 |
+| F4 | Timer/scheduling (django-q2) + notifiche | fatto | 2026-06-24 |
+| F5 | OFI → MOD.174 + sotto-flusso documento CN | fatto | 2026-06-24 |
+| F6 | Distribuzione + tracciamento copie | fatto | 2026-06-24 |
+| F7 | Ricerca, API ninja, UI elenco/cruscotto + storico | fatto | 2026-06-24 |
+| F8 | Import storico + prospetto intake | fatto (manca solo file dati reale) | 2026-06-25 |
+| F9 | Copilota AI locale | fatto | 2026-06-25 |
+
+---
+
+## Esplorazione (STEP 0)
+
+Stack: **Django 5.2.13**, mssql-django 1.6, pyodbc 5.3, SQLite in dev. `django-htmx 1.27`, `django-q2 1.9`, `pymupdf`, `reportlab`, `openpyxl` presenti.
+**django-fsm-2** e **django-ninja** NON erano installati → installati `django-fsm-2 4.2.4` e `django-ninja 1.6.2` (+ pydantic) nel venv; da aggiungere a `requirements.in/.txt`.
+
+### App rappresentativa / scaffold
+- App sotto `django_app/<app>/`. Config in `apps.py` (`class XxxConfig(AppConfig)`, `name=...`, `ready()` chiama il bootstrap ACL).
+- INSTALLED_APPS in `config/settings/base.py:332` (formato `"app.apps.AppConfig"`).
+- URL inclusi in `config/urls.py` con `path("<prefix>/", include(("app.urls","app"), namespace="app"))`.
+- App più recente e pulita da usare come **template**: `gestione_carichi_macchina` (ACL v2 canonico completo).
+
+### ACL v2 (pattern canonico — da `gestione_carichi_macchina/acl_bootstrap.py`)
+Modelli in `core.models`:
+- `PermissionDefinition(code, module, label, description, is_active)` — permessi canonici.
+- `RoutePermissionBinding(route_name, path_pattern, match_strategy, permission_id, source_app, priority, is_active)` — binding rotta→permesso (NECESSARI con `ACL_STRICT_CANONICAL=True` attivo in prod).
+- `NavigationItem(code, label, route_name, url_path, section, required_permission_code, order, is_visible, is_enabled, icon, description)` — voce di menu.
+- `NavigationRoleAccess(item, legacy_role_id, can_view)`.
+- `RolePermissionGrant(legacy_role_id, permission_id, enabled, note)`.
+- Fallback legacy: `core.legacy_models.Permesso(ruolo_id, modulo, azione, consentito, can_view, can_edit, can_delete, can_approve)`, `Ruolo`, `Pulsante`.
+- Bootstrap: `core.acl_bootstrap_base.run_bootstrap(defs, cache_key, app, section=, bootstrap_nav_fn=)`, chiamato in `AppConfig.ready()`.
+- **Gating view**: middleware `core.middleware.ACLMiddleware` applica il binding canonico per rotta (le view usano `@login_required`); per controlli fini: `core.acl.user_can_modulo_action(request, modulo, azione) -> bool`.
+- API/AJAX: ritornare `JsonResponse(..., status=401/403)` (no redirect HTML).
+
+### Punti di aggancio esterni (NON modificare, solo FK nullable)
+- **OFI / MOD.174**: registro **NON esistente** → `PositiveIntegerField(null=True)` + BLOCKER (vedi §BLOCKERS).
+- **Documenti CN**: registro **NON esistente** → `CharField`.
+- **Reparti destinatari**: `anagrafica.Reparto` (PK id, `nome` unique, `is_active`) → M2M reale.
+- **AI locale**: `ai_assistant.services.chat_with_ollama(prompt, history, runtime_context=...)` (Ollama + RAG). Per F9.
+- **Notifiche in-app**: `core.notifiche.invia_notifica(legacy_user_id, tipo, messaggio, url_azione)` + modello `core.Notifica`.
+- **Email**: `core.email_utils.send_hub_mail(subject, body_text, recipients, ...)`.
+
+### Storage privato allegati
+Pattern: classe storage che estende `core.encrypted_storage.EncryptedStorageMixin` + `FileSystemStorage`, `base_location = settings.<APP>_PRIVATE_ROOT`, `base_url=None`, `.url()` solleva → download via view protetta. Root setting in `base.py` (`*_PRIVATE_ROOT = Path(env(..., BASE_DIR/"media_private"))`).
+
+### Test
+`config.settings.test`. Comando scoped: `python django_app\manage.py test django_app.<app> --settings=config.settings.test --keepdb`.
+
+---
+
+## ASSUMPTIONS
+
+- **A1** — `Specifica.revisione` come `CharField` (non int): le specifiche cliente usano revisioni alfanumeriche; l'incremento (F3) prova int+1 se numerica, altrimenti append. Reversibile.
+- **A2** — Aggiunti a `Specifica` i campi `cliente` (CharField, blank, idx) e `tag` (CharField, blank, idx) non esplicitati in §5 ma richiesti dai filtri F7 ("filtro per stato/cliente/tag/tipo"). `tag` è anche il target della classificazione AI a livello specifica (le righe MOD.133 mantengono `tag_processo`). Reversibile.
+- **A3** — `ConfigPresaVisione` implementato come **modello** (non settings): `tipo_documento` + `reparto` (FK nullable = "tutti") → `richiesta` Bool; più coerente col repo (admin-editable) e con la decisione F0 #3 (configurabile per tipo+reparto).
+- **A4** — Storage allegati con `EncryptedStorageMixin` (come `assets`) per coerenza/sicurezza; root `GESTIONE_SPECIFICHE_PRIVATE_ROOT` default `media_private`.
+- **A5** — django-fsm-2 e django-ninja installati nel venv e aggiunti a requirements; sono pure-Python e compatibili mssql-django (FSMField = CharField).
+
+## DECISIONS
+
+- **D1** — Usate le librerie reali `django-fsm-2`/`django-ninja` (rete disponibile) invece di shim locali. Coerente con decisione F0 #6 e F7.
+- **D2** — Stati FSM memorizzati come codici snake_case (`bozza`, `flow_down`, `in_validita`, `superato`, `sospeso`, `annullato`, `duplicato`, `respinto`, `errore_tecnico`).
+- **D3** — App come **modulo isolato** (decisione F0 #9): hook `commessa_ref`/`famiglia_ref` come CharField indicizzati nullable, nessuna FK verso commesse/asset.
+- **D5 (F9 — embedding ricerca semantica)** — strato di embedding locale via **Ollama** (`OLLAMA_EMBED_MODEL`, coerente con `ai_assistant`), con **fallback lessicale** deterministico (Jaccard sui token) quando gli embeddings non sono disponibili. Scelta motivata: riusa l'AI on-premise già nel portale, resta fail-safe/offline-capable e testabile senza rete. Cosine/kNN su embeddings reali abilitabili attivando `OLLAMA_EMBED_ENABLED`.
+- **D4 (gotcha django-fsm)** — `Specifica.stato` è FSMField `protected` ⇒ `instance.refresh_from_db()` solleva `AttributeError` (django-fsm vieta la setattr diretta). Nel codice/test **non** usare `refresh_from_db()` su `Specifica`: ri-fetchare con `Specifica.objects.get(pk=...)`. Le transizioni che falliscono una guardia (ValidationError) **non** emettono `post_transition` ⇒ nessun evento spurio.
+
+## BLOCKERS
+
+- **B1 — RISPOSTA UTENTE (2026-06-25)**: l'OFI oggi vive **su Excel**, con **più modelli OFI per reparto** (IT, qualità, produzione), usati anche durante gli **audit di sistema**. Quindi **nessuna tabella SQL** a cui agganciarsi: il `PositiveIntegerField(null=True)` locale resta corretto per ora. *Follow-up suggerito (non bloccante)*: in futuro modellare un registro OFI per-reparto (o aggiungere ad `AzioneOFI` un campo `reparto`/`modello_ofi`) per replicare i template Excel ed esporli in audit; finché non deciso, il numero OFI resta intero locale.
+- **B2** — Ruoli di processo (DM, IN1, RDD, MSM, MSO, MSA, SGI, IT Admin): da mappare ai `Ruolo` legacy esistenti. In attesa di conferma nomi, il bootstrap concede i permessi ai ruoli `admin`/`amministrazione`/`qualita`/`caporeparto` e propone i nomi mancanti (nessuna creazione gruppi AD senza OK — guardrail §8).
+- **B2 — RISPOSTA UTENTE (2026-06-25)**: i ruoli di processo verranno **compilati più avanti**. Il default attuale (admin/amministrazione/qualita/caporeparto) resta valido e rifinibile in `/admin-portale/acl-canonico/`.
+- **B3 (F8) — dati storici attesi**: command/validatore/template pronti e testati su fixture sintetiche; manca solo il **file CSV reale** delle specifiche "In validità" compilato dall'umano (l'utente lo passerà appena pronto). Prospetto: [INTAKE_IMPORT_STORICO.md](INTAKE_IMPORT_STORICO.md). Deposito fuori repo + lancio dry-run, poi `--apply`.
+
+## TEST
+
+- **F9** — `gestione_specifiche` **110/110 verdi** (+10 F9): proposta righe MOD.133 (offline vuota / AI mockata parsa) senza scrittura, proposta TAG non applicata, ricerca semantica lessicale read-only, query vuota, endpoint precompila/tag non salvano, pagina ricerca, **nessuna transizione automatica** (stato invariato). INVARIANTE «AI propone, umano firma» verificata.
+- **F8** — `gestione_specifiche` **100/100 verdi** (+13 F8): validatore (riga valida, obbligatori, tipo/fonte non validi, solo in_validita, data malformata), import dry-run/apply/idempotenza/scarto, conteggi `importa_righe`, command dry-run/apply/genera-template su fixture sintetiche. `data_inserimento` storica preservata (mezzogiorno locale, no shift UTC).
+- **F7** — `gestione_specifiche` **87/87 verdi** (+15 F7): API ninja (lista+filtri, dettaglio, eventi, transizione ok/illegale 400, auth 401), archivio include storico + filtro stato terminale, scheda storico + eventi, ricostruzione punto-nel-tempo, catena revisioni, export CSV/PDF, azioni SSR sospendi/ripristina/annulla.
+- **F6** — `gestione_specifiche` **72/72 verdi** (+11 F6): regola copie (match/mismatch→deroga/con deroga procede), non-cartacea senza controllo, presa visione (default false / reparto-specifico / default reparto-nullo), evento+M2M+data, flusso via view (GET form, POST notifica, POST cartacea mismatch→deroga).
+- **F5** — `gestione_specifiche` **61/61 verdi** (+9 F5): creazione OFI su conferma, idempotenza, richiede genera_ofi, modo default da settings, 3 modi di approvazione (mod133_approver con guardia, car_flow, rdd_dedicato), respingi, flusso genera/approva via view + render sezione Azioni OFI.
+- **F4** — `gestione_specifiche` **52/52 verdi** (+9 F4): reminder 7gg (dopo/prima soglia, saltato se preso in carico o sospeso), escalation 14gg, verifica periodica scaduta + avanzamento 6 mesi, pausa/ripresa che sposta la scadenza (tempo attivo al netto della pausa). Clock mockato.
+- **F3** — `gestione_specifiche` **43/43 verdi** (+17 F3): incremento revisione, creazione/eredità revisione, avvio flow-down (crea MOD.133), formset righe + claim implicito, obbligatorietà condizionale documenti, add riga HTMX, flusso completo S1→S2→S3 da UI, guardia stesso-utente (resta S2), respingi→S8, render template GET (dettaglio/nuova/modifica/approva/compila/lista).
+- **F2** — `gestione_specifiche` **26/26 verdi** (9 F1 + 17 F2): happy path S1→S2→S3 + data_verifica, guardie esito/compilatore≠approvatore, superamento revisione automatico, sospendi/ripristina S2↔S5 e S3↔S5, annulla multi-sorgente, duplicato richiede master, errore_tecnico + ripristino, un-evento-per-transizione, TransitionNotAllowed, ACL nega utente senza permesso (superuser ok).
+- **F1** — `gestione_specifiche` 9/9 verdi (`manage.py test gestione_specifiche --settings=config.settings.test --keepdb`): default stato/`__str__`, snapshot metadati, PROTECT revisione precedente, immutabilità EventoSpecifica (create ok / update+delete bloccati), default `modo_approvazione` da settings, M2M `Distribuzione`↔`anagrafica.Reparto`. `manage.py check` pulito. Bootstrap ACL verificato a runtime: 8 PermissionDefinition, 1 NavigationItem, 2 RoutePermissionBinding.
+
+## CHANGELOG (commit principali)
+
+- **[F1]** `feat(spec): [F1] app gestione_specifiche — modelli, migrazioni, admin, ACL v2, navigation`
+- **[F2]** `feat(spec): [F2] macchina a stati django-fsm-2 + audit immutabile (post_transition)`
+- **[F3]** `feat(spec): [F3] flusso MOD.133 UI HTMX (creazione/revisione, formset, claim, approvazione)`
+- **[F4]** `feat(spec): [F4] timer/scheduling django-q2 + notifiche (reminder/escalation/verifica, pausa)`
+- **[F5]** `feat(spec): [F5] OFI→MOD.174 su conferma + sotto-flusso documento CN (3 modi)`
+- **[F6]** `feat(spec): [F6] distribuzione tracciata + regola copie cartacee con deroga`
+- **[F7]** `feat(spec): [F7] API ninja + ricerca/elenco filtri + storico consultabile + export`
+- **[F8]** `feat(spec): [F8] import storico (solo In validità) + prospetto intake + template + command/validatore`
+- **[F9]** `feat(spec): [F9] copilota AI locale (pre-compilazione MOD.133/TAG/ricerca semantica) — proposta, umano firma`
+
+### NOTA GIT — file condivisi esclusi dai commit di fase
+`CHANGELOG.md` e `django_app/automazioni/schedules.py` contenevano già modifiche
+non correlate **non committate** (lavoro KICK-OFF/anomalie presente nel working
+tree all'avvio). Per non mischiare/duplicare lavoro altrui sono **aggiornati su
+disco ma esclusi dai commit di fase**. L'umano dovrà committarli insieme al
+relativo WIP. Tutto il resto (codice app, migrazioni, test, BUILD_LOG) è committato.
+
+## NOTE STEP 0 (ruoli reali)
+
+Ruoli legacy presenti in dev: `admin, amministrazione, caporeparto, HR, qualita, utente`.
+Mappatura di default applicata (create-only, rifinibile in /admin-portale/acl-canonico/):
+admin+amministrazione+qualita = tutti i permessi; caporeparto = view/claim/compila.
+
+---
+
+## RIEPILOGO ESECUTIVO (per revisione umana)
+
+**Esito:** app `gestione_specifiche` costruita **end-to-end F1→F9**, tutte le fasi
+**fatte**. Suite modulo **110/110 verde**, `manage.py check` (dev e test) pulito,
+migrazioni allineate, secret hygiene OK, nessuna modifica distruttiva. Branch
+`feature/gestione-specifiche` — 9 commit (uno per fase, `[F1]`…`[F9]`).
+
+### Cosa è stato fatto
+- **F1** Modelli §5 (`Specifica` FSM, `MOD133`, `RigaMOD133`, `AzioneOFI`,
+  `Distribuzione`, `EventoSpecifica` immutabile, `ConfigPresaVisione`), migrazioni,
+  admin, **ACL v2 canonico** (8 permessi + binding + voce menu), storage privato cifrato.
+- **F2** Macchina a stati **django-fsm-2** (S1→S9) con guardie e side-effect; audit
+  centralizzato nel signal `post_transition` (un evento per transizione, snapshot).
+- **F3** Flusso MOD.133 UI HTMX: creazione/revisione (eredita+incrementa rev), formset
+  righe dinamiche, obbligatorietà condizionale, claim, chiusura, approvazione con
+  segregazione compiti.
+- **F4** Timer django-q2: reminder 7gg, escalation 14gg, verifica periodica 6 mesi,
+  **pausa in S5/S9**; notifiche email + in-app.
+- **F5** OFI→MOD.174 **su conferma** (idempotente) + sotto-flusso documento CN nei **3 modi**.
+- **F6** Distribuzione tracciata (reparti reali, presa visione da config) + **regola copie
+  cartacee con deroga**.
+- **F7** **API django-ninja** (ricerca/dettaglio/eventi/transizioni), elenco con filtri,
+  **storico consultabile** (archivio + scheda read-only + ricostruzione punto-nel-tempo +
+  export CSV/PDF).
+- **F8** Import storico (solo In validità): prospetto intake + template CSV/XLSX + command
+  idempotente (dry-run) + validatore, testati su fixture sintetiche.
+- **F9** Copilota AI locale (Ollama): pre-compilazione MOD.133 da PDF, classificazione TAG,
+  ricerca semantica — **l'AI propone, l'umano firma** (invariante testata).
+
+### Assunzioni prese in autonomia
+Vedi §ASSUMPTIONS (A1–A5) e §DECISIONS (D1–D5). In sintesi: `revisione` CharField;
+campi `cliente`/`tag` aggiunti per i filtri F7; `ConfigPresaVisione` come modello;
+storage cifrato; django-fsm-2/ninja installati (rete ok); embedding Ollama+fallback
+lessicale; **non usare `refresh_from_db` su `Specifica`** (FSMField protected → re-fetch).
+
+### Domande aperte / blocchi (in blocco, per te)
+1. **B1 — Registro OFI/MOD.174**: nel portale **non esiste** un modello OFI. Ora il
+   numero OFI è un intero locale. *Esiste una tabella SQL legacy OFI/MOD.174 a cui
+   agganciarsi (nome tabella/PK)?* Se sì, la sostituzione con FK è una migrazione additiva.
+2. **B2 — Ruoli di processo**: DM/IN1/RDD/MSM/MSO/MSA/SGI vanno mappati ai `Ruolo` reali.
+   Default applicato a admin/amministrazione/qualita/caporeparto. *Confermi la mappatura
+   o i nomi dei ruoli/gruppi da creare?* (Nessun gruppo AD creato senza OK.)
+3. **B3 — Dati storici (F8)**: command/validatore/template pronti; manca il **file CSV
+   reale** delle specifiche In validità (vedi `INTAKE_IMPORT_STORICO.md`). Deposita il file
+   e lancia il dry-run, poi `--apply`.
+4. **File condivisi non committati**: `CHANGELOG.md` e `automazioni/schedules.py` (3 schedule
+   F4) sono aggiornati **su disco** ma esclusi dai commit perché contenevano WIP altrui non
+   committato. Vanno committati insieme a quel lavoro (oppure dimmi di committarli io).
+
+### Da fare in deploy
+- Registrare gli schedule django-q2: `python manage.py setup_q_schedules` (richiede
+  `automazioni/schedules.py` committato).
+- (Opz.) abilitare `OLLAMA_EMBED_ENABLED` per la ricerca semantica via embeddings reali.

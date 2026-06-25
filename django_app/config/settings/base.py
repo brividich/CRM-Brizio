@@ -230,23 +230,78 @@ READYZ_CHECKS_ENABLED = env_list("READYZ_CHECKS_ENABLED", [])
 # Assistente AI locale via Ollama. La chiamata parte dal server Django verso
 # l'endpoint Ollama, mai dal browser dell'utente.
 OLLAMA_CHAT_ENABLED = env_bool("OLLAMA_CHAT_ENABLED", True)
+# Widget "brief giornaliero personale" (generato dall'AI sui dati live ACL-filtrati,
+# on-demand con cache per-utente/giorno). Richiede OLLAMA_CHAT_ENABLED.
+OLLAMA_DAILY_BRIEF_ENABLED = env_bool("OLLAMA_DAILY_BRIEF_ENABLED", True)
+# Timeout dedicato (piu' corto) per il brief giornaliero: non e' critico e non
+# deve occupare un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS; degrada a fallback.
+OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS = int(env("OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", "45") or "45")
 OLLAMA_API_PROVIDER = env("OLLAMA_API_PROVIDER", "ollama").strip().lower()
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "llama3.1")
+OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")
 OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
 OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
 OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.2")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
 OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "6") or "6")
 OLLAMA_RAG_ENABLED = env_bool("OLLAMA_RAG_ENABLED", True)
-OLLAMA_RAG_SOURCE_PATHS = env_list("OLLAMA_RAG_SOURCE_PATHS", ["README.md", "docs/ai"])
-OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "2") or "2")
-OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "2000") or "2000")
+# Sorgenti RAG su file: README + KB curata in django_app/ai_assistant/knowledge,
+# che viaggia nel pacchetto (a differenza di docs/, escluso dal deploy) ed e' la
+# fonte RAG su file in prod. docs/ai NON e' tra i default: contiene istruzioni
+# per gli agenti AI (in inglese) e architettura, non aiuto per l'utente finale, ed
+# essendo assente dal pacchetto in dev "soffocherebbe" la KB curata nel ranking
+# BM25 (misurato con `manage.py ai_eval --rag`). Cosi' dev e prod si comportano
+# uguale. Per reindicizzare docs/ai (es. assistente interno admin) basta impostare
+# esplicitamente OLLAMA_RAG_SOURCE_PATHS nell'.env.
+OLLAMA_RAG_SOURCE_PATHS = env_list(
+    "OLLAMA_RAG_SOURCE_PATHS",
+    ["README.md", "django_app/ai_assistant/knowledge"],
+)
+OLLAMA_RAG_MAX_CHUNKS = int(env("OLLAMA_RAG_MAX_CHUNKS", "4") or "4")
+OLLAMA_RAG_MAX_CONTEXT_CHARS = int(env("OLLAMA_RAG_MAX_CONTEXT_CHARS", "5000") or "5000")
 OLLAMA_RAG_CACHE_SECONDS = int(env("OLLAMA_RAG_CACHE_SECONDS", "300") or "300")
 OLLAMA_RAG_CHUNK_CHARS = int(env("OLLAMA_RAG_CHUNK_CHARS", "900") or "900")
 OLLAMA_RAG_MAX_FILES = int(env("OLLAMA_RAG_MAX_FILES", "80") or "80")
 OLLAMA_RAG_MAX_FILE_CHARS = int(env("OLLAMA_RAG_MAX_FILE_CHARS", "300000") or "300000")
 OLLAMA_RAG_MAX_DB_ENTRIES = int(env("OLLAMA_RAG_MAX_DB_ENTRIES", "200") or "200")
+# Parametri Okapi BM25 per il retrieval RAG (k1: saturazione TF, b: normalizzazione lunghezza).
+OLLAMA_RAG_BM25_K1 = float(env("OLLAMA_RAG_BM25_K1", "1.5") or "1.5")
+OLLAMA_RAG_BM25_B = float(env("OLLAMA_RAG_BM25_B", "0.75") or "0.75")
+# Overlap (caratteri) tra chunk consecutivi della stessa sezione: preserva il
+# contesto a cavallo del confine. 0 = nessun overlap.
+OLLAMA_RAG_CHUNK_OVERLAP_CHARS = int(env("OLLAMA_RAG_CHUNK_OVERLAP_CHARS", "150") or "150")
+# Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
+# di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
+# se non disponibile il retrieval resta BM25-only. Solo provider "ollama".
+OLLAMA_EMBED_ENABLED = env_bool("OLLAMA_EMBED_ENABLED", False)
+OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+OLLAMA_EMBED_TIMEOUT_SECONDS = int(env("OLLAMA_EMBED_TIMEOUT_SECONDS", "30") or "30")
+OLLAMA_EMBED_BATCH = int(env("OLLAMA_EMBED_BATCH", "16") or "16")
+OLLAMA_EMBED_PERSIST = env_bool("OLLAMA_EMBED_PERSIST", True)
+OLLAMA_EMBED_CACHE_TTL = int(env("OLLAMA_EMBED_CACHE_TTL", "2592000") or "2592000")
+# Fusione ibrida BM25 + semantica (Reciprocal Rank Fusion): k attenua i ranghi bassi.
+OLLAMA_RAG_HYBRID_RRF_K = int(env("OLLAMA_RAG_HYBRID_RRF_K", "60") or "60")
+# Routing semantico dei tool runtime: attiva i domini pertinenti per similarita'
+# embedding (additivo alle keyword). Soglia/margine calibrati su nomic-embed-text;
+# con un altro modello di embedding vanno ritarati. Richiede OLLAMA_EMBED_ENABLED.
+AI_TOOL_ROUTING_ENABLED = env_bool("AI_TOOL_ROUTING_ENABLED", True)
+AI_TOOL_ROUTING_THRESHOLD = float(env("AI_TOOL_ROUTING_THRESHOLD", "0.70") or "0.70")
+AI_TOOL_ROUTING_MARGIN = float(env("AI_TOOL_ROUTING_MARGIN", "0.04") or "0.04")
+AI_TOOL_ROUTING_TOP_K = int(env("AI_TOOL_ROUTING_TOP_K", "2") or "2")
+# Tetto del contesto live iniettato nel modello: meno caratteri = prefill piu'
+# rapido (riduce la latenza/timeout sulle domande che attivano molti tool).
+AI_RUNTIME_CONTEXT_MAX_CHARS = int(env("AI_RUNTIME_CONTEXT_MAX_CHARS", "12000") or "12000")
+AI_RUNTIME_CONTEXT_MAX_LINES = int(env("AI_RUNTIME_CONTEXT_MAX_LINES", "160") or "160")
+# Tuning runtime del modello chat (solo Ollama nativo). keep_alive tiene il modello
+# in memoria (primo token piu' veloce); num_ctx dimensiona la finestra di contesto
+# perche' contesto live + RAG non vengano troncati in silenzio; num_predict=0 -> nessun cap.
+OLLAMA_KEEP_ALIVE = env("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_NUM_CTX = int(env("OLLAMA_NUM_CTX", "16384") or "16384")
+OLLAMA_NUM_PREDICT = int(env("OLLAMA_NUM_PREDICT", "0") or "0")
+# Throttle per-utente delle richieste alla chat AI (protegge l'istanza Ollama e i
+# thread Waitress). 0 = disabilitato. Finestra fissa in secondi.
+OLLAMA_CHAT_RATE_LIMIT = int(env("OLLAMA_CHAT_RATE_LIMIT", "20") or "20")
+OLLAMA_CHAT_RATE_WINDOW_SECONDS = int(env("OLLAMA_CHAT_RATE_WINDOW_SECONDS", "60") or "60")
 OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_SYSTEM_PROMPT_CHARS", "1800") or "1800")
 OLLAMA_CHAT_SYSTEM_PROMPT = env(
     "OLLAMA_CHAT_SYSTEM_PROMPT",
@@ -291,6 +346,8 @@ INSTALLED_APPS = [
     "anomalie.apps.AnomalieConfig",
     "assets.apps.AssetsConfig",
     "attrezzature.apps.AttrezzatureConfig",
+    "gestione_carichi_macchina.apps.GestioneCarichiMacchinaConfig",
+    "gestione_specifiche.apps.GestioneSpecificheConfig",
     "tasks.apps.TasksConfig",
     "automazioni.apps.AutomazioniConfig",
     "monitoring.apps.MonitoringConfig",
@@ -456,6 +513,18 @@ DIARIO_PREPOSTO_PRIVATE_ROOT = Path(env("DIARIO_PREPOSTO_PRIVATE_ROOT", str(BASE
 # Documenti dipendente (consegne DPI archiviate, referti visite mediche, contratti).
 # Storage privato, mai esposto da IIS: accessibile solo via view protetta con ACL.
 ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
+# mai esposto da IIS; accessibile solo via view protetta con ACL.
+GESTIONE_SPECIFICHE_PRIVATE_ROOT = Path(env("GESTIONE_SPECIFICHE_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+
+# Configurazione di processo dell'app gestione_specifiche (BUILD_SPEC §5).
+# APPROVAZIONE_DOC_CN_MODE ∈ {mod133_approver, car_flow, rdd_dedicato} (decisione F0 #2).
+GESTIONE_SPECIFICHE = {
+    "APPROVAZIONE_DOC_CN_MODE": env("GESTIONE_SPECIFICHE_APPROVAZIONE_DOC_CN_MODE", "car_flow"),
+    "VERIFICA_PERIODICA_MESI": int(env("GESTIONE_SPECIFICHE_VERIFICA_PERIODICA_MESI", "6")),
+    "REMINDER_GIORNI": int(env("GESTIONE_SPECIFICHE_REMINDER_GIORNI", "7")),
+    "ESCALATION_GIORNI": int(env("GESTIONE_SPECIFICHE_ESCALATION_GIORNI", "14")),
+}
 
 # Chiave AES-256 Fernet per cifratura at rest dei file privati.
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

@@ -245,6 +245,38 @@
   border-bottom-right-radius: 4px;
 }
 
+/* ── Markdown reso nelle risposte del bot ────────────────────────── */
+.ai-bubble.bot { white-space: normal; }
+.ai-bubble.bot > :first-child { margin-top: 0; }
+.ai-bubble.bot > :last-child { margin-bottom: 0; }
+.ai-bubble.bot p { margin: 0 0 8px; }
+.ai-bubble.bot ul,
+.ai-bubble.bot ol { margin: 4px 0 8px; padding-left: 20px; }
+.ai-bubble.bot li { margin: 2px 0; }
+.ai-bubble.bot h2,
+.ai-bubble.bot h3,
+.ai-bubble.bot h4,
+.ai-bubble.bot h5,
+.ai-bubble.bot h6 { margin: 10px 0 6px; font-size: 14px; font-weight: 700; line-height: 1.3; }
+.ai-bubble.bot strong { font-weight: 700; }
+.ai-bubble.bot code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  background: rgba(15, 23, 42, 0.07);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.ai-bubble.bot pre {
+  margin: 6px 0 8px;
+  padding: 10px 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.ai-bubble.bot pre code { background: none; color: inherit; padding: 0; }
+
 /* ── Typing indicator ────────────────────────────────────────────── */
 .ai-typing {
   display: inline-flex;
@@ -384,6 +416,41 @@
 .ai-send:hover:not(:disabled) { opacity: .88; }
 .ai-send:disabled { opacity: .5; cursor: wait; }
 .ai-send-icon { font-size: 16px; }
+.ai-stop {
+  min-height: 44px;
+  min-width: 82px;
+  border: 1px solid #dc2626;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: var(--surface, #fff);
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-stop[hidden] { display: none; }
+.ai-stop:hover { background: #fef2f2; }
+.ai-actions {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 0 46px;
+}
+.ai-action-btn {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 3px 10px;
+  background: var(--surface, #fff);
+  color: var(--text-light, #475569);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.ai-action-btn:hover { background: #eef4ff; color: #1e40af; }
 .ai-learn {
   min-height: 44px;
   border: 1px solid #002b5c;
@@ -663,6 +730,7 @@ body.theme-dark .ai-bubble.bot {
   border-color: var(--border);
   color: var(--text);
 }
+body.theme-dark .ai-bubble.bot code { background: rgba(148, 163, 184, 0.18); }
 body.theme-dark .ai-form { background: var(--surface-alt); border-color: var(--border); }
 body.theme-dark .ai-textarea { background: var(--surface); color: var(--text); border-color: var(--border); }
 body.theme-dark .ai-learn { background: var(--surface-alt); color: #93c5fd; border-color: #1e40af; }
@@ -712,6 +780,7 @@ body.theme-dark .ai-segmented button.is-active {
   class="ai-shell"
   data-ai-chat
   data-api-url="{% url 'ai_assistant:api_chat' %}"
+  data-stream-url="{% url 'ai_assistant:api_chat_stream' %}"
   data-save-url="{% url 'ai_assistant:api_save_knowledge' %}"
   data-max-prompt-chars="{{ max_prompt_chars }}"
   data-username="{{ request.user.get_full_name|default:request.user.username|truncatechars:2|upper }}"
@@ -829,6 +898,9 @@ body.theme-dark .ai-segmented button.is-active {
         <button class="ai-send" type="submit" {% if not ollama_enabled %}disabled{% endif %}>
           <span class="ai-send-icon">&#x27A4;</span> Invia
         </button>
+        <button class="ai-stop" type="button" data-ai-stop hidden title="Ferma la generazione">
+          &#x25A0; Stop
+        </button>
         {% if can_manage_knowledge %}
           <button class="ai-learn" type="button" data-ai-learn disabled title="Salva ultima risposta nella FAQ AI">+ FAQ</button>
         {% endif %}
@@ -855,9 +927,12 @@ body.theme-dark .ai-segmented button.is-active {
   var input    = root.querySelector("[data-ai-input]");
   var log      = root.querySelector("[data-ai-log]");
   var sendBtn  = root.querySelector(".ai-send");
+  var stopBtn  = root.querySelector("[data-ai-stop]");
   var learnBtn = root.querySelector("[data-ai-learn]");
   var counter  = root.querySelector("[data-ai-counter]");
+  var currentAbort = null;
   var apiUrl   = root.dataset.apiUrl;
+  var streamUrl = root.dataset.streamUrl;
   var saveUrl  = root.dataset.saveUrl;
   var feedbackUrl = "{% url 'ai_assistant:api_feedback' %}";
   var maxChars = parseInt(root.dataset.maxPromptChars, 10) || 4000;
@@ -1029,24 +1104,73 @@ body.theme-dark .ai-segmented button.is-active {
     return parts;
   }
 
-  /* ── Typewriter effect ──────────────────────────────────────── */
-  function typewrite(bubble, text, onDone) {
-    bubble.textContent = "";
-    var i = 0;
-    var chunkSize = 12;
-    var delay = 5;
-    function tick() {
-      if (i < text.length) {
-        bubble.textContent += text.slice(i, i + chunkSize);
-        i += chunkSize;
-        scrollDown();
-        setTimeout(tick, delay);
-      } else {
-        bubble.textContent = text;
-        if (onDone) onDone();
-      }
+  /* ── Markdown rendering sicuro ───────────────────────────────── */
+  /* L'escape HTML avviene PRIMA di iniettare qualunque tag: l'output del
+     modello (o dei dati live nel contesto) non puo' produrre markup attivo. */
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function renderMarkdown(src) {
+    var text = String(src == null ? "" : src);
+    /* Estrai i blocchi di codice ``` ``` prima dell'escape, reinseriti alla fine */
+    var codeBlocks = [];
+    text = text.replace(/```[a-zA-Z0-9_-]*\n?([\s\S]*?)```/g, function (_m, code) {
+      codeBlocks.push(code.replace(/\n$/, ""));
+      return " CB" + (codeBlocks.length - 1) + " ";
+    });
+    text = escapeHtml(text);
+    /* Inline: codice, grassetto, corsivo */
+    text = text.replace(/`([^`\n]+)`/g, function (_m, c) { return "<code>" + c + "</code>"; });
+    text = text.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    text = text.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, "$1<em>$2</em>");
+
+    var lines = text.split(/\n/);
+    var html = [];
+    var listType = null;
+    var paragraph = [];
+    function closeList() { if (listType) { html.push("</" + listType + ">"); listType = null; } }
+    function flushPara() {
+      if (paragraph.length) { html.push("<p>" + paragraph.join("<br>") + "</p>"); paragraph = []; }
     }
-    tick();
+    lines.forEach(function (line) {
+      var trimmed = line.trim();
+      var heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+      var bullet = /^[-*]\s+(.*)$/.exec(trimmed);
+      var ordered = /^\d+[.)]\s+(.*)$/.exec(trimmed);
+      if (heading) {
+        flushPara(); closeList();
+        var level = Math.min(6, heading[1].length + 1);
+        html.push("<h" + level + ">" + heading[2] + "</h" + level + ">");
+      } else if (bullet) {
+        flushPara();
+        if (listType !== "ul") { closeList(); html.push("<ul>"); listType = "ul"; }
+        html.push("<li>" + bullet[1] + "</li>");
+      } else if (ordered) {
+        flushPara();
+        if (listType !== "ol") { closeList(); html.push("<ol>"); listType = "ol"; }
+        html.push("<li>" + ordered[1] + "</li>");
+      } else if (!trimmed) {
+        flushPara(); closeList();
+      } else {
+        closeList();
+        paragraph.push(line);
+      }
+    });
+    flushPara(); closeList();
+
+    var out = html.join("");
+    out = out.replace(/ CB(\d+) /g, function (_m, i) {
+      return "<pre><code>" + escapeHtml(codeBlocks[+i]) + "</code></pre>";
+    });
+    return out;
+  }
+
+  function renderAnswer(bubble, text) {
+    bubble.innerHTML = renderMarkdown(text);
   }
 
   /* ── Render sources ─────────────────────────────────────────── */
@@ -1189,8 +1313,287 @@ body.theme-dark .ai-segmented button.is-active {
     if (history.length > 10) history = history.slice(history.length - 10);
   }
 
+  /* ── Streaming NDJSON dall'endpoint /api/chat/stream/ ─────────── */
+  /* Risolve con il testo accumulato + metadati. Rigetta con err.handled=true
+     per gli errori funzionali (mostrali subito, niente fallback). */
+  async function sendStream(text, hist, bubble, signal) {
+    var response = await fetch(streamUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/x-ndjson",
+        "X-CSRFToken": csrf(),
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      signal: signal
+    });
+
+    if (!response.ok) {
+      var errData = null;
+      try { errData = await response.json(); } catch (_) { /* corpo non-JSON */ }
+      var msg = (errData && errData.error) || ("L'assistente ha risposto con errore " + response.status + ".");
+      var httpErr = new Error(msg);
+      httpErr.handled = true;
+      throw httpErr;
+    }
+    if (!response.body || !response.body.getReader) {
+      throw new Error("stream-unsupported");
+    }
+
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder("utf-8");
+    var buffer = "";
+    var acc = "";
+    var meta = {};
+    var pending = false;
+    var finished = false;
+
+    function scheduleRender() {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () {
+        pending = false;
+        if (finished) return;  // il render finale (con fonti) ha gia' preso il controllo
+        renderAnswer(bubble, acc);
+        scrollDown();
+      });
+    }
+
+    function handleLine(rawLine) {
+      var s = rawLine.trim();
+      if (!s) return;
+      var evt;
+      try { evt = JSON.parse(s); } catch (_) { return; }
+      if (evt.type === "delta") {
+        if (!bubble.dataset.streamed) {
+          bubble.dataset.streamed = "1";
+          bubble.className = "ai-bubble bot";
+        }
+        acc += evt.text || "";
+        scheduleRender();
+      } else if (evt.type === "error") {
+        var streamErr = new Error(evt.error || "Errore durante la risposta dell'assistente.");
+        streamErr.handled = true;
+        throw streamErr;
+      } else if (evt.type === "done") {
+        meta = evt;
+      }
+    }
+
+    var stopped = false;
+    try {
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        buffer += decoder.decode(r.value, { stream: true });
+        var idx;
+        while ((idx = buffer.indexOf("\n")) >= 0) {
+          handleLine(buffer.slice(0, idx));
+          buffer = buffer.slice(idx + 1);
+        }
+      }
+      if (buffer.trim()) handleLine(buffer);
+    } catch (readErr) {
+      if (readErr && readErr.name === "AbortError") {
+        stopped = true;  // l'utente ha premuto Stop: teniamo il parziale
+      } else {
+        throw readErr;
+      }
+    }
+
+    finished = true;  // blocca eventuali render rAF in coda dopo finalize()
+    renderAnswer(bubble, acc);
+    if (stopped) meta = Object.assign({ stopped: true }, meta);
+    return { answer: acc, meta: meta };
+  }
+
+  /* ── Fallback non-streaming (endpoint classico /api/chat/) ───── */
+  async function sendNonStream(text, hist, bubble, signal) {
+    var response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRFToken": csrf(),
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify({ message: text, history: hist, preferences: preferences }),
+      signal: signal
+    });
+    var data = await window.portalReadJsonResponse(response);
+    var answer = data.message || "";
+    bubble.className = "ai-bubble bot";
+    renderAnswer(bubble, answer);
+    return {
+      answer: answer,
+      meta: {
+        model: data.model || "",
+        elapsed_ms: data.elapsed_ms || 0,
+        sources: Array.isArray(data.sources) ? data.sources : [],
+        suggested_questions: Array.isArray(data.suggested_questions) ? data.suggested_questions : []
+      }
+    };
+  }
+
+  /* ── Stato generazione (toggle Invia/Stop) ──────────────────── */
+  function setGenerating(on) {
+    sendBtn.disabled = on;
+    if (stopBtn) stopBtn.hidden = !on;
+  }
+
+  /* ── Copia negli appunti (con fallback) ─────────────────────── */
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (_) { /* nessun metodo disponibile */ }
+  }
+  function copyText(text, btn) {
+    function done() {
+      var orig = btn.textContent;
+      btn.textContent = "Copiato";
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text);
+      done();
+    }
+  }
+
+  /* ── Barra azioni risposta (copia / rigenera) ───────────────── */
+  function renderActions(answerText) {
+    var bar = document.createElement("div");
+    bar.className = "ai-actions";
+    var copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "ai-action-btn";
+    copyBtn.textContent = "Copia";
+    copyBtn.addEventListener("click", function () { copyText(answerText, copyBtn); });
+    var regenBtn = document.createElement("button");
+    regenBtn.type = "button";
+    regenBtn.className = "ai-action-btn";
+    regenBtn.textContent = "Rigenera";
+    regenBtn.title = "Rigenera l'ultima risposta";
+    regenBtn.addEventListener("click", regenerate);
+    bar.appendChild(copyBtn);
+    bar.appendChild(regenBtn);
+    return bar;
+  }
+
+  function removeLastAnswerDom() {
+    var rows = log.querySelectorAll(".ai-row.bot");
+    if (!rows.length) return;
+    var el = rows[rows.length - 1];
+    while (el) {
+      var next = el.nextSibling;
+      if (el.parentNode) el.parentNode.removeChild(el);
+      el = next;
+    }
+  }
+
+  function regenerate() {
+    if (!lastPair || sendBtn.disabled) return;
+    var question = lastPair.question;
+    if (history.length && history[history.length - 1].role === "assistant") history.pop();
+    removeLastAnswerDom();
+    lastPair = null;
+    if (learnBtn) learnBtn.disabled = true;
+    runAssistant(question, history.slice(0, -1));
+  }
+
+  /* ── Esecuzione di un turno assistente (usata da submit e rigenera) ── */
+  async function runAssistant(text, historyToSend) {
+    currentAbort = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var signal = currentAbort ? currentAbort.signal : undefined;
+    setGenerating(true);
+    var typingParts = showTyping();
+    var bubble = typingParts.bubble;
+
+    function finalize(answer, meta) {
+      meta = meta || {};
+      bubble.className = "ai-bubble bot";
+      if (!answer && meta.stopped) {
+        bubble.innerHTML = '<span style="opacity:.6;">&#x23F9;&#xFE0F; Generazione interrotta.</span>';
+        scrollDown();
+        return;
+      }
+      renderAnswer(bubble, answer);
+
+      var sources = Array.isArray(meta.sources) ? meta.sources : [];
+      var srcEl = renderSources(sources);
+      if (srcEl) bubble.appendChild(srcEl);
+
+      log.appendChild(renderMeta("bot", meta.model || "", meta.elapsed_ms || 0));
+
+      var suggEl = renderSuggestions(
+        Array.isArray(meta.suggested_questions) ? meta.suggested_questions : [],
+        function (q) {
+          input.value = q;
+          autoResize();
+          updateCounter();
+          input.focus();
+          form.dispatchEvent(new Event("submit", { cancelable: true }));
+        }
+      );
+      if (suggEl) log.appendChild(suggEl);
+
+      if (answer) {
+        log.appendChild(renderActions(answer));
+        log.appendChild(renderFeedback(text, answer));
+      }
+
+      scrollDown();
+      if (learnBtn && answer) learnBtn.disabled = false;
+      remember("assistant", answer);
+      lastPair = { question: text, answer: answer };
+    }
+
+    function fail(message) {
+      bubble.className = "ai-bubble bot";
+      bubble.innerHTML =
+        '<span style="color:#dc2626;">&#x26A0;&#xFE0F; ' + escapeHtml(message || "Errore durante la risposta dell'assistente.") + "</span>";
+      scrollDown();
+    }
+
+    try {
+      var streamed = await sendStream(text, historyToSend, bubble, signal);
+      finalize(streamed.answer, streamed.meta);
+    } catch (errStream) {
+      if (errStream && errStream.handled) {
+        fail(errStream.message);
+      } else if (!bubble.dataset.streamed) {
+        /* Streaming non disponibile (rete/proxy/browser): ripiega sull'endpoint classico */
+        try {
+          var legacy = await sendNonStream(text, historyToSend, bubble, signal);
+          finalize(legacy.answer, legacy.meta);
+        } catch (errLegacy) {
+          if (!(errLegacy && errLegacy.name === "AbortError")) fail(errLegacy && errLegacy.message);
+        }
+      } else {
+        fail(errStream && errStream.message);
+      }
+    } finally {
+      setGenerating(false);
+      currentAbort = null;
+      input.focus();
+    }
+  }
+
+  stopBtn && stopBtn.addEventListener("click", function () {
+    if (currentAbort) { try { currentAbort.abort(); } catch (_) { /* gia' chiuso */ } }
+  });
+
   /* ── Main submit ────────────────────────────────────────────── */
-  form && form.addEventListener("submit", async function (e) {
+  form && form.addEventListener("submit", function (e) {
     e.preventDefault();
     var text = (input.value || "").trim();
     if (!text || sendBtn.disabled) return;
@@ -1203,72 +1606,7 @@ body.theme-dark .ai-segmented button.is-active {
     lastPair = null;
     msgCount += 1;
     updateSessionChip();
-    if (learnBtn) learnBtn.disabled = true;
-    sendBtn.disabled = true;
-
-    var typingParts = showTyping();
-
-    try {
-      var response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "X-CSRFToken": csrf(),
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: JSON.stringify({ message: text, history: history.slice(0, -1), preferences: preferences })
-      });
-
-      var data = await window.portalReadJsonResponse(response);
-      var answer = data.message || "";
-      var sources = Array.isArray(data.sources) ? data.sources : [];
-      var suggestions = Array.isArray(data.suggested_questions) ? data.suggested_questions : [];
-      var model = data.model || "";
-      var elapsedMs = data.elapsed_ms || 0;
-
-      typingParts.bubble.innerHTML = "";
-      typingParts.bubble.className = "ai-bubble bot";
-
-      var capturedText = text;
-      typewrite(typingParts.bubble, answer, function () {
-        var srcEl = renderSources(sources);
-        if (srcEl) typingParts.row.querySelector(".ai-bubble").appendChild(srcEl);
-
-        var metaEl = renderMeta("bot", model, elapsedMs);
-        log.appendChild(metaEl);
-
-        var suggEl = renderSuggestions(suggestions, function (q) {
-          input.value = q;
-          autoResize();
-          updateCounter();
-          input.focus();
-          form.dispatchEvent(new Event("submit", { cancelable: true }));
-        });
-        if (suggEl) log.appendChild(suggEl);
-
-        /* Feedback thumbs bar */
-        if (answer) {
-          var feedbackEl = renderFeedback(capturedText, answer);
-          log.appendChild(feedbackEl);
-        }
-
-        scrollDown();
-        if (learnBtn && answer) learnBtn.disabled = false;
-      });
-
-      remember("assistant", answer);
-      lastPair = { question: text, answer: answer };
-
-    } catch (err) {
-      typingParts.bubble.className = "ai-bubble bot";
-      typingParts.bubble.innerHTML =
-        '<span style="color:#dc2626;">&#x26A0;&#xFE0F; ' + (err.message || "Errore durante la risposta dell'assistente.") + "</span>";
-      scrollDown();
-    } finally {
-      sendBtn.disabled = false;
-      input.focus();
-    }
+    runAssistant(text, history.slice(0, -1));
   });
 
   /* ── Save to FAQ ────────────────────────────────────────────── */

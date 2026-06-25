@@ -28,10 +28,46 @@ def run_anomalie_pending_notifications(threshold_minutes: int = 5) -> dict:
                 result.get("sent"),
                 result.get("checked"),
             )
+        # Visibilità sui fallimenti (no invii persi in silenzio): finiscono anche
+        # nel result_message di AutomationRunLog.
+        if result.get("failed") or result.get("given_up"):
+            logger.warning(
+                "run_anomalie_pending_notifications: falliti=%s dead_letter=%s controllate=%s",
+                result.get("failed"),
+                result.get("given_up"),
+                result.get("checked"),
+            )
         return result
     except Exception:
         logger.exception("run_anomalie_pending_notifications: eccezione inattesa")
         raise
+
+
+@system_job_run("anomalie_cleanup_allegati")
+def run_anomalie_cleanup_allegati(*, older_than_days: int = 30, limit: int = 500) -> dict:
+    """Pulizia schedulata delle cartelle allegati orfane (id non più in tabella anomalie).
+
+    Esegue il management command `cleanup_anomalie_allegati` in modalità eliminazione,
+    limitata alle cartelle ferme da oltre `older_than_days` giorni (conservativo) e a
+    un massimo di `limit` cartelle per run. Idempotente: i run successivi non rivedono
+    le cartelle già rimosse. Ritorna {"older_than_days", "limit"} per il run-log.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    buf = StringIO()
+    call_command(
+        "cleanup_anomalie_allegati",
+        delete=True,
+        older_than_days=older_than_days,
+        limit=limit,
+        stdout=buf,
+    )
+    out = buf.getvalue().strip()
+    if out:
+        logger.info("run_anomalie_cleanup_allegati: %s", out.replace("\n", " | "))
+    return {"older_than_days": older_than_days, "limit": limit}
 
 
 @system_job_run("anomalie_escalation")

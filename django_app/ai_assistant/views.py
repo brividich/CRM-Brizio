@@ -6,15 +6,23 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.core.cache import cache
+from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
 
 from .models import AiChatFeedback, AiKnowledgeEntry
-from .services import OllamaChatError, chat_with_ollama, clear_knowledge_cache
+from .services import (
+    OllamaChatError,
+    chat_with_ollama,
+    clear_knowledge_cache,
+    iter_ollama_stream,
+    open_ollama_stream,
+)
 from .tools import build_runtime_context
 
 
@@ -24,6 +32,50 @@ def _json_payload(request) -> dict:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _check_rate_limit(request) -> tuple[bool, int]:
+    """Throttle per-utente a finestra fissa basato sulla cache.
+
+    Ritorna ``(allowed, retry_after_seconds)``. Fail-open: se la cache non e'
+    disponibile non blocca mai la richiesta. ``OLLAMA_CHAT_RATE_LIMIT=0``
+    disabilita il throttle.
+    """
+    limit = int(getattr(settings, "OLLAMA_CHAT_RATE_LIMIT", 20) or 0)
+    window = int(getattr(settings, "OLLAMA_CHAT_RATE_WINDOW_SECONDS", 60) or 60)
+    if limit <= 0 or window <= 0:
+        return True, 0
+    user_id = getattr(getattr(request, "user", None), "id", None) or "anon"
+    now = int(time.time())
+    key = f"ai_chat_rate:{user_id}:{now // window}"
+    try:
+        if cache.add(key, 1, timeout=window):
+            count = 1
+        else:
+            try:
+                count = cache.incr(key)
+            except ValueError:
+                cache.set(key, 1, timeout=window)
+                count = 1
+    except Exception:
+        # Cache non raggiungibile: non penalizzare l'utente.
+        return True, 0
+    if count > limit:
+        retry_after = window - (now % window)
+        return False, max(1, retry_after)
+    return True, 0
+
+
+def _rate_limited_response(retry_after: int) -> JsonResponse:
+    response = JsonResponse(
+        {
+            "ok": False,
+            "error": "Troppe richieste all'assistente AI. Attendi qualche secondo e riprova.",
+        },
+        status=429,
+    )
+    response["Retry-After"] = str(int(retry_after))
+    return response
 
 
 def _can_manage_knowledge(request) -> bool:
@@ -40,10 +92,14 @@ def _can_manage_knowledge(request) -> bool:
 def _runtime_audit_summary(runtime_audit: dict | None) -> dict:
     audit = runtime_audit or {}
     tools = audit.get("tools") if isinstance(audit.get("tools"), list) else []
+    routing = audit.get("routing") if isinstance(audit.get("routing"), dict) else {}
     base = {
         "runtime_context_chars": audit.get("context_chars") if isinstance(audit.get("context_chars"), int) else 0,
         "runtime_context_lines": audit.get("context_lines") if isinstance(audit.get("context_lines"), int) else 0,
         "runtime_context_truncated": bool(audit.get("truncated")),
+        "runtime_routing_enabled": bool(routing.get("enabled")),
+        "runtime_routing_active": routing.get("active") if isinstance(routing.get("active"), list) else [],
+        "runtime_routing_scores": routing.get("scores") if isinstance(routing.get("scores"), dict) else {},
     }
     if tools:
         return {
@@ -218,6 +274,10 @@ def api_chat(request):
             status=503,
         )
 
+    allowed, retry_after = _check_rate_limit(request)
+    if not allowed:
+        return _rate_limited_response(retry_after)
+
     payload = _json_payload(request)
     message = str(payload.get("message") or "").strip()
     history = payload.get("history")
@@ -288,6 +348,253 @@ def api_chat(request):
             "suggested_questions": suggested_questions,
         }
     )
+
+
+def _ndjson(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+@require_POST
+@login_required
+def api_chat_stream(request):
+    """Variante streaming di ``api_chat``: emette NDJSON con eventi incrementali.
+
+    Eventi (uno per riga):
+      {"type": "delta", "text": "..."}              token incrementale
+      {"type": "done",  "model", "elapsed_ms", ...} chiusura con metadati
+      {"type": "error", "error": "..."}             errore prima di ogni token
+
+    Il setup (ACL/contesto live, validazione, apertura connessione) avviene in
+    modo sincrono: errori di setup tornano come JSON con status HTTP corretto,
+    cosi' il frontend puo' ripiegare sull'endpoint non-streaming.
+    """
+    if not bool(getattr(settings, "OLLAMA_CHAT_ENABLED", True)):
+        return JsonResponse(
+            {"ok": False, "error": "Assistente AI disabilitato in configurazione."},
+            status=503,
+        )
+
+    allowed, retry_after = _check_rate_limit(request)
+    if not allowed:
+        return _rate_limited_response(retry_after)
+
+    payload = _json_payload(request)
+    message = str(payload.get("message") or "").strip()
+    history = payload.get("history")
+    preferences = _clean_chat_preferences(payload.get("preferences"))
+    if not message:
+        return JsonResponse({"ok": False, "error": "Scrivi un messaggio prima di inviare."}, status=400)
+
+    started = time.monotonic()
+    runtime_context = build_runtime_context(request, message, history=history)
+    runtime_audit = _runtime_audit_summary(runtime_context.audit)
+    model = str(getattr(settings, "OLLAMA_CHAT_MODEL", "") or "").strip()
+
+    try:
+        stream, meta = open_ollama_stream(
+            message,
+            history=history,
+            runtime_context=runtime_context.text,
+            user_preferences=preferences,
+        )
+    except OllamaChatError as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        log_action(
+            request,
+            "ai_chat_error",
+            "ai_assistant",
+            {
+                "model": model,
+                "provider": str(getattr(settings, "OLLAMA_API_PROVIDER", "ollama") or "ollama").strip().lower(),
+                "base_url_host": urlsplit(str(getattr(settings, "OLLAMA_BASE_URL", "") or "")).netloc,
+                "prompt_chars": len(message),
+                "elapsed_ms": elapsed_ms,
+                "error_type": exc.__class__.__name__,
+                "streamed": True,
+                **runtime_audit,
+            },
+        )
+        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
+
+    sources = list(meta.get("sources") or ())
+    for source in runtime_context.sources:
+        if source not in sources:
+            sources.append(source)
+
+    def event_stream():
+        chunks: list[str] = []
+        stream_error = ""
+        error_type = ""
+        try:
+            for piece in iter_ollama_stream(stream, meta.get("provider", "ollama")):
+                chunks.append(piece)
+                yield _ndjson({"type": "delta", "text": piece})
+        except OllamaChatError as exc:
+            # Messaggio funzionale pensato per l'utente/admin (no internals).
+            stream_error = str(exc) or "Errore durante lo streaming della risposta."
+            error_type = "OllamaChatError"
+        except Exception as exc:  # noqa: BLE001 — non esporre dettagli interni al client
+            stream_error = "Errore durante lo streaming della risposta."
+            error_type = exc.__class__.__name__
+
+        full_text = "".join(chunks).strip()
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+
+        if stream_error and not full_text:
+            log_action(
+                request,
+                "ai_chat_error",
+                "ai_assistant",
+                {
+                    "model": meta.get("model") or model,
+                    "prompt_chars": len(message),
+                    "elapsed_ms": elapsed_ms,
+                    "error_type": error_type or "StreamError",
+                    "streamed": True,
+                    **runtime_audit,
+                },
+            )
+            yield _ndjson({"type": "error", "error": stream_error})
+            return
+
+        log_action(
+            request,
+            "ai_chat",
+            "ai_assistant",
+            {
+                "model": meta.get("model") or model,
+                "prompt_chars": len(message),
+                "response_chars": len(full_text),
+                "rag_sources_count": len(meta.get("sources") or ()),
+                "runtime_sources_count": len(runtime_context.sources),
+                "rag_context_chars": meta.get("rag_context_chars") or 0,
+                "ai_preferences": sorted(preferences.keys()),
+                "elapsed_ms": elapsed_ms,
+                "streamed": True,
+                "stream_partial_error": bool(stream_error),
+                **runtime_audit,
+            },
+        )
+
+        done_event = {
+            "type": "done",
+            "model": meta.get("model") or model,
+            "elapsed_ms": elapsed_ms,
+            "sources": sources,
+            "suggested_questions": _build_suggested_questions(message, full_text),
+        }
+        if stream_error:
+            done_event["partial_error"] = stream_error
+        yield _ndjson(done_event)
+
+    response = StreamingHttpResponse(event_stream(), content_type="application/x-ndjson; charset=utf-8")
+    response["Cache-Control"] = "no-cache, no-transform"
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+_DAILY_BRIEF_QUERY = (
+    "cosa devo fare oggi? riepilogo personale delle mie attivita', scadenze e "
+    "cose da gestire di oggi nei moduli a cui ho accesso"
+)
+_DAILY_BRIEF_PROMPT = (
+    "Prepara il mio brief operativo personale di oggi basandoti ESCLUSIVAMENTE sul "
+    "contesto live. Elenca in massimo 6 punti, dal piu' importante, le cose che devo "
+    "gestire o sapere oggi (scadenze imminenti, attivita' o task in ritardo, ticket "
+    "urgenti, procedure o notizie da leggere/confermare, DPI o ferie rilevanti). "
+    "Una riga per punto, tono diretto e operativo, in italiano. Non inventare voci "
+    "non presenti nel contesto. Se non c'e' nulla di rilevante, dillo in una riga."
+)
+
+
+def _seconds_until_end_of_day() -> int:
+    now = timezone.localtime()
+    end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+    return max(60, int((end - now).total_seconds()))
+
+
+@login_required
+def api_daily_brief(request):
+    """Brief operativo personale del giorno, generato dall'AI sui dati live ACL-filtrati.
+
+    On-demand con cache per-utente/per-giorno (si genera alla prima apertura,
+    poi servito dalla cache). ``?refresh=1`` forza la rigenerazione (con throttle).
+    Fail-safe: se il modello non risponde, mostra comunque gli item grezzi.
+    """
+    if not bool(getattr(settings, "OLLAMA_DAILY_BRIEF_ENABLED", True)) or not bool(
+        getattr(settings, "OLLAMA_CHAT_ENABLED", True)
+    ):
+        return JsonResponse({"ok": False, "error": "Brief AI non disponibile."}, status=503)
+
+    user_id = getattr(request.user, "id", None) or "anon"
+    today = timezone.localdate().isoformat()
+    cache_key = f"ai_daily_brief:{user_id}:{today}"
+    force = request.GET.get("refresh") == "1"
+
+    if not force:
+        try:
+            cached = cache.get(cache_key)
+        except Exception:
+            cached = None
+        if isinstance(cached, dict) and cached.get("message"):
+            return JsonResponse({"ok": True, "cached": True, **cached})
+    else:
+        allowed, retry_after = _check_rate_limit(request)
+        if not allowed:
+            return _rate_limited_response(retry_after)
+
+    started = time.monotonic()
+    runtime_context = build_runtime_context(request, _DAILY_BRIEF_QUERY)
+    has_context = bool(runtime_context.text.strip())
+
+    model = ""
+    if not has_context:
+        message = "Per oggi non risultano attivita' o scadenze rilevanti da gestire nei tuoi moduli."
+    else:
+        try:
+            result = chat_with_ollama(
+                _DAILY_BRIEF_PROMPT,
+                runtime_context=runtime_context.text,
+                user_preferences={"style": "sintetico", "show_limits": True},
+                # Timeout dedicato piu' corto: il brief non e' critico e non deve
+                # tenere occupato un worker per l'intero OLLAMA_REQUEST_TIMEOUT_SECONDS.
+                timeout=int(getattr(settings, "OLLAMA_DAILY_BRIEF_TIMEOUT_SECONDS", 45) or 45),
+            )
+            message = result.content
+            model = result.model
+        except OllamaChatError:
+            # Fail-safe: niente AI ma mostriamo comunque le fonti/segnali grezzi.
+            message = (
+                "Servizio AI non disponibile al momento. Apri «Mie attivita'» nel "
+                "portale per il riepilogo completo delle cose da gestire."
+            )
+
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    data = {
+        "message": message,
+        "model": model,
+        "generated_at": timezone.localtime().strftime("%H:%M"),
+        "sources": list(runtime_context.sources),
+    }
+    try:
+        cache.set(cache_key, data, timeout=_seconds_until_end_of_day())
+    except Exception:
+        pass
+
+    log_action(
+        request,
+        "ai_daily_brief",
+        "ai_assistant",
+        {
+            "model": model,
+            "response_chars": len(message),
+            "elapsed_ms": elapsed_ms,
+            "forced": force,
+            "had_context": has_context,
+            **_runtime_audit_summary(runtime_context.audit),
+        },
+    )
+    return JsonResponse({"ok": True, "cached": False, **data})
 
 
 @require_POST

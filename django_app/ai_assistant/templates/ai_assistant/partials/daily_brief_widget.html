@@ -1,0 +1,116 @@
+{% comment %}
+Widget "brief giornaliero personale" generato dall'assistente AI.
+Autonomo: includibile in qualsiasi pagina autenticata con
+    {% include "ai_assistant/partials/daily_brief_widget.html" %}
+Si carica via fetch (GET, endpoint shared ACL), cache per-utente/giorno lato server.
+{% endcomment %}
+<section class="ai-brief-widget" data-ai-brief
+         data-brief-url="{% url 'ai_assistant:api_daily_brief' %}">
+  <header class="ai-brief-head">
+    <span class="ai-brief-title">&#x1F916; Il tuo brief di oggi</span>
+    <button type="button" class="ai-brief-refresh" data-ai-brief-refresh
+            title="Rigenera il brief">&#x21BB;</button>
+  </header>
+  <div class="ai-brief-body" data-ai-brief-body>
+    <div class="ai-brief-skeleton">Preparo il riepilogo del giorno&hellip;</div>
+  </div>
+  <footer class="ai-brief-foot" data-ai-brief-foot hidden></footer>
+</section>
+
+<style>
+.ai-brief-widget {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(15,23,42,.06);
+}
+.ai-brief-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ai-brief-title { font-weight: 800; font-size: 14px; color: var(--text, #0f172a); }
+.ai-brief-refresh {
+  border: 1px solid var(--border, #e2e8f0); border-radius: 8px; background: var(--surface, #fff);
+  color: var(--text-light, #475569); cursor: pointer; font-size: 15px; line-height: 1;
+  width: 30px; height: 30px; transition: background .15s;
+}
+.ai-brief-refresh:hover { background: #eef4ff; color: #1e40af; }
+.ai-brief-refresh:disabled { opacity: .5; cursor: wait; }
+.ai-brief-body { font-size: 13.5px; line-height: 1.55; color: var(--text, #0f172a); }
+.ai-brief-body ul { margin: 4px 0; padding-left: 18px; }
+.ai-brief-body li { margin: 3px 0; }
+.ai-brief-body p { margin: 4px 0; }
+.ai-brief-skeleton { color: var(--text-light, #64748b); font-style: italic; }
+.ai-brief-foot { margin-top: 8px; font-size: 11px; color: var(--text-light, #94a3b8); }
+.ai-brief-error { color: #b45309; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.querySelector("[data-ai-brief]");
+  if (!root || root.dataset.aiBriefInit) return;
+  root.dataset.aiBriefInit = "1";
+
+  var url    = root.dataset.briefUrl;
+  var body   = root.querySelector("[data-ai-brief-body]");
+  var foot   = root.querySelector("[data-ai-brief-foot]");
+  var refresh = root.querySelector("[data-ai-brief-refresh]");
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  /* Render minimale e sicuro: escape PRIMA, poi grassetto + elenchi puntati. */
+  function renderBrief(text) {
+    var esc = escapeHtml(text).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    var lines = esc.split(/\n/);
+    var html = "";
+    var inList = false;
+    lines.forEach(function (line) {
+      var m = /^\s*[-*•]\s+(.*)$/.exec(line);
+      if (m) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        html += "<li>" + m[1] + "</li>";
+      } else {
+        if (inList) { html += "</ul>"; inList = false; }
+        if (line.trim()) html += "<p>" + line + "</p>";
+      }
+    });
+    if (inList) html += "</ul>";
+    return html || "<p>" + esc + "</p>";
+  }
+
+  async function load(force) {
+    if (refresh) refresh.disabled = true;
+    if (force) body.innerHTML = '<div class="ai-brief-skeleton">Rigenero il riepilogo&hellip;</div>';
+    try {
+      var resp = await fetch(url + (force ? "?refresh=1" : ""), {
+        method: "GET",
+        headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" }
+      });
+      var data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error((data && data.error) || ("Errore " + resp.status));
+      }
+      body.innerHTML = renderBrief(data.message || "");
+      if (foot) {
+        var bits = [];
+        if (data.generated_at) bits.push("aggiornato alle " + data.generated_at);
+        if (data.model) bits.push(data.model);
+        if (data.cached) bits.push("dalla cache");
+        foot.textContent = bits.join(" · ");
+        foot.hidden = bits.length === 0;
+      }
+    } catch (err) {
+      body.innerHTML = '<div class="ai-brief-error">Brief non disponibile al momento.</div>';
+      if (foot) foot.hidden = true;
+    } finally {
+      if (refresh) refresh.disabled = false;
+    }
+  }
+
+  refresh && refresh.addEventListener("click", function () { load(true); });
+  load(false);
+})();
+</script>

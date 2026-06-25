@@ -1,0 +1,13 @@
+{% load static %}
+<div class="gcm-cell-inner"
+     role="button" tabindex="0"
+     hx-get="{% url 'gestione_carichi_macchina:cella_edit' %}?macchina={{ macchina.id }}&turno={{ turno }}&data={{ data_iso }}"
+     hx-target="closest .gcm-td"
+     hx-swap="innerHTML"
+     hx-trigger="click, keyup[key=='Enter']">
+  {% for job in jobs %}
+    <span class="gcm-chip gcm-{{ job.classe }}">{{ job.label }}</span>
+  {% empty %}
+    <span class="gcm-empty">+</span>
+  {% endfor %}
+</div>

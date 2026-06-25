@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Qualifiche & Certificazioni | Anagrafica HR{% endblock %}
 
@@ -74,7 +75,7 @@
       <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_da_verificare }}</span></div>
-        <div class="fmd-mtr-lbl">Da verificare (HR)</div>
+        <div class="fmd-mtr-lbl">Da verificare (HR){% info_hint "qualifica_verifica" %}</div>
         <div class="fmd-mtr-sub">{{ n_con_evidenza }} con evidenza caricata</div>
       </a>
     </section>
@@ -177,6 +178,7 @@
               <th class="fmd-nowrap">Scadenza</th>
               <th class="fmd-r">Giorni</th>
               <th>Stato</th>
+              <th>Azioni</th>
             </tr>
           </thead>
           <tbody>
@@ -207,6 +209,9 @@
                 {% else %}
                   <span class="fmd-badge fmd-b-amber">≤60gg</span>
                 {% endif %}
+              </td>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}?rinnova={{ d.tipo_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
               </td>
             </tr>
             {% endfor %}

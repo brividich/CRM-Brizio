@@ -4,6 +4,7 @@
 {% block title %}{{ dip.cognome }} {{ dip.nome }} | Scheda dipendente{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_info_styles.html" %}
 <style>
 /* ── Anagrafica HR — scheda dipendente · restyle design-system (Fase A) ──────
    Palette/forma derivate dal prototipo `anagrafica_hr_dashboard_novicrom.jsx`.
@@ -1701,17 +1702,22 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               {% endif %}
               {% if q.storico.all|length > 1 %}
               <details class="dp-qual-dates" style="margin-top:4px;">
-                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }})</summary>
+                <summary style="cursor:pointer;font-size:11px;color:#64748b;font-weight:700;">↻ Storico rinnovi ({{ q.storico.all|length }}){% info_hint "qualifica_storico" %}</summary>
                 <div style="margin-top:4px;display:flex;flex-direction:column;gap:2px;padding-left:6px;border-left:2px solid #e2e8f0;">
                   {% for s in q.storico.all %}
                   <div style="font-size:11px;color:#475569;">
                     {% if s.data_conseguimento %}<strong>{{ s.data_conseguimento|date:"d-m-Y" }}</strong>{% else %}—{% endif %}{% if s.data_scadenza %} → {{ s.data_scadenza|date:"d-m-Y" }}{% endif %}{% if s.ente %} · {{ s.ente }}{% endif %}{% if s.numero %} · n° {{ s.numero }}{% endif %}
-                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>
+                    <span style="color:#94a3b8;">({{ s.get_origine_display }})</span>{% if s.documento and is_admin %} · <a href="{% url 'anagrafica:dipendente_qualifica_storico_evidenza' legacy_id q.id s.id %}" title="Scarica l'evidenza di questo rinnovo" style="color:#065f46;text-decoration:none;font-weight:700;">📎 Evidenza</a>{% endif %}
                   </div>
                   {% endfor %}
                 </div>
               </details>
               {% endif %}
+              {% if is_admin %}{% for corso in q.tipo.corsi.all|slice:":1" %}
+              <div class="dp-qual-dates" style="margin-top:4px;">
+                <a href="{% url 'anagrafica:formazione_corso_detail' corso.pk %}" style="background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;text-decoration:none;">📚 Iscrivi a un'edizione di «{{ corso.titolo|truncatechars:30 }}»</a>
+              </div>
+              {% endfor %}{% endif %}
               {% if q.record_formazione %}
                 <div class="dp-qual-dates" style="margin-top:4px;">
                   <span style="background:#ecfeff;color:#155e75;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">
@@ -1728,7 +1734,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
             </div>
             {% if is_admin %}
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }}, this)" data-numero="{{ q.numero }}" data-livello="{{ q.livello }}" data-ente="{{ q.ente }}" title="Rinnova questa qualifica (estremi precompilati)">↻ Rinnova</button>
+                <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="rinnovaQualifica({{ q.tipo_id }}, this)" data-tipo="{{ q.tipo_id }}" data-numero="{{ q.numero }}" data-livello="{{ q.livello }}" data-ente="{{ q.ente }}" title="Rinnova questa qualifica (estremi precompilati)">↻ Rinnova</button>
                 <form method="post" action="{% url 'anagrafica:dipendente_qualifica_verifica' legacy_id q.id %}" style="display:inline;">
                   {% csrf_token %}
                   <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs" title="{% if q.verificata %}Rimuovi verifica HR{% else %}Segna come verificata (controllo HR){% endif %}">{% if q.verificata %}✓ Verificata{% else %}Verifica{% endif %}</button>
@@ -1787,7 +1793,7 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
               <input type="text" name="note" class="dp-select" maxlength="255" placeholder="Note opzionali" style="width:100%;">
             </div>
             <div class="dp-qual-field" style="grid-column:1/-1;">
-              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 15 MB)</label>
+              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 15 MB){% info_hint "qualifica_evidenza" %}</label>
               <input type="file" name="documento" class="dp-select" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff" style="width:100%;">
             </div>
           </div>
@@ -1809,6 +1815,12 @@ body.theme-dark .dp-abs-empty { background:var(--surface-alt); border-color:var(
           }
           if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
         }
+        document.addEventListener('DOMContentLoaded', function(){
+          var p=new URLSearchParams(location.search).get('rinnova');
+          if(!p) return;
+          var btn=document.querySelector('button[data-tipo="'+p+'"]');
+          if(btn){ btn.click(); }
+        });
         </script>
       </div>
       {% elif is_admin and not tipi_qualifica %}

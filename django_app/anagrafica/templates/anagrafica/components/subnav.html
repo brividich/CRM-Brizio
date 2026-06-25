@@ -24,12 +24,34 @@ body.nav-side .hrnav { top:0; }
 .hrnav-tab:hover .hrnav-ico { color:#1f87cd; }
 .hrnav-tab.active { background:#0c2545; color:#fff; box-shadow:0 1px 2px rgba(8,20,45,.25); }
 .hrnav-tab.active .hrnav-ico { color:#1f87cd; }
-.hrnav-caret { font-size:9px; opacity:.7; }
-.hrnav-dd { position:relative; display:inline-block; }
+.hrnav-caret { font-size:9px; opacity:.7; margin-left:2px; }
+.hrnav-dd { position:relative; display:inline-flex; align-items:stretch; }
+/* Pilastro «split»: il testo è un link verso la dashboard del sotto-modulo,
+   il caret apre il dropdown. I due pezzi sembrano un'unica pill. */
+.hrnav-pill { border-top-right-radius:0; border-bottom-right-radius:0; padding-right:9px; }
+.hrnav-caret-btn { display:inline-flex; align-items:center; border:none; background:none;
+  cursor:pointer; color:#5a6580; font-size:9px; padding:8px 10px 8px 4px; border-radius:9px;
+  border-top-left-radius:0; border-bottom-left-radius:0; font-family:inherit;
+  transition:background .15s, color .15s; }
+.hrnav-dd:hover .hrnav-pill, .hrnav-dd:hover .hrnav-caret-btn { background:#f1f5f9; color:#0c2545; }
+.hrnav-pill.active, .hrnav-caret-btn.active { background:#0c2545; color:#fff; }
+.hrnav-pill.active .hrnav-ico { color:#1f87cd; }
+.hrnav-dd:hover .hrnav-pill.active, .hrnav-dd:hover .hrnav-caret-btn.active { background:#0c2545; color:#fff; }
 .hrnav-dd-menu { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:210px;
   background:#fff; border:1px solid #e6ebf3; border-radius:12px;
   box-shadow:0 14px 36px rgba(12,37,69,.18); z-index:200; padding:6px; }
-.hrnav-dd:hover .hrnav-dd-menu, .hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
+.hrnav-dd:hover .hrnav-dd-menu, .hrnav-dd:focus-within .hrnav-dd-menu,
+.hrnav-dd-btn:focus + .hrnav-dd-menu { display:block; }
+/* Mega-menu a colonne: una colonna per «gruppo» con intestazione. */
+.hrnav-dd:hover .hrnav-dd-menu.hrnav-dd-mega, .hrnav-dd:focus-within .hrnav-dd-menu.hrnav-dd-mega { display:flex; gap:2px; }
+.hrnav-dd-col { min-width:188px; padding:0 3px; }
+.hrnav-dd-col + .hrnav-dd-col { border-left:1px solid #eef2f7; }
+.hrnav-dd-head { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color:#94a3b8; padding:8px 11px 4px; }
+body.theme-dark .hrnav-caret-btn { color:var(--text-light); }
+body.theme-dark .hrnav-dd:hover .hrnav-pill, body.theme-dark .hrnav-dd:hover .hrnav-caret-btn { background:var(--surface-alt); color:#93c5fd; }
+body.theme-dark .hrnav-dd-col + .hrnav-dd-col { border-color:var(--border); }
+body.theme-dark .hrnav-dd-head { color:var(--text-light); }
 .hrnav-dd-menu a { display:flex; align-items:center; gap:8px; padding:8px 11px; border-radius:8px;
   font-size:13px; font-weight:600; color:#475569; text-decoration:none; white-space:nowrap; }
 .hrnav-dd-menu a:hover { background:#f4f8fc; color:#0c2545; }
@@ -54,16 +76,37 @@ body.theme-dark .hrnav-dd-menu a:hover { background:var(--surface-alt); color:#9
     {% elif item.type == "category" %}
       <span class="hrnav-dd">
         {% with ic=item.label|subnav_svg_icon %}
-        <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
+        {% if item.landing_url %}
+          {# Pilastro «split»: il testo porta alla dashboard del sotto-modulo, il caret apre il menu. #}
+          <a class="hrnav-tab hrnav-pill{% if item.active %} active{% endif %}" href="{{ item.landing_url }}">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}</a>
+          <button class="hrnav-caret-btn{% if item.active %} active{% endif %}" type="button" aria-label="Apri menu {{ item.label }}">▾</button>
+        {% else %}
+          <button class="hrnav-tab hrnav-dd-btn{% if item.active %} active{% endif %}" type="button">{% if ic %}<svg class="hrnav-ico"><use href="#{{ ic }}"/></svg>{{ item.label|strip_leading_emoji }}{% elif item.icona %}{{ item.icona }} {{ item.label }}{% else %}{{ item.label }}{% endif %}<span class="hrnav-caret">▾</span></button>
+        {% endif %}
         {% endwith %}
-        <div class="hrnav-dd-menu">
-          {% for child in item.links %}
-            {% with cic=child.label|subnav_svg_icon %}
-            <a href="{{ child.url }}"
-               class="{% if child.active %}active{% endif %}"
-               {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
-            {% endwith %}
-          {% endfor %}
+        <div class="hrnav-dd-menu{% if item.has_headers %} hrnav-dd-mega{% endif %}">
+          {% if item.has_headers %}
+            {% for g in item.groups %}
+              <div class="hrnav-dd-col">
+                {% if g.header %}<div class="hrnav-dd-head">{{ g.header }}</div>{% endif %}
+                {% for child in g.links %}
+                  {% with cic=child.label|subnav_svg_icon %}
+                  <a href="{{ child.url }}"
+                     class="{% if child.active %}active{% endif %}"
+                     {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+            {% endfor %}
+          {% else %}
+            {% for child in item.links %}
+              {% with cic=child.label|subnav_svg_icon %}
+              <a href="{{ child.url }}"
+                 class="{% if child.active %}active{% endif %}"
+                 {% if child.target == "_blank" %}target="_blank" rel="noopener"{% endif %}>{% if cic %}<svg class="hrnav-ico"><use href="#{{ cic }}"/></svg>{{ child.label|strip_leading_emoji }}{% elif child.icona %}{{ child.icona }} {{ child.label }}{% else %}{{ child.label }}{% endif %}</a>
+              {% endwith %}
+            {% endfor %}
+          {% endif %}
         </div>
       </span>
     {% endif %}

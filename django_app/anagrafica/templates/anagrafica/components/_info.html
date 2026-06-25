@@ -1,0 +1,5 @@
+{% comment %}
+Icona informativa «i» con popup. Reso da `{% info_hint "chiave" %}` o
+`{% info_hint testo="testo libero" %}` (templatetag in anagrafica_extras).
+Lo `title=` nativo è il fallback se la CSS del tooltip non è presente.
+{% endcomment %}{% if testo %}<span class="hr-hint" tabindex="0" role="img" aria-label="Informazione: {{ testo }}" title="{{ testo }}"><span aria-hidden="true">i</span><span class="hr-hint-pop">{{ testo }}</span></span>{% endif %}

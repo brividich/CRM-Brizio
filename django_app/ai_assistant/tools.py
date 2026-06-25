@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
@@ -266,6 +267,14 @@ _ASSET_KEYWORDS = {
     "assegnati",
     "assegnato",
 }
+# Sottoinsieme "specifico" degli asset (esclude parole generiche come scadenza/
+# verifica/manutenzione/assegnat che compaiono anche in domini non-asset).
+_ASSET_SPECIFIC_KEYWORDS = {
+    "asset", "assets", "bene", "beni", "macchina", "macchine", "macchinario",
+    "macchinari", "dispositivo", "dispositivi", "pc", "notebook", "stampante",
+    "server", "cnc", "carroponte", "carroponti", "work order", "workorder",
+    "odl", "ordine di lavoro", "ordini di lavoro", "riparazione",
+}
 _DPI_KEYWORDS = {
     "dpi",
     "dispositivo di protezione",
@@ -458,6 +467,19 @@ _NAME_STOPWORDS = {
     # preposizioni e articoli che chiudono il nome
     "a", "al", "nel", "nella", "di", "da", "per", "in", "con", "su", "tra", "fra",
     "del", "della", "degli", "delle", "dei",
+    # comparativi / quantificatori / parole di classifica: non sono mai nomi
+    # ("chi ha piu ferie" e' una classifica, non il dipendente "piu").
+    "chi", "piu", "più", "meno", "maggiore", "maggiori", "minore", "minori",
+    "alto", "alti", "alta", "alte", "basso", "bassi", "bassa", "basse",
+    "elevato", "elevati", "elevata", "elevate", "tanto", "tanti", "tanta", "tante",
+    "molto", "molti", "molta", "molte", "poco", "pochi", "poca", "poche",
+    "quanti", "quante", "quanto", "primi", "prime", "classifica", "graduatoria",
+    "top", "elenco", "lista", "ordine",
+    # metriche/termini ratei: non sono nomi di dipendente (il fallback maiuscolo
+    # catturava "ROL" come nominativo).
+    "rol", "ratei", "rateo", "saldo", "saldi", "ex", "fest", "festivita",
+    "festività", "rimanenti", "rimanente", "accumulate", "accumulati", "maturate",
+    "maturati", "spettanti", "godute", "disponibili", "disponibile",
 }
 
 
@@ -651,6 +673,14 @@ def _wants_asset_context(prompt: str) -> bool:
     text = _norm_text(prompt)
     if not any(keyword in text for keyword in _ASSET_KEYWORDS):
         return False
+    # Guardia falsi positivi: parole generiche come "scadenza"/"verifica"/"manutenzione"
+    # sono in _ASSET_KEYWORDS ma compaiono anche in domande HR ("ferie in scadenza").
+    # Se la domanda riguarda una metrica HR (ferie/permessi/ROL) e non cita un asset
+    # specifico (macchina, PC, attrezzatura...), non e' una domanda sugli asset.
+    hr_metric = any(k in text for k in ("ferie", "permessi", "rol", "ratei", "ex fest", "ex-fest"))
+    asset_specific = any(k in text for k in _ASSET_SPECIFIC_KEYWORDS)
+    if hr_metric and not asset_specific:
+        return False
     return bool(
         re.search(
             r"\b(chi|quali|elenco|lista|riepilogo|mostra|dimmi|vedere|sono|ho|miei|mie|assegnat[ioe]|scadenz[ae]|manutenzion[ei]|riparazion[ei]|apert[ioe]|stato|operativ[ao])\b",
@@ -690,16 +720,23 @@ def _wants_anagrafica_ratei_context(prompt: str) -> bool:
     text = _norm_text(prompt)
     if not any(keyword in text for keyword in ("ferie", "rol", "permessi", "ex fest", "ex-fest")):
         return False
-    return bool(
-        "ratei" in text
-        or "residu" in text
-        or "residue" in text
-        or "saldo" in text
-        or "saldi" in text
-        or "ancora" in text
-        or "rimast" in text
-        or "disponibil" in text
+    # Indicatori espliciti di saldo/quantita residua o maturata (substring, accent-safe).
+    explicit_markers = (
+        "ratei", "residu", "saldo", "saldi", "ancora", "rimast", "rimanent",
+        "disponibil", "accumulat", "maturat", "spettant", "godut",
     )
+    if any(marker in text for marker in explicit_markers):
+        return True
+    # Intento di classifica/quantita sui ratei: "primi 5 per ferie piu alte",
+    # "chi ha piu ferie", "ferie in ordine decrescente", "quante ferie ha Rossi",
+    # "ferie piu elevate / accumulate". Gate-1 garantisce gia la metrica ferie/rol/permessi,
+    # e il contesto base dipendenti non puo' rispondere a domande quantitative sulle ferie.
+    ranking_intent = re.search(
+        r"\b(quant[ioe]|primi|prime|top|classifica|graduatoria|ordin[ae]|"
+        r"maggior[ei]|minor[ei]|elevat[ei]|alt[ei]|bass[ei]|piu)\b",
+        text,
+    )
+    return bool(ranking_intent)
 
 
 def _wants_anomalie_context(prompt: str) -> bool:
@@ -1258,7 +1295,7 @@ def _aggregate_absences(rows: list[dict]) -> str:
 
 
 def _absence_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_absence_list(prompt):
+    if not _should_run(request, "absence", _wants_absence_list(prompt)):
         return RuntimeContext()
     period = _target_period(prompt)
     if period is None:
@@ -1354,7 +1391,7 @@ def _absence_context(request, prompt: str) -> RuntimeContext:
 
 
 def _module_catalog_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_module_catalog(prompt):
+    if not _should_run(request, "modules", _wants_module_catalog(prompt)):
         return RuntimeContext()
 
     from core.context_processors import legacy_nav
@@ -1392,7 +1429,7 @@ def _module_catalog_context(request, prompt: str) -> RuntimeContext:
 
 
 def _ticket_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_ticket_context(prompt):
+    if not _should_run(request, "tickets", _wants_ticket_context(prompt)):
         return RuntimeContext()
 
     from tickets import views as ticket_views
@@ -1502,7 +1539,7 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
 
 
 def _tasks_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_task_context(prompt):
+    if not _should_run(request, "tasks", _wants_task_context(prompt)):
         return RuntimeContext()
 
     from tasks import views as task_views
@@ -1607,7 +1644,7 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
 
 
 def _assets_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_asset_context(prompt):
+    if not _should_run(request, "assets", _wants_asset_context(prompt)):
         return RuntimeContext()
 
     from assets.models import Asset, AssetAdministrativeDeadline, PeriodicVerification, WorkOrder
@@ -1778,7 +1815,7 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
 
 
 def _dpi_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_dpi_context(prompt):
+    if not _should_run(request, "dpi", _wants_dpi_context(prompt)):
         return RuntimeContext()
 
     from dpi.models import RichiestaDPI, StatoRichiesta
@@ -2076,7 +2113,7 @@ def _anagrafica_ratei_context(request, prompt: str, scope: str) -> RuntimeContex
 
 
 def _anagrafica_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_anagrafica_context(prompt):
+    if not _should_run(request, "anagrafica", _wants_anagrafica_context(prompt)):
         return RuntimeContext()
 
     text = _norm_text(prompt)
@@ -2217,7 +2254,7 @@ def _anagrafica_context(request, prompt: str) -> RuntimeContext:
 
 
 def _anomalie_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_anomalie_context(prompt):
+    if not _should_run(request, "anomalie", _wants_anomalie_context(prompt)):
         return RuntimeContext()
 
     from anomalie import views as anomalie_views
@@ -2386,7 +2423,7 @@ def _anomalie_context(request, prompt: str) -> RuntimeContext:
 
 
 def _procedure_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_procedure_context(prompt):
+    if not _should_run(request, "procedure", _wants_procedure_context(prompt)):
         return RuntimeContext()
 
     from django.db.models import Count
@@ -2568,7 +2605,7 @@ def _procedure_context(request, prompt: str) -> RuntimeContext:
 
 
 def _notizie_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_notizie_context(prompt):
+    if not _should_run(request, "notizie", _wants_notizie_context(prompt)):
         return RuntimeContext()
 
     from django.db.models import Count
@@ -2660,7 +2697,7 @@ def _notizie_context(request, prompt: str) -> RuntimeContext:
 
 
 def _sicurezza_context(request, prompt: str) -> RuntimeContext:
-    if not _wants_sicurezza_context(prompt):
+    if not _should_run(request, "sicurezza", _wants_sicurezza_context(prompt)):
         return RuntimeContext()
 
     from django.db.models import Count
@@ -2911,7 +2948,9 @@ def _merge_contexts(contexts: list[RuntimeContext]) -> RuntimeContext:
         if context.audit:
             audit_tools.append(context.audit)
     raw_text = "\n\n---\n\n".join(context.text.strip() for context in active)
-    text, truncated = _limit_runtime_text(raw_text)
+    max_chars = int(getattr(settings, "AI_RUNTIME_CONTEXT_MAX_CHARS", RUNTIME_CONTEXT_MAX_CHARS) or RUNTIME_CONTEXT_MAX_CHARS)
+    max_lines = int(getattr(settings, "AI_RUNTIME_CONTEXT_MAX_LINES", RUNTIME_CONTEXT_MAX_LINES) or RUNTIME_CONTEXT_MAX_LINES)
+    text, truncated = _limit_runtime_text(raw_text, max_chars, max_lines)
     return RuntimeContext(
         text=text,
         sources=tuple(sources),
@@ -2921,8 +2960,8 @@ def _merge_contexts(contexts: list[RuntimeContext]) -> RuntimeContext:
             "context_chars": len(text),
             "context_lines": len(text.splitlines()),
             "truncated": truncated,
-            "max_chars": RUNTIME_CONTEXT_MAX_CHARS,
-            "max_lines": RUNTIME_CONTEXT_MAX_LINES,
+            "max_chars": max_chars,
+            "max_lines": max_lines,
         },
     )
 
@@ -2950,8 +2989,177 @@ def _enrich_prompt_with_history(prompt: str, history: Any) -> str:
     return f"{context_text} {prompt}"
 
 
+# ── Routing semantico dei tool (embeddings) ────────────────────────────────
+# Additivo alle keyword: un dominio si attiva se il suo gate keyword scatta
+# (precisione) OPPURE se e' semanticamente vicino alla domanda (recall su frasi
+# fuori vocabolario). Fail-safe: se gli embeddings non sono disponibili il
+# comportamento e' identico a oggi (solo keyword). Soglia/margine calibrati su
+# nomic-embed-text (vedi AI_TOOL_ROUTING_*); con un altro modello vanno ritarati.
+_DOMAIN_ROUTING_SEEDS: dict[str, tuple[str, ...]] = {
+    "absence": (
+        "chi e' assente oggi o domani",
+        "elenco delle assenze della settimana",
+        "chi e' in ferie o malattia in questo periodo",
+        "chi non e' al lavoro questa settimana",
+    ),
+    "modules": (
+        "quali moduli e funzioni posso usare nel portale",
+        "cosa posso fare nel portale",
+        "dove trovo una sezione o una funzione",
+    ),
+    "tickets": (
+        "ticket di assistenza aperti o urgenti",
+        "richieste di supporto IT o manutenzione",
+        "guasti e problemi segnalati",
+        "stato delle mie richieste di assistenza",
+    ),
+    "tasks": (
+        "task e attivita' in ritardo o in scadenza",
+        "scadenze dei progetti e kick-off",
+        "attivita' assegnate da completare",
+    ),
+    "assets": (
+        "stato degli asset e delle attrezzature aziendali",
+        "manutenzioni e verifiche periodiche dei macchinari",
+        "attrezzature in riparazione o fuori servizio",
+        "asset assegnati a una persona o reparto",
+    ),
+    "dpi": (
+        "dispositivi di protezione individuale in scadenza",
+        "consegne e richieste di DPI",
+        "guanti elmetti scarpe antinfortunistiche da consegnare",
+    ),
+    "anagrafica": (
+        "elenco dei dipendenti e dati anagrafici aziendali",
+        "ferie residue accumulate o rimanenti dei dipendenti",
+        "quante ore di ferie permessi o ROL ha un dipendente",
+        "classifica dei dipendenti per ferie o permessi maturati",
+        "saldo ratei ferie permessi ex festivita",
+        "quanto tempo libero o quante ferie mi restano da prendere",
+        "giorni di ferie o permessi ancora da godere quest'anno",
+    ),
+    "anomalie": (
+        "anomalie e non conformita' di produzione aperte",
+        "segnalazioni RDC e pezzi recuperati",
+        "stato delle anomalie in lavorazione",
+    ),
+    "procedure": (
+        "procedure e documenti da leggere e confermare",
+        "quiz e campagne di formazione da completare",
+        "prese visione delle procedure",
+    ),
+    "notizie": (
+        "notizie e comunicazioni aziendali da leggere",
+        "comunicazioni obbligatorie da confermare",
+    ),
+    "sicurezza": (
+        "indicatori di sicurezza near miss e incidenti",
+        "diario del preposto e rilevazione incidenti",
+        "infortuni e quasi infortuni segnalati",
+    ),
+}
+
+_ROUTING_SEED_CACHE: dict[str, Any] = {"model": "", "vectors": None}
+
+
+def _domain_seed_vectors() -> dict[str, list[list[float]]] | None:
+    """Embeddings (cache di processo) delle frasi-seme per ogni dominio."""
+    from . import services
+
+    model = str(getattr(settings, "OLLAMA_EMBED_MODEL", "") or "").strip()
+    if not model:
+        return None
+    cached = _ROUTING_SEED_CACHE.get("vectors")
+    if cached is not None and _ROUTING_SEED_CACHE.get("model") == model:
+        return cached
+
+    flat: list[str] = []
+    domains: list[str] = []
+    for domain, phrases in _DOMAIN_ROUTING_SEEDS.items():
+        for phrase in phrases:
+            domains.append(domain)
+            flat.append(phrase)
+    vectors = services.embed_texts(flat)
+    if not vectors or len(vectors) != len(flat):
+        return None
+    by_domain: dict[str, list[list[float]]] = {}
+    for domain, vector in zip(domains, vectors):
+        by_domain.setdefault(domain, []).append(vector)
+    _ROUTING_SEED_CACHE.update({"model": model, "vectors": by_domain})
+    return by_domain
+
+
+def _rank_domains(prompt: str) -> list[tuple[str, float]]:
+    """Domini ordinati per similarita' semantica con la domanda.
+
+    Lista vuota se il routing e' disabilitato o gli embeddings non sono
+    disponibili (-> si usa solo il gate keyword).
+    """
+    if not bool(getattr(settings, "AI_TOOL_ROUTING_ENABLED", True)):
+        return []
+    from . import services
+
+    if not services.embeddings_enabled():
+        return []
+    text = (prompt or "").strip()
+    if len(text) < 4:
+        return []
+    seeds = _domain_seed_vectors()
+    if not seeds:
+        return []
+    query_vectors = services.embed_texts([text])
+    if not query_vectors:
+        return []
+    query_vec = query_vectors[0]
+    return sorted(
+        (
+            (domain, max((services.cosine_similarity(query_vec, vec) for vec in vectors), default=0.0))
+            for domain, vectors in seeds.items()
+        ),
+        key=lambda kv: kv[1],
+        reverse=True,
+    )
+
+
+def _active_from_ranked(ranked: list[tuple[str, float]]) -> set[str]:
+    """Applica soglia + margine dal top + top-K al ranking dei domini."""
+    if not ranked:
+        return set()
+    threshold = float(getattr(settings, "AI_TOOL_ROUTING_THRESHOLD", 0.70) or 0.70)
+    margin = float(getattr(settings, "AI_TOOL_ROUTING_MARGIN", 0.04) or 0.0)
+    top_k = max(1, int(getattr(settings, "AI_TOOL_ROUTING_TOP_K", 2) or 2))
+    top_score = ranked[0][1]
+    if top_score < threshold:
+        return set()
+    return {
+        domain
+        for domain, score in ranked[:top_k]
+        if score >= threshold and score >= top_score - margin
+    }
+
+
+def _semantic_active_domains(prompt: str) -> set[str]:
+    """Domini semanticamente pertinenti alla domanda (soglia + margine dal top)."""
+    return _active_from_ranked(_rank_domains(prompt))
+
+
+def _should_run(request, domain_key: str, keyword_hit: bool) -> bool:
+    """Un tool gira se il suo gate keyword scatta o se il dominio e' semanticamente attivo."""
+    if keyword_hit:
+        return True
+    active = getattr(request, "ai_active_domains", None)
+    return bool(active) and domain_key in active
+
+
 def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeContext:
     enriched = _enrich_prompt_with_history(prompt, history)
+    try:
+        ranked = _rank_domains(enriched)
+        active = _active_from_ranked(ranked)
+    except Exception:
+        ranked, active = [], set()
+    request.ai_active_domains = active
+
     contexts = _cross_domain_contexts(request, enriched)
     if contexts is None:
         contexts = []
@@ -2963,4 +3171,11 @@ def build_runtime_context(request, prompt: str, history: Any = None) -> RuntimeC
         unavailable_context = _unavailable_domain_context(request, enriched)
         if unavailable_context.text.strip():
             contexts.append(unavailable_context)
-    return _merge_contexts(contexts)
+
+    result = _merge_contexts(contexts)
+    routing_audit = {
+        "enabled": bool(ranked),
+        "active": sorted(active),
+        "scores": {domain: round(score, 3) for domain, score in ranked[:5]},
+    }
+    return replace(result, audit={**(result.audit or {}), "routing": routing_audit})

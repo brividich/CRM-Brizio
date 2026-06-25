@@ -1,0 +1,43 @@
+{% extends "core/base.html" %}
+{% block title %}Compila MOD.133 · {{ spec.codice }}{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-head">
+  <h1>MOD.133 — {{ spec.codice }}{% if spec.revisione %} rev.{{ spec.revisione }}{% endif %}</h1>
+  <p>Compilazione righe di flow-down. La griglia documenti è obbligatoria solo per le righe con «Impatto documenti».</p>
+</div>
+
+<form method="post" action="{% url 'gestione_specifiche:mod133_compila' spec.pk %}">
+  {% csrf_token %}
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}<div class="gs-card" style="color:#b42318;">{{ formset.non_form_errors }}</div>{% endif %}
+
+  <div id="righe-body">
+    {% for form in formset %}
+      {% include "gestione_specifiche/partials/_riga_form.html" with form=form %}
+    {% endfor %}
+  </div>
+
+  <div class="gs-actions">
+    <button type="button" class="gs-btn"
+            hx-get="{% url 'gestione_specifiche:mod133_riga_add' spec.pk %}"
+            hx-target="#righe-body" hx-swap="beforeend"
+            hx-vals='js:{i: document.getElementById("id_righe-TOTAL_FORMS").value}'
+            hx-on::after-request="var t=document.getElementById('id_righe-TOTAL_FORMS'); t.value=parseInt(t.value)+1;">
+      + Aggiungi riga
+    </button>
+    <button type="submit" class="gs-btn gs-btn--primary">Salva righe</button>
+    <a class="gs-btn" href="{% url 'gestione_specifiche:dettaglio' spec.pk %}">Torna al dettaglio</a>
+  </div>
+</form>
+
+<script>
+function gsRemoveRiga(btn){
+  var row = btn.closest('.gs-riga');
+  var del = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+  if (del){ del.checked = true; row.style.display = 'none'; }
+  else { row.remove(); }
+}
+</script>
+{% endblock %}

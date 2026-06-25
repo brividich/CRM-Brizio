@@ -113,7 +113,48 @@ escluse azioni POST/CRUD, export, API e partial HTMX.
 
 ---
 
-## Proposta riorganizzazione topnav (da applicare in Impostazioni)
+## ✅ Topbar attuale — «Proposta A» a pilastri (implementata)
+
+Migration `0069` (schema) + `0070` (dati). La topbar passa da ~7 dropdown affollati
+a **4 pilastri**, con due meccanismi DB-driven nuovi, entrambi gestibili da
+**Impostazioni → Navigazione**:
+
+1. **Pilastro = link + sottomenu.** La categoria ha una *landing*
+   (`SubnavCategoriaAnagrafica.landing_url_type` / `landing_url_value`): cliccando il
+   **testo** del pilastro si va alla **dashboard del sotto-modulo**, il **caret/hover**
+   apre comunque il dropdown con gli altri collegamenti. Landing vuota = categoria
+   solo-dropdown (comportamento storico).
+2. **Mega-menu a colonne.** Il campo `SubnavLinkAnagrafica.gruppo` crea intestazioni
+   di sezione dentro il dropdown: link con lo stesso gruppo finiscono nella stessa
+   colonna. Usato da **Competenze** (Formazione / Qualifiche / Trasversale).
+
+Struttura seminata dalla `0070` (idempotente, per `url_value`; i link mancanti sono
+creati **non di sistema** → liberamente riordinabili/eliminabili):
+
+```text
+▦ Dashboard │ ⏰ Scadenzario │ 👥 Persone▾ │ 🎓 Competenze▾ │ 🛡 Compliance▾ │ 🪙 Amministrazione▾ │ ⚙ Impostazioni
+```
+
+| Pilastro | Landing (clic sul testo) | Dropdown |
+|---|---|---|
+| **Persone** | `dipendenti_list` | Elenco · Nuovo · Ex · Organigramma · Onboarding · Documenti · Report |
+| **Competenze** | `formazione_dashboard` | *Formazione*: Dashboard·Piani·Corsi·Sessioni·Istruttori·E-learning·Corsi online·Copertura — *Qualifiche*: Cruscotto·Catalogo·Sessioni rinnovo — *Trasversale*: Matrice competenze |
+| **Compliance** | `sicurezza_hub` | Hub sicurezza · Visite mediche · Conformità mansione |
+| **Amministrazione** | `retribuzioni_globale` | Analisi retribuzioni · Import · Contratti · Cedolini · Ratei |
+
+- **Scadenzario unico**: una sola voce diretta verso `anagrafica:scadenzario` (già
+  unificato e filtrabile via `?tipo=qualifica|visita|formazione|contratto`).
+- **Nascosti dalla topbar** (non eliminati, restano in Impostazioni): `qualifiche_scadenzario`
+  (doppione → Scadenzario unico), `mansioni_list` e `onboarding_offboarding` (cataloghi/config).
+- **Dashboard** resta la home del modulo; **⚙ Impostazioni** resta voce diretta.
+
+> Estendere/riordinare da Impostazioni → Navigazione: ogni categoria ha i campi
+> *Landing / Tipo landing*, ogni link il campo *Gruppo*; la lista `subnav_route_choices`
+> espone tutte le pagine dei pilastri come destinazioni selezionabili.
+
+---
+
+## Proposta riorganizzazione topnav (storica — 7 dropdown, superata dalla Proposta A)
 
 Il topnav è DB-driven (`SubnavCategoriaAnagrafica` + `SubnavLinkAnagrafica`) ed è
 modificabile dalla sezione **Impostazioni**. Le categorie diventano dropdown;

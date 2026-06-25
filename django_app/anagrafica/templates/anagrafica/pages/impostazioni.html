@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load anagrafica_extras %}
 
 {% block title %}Impostazioni Anagrafica | Portale Applicativo{% endblock %}
 
@@ -1674,7 +1675,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Descrizione</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
-                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;" title="Anni di conservazione GDPR dei documenti manuali di questa cartella">Retention</th>
+                  <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Retention{% info_hint "retention" %}</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Documenti</th>
                   <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
                 </tr>
@@ -1682,7 +1683,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
               <tbody>
                 {% for c in cartelle_documenti %}
                 <tr style="border-bottom:1px solid #f1f5f9;" id="cartella-row-{{ c.id }}">
-                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}</td>
+                  <td style="padding:8px 10px;font-weight:600;color:#1e293b;">{% if c.livello %}<span style="display:inline-block;width:{% widthratio c.livello 1 20 %}px;"></span><span style="color:#94a3b8;">↳</span> {% endif %}📁 {{ c.nome }}{% if c.solo_admin %} <span class="imp-badge imp-badge-orange" title="Riservata: documenti visibili solo ai super-amministratori">🔒 riservata</span>{% endif %}{% if c.is_mirata %} <span class="imp-badge" style="background:#e0f2fe;color:#0369a1;" title="Visibile solo a reparti/ruoli selezionati">🎯 mirata</span>{% endif %}</td>
                   <td style="padding:8px 10px;color:#64748b;font-size:12px;">{{ c.descrizione|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
                   <td style="padding:8px 10px;text-align:center;">
@@ -1730,7 +1731,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                           <input type="number" name="ordine" value="{{ c.ordine }}" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                         </div>
                         <div>
-                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Retention{% info_hint "retention" %}</label>
                           <input type="number" name="retention_anni" value="{{ c.retention_anni }}" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                         </div>
                         <div>
@@ -1741,7 +1742,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                           </select>
                         </div>
                         <div>
-                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Riservata{% info_hint "cartella_riservata" %}</label>
                           <select name="solo_admin" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                             <option value="0" {% if not c.solo_admin %}selected{% endif %}>No</option>
                             <option value="1" {% if c.solo_admin %}selected{% endif %}>Sì</option>
@@ -1750,6 +1751,21 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <div style="display:flex;gap:6px;">
                           <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
                           <button type="button" onclick="document.getElementById('cartella-edit-{{ c.id }}').style.display='none';document.getElementById('cartella-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                      {# Targeting: a chi è visibile la cartella (vuoto = tutti) #}
+                      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Visibile ai reparti <span style="text-transform:none;font-weight:400;color:#94a3b8;">(vuoto = tutti)</span></label>
+                          <select name="reparti_ids" multiple size="4" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            {% for r in aree %}<option value="{{ r.id }}" {% if r.id in c.reparti_ids %}selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+                          </select>
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Visibile ai ruoli operativi <span style="text-transform:none;font-weight:400;color:#94a3b8;">(vuoto = tutti)</span></label>
+                          <select name="ruoli_ids" multiple size="4" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                            {% for ro in ruoli_operativi %}<option value="{{ ro.id }}" {% if ro.id in c.ruoli_ids %}selected{% endif %}>{{ ro.nome }}</option>{% endfor %}
+                          </select>
                         </div>
                       </div>
                     </form>
@@ -1764,9 +1780,18 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
 
             {# Form nuova cartella #}
             <div style="border-top:1px solid #e2e8f0;padding-top:16px;">
-              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella</div>
+              <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Nuova cartella / sottocartella</div>
               <form method="post" action="{% url 'anagrafica:cartella_documento_create' %}">
                 {% csrf_token %}
+                <div style="margin-bottom:10px;max-width:360px;">
+                  <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Cartella superiore</label>
+                  <select name="parent" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                    <option value="__root__">— Primo livello (nessuna) —</option>
+                    {% for c in cartelle_documenti %}
+                    <option value="{{ c.id }}">{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 2fr 70px 90px auto auto;gap:10px;align-items:end;">
                   <div>
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Nome *</label>
@@ -1781,11 +1806,11 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <input type="number" name="ordine" value="0" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                   </div>
                   <div>
-                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Anni conservazione GDPR">Retention</label>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Retention{% info_hint "retention" %}</label>
                     <input type="number" name="retention_anni" value="10" min="1" max="99" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                   </div>
                   <div>
-                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Documenti visibili solo ai super-amministratori">Riservata</label>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Riservata{% info_hint "cartella_riservata" %}</label>
                     <label style="display:flex;align-items:center;gap:6px;height:32px;font-size:13px;color:#64748b;"><input type="checkbox" name="solo_admin" value="1"> 🔒 sì</label>
                   </div>
                   <div>
@@ -1819,6 +1844,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Nome</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Icona</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ordine</th>
+                  <th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;" title="Pagina aperta cliccando il testo del pilastro">Landing</th>
                   <th style="text-align:center;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
                   <th style="text-align:right;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>
                 </tr>
@@ -1829,6 +1855,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   <td style="padding:8px 10px;font-weight:600;color:#1e293b;">🗂 {{ c.nome }}</td>
                   <td style="padding:8px 10px;text-align:center;font-size:18px;">{{ c.icona|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;color:#94a3b8;">{{ c.ordine }}</td>
+                  <td style="padding:8px 10px;color:#64748b;font-size:11px;font-family:monospace;">{{ c.landing_url_value|default:"—" }}</td>
                   <td style="padding:8px 10px;text-align:center;">
                     {% if c.is_active %}<span style="color:#16a34a;font-size:11px;font-weight:700;">Attiva</span>
                     {% else %}<span style="color:#94a3b8;font-size:11px;">Inattiva</span>{% endif %}
@@ -1842,7 +1869,7 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   </td>
                 </tr>
                 <tr id="scat-edit-{{ c.id }}" style="display:none;background:#f8fafc;">
-                  <td colspan="5" style="padding:12px 10px;">
+                  <td colspan="6" style="padding:12px 10px;">
                     <form method="post" action="{% url 'anagrafica:subnav_categoria_edit' c.id %}">
                       {% csrf_token %}
                       <div style="display:grid;grid-template-columns:2fr 80px 80px 100px auto;gap:10px;align-items:end;">
@@ -1868,6 +1895,25 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                         <div style="display:flex;gap:6px;">
                           <button type="submit" class="imp-btn imp-btn-primary imp-btn-sm">Salva</button>
                           <button type="button" onclick="document.getElementById('scat-edit-{{ c.id }}').style.display='none';document.getElementById('scat-row-{{ c.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
+                        </div>
+                      </div>
+                      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:end;">
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Clic sul testo del pilastro → questa pagina. Vuoto = solo dropdown.">Landing (dashboard del pilastro)</label>
+                          <select aria-label="Pagina di atterraggio" onchange="if(this.value){this.parentNode.querySelector('input[name=landing_url_value]').value=this.value;this.closest('div[style]').querySelector('select[name=landing_url_type]').value='named';}" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;margin-bottom:4px;">
+                            <option value="">— Nessuna (solo dropdown) —</option>
+                            {% for name, label in subnav_route_choices %}
+                            <option value="{{ name }}" {% if c.landing_url_value == name %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                          </select>
+                          <input type="text" name="landing_url_value" value="{{ c.landing_url_value }}" maxlength="255" placeholder="vuoto = solo dropdown" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                        </div>
+                        <div>
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Tipo landing</label>
+                          <select name="landing_url_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;">
+                            <option value="named" {% if c.landing_url_type == "named" %}selected{% endif %}>Nome view Django</option>
+                            <option value="raw" {% if c.landing_url_type == "raw" %}selected{% endif %}>URL / path diretto</option>
+                          </select>
                         </div>
                       </div>
                     </form>
@@ -1898,6 +1944,25 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                     <input type="number" name="ordine" value="10" min="0" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
                   </div>
                   <div><button type="submit" class="imp-btn imp-btn-primary">+ Crea</button></div>
+                </div>
+                <div style="margin-top:10px;display:grid;grid-template-columns:1fr 180px;gap:10px;align-items:end;">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;" title="Clic sul testo del pilastro → questa pagina. Vuoto = solo dropdown.">Landing (dashboard del pilastro)</label>
+                    <select aria-label="Pagina di atterraggio" onchange="if(this.value){this.parentNode.querySelector('input[name=landing_url_value]').value=this.value;this.closest('div[style]').querySelector('select[name=landing_url_type]').value='named';}" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;margin-bottom:4px;">
+                      <option value="">— Nessuna (solo dropdown) —</option>
+                      {% for name, label in subnav_route_choices %}
+                      <option value="{{ name }}">{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    <input type="text" name="landing_url_value" maxlength="255" placeholder="vuoto = solo dropdown" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;font-family:monospace;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;display:block;margin-bottom:3px;">Tipo landing</label>
+                    <select name="landing_url_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px;">
+                      <option value="named">Nome view Django</option>
+                      <option value="raw">URL / path diretto</option>
+                    </select>
+                  </div>
                 </div>
               </form>
             </div>
@@ -2004,10 +2069,14 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                           <button type="button" onclick="document.getElementById('slink-edit-{{ l.id }}').style.display='none';document.getElementById('slink-row-{{ l.id }}').style.display='';" class="imp-btn imp-btn-ghost imp-btn-sm">Annulla</button>
                         </div>
                       </div>
-                      <div style="margin-top:8px;display:flex;gap:16px;align-items:center;">
+                      <div style="margin-top:8px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
                         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;">
                           <input type="checkbox" name="apri_nuova_tab" value="1" {% if l.apri_nuova_tab %}checked{% endif %}> Apri in nuova tab
                         </label>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                          <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;" title="Intestazione di sezione nel dropdown (mega-menu a colonne).">Gruppo</label>
+                          <input type="text" name="gruppo" value="{{ l.gruppo }}" maxlength="40" placeholder="es. Formazione" style="width:140px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                        </div>
                         {% if l.icona is not None %}
                         <div style="display:flex;align-items:center;gap:6px;">
                           <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Icona</label>
@@ -2061,10 +2130,14 @@ body.theme-dark .imp-workflow-source { color:var(--text-light); }
                   </div>
                   <div><button type="submit" class="imp-btn imp-btn-primary">+ Aggiungi</button></div>
                 </div>
-                <div style="display:flex;gap:16px;align-items:center;">
+                <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
                   <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;">
                     <input type="checkbox" name="apri_nuova_tab" value="1"> Apri in nuova tab
                   </label>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;" title="Intestazione di sezione nel dropdown (mega-menu a colonne).">Gruppo</label>
+                    <input type="text" name="gruppo" maxlength="40" placeholder="es. Formazione" style="width:140px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;">
+                  </div>
                   <div style="display:flex;align-items:center;gap:6px;">
                     <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Icona</label>
                     <input type="text" name="icona" maxlength="20" placeholder="🔗" style="width:60px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:13px;text-align:center;">
