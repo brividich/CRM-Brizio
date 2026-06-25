@@ -201,13 +201,33 @@ del run su DB (18 esatti/14 parziali/10 assenti su 42 macchine). Suite `tests_sk
 In alternativa: lanciare lo specchietto «Sincronizza dagli asset» **direttamente su prod**
 (legge gli asset live), oppure `skm_asset_match_report --settings=config.settings.prod` (modalità DB).
 
+## F3 — Resolver bridge (read-only)  ✅ (2026-06-25)
+
+**File toccati:**
+- `django_app/anagrafica/services/skillmatrix_resolver.py` (nuovo) — sola lettura.
+- `django_app/anagrafica/tests_skillmatrix_resolver.py` (nuovo) — 9 test.
+
+**API esposta** (nessuna scrittura): `pool_abilitati(asset, livello_min=None, includi_riserva=None)`
+→ `legacy_anagrafica_id` operativi (attiva+in_lista+livello≥soglia; CAR esclusi salvo
+riserva); `livello_operatore(legacy_id, asset)`; `kpi_uomo_solo(asset)`;
+`macchine_scoperte(reparto)`; `prontezza_squadra(reparto)`. `asset` accetta istanza o id.
+Filtro soglia tradotto in `livello__in` (niente derivati in query). Universo macchine =
+`CompetenzaSkm(tipo=macchina, asset risolto)`, reparto = `asset.reparto`.
+
+**Punto d'aggancio Fase B:** `pool_abilitati`/`livello_operatore` alimenteranno l'overlay
+disponibilità nel Gantt carichi macchina (chi può stare sulla macchina, a che livello)
+senza che i carichi importino i modelli skill matrix.
+
+**Esito:** `anagrafica.tests_skillmatrix_resolver` → **9 passed** (CAR esclusi, academy
+inclusi, soglia, riserva, uomo-solo, copertura, prontezza, no-scrittura).
+
 ## Stato fasi
 - [x] F0 Discovery
 - [x] F1 Modelli + migrazione + test modello (12 verdi)
 - [x] F2a Asset-match report — 18 esatti/14 parziali/10 assenti (13 test) — **GATE attivo**
 - [x] F2a-UI Specchietto validazione in portale (`/anagrafica/skill-matrix/match/`) — 31 test totali — **GATE attivo**
 - [ ] F2b Importer baseline (STOP approvazione scrittura)
-- [ ] F3 Resolver bridge read-only
+- [x] F3 Resolver bridge read-only (9 test) — punto d'aggancio Fase B carichi macchina
 - [ ] F4 Matrice macchina UI + tab
 - [ ] F5 Continuità operativa (STOP approvazione cablaggio produzione)
 - [ ] F6 Refresh semestrale (CAR)
