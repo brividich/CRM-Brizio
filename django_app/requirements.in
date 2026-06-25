@@ -38,7 +38,7 @@ python-magic>=0.4.14; platform_system!="Windows"
 
 # --- 2FA ---
 pyotp>=2.9                      # TOTP/HOTP per app authenticator
-qrcode[pil]>=7.4                # generazione QR code (setup TOTP)
+qrcode[pil]>=8.2                # generazione QR code (setup TOTP)
 
 # --- State machine / API (app gestione_specifiche) ---
 django-fsm-2>=4.0,<5            # macchina a stati Specifica (FSMField/@transition)
