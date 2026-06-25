@@ -29,7 +29,7 @@ django-q2>=1.7,<2               # code automazioni e task asincroni
 croniter>=2.0                   # richiesto da django-q2 per gli Schedule di tipo CRON (report scadenze)
 
 # --- Utilità runtime ---
-cachetools>=5.3                 # TTLCache per _SPNEGO_CONTEXTS
+cachetools>=7.1.4                 # TTLCache per _SPNEGO_CONTEXTS
 Pillow>=12.0                    # elaborazione immagini (upload, fotocard)
 
 # --- MIME validation (upload hardening) ---
