@@ -11,7 +11,7 @@ pyodbc>=5.2.0                   # driver ODBC; 5.2+ richiesto per Python 3.11 su
 
 # --- Auth / Identity ---
 ldap3>=2.9.1                    # backend LDAP/AD (cnovicrom.local)
-msal>=1.29,<2                   # Microsoft Graph / MSAL token acquisition
+msal>=1.37.0,<2                   # Microsoft Graph / MSAL token acquisition
 pyspnego>=0.10                  # SPNEGO/Kerberos SSO (NTLM/Negotiate)
 django-axes>=7.0,<8             # rate-limiting login + lockout
 
