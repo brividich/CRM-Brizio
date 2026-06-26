@@ -295,6 +295,12 @@ OLLAMA_EMBED_ENABLED = env_bool("OLLAMA_EMBED_ENABLED", False)
 OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 OLLAMA_EMBED_TIMEOUT_SECONDS = int(env("OLLAMA_EMBED_TIMEOUT_SECONDS", "30") or "30")
 OLLAMA_EMBED_BATCH = int(env("OLLAMA_EMBED_BATCH", "16") or "16")
+# Robustezza embedding su corpora grandi: retry per batch (timeout transitori) e
+# micro-pausa tra batch per non saturare Ollama (utile se il server GPU e' condiviso
+# o ha poca VRAM). Per warm pesanti alza la pausa (es. 150) e tieni OLLAMA_NUM_PARALLEL=1
+# sul server. La cache per batch fa convergere i run successivi.
+OLLAMA_EMBED_RETRY = int(env("OLLAMA_EMBED_RETRY", "2") or "2")
+OLLAMA_EMBED_BATCH_PAUSE_MS = int(env("OLLAMA_EMBED_BATCH_PAUSE_MS", "0") or "0")
 OLLAMA_EMBED_PERSIST = env_bool("OLLAMA_EMBED_PERSIST", True)
 OLLAMA_EMBED_CACHE_TTL = int(env("OLLAMA_EMBED_CACHE_TTL", "2592000") or "2592000")
 # Fusione ibrida BM25 + semantica (Reciprocal Rank Fusion): k attenua i ranghi bassi.

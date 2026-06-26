@@ -831,6 +831,7 @@ class AiAssistantTests(TestCase):
                 OLLAMA_EMBED_ENABLED=True,
                 OLLAMA_EMBED_MODEL="test-embed",
                 OLLAMA_EMBED_PERSIST=False,
+                OLLAMA_EMBED_RETRY=0,  # niente backoff: il fallback e' immediato nel test
                 OLLAMA_RAG_SOURCE_PATHS=[tmpdir],
                 OLLAMA_RAG_MAX_CHUNKS=2,
                 OLLAMA_RAG_CACHE_SECONDS=0,

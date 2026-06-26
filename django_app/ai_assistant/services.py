@@ -801,14 +801,24 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
     if missing:
         batch_size = max(1, int(getattr(settings, "OLLAMA_EMBED_BATCH", 16) or 16))
         ttl = int(getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 2592000) or 2592000)
-        # Cache INCREMENTALE per batch: su corpora grandi (migliaia di chunk) una
-        # singola batch fallita (Ollama in timeout/sovraccarico) non deve buttare via
-        # il lavoro gia' fatto. Persistendo ogni batch, i run successivi di
-        # `index_sgi_documents` partono dalla cache e convergono fino a coprire tutto.
+        retries = max(0, int(getattr(settings, "OLLAMA_EMBED_RETRY", 2) or 0))
+        pause_s = max(0.0, float(getattr(settings, "OLLAMA_EMBED_BATCH_PAUSE_MS", 0) or 0) / 1000.0)
+        # Cache INCREMENTALE + retry + micro-pausa tra batch. Su corpora grandi
+        # (migliaia di chunk) l'ondata di richieste puo' saturare Ollama: la pausa
+        # smorza il picco, il retry supera i timeout transitori, e la cache per batch
+        # fa si' che una batch fallita non butti via il lavoro fatto (i run successivi
+        # / il warm notturno convergono fino a coprire tutto, in prod su DatabaseCache).
         failed = False
         for start in range(0, len(missing), batch_size):
             group = missing[start:start + batch_size]
-            vectors = _ollama_embed_texts([_chunk_embed_text(chunks[i]) for i in group])
+            texts = [_chunk_embed_text(chunks[i]) for i in group]
+            vectors = None
+            for attempt in range(retries + 1):
+                vectors = _ollama_embed_texts(texts)
+                if vectors is not None:
+                    break
+                if attempt < retries:
+                    time.sleep(min(1.0 * (attempt + 1), 5.0))  # backoff
             if vectors is None:
                 failed = True
                 break
@@ -821,6 +831,8 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
                     cache.set_many(batch_store, timeout=ttl)
                 except Exception:
                     pass
+            if pause_s:
+                time.sleep(pause_s)
         if failed:
             return None  # questo build resta BM25-only; il progresso e' in cache
 
