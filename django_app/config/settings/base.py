@@ -284,6 +284,10 @@ OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "259200
 # OFF di default: misurare il recall con `ai_eval --rag`/`--rag-sgi` prima di attivarlo
 # in .env. Applicato identico a query e chunk; fail-safe se la dipendenza manca.
 OLLAMA_RAG_STEMMING_ENABLED = env_bool("OLLAMA_RAG_STEMMING_ENABLED", False)
+# Root (UNC) della share documentale SGI per `manage.py import_sgi_da_share`, che
+# registra i PDF come documenti procedura citabili dall'AI. Vuoto = obbligatorio
+# passare --root. Esclude sempre la sottocartella SUPERATO (revisioni obsolete).
+PROCEDURE_REFRESH_SGI_SHARE_ROOT = env("PROCEDURE_REFRESH_SGI_SHARE_ROOT", "")
 # Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
 # di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
 # se non disponibile il retrieval resta BM25-only. Solo provider "ollama".

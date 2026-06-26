@@ -800,21 +800,29 @@ def _embeddings_for_chunks(chunks: list[KnowledgeChunk], model: str) -> list[lis
 
     if missing:
         batch_size = max(1, int(getattr(settings, "OLLAMA_EMBED_BATCH", 16) or 16))
-        to_store: dict[str, list[float]] = {}
+        ttl = int(getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 2592000) or 2592000)
+        # Cache INCREMENTALE per batch: su corpora grandi (migliaia di chunk) una
+        # singola batch fallita (Ollama in timeout/sovraccarico) non deve buttare via
+        # il lavoro gia' fatto. Persistendo ogni batch, i run successivi di
+        # `index_sgi_documents` partono dalla cache e convergono fino a coprire tutto.
+        failed = False
         for start in range(0, len(missing), batch_size):
             group = missing[start:start + batch_size]
             vectors = _ollama_embed_texts([_chunk_embed_text(chunks[i]) for i in group])
             if vectors is None:
-                return None  # embedding non disponibile: niente ramo semantico
+                failed = True
+                break
+            batch_store: dict[str, list[float]] = {}
             for offset, i in enumerate(group):
                 embeddings[i] = vectors[offset]
-                to_store[cache_keys[i]] = vectors[offset]
-        if persist and to_store:
-            ttl = int(getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 2592000) or 2592000)
-            try:
-                cache.set_many(to_store, timeout=ttl)
-            except Exception:
-                pass
+                batch_store[cache_keys[i]] = vectors[offset]
+            if persist and batch_store:
+                try:
+                    cache.set_many(batch_store, timeout=ttl)
+                except Exception:
+                    pass
+        if failed:
+            return None  # questo build resta BM25-only; il progresso e' in cache
 
     if any(vec is None for vec in embeddings):
         return None

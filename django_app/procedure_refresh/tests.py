@@ -331,3 +331,116 @@ class ViewTests(TestCase):
         self.assertEqual(attempt.total_questions, 1)
         self.assignment.refresh_from_db()
         self.assertEqual(self.assignment.status, AssignmentStatus.READ_CONFIRMED)
+
+
+class ImportSgiDaShareTests(TestCase):
+    """Importer del corpus SGI da share: parser dei nomi + comando end-to-end."""
+
+    def _parser(self):
+        from procedure_refresh.management.commands.import_sgi_da_share import (
+            _fallback_parse,
+            parse_sgi_filename,
+        )
+
+        return parse_sgi_filename, _fallback_parse
+
+    def test_parse_riconosce_codice_mt(self):
+        parse, _ = self._parser()
+        info = parse("MT CN 06 Rev.21_Risorse Umane.pdf")
+        self.assertEqual(info["code"], "MT CN 06")
+        self.assertEqual(info["revision"], "21")
+        self.assertEqual(info["title"], "Risorse Umane")
+        self.assertEqual(info["document_type"], "MT")
+        self.assertFalse(info["fallback"])
+
+    def test_parse_distingue_sottonumeri_e_numeri_lunghi(self):
+        parse, _ = self._parser()
+        # sotto-numero _10 fa parte del codice (documenti distinti, niente fusione)
+        self.assertEqual(parse("MT CN 125_10 Gestione Prevenzione Abusi.pdf")["code"], "MT CN 125_10")
+        # 2710 e 271 sono codici DISTINTI (4 cifre vs 3)
+        self.assertEqual(parse("MT CN 2710_Requisiti legali Rev.0.pdf")["code"], "MT CN 2710")
+        self.assertEqual(parse("MT CN 271_Politica di Sicurezza Rev.2.pdf")["code"], "MT CN 271")
+
+    def test_parse_mod_con_punto(self):
+        parse, _ = self._parser()
+        self.assertEqual(parse("MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf")["code"], "MOD.165")
+        self.assertEqual(parse("MOD. 093 - TDM Marketing Rev.2.pdf")["code"], "MOD.093")
+        self.assertEqual(parse("MOD.165 - RAR Rev.3.pdf")["document_type"], "ALTRO")
+
+    def test_parse_none_per_nomi_non_sgi(self):
+        parse, _ = self._parser()
+        self.assertIsNone(parse("prEN_9100_E.pdf"))
+        self.assertIsNone(parse("Quality Plan generico.pdf"))
+
+    def test_fallback_per_nomi_non_standard(self):
+        _, fallback = self._parser()
+        info = fallback("PdQ CN_01.2020 Rev.21_firmato.pdf")
+        self.assertTrue(info["fallback"])
+        self.assertEqual(info["revision"], "21")
+        self.assertTrue(info["code"].startswith("PdQ"))
+        self.assertEqual(info["document_type"], "ALTRO")
+
+    def _build_share(self, tmp):
+        from pathlib import Path
+
+        files = {
+            "9100_Qualita/2_MT/MT CN 06 Rev.21_Risorse Umane.pdf",
+            "9100_Qualita/_Modelli/MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf",
+            "_Piani Qualita/PdQ CN_01.2020 Rev.21_firmato.pdf",   # fallback
+            "SUPERATO/MT CN 99 Rev.1_Vecchio.pdf",                # escluso
+        }
+        for rel in files:
+            path = Path(tmp) / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"%PDF-1.4 contenuto finto")
+        return tmp
+
+    def test_command_dry_run_non_scrive(self):
+        import tempfile
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self._build_share(tmp)
+            call_command("import_sgi_da_share", "--root", tmp)  # niente --apply
+        self.assertEqual(ProcedureDocument.objects.count(), 0)
+
+    def test_command_apply_registra_documenti_correnti_ed_esclude_superato(self):
+        import tempfile
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self._build_share(tmp)
+            call_command("import_sgi_da_share", "--root", tmp, "--apply")
+
+        # 3 documenti (SUPERATO escluso)
+        self.assertEqual(ProcedureDocument.objects.count(), 3)
+        self.assertFalse(ProcedureDocument.objects.filter(code__icontains="MT CN 99").exists())
+
+        mt = ProcedureDocument.objects.get(code="MT CN 06")
+        self.assertEqual(mt.document_type, "MT")
+        self.assertEqual(mt.title, "Risorse Umane")
+        rev = mt.current_revision()
+        self.assertIsNotNone(rev)
+        self.assertEqual(rev.source_type, SourceType.FILESERVER)
+        self.assertEqual(rev.revision_code, "21")
+        self.assertTrue(rev.is_current)
+        self.assertTrue(rev.source_path.endswith(".pdf"))
+        self.assertTrue(rev.file_hash)  # hash calcolato in apply
+
+        # la modulistica e i fallback ci sono
+        self.assertTrue(ProcedureDocument.objects.filter(code="MOD.165").exists())
+        self.assertTrue(ProcedureDocument.objects.filter(code__startswith="PdQ").exists())
+
+    def test_command_solo_procedure_esclude_mod(self):
+        import tempfile
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self._build_share(tmp)
+            call_command("import_sgi_da_share", "--root", tmp, "--apply", "--solo-procedure")
+
+        self.assertTrue(ProcedureDocument.objects.filter(code="MT CN 06").exists())
+        self.assertFalse(ProcedureDocument.objects.filter(code="MOD.165").exists())  # MOD escluso
