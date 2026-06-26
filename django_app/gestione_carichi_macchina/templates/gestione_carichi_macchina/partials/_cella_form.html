@@ -13,7 +13,7 @@
          value="{{ job.testo_originale|default:'' }}"
          hx-get="{% url 'gestione_carichi_macchina:cella_suggerimento' %}"
          hx-trigger="load, keyup changed delay:500ms"
-         hx-target="#gcm-sugg-box" hx-swap="innerHTML"
+         hx-target="#gcm-sugg-{{ macchina.id }}-{{ turno }}-{{ data_iso }}" hx-swap="innerHTML"
          hx-include="[name='macchina'],[name='fase']">
   <div class="gcm-row2">
     <input name="qta" type="number" min="0" placeholder="qta" value="{{ job.qta|default:'' }}">
@@ -28,7 +28,7 @@
     <select name="fase"
             hx-get="{% url 'gestione_carichi_macchina:cella_suggerimento' %}"
             hx-trigger="change"
-            hx-target="#gcm-sugg-box" hx-swap="innerHTML"
+            hx-target="#gcm-sugg-{{ macchina.id }}-{{ turno }}-{{ data_iso }}" hx-swap="innerHTML"
             hx-include="[name='testo'],[name='macchina']">
       {% for val, lbl in fase_choices %}
         <option value="{{ val }}"{% if job and job.fase == val %} selected{% endif %}>{{ lbl }}</option>
@@ -44,5 +44,5 @@
       <button type="submit" name="elimina" value="1" class="gcm-del" title="Elimina">🗑</button>
     {% endif %}
   </div>
-  <div id="gcm-sugg-box"></div>
+  <div id="gcm-sugg-{{ macchina.id }}-{{ turno }}-{{ data_iso }}"></div>
 </form>

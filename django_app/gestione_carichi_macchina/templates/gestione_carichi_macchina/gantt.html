@@ -13,7 +13,11 @@
      pannelli usano gli endpoint reali del modulo.
      ========================================================================== */
   .content { padding: 12px !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
-  .gapp {
+  /* I token --g-* sono condivisi da Gantt, drawer e modali. ATTENZIONE: drawer e
+     overlay sono renderizzati come fratelli di .gapp (non discendenti), quindi le
+     custom property vanno dichiarate anche su di loro o restano undefined → header
+     navy e pulsanti diventano testo bianco su sfondo trasparente ("popup vuoti"). */
+  .gapp, .gcm-drawer, .gcm-ov {
     --g-navy: var(--primary, #0c2545);
     --g-cyan: var(--primary-mid, #1f87cd);
     --g-orange: var(--accent, #ff8a1f);
@@ -21,11 +25,13 @@
     --g-surf: #fff; --g-surfalt: #f6f9fc; --g-border: #d7e0ea;
     --g-text: #1a202c; --g-mid: #4a5568; --g-light: #94a3b8;
     --g-success: #38a169; --g-warning: #d69e2e; --g-danger: #e53e3e;
+    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--g-text);
+  }
+  .gapp {
     display: flex; flex-direction: column;
     border: 1px solid var(--g-border); border-radius: 16px; overflow: hidden;
     background: #fff; box-shadow: 0 16px 34px rgba(12,37,69,.06);
-    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: var(--g-text);
   }
 
   /* ── Header navy ── */
@@ -243,6 +249,24 @@
   .gcm-ai-mac .bar { flex: 1; height: 8px; border-radius: 4px; background: #e8eef6; overflow: hidden; }
   .gcm-ai-mac .bar i { display: block; height: 100%; background: var(--g-cyan); }
   .gcm-muted { color: var(--g-light); font-size: .82rem; }
+
+  /* Box "macchine consigliate" iniettato nella modale "+ Aggiungi lavoro" via HTMX.
+     Il partial _suggerimento_macchina.html usa classi .gcm-sugg* definite anche in
+     excel.html; qui vanno replicate (mappate sui token --g-*) o nel Gantt il box
+     resterebbe senza barre/colori (stesso tipo di bug dei popup senza variabili). */
+  .gcm-sugg { margin-top: 4px; border-top: 1px dashed var(--g-border); padding-top: 8px; color: var(--g-text); }
+  .gcm-sugg-h { font-weight: 800; font-size: .58rem; text-transform: uppercase; letter-spacing: .04em; color: var(--g-light); margin-bottom: 5px; }
+  .gcm-sugg-row { margin-bottom: 6px; }
+  .gcm-sugg-top { display: flex; justify-content: space-between; gap: 4px; line-height: 1.1; font-size: .72rem; }
+  .gcm-sugg-cod { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gcm-sugg-row.cur .gcm-sugg-cod { color: var(--g-cyan); }
+  .gcm-sugg-pct { font-weight: 800; }
+  .gcm-sugg-bar { height: 6px; border-radius: 3px; background: #eef2f8; overflow: hidden; margin-top: 3px; }
+  .gcm-sugg-bar i { display: block; height: 100%; background: var(--g-success); }
+  .gcm-sugg-bar i.media { background: var(--g-warning); }
+  .gcm-sugg-bar i.satura { background: var(--g-danger); }
+  .gcm-sugg-note { color: #b45309; font-size: .64rem; margin-top: 3px; }
+  .gcm-sugg-foot { color: var(--g-light); font-size: .58rem; margin-top: 5px; }
 </style>
 {% endblock %}
 

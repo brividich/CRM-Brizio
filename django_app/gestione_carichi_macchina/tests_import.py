@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from assets.models import Asset
 
-from .importer import Voce, importa, leggi_workbook
+from .importer import Voce, fondi_edizioni, importa, leggi_workbook
 from .models import (
     FamigliaPezzo,
     Macchina,
@@ -109,6 +109,63 @@ class ImportAlgoritmoTest(TestCase):
         op = Operazione.objects.get()
         self.assertEqual(op.tempo_cent_cad, 550)
         self.assertIsNotNone(op.macchina_preferita_id)  # DM3 risolta sull'asset
+
+
+def _ediz_nuova():
+    """Edizione recente (snapshot 15/06): piano vivo su 06-15 + storico interno 06-08."""
+    d = date
+    return (
+        [
+            Voce("DM3", "5_axis", "giorno", d(2026, 6, 15), "8 gimbal (33h)", 0, d(2026, 6, 15)),
+            Voce("DM3", "5_axis", "giorno", d(2026, 6, 8), "8 gimbal (33h)", 1, d(2026, 6, 15)),
+        ],
+        ["AGG 15-06-2026"], [], [],
+    )
+
+
+def _ediz_vecchia():
+    """Edizione vecchia (snapshot 01/05): 06-08 (sovrapposta alla nuova) + 04-20 (extra)."""
+    d = date
+    return (
+        [
+            Voce("DM3", "5_axis", "giorno", d(2026, 6, 8), "8 gimbal (33h)", 0, d(2026, 5, 1)),
+            Voce("DM3", "5_axis", "giorno", d(2026, 4, 20), "8 gimbal (33h)", 0, d(2026, 5, 1)),
+        ],
+        ["AGG 01-05-2026"], [], [],
+    )
+
+
+class FondiEdizioniTest(TestCase):
+    """Import cumulativo da più edizioni del foglio (apprendimento dallo storico)."""
+
+    def setUp(self):
+        _wm("CNC-DM3-12280000463", "DM3 - DMG Mori DMC 85")
+
+    def test_accumulo_senza_doppio_conteggio_e_piano_vivo_dalla_recente(self):
+        # edizioni passate in ordine sparso (vecchia per prima): la recency deve decidere
+        voci, titoli, backlog, cicli = fondi_edizioni([_ediz_vecchia(), _ediz_nuova()])
+        importa(voci, titoli, backlog=backlog, cicli_lines=cicli)
+
+        aff = MacchinaFamigliaAffinita.objects.get(
+            macchina__asset__asset_tag="CNC-DM3-12280000463", famiglia__nome="gimbal",
+        )
+        # 3 settimane DISTINTE (06-15, 06-08, 04-20); 06-08 è in ENTRAMBE le edizioni ->
+        # contata una sola volta (dedup su macchina/data/testo), non 4.
+        self.assertEqual(aff.occorrenze, 3)
+        # la recency resta ancorata allo snapshot più recente
+        self.assertEqual(aff.ultima_data, date(2026, 6, 15))
+        # piano vivo = SOLO l'edizione più recente (06-15); lo storico non genera barre
+        self.assertEqual(Pianificazione.objects.count(), 1)
+        self.assertEqual(Pianificazione.objects.get().data, date(2026, 6, 15))
+
+    def test_senza_accumulo_solo_la_recente(self):
+        # baseline: import della sola edizione nuova -> niente settimana 04-20 nello storico
+        voci, titoli, backlog, cicli = fondi_edizioni([_ediz_nuova()])
+        importa(voci, titoli, backlog=backlog, cicli_lines=cicli)
+        aff = MacchinaFamigliaAffinita.objects.get(
+            macchina__asset__asset_tag="CNC-DM3-12280000463", famiglia__nome="gimbal",
+        )
+        self.assertEqual(aff.occorrenze, 2)  # solo 06-15 e 06-08
 
 
 class ReaderWorkbookTest(TestCase):

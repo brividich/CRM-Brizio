@@ -53,12 +53,16 @@ def pianificazioni_for_asset(asset_id, start, end):
     try:
         from .models import Pianificazione
 
+        # Le più RECENTI prima: le righe sovrapposte a [start, end] hanno data vicina a
+        # `end`; con un ordinamento ascendente + cap, su macchine con storico ampio lo
+        # slice tiene le più vecchie (quasi tutte non sovrapposte) e perde proprio quelle
+        # rilevanti. Prendiamo le ultime e riordiniamo cronologicamente in output.
         qs = (
             Pianificazione.objects.filter(macchina=mac, data__lte=end)
             .select_related("commessa", "famiglia")
-            .order_by("data")
+            .order_by("-data", "-id")
         )
-        for p in qs[:200]:
+        for p in qs[:300]:
             span = _pian_span_days(p, mac)
             p_end = p.data + timedelta(days=span - 1)
             if p_end < start:
@@ -76,6 +80,7 @@ def pianificazioni_for_asset(asset_id, start, end):
                 "label": (p.testo_originale or "")[:80] or (p.famiglia.nome if p.famiglia_id else ""),
                 "is_kickoff": p.fonte == Pianificazione.FONTE_KICKOFF,
             })
+        out.sort(key=lambda r: (r["data"], r["id"]))  # output cronologico
     except Exception:
         logger.warning("pianificazioni_for_asset fallita asset=%s", asset_id, exc_info=True)
     return out

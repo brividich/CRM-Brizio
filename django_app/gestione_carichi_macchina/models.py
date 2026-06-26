@@ -217,7 +217,7 @@ class MacchinaFamigliaAffinita(models.Model):
     class Meta:
         verbose_name = "Affinita' macchina/famiglia"
         verbose_name_plural = "Affinita' macchina/famiglia"
-        ordering = ["-occorrenze"]
+        ordering = ["-occorrenze", "id"]  # id come tie-break: ordine stabile tra pari occorrenze
         constraints = [
             models.UniqueConstraint(
                 fields=["macchina", "famiglia"],
@@ -463,7 +463,7 @@ class Pianificazione(models.Model):
     class Meta:
         verbose_name = "Pianificazione"
         verbose_name_plural = "Pianificazioni"
-        ordering = ["data", "macchina", "turno"]
+        ordering = ["data", "macchina", "turno", "id"]  # id come tie-break: ordine stabile dev/prod
         indexes = [
             models.Index(fields=["macchina", "data"]),
             models.Index(fields=["data", "turno"]),

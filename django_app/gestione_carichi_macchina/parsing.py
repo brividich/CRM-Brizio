@@ -38,7 +38,9 @@ _RE_OP = re.compile(r"op\s?(\d)", re.IGNORECASE)
 _RE_OP_PLUS = re.compile(r"op\d\s*\+\s*(\d)", re.IGNORECASE)
 _RE_OP_PRE = re.compile(r"(\d)\s*°?\s*op\b", re.IGNORECASE)  # "4°OP", "2°op"
 _RE_FASE = re.compile(r"\b(sgr|fin|rip|ass)\b", re.IGNORECASE)
-_RE_FERMA = re.compile(r"(guast|manuten|ferm)", re.IGNORECASE)
+# \b a inizio: senza word boundary "ferm" matcha dentro "con-ferm-are"/"conferma"
+# → una cella tipo "da confermare con cliente" verrebbe scartata come macchina ferma.
+_RE_FERMA = re.compile(r"\b(guast|manuten|ferm)", re.IGNORECASE)
 _RE_TOKEN = re.compile(r"[a-zàèéìòùA-ZÀÈÉÌÒÙ]+")
 
 _FASE_MAP = {"sgr": "sgr", "fin": "fin", "rip": "rip", "ass": "ass"}

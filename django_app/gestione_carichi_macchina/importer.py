@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 
 from django.db import transaction
@@ -200,6 +200,48 @@ def _leggi_fogli(wb, voci, titoli, backlog, cicli_lines) -> None:
                     snapshot_date=snap_date,
                 ))
         snap_idx += 1
+
+
+def fondi_edizioni(
+    letture: list[tuple[list[Voce], list[str], list[str], list[str]]],
+) -> tuple[list[Voce], list[str], list[str], list[str]]:
+    """Fonde più edizioni del foglio per un import **cumulativo** dagli snapshot storici.
+
+    `letture` = lista di tuple `(voci, titoli, backlog, cicli_lines)`, una per file
+    (l'output di `leggi_workbook`). Ritorna un'unica tupla `(voci, titoli, backlog,
+    cicli_lines)` in cui:
+
+    - l'edizione **più recente** (massima `snapshot_date` tra i suoi fogli `AGG`)
+      fornisce il **piano vivo**: le sue voci mantengono lo `snapshot_idx` (0 = vivo) e
+      i suoi `titoli`/`backlog`/`cicli_lines` sono quelli restituiti;
+    - le edizioni più **vecchie** diventano **solo storico** (`snapshot_idx` forzato a
+      >= 1): arricchiscono affinità/recency/pool ma non ridefiniscono il piano corrente,
+      né il backlog/cicli.
+
+    Il dedup di `importa` su `(macchina, data, testo)` riconcilia automaticamente le
+    settimane in comune tra edizioni (nessun doppio conteggio): le settimane presenti
+    **solo** nelle edizioni vecchie aggiungono occorrenze e date allo storico, le altre
+    incrementano soltanto `settimane_presente`.
+
+    Recency: si usa la data degli snapshot `AGG`. Se i titoli non contengono date
+    parsabili la recency è indeterminata e vale l'ordine d'ingresso (elenca per primo il
+    file più recente). Il sort è stabile, quindi a parità di data l'ordine è preservato.
+    """
+    letture = [l for l in letture if l and l[0]]
+    if not letture:
+        return [], [], [], []
+
+    def _recency(lettura) -> date:
+        ds = [v.snapshot_date for v in lettura[0] if v.snapshot_date]
+        return max(ds) if ds else date.min
+
+    ordinati = sorted(letture, key=_recency, reverse=True)  # stabile: tie = ordine d'ingresso
+    voci_out: list[Voce] = list(ordinati[0][0])  # edizione viva: snapshot_idx invariato
+    for voci, *_ in ordinati[1:]:
+        # storico puro: mai snapshot 0 (non tocca piano vivo/backlog/cicli)
+        voci_out.extend(replace(v, snapshot_idx=max(1, v.snapshot_idx)) for v in voci)
+    _voci0, titoli, backlog, cicli_lines = ordinati[0]
+    return voci_out, titoli, backlog, cicli_lines
 
 
 def _stato_ferma(testo: str) -> str:
